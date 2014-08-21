@@ -13,6 +13,10 @@ class Wallace(object):
         "source", or "filter".
 
         """
+        # check that the node type is valid
+        if type not in models.NODE_TYPES:
+            raise ValueError("invalid type: {}".format(type))
+
         node = models.Node(name, type)
         self.db.add(node)
         self.db.commit()

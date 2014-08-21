@@ -8,6 +8,9 @@ from sqlalchemy import Integer, ForeignKey, ForeignKeyConstraint
 from sqlalchemy import Column, Enum, String, DateTime, Text
 from sqlalchemy.orm import relationship
 
+# the types that nodes can be
+NODE_TYPES = ("source", "participant", "filter")
+
 
 class Node(Base):
     __tablename__ = "node"
@@ -16,10 +19,10 @@ class Node(Base):
     id = Column(Integer, primary_key=True)
 
     # the node type -- it MUST be one of these
-    type = Column(Enum("source", "participant", "filter"), nullable=False)
+    type = Column(Enum(*NODE_TYPES), nullable=False)
 
     # a human-readable name for the node
-    name = Column(String(128))
+    name = Column(String(128), nullable=False)
 
     def __init__(self, name, type):
         self.name = name
@@ -94,6 +97,9 @@ class Transmission(Base):
     # the vector that this transmission occurred along
     origin_id = Column(Integer, nullable=False)
     destination_id = Column(Integer, nullable=False)
+
+    # this is a special constraint that says that the origin_id and
+    # destination_id *together* make up the unique id for the vector
     __table_args__ = (
         ForeignKeyConstraint(
             ["origin_id", "destination_id"],
