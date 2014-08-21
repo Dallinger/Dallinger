@@ -21,10 +21,10 @@ if __name__ == "__main__":
         w.add_participant(name)
 
     # create vectors between participants
-    participants = w.participants
-    for p1 in w.participants:
+    participants = w.get_participants()
+    for p1 in participants:
         w.add_vector(source, p1)
-        for p2 in w.participants:
+        for p2 in participants:
             if p1.id != p2.id:
                 w.add_vector(p1, p2)
 

@@ -21,36 +21,32 @@ class Wallace(object):
         db.commit()
         return node
 
-    @property
-    def nodes(self):
-        """All nodes in the database."""
+    def get_nodes(self):
+        """Get all nodes in the database."""
         return db.query(models.Node).all()
 
     def add_participant(self, name):
         """Add a new participant node."""
         return self.add_node(name, "participant")
 
-    @property
-    def participants(self):
-        """All participants in the database."""
+    def get_participants(self):
+        """Get all participants in the database."""
         return db.query(models.Node).filter_by(type="participant").all()
 
     def add_source(self, name):
         """Add a new source node."""
         return self.add_node(name, "source")
 
-    @property
-    def sources(self):
-        """All source nodes in the database."""
+    def get_sources(self):
+        """Get all source nodes in the database."""
         return db.query(models.Node).filter_by(type="source").all()
 
     def add_filter(self, name):
         """Add a new filter node."""
         return self.add_node(name, "filter")
 
-    @property
-    def filters(self):
-        """All filter nodes in the database."""
+    def get_filters(self):
+        """Get all filter nodes in the database."""
         return db.query(models.Node).filter_by(type="filter").all()
 
     def add_vector(self, origin, destination):
@@ -60,14 +56,9 @@ class Wallace(object):
         db.commit()
         return vector
 
-    @property
-    def vectors(self):
-        """All vectors in the database."""
-        return db.query(models.Vector).all()
-
     def get_vectors(self, origin=None, destination=None):
-        """Get the list of vectors, optionally filtered by their origin and/or
-        destination.
+        """Get the list of vectors in the database, optionally filtered by
+        their origin and/or destination.
 
         """
         if origin and destination:
@@ -89,12 +80,10 @@ class Wallace(object):
         db.commit()
         return meme
 
-    @property
-    def memes(self):
-        """All memes in the database."""
+    def get_memes(self):
+        """Get all memes in the database."""
         return db.query(models.Meme).all()
 
-    @property
-    def transmissions(self):
-        """All transmissions in the database."""
+    def get_transmissions(self):
+        """Get all transmissions in the database."""
         return db.query(models.Transmission).all()
