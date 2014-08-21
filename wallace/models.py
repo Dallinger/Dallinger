@@ -1,19 +1,12 @@
 import datetime
 
+# get the connection to the database
+from .db import Base
+
 # various sqlalchemy imports
 from sqlalchemy import Integer, ForeignKey, ForeignKeyConstraint
 from sqlalchemy import Column, Enum, String, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker, scoped_session
-from sqlalchemy import create_engine
-
-# create the connection to the database
-engine = create_engine("mysql://root@localhost/wallace")
-db = scoped_session(sessionmaker(
-    autocommit=False, autoflush=False, bind=engine))
-
-Base = declarative_base()
-Base.query = db.query_property()
+from sqlalchemy.orm import relationship
 
 
 class Node(Base):
@@ -118,54 +111,3 @@ class Transmission(Base):
 
     def __repr__(self):
         return "Transmission-{}".format(self.id)
-
-
-###########################################################################
-
-if __name__ == "__main__":
-    import numpy as np
-
-    # initialize the database
-    Base.metadata.create_all(bind=engine)
-
-    # create the source node (which generates the stimuli)
-    source = Node("Stimuli", "source")
-    db.add(source)
-
-    # create participants
-    for name in ["Jess", "Jordan", "Tom", "Mike", "Stephan"]:
-        p = Node(name, "participant")
-        db.add(p)
-    db.commit()
-
-    # create vectors between participants
-    participants = db.query(Node).filter_by(type="participant").all()
-    for p1 in participants:
-        vector = Vector(source, p1)
-        db.add(vector)
-        for p2 in participants:
-            if p1.id != p2.id:
-                vector = Vector(p1, p2)
-                db.add(vector)
-    db.commit()
-
-    # create the initial stimulus
-    stim = Meme(source, contents="0-0-0-0-0")
-    db.add(stim)
-    db.commit()
-
-    for i in xrange(100):
-        # first pick the vector, and send the stimulus
-        vectors = db.query(Vector).filter_by(origin_id=stim.origin_id).all()
-        vidx = np.random.randint(0, len(vectors))
-        p = vectors[vidx].destination
-        stim.transmit(p)
-
-        # then mutate the stimulus and add the new meme to the database
-        contents = [int(x) for x in stim.contents.split("-")]
-        idx = np.random.randint(0, len(contents))
-        contents[idx] += 1
-        contents = "-".join([str(x) for x in contents])
-        stim = Meme(p, contents)
-        db.add(stim)
-        db.commit()
