@@ -9,3 +9,11 @@ db = scoped_session(sessionmaker(
 
 Base = declarative_base()
 Base.query = db.query_property()
+
+
+def init_db(drop_all=False):
+    """Initialize the database, optionally dropping existing tables."""
+    if drop_all:
+        Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    return db
