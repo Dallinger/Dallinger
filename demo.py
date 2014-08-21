@@ -1,6 +1,13 @@
 import numpy as np
 from wallace import Wallace
 
+"""This is a simple demo of Wallace's behavior. In this demo, an
+initial stimulus of "0-0-0-0-0" is transmitted to a random
+participant. That participant then transmits the (possibly mutated)
+stimulus to another random participant. This type of transmission is
+repeated several times.
+
+"""
 
 if __name__ == "__main__":
     # initialize Wallace
