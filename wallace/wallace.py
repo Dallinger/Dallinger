@@ -19,7 +19,6 @@ class Wallace(object):
 
         node = models.Node(name, type)
         self.db.add(node)
-        self.db.commit()
         return node
 
     def get_nodes(self):
@@ -54,7 +53,6 @@ class Wallace(object):
         """Add a new vector from 'origin' to 'destination'."""
         vector = models.Vector(origin, destination)
         self.db.add(vector)
-        self.db.commit()
         return vector
 
     def get_vectors(self, origin=None, destination=None):
@@ -78,7 +76,6 @@ class Wallace(object):
         """Add a new meme, created by 'origin'."""
         meme = models.Meme(origin, contents=contents)
         self.db.add(meme)
-        self.db.commit()
         return meme
 
     def get_memes(self):

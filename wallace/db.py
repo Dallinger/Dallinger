@@ -4,8 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 # create the connection to the database
 engine = create_engine("mysql://root@localhost/wallace")
-db = scoped_session(sessionmaker(
-    autocommit=False, autoflush=False, bind=engine))
+db = scoped_session(sessionmaker(autoflush=True, bind=engine))
 
 Base = declarative_base()
 Base.query = db.query_property()
