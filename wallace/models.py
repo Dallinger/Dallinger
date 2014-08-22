@@ -30,7 +30,11 @@ class Node(Base):
     name = Column(String(128), nullable=False)
 
     def __init__(self, name, type):
-        self.name = name
+        if not name:
+            raise ValueError("name must not be null")
+        if type not in NODE_TYPES:
+            raise ValueError("invalid node type: {}".format(type))
+        self.name = str(name)
         self.type = type
 
     def __repr__(self):
