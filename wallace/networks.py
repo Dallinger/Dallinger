@@ -1,4 +1,5 @@
 from agents import Agent
+import numpy as np
 
 
 class Network(object):
@@ -8,6 +9,13 @@ class Network(object):
         self.agents = []
         self.sources = []
         self.links = []
+
+    def get_degrees(self):
+        counts = np.zeros(len(self))
+        for idx_agent in xrange(len(self)):
+            counts[idx_agent] = np.sum(
+                [1 for link in self.links if link[0] is self.agents[idx_agent]])
+        return counts
 
     def add_global_source(self, source):
         self.sources.append(source)
@@ -59,3 +67,43 @@ class FullyConnected(Network):
         for agent in self.agents:
             self.links.append((newcomer, agent))
             self.links.append((agent, newcomer))
+
+
+class ScaleFree(Network):
+    """Barabasi-Albert (1999) model for constructing a scale-free network. The
+    construction process begins with a fully-connected network with m0
+    individuals. Each newcomer makes m connections with existing memebers of
+    the network. Critically, new connections are chosen using preferential
+    attachment.
+    """
+
+    def __init__(self, size, m0=4, m=4):
+        core = FullyConnected(m0)
+        self.m = m
+        self.agents = core.agents
+        self.sources = []
+        self.links = core.links
+        for i in xrange(size - m0):
+            self.add_agent()
+
+    def add_agent(self):
+        newcomer = Agent()
+        self.agents.append(newcomer)
+        for idx_newlink in xrange(self.m):
+            d = self.get_degrees()
+            for idx_agent in xrange(len(self)):
+                # Set degree of existing links to zero to prevent repeats
+                if (newcomer, self.agents[idx_agent]) in self.links:
+                    d[idx_agent] = 0
+
+                if self.agents[idx_agent] is newcomer:
+                    d[idx_agent] = 0
+
+            # Select a member using preferential attachment
+            p = d/np.sum(d)
+            idx_linkto = np.flatnonzero(np.random.multinomial(1, p))[0]
+            link_to = self.agents[idx_linkto]
+
+            # Create link from the newcomer to the selected member, and back
+            self.links.append((newcomer, link_to))
+            self.links.append((link_to, newcomer))
