@@ -26,17 +26,6 @@ class Node(Base):
     # the node type -- it MUST be one of these
     type = Column(Enum(*NODE_TYPES), nullable=False)
 
-    # a human-readable name for the node
-    name = Column(String(128), nullable=False)
-
-    def __init__(self, name, type):
-        if not name:
-            raise ValueError("name must not be null")
-        if type not in NODE_TYPES:
-            raise ValueError("invalid node type: {}".format(type))
-        self.name = str(name)
-        self.type = type
-
     def __repr__(self):
         return "Node-{}-{}".format(self.id[:6], self.type)
 
