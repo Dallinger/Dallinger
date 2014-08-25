@@ -1,15 +1,19 @@
 from wallace import models, db
 from nose.tools import raises
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError, OperationalError
 from sqlalchemy.orm.exc import FlushError
 from datetime import datetime
+import time
 
 
 class TestModels(object):
 
     def setup(self):
-        db.db.rollback()
         self.db = db.init_db(drop_all=True)
+
+    def teardown(self):
+        self.db.rollback()
+        self.db.close()
 
     def add(self, node):
         self.db.add(node)
@@ -45,7 +49,7 @@ class TestModels(object):
         node2 = self.add(models.Node(type="source"))
         assert node1.id != node2.id
 
-    @raises(IntegrityError)
+    @raises(DataError)
     def test_create_invalid_node(self):
         self.add(models.Node(type="bar"))
 
@@ -125,17 +129,13 @@ class TestModels(object):
         self.add(models.Vector(origin=node1, destination=node2))
         self.add(models.Vector(origin=node1, destination=node2))
 
-    @raises(IntegrityError)
-    def test_create_vector_to_source(self):
-        node1 = self.add(models.Node(type="agent"))
-        node2 = self.add(models.Node(type="source"))
-        self.add(models.Vector(origin=node1, destination=node2))
-
     def test_create_meme(self):
         node = self.add(models.Node(type="agent"))
 
         before = datetime.now()
+        time.sleep(1)
         meme = self.add(models.Meme(origin=node, contents="foo"))
+        time.sleep(1)
         after = datetime.now()
 
         assert meme.contents == "foo"
@@ -149,11 +149,12 @@ class TestModels(object):
     def test_create_two_memes(self):
         node = self.add(models.Node(type="agent"))
         meme1 = self.add(models.Meme(origin=node))
+        time.sleep(1)
         meme2 = self.add(models.Meme(origin=node))
         assert meme1.id != meme2.id
         assert meme1.creation_time != meme2.creation_time
 
-    @raises(IntegrityError)
+    @raises(OperationalError)
     def test_create_orphan_meme(self):
         self.add(models.Meme())
 
@@ -169,7 +170,9 @@ class TestModels(object):
         meme = self.add(models.Meme(origin=node1))
 
         before = datetime.now()
+        time.sleep(1)
         transmission = self.add(models.Transmission(meme=meme, vector=vector))
+        time.sleep(1)
         after = datetime.now()
 
         assert transmission.meme_id == meme.id
@@ -180,14 +183,6 @@ class TestModels(object):
         assert transmission.transmit_time > before
         assert transmission.transmit_time < after
         assert len(transmission.id) == 32
-
-    @raises(IntegrityError)
-    def test_create_invalid_transmission(self):
-        node1 = self.add(models.Node(type="agent"))
-        node2 = self.add(models.Node(type="agent"))
-        vector = self.add(models.Vector(origin=node1, destination=node2))
-        meme = self.add(models.Meme(origin=node2))
-        self.add(models.Transmission(meme=meme, vector=vector))
 
     def test_transmission_repr(self):
         node1 = self.add(models.Node(type="agent"))
