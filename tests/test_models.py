@@ -19,10 +19,10 @@ class TestModels(object):
         self.db.commit()
 
     def test_create_node(self):
-        node = models.Node(type="source")
+        node = models.Node()
         self.add(node)
 
-        assert node.type == "source"
+        assert node.type == "base"
         assert len(node.id) == 32
         assert len(node.outgoing_vectors) == 0
         assert len(node.incoming_vectors) == 0
@@ -36,12 +36,10 @@ class TestModels(object):
         assert node1.id != node2.id
 
     def test_node_repr(self):
-        node1 = models.Node()
-        node2 = models.Node(type="foo")
-        self.add(node1, node2)
+        node = models.Node()
+        self.add(node)
 
-        assert repr(node1).split("-") == ["Node", node1.id[:6]]
-        assert repr(node2).split("-") == ["Node", node2.id[:6], "foo"]
+        assert repr(node).split("-") == ["Node", node.id[:6], "base"]
 
     def test_node_connect_to(self):
         node1 = models.Node()
@@ -287,3 +285,43 @@ class TestModels(object):
 
         assert not node1.has_connection_from(node2)
         assert node2.has_connection_from(node1)
+
+    def test_node_incoming_transmissions(self):
+        node1 = models.Node()
+        node2 = models.Node()
+        node3 = models.Node()
+        vector1 = node1.connect_from(node2)
+        vector2 = node1.connect_from(node3)
+        self.add(node1, node2, node3, vector1, vector2)
+
+        meme1 = node2.create_meme("foo")
+        meme2 = node3.create_meme("bar")
+        self.add(meme1, meme2)
+
+        transmission1 = node2.transmit(meme1, node1)
+        transmission2 = node3.transmit(meme2, node1)
+        self.add(transmission1, transmission2)
+
+        assert len(node1.incoming_transmissions) == 2
+        assert len(node2.incoming_transmissions) == 0
+        assert len(node3.incoming_transmissions) == 0
+
+    def test_node_outgoing_transmissions(self):
+        node1 = models.Node()
+        node2 = models.Node()
+        node3 = models.Node()
+        vector1 = node1.connect_to(node2)
+        vector2 = node1.connect_to(node3)
+        self.add(node1, node2, node3, vector1, vector2)
+
+        meme1 = node1.create_meme("foo")
+        meme2 = node1.create_meme("bar")
+        self.add(meme1, meme2)
+
+        transmission1 = node1.transmit(meme1, node2)
+        transmission2 = node1.transmit(meme2, node3)
+        self.add(transmission1, transmission2)
+
+        assert len(node1.outgoing_transmissions) == 2
+        assert len(node2.outgoing_transmissions) == 0
+        assert len(node3.outgoing_transmissions) == 0

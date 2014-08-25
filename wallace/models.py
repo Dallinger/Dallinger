@@ -23,7 +23,20 @@ class Node(Base):
 
     # the node type -- this allows for inheritance
     type = Column(String(50))
-    __mapper_args__ = {'polymorphic_on': type}
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'base'
+    }
+
+    # incoming and outgoing transmissions to this node
+    incoming_transmissions = relationship(
+        "Transmission",
+        primaryjoin="foreign(Transmission.destination_id) == Node.id",
+        order_by="Transmission.transmit_time")
+    outgoing_transmissions = relationship(
+        "Transmission",
+        primaryjoin="foreign(Transmission.origin_id) == Node.id",
+        order_by="Transmission.transmit_time")
 
     def __repr__(self):
         reprstr = "Node-{}".format(self.id[:6])
