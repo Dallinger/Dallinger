@@ -1,8 +1,7 @@
 from wallace import models, db
 from nose.tools import raises
-from sqlalchemy.exc import DataError, IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm.exc import FlushError
-from datetime import datetime
 import time
 
 
@@ -19,7 +18,7 @@ class TestModels(object):
         self.db.add_all(args)
         self.db.commit()
 
-    def test_create_source_node(self):
+    def test_create_node(self):
         node = models.Node(type="source")
         self.add(node)
 
@@ -29,51 +28,24 @@ class TestModels(object):
         assert len(node.incoming_vectors) == 0
         assert len(node.outgoing_memes) == 0
 
-    def test_create_agent_node(self):
-        node = models.Node(type="agent")
-        self.add(node)
-
-        assert node.type == "agent"
-        assert len(node.id) == 32
-        assert len(node.outgoing_vectors) == 0
-        assert len(node.incoming_vectors) == 0
-        assert len(node.outgoing_memes) == 0
-
-    def test_create_filter_node(self):
-        node = models.Node(type="filter")
-        self.add(node)
-
-        assert node.type == "filter"
-        assert len(node.id) == 32
-        assert len(node.outgoing_vectors) == 0
-        assert len(node.incoming_vectors) == 0
-        assert len(node.outgoing_memes) == 0
-
     def test_different_node_ids(self):
-        node1 = models.Node(type="source")
-        node2 = models.Node(type="source")
+        node1 = models.Node()
+        node2 = models.Node()
         self.add(node1, node2)
 
         assert node1.id != node2.id
 
-    @raises(DataError)
-    def test_create_invalid_node(self):
-        node = models.Node(type="bar")
-        self.add(node)
-
     def test_node_repr(self):
-        node1 = models.Node(type="source")
-        node2 = models.Node(type="agent")
-        node3 = models.Node(type="filter")
-        self.add(node1, node2, node3)
+        node1 = models.Node()
+        node2 = models.Node(type="foo")
+        self.add(node1, node2)
 
-        assert repr(node1).split("-") == ["Node", node1.id[:6], "source"]
-        assert repr(node2).split("-") == ["Node", node2.id[:6], "agent"]
-        assert repr(node3).split("-") == ["Node", node3.id[:6], "filter"]
+        assert repr(node1).split("-") == ["Node", node1.id[:6]]
+        assert repr(node2).split("-") == ["Node", node2.id[:6], "foo"]
 
     def test_node_connect_to(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector = node1.connect_to(node2)
         self.add(node1, node2, vector)
 
@@ -81,8 +53,8 @@ class TestModels(object):
         assert vector.destination_id == node2.id
 
     def test_node_connect_from(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector = node1.connect_from(node2)
         self.add(node1, node2, vector)
 
@@ -90,8 +62,8 @@ class TestModels(object):
         assert vector.destination_id == node1.id
 
     def test_create_vector(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector = models.Vector(origin=node1, destination=node2)
         self.add(node1, node2, vector)
 
@@ -107,8 +79,8 @@ class TestModels(object):
         assert len(node2.outgoing_vectors) == 0
 
     def test_create_bidirectional_vectors(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector1 = models.Vector(origin=node1, destination=node2)
         vector2 = models.Vector(origin=node2, destination=node1)
         self.add(node1, node2, vector1, vector2)
@@ -128,8 +100,8 @@ class TestModels(object):
         assert node2.outgoing_vectors == [vector2]
 
     def test_vector_repr(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector1 = models.Vector(origin=node1, destination=node2)
         vector2 = models.Vector(origin=node2, destination=node1)
         self.add(node1, node2, vector1, vector2)
@@ -139,14 +111,14 @@ class TestModels(object):
 
     @raises(IntegrityError, FlushError)
     def test_create_duplicate_vector(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector1 = models.Vector(origin=node1, destination=node2)
         vector2 = models.Vector(origin=node1, destination=node2)
         self.add(node1, node2, vector1, vector2)
 
     def test_create_meme(self):
-        node = models.Node(type="agent")
+        node = models.Node()
         meme = models.Meme(origin=node, contents="foo")
         self.add(node, meme)
 
@@ -158,7 +130,7 @@ class TestModels(object):
         assert len(meme.transmissions) == 0
 
     def test_create_two_memes(self):
-        node = models.Node(type="agent")
+        node = models.Node()
         meme1 = models.Meme(origin=node)
         self.add(node, meme1)
 
@@ -174,15 +146,15 @@ class TestModels(object):
         self.add(models.Meme())
 
     def test_meme_repr(self):
-        node = models.Node(type="agent")
+        node = models.Node()
         meme = models.Meme(origin=node)
         self.add(node, meme)
 
         assert repr(meme).split("-") == ["Meme", meme.id[:6]]
 
     def test_create_transmission(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector = models.Vector(origin=node1, destination=node2)
         meme = models.Meme(origin=node1)
         transmission = models.Transmission(meme=meme, vector=vector)
@@ -197,8 +169,8 @@ class TestModels(object):
         assert len(transmission.id) == 32
 
     def test_transmission_repr(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector = models.Vector(origin=node1, destination=node2)
         meme = models.Meme(origin=node1)
         transmission = models.Transmission(meme=meme, vector=vector)
@@ -207,7 +179,7 @@ class TestModels(object):
         assert repr(transmission).split("-") == ["Transmission", transmission.id[:6]]
 
     def test_node_create_empty_meme(self):
-        node = models.Node(type="agent")
+        node = models.Node()
         meme = node.create_meme()
         self.add(node, meme)
 
@@ -215,7 +187,7 @@ class TestModels(object):
         assert meme.contents is None
 
     def test_node_create_meme(self):
-        node = models.Node(type="agent")
+        node = models.Node()
         meme = node.create_meme(contents="foo")
         self.add(node, meme)
 
@@ -223,8 +195,8 @@ class TestModels(object):
         assert meme.contents == "foo"
 
     def test_node_transmit(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector = node1.connect_to(node2)
         meme = node1.create_meme(contents="foo")
         self.add(node1, node2, vector, meme)
@@ -238,8 +210,8 @@ class TestModels(object):
 
     @raises(ValueError)
     def test_node_transmit_bad_origin(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector = node1.connect_to(node2)
         meme = node2.create_meme(contents="foo")
         self.add(node1, node2, vector, meme)
@@ -249,8 +221,8 @@ class TestModels(object):
 
     @raises(ValueError)
     def test_node_transmit_no_connection(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         meme = node1.create_meme(contents="foo")
         self.add(node1, node2, meme)
 
@@ -258,11 +230,11 @@ class TestModels(object):
         self.add(transmission)
 
     def test_node_broadcast(self):
-        node1 = models.Node(type="agent")
+        node1 = models.Node()
         self.db.add(node1)
 
         for i in xrange(5):
-            new_node = models.Node(type="agent")
+            new_node = models.Node()
             vector = node1.connect_to(new_node)
             self.db.add_all([new_node, vector])
 
@@ -275,32 +247,32 @@ class TestModels(object):
         assert len(transmissions) == 5
 
     def test_node_outdegree(self):
-        node1 = models.Node(type="agent")
+        node1 = models.Node()
         self.db.add(node1)
 
         for i in xrange(5):
             assert node1.outdegree == i
-            new_node = models.Node(type="agent")
+            new_node = models.Node()
             vector = node1.connect_to(new_node)
             self.add(new_node, vector)
 
         assert node1.outdegree == 5
 
     def test_node_indegree(self):
-        node1 = models.Node(type="agent")
+        node1 = models.Node()
         self.db.add(node1)
 
         for i in xrange(5):
             assert node1.indegree == i
-            new_node = models.Node(type="agent")
+            new_node = models.Node()
             vector = node1.connect_from(new_node)
             self.add(new_node, vector)
 
         assert node1.indegree == 5
 
     def test_node_has_connection_to(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector = node1.connect_to(node2)
         self.add(node1, node2, vector)
 
@@ -308,8 +280,8 @@ class TestModels(object):
         assert not node2.has_connection_to(node1)
 
     def test_node_has_connection_from(self):
-        node1 = models.Node(type="agent")
-        node2 = models.Node(type="agent")
+        node1 = models.Node()
+        node2 = models.Node()
         vector = node1.connect_to(node2)
         self.add(node1, node2, vector)
 

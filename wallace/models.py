@@ -6,12 +6,9 @@ from .db import Base
 
 # various sqlalchemy imports
 from sqlalchemy import ForeignKey, ForeignKeyConstraint
-from sqlalchemy import Column, Enum, String, DateTime, Text
+from sqlalchemy import Column, String, DateTime, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
-
-# the types that nodes can be
-NODE_TYPES = ("source", "agent", "filter")
 
 
 def new_id():
@@ -24,11 +21,15 @@ class Node(Base):
     # the unique node id
     id = Column(String(32), primary_key=True, default=new_id)
 
-    # the node type -- it MUST be one of these
-    type = Column(Enum(*NODE_TYPES), nullable=False)
+    # the node type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {'polymorphic_on': type}
 
     def __repr__(self):
-        return "Node-{}-{}".format(self.id[:6], self.type)
+        reprstr = "Node-{}".format(self.id[:6])
+        if self.type:
+            reprstr = "{}-{}".format(reprstr, self.type)
+        return reprstr
 
     def connect_to(self, other_node):
         """Creates a directed edge from self to other_node"""
