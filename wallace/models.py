@@ -8,6 +8,7 @@ from .db import Base
 from sqlalchemy import ForeignKey, ForeignKeyConstraint
 from sqlalchemy import Column, Enum, String, DateTime, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 
 # the types that nodes can be
 NODE_TYPES = ("source", "agent", "filter")
@@ -36,6 +37,62 @@ class Node(Base):
     def connect_from(self, other_node):
         """Creates a directed edge from other_node to self"""
         return Vector(origin=other_node, destination=self)
+
+    def create_meme(self, contents=None):
+        """Generates a meme with an origin of this node and the given
+        contents.
+
+        """
+        return Meme(origin=self, contents=contents)
+
+    def transmit(self, meme, other_node):
+        """Transmits the specified meme to 'other_node'. The meme must have
+        been created by this node, and this node must be connected to
+        'other_node'.
+
+        """
+        if meme.origin_id != self.id:
+            raise ValueError("meme origin id mismatch")
+        if not self.has_connection_to(other_node):
+            raise ValueError(
+                "'{}' is not connected to '{}'".format(self, other_node))
+        return Transmission(
+            meme=meme, origin_id=self.id, destination_id=other_node.id)
+
+    def broadcast(self, meme):
+        """Broadcast the specified meme to all connected nodes. The meme must
+        have been created by this node.
+
+        """
+        transmissions = []
+        for vector in self.outgoing_vectors:
+            transmissions.append(
+                self.transmit(meme, vector.destination))
+        return transmissions
+
+    @hybrid_property
+    def outdegree(self):
+        """The outdegree (number of outgoing edges) of this node."""
+        return len(self.outgoing_vectors)
+
+    @hybrid_property
+    def indegree(self):
+        """The indegree (number of incoming edges) of this node."""
+        return len(self.incoming_vectors)
+
+    def has_connection_to(self, other_node):
+        """Whether this node has a connection to 'other_node'."""
+        for vector in self.outgoing_vectors:
+            if vector.destination_id == other_node.id:
+                return True
+        return False
+
+    def has_connection_from(self, other_node):
+        """Whether this node has a connection from 'other_node'."""
+        for vector in self.incoming_vectors:
+            if vector.origin_id == other_node.id:
+                return True
+        return False
 
 
 class Vector(Base):
