@@ -68,16 +68,8 @@ class Meme(Base):
     # the contents of the meme
     contents = Column(Text(4294967295))
 
-    def __init__(self, origin, contents=None):
-        self.origin = origin
-        self.contents = contents
-
     def __repr__(self):
         return "Meme-{}".format(self.id[:6])
-
-    def transmit(self, destination):
-        """Transmit the meme to the given destination."""
-        Transmission(self, destination)
 
 
 class Transmission(Base):

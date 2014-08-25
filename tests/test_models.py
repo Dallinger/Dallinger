@@ -2,6 +2,7 @@ from wallace import models, db
 from nose.tools import raises
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import FlushError
+from datetime import datetime
 
 
 class TestModels(object):
@@ -21,6 +22,7 @@ class TestModels(object):
         assert len(node.id) == 32
         assert len(node.outgoing_vectors) == 0
         assert len(node.incoming_vectors) == 0
+        assert len(node.outgoing_memes) == 0
 
     def test_create_participant_node(self):
         node = self.add(models.Node(type="participant"))
@@ -28,6 +30,7 @@ class TestModels(object):
         assert len(node.id) == 32
         assert len(node.outgoing_vectors) == 0
         assert len(node.incoming_vectors) == 0
+        assert len(node.outgoing_memes) == 0
 
     def test_create_filter_node(self):
         node = self.add(models.Node(type="filter"))
@@ -35,6 +38,7 @@ class TestModels(object):
         assert len(node.id) == 32
         assert len(node.outgoing_vectors) == 0
         assert len(node.incoming_vectors) == 0
+        assert len(node.outgoing_memes) == 0
 
     def test_different_node_ids(self):
         node1 = self.add(models.Node(type="source"))
@@ -59,9 +63,11 @@ class TestModels(object):
         node1 = self.add(models.Node(type="participant"))
         node2 = self.add(models.Node(type="participant"))
         vector = self.add(models.Vector(origin=node1, destination=node2))
+
         # check that the origin/destination ids are correct
         assert vector.origin_id == node1.id
         assert vector.destination_id == node2.id
+
         # check that incoming/outgoing vectors are correct
         assert node1.incoming_vectors == []
         assert node1.outgoing_vectors == [vector]
@@ -86,9 +92,61 @@ class TestModels(object):
         assert node2.incoming_vectors == [vector1]
         assert node2.outgoing_vectors == [vector2]
 
+    def test_vector_repr(self):
+        node1 = self.add(models.Node(type="participant"))
+        node2 = self.add(models.Node(type="participant"))
+        vector1 = self.add(models.Vector(origin=node1, destination=node2))
+        vector2 = self.add(models.Vector(origin=node2, destination=node1))
+
+        assert repr(vector1).split("-") == ["Vector", node1.id[:6], node2.id[:6]]
+        assert repr(vector2).split("-") == ["Vector", node2.id[:6], node1.id[:6]]
+
     @raises(IntegrityError, FlushError)
     def test_create_duplicate_vector(self):
         node1 = self.add(models.Node(type="participant"))
         node2 = self.add(models.Node(type="participant"))
         self.add(models.Vector(origin=node1, destination=node2))
         self.add(models.Vector(origin=node1, destination=node2))
+
+    def test_create_meme(self):
+        node = self.add(models.Node(type="participant"))
+
+        before = datetime.now()
+        meme = self.add(models.Meme(origin=node, contents="foo"))
+        after = datetime.now()
+
+        assert meme.contents == "foo"
+        assert meme.creation_time > before
+        assert meme.creation_time < after
+        assert meme.origin_id == node.id
+        assert len(meme.id) == 32
+
+    def test_create_empty_meme(self):
+        node = self.add(models.Node(type="participant"))
+
+        before = datetime.now()
+        meme = self.add(models.Meme(origin=node))
+        after = datetime.now()
+
+        assert meme.contents is None
+        assert meme.creation_time > before
+        assert meme.creation_time < after
+        assert meme.origin_id == node.id
+        assert node.outgoing_memes == [meme]
+        assert len(meme.id) == 32
+
+    def test_create_two_memes(self):
+        node = self.add(models.Node(type="participant"))
+        meme1 = self.add(models.Meme(origin=node))
+        meme2 = self.add(models.Meme(origin=node))
+        assert meme1.id != meme2.id
+        assert meme1.creation_time != meme2.creation_time
+
+    @raises(IntegrityError)
+    def test_create_orphan_meme(self):
+        self.add(models.Meme())
+
+    def test_meme_repr(self):
+        node = self.add(models.Node(type="participant"))
+        meme = self.add(models.Meme(origin=node))
+        assert repr(meme).split("-") == ["Meme", meme.id[:6]]
