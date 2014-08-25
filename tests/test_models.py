@@ -67,12 +67,13 @@ class TestModels(object):
         # check that the origin/destination ids are correct
         assert vector.origin_id == node1.id
         assert vector.destination_id == node2.id
+        assert len(vector.transmissions) == 0
 
         # check that incoming/outgoing vectors are correct
-        assert node1.incoming_vectors == []
+        assert len(node1.incoming_vectors) == 0
         assert node1.outgoing_vectors == [vector]
         assert node2.incoming_vectors == [vector]
-        assert node2.outgoing_vectors == []
+        assert len(node2.outgoing_vectors) == 0
 
     def test_create_bidirectional_vectors(self):
         node1 = self.add(models.Node(type="participant"))
@@ -83,8 +84,10 @@ class TestModels(object):
         # check that the origin/destination ids are correct
         assert vector1.origin_id == node1.id
         assert vector1.destination_id == node2.id
+        assert len(vector1.transmissions) == 0
         assert vector2.origin_id == node2.id
         assert vector2.destination_id == node1.id
+        assert len(vector2.transmissions) == 0
 
         # check that incoming/outgoing vectors are correct
         assert node1.incoming_vectors == [vector2]
@@ -119,21 +122,9 @@ class TestModels(object):
         assert meme.creation_time > before
         assert meme.creation_time < after
         assert meme.origin_id == node.id
-        assert len(meme.id) == 32
-
-    def test_create_empty_meme(self):
-        node = self.add(models.Node(type="participant"))
-
-        before = datetime.now()
-        meme = self.add(models.Meme(origin=node))
-        after = datetime.now()
-
-        assert meme.contents is None
-        assert meme.creation_time > before
-        assert meme.creation_time < after
-        assert meme.origin_id == node.id
         assert node.outgoing_memes == [meme]
         assert len(meme.id) == 32
+        assert len(meme.transmissions) == 0
 
     def test_create_two_memes(self):
         node = self.add(models.Node(type="participant"))
@@ -150,3 +141,38 @@ class TestModels(object):
         node = self.add(models.Node(type="participant"))
         meme = self.add(models.Meme(origin=node))
         assert repr(meme).split("-") == ["Meme", meme.id[:6]]
+
+    def test_create_transmission(self):
+        node1 = self.add(models.Node(type="participant"))
+        node2 = self.add(models.Node(type="participant"))
+        vector = self.add(models.Vector(origin=node1, destination=node2))
+        meme = self.add(models.Meme(origin=node1))
+
+        before = datetime.now()
+        transmission = self.add(models.Transmission(meme=meme, vector=vector))
+        after = datetime.now()
+
+        assert transmission.meme_id == meme.id
+        assert transmission.origin_id == meme.origin_id
+        assert transmission.origin_id == vector.origin_id
+        assert transmission.destination_id == vector.destination_id
+        assert transmission.vector == vector
+        assert transmission.transmit_time > before
+        assert transmission.transmit_time < after
+        assert len(transmission.id) == 32
+
+    @raises(IntegrityError)
+    def test_create_invalid_transmission(self):
+        node1 = self.add(models.Node(type="participant"))
+        node2 = self.add(models.Node(type="participant"))
+        vector = self.add(models.Vector(origin=node1, destination=node2))
+        meme = self.add(models.Meme(origin=node2))
+        self.add(models.Transmission(meme=meme, vector=vector))
+
+    def test_transmission_repr(self):
+        node1 = self.add(models.Node(type="participant"))
+        node2 = self.add(models.Node(type="participant"))
+        vector = self.add(models.Vector(origin=node1, destination=node2))
+        meme = self.add(models.Meme(origin=node1))
+        transmission = self.add(models.Transmission(meme=meme, vector=vector))
+        assert repr(transmission).split("-") == ["Transmission", transmission.id[:6]]

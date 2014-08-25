@@ -5,7 +5,7 @@ from datetime import datetime
 from .db import Base
 
 # various sqlalchemy imports
-from sqlalchemy import ForeignKey, ForeignKeyConstraint
+from sqlalchemy import ForeignKey, ForeignKeyConstraint, CheckConstraint
 from sqlalchemy import Column, Enum, String, DateTime, Text
 from sqlalchemy.orm import relationship
 
@@ -44,9 +44,6 @@ class Vector(Base):
     destination = relationship(
         Node, foreign_keys=[destination_id], backref="incoming_vectors")
 
-    # all transmissions that have occurred along this vector
-    transmissions = relationship("Transmission", backref='vector')
-
     def __repr__(self):
         return "Vector-{}-{}".format(
             self.origin_id[:6], self.destination_id[:6])
@@ -79,29 +76,30 @@ class Transmission(Base):
     id = Column(String(32), primary_key=True, default=new_id)
 
     # the meme that was transmitted
-    meme_id = Column(String(32), ForeignKey('meme.id'), nullable=False)
+    meme_id = Column(String(32), nullable=False)
+    meme_origin_id = Column(String(32), nullable=False)
     meme = relationship(Meme, backref='transmissions')
 
     # the origin and destination nodes, which gives us a reference to
     # the vector that this transmission occurred along
     origin_id = Column(String(32), nullable=False)
     destination_id = Column(String(32), nullable=False)
+    vector = relationship(Vector, backref='transmissions')
 
-    # this is a special constraint that says that the origin_id and
-    # destination_id *together* make up the unique id for the vector
+    # these are special constraints that ensure (1) that the meme
+    # origin is the same as the vector origin and (2) that the vector
+    # is defined by the origin id and the destination id
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["meme_id", "meme_origin_id"],
+            ["meme.id", "meme.origin_id"]),
         ForeignKeyConstraint(
             ["origin_id", "destination_id"],
             ["vector.origin_id", "vector.destination_id"]),
-        {})
+        CheckConstraint("origin_id == meme_origin_id"))
 
     # the time at which the transmission occurred
     transmit_time = Column(DateTime, nullable=False, default=datetime.now)
-
-    def __init__(self, meme, destination):
-        self.meme = meme
-        self.origin_id = meme.origin_id
-        self.destination_id = destination.id
 
     def __repr__(self):
         return "Transmission-{}".format(self.id[:6])
