@@ -10,7 +10,7 @@ from sqlalchemy import Column, Enum, String, DateTime, Text
 from sqlalchemy.orm import relationship
 
 # the types that nodes can be
-NODE_TYPES = ("source", "participant", "filter")
+NODE_TYPES = ("source", "agent", "filter")
 
 
 def new_id():
@@ -29,20 +29,40 @@ class Node(Base):
     def __repr__(self):
         return "Node-{}-{}".format(self.id[:6], self.type)
 
+    def connect_to(self, other_node):
+        """Creates a directed edge from self to other_node"""
+        return Vector(origin=self, destination=other_node)
+
+    def connect_from(self, other_node):
+        """Creates a directed edge from other_node to self"""
+        return Vector(origin=other_node, destination=self)
+
 
 class Vector(Base):
     __tablename__ = "vector"
 
     # the origin node
-    origin_id = Column(String(32), ForeignKey('node.id'), primary_key=True)
+    origin_id = Column(String(32), primary_key=True)
+    origin_type = Column(Enum(*NODE_TYPES), nullable=False)
     origin = relationship(
-        Node, foreign_keys=[origin_id], backref="outgoing_vectors")
+        Node, foreign_keys=[origin_id, origin_type],
+        backref="outgoing_vectors")
 
     # the destination node
-    destination_id = Column(
-        String(32), ForeignKey('node.id'), primary_key=True)
+    destination_id = Column(String(32), primary_key=True)
+    destination_type = Column(Enum(*NODE_TYPES), nullable=False)
     destination = relationship(
-        Node, foreign_keys=[destination_id], backref="incoming_vectors")
+        Node, foreign_keys=[destination_id, destination_type],
+        backref="incoming_vectors")
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["origin_id", "origin_type"],
+            ["node.id", "node.type"]),
+        ForeignKeyConstraint(
+            ["destination_id", "destination_type"],
+            ["node.id", "node.type"]),
+        CheckConstraint("destination_type != 'source'"))
 
     def __repr__(self):
         return "Vector-{}-{}".format(

@@ -24,9 +24,9 @@ class TestModels(object):
         assert len(node.incoming_vectors) == 0
         assert len(node.outgoing_memes) == 0
 
-    def test_create_participant_node(self):
-        node = self.add(models.Node(type="participant"))
-        assert node.type == "participant"
+    def test_create_agent_node(self):
+        node = self.add(models.Node(type="agent"))
+        assert node.type == "agent"
         assert len(node.id) == 32
         assert len(node.outgoing_vectors) == 0
         assert len(node.incoming_vectors) == 0
@@ -53,15 +53,29 @@ class TestModels(object):
         node = self.add(models.Node(type="source"))
         assert repr(node).split("-") == ["Node", node.id[:6], "source"]
 
-        node = self.add(models.Node(type="participant"))
-        assert repr(node).split("-") == ["Node", node.id[:6], "participant"]
+        node = self.add(models.Node(type="agent"))
+        assert repr(node).split("-") == ["Node", node.id[:6], "agent"]
 
         node = self.add(models.Node(type="filter"))
         assert repr(node).split("-") == ["Node", node.id[:6], "filter"]
 
+    def test_node_connect_to(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
+        vector = self.add(node1.connect_to(node2))
+        assert vector.origin_id == node1.id
+        assert vector.destination_id == node2.id
+
+    def test_node_connect_from(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
+        vector = self.add(node1.connect_from(node2))
+        assert vector.origin_id == node2.id
+        assert vector.destination_id == node1.id
+
     def test_create_vector(self):
-        node1 = self.add(models.Node(type="participant"))
-        node2 = self.add(models.Node(type="participant"))
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
         vector = self.add(models.Vector(origin=node1, destination=node2))
 
         # check that the origin/destination ids are correct
@@ -76,8 +90,8 @@ class TestModels(object):
         assert len(node2.outgoing_vectors) == 0
 
     def test_create_bidirectional_vectors(self):
-        node1 = self.add(models.Node(type="participant"))
-        node2 = self.add(models.Node(type="participant"))
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
         vector1 = self.add(models.Vector(origin=node1, destination=node2))
         vector2 = self.add(models.Vector(origin=node2, destination=node1))
 
@@ -96,8 +110,8 @@ class TestModels(object):
         assert node2.outgoing_vectors == [vector2]
 
     def test_vector_repr(self):
-        node1 = self.add(models.Node(type="participant"))
-        node2 = self.add(models.Node(type="participant"))
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
         vector1 = self.add(models.Vector(origin=node1, destination=node2))
         vector2 = self.add(models.Vector(origin=node2, destination=node1))
 
@@ -106,13 +120,19 @@ class TestModels(object):
 
     @raises(IntegrityError, FlushError)
     def test_create_duplicate_vector(self):
-        node1 = self.add(models.Node(type="participant"))
-        node2 = self.add(models.Node(type="participant"))
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
         self.add(models.Vector(origin=node1, destination=node2))
         self.add(models.Vector(origin=node1, destination=node2))
 
+    @raises(IntegrityError)
+    def test_create_vector_to_source(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="source"))
+        self.add(models.Vector(origin=node1, destination=node2))
+
     def test_create_meme(self):
-        node = self.add(models.Node(type="participant"))
+        node = self.add(models.Node(type="agent"))
 
         before = datetime.now()
         meme = self.add(models.Meme(origin=node, contents="foo"))
@@ -127,7 +147,7 @@ class TestModels(object):
         assert len(meme.transmissions) == 0
 
     def test_create_two_memes(self):
-        node = self.add(models.Node(type="participant"))
+        node = self.add(models.Node(type="agent"))
         meme1 = self.add(models.Meme(origin=node))
         meme2 = self.add(models.Meme(origin=node))
         assert meme1.id != meme2.id
@@ -138,13 +158,13 @@ class TestModels(object):
         self.add(models.Meme())
 
     def test_meme_repr(self):
-        node = self.add(models.Node(type="participant"))
+        node = self.add(models.Node(type="agent"))
         meme = self.add(models.Meme(origin=node))
         assert repr(meme).split("-") == ["Meme", meme.id[:6]]
 
     def test_create_transmission(self):
-        node1 = self.add(models.Node(type="participant"))
-        node2 = self.add(models.Node(type="participant"))
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
         vector = self.add(models.Vector(origin=node1, destination=node2))
         meme = self.add(models.Meme(origin=node1))
 
@@ -163,15 +183,15 @@ class TestModels(object):
 
     @raises(IntegrityError)
     def test_create_invalid_transmission(self):
-        node1 = self.add(models.Node(type="participant"))
-        node2 = self.add(models.Node(type="participant"))
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
         vector = self.add(models.Vector(origin=node1, destination=node2))
         meme = self.add(models.Meme(origin=node2))
         self.add(models.Transmission(meme=meme, vector=vector))
 
     def test_transmission_repr(self):
-        node1 = self.add(models.Node(type="participant"))
-        node2 = self.add(models.Node(type="participant"))
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
         vector = self.add(models.Vector(origin=node1, destination=node2))
         meme = self.add(models.Meme(origin=node1))
         transmission = self.add(models.Transmission(meme=meme, vector=vector))
