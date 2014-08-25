@@ -150,7 +150,7 @@ class TestModels(object):
         meme = models.Meme(origin=node)
         self.add(node, meme)
 
-        assert repr(meme).split("-") == ["Meme", meme.id[:6]]
+        assert repr(meme).split("-") == ["Meme", meme.id[:6], "base"]
 
     def test_create_transmission(self):
         node1 = models.Node()

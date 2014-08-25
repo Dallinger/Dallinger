@@ -130,6 +130,13 @@ class Meme(Base):
     # the unique meme id
     id = Column(String(32), primary_key=True, default=new_id)
 
+    # the meme type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'base'
+    }
+
     # the node that produced this meme
     origin_id = Column(String(32), ForeignKey('node.id'), nullable=False)
     origin = relationship("Node", backref="outgoing_memes")
@@ -141,7 +148,7 @@ class Meme(Base):
     contents = Column(Text(4294967295))
 
     def __repr__(self):
-        return "Meme-{}".format(self.id[:6])
+        return "Meme-{}-{}".format(self.id[:6], self.type)
 
 
 class Transmission(Base):
