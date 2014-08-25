@@ -28,6 +28,9 @@ if __name__ == "__main__":
             if p1.id != p2.id:
                 w.add_vector(p1, p2)
 
+    # commit the initial setup to the database
+    w.db.commit()
+
     # create the initial stimulus
     stim = w.add_meme(source, contents="0-0-0-0-0")
 
@@ -41,6 +44,7 @@ if __name__ == "__main__":
         print "'{}' sends '{}' to '{}'".format(
             stim.origin.name, stim.contents, p.name)
         stim.transmit(p)
+        w.db.commit()
 
         # then randomly mutate the stimulus and add the new meme to
         # the database

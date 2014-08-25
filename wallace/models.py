@@ -1,10 +1,11 @@
-import datetime
+from uuid import uuid4
+from datetime import datetime
 
 # get the connection to the database
 from .db import Base
 
 # various sqlalchemy imports
-from sqlalchemy import Integer, ForeignKey, ForeignKeyConstraint
+from sqlalchemy import ForeignKey, ForeignKeyConstraint
 from sqlalchemy import Column, Enum, String, DateTime, Text
 from sqlalchemy.orm import relationship
 
@@ -12,11 +13,15 @@ from sqlalchemy.orm import relationship
 NODE_TYPES = ("source", "participant", "filter")
 
 
+def new_id():
+    return uuid4().hex
+
+
 class Node(Base):
     __tablename__ = "node"
 
     # the unique node id
-    id = Column(Integer, primary_key=True)
+    id = Column(String(32), primary_key=True, default=new_id)
 
     # the node type -- it MUST be one of these
     type = Column(Enum(*NODE_TYPES), nullable=False)
@@ -29,18 +34,19 @@ class Node(Base):
         self.type = type
 
     def __repr__(self):
-        return "Node-{}-{}".format(self.id, self.type)
+        return "Node-{}-{}".format(self.id[:6], self.type)
 
 
 class Vector(Base):
     __tablename__ = "vector"
 
     # the origin node
-    origin_id = Column(Integer, ForeignKey('node.id'), primary_key=True)
+    origin_id = Column(String(32), ForeignKey('node.id'), primary_key=True)
     origin = relationship(Node, foreign_keys=[origin_id])
 
     # the destination node
-    destination_id = Column(Integer, ForeignKey('node.id'), primary_key=True)
+    destination_id = Column(
+        String(32), ForeignKey('node.id'), primary_key=True)
     destination = relationship(Node, foreign_keys=[destination_id])
 
     # all transmissions that have occurred along this vector
@@ -51,32 +57,32 @@ class Vector(Base):
         self.destination = destination
 
     def __repr__(self):
-        return "Vector-{}-{}".format(self.origin_id, self.destination_id)
+        return "Vector-{}-{}".format(
+            self.origin_id[:6], self.destination_id[:6])
 
 
 class Meme(Base):
     __tablename__ = "meme"
 
     # the unique meme id
-    id = Column(Integer, primary_key=True)
+    id = Column(String(32), primary_key=True, default=new_id)
 
     # the node that produced this meme
-    origin_id = Column(Integer, ForeignKey('node.id'), nullable=False)
+    origin_id = Column(String(32), ForeignKey('node.id'), nullable=False)
     origin = relationship("Node", backref="outgoing_memes")
 
     # the time when the meme was created
-    creation_time = Column(DateTime, nullable=False)
+    creation_time = Column(DateTime, nullable=False, default=datetime.now)
 
     # the contents of the meme
     contents = Column(Text(4294967295))
 
     def __init__(self, origin, contents=None):
-        self.creation_time = datetime.datetime.now()
         self.origin = origin
         self.contents = contents
 
     def __repr__(self):
-        return "Meme-{}".format(self.id)
+        return "Meme-{}".format(self.id[:6])
 
     def transmit(self, destination):
         """Transmit the meme to the given destination."""
@@ -87,16 +93,16 @@ class Transmission(Base):
     __tablename__ = "transmission"
 
     # the unique transmission id
-    id = Column(Integer, primary_key=True)
+    id = Column(String(32), primary_key=True, default=new_id)
 
     # the meme that was transmitted
-    meme_id = Column(Integer, ForeignKey('meme.id'), nullable=False)
+    meme_id = Column(String(32), ForeignKey('meme.id'), nullable=False)
     meme = relationship(Meme, backref='transmissions')
 
     # the origin and destination nodes, which gives us a reference to
     # the vector that this transmission occurred along
-    origin_id = Column(Integer, nullable=False)
-    destination_id = Column(Integer, nullable=False)
+    origin_id = Column(String(32), nullable=False)
+    destination_id = Column(String(32), nullable=False)
 
     # this is a special constraint that says that the origin_id and
     # destination_id *together* make up the unique id for the vector
@@ -107,13 +113,12 @@ class Transmission(Base):
         {})
 
     # the time at which the transmission occurred
-    transmit_time = Column(DateTime, nullable=False)
+    transmit_time = Column(DateTime, nullable=False, default=datetime.now)
 
     def __init__(self, meme, destination):
-        self.transmit_time = datetime.datetime.now()
         self.meme = meme
         self.origin_id = meme.origin_id
         self.destination_id = destination.id
 
     def __repr__(self):
-        return "Transmission-{}".format(self.id)
+        return "Transmission-{}".format(self.id[:6])
