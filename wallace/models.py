@@ -43,7 +43,6 @@ class Vector(Base):
 
     # the origin node
     origin_id = Column(String(32), ForeignKey('node.id'), primary_key=True)
-    # origin_type = Column(Enum(*NODE_TYPES), nullable=False)
     origin = relationship(
         Node, foreign_keys=[origin_id],
         backref="outgoing_vectors")
@@ -51,7 +50,6 @@ class Vector(Base):
     # the destination node
     destination_id = Column(
         String(32), ForeignKey('node.id'), primary_key=True)
-    # destination_type = Column(Enum(*NODE_TYPES), nullable=False)
     destination = relationship(
         Node, foreign_keys=[destination_id],
         backref="incoming_vectors")
