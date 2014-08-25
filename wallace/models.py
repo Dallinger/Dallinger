@@ -49,13 +49,6 @@ class Node(Base):
         """Creates a directed edge from other_node to self"""
         Vector(origin=other_node, destination=self)
 
-    def create_meme(self, contents=None):
-        """Generates a meme with an origin of this node and the given
-        contents.
-
-        """
-        return Meme(origin=self, contents=contents)
-
     def transmit(self, meme, other_node):
         """Transmits the specified meme to 'other_node'. The meme must have
         been created by this node, and this node must be connected to

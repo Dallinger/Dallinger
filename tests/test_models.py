@@ -178,27 +178,11 @@ class TestModels(object):
 
         assert repr(transmission).split("-") == ["Transmission", transmission.id[:6]]
 
-    def test_node_create_empty_meme(self):
-        node = models.Node()
-        meme = node.create_meme()
-        self.add(node, meme)
-
-        assert meme.origin_id == node.id
-        assert meme.contents is None
-
-    def test_node_create_meme(self):
-        node = models.Node()
-        meme = node.create_meme(contents="foo")
-        self.add(node, meme)
-
-        assert meme.origin_id == node.id
-        assert meme.contents == "foo"
-
     def test_node_transmit(self):
         node1 = models.Node()
         node2 = models.Node()
         node1.connect_to(node2)
-        meme = node1.create_meme(contents="foo")
+        meme = models.Meme(origin=node1, contents="foo")
         self.add(node1, node2, meme)
 
         node1.transmit(meme, node2)
@@ -214,7 +198,7 @@ class TestModels(object):
         node1 = models.Node()
         node2 = models.Node()
         node1.connect_to(node2)
-        meme = node2.create_meme(contents="foo")
+        meme = models.Meme(origin=node2, contents="foo")
         self.add(node1, node2, meme)
 
         node1.transmit(meme, node2)
@@ -224,7 +208,7 @@ class TestModels(object):
     def test_node_transmit_no_connection(self):
         node1 = models.Node()
         node2 = models.Node()
-        meme = node1.create_meme(contents="foo")
+        meme = models.Meme(origin=node1, contents="foo")
         self.add(node1, node2, meme)
 
         node1.transmit(meme, node2)
@@ -239,7 +223,7 @@ class TestModels(object):
             node1.connect_to(new_node)
             self.db.add(new_node)
 
-        meme = node1.create_meme("foo")
+        meme = models.Meme(origin=node1, contents="foo")
         self.add(meme)
 
         node1.broadcast(meme)
@@ -298,8 +282,8 @@ class TestModels(object):
         node1.connect_from(node3)
         self.add(node1, node2, node3)
 
-        meme1 = node2.create_meme("foo")
-        meme2 = node3.create_meme("bar")
+        meme1 = models.Meme(origin=node2, contents="foo")
+        meme2 = models.Meme(origin=node3, contents="bar")
         self.add(meme1, meme2)
 
         node2.transmit(meme1, node1)
@@ -318,8 +302,8 @@ class TestModels(object):
         node1.connect_to(node3)
         self.add(node1, node2, node3)
 
-        meme1 = node1.create_meme("foo")
-        meme2 = node1.create_meme("bar")
+        meme1 = models.Meme(origin=node1, contents="foo")
+        meme2 = models.Meme(origin=node1, contents="bar")
         self.add(meme1, meme2)
 
         node1.transmit(meme1, node2)
