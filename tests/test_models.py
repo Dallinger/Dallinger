@@ -44,18 +44,20 @@ class TestModels(object):
     def test_node_connect_to(self):
         node1 = models.Node()
         node2 = models.Node()
-        vector = node1.connect_to(node2)
-        self.add(node1, node2, vector)
+        node1.connect_to(node2)
+        self.add(node1, node2)
 
+        vector = node1.outgoing_vectors[0]
         assert vector.origin_id == node1.id
         assert vector.destination_id == node2.id
 
     def test_node_connect_from(self):
         node1 = models.Node()
         node2 = models.Node()
-        vector = node1.connect_from(node2)
-        self.add(node1, node2, vector)
+        node1.connect_from(node2)
+        self.add(node1, node2)
 
+        vector = node1.incoming_vectors[0]
         assert vector.origin_id == node2.id
         assert vector.destination_id == node1.id
 
@@ -195,13 +197,14 @@ class TestModels(object):
     def test_node_transmit(self):
         node1 = models.Node()
         node2 = models.Node()
-        vector = node1.connect_to(node2)
+        node1.connect_to(node2)
         meme = node1.create_meme(contents="foo")
-        self.add(node1, node2, vector, meme)
+        self.add(node1, node2, meme)
 
-        transmission = node1.transmit(meme, node2)
-        self.add(transmission)
+        node1.transmit(meme, node2)
+        self.db.commit()
 
+        transmission = node1.outgoing_transmissions[0]
         assert transmission.meme_id == meme.id
         assert transmission.origin_id == node1.id
         assert transmission.destination_id == node2.id
@@ -210,12 +213,12 @@ class TestModels(object):
     def test_node_transmit_bad_origin(self):
         node1 = models.Node()
         node2 = models.Node()
-        vector = node1.connect_to(node2)
+        node1.connect_to(node2)
         meme = node2.create_meme(contents="foo")
-        self.add(node1, node2, vector, meme)
+        self.add(node1, node2, meme)
 
-        transmission = node1.transmit(meme, node2)
-        self.add(transmission)
+        node1.transmit(meme, node2)
+        self.db.commit()
 
     @raises(ValueError)
     def test_node_transmit_no_connection(self):
@@ -224,8 +227,8 @@ class TestModels(object):
         meme = node1.create_meme(contents="foo")
         self.add(node1, node2, meme)
 
-        transmission = node1.transmit(meme, node2)
-        self.add(transmission)
+        node1.transmit(meme, node2)
+        self.db.commit()
 
     def test_node_broadcast(self):
         node1 = models.Node()
@@ -233,15 +236,16 @@ class TestModels(object):
 
         for i in xrange(5):
             new_node = models.Node()
-            vector = node1.connect_to(new_node)
-            self.db.add_all([new_node, vector])
+            node1.connect_to(new_node)
+            self.db.add(new_node)
 
         meme = node1.create_meme("foo")
         self.add(meme)
 
-        transmissions = node1.broadcast(meme)
-        self.add(*transmissions)
+        node1.broadcast(meme)
+        self.db.commit()
 
+        transmissions = node1.outgoing_transmissions
         assert len(transmissions) == 5
 
     def test_node_outdegree(self):
@@ -251,8 +255,8 @@ class TestModels(object):
         for i in xrange(5):
             assert node1.outdegree == i
             new_node = models.Node()
-            vector = node1.connect_to(new_node)
-            self.add(new_node, vector)
+            node1.connect_to(new_node)
+            self.add(new_node)
 
         assert node1.outdegree == 5
 
@@ -263,16 +267,16 @@ class TestModels(object):
         for i in xrange(5):
             assert node1.indegree == i
             new_node = models.Node()
-            vector = node1.connect_from(new_node)
-            self.add(new_node, vector)
+            node1.connect_from(new_node)
+            self.add(new_node)
 
         assert node1.indegree == 5
 
     def test_node_has_connection_to(self):
         node1 = models.Node()
         node2 = models.Node()
-        vector = node1.connect_to(node2)
-        self.add(node1, node2, vector)
+        node1.connect_to(node2)
+        self.add(node1, node2)
 
         assert node1.has_connection_to(node2)
         assert not node2.has_connection_to(node1)
@@ -280,8 +284,8 @@ class TestModels(object):
     def test_node_has_connection_from(self):
         node1 = models.Node()
         node2 = models.Node()
-        vector = node1.connect_to(node2)
-        self.add(node1, node2, vector)
+        node1.connect_to(node2)
+        self.add(node1, node2)
 
         assert not node1.has_connection_from(node2)
         assert node2.has_connection_from(node1)
@@ -290,17 +294,17 @@ class TestModels(object):
         node1 = models.Node()
         node2 = models.Node()
         node3 = models.Node()
-        vector1 = node1.connect_from(node2)
-        vector2 = node1.connect_from(node3)
-        self.add(node1, node2, node3, vector1, vector2)
+        node1.connect_from(node2)
+        node1.connect_from(node3)
+        self.add(node1, node2, node3)
 
         meme1 = node2.create_meme("foo")
         meme2 = node3.create_meme("bar")
         self.add(meme1, meme2)
 
-        transmission1 = node2.transmit(meme1, node1)
-        transmission2 = node3.transmit(meme2, node1)
-        self.add(transmission1, transmission2)
+        node2.transmit(meme1, node1)
+        node3.transmit(meme2, node1)
+        self.db.commit()
 
         assert len(node1.incoming_transmissions) == 2
         assert len(node2.incoming_transmissions) == 0
@@ -310,17 +314,17 @@ class TestModels(object):
         node1 = models.Node()
         node2 = models.Node()
         node3 = models.Node()
-        vector1 = node1.connect_to(node2)
-        vector2 = node1.connect_to(node3)
-        self.add(node1, node2, node3, vector1, vector2)
+        node1.connect_to(node2)
+        node1.connect_to(node3)
+        self.add(node1, node2, node3)
 
         meme1 = node1.create_meme("foo")
         meme2 = node1.create_meme("bar")
         self.add(meme1, meme2)
 
-        transmission1 = node1.transmit(meme1, node2)
-        transmission2 = node1.transmit(meme2, node3)
-        self.add(transmission1, transmission2)
+        node1.transmit(meme1, node2)
+        node1.transmit(meme2, node3)
+        self.db.commit()
 
         assert len(node1.outgoing_transmissions) == 2
         assert len(node2.outgoing_transmissions) == 0

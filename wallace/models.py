@@ -39,18 +39,15 @@ class Node(Base):
         order_by="Transmission.transmit_time")
 
     def __repr__(self):
-        reprstr = "Node-{}".format(self.id[:6])
-        if self.type:
-            reprstr = "{}-{}".format(reprstr, self.type)
-        return reprstr
+        return "Node-{}-{}".format(self.id[:6], self.type)
 
     def connect_to(self, other_node):
         """Creates a directed edge from self to other_node"""
-        return Vector(origin=self, destination=other_node)
+        Vector(origin=self, destination=other_node)
 
     def connect_from(self, other_node):
         """Creates a directed edge from other_node to self"""
-        return Vector(origin=other_node, destination=self)
+        Vector(origin=other_node, destination=self)
 
     def create_meme(self, contents=None):
         """Generates a meme with an origin of this node and the given
@@ -70,7 +67,7 @@ class Node(Base):
         if not self.has_connection_to(other_node):
             raise ValueError(
                 "'{}' is not connected to '{}'".format(self, other_node))
-        return Transmission(
+        Transmission(
             meme=meme, origin_id=self.id, destination_id=other_node.id)
 
     def broadcast(self, meme):
@@ -78,11 +75,8 @@ class Node(Base):
         have been created by this node.
 
         """
-        transmissions = []
         for vector in self.outgoing_vectors:
-            transmissions.append(
-                self.transmit(meme, vector.destination))
-        return transmissions
+            self.transmit(meme, vector.destination)
 
     @hybrid_property
     def outdegree(self):
