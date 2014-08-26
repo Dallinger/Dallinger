@@ -1,72 +1,91 @@
-from agents import Agent
+from .models import Vector
+from .agents import Agent, Source
 import numpy as np
 
 
 class Network(object):
     """A network of agents."""
 
-    def __init__(self, size):
-        self.agents = []
-        self.sources = []
-        self.links = []
+    def __init__(self, db):
+        self.db = db
+
+    @property
+    def agents(self):
+        return self.db.query(Agent).order_by(
+            Agent.creation_time).all()
+
+    @property
+    def sources(self):
+        return self.db.query(Source).order_by(
+            Source.creation_time).all()
+
+    @property
+    def links(self):
+        return self.db.query(Vector).order_by(
+            Vector.origin_uuid, Vector.destination_uuid).all()
 
     def get_degrees(self):
-        counts = np.zeros(len(self))
-        for idx_agent in xrange(len(self)):
-            counts[idx_agent] = np.sum(
-                [1 for link in self.links if link[0] is self.agents[idx_agent]])
-        return counts
+        return [agent.outdegree for agent in self.agents]
 
     def add_global_source(self, source):
-        self.sources.append(source)
+        self.db.add(source)
         for agent in self.agents:
-            self.links.append((source, agent))
+            source.connect_to(agent)
+        self.db.commit()
 
     def trigger_source(self, source):
-        for link in self.links:
-            if link[0] is source:
-                link[1].update(source.transmit())
+        source.broadcast()
+        self.db.commit()
 
     def __len__(self):
         return len(self.agents)
 
     def __repr__(self):
-        return "\n".join(["({}, {})".format(link[0], link[1])
-                         for link in self.links])
+        return "\n".join(map(str, self.links))
 
 
 class Chain(Network):
     """A -> B -> C -> ..."""
 
-    def __init__(self, size):
-        self.agents = [Agent(), Agent()]
-        self.sources = []
-        self.links = [(self.agents[0], self.agents[1])]
-        for i in xrange(size - 2):
-            self.add_agent(Agent())
+    def __init__(self, db, size):
+        super(Chain, self).__init__(db)
+        for i in xrange(size):
+            self.add_agent()
 
-    def add_agent(self, agent):
-        self.agents.append(agent)
-        heads = [link[0] for link in self.links]
-        tails = [link[1] for link in self.links]
-        final_agent = list(set(tails) - set(heads))
-        self.links.append((final_agent[0], agent))
+    @property
+    def last_agent(self):
+        if len(self) > 0:
+            return self.db.query(Agent).filter_by(outdegree=0).one()
+        return None
+
+    def add_agent(self):
+        agent = Agent()
+        if len(self) > 0:
+            self.last_agent.connect_to(agent)
+        self.db.add(agent)
+        self.db.commit()
 
 
 class FullyConnected(Network):
     """In a fully-connected network (complete graph), all possible links exist.
     """
 
-    def __init__(self, size):
-        self.agents = [Agent() for i in xrange(size)]
-        self.sources = []
-        self.links = [(x, y) for x in self.agents for y in self.agents if x != y]
+    def __init__(self, db, size):
+        super(FullyConnected, self).__init__(db)
+        for i in xrange(size):
+            self.add_agent()
 
     def add_agent(self):
         newcomer = Agent()
+        self.db.add(newcomer)
+
         for agent in self.agents:
-            self.links.append((newcomer, agent))
-            self.links.append((agent, newcomer))
+            if agent == newcomer:
+                continue
+            newcomer.connect_to(agent)
+            newcomer.connect_from(agent)
+
+        self.db.commit()
 
 
 class ScaleFree(Network):
@@ -77,33 +96,37 @@ class ScaleFree(Network):
     attachment.
     """
 
-    def __init__(self, size, m0=4, m=4):
-        core = FullyConnected(m0)
+    def __init__(self, db, size, m0=4, m=4):
+        FullyConnected(db, m0)
+
+        self.db = db
         self.m = m
-        self.agents = core.agents
-        self.sources = []
-        self.links = core.links
+
         for i in xrange(size - m0):
             self.add_agent()
 
     def add_agent(self):
         newcomer = Agent()
-        self.agents.append(newcomer)
-        for idx_newlink in xrange(self.m):
-            d = self.get_degrees()
-            for idx_agent in xrange(len(self)):
-                # Set degree of existing links to zero to prevent repeats
-                if (newcomer, self.agents[idx_agent]) in self.links:
-                    d[idx_agent] = 0
+        self.db.add(newcomer)
 
-                if self.agents[idx_agent] is newcomer:
-                    d[idx_agent] = 0
+        for idx_newlink in xrange(self.m):
+            agents = []
+            for agent in self.agents:
+                if agent == newcomer:
+                    continue
+                if agent.has_connection_from(newcomer):
+                    continue
+                if agent.has_connection_to(newcomer):
+                    continue
+                agents.append(agent)
+            d = np.array([a.outdegree for a in agents], dtype=float)
 
             # Select a member using preferential attachment
-            p = d/np.sum(d)
+            p = d / np.sum(d)
             idx_linkto = np.flatnonzero(np.random.multinomial(1, p))[0]
-            link_to = self.agents[idx_linkto]
+            link_to = agents[idx_linkto]
 
             # Create link from the newcomer to the selected member, and back
-            self.links.append((newcomer, link_to))
-            self.links.append((link_to, newcomer))
+            newcomer.connect_to(link_to)
+            newcomer.connect_from(link_to)
+            self.db.commit()
