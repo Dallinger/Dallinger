@@ -1,5 +1,4 @@
 from wallace import networks, agents, db
-import time
 
 
 class TestNetworks(object):
@@ -52,12 +51,8 @@ class TestNetworks(object):
     def test_network_get_degrees(self):
         net = networks.Network(self.db)
         agent1 = agents.Agent()
-        self.db.add(agent1)
-        self.db.commit()
-
-        time.sleep(1)
         agent2 = agents.Agent()
-        self.db.add(agent2)
+        self.db.add_all([agent1, agent2])
         self.db.commit()
 
         assert net.get_degrees() == [0, 0]

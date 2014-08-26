@@ -6,14 +6,21 @@ from .db import Base
 
 # various sqlalchemy imports
 from sqlalchemy import ForeignKey, ForeignKeyConstraint
-from sqlalchemy import Column, String, DateTime, Text
+from sqlalchemy import Column, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql import func, select
 
+DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
+
 
 def new_uuid():
     return uuid4().hex
+
+
+def timenow():
+    time = datetime.now()
+    return time.strftime(DATETIME_FMT)
 
 
 class Node(Base):
@@ -30,7 +37,7 @@ class Node(Base):
     }
 
     # the time when the node was created
-    creation_time = Column(DateTime, nullable=False, default=datetime.now)
+    creation_time = Column(String(26), nullable=False, default=timenow)
 
     # incoming and outgoing transmissions to this node
     incoming_transmissions = relationship(
@@ -153,7 +160,7 @@ class Meme(Base):
     }
 
     # the time when the meme was created
-    creation_time = Column(DateTime, nullable=False, default=datetime.now)
+    creation_time = Column(String(26), nullable=False, default=timenow)
 
     # the contents of the meme
     contents = Column(Text(4294967295))
@@ -192,7 +199,7 @@ class Transmission(Base):
         {})
 
     # the time at which the transmission occurred
-    transmit_time = Column(DateTime, nullable=False, default=datetime.now)
+    transmit_time = Column(String(26), nullable=False, default=timenow)
 
     def __repr__(self):
         return "Transmission-{}".format(self.uuid[:6])

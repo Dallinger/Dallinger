@@ -130,11 +130,8 @@ class TestModels(object):
 
     def test_create_two_memes(self):
         meme1 = models.Meme()
-        self.add(meme1)
-
-        time.sleep(1)
         meme2 = models.Meme()
-        self.add(meme2)
+        self.add(meme1, meme2)
 
         assert meme1.uuid != meme2.uuid
         assert meme1.creation_time != meme2.creation_time
@@ -297,11 +294,8 @@ class TestModels(object):
 
     def test_duplicate_meme(self):
         meme1 = models.Meme(contents="foo")
-        self.add(meme1)
-
-        time.sleep(1)
         meme2 = meme1.duplicate()
-        self.add(meme2)
+        self.add(meme1, meme2)
 
         assert meme1.uuid != meme2.uuid
         assert meme1.type == meme2.type
