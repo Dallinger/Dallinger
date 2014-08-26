@@ -1,0 +1,193 @@
+from wallace import models, db
+from nose.tools import raises
+from sqlalchemy.exc import DataError, IntegrityError, OperationalError
+from sqlalchemy.orm.exc import FlushError
+from datetime import datetime
+import time
+
+
+class TestModels(object):
+
+    def setup(self):
+        self.db = db.init_db(drop_all=True)
+
+    def teardown(self):
+        self.db.rollback()
+        self.db.close()
+
+    def add(self, node):
+        self.db.add(node)
+        self.db.commit()
+        return node
+
+    def test_create_source_node(self):
+        node = self.add(models.Node(type="source"))
+        assert node.type == "source"
+        assert len(node.id) == 32
+        assert len(node.outgoing_vectors) == 0
+        assert len(node.incoming_vectors) == 0
+        assert len(node.outgoing_memes) == 0
+
+    def test_create_agent_node(self):
+        node = self.add(models.Node(type="agent"))
+        assert node.type == "agent"
+        assert len(node.id) == 32
+        assert len(node.outgoing_vectors) == 0
+        assert len(node.incoming_vectors) == 0
+        assert len(node.outgoing_memes) == 0
+
+    def test_create_filter_node(self):
+        node = self.add(models.Node(type="filter"))
+        assert node.type == "filter"
+        assert len(node.id) == 32
+        assert len(node.outgoing_vectors) == 0
+        assert len(node.incoming_vectors) == 0
+        assert len(node.outgoing_memes) == 0
+
+    def test_different_node_ids(self):
+        node1 = self.add(models.Node(type="source"))
+        node2 = self.add(models.Node(type="source"))
+        assert node1.id != node2.id
+
+    @raises(DataError)
+    def test_create_invalid_node(self):
+        self.add(models.Node(type="bar"))
+
+    def test_node_repr(self):
+        node = self.add(models.Node(type="source"))
+        assert repr(node).split("-") == ["Node", node.id[:6], "source"]
+
+        node = self.add(models.Node(type="agent"))
+        assert repr(node).split("-") == ["Node", node.id[:6], "agent"]
+
+        node = self.add(models.Node(type="filter"))
+        assert repr(node).split("-") == ["Node", node.id[:6], "filter"]
+
+    def test_node_connect_to(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
+        vector = self.add(node1.connect_to(node2))
+        assert vector.origin_id == node1.id
+        assert vector.destination_id == node2.id
+
+    def test_node_connect_from(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
+        vector = self.add(node1.connect_from(node2))
+        assert vector.origin_id == node2.id
+        assert vector.destination_id == node1.id
+
+    def test_create_vector(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
+        vector = self.add(models.Vector(origin=node1, destination=node2))
+
+        # check that the origin/destination ids are correct
+        assert vector.origin_id == node1.id
+        assert vector.destination_id == node2.id
+        assert len(vector.transmissions) == 0
+
+        # check that incoming/outgoing vectors are correct
+        assert len(node1.incoming_vectors) == 0
+        assert node1.outgoing_vectors == [vector]
+        assert node2.incoming_vectors == [vector]
+        assert len(node2.outgoing_vectors) == 0
+
+    def test_create_bidirectional_vectors(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
+        vector1 = self.add(models.Vector(origin=node1, destination=node2))
+        vector2 = self.add(models.Vector(origin=node2, destination=node1))
+
+        # check that the origin/destination ids are correct
+        assert vector1.origin_id == node1.id
+        assert vector1.destination_id == node2.id
+        assert len(vector1.transmissions) == 0
+        assert vector2.origin_id == node2.id
+        assert vector2.destination_id == node1.id
+        assert len(vector2.transmissions) == 0
+
+        # check that incoming/outgoing vectors are correct
+        assert node1.incoming_vectors == [vector2]
+        assert node1.outgoing_vectors == [vector1]
+        assert node2.incoming_vectors == [vector1]
+        assert node2.outgoing_vectors == [vector2]
+
+    def test_vector_repr(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
+        vector1 = self.add(models.Vector(origin=node1, destination=node2))
+        vector2 = self.add(models.Vector(origin=node2, destination=node1))
+
+        assert repr(vector1).split("-") == ["Vector", node1.id[:6], node2.id[:6]]
+        assert repr(vector2).split("-") == ["Vector", node2.id[:6], node1.id[:6]]
+
+    @raises(IntegrityError, FlushError)
+    def test_create_duplicate_vector(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
+        self.add(models.Vector(origin=node1, destination=node2))
+        self.add(models.Vector(origin=node1, destination=node2))
+
+    def test_create_meme(self):
+        node = self.add(models.Node(type="agent"))
+
+        before = datetime.now()
+        time.sleep(1)
+        meme = self.add(models.Meme(origin=node, contents="foo"))
+        time.sleep(1)
+        after = datetime.now()
+
+        assert meme.contents == "foo"
+        assert meme.creation_time > before
+        assert meme.creation_time < after
+        assert meme.origin_id == node.id
+        assert node.outgoing_memes == [meme]
+        assert len(meme.id) == 32
+        assert len(meme.transmissions) == 0
+
+    def test_create_two_memes(self):
+        node = self.add(models.Node(type="agent"))
+        meme1 = self.add(models.Meme(origin=node))
+        time.sleep(1)
+        meme2 = self.add(models.Meme(origin=node))
+        assert meme1.id != meme2.id
+        assert meme1.creation_time != meme2.creation_time
+
+    @raises(OperationalError)
+    def test_create_orphan_meme(self):
+        self.add(models.Meme())
+
+    def test_meme_repr(self):
+        node = self.add(models.Node(type="agent"))
+        meme = self.add(models.Meme(origin=node))
+        assert repr(meme).split("-") == ["Meme", meme.id[:6]]
+
+    def test_create_transmission(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
+        vector = self.add(models.Vector(origin=node1, destination=node2))
+        meme = self.add(models.Meme(origin=node1))
+
+        before = datetime.now()
+        time.sleep(1)
+        transmission = self.add(models.Transmission(meme=meme, vector=vector))
+        time.sleep(1)
+        after = datetime.now()
+
+        assert transmission.meme_id == meme.id
+        assert transmission.origin_id == meme.origin_id
+        assert transmission.origin_id == vector.origin_id
+        assert transmission.destination_id == vector.destination_id
+        assert transmission.vector == vector
+        assert transmission.transmit_time > before
+        assert transmission.transmit_time < after
+        assert len(transmission.id) == 32
+
+    def test_transmission_repr(self):
+        node1 = self.add(models.Node(type="agent"))
+        node2 = self.add(models.Node(type="agent"))
+        vector = self.add(models.Vector(origin=node1, destination=node2))
+        meme = self.add(models.Meme(origin=node1))
+        transmission = self.add(models.Transmission(meme=meme, vector=vector))
+        assert repr(transmission).split("-") == ["Transmission", transmission.id[:6]]

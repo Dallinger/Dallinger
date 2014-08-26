@@ -10,7 +10,7 @@ from sqlalchemy import Column, Enum, String, DateTime, Text
 from sqlalchemy.orm import relationship
 
 # the types that nodes can be
-NODE_TYPES = ("source", "participant", "filter")
+NODE_TYPES = ("source", "agent", "filter")
 
 
 def new_id():
@@ -26,15 +26,16 @@ class Node(Base):
     # the node type -- it MUST be one of these
     type = Column(Enum(*NODE_TYPES), nullable=False)
 
-    # a human-readable name for the node
-    name = Column(String(128), nullable=False)
-
-    def __init__(self, name, type):
-        self.name = name
-        self.type = type
-
     def __repr__(self):
         return "Node-{}-{}".format(self.id[:6], self.type)
+
+    def connect_to(self, other_node):
+        """Creates a directed edge from self to other_node"""
+        return Vector(origin=self, destination=other_node)
+
+    def connect_from(self, other_node):
+        """Creates a directed edge from other_node to self"""
+        return Vector(origin=other_node, destination=self)
 
 
 class Vector(Base):
@@ -42,19 +43,18 @@ class Vector(Base):
 
     # the origin node
     origin_id = Column(String(32), ForeignKey('node.id'), primary_key=True)
-    origin = relationship(Node, foreign_keys=[origin_id])
+    # origin_type = Column(Enum(*NODE_TYPES), nullable=False)
+    origin = relationship(
+        Node, foreign_keys=[origin_id],
+        backref="outgoing_vectors")
 
     # the destination node
     destination_id = Column(
         String(32), ForeignKey('node.id'), primary_key=True)
-    destination = relationship(Node, foreign_keys=[destination_id])
-
-    # all transmissions that have occurred along this vector
-    transmissions = relationship("Transmission", backref='vector')
-
-    def __init__(self, origin, destination):
-        self.origin = origin
-        self.destination = destination
+    # destination_type = Column(Enum(*NODE_TYPES), nullable=False)
+    destination = relationship(
+        Node, foreign_keys=[destination_id],
+        backref="incoming_vectors")
 
     def __repr__(self):
         return "Vector-{}-{}".format(
@@ -77,16 +77,8 @@ class Meme(Base):
     # the contents of the meme
     contents = Column(Text(4294967295))
 
-    def __init__(self, origin, contents=None):
-        self.origin = origin
-        self.contents = contents
-
     def __repr__(self):
         return "Meme-{}".format(self.id[:6])
-
-    def transmit(self, destination):
-        """Transmit the meme to the given destination."""
-        Transmission(self, destination)
 
 
 class Transmission(Base):
@@ -103,9 +95,11 @@ class Transmission(Base):
     # the vector that this transmission occurred along
     origin_id = Column(String(32), nullable=False)
     destination_id = Column(String(32), nullable=False)
+    vector = relationship(Vector, backref='transmissions')
 
-    # this is a special constraint that says that the origin_id and
-    # destination_id *together* make up the unique id for the vector
+    # these are special constraints that ensure (1) that the meme
+    # origin is the same as the vector origin and (2) that the vector
+    # is defined by the origin id and the destination id
     __table_args__ = (
         ForeignKeyConstraint(
             ["origin_id", "destination_id"],
@@ -114,11 +108,6 @@ class Transmission(Base):
 
     # the time at which the transmission occurred
     transmit_time = Column(DateTime, nullable=False, default=datetime.now)
-
-    def __init__(self, meme, destination):
-        self.meme = meme
-        self.origin_id = meme.origin_id
-        self.destination_id = destination.id
 
     def __repr__(self):
         return "Transmission-{}".format(self.id[:6])
