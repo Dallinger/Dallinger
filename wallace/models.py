@@ -9,6 +9,7 @@ from sqlalchemy import ForeignKey, ForeignKeyConstraint
 from sqlalchemy import Column, String, DateTime, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.sql import func, select
 
 
 def new_id():
@@ -85,10 +86,22 @@ class Node(Base):
         """The outdegree (number of outgoing edges) of this node."""
         return len(self.outgoing_vectors)
 
+    @outdegree.expression
+    def outdegree(self):
+        return select([func.count(Vector.destination_id)])\
+            .where(Vector.origin_id == Node.id)\
+            .label("outdegree")
+
     @hybrid_property
     def indegree(self):
         """The indegree (number of incoming edges) of this node."""
         return len(self.incoming_vectors)
+
+    @indegree.expression
+    def indegree(self):
+        return select([func.count(Vector.origin_id)])\
+            .where(Vector.destination_id == Node.id)\
+            .label("indegree")
 
     def has_connection_to(self, other_node):
         """Whether this node has a connection to 'other_node'."""
