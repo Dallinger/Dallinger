@@ -9,6 +9,7 @@ class MoranProcess(object):
     """
 
     def __init__(self, network, steps):
+        self.db = network.db
         self.network = network
         self.steps = steps
 
@@ -25,4 +26,4 @@ class MoranProcess(object):
                     replacer, replacer.genome, replaced, replaced.genome)
 
             replacer.transmit(replaced)
-            self.network.db.commit()
+            self.db.commit()

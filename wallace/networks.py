@@ -92,33 +92,30 @@ class ScaleFree(Network):
     attachment.
     """
 
-    def __init__(self, size, m0=4, m=4):
-        core = FullyConnected(m0)
+    def __init__(self, db, size, m0=4, m=4):
+        FullyConnected(db, m0)
+
+        self.db = db
         self.m = m
-        self.agents = core.agents
-        self.sources = []
-        self.links = core.links
+
         for i in xrange(size - m0):
             self.add_agent()
 
     def add_agent(self):
         newcomer = Agent()
-        self.agents.append(newcomer)
-        for idx_newlink in xrange(self.m):
-            d = self.get_degrees()
-            for idx_agent in xrange(len(self)):
-                # Set degree of existing links to zero to prevent repeats
-                if (newcomer, self.agents[idx_agent]) in self.links:
-                    d[idx_agent] = 0
+        self.db.add(newcomer)
 
-                if self.agents[idx_agent] is newcomer:
-                    d[idx_agent] = 0
+        for idx_newlink in xrange(self.m):
+            agents = [a for a in self.agents
+                      if a != newcomer and not a.has_connection_from(newcomer)]
+            d = [a.outdegree for a in agents]
 
             # Select a member using preferential attachment
-            p = d/np.sum(d)
+            p = d / np.sum(d)
             idx_linkto = np.flatnonzero(np.random.multinomial(1, p))[0]
-            link_to = self.agents[idx_linkto]
+            link_to = agents[idx_linkto]
 
             # Create link from the newcomer to the selected member, and back
-            self.links.append((newcomer, link_to))
-            self.links.append((link_to, newcomer))
+            newcomer.connect_to(link_to)
+            newcomer.connect_from(link_to)
+            self.db.commit()

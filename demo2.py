@@ -1,4 +1,4 @@
-from wallace import processes, agents, networks
+from wallace import processes, agents, networks, db
 
 """This demo runs a neutral Moran process over a scale-free network. A source
 transmits a random binary string to each individual. At each time step, a
@@ -7,14 +7,16 @@ randomly selected individual. Eventually, one message becomes fixed in the
 population.
 """
 
+session = db.init_db(drop_all=True)
+
 # Settings
 N = 20
 num_steps = 100
 
 # Create a network
-n = networks.ScaleFree(N)
+n = networks.ScaleFree(session, N)
 print n.get_degrees()
-# n = networks.FullyConnected(N)
+# n = networks.FullyConnected(session, N)
 
 # Add a binary string source and transmit to everyone
 source = agents.RandomBinaryStringSource()
