@@ -77,10 +77,14 @@ class FullyConnected(Network):
 
     def add_agent(self):
         newcomer = Agent()
+        self.db.add(newcomer)
+
         for agent in self.agents:
+            if agent == newcomer:
+                continue
             newcomer.connect_to(agent)
             newcomer.connect_from(agent)
-        self.db.add(newcomer)
+
         self.db.commit()
 
 
@@ -106,9 +110,16 @@ class ScaleFree(Network):
         self.db.add(newcomer)
 
         for idx_newlink in xrange(self.m):
-            agents = [a for a in self.agents
-                      if a != newcomer and not a.has_connection_from(newcomer)]
-            d = [a.outdegree for a in agents]
+            agents = []
+            for agent in self.agents:
+                if agent == newcomer:
+                    continue
+                if agent.has_connection_from(newcomer):
+                    continue
+                if agent.has_connection_to(newcomer):
+                    continue
+                agents.append(agent)
+            d = np.array([a.outdegree for a in agents], dtype=float)
 
             # Select a member using preferential attachment
             p = d / np.sum(d)
