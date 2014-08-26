@@ -15,19 +15,15 @@ class TestMemes(object):
         self.db.commit()
 
     def test_create_genome(self):
-        node = models.Node()
-        meme = memes.Genome(origin=node)
-        self.add(node, meme)
+        meme = memes.Genome()
+        self.add(meme)
 
-        assert meme.origin_id == node.id
         assert meme.type == "genome"
         assert meme.contents is None
 
     def test_create_mimeme(self):
-        node = models.Node()
-        meme = memes.Mimeme(origin=node)
-        self.add(node, meme)
+        meme = memes.Mimeme()
+        self.add(meme)
 
-        assert meme.origin_id == node.id
         assert meme.type == "mimeme"
         assert meme.contents is None
