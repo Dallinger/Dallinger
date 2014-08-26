@@ -55,8 +55,6 @@ class Node(Base):
         'other_node'.
 
         """
-        if meme.origin_id != self.id:
-            raise ValueError("meme origin id mismatch")
         if not self.has_connection_to(other_node):
             raise ValueError(
                 "'{}' is not connected to '{}'".format(self, other_node))
@@ -129,10 +127,6 @@ class Meme(Base):
         'polymorphic_on': type,
         'polymorphic_identity': 'base'
     }
-
-    # the node that produced this meme
-    origin_id = Column(String(32), ForeignKey('node.id'), nullable=False)
-    origin = relationship("Node", backref="outgoing_memes")
 
     # the time when the meme was created
     creation_time = Column(DateTime, nullable=False, default=datetime.now)

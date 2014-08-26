@@ -26,7 +26,6 @@ class TestModels(object):
         assert len(node.id) == 32
         assert len(node.outgoing_vectors) == 0
         assert len(node.incoming_vectors) == 0
-        assert len(node.outgoing_memes) == 0
 
     def test_different_node_ids(self):
         node1 = models.Node()
@@ -118,37 +117,28 @@ class TestModels(object):
         self.add(node1, node2, vector1, vector2)
 
     def test_create_meme(self):
-        node = models.Node()
-        meme = models.Meme(origin=node, contents="foo")
-        self.add(node, meme)
+        meme = models.Meme(contents="foo")
+        self.add(meme)
 
         assert meme.contents == "foo"
         assert meme.creation_time
-        assert meme.origin_id == node.id
-        assert node.outgoing_memes == [meme]
         assert len(meme.id) == 32
         assert len(meme.transmissions) == 0
 
     def test_create_two_memes(self):
-        node = models.Node()
-        meme1 = models.Meme(origin=node)
-        self.add(node, meme1)
+        meme1 = models.Meme()
+        self.add(meme1)
 
         time.sleep(1)
-        meme2 = models.Meme(origin=node)
+        meme2 = models.Meme()
         self.add(meme2)
 
         assert meme1.id != meme2.id
         assert meme1.creation_time != meme2.creation_time
 
-    @raises(OperationalError)
-    def test_create_orphan_meme(self):
-        self.add(models.Meme())
-
     def test_meme_repr(self):
-        node = models.Node()
-        meme = models.Meme(origin=node)
-        self.add(node, meme)
+        meme = models.Meme()
+        self.add(meme)
 
         assert repr(meme).split("-") == ["Meme", meme.id[:6], "base"]
 
@@ -156,12 +146,11 @@ class TestModels(object):
         node1 = models.Node()
         node2 = models.Node()
         vector = models.Vector(origin=node1, destination=node2)
-        meme = models.Meme(origin=node1)
+        meme = models.Meme()
         transmission = models.Transmission(meme=meme, vector=vector)
         self.add(node1, node2, vector, meme, transmission)
 
         assert transmission.meme_id == meme.id
-        assert transmission.origin_id == meme.origin_id
         assert transmission.origin_id == vector.origin_id
         assert transmission.destination_id == vector.destination_id
         assert transmission.vector == vector
@@ -172,7 +161,7 @@ class TestModels(object):
         node1 = models.Node()
         node2 = models.Node()
         vector = models.Vector(origin=node1, destination=node2)
-        meme = models.Meme(origin=node1)
+        meme = models.Meme()
         transmission = models.Transmission(meme=meme, vector=vector)
         self.add(node1, node2, vector, meme, transmission)
 
@@ -182,7 +171,7 @@ class TestModels(object):
         node1 = models.Node()
         node2 = models.Node()
         node1.connect_to(node2)
-        meme = models.Meme(origin=node1, contents="foo")
+        meme = models.Meme(contents="foo")
         self.add(node1, node2, meme)
 
         node1.transmit(meme, node2)
@@ -194,21 +183,10 @@ class TestModels(object):
         assert transmission.destination_id == node2.id
 
     @raises(ValueError)
-    def test_node_transmit_bad_origin(self):
-        node1 = models.Node()
-        node2 = models.Node()
-        node1.connect_to(node2)
-        meme = models.Meme(origin=node2, contents="foo")
-        self.add(node1, node2, meme)
-
-        node1.transmit(meme, node2)
-        self.db.commit()
-
-    @raises(ValueError)
     def test_node_transmit_no_connection(self):
         node1 = models.Node()
         node2 = models.Node()
-        meme = models.Meme(origin=node1, contents="foo")
+        meme = models.Meme(contents="foo")
         self.add(node1, node2, meme)
 
         node1.transmit(meme, node2)
@@ -223,7 +201,7 @@ class TestModels(object):
             node1.connect_to(new_node)
             self.db.add(new_node)
 
-        meme = models.Meme(origin=node1, contents="foo")
+        meme = models.Meme(contents="foo")
         self.add(meme)
 
         node1.broadcast(meme)
@@ -282,8 +260,8 @@ class TestModels(object):
         node1.connect_from(node3)
         self.add(node1, node2, node3)
 
-        meme1 = models.Meme(origin=node2, contents="foo")
-        meme2 = models.Meme(origin=node3, contents="bar")
+        meme1 = models.Meme(contents="foo")
+        meme2 = models.Meme(contents="bar")
         self.add(meme1, meme2)
 
         node2.transmit(meme1, node1)
@@ -302,8 +280,8 @@ class TestModels(object):
         node1.connect_to(node3)
         self.add(node1, node2, node3)
 
-        meme1 = models.Meme(origin=node1, contents="foo")
-        meme2 = models.Meme(origin=node1, contents="bar")
+        meme1 = models.Meme(contents="foo")
+        meme2 = models.Meme(contents="bar")
         self.add(meme1, meme2)
 
         node1.transmit(meme1, node2)
