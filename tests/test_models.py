@@ -26,6 +26,9 @@ class TestModels(object):
         assert len(node.id) == 32
         assert len(node.outgoing_vectors) == 0
         assert len(node.incoming_vectors) == 0
+        assert len(node.outgoing_transmissions) == 0
+        assert len(node.incoming_transmissions) == 0
+        assert node.creation_time
 
     def test_different_node_ids(self):
         node1 = models.Node()

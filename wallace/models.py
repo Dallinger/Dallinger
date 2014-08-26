@@ -28,6 +28,9 @@ class Node(Base):
         'polymorphic_identity': 'base'
     }
 
+    # the time when the node was created
+    creation_time = Column(DateTime, nullable=False, default=datetime.now)
+
     # incoming and outgoing transmissions to this node
     incoming_transmissions = relationship(
         "Transmission",
