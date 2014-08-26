@@ -291,3 +291,16 @@ class TestModels(object):
         assert len(node1.outgoing_transmissions) == 2
         assert len(node2.outgoing_transmissions) == 0
         assert len(node3.outgoing_transmissions) == 0
+
+    def test_duplicate_meme(self):
+        meme1 = models.Meme(contents="foo")
+        self.add(meme1)
+
+        time.sleep(1)
+        meme2 = meme1.duplicate()
+        self.add(meme2)
+
+        assert meme1.id != meme2.id
+        assert meme1.type == meme2.type
+        assert meme1.creation_time != meme2.creation_time
+        assert meme1.contents == meme2.contents

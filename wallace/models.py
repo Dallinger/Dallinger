@@ -58,8 +58,13 @@ class Node(Base):
         if not self.has_connection_to(other_node):
             raise ValueError(
                 "'{}' is not connected to '{}'".format(self, other_node))
+
         Transmission(
-            meme=meme, origin_id=self.id, destination_id=other_node.id)
+            meme=meme,
+            origin_id=self.id,
+            destination_id=other_node.id)
+
+        other_node.update(meme)
 
     def broadcast(self, meme):
         """Broadcast the specified meme to all connected nodes. The meme must
@@ -68,6 +73,9 @@ class Node(Base):
         """
         for vector in self.outgoing_vectors:
             self.transmit(meme, vector.destination)
+
+    def update(self, meme):
+        pass
 
     @hybrid_property
     def outdegree(self):
@@ -136,6 +144,10 @@ class Meme(Base):
 
     def __repr__(self):
         return "Meme-{}-{}".format(self.id[:6], self.type)
+
+    def duplicate(self):
+        cls = type(self)
+        return cls(contents=self.contents)
 
 
 class Transmission(Base):
