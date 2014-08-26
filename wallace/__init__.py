@@ -1,4 +1,4 @@
-from . import models
 from .wallace import Wallace
+from . import models, memes, agents, networks, processes
 
-__all__ = ['models', 'Wallace']
+__all__ = ['Wallace', 'models', 'memes', 'agents', 'networks', 'processes']
