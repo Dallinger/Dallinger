@@ -33,6 +33,11 @@ class Network(object):
             source.connect_to(agent)
         self.db.commit()
 
+    def add_local_source(self, source, agent):
+        self.db.add(source)
+        source.connect_to(agent)
+        self.db.commit()
+
     def trigger_source(self, source):
         source.broadcast()
         self.db.commit()
@@ -51,6 +56,11 @@ class Chain(Network):
         super(Chain, self).__init__(db)
         for i in xrange(size):
             self.add_agent()
+
+    @property
+    def first_agent(self):
+        if len(self) > 0:
+            return self.db.query(Agent).filter_by(indegree=0).one()
 
     @property
     def last_agent(self):
