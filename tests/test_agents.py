@@ -18,8 +18,8 @@ class TestAgents(object):
         agent = agents.Agent()
         self.add(agent)
 
-        assert agent.genome_id is None
-        assert agent.mimeme_id is None
+        assert agent.genome_uuid is None
+        assert agent.mimeme_uuid is None
 
         genome = memes.Genome(contents="foo")
         mimeme = memes.Mimeme(contents="bar")
@@ -29,10 +29,10 @@ class TestAgents(object):
         agent.mimeme = mimeme
         self.db.commit()
 
-        assert agent.genome_id == genome.id
+        assert agent.genome_uuid == genome.uuid
         assert agent.genome.contents == "foo"
 
-        assert agent.mimeme_id == mimeme.id
+        assert agent.mimeme_uuid == mimeme.uuid
         assert agent.mimeme.contents == "bar"
 
     def test_agent_transmit(self):
@@ -51,9 +51,9 @@ class TestAgents(object):
         self.db.commit()
 
         assert agent1.genome.contents == agent2.genome.contents
-        assert agent1.genome.id != agent2.genome.id
+        assert agent1.genome.uuid != agent2.genome.uuid
         assert agent1.mimeme.contents == agent2.mimeme.contents
-        assert agent1.mimeme.id != agent2.mimeme.id
+        assert agent1.mimeme.uuid != agent2.mimeme.uuid
 
     def test_agent_broadcast(self):
         agent1 = agents.Agent()
@@ -74,10 +74,10 @@ class TestAgents(object):
 
         assert agent1.genome.contents == agent2.genome.contents
         assert agent1.genome.contents == agent3.genome.contents
-        assert agent1.genome.id != agent2.genome.id != agent3.genome.id
+        assert agent1.genome.uuid != agent2.genome.uuid != agent3.genome.uuid
         assert agent1.mimeme.contents == agent2.mimeme.contents
         assert agent1.mimeme.contents == agent3.mimeme.contents
-        assert agent1.mimeme.id != agent2.mimeme.id != agent3.genome.id
+        assert agent1.mimeme.uuid != agent2.mimeme.uuid != agent3.genome.uuid
 
     def test_create_random_binary_string_source(self):
         source = agents.RandomBinaryStringSource()

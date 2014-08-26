@@ -22,7 +22,7 @@ class Network(object):
     @property
     def links(self):
         return self.db.query(Vector).order_by(
-            Vector.origin_id, Vector.destination_id).all()
+            Vector.origin_uuid, Vector.destination_uuid).all()
 
     def get_degrees(self):
         return [agent.outdegree for agent in self.agents]

@@ -16,13 +16,13 @@ class Agent(Node):
     __tablename__ = "agent"
     __mapper_args__ = {"polymorphic_identity": "agent"}
 
-    id = Column(String(32), ForeignKey("node.id"), primary_key=True)
+    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    genome_id = Column(String(32), ForeignKey('meme.id'))
-    genome = relationship(Genome, foreign_keys=[genome_id])
+    genome_uuid = Column(String(32), ForeignKey('meme.uuid'))
+    genome = relationship(Genome, foreign_keys=[genome_uuid])
 
-    mimeme_id = Column(String(32), ForeignKey('meme.id'))
-    mimeme = relationship(Mimeme, foreign_keys=[mimeme_id])
+    mimeme_uuid = Column(String(32), ForeignKey('meme.uuid'))
+    mimeme = relationship(Mimeme, foreign_keys=[mimeme_uuid])
 
     def transmit(self, other_node):
         super(Agent, self).transmit(self.genome, other_node)
@@ -45,7 +45,7 @@ class Source(Node):
     __tablename__ = "source"
     __mapper_args__ = {"polymorphic_identity": "source"}
 
-    id = Column(String(32), ForeignKey("node.id"), primary_key=True)
+    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     def generate_genome(self):
         raise NotImplementedError

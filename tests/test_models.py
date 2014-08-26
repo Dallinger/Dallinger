@@ -23,25 +23,25 @@ class TestModels(object):
         self.add(node)
 
         assert node.type == "base"
-        assert len(node.id) == 32
+        assert len(node.uuid) == 32
         assert len(node.outgoing_vectors) == 0
         assert len(node.incoming_vectors) == 0
         assert len(node.outgoing_transmissions) == 0
         assert len(node.incoming_transmissions) == 0
         assert node.creation_time
 
-    def test_different_node_ids(self):
+    def test_different_node_uuids(self):
         node1 = models.Node()
         node2 = models.Node()
         self.add(node1, node2)
 
-        assert node1.id != node2.id
+        assert node1.uuid != node2.uuid
 
     def test_node_repr(self):
         node = models.Node()
         self.add(node)
 
-        assert repr(node).split("-") == ["Node", node.id[:6], "base"]
+        assert repr(node).split("-") == ["Node", node.uuid[:6], "base"]
 
     def test_node_connect_to(self):
         node1 = models.Node()
@@ -50,8 +50,8 @@ class TestModels(object):
         self.add(node1, node2)
 
         vector = node1.outgoing_vectors[0]
-        assert vector.origin_id == node1.id
-        assert vector.destination_id == node2.id
+        assert vector.origin_uuid == node1.uuid
+        assert vector.destination_uuid == node2.uuid
 
     def test_node_connect_from(self):
         node1 = models.Node()
@@ -60,8 +60,8 @@ class TestModels(object):
         self.add(node1, node2)
 
         vector = node1.incoming_vectors[0]
-        assert vector.origin_id == node2.id
-        assert vector.destination_id == node1.id
+        assert vector.origin_uuid == node2.uuid
+        assert vector.destination_uuid == node1.uuid
 
     def test_create_vector(self):
         node1 = models.Node()
@@ -69,9 +69,9 @@ class TestModels(object):
         vector = models.Vector(origin=node1, destination=node2)
         self.add(node1, node2, vector)
 
-        # check that the origin/destination ids are correct
-        assert vector.origin_id == node1.id
-        assert vector.destination_id == node2.id
+        # check that the origin/destination uuids are correct
+        assert vector.origin_uuid == node1.uuid
+        assert vector.destination_uuid == node2.uuid
         assert len(vector.transmissions) == 0
 
         # check that incoming/outgoing vectors are correct
@@ -87,12 +87,12 @@ class TestModels(object):
         vector2 = models.Vector(origin=node2, destination=node1)
         self.add(node1, node2, vector1, vector2)
 
-        # check that the origin/destination ids are correct
-        assert vector1.origin_id == node1.id
-        assert vector1.destination_id == node2.id
+        # check that the origin/destination uuids are correct
+        assert vector1.origin_uuid == node1.uuid
+        assert vector1.destination_uuid == node2.uuid
         assert len(vector1.transmissions) == 0
-        assert vector2.origin_id == node2.id
-        assert vector2.destination_id == node1.id
+        assert vector2.origin_uuid == node2.uuid
+        assert vector2.destination_uuid == node1.uuid
         assert len(vector2.transmissions) == 0
 
         # check that incoming/outgoing vectors are correct
@@ -108,8 +108,8 @@ class TestModels(object):
         vector2 = models.Vector(origin=node2, destination=node1)
         self.add(node1, node2, vector1, vector2)
 
-        assert repr(vector1).split("-") == ["Vector", node1.id[:6], node2.id[:6]]
-        assert repr(vector2).split("-") == ["Vector", node2.id[:6], node1.id[:6]]
+        assert repr(vector1).split("-") == ["Vector", node1.uuid[:6], node2.uuid[:6]]
+        assert repr(vector2).split("-") == ["Vector", node2.uuid[:6], node1.uuid[:6]]
 
     @raises(IntegrityError, FlushError)
     def test_create_duplicate_vector(self):
@@ -125,7 +125,7 @@ class TestModels(object):
 
         assert meme.contents == "foo"
         assert meme.creation_time
-        assert len(meme.id) == 32
+        assert len(meme.uuid) == 32
         assert len(meme.transmissions) == 0
 
     def test_create_two_memes(self):
@@ -136,14 +136,14 @@ class TestModels(object):
         meme2 = models.Meme()
         self.add(meme2)
 
-        assert meme1.id != meme2.id
+        assert meme1.uuid != meme2.uuid
         assert meme1.creation_time != meme2.creation_time
 
     def test_meme_repr(self):
         meme = models.Meme()
         self.add(meme)
 
-        assert repr(meme).split("-") == ["Meme", meme.id[:6], "base"]
+        assert repr(meme).split("-") == ["Meme", meme.uuid[:6], "base"]
 
     def test_create_transmission(self):
         node1 = models.Node()
@@ -153,12 +153,12 @@ class TestModels(object):
         transmission = models.Transmission(meme=meme, vector=vector)
         self.add(node1, node2, vector, meme, transmission)
 
-        assert transmission.meme_id == meme.id
-        assert transmission.origin_id == vector.origin_id
-        assert transmission.destination_id == vector.destination_id
+        assert transmission.meme_uuid == meme.uuid
+        assert transmission.origin_uuid == vector.origin_uuid
+        assert transmission.destination_uuid == vector.destination_uuid
         assert transmission.vector == vector
         assert transmission.transmit_time
-        assert len(transmission.id) == 32
+        assert len(transmission.uuid) == 32
 
     def test_transmission_repr(self):
         node1 = models.Node()
@@ -168,7 +168,7 @@ class TestModels(object):
         transmission = models.Transmission(meme=meme, vector=vector)
         self.add(node1, node2, vector, meme, transmission)
 
-        assert repr(transmission).split("-") == ["Transmission", transmission.id[:6]]
+        assert repr(transmission).split("-") == ["Transmission", transmission.uuid[:6]]
 
     def test_node_transmit(self):
         node1 = models.Node()
@@ -181,9 +181,9 @@ class TestModels(object):
         self.db.commit()
 
         transmission = node1.outgoing_transmissions[0]
-        assert transmission.meme_id == meme.id
-        assert transmission.origin_id == node1.id
-        assert transmission.destination_id == node2.id
+        assert transmission.meme_uuid == meme.uuid
+        assert transmission.origin_uuid == node1.uuid
+        assert transmission.destination_uuid == node2.uuid
 
     @raises(ValueError)
     def test_node_transmit_no_connection(self):
@@ -303,7 +303,7 @@ class TestModels(object):
         meme2 = meme1.duplicate()
         self.add(meme2)
 
-        assert meme1.id != meme2.id
+        assert meme1.uuid != meme2.uuid
         assert meme1.type == meme2.type
         assert meme1.creation_time != meme2.creation_time
         assert meme1.contents == meme2.contents
