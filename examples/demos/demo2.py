@@ -1,4 +1,4 @@
-from wallace import processes, agents, networks, db
+from .wallace import processes, agents, networks, db
 
 """This demo runs a neutral Moran process over a scale-free network. A source
 transmits a random binary string to each individual. At each time step, a
