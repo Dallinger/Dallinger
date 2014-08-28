@@ -1,4 +1,6 @@
 import numpy as np
+import models
+from sqlalchemy import desc
 
 
 class RandomWalkFromSource(object):
@@ -10,30 +12,34 @@ class RandomWalkFromSource(object):
         self.network = network
         self.steps = steps
 
-    def run(self, verbose=True):
+    def get_latest_vector(self):
+        return self.db.query(models.Transmission).order_by(
+            desc(models.Transmission.transmit_time)).first()
 
-        sourced_agents = [vector.destination for source in self.network.sources
-                          for vector in source.outgoing_vectors]
+    def step(self, verbose=True):
 
-        replacer = np.random.choice(sourced_agents)
+        # sourced_agents = [vector.destination for source in self.network.sources
+        #                   for vector in source.outgoing_vectors]
 
-        for i in xrange(self.steps):
-            options = replacer.outgoing_vectors
+        # replacer = np.random.choice(sourced_agents)
 
-            if options:
-                replaced = options[np.random.randint(0, len(options))].destination
-                replacer.transmit(replaced)
+        replacer = self.get_latest_vector().destination
 
-                if verbose:
-                    print "{}: {} replaces {}: {}".format(
-                        replacer, replacer.genome, replaced, replaced.genome)
+        options = replacer.outgoing_vectors
 
-                replacer = replaced
-                self.db.commit()
+        if options:
+            replaced = options[np.random.randint(0, len(options))].destination
+            replacer.transmit(replaced)
 
-            else:
-                raise RuntimeError("No outgoing connections to choose from.")
-                break
+            if verbose:
+                print "{}: {} replaces {}: {}".format(
+                    replacer, replacer.genome, replaced, replaced.genome)
+
+            replacer = replaced
+            self.db.commit()
+
+        else:
+            raise RuntimeError("No outgoing connections to choose from.")
 
 
 class MoranProcess(object):
@@ -43,22 +49,19 @@ class MoranProcess(object):
     So far, the process is neutral and there is no mutation.
     """
 
-    def __init__(self, network, steps):
+    def __init__(self, network):
         self.db = network.db
         self.network = network
-        self.steps = steps
 
-    def run(self, verbose=True):
+    def step(self, verbose=True):
         n = len(self.network)
+        replacer = self.network.agents[np.random.randint(0, n)]
+        options = replacer.outgoing_vectors
+        replaced = options[np.random.randint(0, len(options))].destination
 
-        for i in xrange(self.steps):
-            replacer = self.network.agents[np.random.randint(0, n)]
-            options = replacer.outgoing_vectors
-            replaced = options[np.random.randint(0, len(options))].destination
+        if verbose:
+            print "{}: {} replaces {}: {}".format(
+                replacer, replacer.genome, replaced, replaced.genome)
 
-            if verbose:
-                print "{}: {} replaces {}: {}".format(
-                    replacer, replacer.genome, replaced, replaced.genome)
-
-            replacer.transmit(replaced)
-            self.db.commit()
+        replacer.transmit(replaced)
+        self.db.commit()
