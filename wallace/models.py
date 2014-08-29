@@ -70,11 +70,12 @@ class Node(Base):
             raise ValueError(
                 "'{}' is not connected to '{}'".format(self, other_node))
 
-        Transmission(
+        t = Transmission(
             meme=meme,
             origin_uuid=self.uuid,
             destination_uuid=other_node.uuid)
 
+        self.outgoing_transmissions.append(t)
         other_node.update(meme)
 
     def broadcast(self, meme):
