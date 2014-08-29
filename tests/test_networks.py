@@ -97,6 +97,7 @@ class TestNetworks(object):
         assert agent2.genome
         assert agent1.mimeme
         assert agent2.mimeme
+        assert len(source.outgoing_transmissions) == 4
 
     def test_create_chain(self):
         net = networks.Chain(self.db, 4)
