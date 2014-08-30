@@ -123,6 +123,7 @@ class TestModels(object):
     def test_node_transmit_invalid_meme(self):
         node1 = models.Node()
         node2 = models.Node()
+        node1.connect_to(node2)
         meme = models.Meme(origin=node2, contents="foo")
         self.add(node1, node2, meme)
 
@@ -159,6 +160,9 @@ class TestModels(object):
 
         assert node1.outdegree == 5
 
+        node5 = self.db.query(models.Node).filter_by(outdegree=5).one()
+        assert node5 == node1
+
     def test_node_indegree(self):
         node1 = models.Node()
         self.db.add(node1)
@@ -170,6 +174,9 @@ class TestModels(object):
             self.add(new_node)
 
         assert node1.indegree == 5
+
+        node5 = self.db.query(models.Node).filter_by(indegree=5).one()
+        assert node5 == node1
 
     def test_node_has_connection_to(self):
         node1 = models.Node()
@@ -201,6 +208,7 @@ class TestModels(object):
         self.add(node1, node2, vector)
 
         self._check_single_connection(node1, node2)
+        assert len(vector.transmissions) == 0
 
     def test_create_bidirectional_vectors(self):
         """Test creating a bidirectional connection between nodes"""
@@ -229,6 +237,9 @@ class TestModels(object):
         assert node2.indegree == 1
         assert node1.outdegree == 1
         assert node2.outdegree == 1
+
+        assert len(vector1.transmissions) == 0
+        assert len(vector2.transmissions) == 0
 
     def test_vector_repr(self):
         """Test the repr of a vector"""
@@ -337,6 +348,17 @@ class TestModels(object):
         assert transmission.destination_uuid == vector.destination_uuid
         assert transmission.transmit_time
         assert transmission.vector == vector
+        assert vector.transmissions == [transmission]
+
+    def test_transmission_repr(self):
+        node1 = models.Node()
+        node2 = models.Node()
+        vector = models.Vector(origin=node1, destination=node2)
+        meme = models.Meme(origin=node1)
+        transmission = models.Transmission(meme=meme, destination=node2)
+        self.add(node1, node2, vector, meme, transmission)
+
+        assert repr(transmission).split("-") == ["Transmission", transmission.uuid[:6]]
 
     def test_node_incoming_transmissions(self):
         node1 = models.Node()

@@ -163,9 +163,13 @@ class Vector(Base):
 
     @property
     def transmissions(self):
-        return Transmission.query.filter_by(
-            origin_uuid=self.origin_uuid,
-            destination_uuid=self.destination_uuid)
+        return Transmission\
+            .query\
+            .filter_by(
+                origin_uuid=self.origin_uuid,
+                destination_uuid=self.destination_uuid)\
+            .order_by(Transmission.transmit_time)\
+            .all()
 
 
 class Meme(Base):
