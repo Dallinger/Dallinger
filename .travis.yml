@@ -4,6 +4,11 @@ python:
 install:
   - "pip install SQLAlchemy"
   - "pip install MySQL-python"
+  - "pip install nose coverage coveralls"
 before_script:
   - "mysqld"
-script: nosetests
+script:
+  - nosetests --with-coverage --cover-erase --cover-package wallace
+
+after_success:
+  - coveralls
