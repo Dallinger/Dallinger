@@ -6,7 +6,7 @@ install:
   - "pip install MySQL-python"
   - "pip install nose coverage coveralls"
 before_script:
-  - "mysqld"
+  - mysql -e 'create database wallace;'
 script:
   - nosetests --with-coverage --cover-erase --cover-package wallace
 
