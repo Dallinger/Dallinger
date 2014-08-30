@@ -20,5 +20,6 @@ n.add_local_source(source, n.first_agent)
 n.trigger_source(source)
 
 # Run the process
-p = processes.RandomWalkFromSource(n, num_steps)
-p.run()
+p = processes.RandomWalkFromSource(n)
+for i in xrange(num_steps):
+    p.step()
