@@ -42,11 +42,21 @@ class Network(object):
         source.broadcast()
         self.db.commit()
 
+    def add_agent(self):
+        agent = Agent()
+        self.db.add(agent)
+        self.db.commit()
+        return agent
+
     def __len__(self):
         return len(self.agents)
 
     def __repr__(self):
-        return "\n".join(map(str, self.links))
+        return "<{} with {} agents, {} sources, {} links>".format(
+            type(self).__name__,
+            len(self.agents),
+            len(self.sources),
+            len(self.links))
 
 
 class Chain(Network):
@@ -74,6 +84,7 @@ class Chain(Network):
             self.last_agent.connect_to(agent)
         self.db.add(agent)
         self.db.commit()
+        return agent
 
 
 class FullyConnected(Network):
@@ -96,6 +107,7 @@ class FullyConnected(Network):
             newcomer.connect_from(agent)
 
         self.db.commit()
+        return newcomer
 
 
 class ScaleFree(Network):
@@ -112,8 +124,10 @@ class ScaleFree(Network):
         self.db = db
         self.m = m
 
+        print len(self.links)
         for i in xrange(size - m0):
             self.add_agent()
+            print len(self.links)
 
     def add_agent(self):
         newcomer = Agent()
@@ -124,9 +138,7 @@ class ScaleFree(Network):
             for agent in self.agents:
                 if agent == newcomer:
                     continue
-                if agent.has_connection_from(newcomer):
-                    continue
-                if agent.has_connection_to(newcomer):
+                if agent.has_connection_from(newcomer) or agent.has_connection_to(newcomer):
                     continue
                 agents.append(agent)
             d = np.array([a.outdegree for a in agents], dtype=float)
@@ -140,3 +152,5 @@ class ScaleFree(Network):
             newcomer.connect_to(link_to)
             newcomer.connect_from(link_to)
             self.db.commit()
+
+        return newcomer
