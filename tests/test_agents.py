@@ -18,33 +18,24 @@ class TestAgents(object):
         agent = agents.Agent()
         self.add(agent)
 
-        assert agent.genome_uuid is None
-        assert agent.mimeme_uuid is None
+        assert agent.genome is None
+        assert agent.mimeme is None
 
-        genome = memes.Genome(contents="foo")
-        mimeme = memes.Mimeme(contents="bar")
+        genome = memes.Genome(origin=agent, contents="foo")
+        mimeme = memes.Mimeme(origin=agent, contents="bar")
         self.add(genome, mimeme)
-
-        agent.genome = genome
-        agent.mimeme = mimeme
         self.db.commit()
 
-        assert agent.genome_uuid == genome.uuid
-        assert agent.genome.contents == "foo"
-
-        assert agent.mimeme_uuid == mimeme.uuid
-        assert agent.mimeme.contents == "bar"
+        assert agent.genome == genome
+        assert agent.mimeme == mimeme
 
     def test_agent_transmit(self):
         agent1 = agents.Agent()
         agent2 = agents.Agent()
         agent1.connect_to(agent2)
-        genome = memes.Genome(contents="foo")
-        mimeme = memes.Mimeme(contents="bar")
+        genome = memes.Genome(origin=agent1, contents="foo")
+        mimeme = memes.Mimeme(origin=agent1, contents="bar")
         self.add(agent1, agent2, genome, mimeme)
-
-        agent1.genome = genome
-        agent1.mimeme = mimeme
         self.db.commit()
 
         agent1.transmit(agent2)
@@ -61,12 +52,9 @@ class TestAgents(object):
         agent3 = agents.Agent()
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
-        genome = memes.Genome(contents="foo")
-        mimeme = memes.Mimeme(contents="bar")
+        genome = memes.Genome(origin=agent1, contents="foo")
+        mimeme = memes.Mimeme(origin=agent1, contents="bar")
         self.add(agent1, agent2, agent3, genome, mimeme)
-
-        agent1.genome = genome
-        agent1.mimeme = mimeme
         self.db.commit()
 
         agent1.broadcast()
