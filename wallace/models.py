@@ -5,11 +5,12 @@ from datetime import datetime
 from .db import Base
 
 # various sqlalchemy imports
-from sqlalchemy import ForeignKey, ForeignKeyConstraint
+from sqlalchemy import ForeignKey
 from sqlalchemy import Column, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql import func, select
+from sqlalchemy.ext.associationproxy import association_proxy
 
 DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
 
@@ -39,26 +40,31 @@ class Node(Base):
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
-    # incoming and outgoing transmissions to this node
-    incoming_transmissions = relationship(
-        "Transmission",
-        primaryjoin="foreign(Transmission.destination_uuid) == Node.uuid",
-        order_by="Transmission.transmit_time")
-    outgoing_transmissions = relationship(
-        "Transmission",
-        primaryjoin="foreign(Transmission.origin_uuid) == Node.uuid",
-        order_by="Transmission.transmit_time")
+    # the memes created by this node
+    memes = relationship(
+        "Meme", backref='origin', order_by="Meme.creation_time")
+
+    # the predecessors and successors
+    successors = relationship(
+        "Node",
+        secondary="vector",
+        primaryjoin="Node.uuid==vector.c.origin_uuid",
+        secondaryjoin="Node.uuid==vector.c.destination_uuid",
+        backref="predecessors"
+    )
 
     def __repr__(self):
         return "Node-{}-{}".format(self.uuid[:6], self.type)
 
     def connect_to(self, other_node):
         """Creates a directed edge from self to other_node"""
-        Vector(origin=self, destination=other_node)
+        vector = Vector(origin=self, destination=other_node)
+        self.outgoing_vectors.append(vector)
 
     def connect_from(self, other_node):
         """Creates a directed edge from other_node to self"""
-        Vector(origin=other_node, destination=self)
+        vector = Vector(origin=other_node, destination=self)
+        self.incoming_vectors.append(vector)
 
     def transmit(self, meme, other_node):
         """Transmits the specified meme to 'other_node'. The meme must have
@@ -69,13 +75,12 @@ class Node(Base):
         if not self.has_connection_to(other_node):
             raise ValueError(
                 "'{}' is not connected to '{}'".format(self, other_node))
+        if not meme.origin_uuid == self.uuid:
+            raise ValueError(
+                "'{}' was not created by '{}'".format(meme, self))
 
-        t = Transmission(
-            meme=meme,
-            origin_uuid=self.uuid,
-            destination_uuid=other_node.uuid)
-
-        self.outgoing_transmissions.append(t)
+        t = Transmission(meme=meme, destination=other_node)
+        meme.transmissions.append(t)
         other_node.update(meme)
 
     def broadcast(self, meme):
@@ -113,17 +118,27 @@ class Node(Base):
 
     def has_connection_to(self, other_node):
         """Whether this node has a connection to 'other_node'."""
-        for vector in self.outgoing_vectors:
-            if vector.destination_uuid == other_node.uuid:
-                return True
-        return False
+        return other_node in self.successors
 
     def has_connection_from(self, other_node):
         """Whether this node has a connection from 'other_node'."""
-        for vector in self.incoming_vectors:
-            if vector.origin_uuid == other_node.uuid:
-                return True
-        return False
+        return other_node in self.predecessors
+
+    @property
+    def incoming_transmissions(self):
+        return Transmission\
+            .query\
+            .filter_by(destination_uuid=self.uuid)\
+            .order_by(Transmission.transmit_time)\
+            .all()
+
+    @property
+    def outgoing_transmissions(self):
+        return Transmission\
+            .query\
+            .filter_by(origin_uuid=self.uuid)\
+            .order_by(Transmission.transmit_time)\
+            .all()
 
 
 class Vector(Base):
@@ -146,6 +161,12 @@ class Vector(Base):
         return "Vector-{}-{}".format(
             self.origin_uuid[:6], self.destination_uuid[:6])
 
+    @property
+    def transmissions(self):
+        return Transmission.query.filter_by(
+            origin_uuid=self.origin_uuid,
+            destination_uuid=self.destination_uuid)
+
 
 class Meme(Base):
     __tablename__ = "meme"
@@ -160,6 +181,9 @@ class Meme(Base):
         'polymorphic_identity': 'base'
     }
 
+    # the node that created this meme
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'), nullable=False)
+
     # the time when the meme was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
@@ -169,9 +193,9 @@ class Meme(Base):
     def __repr__(self):
         return "Meme-{}-{}".format(self.uuid[:6], self.type)
 
-    def duplicate(self):
+    def copy_to(self, other_node):
         cls = type(self)
-        return cls(contents=self.contents)
+        return cls(origin=other_node, contents=self.contents)
 
 
 class Transmission(Base):
@@ -184,23 +208,24 @@ class Transmission(Base):
     meme_uuid = Column(String(32), ForeignKey('meme.uuid'), nullable=False)
     meme = relationship(Meme, backref='transmissions')
 
-    # the origin and destination nodes, which gives us a reference to
-    # the vector that this transmission occurred along
-    origin_uuid = Column(String(32), nullable=False)
-    destination_uuid = Column(String(32), nullable=False)
-    vector = relationship(Vector, backref='transmissions')
-
-    # these are special constraints that ensure (1) that the meme
-    # origin is the same as the vector origin and (2) that the vector
-    # is defined by the origin uuid and the destination uuid
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["origin_uuid", "destination_uuid"],
-            ["vector.origin_uuid", "vector.destination_uuid"]),
-        {})
-
     # the time at which the transmission occurred
     transmit_time = Column(String(26), nullable=False, default=timenow)
+
+    # the origin of the meme, which is proxied by association from the
+    # meme itself
+    origin_uuid = association_proxy('meme', 'origin_uuid')
+    origin = association_proxy('meme', 'origin')
+
+    # the destination of the meme
+    destination_uuid = Column(
+        String(32), ForeignKey('node.uuid'), nullable=False)
+    destination = relationship(Node, foreign_keys=[destination_uuid])
+
+    @property
+    def vector(self):
+        return Vector.query.filter_by(
+            origin_uuid=self.origin_uuid,
+            destination_uuid=self.destination_uuid).one()
 
     def __repr__(self):
         return "Transmission-{}".format(self.uuid[:6])

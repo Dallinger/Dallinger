@@ -1,5 +1,4 @@
-from sqlalchemy import ForeignKey, Column, String, Integer
-from sqlalchemy.orm import relationship
+from sqlalchemy import ForeignKey, Column, String, Integer, desc
 
 from .models import Node
 from .memes import Genome, Mimeme
@@ -18,11 +17,23 @@ class Agent(Node):
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    genome_uuid = Column(String(32), ForeignKey('meme.uuid'))
-    genome = relationship(Genome, foreign_keys=[genome_uuid])
+    @property
+    def genome(self):
+        genome = Genome\
+            .query\
+            .filter_by(origin_uuid=self.uuid)\
+            .order_by(desc(Genome.creation_time))\
+            .first()
+        return genome
 
-    mimeme_uuid = Column(String(32), ForeignKey('meme.uuid'))
-    mimeme = relationship(Mimeme, foreign_keys=[mimeme_uuid])
+    @property
+    def mimeme(self):
+        mimeme = Mimeme\
+            .query\
+            .filter_by(origin_uuid=self.uuid)\
+            .order_by(desc(Mimeme.creation_time))\
+            .first()
+        return mimeme
 
     def transmit(self, other_node):
         super(Agent, self).transmit(self.genome, other_node)
@@ -33,12 +44,7 @@ class Agent(Node):
             self.transmit(vector.destination)
 
     def update(self, meme):
-        if meme.type == "genome":
-            self.genome = meme.duplicate()
-        elif meme.type == "mimeme":
-            self.mimeme = meme.duplicate()
-        else:
-            raise ValueError("Unhandled meme type: {}".format(meme.type))
+        meme.copy_to(self)
 
 
 class Source(Node):
@@ -80,7 +86,13 @@ class RandomBinaryStringSource(Source):
         return "".join(np.random.randint(0, 2, length).astype(str))
 
     def generate_genome(self):
-        return Genome(contents=self._binary_string(self.genome_size))
+        return Genome(
+            origin=self,
+            origin_uuid=self.uuid,
+            contents=self._binary_string(self.genome_size))
 
     def generate_mimeme(self):
-        return Mimeme(contents=self._binary_string(self.mimeme_size))
+        return Mimeme(
+            origin=self,
+            origin_uuid=self.uuid,
+            contents=self._binary_string(self.mimeme_size))

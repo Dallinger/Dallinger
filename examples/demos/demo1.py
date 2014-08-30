@@ -24,5 +24,6 @@ n.add_global_source(source)
 n.trigger_source(source)
 
 # Run the Moran process
-p = processes.MoranProcess(n, num_steps)
-p.run()
+p = processes.MoranProcess(n)
+for i in xrange(num_steps):
+    p.step()

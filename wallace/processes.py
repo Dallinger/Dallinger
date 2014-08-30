@@ -7,10 +7,9 @@ class RandomWalkFromSource(object):
     """Takes a random walk over a network, starting at a node randomly selected
     from those that receive input from a source."""
 
-    def __init__(self, network, steps):
+    def __init__(self, network):
         self.db = network.db
         self.network = network
-        self.steps = steps
 
     def get_latest_vector(self):
         return self.db.query(models.Transmission).order_by(
