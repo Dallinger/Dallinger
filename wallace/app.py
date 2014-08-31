@@ -19,7 +19,7 @@ def start():
     process = experiment.process  # Step through the process
     for i in xrange(experiment.num_steps):
         process.step()
-
+    return "Demo 2 complete."
 
 if __name__ == "__main__":
     app.debug = True
