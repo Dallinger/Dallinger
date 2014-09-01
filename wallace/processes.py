@@ -11,7 +11,7 @@ class RandomWalkFromSource(object):
         self.db = network.db
         self.network = network
 
-    def get_latest_vector(self):
+    def get_latest_transmission(self):
         return self.db.query(models.Transmission).order_by(
             desc(models.Transmission.transmit_time)).first()
 
@@ -22,7 +22,7 @@ class RandomWalkFromSource(object):
 
         # replacer = np.random.choice(sourced_agents)
 
-        replacer = self.get_latest_vector().destination
+        replacer = self.get_latest_transmission().destination
 
         options = replacer.outgoing_vectors
 
