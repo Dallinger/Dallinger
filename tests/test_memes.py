@@ -22,10 +22,10 @@ class TestMemes(object):
         assert meme.type == "genome"
         assert meme.contents is None
 
-    def test_create_mimeme(self):
+    def test_create_memome(self):
         node = models.Node()
-        meme = memes.Mimeme(origin=node)
+        meme = memes.Memome(origin=node)
         self.add(node, meme)
 
-        assert meme.type == "mimeme"
+        assert meme.type == "memome"
         assert meme.contents is None

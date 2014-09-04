@@ -5,5 +5,5 @@ class Genome(Meme):
     __mapper_args__ = {"polymorphic_identity": "genome"}
 
 
-class Mimeme(Meme):
-    __mapper_args__ = {"polymorphic_identity": "mimeme"}
+class Memome(Meme):
+    __mapper_args__ = {"polymorphic_identity": "memome"}
