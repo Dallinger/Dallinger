@@ -30,7 +30,7 @@ class TestModels(object):
         assert len(node.uuid) == 32
         assert node.type == "base"
         assert node.creation_time
-        assert len(node.memes) == 0
+        assert len(node.information) == 0
         assert node.outdegree == 0
         assert node.indegree == 0
         assert len(node.outgoing_vectors) == 0
@@ -98,14 +98,14 @@ class TestModels(object):
         node1 = models.Node()
         node2 = models.Node()
         node1.connect_to(node2)
-        meme = models.Meme(origin=node1, contents="foo")
-        self.add(node1, node2, meme)
+        info = models.Info(origin=node1, contents="foo")
+        self.add(node1, node2, info)
 
-        node1.transmit(meme, node2)
+        node1.transmit(info, node2)
         self.db.commit()
 
-        transmission = meme.transmissions[0]
-        assert transmission.meme_uuid == meme.uuid
+        transmission = info.transmissions[0]
+        assert transmission.info_uuid == info.uuid
         assert transmission.origin_uuid == node1.uuid
         assert transmission.destination_uuid == node2.uuid
 
@@ -113,21 +113,21 @@ class TestModels(object):
     def test_node_transmit_no_connection(self):
         node1 = models.Node()
         node2 = models.Node()
-        meme = models.Meme(origin=node1, contents="foo")
-        self.add(node1, node2, meme)
+        info = models.Info(origin=node1, contents="foo")
+        self.add(node1, node2, info)
 
-        node1.transmit(meme, node2)
+        node1.transmit(info, node2)
         self.db.commit()
 
     @raises(ValueError)
-    def test_node_transmit_invalid_meme(self):
+    def test_node_transmit_invalid_info(self):
         node1 = models.Node()
         node2 = models.Node()
         node1.connect_to(node2)
-        meme = models.Meme(origin=node2, contents="foo")
-        self.add(node1, node2, meme)
+        info = models.Info(origin=node2, contents="foo")
+        self.add(node1, node2, info)
 
-        node1.transmit(meme, node2)
+        node1.transmit(info, node2)
         self.db.commit()
 
     def test_node_broadcast(self):
@@ -139,13 +139,13 @@ class TestModels(object):
             node1.connect_to(new_node)
             self.db.add(new_node)
 
-        meme = models.Meme(origin=node1, contents="foo")
-        self.add(meme)
+        info = models.Info(origin=node1, contents="foo")
+        self.add(info)
 
-        node1.broadcast(meme)
+        node1.broadcast(info)
         self.db.commit()
 
-        transmissions = meme.transmissions
+        transmissions = info.transmissions
         assert len(transmissions) == 5
 
     def test_node_outdegree(self):
@@ -262,72 +262,72 @@ class TestModels(object):
         self.add(node1, node2, vector1, vector2)
 
     ##################################################################
-    ## Meme
+    ## Info
     ##################################################################
 
-    def test_create_meme(self):
-        """Try creating a meme"""
+    def test_create_info(self):
+        """Try creating an info"""
         node = models.Node()
-        meme = models.Meme(origin=node, contents="foo")
-        self.add(node, meme)
+        info = models.Info(origin=node, contents="foo")
+        self.add(node, info)
 
-        assert len(meme.uuid) == 32
-        assert meme.type == "base"
-        assert meme.origin_uuid == node.uuid
-        assert meme.creation_time
-        assert meme.contents == "foo"
-        assert len(meme.transmissions) == 0
+        assert len(info.uuid) == 32
+        assert info.type == "base"
+        assert info.origin_uuid == node.uuid
+        assert info.creation_time
+        assert info.contents == "foo"
+        assert len(info.transmissions) == 0
 
-        assert node.memes == [meme]
+        assert node.information == [info]
 
-    def test_create_two_memes(self):
-        """Try creating two memes"""
+    def test_create_two_infos(self):
+        """Try creating two infos"""
         node = models.Node()
-        meme1 = models.Meme(origin=node, contents="bar")
-        meme2 = models.Meme(origin=node, contents="foo")
-        self.add(node, meme1, meme2)
+        info1 = models.Info(origin=node, contents="bar")
+        info2 = models.Info(origin=node, contents="foo")
+        self.add(node, info1, info2)
 
-        assert meme1.uuid != meme2.uuid
-        assert meme1.origin_uuid == meme2.origin_uuid
-        assert meme1.creation_time != meme2.creation_time
-        assert meme1.contents != meme2.contents
-        assert len(meme1.transmissions) == 0
-        assert len(meme2.transmissions) == 0
+        assert info1.uuid != info2.uuid
+        assert info1.origin_uuid == info2.origin_uuid
+        assert info1.creation_time != info2.creation_time
+        assert info1.contents != info2.contents
+        assert len(info1.transmissions) == 0
+        assert len(info2.transmissions) == 0
 
-        assert len(node.memes) == 2
-        assert meme1 in node.memes
-        assert meme2 in node.memes
+        assert len(node.information) == 2
+        assert info1 in node.information
+        assert info2 in node.information
 
-    def test_meme_repr(self):
-        """Check the meme repr"""
+    def test_info_repr(self):
+        """Check the info repr"""
         node = models.Node()
-        meme = models.Meme(origin=node)
-        self.add(meme)
+        info = models.Info(origin=node)
+        self.add(info)
 
-        assert repr(meme).split("-") == ["Meme", meme.uuid[:6], "base"]
+        assert repr(info).split("-") == ["Info", info.uuid[:6], "base"]
 
-    def test_meme_copy_to(self):
-        """Check that Meme.copy_to works correctly"""
+    def test_info_copy_to(self):
+        """Check that Info.copy_to works correctly"""
         node1 = models.Node()
         node2 = models.Node()
         node1.connect_to(node2)
         self.add(node1, node2)
 
-        meme1 = models.Meme(origin=node1, contents="foo")
-        node1.transmit(meme1, node2)
-        meme2 = meme1.copy_to(node2)
-        self.add(meme1, meme2)
+        info1 = models.Info(origin=node1, contents="foo")
+        node1.transmit(info1, node2)
+        info2 = info1.copy_to(node2)
+        self.add(info1, info2)
 
-        assert meme1.uuid != meme2.uuid
-        assert meme1.type == meme2.type
-        assert meme1.creation_time != meme2.creation_time
-        assert meme1.contents == meme2.contents
-        assert meme1.origin_uuid == node1.uuid
-        assert meme2.origin_uuid == node2.uuid
-        assert len(meme1.transmissions) == 1
-        assert len(meme2.transmissions) == 0
-        assert node1.memes == [meme1]
-        assert node2.memes == [meme2]
+        assert info1.uuid != info2.uuid
+        assert info1.type == info2.type
+        assert info1.creation_time != info2.creation_time
+        assert info1.contents == info2.contents
+        assert info1.origin_uuid == node1.uuid
+        assert info2.origin_uuid == node2.uuid
+        assert len(info1.transmissions) == 1
+        assert len(info2.transmissions) == 0
+        assert node1.information == [info1]
+        assert node2.information == [info2]
 
     ##################################################################
     ## Transmission
@@ -338,12 +338,12 @@ class TestModels(object):
         node1 = models.Node()
         node2 = models.Node()
         vector = models.Vector(origin=node1, destination=node2)
-        meme = models.Meme(origin=node1)
-        transmission = models.Transmission(meme=meme, destination=node2)
-        self.add(node1, node2, vector, meme, transmission)
+        info = models.Info(origin=node1)
+        transmission = models.Transmission(info=info, destination=node2)
+        self.add(node1, node2, vector, info, transmission)
 
         assert len(transmission.uuid) == 32
-        assert transmission.meme_uuid == meme.uuid
+        assert transmission.info_uuid == info.uuid
         assert transmission.origin_uuid == vector.origin_uuid
         assert transmission.destination_uuid == vector.destination_uuid
         assert transmission.transmit_time
@@ -354,9 +354,9 @@ class TestModels(object):
         node1 = models.Node()
         node2 = models.Node()
         vector = models.Vector(origin=node1, destination=node2)
-        meme = models.Meme(origin=node1)
-        transmission = models.Transmission(meme=meme, destination=node2)
-        self.add(node1, node2, vector, meme, transmission)
+        info = models.Info(origin=node1)
+        transmission = models.Transmission(info=info, destination=node2)
+        self.add(node1, node2, vector, info, transmission)
 
         assert repr(transmission).split("-") == ["Transmission", transmission.uuid[:6]]
 
@@ -368,12 +368,12 @@ class TestModels(object):
         node1.connect_from(node3)
         self.add(node1, node2, node3)
 
-        meme1 = models.Meme(origin=node2, contents="foo")
-        meme2 = models.Meme(origin=node3, contents="bar")
-        self.add(meme1, meme2)
+        info1 = models.Info(origin=node2, contents="foo")
+        info2 = models.Info(origin=node3, contents="bar")
+        self.add(info1, info2)
 
-        node2.transmit(meme1, node1)
-        node3.transmit(meme2, node1)
+        node2.transmit(info1, node1)
+        node3.transmit(info2, node1)
         self.db.commit()
 
         assert len(node1.incoming_transmissions) == 2
@@ -388,12 +388,12 @@ class TestModels(object):
         node1.connect_to(node3)
         self.add(node1, node2, node3)
 
-        meme1 = models.Meme(origin=node1, contents="foo")
-        meme2 = models.Meme(origin=node1, contents="bar")
-        self.add(meme1, meme2)
+        info1 = models.Info(origin=node1, contents="foo")
+        info2 = models.Info(origin=node1, contents="bar")
+        self.add(info1, info2)
 
-        node1.transmit(meme1, node2)
-        node1.transmit(meme2, node3)
+        node1.transmit(info1, node2)
+        node1.transmit(info2, node3)
         self.db.commit()
 
         assert len(node1.outgoing_transmissions) == 2

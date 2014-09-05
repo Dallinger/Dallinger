@@ -1,9 +1,9 @@
-from .models import Meme
+from .models import Info
 
 
-class Genome(Meme):
+class Genome(Info):
     __mapper_args__ = {"polymorphic_identity": "genome"}
 
 
-class Memome(Meme):
+class Memome(Info):
     __mapper_args__ = {"polymorphic_identity": "memome"}

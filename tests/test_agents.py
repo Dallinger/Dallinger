@@ -1,4 +1,4 @@
-from wallace import models, agents, memes, db
+from wallace import models, agents, information, db
 
 
 class TestAgents(object):
@@ -21,8 +21,8 @@ class TestAgents(object):
         assert agent.genome is None
         assert agent.memome is None
 
-        genome = memes.Genome(origin=agent, contents="foo")
-        memome = memes.Memome(origin=agent, contents="bar")
+        genome = information.Genome(origin=agent, contents="foo")
+        memome = information.Memome(origin=agent, contents="bar")
         self.add(genome, memome)
         self.db.commit()
 
@@ -33,8 +33,8 @@ class TestAgents(object):
         agent1 = agents.Agent()
         agent2 = agents.Agent()
         agent1.connect_to(agent2)
-        genome = memes.Genome(origin=agent1, contents="foo")
-        memome = memes.Memome(origin=agent1, contents="bar")
+        genome = information.Genome(origin=agent1, contents="foo")
+        memome = information.Memome(origin=agent1, contents="bar")
         self.add(agent1, agent2, genome, memome)
         self.db.commit()
 
@@ -52,8 +52,8 @@ class TestAgents(object):
         agent3 = agents.Agent()
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
-        genome = memes.Genome(origin=agent1, contents="foo")
-        memome = memes.Memome(origin=agent1, contents="bar")
+        genome = information.Genome(origin=agent1, contents="foo")
+        memome = information.Memome(origin=agent1, contents="bar")
         self.add(agent1, agent2, agent3, genome, memome)
         self.db.commit()
 

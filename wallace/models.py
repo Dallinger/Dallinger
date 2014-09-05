@@ -40,9 +40,9 @@ class Node(Base):
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
-    # the memes created by this node
-    memes = relationship(
-        "Meme", backref='origin', order_by="Meme.creation_time")
+    # the information created by this node
+    information = relationship(
+        "Info", backref='origin', order_by="Info.creation_time")
 
     # the predecessors and successors
     successors = relationship(
@@ -66,8 +66,8 @@ class Node(Base):
         vector = Vector(origin=other_node, destination=self)
         self.incoming_vectors.append(vector)
 
-    def transmit(self, meme, other_node):
-        """Transmits the specified meme to 'other_node'. The meme must have
+    def transmit(self, info, other_node):
+        """Transmits the specified info to 'other_node'. The info must have
         been created by this node, and this node must be connected to
         'other_node'.
 
@@ -75,23 +75,23 @@ class Node(Base):
         if not self.has_connection_to(other_node):
             raise ValueError(
                 "'{}' is not connected to '{}'".format(self, other_node))
-        if not meme.origin_uuid == self.uuid:
+        if not info.origin_uuid == self.uuid:
             raise ValueError(
-                "'{}' was not created by '{}'".format(meme, self))
+                "'{}' was not created by '{}'".format(info, self))
 
-        t = Transmission(meme=meme, destination=other_node)
-        meme.transmissions.append(t)
-        other_node.update(meme)
+        t = Transmission(info=info, destination=other_node)
+        info.transmissions.append(t)
+        other_node.update(info)
 
-    def broadcast(self, meme):
-        """Broadcast the specified meme to all connected nodes. The meme must
+    def broadcast(self, info):
+        """Broadcast the specified info to all connected nodes. The info must
         have been created by this node.
 
         """
         for vector in self.outgoing_vectors:
-            self.transmit(meme, vector.destination)
+            self.transmit(info, vector.destination)
 
-    def update(self, meme):
+    def update(self, info):
         pass
 
     @hybrid_property
@@ -172,30 +172,30 @@ class Vector(Base):
             .all()
 
 
-class Meme(Base):
-    __tablename__ = "meme"
+class Info(Base):
+    __tablename__ = "info"
 
-    # the unique meme id
+    # the unique info id
     uuid = Column(String(32), primary_key=True, default=new_uuid)
 
-    # the meme type -- this allows for inheritance
+    # the info type -- this allows for inheritance
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'base'
     }
 
-    # the node that created this meme
+    # the node that created this info
     origin_uuid = Column(String(32), ForeignKey('node.uuid'), nullable=False)
 
-    # the time when the meme was created
+    # the time when the info was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
-    # the contents of the meme
+    # the contents of the info
     contents = Column(Text(4294967295))
 
     def __repr__(self):
-        return "Meme-{}-{}".format(self.uuid[:6], self.type)
+        return "Info-{}-{}".format(self.uuid[:6], self.type)
 
     def copy_to(self, other_node):
         cls = type(self)
@@ -208,19 +208,19 @@ class Transmission(Base):
     # the unique transmission id
     uuid = Column(String(32), primary_key=True, default=new_uuid)
 
-    # the meme that was transmitted
-    meme_uuid = Column(String(32), ForeignKey('meme.uuid'), nullable=False)
-    meme = relationship(Meme, backref='transmissions')
+    # the info that was transmitted
+    info_uuid = Column(String(32), ForeignKey('info.uuid'), nullable=False)
+    info = relationship(Info, backref='transmissions')
 
     # the time at which the transmission occurred
     transmit_time = Column(String(26), nullable=False, default=timenow)
 
-    # the origin of the meme, which is proxied by association from the
-    # meme itself
-    origin_uuid = association_proxy('meme', 'origin_uuid')
-    origin = association_proxy('meme', 'origin')
+    # the origin of the info, which is proxied by association from the
+    # info itself
+    origin_uuid = association_proxy('info', 'origin_uuid')
+    origin = association_proxy('info', 'origin')
 
-    # the destination of the meme
+    # the destination of the info
     destination_uuid = Column(
         String(32), ForeignKey('node.uuid'), nullable=False)
     destination = relationship(Node, foreign_keys=[destination_uuid])

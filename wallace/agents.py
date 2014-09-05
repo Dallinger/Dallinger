@@ -1,7 +1,7 @@
 from sqlalchemy import ForeignKey, Column, String, Integer, desc
 
 from .models import Node
-from .memes import Genome, Memome
+from .information import Genome, Memome
 
 import numpy as np
 
@@ -43,8 +43,8 @@ class Agent(Node):
         for vector in self.outgoing_vectors:
             self.transmit(vector.destination)
 
-    def update(self, meme):
-        meme.copy_to(self)
+    def update(self, info):
+        info.copy_to(self)
 
 
 class Source(Node):
