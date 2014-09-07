@@ -1,15 +1,15 @@
 from sqlalchemy import ForeignKey, Column, String, Integer, desc
 
 from .models import Node
-from .memes import Genome, Mimeme
+from .information import Genome, Memome
 
 import numpy as np
 
 
 class Agent(Node):
-    """Agents have genomes and mimemes, and update their contents when faced.
+    """Agents have genomes and memomes, and update their contents when faced.
     By default, agents transmit unadulterated copies of their genomes and
-    mimemes, with no error or mutation.
+    memomes, with no error or mutation.
     """
 
     __tablename__ = "agent"
@@ -27,24 +27,24 @@ class Agent(Node):
         return genome
 
     @property
-    def mimeme(self):
-        mimeme = Mimeme\
+    def memome(self):
+        memome = Memome\
             .query\
             .filter_by(origin_uuid=self.uuid)\
-            .order_by(desc(Mimeme.creation_time))\
+            .order_by(desc(Memome.creation_time))\
             .first()
-        return mimeme
+        return memome
 
     def transmit(self, other_node):
         super(Agent, self).transmit(self.genome, other_node)
-        super(Agent, self).transmit(self.mimeme, other_node)
+        super(Agent, self).transmit(self.memome, other_node)
 
     def broadcast(self):
         for vector in self.outgoing_vectors:
             self.transmit(vector.destination)
 
-    def update(self, meme):
-        meme.copy_to(self)
+    def update(self, info):
+        info.copy_to(self)
 
 
 class Source(Node):
@@ -56,15 +56,15 @@ class Source(Node):
     def generate_genome(self):
         raise NotImplementedError
 
-    def generate_mimeme(self):
+    def generate_memome(self):
         raise NotImplementedError
 
     def transmit(self, other_node):
         genome = self.generate_genome()
         super(Source, self).transmit(genome, other_node)
 
-        mimeme = self.generate_mimeme()
-        super(Source, self).transmit(mimeme, other_node)
+        memome = self.generate_memome()
+        super(Source, self).transmit(memome, other_node)
 
     def broadcast(self):
         for vector in self.outgoing_vectors:
@@ -72,14 +72,14 @@ class Source(Node):
 
 
 class RandomBinaryStringSource(Source):
-    """An agent whose genome and mimeme are random binary strings. The source
+    """An agent whose genome and memome are random binary strings. The source
     only transmits; it does not update.
     """
 
     __mapper_args__ = {"polymorphic_identity": "random_binary_string_source"}
 
     genome_size = Column(Integer, default=8)
-    mimeme_size = Column(Integer, default=8)
+    memome_size = Column(Integer, default=8)
 
     @staticmethod
     def _binary_string(length):
@@ -91,8 +91,8 @@ class RandomBinaryStringSource(Source):
             origin_uuid=self.uuid,
             contents=self._binary_string(self.genome_size))
 
-    def generate_mimeme(self):
-        return Mimeme(
+    def generate_memome(self):
+        return Memome(
             origin=self,
             origin_uuid=self.uuid,
-            contents=self._binary_string(self.mimeme_size))
+            contents=self._binary_string(self.memome_size))

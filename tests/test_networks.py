@@ -102,15 +102,15 @@ class TestNetworks(object):
 
         assert agent1.genome is None
         assert agent2.genome is None
-        assert agent1.mimeme is None
-        assert agent2.mimeme is None
+        assert agent1.memome is None
+        assert agent2.memome is None
 
         net.trigger_source(source)
 
         assert agent1.genome
         assert agent2.genome
-        assert agent1.mimeme
-        assert agent2.mimeme
+        assert agent1.memome
+        assert agent2.memome
         assert len(source.outgoing_transmissions) == 4
 
     def test_network_add_agent(self):
