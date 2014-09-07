@@ -134,12 +134,18 @@ class TestNetworks(object):
 
     def test_create_chain(self):
         net = networks.Chain(self.db, 4)
+        source = agents.RandomBinaryStringSource()
+        net.add_local_source(source)
         assert len(net) == 4
-        assert len(net.links) == 3
+        assert len(net.links) == 4
 
     def test_empty_chain_last_agent(self):
         net = networks.Chain(self.db, 0)
         assert net.last_agent is None
+
+    def test_empty_chain_first_agent(self):
+        net = networks.Chain(self.db, 0)
+        assert net.first_agent is None
 
     def test_chain_first_agent(self):
         net = networks.Chain(self.db, 4)
@@ -147,15 +153,19 @@ class TestNetworks(object):
         assert net.first_agent.indegree == 0
         assert net.first_agent.outdegree == 1
 
-    def test_chain_last_agent(self):
+    def test_chain_last_node(self):
         net = networks.Chain(self.db, 4)
+        source = agents.RandomBinaryStringSource()
+        net.add_local_source(source)
         assert net.last_agent is not None
         assert net.last_agent.indegree == 1
         assert net.last_agent.outdegree == 0
 
     def test_chain_repr(self):
         net = networks.Chain(self.db, 4)
-        assert repr(net) == "<Chain with 4 agents, 0 sources, 3 links>"
+        source = agents.RandomBinaryStringSource()
+        net.add_local_source(source)
+        assert repr(net) == "<Chain with 4 agents, 1 sources, 4 links>"
 
     def test_create_fully_connected(self):
         net = networks.FullyConnected(self.db, 4)
