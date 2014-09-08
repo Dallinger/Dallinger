@@ -100,12 +100,20 @@ class TestNetworks(object):
         source = agents.RandomBinaryStringSource()
         net.add_global_source(source)
 
+        agent1.receive_all()
+        agent2.receive_all()
+        self.db.commit()
+
         assert agent1.genome is None
         assert agent2.genome is None
         assert agent1.memome is None
         assert agent2.memome is None
 
         net.trigger_source(source)
+
+        agent1.receive_all()
+        agent2.receive_all()
+        self.db.commit()
 
         assert agent1.genome
         assert agent2.genome
@@ -135,7 +143,7 @@ class TestNetworks(object):
     def test_create_chain(self):
         net = networks.Chain(self.db, 4)
         source = agents.RandomBinaryStringSource()
-        net.add_local_source(source)
+        net.add_local_source(source, net.first_agent)
         assert len(net) == 4
         assert len(net.links) == 4
 
@@ -153,10 +161,8 @@ class TestNetworks(object):
         assert net.first_agent.indegree == 0
         assert net.first_agent.outdegree == 1
 
-    def test_chain_last_node(self):
+    def test_chain_last_agent(self):
         net = networks.Chain(self.db, 4)
-        source = agents.RandomBinaryStringSource()
-        net.add_local_source(source)
         assert net.last_agent is not None
         assert net.last_agent.indegree == 1
         assert net.last_agent.outdegree == 0
@@ -164,7 +170,7 @@ class TestNetworks(object):
     def test_chain_repr(self):
         net = networks.Chain(self.db, 4)
         source = agents.RandomBinaryStringSource()
-        net.add_local_source(source)
+        net.add_local_source(source, net.first_agent)
         assert repr(net) == "<Chain with 4 agents, 1 sources, 4 links>"
 
     def test_create_fully_connected(self):

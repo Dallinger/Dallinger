@@ -98,19 +98,12 @@ class Chain(Network):
             last_agent.connect_to(newcomer)
         return newcomer
 
-    def add_local_source(self, source, agent=None):
-        self.add_node(source)
-        if agent is None:
-            source.connect_to(self.first_agent)
-        else:
-            source.connect_to(agent)
-
 
 class FullyConnected(Network):
     """In a fully-connected network (complete graph), all possible links exist.
     """
 
-    def __init__(self, db, size):
+    def __init__(self, db, size=0):
         super(FullyConnected, self).__init__(db)
         if len(self) == 0:
             for i in xrange(size):
@@ -119,7 +112,8 @@ class FullyConnected(Network):
     def add_agent(self, newcomer=None):
         if newcomer is None:
             newcomer = Agent()
-            self.db.add(newcomer)
+
+        self.db.add(newcomer)
 
         for agent in self.agents:
             if agent is not newcomer:
@@ -138,49 +132,51 @@ class ScaleFree(Network):
     attachment.
     """
 
-    def __init__(self, db, size, m0=4, m=4):
+    def __init__(self, db, size=0, m0=4, m=4):
         super(ScaleFree, self).__init__(db)
         self.db = db
         self.m = m
+        self.m0 = m0
 
-        # Start with a core of m0 fully-connected agents
         if len(self) == 0:
-            for i in xrange(m0):
-                newcomer = Agent()
-                self.db.add(newcomer)
-                for agent in self.agents:
-                    if agent is not newcomer:
-                        newcomer.connect_to(agent)
-                        newcomer.connect_from(agent)
-
-            # Then add newcomers with preferential attachment
-            for i in xrange(size - m0):
+            for i in xrange(size):
                 self.add_agent()
 
     def add_agent(self, newcomer=None):
         if newcomer is None:
             newcomer = Agent()
         self.db.add(newcomer)
+        self.db.commit()
 
-        for idx_newlink in xrange(self.m):
-            these_agents = []
+        # Start with a core of m0 fully-connected agents...
+        if len(self) <= self.m0:
             for agent in self.agents:
-                if (agent == newcomer or
-                        agent.has_connection_from(newcomer) or
-                        agent.has_connection_to(newcomer)):
-                    continue
-                else:
-                    these_agents.append(agent)
-            d = np.array([a.outdegree for a in these_agents], dtype=float)
-
-            # Select a member using preferential attachment
-            p = d / np.sum(d)
-            idx_linkto = np.flatnonzero(np.random.multinomial(1, p))[0]
-            link_to = these_agents[idx_linkto]
-
-            # Create link from the newcomer to the selected member, and back
-            newcomer.connect_to(link_to)
-            newcomer.connect_from(link_to)
+                if agent is not newcomer:
+                    newcomer.connect_to(agent)
+                    newcomer.connect_from(agent)
             self.db.commit()
+
+        # ...then add newcomers one by one with preferential attachment.
+        else:
+            for idx_newlink in xrange(self.m):
+                these_agents = []
+                for agent in self.agents:
+                    if (agent == newcomer or
+                            agent.has_connection_from(newcomer) or
+                            agent.has_connection_to(newcomer)):
+                        continue
+                    else:
+                        these_agents.append(agent)
+                d = np.array([a.outdegree for a in these_agents], dtype=float)
+
+                # Select a member using preferential attachment
+                p = d / np.sum(d)
+                idx_linkto = np.flatnonzero(np.random.multinomial(1, p))[0]
+                link_to = these_agents[idx_linkto]
+
+                # Create link from the newcomer to the selected member, and back
+                newcomer.connect_to(link_to)
+                newcomer.connect_from(link_to)
+                self.db.commit()
 
         return newcomer

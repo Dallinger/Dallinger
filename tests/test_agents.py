@@ -41,6 +41,9 @@ class TestAgents(object):
         agent1.transmit(agent2)
         self.db.commit()
 
+        agent2.receive_all()
+        self.db.commit()
+
         assert agent1.genome.contents == agent2.genome.contents
         assert agent1.genome.uuid != agent2.genome.uuid
         assert agent1.memome.contents == agent2.memome.contents
@@ -58,6 +61,10 @@ class TestAgents(object):
         self.db.commit()
 
         agent1.broadcast()
+        self.db.commit()
+
+        agent2.receive_all()
+        agent3.receive_all()
         self.db.commit()
 
         assert agent1.genome.contents == agent2.genome.contents
@@ -111,6 +118,9 @@ class TestAgents(object):
         source.transmit(agent)
         self.db.commit()
 
+        agent.receive_all()
+        self.db.commit()
+
         assert agent.genome.contents in ["00", "01", "10", "11"]
         assert agent.memome.contents in ["00", "01", "10", "11"]
 
@@ -124,6 +134,10 @@ class TestAgents(object):
         self.add(source, agent1, agent2)
 
         source.broadcast()
+        self.db.commit()
+
+        agent1.receive_all()
+        agent2.receive_all()
         self.db.commit()
 
         assert agent1.genome.contents != agent2.genome.contents

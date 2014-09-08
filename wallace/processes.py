@@ -17,25 +17,22 @@ class RandomWalkFromSource(object):
 
     def step(self, verbose=True):
 
-        # sourced_agents = [vector.destination for source in self.network.sources
-        #                   for vector in source.outgoing_vectors]
+        latest_transmission = self.get_latest_transmission()
 
-        # replacer = np.random.choice(sourced_agents)
-
-        replacer = self.get_latest_transmission().destination
+        if latest_transmission is None:  # first step, replacer is a source
+            replacer = np.random.choice(self.network.sources)
+        else:
+            replacer = self.get_latest_transmission().destination
 
         options = replacer.outgoing_vectors
 
         if options:
-            replaced = options[np.random.randint(0, len(options))].destination
+            replaced = np.random.choice(options).destination
             replacer.transmit(replaced)
-
-            if verbose:
-                print "{}: {} replaces {}: {}".format(
-                    replacer, replacer.genome, replaced, replaced.genome)
-
-            replacer = replaced
             self.db.commit()
+
+            # FIXME: Testing placeholder
+            replaced.receive_all()
 
         else:
             raise RuntimeError("No outgoing connections to choose from.")
@@ -52,15 +49,24 @@ class MoranProcess(object):
         self.db = network.db
         self.network = network
 
+    def get_latest_transmission(self):
+        return self.db.query(models.Transmission).order_by(
+            desc(models.Transmission.transmit_time)).first()
+
     def step(self, verbose=True):
-        n = len(self.network)
-        replacer = self.network.agents[np.random.randint(0, n)]
-        options = replacer.outgoing_vectors
-        replaced = options[np.random.randint(0, len(options))].destination
 
-        if verbose:
-            print "{}: {} replaces {}: {}".format(
-                replacer, replacer.genome, replaced, replaced.genome)
+        if len(self.network) > 1:
 
-        replacer.transmit(replaced)
-        self.db.commit()
+            latest_transmission = self.get_latest_transmission()
+
+            if latest_transmission is None:  # first step, replacer is a source
+                replacer = np.random.choice(self.network.sources)
+            else:
+                replacer = np.random.choice(self.network.agents)
+
+            replaced = np.random.choice(replacer.outgoing_vectors).destination
+            replacer.transmit(replaced)
+            self.db.commit()
+
+            # FIXME: Testing placeholder
+            replaced.receive_all()
