@@ -47,6 +47,8 @@ def api_agent_create():
 @app.route("/transmissions/<transmission_uuid>", methods=["GET"])
 def api_transmission(transmission_uuid):
 
+    exp = experiment(session)
+
     if request.method == 'GET':
 
         # Given a receiving agent, get its pending transmissions
@@ -99,6 +101,9 @@ def api_transmission(transmission_uuid):
 
         transmission = models.Transmission(info=info, destination=destination)
 
+        exp.session.add(transmission)
+        exp.session.commit()
+
         data = {'uuid': transmission.uuid}
         js = json.dumps(data)
 
@@ -109,6 +114,8 @@ def api_transmission(transmission_uuid):
 @app.route("/information", defaults={"info_uuid": None}, methods=["POST"])
 @app.route("/information/<info_uuid>", methods=["GET"])
 def api_info(info_uuid):
+
+    exp = experiment(session)
 
     if request.method == 'GET':
 
@@ -140,6 +147,9 @@ def api_info(info_uuid):
             info = models.Info(
                 origin=node,
                 contents=request.args['contents'])
+
+            exp.session.add(info)
+            exp.session.commit()
 
             data = {'uuid': info.uuid}
             js = json.dumps(data)
