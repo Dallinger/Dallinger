@@ -105,6 +105,49 @@ def api_transmission(transmission_uuid):
         resp = Response(js, status=200, mimetype='application/json')
         return resp
 
+
+@app.route("/information", defaults={"info_uuid": None}, methods=["POST"])
+@app.route("/information/<info_uuid>", methods=["GET"])
+def api_info(info_uuid):
+
+    if request.method == 'GET':
+
+        if info_uuid is not None:
+            info = models.Info.query.filter_by(uuid=info_uuid).one()
+
+            data = {
+                'info_uuid': info_uuid,
+                'contents': info.contents,
+                'origin_uuid': info.origin_uuid,
+                'creation_time': info.creation_time,
+                'type': info.type
+            }
+            js = json.dumps(data)
+
+            resp = Response(js, status=200, mimetype='application/json')
+            return resp
+
+    if request.method == "POST":
+
+        if 'origin_uuid' in request.args:
+
+            # models
+            node = models.Node\
+                .query\
+                .filter_by(uuid=request.args['origin_uuid'])\
+                .one()
+
+            info = models.Info(
+                origin=node,
+                contents=request.args['contents'])
+
+            data = {'uuid': info.uuid}
+            js = json.dumps(data)
+
+            resp = Response(js, status=200, mimetype='application/json')
+            return resp
+
+
 if __name__ == "__main__":
     app.debug = True
     app.run()
