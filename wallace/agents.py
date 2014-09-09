@@ -1,9 +1,17 @@
 from sqlalchemy import ForeignKey, Column, String, Integer, desc
+from datetime import datetime
 
 from .models import Node
 from .information import Genome, Memome
 
 import numpy as np
+
+DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
+
+
+def timenow():
+    time = datetime.now()
+    return time.strftime(DATETIME_FMT)
 
 
 class Agent(Node):
@@ -45,6 +53,12 @@ class Agent(Node):
 
     def update(self, info):
         info.copy_to(self)
+
+    def receive_all(self):
+        pending_transmissions = self.pending_transmissions
+        for transmission in pending_transmissions:
+            transmission.receive_time = timenow()
+            self.update(transmission.info)
 
 
 class Source(Node):

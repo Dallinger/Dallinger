@@ -81,7 +81,6 @@ class Node(Base):
 
         t = Transmission(info=info, destination=other_node)
         info.transmissions.append(t)
-        other_node.update(info)
 
     def broadcast(self, info):
         """Broadcast the specified info to all connected nodes. The info must
@@ -137,6 +136,15 @@ class Node(Base):
         return Transmission\
             .query\
             .filter_by(origin_uuid=self.uuid)\
+            .order_by(Transmission.transmit_time)\
+            .all()
+
+    @property
+    def pending_transmissions(self):
+        return Transmission\
+            .query\
+            .filter_by(destination_uuid=self.uuid)\
+            .filter_by(receive_time=None)\
             .order_by(Transmission.transmit_time)\
             .all()
 
@@ -214,6 +222,9 @@ class Transmission(Base):
 
     # the time at which the transmission occurred
     transmit_time = Column(String(26), nullable=False, default=timenow)
+
+    # the time at which the transmission was received
+    receive_time = Column(String(26), nullable=True)
 
     # the origin of the info, which is proxied by association from the
     # info itself

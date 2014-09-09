@@ -42,6 +42,10 @@ class Network(object):
         source.broadcast()
         self.db.commit()
 
+    def add_node(self, node):
+        self.db.add(node)
+        self.db.commit()
+
     def add_agent(self):
         agent = Agent()
         self.db.add(agent)
@@ -62,49 +66,59 @@ class Network(object):
 class Chain(Network):
     """A -> B -> C -> ..."""
 
-    def __init__(self, db, size):
+    def __init__(self, db, size=0):
         super(Chain, self).__init__(db)
-        for i in xrange(size):
-            self.add_agent()
+        if len(self) == 0:
+            for i in xrange(size):
+                self.add_agent()
 
     @property
     def first_agent(self):
         if len(self) > 0:
             return self.db.query(Agent).filter_by(indegree=0).one()
+        else:
+            return None
 
     @property
     def last_agent(self):
         if len(self) > 0:
             return self.db.query(Agent).filter_by(outdegree=0).one()
-        return None
+        else:
+            return None
 
-    def add_agent(self):
-        agent = Agent()
-        if len(self) > 0:
-            self.last_agent.connect_to(agent)
-        self.db.add(agent)
-        self.db.commit()
-        return agent
+    def add_agent(self, newcomer=None):
+        if newcomer is None:
+            newcomer = Agent()
+
+        if len(self) == 0:
+            self.add_node(newcomer)
+        else:
+            last_agent = self.last_agent
+            self.add_node(newcomer)
+            last_agent.connect_to(newcomer)
+        return newcomer
 
 
 class FullyConnected(Network):
     """In a fully-connected network (complete graph), all possible links exist.
     """
 
-    def __init__(self, db, size):
+    def __init__(self, db, size=0):
         super(FullyConnected, self).__init__(db)
-        for i in xrange(size):
-            self.add_agent()
+        if len(self) == 0:
+            for i in xrange(size):
+                self.add_agent()
 
-    def add_agent(self):
-        newcomer = Agent()
+    def add_agent(self, newcomer=None):
+        if newcomer is None:
+            newcomer = Agent()
+
         self.db.add(newcomer)
 
         for agent in self.agents:
-            if agent == newcomer:
-                continue
-            newcomer.connect_to(agent)
-            newcomer.connect_from(agent)
+            if agent is not newcomer:
+                newcomer.connect_to(agent)
+                newcomer.connect_from(agent)
 
         self.db.commit()
         return newcomer
@@ -118,39 +132,51 @@ class ScaleFree(Network):
     attachment.
     """
 
-    def __init__(self, db, size, m0=4, m=4):
-        FullyConnected(db, m0)
-
+    def __init__(self, db, size=0, m0=4, m=4):
+        super(ScaleFree, self).__init__(db)
         self.db = db
         self.m = m
+        self.m0 = m0
 
-        print len(self.links)
-        for i in xrange(size - m0):
-            self.add_agent()
-            print len(self.links)
+        if len(self) == 0:
+            for i in xrange(size):
+                self.add_agent()
 
-    def add_agent(self):
-        newcomer = Agent()
+    def add_agent(self, newcomer=None):
+        if newcomer is None:
+            newcomer = Agent()
         self.db.add(newcomer)
+        self.db.commit()
 
-        for idx_newlink in xrange(self.m):
-            agents = []
+        # Start with a core of m0 fully-connected agents...
+        if len(self) <= self.m0:
             for agent in self.agents:
-                if agent == newcomer:
-                    continue
-                if agent.has_connection_from(newcomer) or agent.has_connection_to(newcomer):
-                    continue
-                agents.append(agent)
-            d = np.array([a.outdegree for a in agents], dtype=float)
-
-            # Select a member using preferential attachment
-            p = d / np.sum(d)
-            idx_linkto = np.flatnonzero(np.random.multinomial(1, p))[0]
-            link_to = agents[idx_linkto]
-
-            # Create link from the newcomer to the selected member, and back
-            newcomer.connect_to(link_to)
-            newcomer.connect_from(link_to)
+                if agent is not newcomer:
+                    newcomer.connect_to(agent)
+                    newcomer.connect_from(agent)
             self.db.commit()
+
+        # ...then add newcomers one by one with preferential attachment.
+        else:
+            for idx_newlink in xrange(self.m):
+                these_agents = []
+                for agent in self.agents:
+                    if (agent == newcomer or
+                            agent.has_connection_from(newcomer) or
+                            agent.has_connection_to(newcomer)):
+                        continue
+                    else:
+                        these_agents.append(agent)
+                d = np.array([a.outdegree for a in these_agents], dtype=float)
+
+                # Select a member using preferential attachment
+                p = d / np.sum(d)
+                idx_linkto = np.flatnonzero(np.random.multinomial(1, p))[0]
+                link_to = these_agents[idx_linkto]
+
+                # Create link from the newcomer to the selected member, and back
+                newcomer.connect_to(link_to)
+                newcomer.connect_from(link_to)
+                self.db.commit()
 
         return newcomer
