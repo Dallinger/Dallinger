@@ -6,9 +6,10 @@ install:
   - "pip install MySQL-python"
   - "pip install nose coverage coveralls"
 before_script:
-  - mysql -e 'create database wallace;'
+  - psql -c 'create database db;' -U postgres
+env:
+  - DATABASE_URL=postgresql://admin:password@localhost/db
 script:
   - nosetests --with-coverage --cover-erase --cover-package wallace
-
 after_success:
   - coveralls

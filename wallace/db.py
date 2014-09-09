@@ -1,9 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
+import os
 
 # create the connection to the database
-engine = create_engine("mysql://root@localhost/wallace")
+engine = create_engine(os.environ["DATABASE_URL"])
 db = scoped_session(sessionmaker(autoflush=True, bind=engine))
 
 Base = declarative_base()
