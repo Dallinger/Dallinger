@@ -200,7 +200,7 @@ class Info(Base):
     creation_time = Column(String(26), nullable=False, default=timenow)
 
     # the contents of the info
-    contents = Column(Text(4294967295))
+    contents = Column(Text())
 
     def __repr__(self):
         return "Info-{}-{}".format(self.uuid[:6], self.type)
