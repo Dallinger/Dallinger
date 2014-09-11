@@ -1,7 +1,6 @@
 import processes
 import agents
 import networks
-import db
 
 
 class Experiment(object):
@@ -27,7 +26,7 @@ class Demo1(Experiment):
 
         # Setup for first time experiment is accessed
         if not self.network.sources:
-            source = agents.RandomBinaryStringSource()
+            source = agents.IdentityFunctionSource()
             self.network.add_node(source)
             print "Added initial source: " + str(source)
 

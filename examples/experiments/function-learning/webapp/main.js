@@ -1,29 +1,43 @@
 
-// Settings
-N = 100; // Total number of trials
-assert(N%4 === 0, "Number of trials must be divisible by 4.");
+
 functionToLearn = f3;
+wallaceUrl = "http://localhost:5000/";
 
 if (Meteor.isClient) {
 
-  Meteor.subscribe("Rounds");
+  Session.set("N", -1);
 
   Session.set("trialsCompleted", -1);
   Session.set("isConsensual", false);
+    Meteor.call(
+        "allAgents",
+        function (error, results) {
+            allAgents = EJSON.parse(results.content).agents;
+            Session.set("allAgents", allAgents);
+        }
+    );
 
   Handlebars.registerHelper("isCompleted", function() {
-    return Session.get("trialsCompleted") === N;
+    return Session.get("trialsCompleted") === Session.get("N");
   });
+    Handlebars.registerHelper("isNewParticipant", function() {
+        if (amplify.store("agentUUID") === undefined) {
+            return true;
+        } else {
+            return !contains(Session.get("allAgents"), amplify.store("agentUUID"));
+        }
+    });
 
   Template.completionCode.code = function () {
     return roundId;
   };
 
   Template.header.isTestingPhase = function () {
-    return Session.get("trialsCompleted") >= N/2;
+    return Session.get("trialsCompleted") >= Session.get("N")/2;
   };
 
   Template.header.thisTrial = function () {
+    N = Session.get("N");
     trialIndex = bounds(Session.get("trialsCompleted"), 0, N);
     if(trialIndex < N/2) {
       return trialIndex + 1;
@@ -33,7 +47,7 @@ if (Meteor.isClient) {
   };
 
   Template.header.numTrials = function () {
-    return N/2;
+    return Session.get("N")/2;
   };
 
   Template.gameInterface.created = function () {
@@ -65,7 +79,7 @@ if (Meteor.isClient) {
       PPU = 3;  // Scaling of the stimulus
 
       // Adjust the X bar.
-      if(Session.get("trialsCompleted") < N/2) {
+      if(Session.get("trialsCompleted") < Session.get("N")/2) {
         x = xTrain[Session.get("trialsCompleted")];
       } else {
         x = xTest[Session.get("trialsCompleted") - N/2];
@@ -81,7 +95,7 @@ if (Meteor.isClient) {
       // Show the feedback bar.
       if(Session.get("enteredResponse") &&
         !Session.get("finishedTheTrial") &&
-        (Session.get("trialsCompleted") < N/2)) {
+        (Session.get("trialsCompleted") < Session.get("N")/2)) {
         y = yTrain[Session.get("trialsCompleted")];
         feedback.attr({ y: 400 - y * PPU, height: y * PPU });
         feedback.show();
@@ -120,14 +134,10 @@ if (Meteor.isClient) {
       if(!Session.get("enteredResponse")) {
         // add response to db
         if(trialIndex < N/2){ // Is it training?
-          Rounds.update(roundId, {$push: {yTrainReported: yNow}});
-          Rounds.update(roundId, {$push:
-            {yTrainReportedRT: respondedAt-presentedAt}});
+          yTrainReported.push(yNow);
         } else {
-          Rounds.update(roundId, {$push: {yTest: yNow}});
-          Rounds.update(roundId, {$push: {yTestRT: respondedAt-presentedAt}});
+          yTest.push(yNow);
         }
-        Rounds.update(roundId, {$inc:  {trialsCompleted: 1}});
         Session.set("enteredResponse", true);
 
         // If this is a test trial, then there's no feedback, so we're done.
@@ -162,12 +172,30 @@ if (Meteor.isClient) {
 
     // If the experiment is over, display the completion code.
     if(Session.get("trialsCompleted") === N) {
-      console.log("Experiment completed.");
-      Mousetrap.pause();
-      paper.remove();
-      Rounds.update(roundId, {$set: {completedAt: now()}});
-      // Eventually, this is where you'll
-      // ask MTurk to send out another HIT.
+        console.log("Experiment completed.");
+        Mousetrap.pause();
+        paper.remove();
+
+        // JSONify the data for exporting
+        var testData = {};
+        for(var i in xTest) {
+            testData[xTest[i]] = yTest[i];
+        }
+        contentsOut = JSON.stringify(testData);
+        console.log(contentsOut);
+        Meteor.call(
+            'createInfo',
+            Session.get("agentUUID"),
+            contentsOut,
+            function (error, result) {
+                console.log(error);
+                console.log(result);
+            }
+        );
+
+        // Eventually, this is where you'll
+        // ask MTurk to send out another HIT.
+
     } else {
       // Record the current time.
       presentedAt = now();
@@ -185,50 +213,102 @@ if (Meteor.isClient) {
       console.log("Participant consented.");
       Session.set("isConsensual", true);
 
-      // Figure out which round this is by accessing the previous round
-      previousRound = Rounds.findOne({ trialsCompleted: N },
-                                     { sort : {round: -1}});
+      // TODO: Put these nested calls on the server side.
+      Meteor.call("createAgent", function(error, results) {
+        agent_content = EJSON.parse(results.content);
+        Session.set("agentUUID", agent_content.agents.uuid);
 
-      // FIXME: create a helper function that takes in a previous round, and
-      // spits out the relevant xTrain, xTest, and yTrain variables...
-      allX = range(1, xMax);
-      if(!previousRound) {
-        // this is the first round, so the training is all randomly generated
-        round = 1;
-        xTrain = shuffle(allX).slice(0, N/2);
-        yTrain = xTrain.map(functionToLearn); // ground truth
-      } else {
-        // this is a later round, so training comes from previous test
-        round = previousRound.round + 1;
-        order = shuffle(range(0,(N/2)-1)); // zero-indexed
-        xTrain = (previousRound.xTest).sortByIndices(order);
-        yTrain = (previousRound.yTest).sortByIndices(order);
+        // Get this participant's training and test data.
+        Meteor.call(
+            "getPendingTransmissions",
+            Session.get("agentUUID"),
+            function(error, results) {
+                transmission_content = EJSON.parse(results.content);
+                t_uuid = transmission_content.transmissions[0].info_uuid;
+
+                Meteor.call(
+                    "getInfo",
+                    t_uuid,
+                    function (error, results) {
+                        info_content = EJSON.parse(results.content);
+                        data = EJSON.parse(info_content.contents);
+                        xTrain = Object.keys(data).map(
+                            function (x) {
+                                return parseInt(x, 10);
+                            }
+                        );
+
+                        yTrain = Object.keys(data).map(
+                            function (x) {
+                                return parseInt(data[x], 10);
+                            }
+                        );
+
+                      Session.set("N", 2 * xTrain.length);
+                      var N = Session.get("N"); // Total number of trials
+                      assert(N%4 === 0, "Number of trials must be divisible by 4.");
+
+                      // FIXME: create a helper function that takes in a previous round, and
+                      // spits out the relevant xTrain, xTest, and yTrain variables...
+                      allX = range(1, xMax);
+                      if(!previousRound) {
+                        // this is the first round, so the training is all randomly generated
+                        round = 1;
+                        // xTrain = shuffle(allX).slice(0, N/2);
+                        // yTrain = xTrain.map(functionToLearn); // ground truth
+                      } else {
+                        // this is a later round, so training comes from previous test
+                        round = previousRound.round + 1;
+                        order = shuffle(range(0,(N/2)-1)); // zero-indexed
+                        // xTrain = (previousRound.xTest).sortByIndices(order);
+                        // yTrain = (previousRound.yTest).sortByIndices(order);
+                      }
+                      xTestFromTraining = randomSubset(xTrain, N/4);
+                      xTestNew = randomSubset(allX.diff(xTrain), N/4);
+                      xTest = shuffle(xTestFromTraining.concat(xTestNew));
+                      yTrainReported = [];
+                      yTest = [];
+
+                      console.log("This is round " + round + " of the chain.");
+                      Mousetrap.bind("space", showNextStimulus, "keydown");
+                    }
+                );
+            }
+        );
       }
-      xTestFromTraining = randomSubset(xTrain, N/4);
-      xTestNew = randomSubset(allX.diff(xTrain), N/4);
-      xTest = shuffle(xTestFromTraining.concat(xTestNew));
-
-      // Insert new round into database.
-      roundId = Rounds.insert({ trueFunction: functionToLearn,
-                                       round: round,
-                             trialsCompleted: 0,
-                                      xTrain: xTrain,
-                              yTrainReported: [],
-                            yTrainReportedRT: [],
-                              yTrainFeedback: yTrain,
-                                       xTest: xTest,
-                                       yTest: [],
-                                     yTestRT: [],
-                                 completedAt: 0});
-
-      console.log("This is round " + round + " of the chain.");
-      Mousetrap.bind("space", showNextStimulus, "keydown");
+  );
     }
   });
 }
 
 if (Meteor.isServer) {
-  Meteor.publish("Rounds", function () {
-    return Rounds.find({});
-  });
+
+  Meteor.methods({
+      createAgent: function () {
+          this.unblock();
+          return HTTP.post(wallaceUrl + "agents");
+      },
+      getPendingTransmissions: function (uuid) {
+          this.unblock();
+          url = wallaceUrl + "transmissions?destination_uuid=" + uuid;
+          return HTTP.get(url);
+      },
+      getInfo: function (uuid) {
+          this.unblock();
+          url = wallaceUrl + "information/" + uuid;
+          return HTTP.get(url);
+      },
+      createInfo: function (origin_uuid, contents) {
+          this.unblock();
+          url = wallaceUrl +
+                "information?origin_uuid=" + origin_uuid +
+                "&contents=" + contents;
+          return HTTP.post(url);
+      },
+      allAgents: function () {
+          this.unblock();
+          url = wallaceUrl + "agents";
+          return HTTP.get(url);
+      }
+    });
 }
