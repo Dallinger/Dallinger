@@ -7,8 +7,6 @@ if (Meteor.isClient) {
 
   Session.set("N", -1);
 
-  Meteor.subscribe("Rounds");
-
   Session.set("trialsCompleted", -1);
   Session.set("isConsensual", false);
     Meteor.call(
@@ -136,16 +134,10 @@ if (Meteor.isClient) {
       if(!Session.get("enteredResponse")) {
         // add response to db
         if(trialIndex < N/2){ // Is it training?
-          Rounds.update(roundId, {$push: {yTrainReported: yNow}});
-          Rounds.update(roundId, {$push:
-            {yTrainReportedRT: respondedAt-presentedAt}});
           yTrainReported.push(yNow);
         } else {
-          Rounds.update(roundId, {$push: {yTest: yNow}});
-          Rounds.update(roundId, {$push: {yTestRT: respondedAt-presentedAt}});
           yTest.push(yNow);
         }
-        Rounds.update(roundId, {$inc:  {trialsCompleted: 1}});
         Session.set("enteredResponse", true);
 
         // If this is a test trial, then there's no feedback, so we're done.
@@ -183,7 +175,6 @@ if (Meteor.isClient) {
         console.log("Experiment completed.");
         Mousetrap.pause();
         paper.remove();
-        Rounds.update(roundId, {$set: {completedAt: now()}});
 
         // JSONify the data for exporting
         var testData = {};
@@ -257,10 +248,6 @@ if (Meteor.isClient) {
                       var N = Session.get("N"); // Total number of trials
                       assert(N%4 === 0, "Number of trials must be divisible by 4.");
 
-                      // Figure out which round this is by accessing the previous round
-                      previousRound = Rounds.findOne({ trialsCompleted: N },
-                                                     { sort : {round: -1}});
-
                       // FIXME: create a helper function that takes in a previous round, and
                       // spits out the relevant xTrain, xTest, and yTrain variables...
                       allX = range(1, xMax);
@@ -282,19 +269,6 @@ if (Meteor.isClient) {
                       yTrainReported = [];
                       yTest = [];
 
-                                            // Insert new round into database.
-                      roundId = Rounds.insert({ trueFunction: functionToLearn,
-                                                       round: round,
-                                             trialsCompleted: 0,
-                                                      xTrain: xTrain,
-                                              yTrainReported: [],
-                                            yTrainReportedRT: [],
-                                              yTrainFeedback: yTrain,
-                                                       xTest: xTest,
-                                                       yTest: [],
-                                                     yTestRT: [],
-                                                 completedAt: 0});
-
                       console.log("This is round " + round + " of the chain.");
                       Mousetrap.bind("space", showNextStimulus, "keydown");
                     }
@@ -308,9 +282,7 @@ if (Meteor.isClient) {
 }
 
 if (Meteor.isServer) {
-  Meteor.publish("Rounds", function () {
-    return Rounds.find({});
-  });
+
   Meteor.methods({
       createAgent: function () {
           this.unblock();
@@ -332,12 +304,11 @@ if (Meteor.isServer) {
                 "information?origin_uuid=" + origin_uuid +
                 "&contents=" + contents;
           return HTTP.post(url);
+      },
+      allAgents: function () {
+          this.unblock();
+          url = wallaceUrl + "agents";
+          return HTTP.get(url);
       }
-  });
-        allAgents: function () {
-            this.unblock();
-            url = wallaceUrl + "agents";
-            return HTTP.get(url);
-        }
     });
 }
