@@ -56,7 +56,7 @@ def api_transmission(transmission_uuid):
             print "no transmission uuid specified"
             pending_transmissions = models.Transmission\
                 .query\
-                .filter_by(destination_uuid=request.args['receiving_agent_uuid'])\
+                .filter_by(destination_uuid=request.args['destination_uuid'])\
                 .filter_by(receive_time=None)\
                 .order_by(models.Transmission.transmit_time)\
                 .all()
