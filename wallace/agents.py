@@ -3,8 +3,9 @@ from datetime import datetime
 
 from .models import Node
 from .information import Genome, Memome
-
-import numpy as np
+import random
+import json
+import math
 
 DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
 
@@ -85,15 +86,28 @@ class BiologicalAgent(Agent):
 
 class Source(Node):
     __tablename__ = "source"
-    __mapper_args__ = {"polymorphic_identity": "source"}
+    __mapper_args__ = {"polymorphic_identity": "generic_source"}
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
+    genome_size = Column(Integer, default=8)
+    memome_size = Column(Integer, default=8)
+
+    @staticmethod
+    def _data(length):
+        return NotImplementedError
+
     def generate_genome(self):
-        raise NotImplementedError
+        return Genome(
+            origin=self,
+            origin_uuid=self.uuid,
+            contents=self._data(self.genome_size))
 
     def generate_memome(self):
-        raise NotImplementedError
+        return Memome(
+            origin=self,
+            origin_uuid=self.uuid,
+            contents=self._data(self.memome_size))
 
     def transmit(self, other_node):
         genome = self.generate_genome()
@@ -114,21 +128,68 @@ class RandomBinaryStringSource(Source):
 
     __mapper_args__ = {"polymorphic_identity": "random_binary_string_source"}
 
-    genome_size = Column(Integer, default=8)
-    memome_size = Column(Integer, default=8)
-
     @staticmethod
-    def _binary_string(length):
-        return "".join(np.random.randint(0, 2, length).astype(str))
+    def _data(length):
+        return "".join([str(random.randint(0, 1)) for i in range(length)])
 
-    def generate_genome(self):
-        return Genome(
-            origin=self,
-            origin_uuid=self.uuid,
-            contents=self._binary_string(self.genome_size))
 
-    def generate_memome(self):
-        return Memome(
-            origin=self,
-            origin_uuid=self.uuid,
-            contents=self._binary_string(self.memome_size))
+def create_function_source(f, name):
+    """A factory for creating sources that transmit a certain function."""
+
+    class InheritedClass(Source):
+
+        __mapper_args__ = {"polymorphic_identity": name}
+        __name__ = name
+
+        @staticmethod
+        def _data(length):
+
+            x_min = 1
+            x_max = 100
+
+            x_values = random.sample(xrange(x_min, x_max), length)
+            y_values = [f(x) for x in x_values]
+
+            return json.dumps(dict(zip(x_values, y_values)))
+
+    return InheritedClass
+
+IdentityFunctionSource = create_function_source(
+    lambda x: x,
+    "identity_function_source")
+
+AdditiveInverseFunctionSource = create_function_source(
+    lambda x: -1,
+    "additive_inverse_function_source")
+
+SinusoidalFunctionSource = create_function_source(
+    lambda x: 50.5 + 49.5 * math.sin(math.pi/2 + x/(5*math.pi)),
+    "sinusoidal_function_source")
+
+m = random.shuffle(range(1, 100))
+RandomMappingFunctionSource = create_function_source(
+    lambda x: m[x-1],
+    "random_mapping_function_source")
+
+StepFunctionSource = create_function_source(
+    lambda x: 75 if x >= 50 else 25, "step_function_source")
+
+ConstantFunctionSource = create_function_source(
+    lambda x: 50,
+    "constant_function_source")
+
+LogisticFunctionSource = create_function_source(
+    lambda x: 1/(0.01+math.exp(-0.092*x)),
+    "logistic_function_source")
+
+ExponentialFunctionSource = create_function_source(
+    lambda x: 100*math.exp(-0.05*x),
+    "exponential_function_source")
+
+TriangleWaveSource = create_function_source(
+    lambda x: 2*(100-x) if x >= 50 else 2*x,
+    "triangle_wave_source")
+
+SquareWaveSource = create_function_source(
+    lambda x: 75 if (math.fmod(x, 50) <= 25) else 25,
+    "square_wave_source")
