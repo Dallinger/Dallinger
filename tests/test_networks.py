@@ -92,8 +92,8 @@ class TestNetworks(object):
 
     def test_network_trigger_source(self):
         net = networks.Network(self.db)
-        agent1 = agents.Agent()
-        agent2 = agents.Agent()
+        agent1 = agents.BiologicalAgent()
+        agent2 = agents.BiologicalAgent()
         self.db.add_all([agent1, agent2])
         self.db.commit()
 

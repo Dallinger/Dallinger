@@ -1,7 +1,7 @@
 from wallace import models, agents, information, db
 
 
-class TestAgents(object):
+class TestBiologicalAgents(object):
 
     def setup(self):
         self.db = db.init_db(drop_all=True)
@@ -15,7 +15,7 @@ class TestAgents(object):
         self.db.commit()
 
     def test_create_agent(self):
-        agent = agents.Agent()
+        agent = agents.BiologicalAgent()
         self.add(agent)
 
         assert agent.genome is None
@@ -30,8 +30,8 @@ class TestAgents(object):
         assert agent.memome == memome
 
     def test_agent_transmit(self):
-        agent1 = agents.Agent()
-        agent2 = agents.Agent()
+        agent1 = agents.BiologicalAgent()
+        agent2 = agents.BiologicalAgent()
         agent1.connect_to(agent2)
         genome = information.Genome(origin=agent1, contents="foo")
         memome = information.Memome(origin=agent1, contents="bar")
@@ -50,9 +50,9 @@ class TestAgents(object):
         assert agent1.memome.uuid != agent2.memome.uuid
 
     def test_agent_broadcast(self):
-        agent1 = agents.Agent()
-        agent2 = agents.Agent()
-        agent3 = agents.Agent()
+        agent1 = agents.BiologicalAgent()
+        agent2 = agents.BiologicalAgent()
+        agent3 = agents.BiologicalAgent()
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
         genome = information.Genome(origin=agent1, contents="foo")
@@ -111,7 +111,7 @@ class TestAgents(object):
 
     def test_transmit_random_binary_string_source(self):
         source = agents.RandomBinaryStringSource(genome_size=2, memome_size=2)
-        agent = agents.Agent()
+        agent = agents.BiologicalAgent()
         source.connect_to(agent)
         self.add(source, agent)
 
@@ -127,8 +127,8 @@ class TestAgents(object):
     def test_broadcast_random_binary_string_source(self):
         source = agents.RandomBinaryStringSource(
             genome_size=100, memome_size=100)
-        agent1 = agents.Agent()
-        agent2 = agents.Agent()
+        agent1 = agents.BiologicalAgent()
+        agent2 = agents.BiologicalAgent()
         source.connect_to(agent1)
         source.connect_to(agent2)
         self.add(source, agent1, agent2)

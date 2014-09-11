@@ -26,6 +26,45 @@ class Agent(Node):
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     @property
+    def omes(self):
+        return [self.ome]
+
+    @property
+    def ome(self):
+        ome = Info\
+            .query\
+            .filter_by(origin_uuid=self.uuid)\
+            .order_by(desc(Info.creation_time))\
+            .first()
+        return ome
+
+    def transmit(self, other_node):
+        for ome in self.omes:
+            super(Agent, self).transmit(ome, other_node)
+
+    def broadcast(self):
+        for vector in self.outgoing_vectors:
+            self.transmit(vector.destination)
+
+    def update(self, info):
+        info.copy_to(self)
+
+    def receive_all(self):
+        pending_transmissions = self.pending_transmissions
+        for transmission in pending_transmissions:
+            transmission.receive_time = timenow()
+            self.update(transmission.info)
+
+
+class BiologicalAgent(Agent):
+
+    __mapper_args__ = {"polymorphic_identity": "biological_agent"}
+
+    @property
+    def omes(self):
+        return [self.genome, self.memome]
+
+    @property
     def genome(self):
         genome = Genome\
             .query\
@@ -42,23 +81,6 @@ class Agent(Node):
             .order_by(desc(Memome.creation_time))\
             .first()
         return memome
-
-    def transmit(self, other_node):
-        super(Agent, self).transmit(self.genome, other_node)
-        super(Agent, self).transmit(self.memome, other_node)
-
-    def broadcast(self):
-        for vector in self.outgoing_vectors:
-            self.transmit(vector.destination)
-
-    def update(self, info):
-        info.copy_to(self)
-
-    def receive_all(self):
-        pending_transmissions = self.pending_transmissions
-        for transmission in pending_transmissions:
-            transmission.receive_time = timenow()
-            self.update(transmission.info)
 
 
 class Source(Node):
