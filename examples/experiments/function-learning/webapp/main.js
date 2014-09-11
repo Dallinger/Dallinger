@@ -1,7 +1,5 @@
-
-
-functionToLearn = f3;
 wallaceUrl = "http://localhost:5000/";
+xMax = 100;
 
 if (Meteor.isClient) {
 
@@ -29,7 +27,7 @@ if (Meteor.isClient) {
     });
 
   Template.completionCode.code = function () {
-    return roundId;
+    return Session.get("agentUUID");
   };
 
   Template.header.isTestingPhase = function () {
@@ -248,28 +246,13 @@ if (Meteor.isClient) {
                       var N = Session.get("N"); // Total number of trials
                       assert(N%4 === 0, "Number of trials must be divisible by 4.");
 
-                      // FIXME: create a helper function that takes in a previous round, and
-                      // spits out the relevant xTrain, xTest, and yTrain variables...
                       allX = range(1, xMax);
-                      if(!previousRound) {
-                        // this is the first round, so the training is all randomly generated
-                        round = 1;
-                        // xTrain = shuffle(allX).slice(0, N/2);
-                        // yTrain = xTrain.map(functionToLearn); // ground truth
-                      } else {
-                        // this is a later round, so training comes from previous test
-                        round = previousRound.round + 1;
-                        order = shuffle(range(0,(N/2)-1)); // zero-indexed
-                        // xTrain = (previousRound.xTest).sortByIndices(order);
-                        // yTrain = (previousRound.yTest).sortByIndices(order);
-                      }
                       xTestFromTraining = randomSubset(xTrain, N/4);
                       xTestNew = randomSubset(allX.diff(xTrain), N/4);
                       xTest = shuffle(xTestFromTraining.concat(xTestNew));
                       yTrainReported = [];
                       yTest = [];
 
-                      console.log("This is round " + round + " of the chain.");
                       Mousetrap.bind("space", showNextStimulus, "keydown");
                     }
                 );
