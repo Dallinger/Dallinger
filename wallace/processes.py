@@ -32,7 +32,7 @@ class RandomWalkFromSource(object):
             self.db.commit()
 
             # FIXME: Testing placeholder
-            replaced.receive_all()
+            # replaced.receive_all()
 
         else:
             raise RuntimeError("No outgoing connections to choose from.")

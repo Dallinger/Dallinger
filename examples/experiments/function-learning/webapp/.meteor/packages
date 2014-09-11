@@ -8,4 +8,6 @@ autopublish
 insecure
 bootstrap
 chhib:raphael
+http
+ejson
 

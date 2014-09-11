@@ -224,7 +224,7 @@ class Transmission(Base):
     transmit_time = Column(String(26), nullable=False, default=timenow)
 
     # the time at which the transmission was received
-    receive_time = Column(String(26), nullable=True)
+    receive_time = Column(String(26), nullable=True, default=None)
 
     # the origin of the info, which is proxied by association from the
     # info itself
