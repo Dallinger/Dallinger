@@ -1,7 +1,7 @@
 from sqlalchemy import ForeignKey, Column, String, Integer, desc
 from datetime import datetime
 
-from .models import Node
+from .models import Node, Info
 from .information import Genome, Memome
 import random
 import json
