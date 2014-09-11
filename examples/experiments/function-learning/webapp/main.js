@@ -11,10 +11,24 @@ if (Meteor.isClient) {
 
   Session.set("trialsCompleted", -1);
   Session.set("isConsensual", false);
+    Meteor.call(
+        "allAgents",
+        function (error, results) {
+            allAgents = EJSON.parse(results.content).agents;
+            Session.set("allAgents", allAgents);
+        }
+    );
 
   Handlebars.registerHelper("isCompleted", function() {
     return Session.get("trialsCompleted") === Session.get("N");
   });
+    Handlebars.registerHelper("isNewParticipant", function() {
+        if (amplify.store("agentUUID") === undefined) {
+            return true;
+        } else {
+            return !contains(Session.get("allAgents"), amplify.store("agentUUID"));
+        }
+    });
 
   Template.completionCode.code = function () {
     return roundId;
@@ -320,4 +334,10 @@ if (Meteor.isServer) {
           return HTTP.post(url);
       }
   });
+        allAgents: function () {
+            this.unblock();
+            url = wallaceUrl + "agents";
+            return HTTP.get(url);
+        }
+    });
 }
