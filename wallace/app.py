@@ -10,9 +10,10 @@ session = db.init_db(drop_all=True)
 experiment = experiments.Demo1
 
 
-@app.route('/')
-def index():
-    return 'Index page'
+@app.route('/launch', methods=["POST"])
+def launch():
+    experiment(session)
+    return 'Launched.'
 
 
 @app.route("/agents", methods=["POST", "GET"])
