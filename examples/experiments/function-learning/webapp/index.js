@@ -1,4 +1,3 @@
-wallaceUrl = "http://localhost:5000/";
 xMax = 100;
 
 if (Meteor.isClient) {
