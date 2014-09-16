@@ -1,4 +1,4 @@
-wallaceUrl = 'http://127.0.0.1:5000/';
+wallaceUrl = 'HEROKU_APP_URL';
 Meteor.methods({
     createAgent: function () {
         this.unblock();

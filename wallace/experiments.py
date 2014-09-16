@@ -28,7 +28,7 @@ class Demo1(Experiment):
 
         # Setup for first time experiment is accessed
         if not self.network.sources:
-            source = agents.IdentityFunctionSource()
+            source = agents.SinusoidalFunctionSource()
             self.network.add_node(source)
             print "Added initial source: " + str(source)
 

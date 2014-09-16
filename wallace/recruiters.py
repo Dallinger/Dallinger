@@ -49,7 +49,7 @@ class BotoRecruiter(Recruiter):
     def HIT(self):
 
         # Title of the HIT shown to MTurk workers.
-        title = 'Learning game 4'
+        title = 'Learning game 6'
 
         # Description of the HIT shown to MTurk workers.
         description = ("Play a 10-minute game where you figure out the "
