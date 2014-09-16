@@ -3,5 +3,6 @@ Template.completionCode.code = function () {
 };
 
 Handlebars.registerHelper("isCompleted", function() {
-    return Session.get("trialsCompleted") === Session.get("N");
+    return (Session.get("trialsCompleted") === Session.get("N")) &&
+           (Session.get("N") > 0);
 });
