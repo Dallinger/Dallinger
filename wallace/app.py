@@ -152,6 +152,9 @@ def api_info(info_uuid):
             exp.session.add(info)
             exp.session.commit()
 
+            # Trigger experiment-specific behavior that happens on creationg
+            exp.information_creation_trigger(info)
+
             data = {'uuid': info.uuid}
             js = json.dumps(data)
 

@@ -31,8 +31,14 @@ class BotoRecruiter(Recruiter):
             aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
             host=HOST)
 
-        self.hit_description = self.HIT()
-        self.hit = self.postHIT(self.hit_description)
+        if "HITId" in os.environ:
+            resultSet = self.mtc.get_hit(os.environ["HITId"])
+            self.hit = resultSet[0]
+        else:
+            self.hit_description = self.HIT()
+            resultSet = self.postHIT(self.hit_description)
+            self.hit = resultSet[0]
+            os.environ["HITId"] = self.hit.HITId
 
     def recruit_new_participants(self, n=1):
         self.extendHIT(self.hit, n)
@@ -108,7 +114,7 @@ class BotoRecruiter(Recruiter):
 
     def extendHIT(self, hit, n=1):
         """Extend the HIT by recruiting one additional participant."""
-        self.mtc.extend_hit(hit, assignments_increment=n)
+        self.mtc.extend_hit(hit.HITId, assignments_increment=n)
 
     def deleteHIT(self, hit):
         """Delete the HIT."""

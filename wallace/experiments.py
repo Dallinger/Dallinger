@@ -24,10 +24,10 @@ class Demo1(Experiment):
         self.num_steps = self.num_agents - 1
         self.network = networks.Chain(self.session)
         self.process = processes.RandomWalkFromSource(self.network)
+        self.recruiter = recruiters.BotoRecruiter()
 
         # Setup for first time experiment is accessed
         if not self.network.sources:
-            self.recruiter = recruiters.BotoRecruiter()
             source = agents.IdentityFunctionSource()
             self.network.add_node(source)
             print "Added initial source: " + str(source)
@@ -41,6 +41,7 @@ class Demo1(Experiment):
         # Run the next step of the process.
         self.process.step()
 
+    def information_creation_trigger(self, info):
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.
             self.recruiter.close_recruitment()
