@@ -53,6 +53,7 @@
                       yTest = [];
 
                       Mousetrap.bind("space", showNextStimulus, "keydown");
+                      showNextStimulus();
                     }
                 );
             }
