@@ -23,11 +23,8 @@ def api_agent_create():
 
     if request.method == 'POST':
 
-        # Create the newcomer and insert into the network
+        # Create the newcomer and trigger experiment-specific behavior
         newcomer = agents.Agent()
-        exp.network.add_agent(newcomer)
-
-        # Trigger experiment-specific behavior that happens on arrival
         exp.newcomer_arrival_trigger(newcomer)
 
         # Return a response
@@ -43,6 +40,25 @@ def api_agent_create():
         resp = Response(js, status=200, mimetype='application/json')
         return resp
 
+
+@app.route("/agents/<agent_uuid>", methods=["POST"])
+def api_agent_visibility(agent_uuid):
+
+    exp = experiment(session)
+
+    if 'is_visible' in request.args:
+
+        agent = agents.Agent\
+            .query\
+            .filter_by(uuid=agent_uuid)\
+            .one()
+
+        agent.is_visible = (request.args['is_visible'] == "True")
+
+        exp.session.add(agent)
+        exp.session.commit()
+
+    return "Visibility changed."
 
 @app.route("/transmissions", defaults={"transmission_uuid": None}, methods=["POST", "GET"])
 @app.route("/transmissions/<transmission_uuid>", methods=["GET"])
@@ -70,10 +86,13 @@ def api_transmission(transmission_uuid):
                 .one()
             pending_transmissions = [transmission]
 
+        exp.transmission_reception_trigger(pending_transmissions)
+
         # Build a dict with info about the transmissions
         data_transmissions = []
         for i in xrange(len(pending_transmissions)):
             t = pending_transmissions[i]
+
             data_transmissions.append({
                 "uuid": t.uuid,
                 "info_uuid": t.info_uuid,

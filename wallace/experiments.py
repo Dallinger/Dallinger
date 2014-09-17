@@ -33,13 +33,25 @@ class Demo1(Experiment):
             print "Added initial source: " + str(source)
 
     def newcomer_arrival_trigger(self, newcomer):
+
+        # Set the newcomer to invisible.
+        newcomer.is_visible = False
+
+        self.network.add_agent(newcomer)
+
         # If this is the first participant, link them to the source.
-        if len(self.network) == 1:
+        if len(self.network) == 0:
             source = self.network.sources[0]
             source.connect_to(newcomer)
+            self.network.db.commit()
 
         # Run the next step of the process.
         self.process.step()
+
+    def transmission_reception_trigger(self, transmissions):
+        # Mark transmissions as received
+        for t in transmissions:
+            t.mark_received()
 
     def information_creation_trigger(self, info):
         if self.is_experiment_over():
