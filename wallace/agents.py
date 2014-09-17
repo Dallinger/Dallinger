@@ -92,8 +92,8 @@ class Source(Node):
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    genome_size = Column(Integer, default=50)
-    memome_size = Column(Integer, default=50)
+    genome_size = Column(Integer, default=8)
+    memome_size = Column(Integer, default=8)
 
     @staticmethod
     def _data(length):
