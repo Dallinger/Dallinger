@@ -1,3 +1,4 @@
+wallaceUrl = 'HEROKU_APP_URL';
 Meteor.methods({
     createAgent: function () {
         this.unblock();
@@ -24,5 +25,10 @@ Meteor.methods({
         this.unblock();
         url = wallaceUrl + "agents";
         return HTTP.get(url);
+    },
+    setVisible: function (uuid) {
+        this.unblock();
+        url = wallaceUrl + "agents/" + uuid + "?is_visible=True";
+        return HTTP.post(url);
     }
 });

@@ -77,6 +77,9 @@ showNextStimulus = function () {
     // If the experiment is over, display the completion code.
     if(Session.get("trialsCompleted") === N) {
         console.log("Experiment completed.");
+
+        Meteor.call("setVisible", Session.get("agentUUID"));
+
         Mousetrap.pause();
         paper.remove();
 

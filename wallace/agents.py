@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Column, String, Integer, desc
+from sqlalchemy import ForeignKey, Column, String, Integer, desc, Boolean
 from datetime import datetime
 
 from .models import Node, Info
@@ -25,6 +25,8 @@ class Agent(Node):
     __mapper_args__ = {"polymorphic_identity": "agent"}
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
+
+    is_visible = Column(Boolean, unique=False, default=True)
 
     @property
     def omes(self):

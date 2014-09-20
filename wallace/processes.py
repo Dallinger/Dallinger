@@ -1,5 +1,6 @@
 import numpy as np
 import models
+import agents
 from sqlalchemy import desc
 
 
@@ -11,18 +12,25 @@ class RandomWalkFromSource(object):
         self.db = network.db
         self.network = network
 
-    def get_latest_transmission(self):
-        return self.db.query(models.Transmission).order_by(
-            desc(models.Transmission.transmit_time)).first()
+    def get_latest_transmission_to_visible(self):
+        all_transmissions = self.db.query(models.Transmission)\
+            .order_by(desc(models.Transmission.transmit_time))\
+            .all()
+
+        for t in all_transmissions:
+            if t.destination.is_visible:
+                return t
+
+        return None
 
     def step(self, verbose=True):
 
-        latest_transmission = self.get_latest_transmission()
+        t = self.get_latest_transmission_to_visible()
 
-        if latest_transmission is None:  # first step, replacer is a source
+        if t is None:  # first step, replacer is a source
             replacer = np.random.choice(self.network.sources)
         else:
-            replacer = self.get_latest_transmission().destination
+            replacer = t.destination
 
         options = replacer.outgoing_vectors
 
@@ -30,10 +38,6 @@ class RandomWalkFromSource(object):
             replaced = np.random.choice(options).destination
             replacer.transmit(replaced)
             self.db.commit()
-
-            # FIXME: Testing placeholder
-            # replaced.receive_all()
-
         else:
             raise RuntimeError("No outgoing connections to choose from.")
 

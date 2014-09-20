@@ -242,5 +242,8 @@ class Transmission(Base):
             origin_uuid=self.origin_uuid,
             destination_uuid=self.destination_uuid).one()
 
+    def mark_received(self):
+        self.receive_time = timenow()
+
     def __repr__(self):
         return "Transmission-{}".format(self.uuid[:6])
