@@ -53,7 +53,10 @@ class PsiTurkRecruiter(Recruiter):
     def open_recruitment(self):
         self.shell.hit_create(1, "1.00", 1)
 
-        # def recruit_new_participants(self, n=1):
+    def recruit_new_participants(self, n=1):
+        if "last_hit_id" in os.environ:
+            last_hit_id = str(os.environ["last_hit_id"])
+            self.shell.hit_extend([last_hit_id], n, 60)
 
 
 class BotoRecruiter(Recruiter):
