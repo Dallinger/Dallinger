@@ -2,6 +2,11 @@ import os
 from boto.mturk.question import Overview, FormattedContent, QuestionContent, \
     FreeTextAnswer, Question, AnswerSpecification, QuestionForm
 from boto.mturk.connection import MTurkConnection
+import experiment_server_controller as control
+from psiturk.amt_services import MTurkServices, RDSServices
+from psiturk.psiturk_config import PsiturkConfig
+from psiturk.psiturk_org_services import PsiturkOrgServices, TunnelServices
+from psiturk.psiturk_shell import PsiturkShell, PsiturkNetworkShell
 
 
 class Recruiter(object):
@@ -15,6 +20,40 @@ class Recruiter(object):
 
     def close_recruitment():
         raise NotImplementedError
+
+
+class PsiTurkRecruiter(Recruiter):
+
+    def __init__(self):
+
+        # load the configuration options
+        self.config = PsiturkConfig()
+        self.config.load_config()
+
+        server = control.ExperimentServerController(self.config)
+
+        amt_services = MTurkServices(
+            os.environ['aws_access_key_id'],
+            os.environ['aws_secret_access_key'],
+            self.config.getboolean('Shell Parameters', 'launch_in_sandbox_mode'))
+
+        aws_rds_services = RDSServices(
+            os.environ['aws_access_key_id'],
+            os.environ['aws_secret_access_key'],
+            self.config.get('AWS Access', 'aws_region'))
+
+        web_services = PsiturkOrgServices(
+            os.environ['psiturk_access_key_id'],
+            os.environ['psiturk_secret_access_id'])
+
+        self.shell = PsiturkNetworkShell(
+            self.config, amt_services, aws_rds_services, web_services, server,
+            self.config.getboolean('Shell Parameters', 'launch_in_sandbox_mode'))
+
+    def open_recruitment(self):
+        self.shell.hit_create(1, "1.00", 1)
+
+        # def recruit_new_participants(self, n=1):
 
 
 class BotoRecruiter(Recruiter):
