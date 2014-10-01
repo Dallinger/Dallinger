@@ -1,4 +1,7 @@
 
 *.pyc
+*.log
+*.db
+*.psiturk_history
 /.coverage
 /cover/
