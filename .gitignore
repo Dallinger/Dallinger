@@ -3,5 +3,6 @@
 *.log
 *.db
 *.psiturk_history
+*.egg-info
 /.coverage
 /cover/
