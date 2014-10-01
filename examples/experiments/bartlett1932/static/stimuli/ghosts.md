@@ -2,7 +2,7 @@ One night two young men from Egulac went down to the river to hunt seals, and wh
 
 "What do you think? We wish to take you along. We are going up the river to make war on the people".
 
-One of the young ment said: "I have no arrows".
+One of the young men said: "I have no arrows".
 
 "Arrows are in the canoe", they said.
 

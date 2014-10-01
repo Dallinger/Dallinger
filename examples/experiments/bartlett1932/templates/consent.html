@@ -1,0 +1,62 @@
+<!doctype html>
+<!--
+  The consent.html displays the text of your IRB-approved
+  consent form.  Even if you are not required to provide
+  a consent form, it is helpful to use this form to
+  describe what people can do if an error comes up, etc...
+
+-->
+<html>
+    <head>
+        <title>Psychology Experiment - Informed Consent Form</title>
+        <link rel=stylesheet href="/static/css/bootstrap.min.css" type="text/css">
+        <link rel=stylesheet href="/static/css/style.css" type="text/css">
+        <script type="text/javascript">
+            function onexit() {
+              self.close(); // no harm, no foul here
+            }
+        </script>
+    </head>
+    <body>
+        <div id="container-consent">
+            <div id="consent">
+                <h1>We need your consent to proceed</h1>
+                <hr>
+                <div class="legal well">
+
+                    <p>This research is being conducted by Jordan Suchow, a postdoctoral research fellow, and Thomas Griffiths, a faculty member, at the University of California at Berkeley. This study takes 10 minutes.</p>
+
+                    <p>If you agree to take part in the research, you will complete a study that involves reading some text, remembering it as well as you can, and then answering some questions about it. All of the information we obtain during the research will be kept confidential, and not associated with your name in any way.</p>
+
+                    <p>Your participation in this research is voluntary. You are free to refuse to take part, and you may stop taking part at any time. You are free to discontinue participation in this study at any time with no penalty.</p>
+
+                    <p>If you have any questions about this research, do not hesitate to contact Jordan at suchow@berkeley.edu. If you have any questions about your rights or treatment as a participant in this research project, please contact UC Berkeley's Committee for Protection of Human Subjects at (510) 642&ndash;7461 or subjects@berkeley.edu.</p>
+
+                    <p>By consenting to participate, you acknowledge that you are 18 years or older, have read this consent form, agree to its contents, and agree to take part in this research. If you do not wish to consent, close this page and return the HIT on Mechanical Turk.</p>
+
+                    <button type="button" class="btn btn-default btn-sm" onClick="window.print();">
+                    <span class="glyphicon glyphicon-print"></span> Print a copy of this
+                    </button>
+                </div>
+
+                <hr>
+                <h4>Do you understand and consent to these terms?</h4>
+                <br>
+
+                <center>
+                    <button type="button" class="btn btn-primary btn-lg" onClick="window.location='/exp?hitId={{ hitid }}&assignmentId={{ assignmentid }}&workerId={{ workerid }}'">
+                    <span class="glyphicon glyphicon-ok"></span> I agree
+                    </button>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    <button type="button" class="btn btn-danger btn-lg" onClick="onexit()">
+                    <span class="glyphicon glyphicon-ban-circle"></span> No thanks, I do not want to do this HIT
+                    </button>
+                </center>
+
+            </div>
+        </div>
+    </body>
+</html>
+
