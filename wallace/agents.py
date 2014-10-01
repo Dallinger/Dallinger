@@ -1,4 +1,5 @@
 from sqlalchemy import ForeignKey, Column, String, Integer, desc, Boolean
+from sqlalchemy.ext.declarative import declared_attr
 from datetime import datetime
 
 from .models import Node, Info
@@ -135,63 +136,70 @@ class RandomBinaryStringSource(Source):
         return "".join([str(random.randint(0, 1)) for i in range(length)])
 
 
-def create_function_source(f, name):
-    """A factory for creating sources that transmit a certain function."""
+class AbstractFunctionSource(Source):
+    __abstract__ = True
 
-    class InheritedClass(Source):
+    def _data(self, length):
+        x_min = 1
+        x_max = 100
 
-        __mapper_args__ = {"polymorphic_identity": name}
-        __name__ = name
+        x_values = random.sample(xrange(x_min, x_max), length)
+        y_values = [self.func(x) for x in x_values]
 
-        @staticmethod
-        def _data(length):
+        return json.dumps(dict(zip(x_values, y_values)))
 
-            x_min = 1
-            x_max = 100
+    @declared_attr
+    def __mapper_args__(cls):
+        return {"polymorphic_identity": cls.__name__.lower()}
 
-            x_values = random.sample(xrange(x_min, x_max), length)
-            y_values = [f(x) for x in x_values]
 
-            return json.dumps(dict(zip(x_values, y_values)))
+class IdentityFunctionSource(AbstractFunctionSource, Source):
+    def func(self, x):
+        return x
 
-    return InheritedClass
 
-IdentityFunctionSource = create_function_source(
-    lambda x: x,
-    "identity_function_source")
+class AdditiveInverseFunctionSource(AbstractFunctionSource, Source):
+    def func(self, x):
+        return 100 - x
 
-AdditiveInverseFunctionSource = create_function_source(
-    lambda x: -1,
-    "additive_inverse_function_source")
 
-SinusoidalFunctionSource = create_function_source(
-    lambda x: 50.5 + 49.5 * math.sin(math.pi/2 + x/(5*math.pi)),
-    "sinusoidal_function_source")
+class SinusoidalFunctionSource(AbstractFunctionSource, Source):
+    def func(self, x):
+        return 50.5 + 49.5 * math.sin(math.pi/2 + x/(5*math.pi))
 
-m = random.shuffle(range(1, 100))
-RandomMappingFunctionSource = create_function_source(
-    lambda x: m[x-1],
-    "random_mapping_function_source")
 
-StepFunctionSource = create_function_source(
-    lambda x: 75 if x >= 50 else 25, "step_function_source")
+class RandomMappingFunctionSource(AbstractFunctionSource, Source):
+    m = random.shuffle(range(1, 100))
 
-ConstantFunctionSource = create_function_source(
-    lambda x: 50,
-    "constant_function_source")
+    def func(self, x):
+        return self.m[x-1]
 
-LogisticFunctionSource = create_function_source(
-    lambda x: 1/(0.01+math.exp(-0.092*x)),
-    "logistic_function_source")
 
-ExponentialFunctionSource = create_function_source(
-    lambda x: 100*math.exp(-0.05*x),
-    "exponential_function_source")
+class StepFunctionSource(AbstractFunctionSource, Source):
+    def func(self, x):
+        return 75 if x >= 50 else 25
 
-TriangleWaveSource = create_function_source(
-    lambda x: 2*(100-x) if x >= 50 else 2*x,
-    "triangle_wave_source")
 
-SquareWaveSource = create_function_source(
-    lambda x: 75 if (math.fmod(x, 50) <= 25) else 25,
-    "square_wave_source")
+class ConstantFunctionSource(AbstractFunctionSource, Source):
+    def func(self, x):
+        return 50
+
+
+class LogisticFunctionSource(AbstractFunctionSource, Source):
+    def func(self, x):
+        return 1/(0.01+math.exp(-0.092*x))
+
+
+class ExponentialFunctionSource(AbstractFunctionSource, Source):
+    def func(self, x):
+        return 100*math.exp(-0.05*x)
+
+
+class TriangleWaveSource(AbstractFunctionSource, Source):
+    def func(self, x):
+        return 2*(100-x) if x >= 50 else 2*x
+
+
+class SquareWaveSource(AbstractFunctionSource, Source):
+    def func(self, x):
+        return 75 if (math.fmod(x, 50) <= 25) else 25
