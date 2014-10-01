@@ -38,7 +38,6 @@ def deploy(*args):
     # Copy custom.py into this package.
     custom_py_src = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
-        "wallace",
         "custom.py")
     custom_py_dst = os.path.join(os.getcwd(), "custom.py")
     shutil.copy(custom_py_src, custom_py_dst)
