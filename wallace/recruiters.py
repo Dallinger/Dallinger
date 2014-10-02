@@ -69,8 +69,8 @@ class BotoRecruiter(Recruiter):
 
         # Open an MTurk connection.
         self.mtc = MTurkConnection(
-            aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
-            aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+            aws_access_key_id=os.environ["aws_access_key_id"],
+            aws_secret_access_key=os.environ["aws_secret_access_key"],
             host=HOST)
 
         if "HITId" in os.environ:
