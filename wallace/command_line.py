@@ -112,6 +112,7 @@ def deploy(*args):
 
     # Launch the Heroku app.
     subprocess.call("git push heroku " + id + ":master", shell=True)
+    subprocess.call("heroku ps:scale web=1 --app " + id, shell=True)
 
     # Send launch signal to server.
     host = config.get('Server Parameters', 'host')
