@@ -127,10 +127,12 @@ def deploy(*args):
     time.sleep(0.25)
 
     # Launch the Heroku app.
+    log("Pushing code to Heroku...")
     subprocess.call("git push heroku " + id + ":master", shell=True)
     subprocess.call("heroku ps:scale web=1 --app " + id, shell=True)
 
     # Send launch signal to server.
+    log("Launching the experiment...")
     host = config.get('Server Parameters', 'host')
     port = config.get('Server Parameters', 'port')
     url = "http://" + host + ":" + port + "/launch"
