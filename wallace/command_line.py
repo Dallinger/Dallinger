@@ -114,6 +114,18 @@ def deploy(*args):
     for cmd in cmds:
         subprocess.call(cmd + " --app " + id, shell=True)
 
+    # Set the database URL in the config file to the newly generated one.
+    log("Saving the URL of the postgres database...")
+    db_url = subprocess.check_output(
+        "heroku config:get DATABASE_URL --app " + id, shell=True)
+    config.set("Database Parameters", "database_url", db_url.rstrip())
+    subprocess.call("git add config.txt", shell=True),
+    time.sleep(0.25)
+    subprocess.call(
+        'git commit -m "Save URL of Heroku postgres database"',
+        shell=True)
+    time.sleep(0.25)
+
     # Launch the Heroku app.
     subprocess.call("git push heroku " + id + ":master", shell=True)
     subprocess.call("heroku ps:scale web=1 --app " + id, shell=True)
