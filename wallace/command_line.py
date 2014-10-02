@@ -79,7 +79,8 @@ def deploy(*args):
 
     # Create the psiturk command script.
     with open("psiturk_commands.txt", "w") as file:
-        file.write("server on")
+        file.write("server restart")
+
 
     # Commit the new files to the new experiment branch.
     log("Inserting psiTurk- and Heroku-specfic files.")
