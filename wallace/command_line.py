@@ -81,6 +81,9 @@ def deploy(*args):
     with open("psiturk_commands.txt", "w") as file:
         file.write("server restart")
 
+    # Create the server log file.
+    os.makedirs("tmp")
+    open(os.path.join("tmp", "server.log"), "a").close()
 
     # Commit the new files to the new experiment branch.
     log("Inserting psiTurk- and Heroku-specfic files.")
