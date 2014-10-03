@@ -168,7 +168,23 @@ def deploy():
 def export(id):
     """Export the data."""
     print_header()
-    log("Generating a backup of database on Heroku.")
+
+    log("Preparing to export the data...")
+
+    # Create the data package
+    os.makedirs(id)
+    open(os.path.join(id, "README.txt"), "a").close()
+
+    # Export the logs
+    subprocess.call(
+        "heroku logs -n 1500 > " + os.path.join(id, "server_logs.txt") + " --app " + id,
+        shell=True)
+
+    # Save the experiment id.
+    with open(os.path.join(id, "experiment_id.txt"), "w") as file:
+        file.write(id)
+
+    log("Generating a backup of the database on Heroku...")
     subprocess.call(
         "heroku addons:add pgbackups --app " + id, shell=True)
     subprocess.call(
@@ -178,6 +194,14 @@ def export(id):
 
     backup_url = backup_url.replace('"', '').rstrip()
 
-    log("Downloading the backup.")
-    with open(id + '.dump', 'wb') as file:
-        subprocess.call(['curl', '-o', id + '.dump', backup_url], stdout=file)
+    log("Downloading the backup...")
+    dump_filename = "data.dump"
+    dump_path = os.path.join(id, dump_filename)
+    with open(dump_path, 'wb') as file:
+        subprocess.call(['curl', '-o', dump_path, backup_url], stdout=file)
+
+    log("Zipping up the package...")
+    shutil.make_archive(id, "zip", id)
+    shutil.rmtree(id)
+
+    log("Done. Data available in " + str(id) + ".zip")
