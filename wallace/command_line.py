@@ -1,34 +1,50 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import optparse
-import uuid
-import os
-import shutil
-from psiturk.psiturk_config import PsiturkConfig
-import subprocess
+import click
 import time
+import uuid
+from psiturk.psiturk_config import PsiturkConfig
+import os
+import subprocess
+import shutil
 
 
 def log(msg, delay=0.5, chevrons=True):
     if chevrons:
-        print "\n❯❯ " + msg
+        click.echo("\n❯❯ " + msg)
     else:
-        print msg
+        click.echo(msg)
     time.sleep(delay)
 
 
-def main():
-    """A command line interface for Wallace."""
-    p = optparse.OptionParser()
-    p.add_option("--debug", action="callback", callback=deploy)
-    p.add_option("--deploy", action="callback", callback=deploy)
+def print_header():
+    log("""
+     _    _    __    __    __      __    ___  ____
+    ( \/\/ )  /__\  (  )  (  )    /__\  / __)( ___)
+     )    (  /(__)\  )(__  )(__  /(__)\( (__  )__)
+    (__/\__)(__)(__)(____)(____)(__)(__)\___)(____)
 
-    options, arguments = p.parse_args()
+             a platform for experimental evolution.
+
+    """, 0.5, False)
 
 
-def deploy(*args):
-    """Deploy app to psiTurk."""
+@click.group()
+def wallace():
+    pass
+
+
+@wallace.command()
+def debug():
+    """Run the experiment locally."""
+    raise NotImplementedError
+
+
+@wallace.command()
+def deploy():
+    """Deploy app using Heroku."""
+    print_header()
 
     # Generate a unique id for this experiment.
     id = "w" + str(uuid.uuid4())[0:18]
@@ -50,6 +66,8 @@ def deploy(*args):
 
     # Create a new branch.
     log("Creating new branch and switching over to it...")
+    starting_branch = subprocess.check_output(
+        "git rev-parse --abbrev-ref HEAD", shell=True)
     subprocess.call("git branch " + id, shell=True)
     time.sleep(1)
     subprocess.call("git checkout " + id, shell=True)
@@ -136,22 +154,30 @@ def deploy(*args):
     host = config.get('Server Parameters', 'host')
     port = config.get('Server Parameters', 'port')
     url = "http://" + host + ":" + port + "/launch"
-    # print pexpect.run("curl -X POST " + url)
+    print subprocess.call("curl -X POST " + url, shell=True)
+
+    # Return to the branch we came from.
+    log("Cleaning up...")
+    subprocess.call("git checkout " + starting_branch, shell=True)
+
+    log("Completed deployment of experiment " + id)
 
 
-def debug(*args):
-    """Run the experiment locally."""
-    raise NotImplementedError
+@wallace.command()
+@click.option('--id', default=None, help='ID of the deployed experiment')
+def export(id):
+    """Export the data."""
+    print_header()
+    log("Generating a backup of database on Heroku.")
+    subprocess.call(
+        "heroku addons:add pgbackups --app " + id, shell=True)
+    subprocess.call(
+        "heroku pgbackups:capture --expire --app " + id, shell=True)
+    backup_url = subprocess.check_output(
+        "heroku pgbackups:url --app " + id, shell=True)
 
-if __name__ == "__main__":
-    main()
+    backup_url = backup_url.replace('"', '').rstrip()
 
-log("""
-     _    _    __    __    __      __    ___  ____
-    ( \/\/ )  /__\  (  )  (  )    /__\  / __)( ___)
-     )    (  /(__)\  )(__  )(__  /(__)\( (__  )__)
-    (__/\__)(__)(__)(____)(____)(__)(__)\___)(____)
-
-             a platform for experimental evolution.
-
-""", 0.5, False)
+    log("Downloading the backup.")
+    with open(id + '.dump', 'wb') as file:
+        subprocess.call(['curl', '-o', id + '.dump', backup_url], stdout=file)
