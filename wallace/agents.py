@@ -23,9 +23,13 @@ class Agent(Node):
     """
 
     __tablename__ = "agent"
+    __table_args__ = {"schema": "wallace"}
     __mapper_args__ = {"polymorphic_identity": "agent"}
 
-    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
+    uuid = Column(
+        String(32),
+        ForeignKey("wallace.node.uuid"),
+        primary_key=True)
 
     is_visible = Column(Boolean, unique=False, default=True)
 
@@ -89,9 +93,13 @@ class BiologicalAgent(Agent):
 
 class Source(Node):
     __tablename__ = "source"
+    __table_args__ = {"schema": "wallace"}
     __mapper_args__ = {"polymorphic_identity": "generic_source"}
 
-    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
+    uuid = Column(
+        String(32),
+        ForeignKey("wallace.node.uuid"),
+        primary_key=True)
 
     genome_size = Column(Integer, default=8)
     memome_size = Column(Integer, default=8)
