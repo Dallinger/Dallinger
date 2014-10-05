@@ -125,15 +125,24 @@ def deploy():
     # Set up postgres database and AWS/psiTurk environment variables.
     cmds = [
         "heroku addons:add heroku-postgresql:hobby-dev",
+
         "heroku pg:wait",
+
+        "heroku config:set HOST=" +
+        id + ".herokuapp.com",
+
         "heroku config:set aws_access_key_id=" +
         config.get('AWS Access', 'aws_access_key_id'),
+
         "heroku config:set aws_secret_access_key=" +
         config.get('AWS Access', 'aws_secret_access_key'),
+
         "heroku config:set aws_region=" +
         config.get('AWS Access', 'aws_region'),
+
         "heroku config:set psiturk_access_key_id=" +
         config.get('psiTurk Access', 'psiturk_access_key_id'),
+
         "heroku config:set psiturk_secret_access_id=" +
         config.get('psiTurk Access', 'psiturk_secret_access_id')
     ]
