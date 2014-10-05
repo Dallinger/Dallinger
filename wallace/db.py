@@ -9,7 +9,7 @@ engine = create_engine(os.environ["DATABASE_URL"])
 try:
     engine.execute(CreateSchema('wallace'))
 except Exception, e:
-    print "Created once, never again."
+    pass
 
 db = scoped_session(sessionmaker(autoflush=True, bind=engine))
 
