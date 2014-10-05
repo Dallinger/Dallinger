@@ -38,7 +38,7 @@ def wallace():
 @wallace.command()
 def debug():
     """Run the experiment locally."""
-    raise NotImplementedError
+    print_header()
 
 
 @wallace.command()
@@ -97,11 +97,14 @@ def deploy():
 
     # Create the psiturk command script.
     with open("psiturk_commands.txt", "w") as file:
-        file.write("server restart")
+        file.write("server on")
 
     # Create the server log file.
-    os.makedirs("tmp")
-    open(os.path.join("tmp", "server.log"), "a").close()
+    try:
+        os.makedirs("tmp")
+        open(os.path.join("tmp", "server.log"), "a").close()
+    except:
+        pass
 
     # Commit the new files to the new experiment branch.
     log("Inserting psiTurk- and Heroku-specfic files.")
@@ -123,11 +126,16 @@ def deploy():
     cmds = [
         "heroku addons:add heroku-postgresql:hobby-dev",
         "heroku pg:wait",
-        "heroku config:set aws_access_key_id=" + config.get('AWS Access', 'aws_access_key_id'),
-        "heroku config:set aws_secret_access_key=" + config.get('AWS Access', 'aws_secret_access_key'),
-        "heroku config:set aws_region=" + config.get('AWS Access', 'aws_region'),
-        "heroku config:set psiturk_access_key_id=" + config.get('psiTurk Access', 'psiturk_access_key_id'),
-        "heroku config:set psiturk_secret_access_id=" + config.get('psiTurk Access', 'psiturk_secret_access_id')
+        "heroku config:set aws_access_key_id=" +
+        config.get('AWS Access', 'aws_access_key_id'),
+        "heroku config:set aws_secret_access_key=" +
+        config.get('AWS Access', 'aws_secret_access_key'),
+        "heroku config:set aws_region=" +
+        config.get('AWS Access', 'aws_region'),
+        "heroku config:set psiturk_access_key_id=" +
+        config.get('psiTurk Access', 'psiturk_access_key_id'),
+        "heroku config:set psiturk_secret_access_id=" +
+        config.get('psiTurk Access', 'psiturk_secret_access_id')
     ]
     for cmd in cmds:
         subprocess.call(cmd + " --app " + id, shell=True)
@@ -177,7 +185,9 @@ def export(id):
 
     # Export the logs
     subprocess.call(
-        "heroku logs -n 1500 > " + os.path.join(id, "server_logs.txt") + " --app " + id,
+        "heroku logs " +
+        "-n 1500 > " + os.path.join(id, "server_logs.txt") +
+        " --app " + id,
         shell=True)
 
     # Save the experiment id.
