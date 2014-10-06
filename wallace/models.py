@@ -26,7 +26,6 @@ def timenow():
 
 class Node(Base):
     __tablename__ = "node"
-    __table_args__ = {"schema": "wallace"}
 
     # the unique node id
     uuid = Column(String(32), primary_key=True, default=new_uuid)
@@ -48,9 +47,9 @@ class Node(Base):
     # the predecessors and successors
     successors = relationship(
         "Node",
-        secondary="wallace.vector",
-        primaryjoin="Node.uuid==wallace.vector.c.origin_uuid",
-        secondaryjoin="Node.uuid==wallace.vector.c.destination_uuid",
+        secondary="vector",
+        primaryjoin="Node.uuid==vector.c.origin_uuid",
+        secondaryjoin="Node.uuid==vector.c.destination_uuid",
         backref="predecessors"
     )
 
@@ -152,17 +151,16 @@ class Node(Base):
 
 class Vector(Base):
     __tablename__ = "vector"
-    __table_args__ = {"schema": "wallace"}
 
     # the origin node
-    origin_uuid = Column(String(32), ForeignKey('wallace.node.uuid'), primary_key=True)
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'), primary_key=True)
     origin = relationship(
         Node, foreign_keys=[origin_uuid],
         backref="outgoing_vectors")
 
     # the destination node
     destination_uuid = Column(
-        String(32), ForeignKey('wallace.node.uuid'), primary_key=True)
+        String(32), ForeignKey('node.uuid'), primary_key=True)
     destination = relationship(
         Node, foreign_keys=[destination_uuid],
         backref="incoming_vectors")
@@ -184,7 +182,6 @@ class Vector(Base):
 
 class Info(Base):
     __tablename__ = "info"
-    __table_args__ = {"schema": "wallace"}
 
     # the unique info id
     uuid = Column(String(32), primary_key=True, default=new_uuid)
@@ -197,7 +194,7 @@ class Info(Base):
     }
 
     # the node that created this info
-    origin_uuid = Column(String(32), ForeignKey('wallace.node.uuid'), nullable=False)
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'), nullable=False)
 
     # the time when the info was created
     creation_time = Column(String(26), nullable=False, default=timenow)
@@ -215,13 +212,12 @@ class Info(Base):
 
 class Transmission(Base):
     __tablename__ = "transmission"
-    __table_args__ = {"schema": "wallace"}
 
     # the unique transmission id
     uuid = Column(String(32), primary_key=True, default=new_uuid)
 
     # the info that was transmitted
-    info_uuid = Column(String(32), ForeignKey('wallace.info.uuid'), nullable=False)
+    info_uuid = Column(String(32), ForeignKey('info.uuid'), nullable=False)
     info = relationship(Info, backref='transmissions')
 
     # the time at which the transmission occurred
@@ -237,7 +233,7 @@ class Transmission(Base):
 
     # the destination of the info
     destination_uuid = Column(
-        String(32), ForeignKey('wallace.node.uuid'), nullable=False)
+        String(32), ForeignKey('node.uuid'), nullable=False)
     destination = relationship(Node, foreign_keys=[destination_uuid])
 
     @property
