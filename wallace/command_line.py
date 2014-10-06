@@ -95,10 +95,6 @@ def deploy():
     dst = os.path.join(os.getcwd(), "requirements.txt")
     shutil.copy(src, dst)
 
-    # Create the psiturk command script.
-    with open("psiturk_commands.txt", "w") as file:
-        file.write("server on")
-
     # Create the server log file.
     try:
         os.makedirs("tmp")
