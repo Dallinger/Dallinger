@@ -107,7 +107,7 @@ def deploy():
     subprocess.call("git add .", shell=True),
     time.sleep(0.25)
     subprocess.call(
-        'git commit -m "Inserting psiTurk- and Heroku-specfic files"',
+        'git commit -m "Insert psiTurk- and Heroku-specfic files"',
         shell=True)
     time.sleep(0.25)
 
