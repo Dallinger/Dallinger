@@ -47,7 +47,7 @@ def deploy():
     print_header()
 
     # Generate a unique id for this experiment.
-    id = "w" + str(uuid.uuid4())[0:18]
+    id = "w" + str(uuid.uuid4())[0:28]
     log("Deploying as experiment " + id + ".")
 
     # Load psiTurk configuration.
