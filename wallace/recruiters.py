@@ -7,11 +7,6 @@ from psiturk.models import Participant
 from sqlalchemy import desc
 
 
-class FakeExperimentServerController(object):
-    def is_server_running(self):
-        return 'yes'
-
-
 class Recruiter(object):
     """A recruiter manages the flow of participants to the experiment website,
     recruiting new participants and retaining those who are still needed."""
@@ -32,6 +27,10 @@ class PsiTurkRecruiter(Recruiter):
         # load the configuration options
         self.config = PsiturkConfig()
         self.config.load_config()
+
+        class FakeExperimentServerController(object):
+            def is_server_running(self):
+                return 'yes'
 
         server = FakeExperimentServerController()
 
