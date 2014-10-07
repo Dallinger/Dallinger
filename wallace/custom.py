@@ -21,10 +21,13 @@ import os
 # load the configuration options
 config = PsiturkConfig()
 config.load_config()
-myauth = PsiTurkAuthorization(config)  # if you want to add a password protect route use this
+myauth = PsiTurkAuthorization(config)
 
 # explore the Blueprint
-custom_code = Blueprint('custom_code', __name__, template_folder='templates', static_folder='static')
+custom_code = Blueprint(
+    'custom_code', __name__,
+    template_folder='templates',
+    static_folder='static')
 
 # Initialize the Wallace db
 db_session_w = db.init_db(drop_all=False)
@@ -49,7 +52,8 @@ except ImportError:
 # ----------------------------------------------
 @custom_code.route('/my_custom_view')
 def my_custom_view():
-    current_app.logger.info("Reached /my_custom_view")  # Print message to server.log for debugging
+    # Print message to server.log for debugging
+    current_app.logger.info("Reached /my_custom_view")
     try:
         return render_template('custom.html')
     except TemplateNotFound:
@@ -89,8 +93,8 @@ def compute_bonus():
     # check that user provided the correct keys
     # errors will not be that gracefull here if being
     # accessed by the Javascrip client
-    if not request.args.has_key('uniqueId'):
-        raise ExperimentError('improper_inputs')  # i don't like returning HTML to JSON requests...  maybe should change this
+    if 'uniqueId' not in request.args:
+        raise ExperimentError('improper_inputs')
     uniqueId = request.args['uniqueId']
 
     try:

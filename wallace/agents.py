@@ -165,14 +165,14 @@ class AdditiveInverseFunctionSource(AbstractFunctionSource, Source):
 
 class SinusoidalFunctionSource(AbstractFunctionSource, Source):
     def func(self, x):
-        return 50.5 + 49.5 * math.sin(math.pi/2 + x/(5*math.pi))
+        return 50.5 + 49.5 * math.sin(math.pi / 2 + x / (5 * math.pi))
 
 
 class RandomMappingFunctionSource(AbstractFunctionSource, Source):
     m = random.shuffle(range(1, 100))
 
     def func(self, x):
-        return self.m[x-1]
+        return self.m[x - 1]
 
 
 class StepFunctionSource(AbstractFunctionSource, Source):
@@ -187,17 +187,17 @@ class ConstantFunctionSource(AbstractFunctionSource, Source):
 
 class LogisticFunctionSource(AbstractFunctionSource, Source):
     def func(self, x):
-        return 1/(0.01+math.exp(-0.092*x))
+        return 1 / (0.01 + math.exp(-0.092 * x))
 
 
 class ExponentialFunctionSource(AbstractFunctionSource, Source):
     def func(self, x):
-        return 100*math.exp(-0.05*x)
+        return 100 * math.exp(-0.05 * x)
 
 
 class TriangleWaveSource(AbstractFunctionSource, Source):
     def func(self, x):
-        return 2*(100-x) if x >= 50 else 2*x
+        return 2 * (100 - x) if x >= 50 else 2 * x
 
 
 class SquareWaveSource(AbstractFunctionSource, Source):

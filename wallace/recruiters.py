@@ -41,7 +41,8 @@ class PsiTurkRecruiter(Recruiter):
         amt_services = MTurkServices(
             os.environ['aws_access_key_id'],
             os.environ['aws_secret_access_key'],
-            self.config.getboolean('Shell Parameters', 'launch_in_sandbox_mode'))
+            self.config.getboolean(
+                'Shell Parameters', 'launch_in_sandbox_mode'))
 
         aws_rds_services = RDSServices(
             os.environ['aws_access_key_id'],
@@ -54,7 +55,8 @@ class PsiTurkRecruiter(Recruiter):
 
         self.shell = PsiturkNetworkShell(
             self.config, amt_services, aws_rds_services, web_services, server,
-            self.config.getboolean('Shell Parameters', 'launch_in_sandbox_mode'))
+            self.config.getboolean(
+                'Shell Parameters', 'launch_in_sandbox_mode'))
 
     def open_recruitment(self):
         self.shell.hit_create(1, "1.00", 1)
@@ -147,7 +149,7 @@ class BotoRecruiter(Recruiter):
             'title': title,
             'description': description,
             'keywords': keywords,
-            'duration': 60*30,
+            'duration': 60 * 30,
             'reward': 1.00}
 
     def postHIT(self, h):

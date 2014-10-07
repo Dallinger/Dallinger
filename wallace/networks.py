@@ -182,7 +182,7 @@ class ScaleFree(Network):
                 idx_linkto = np.flatnonzero(np.random.multinomial(1, p))[0]
                 link_to = these_agents[idx_linkto]
 
-                # Create link from the newcomer to the selected member, and back
+                # Create link from the newcomer to the selected member and back
                 newcomer.connect_to(link_to)
                 newcomer.connect_from(link_to)
                 self.db.commit()
