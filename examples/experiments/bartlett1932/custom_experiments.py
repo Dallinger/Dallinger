@@ -11,7 +11,7 @@ class Bartlett1932(wallace.experiments.Experiment):
         self.num_steps = self.num_agents - 1
         self.network = wallace.networks.Chain(self.session)
         self.process = wallace.processes.RandomWalkFromSource(self.network)
-        self.recruiter = wallace.recruiters.PsiTurkRecruiter()
+        self.recruiter = wallace.recruiters.PsiTurkRecruiter
 
         # Setup for first time experiment is accessed
         if not self.network.sources:
@@ -49,10 +49,10 @@ class Bartlett1932(wallace.experiments.Experiment):
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.
-            self.recruiter.close_recruitment()
+            self.recruiter().close_recruitment()
         else:
             # Otherwise recruit a new participant.
-            self.recruiter.recruit_new_participants(n=1)
+            self.recruiter().recruit_new_participants(n=1)
 
     def is_experiment_over(self):
         return self.network.links == self.num_agents

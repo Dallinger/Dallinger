@@ -125,7 +125,7 @@ def launch():
 
     try:
         # Submit the first HIT
-        exp.recruiter.open_recruitment()
+        exp.recruiter().open_recruitment()
         return render_template('launch.html')
     except TemplateNotFound:
         abort(404)
