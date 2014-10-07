@@ -45,12 +45,10 @@ var StroopExperiment = function() {
 	$("#response-form").hide();
 	$("#finish-reading").hide();
 
-	baseUrl = "http://0.0.0.0:22362/";
-
 	// Create the agent.
 	createAgent = function() {
 		reqwest({
-		    url: baseUrl + "agents",
+		    url: "/agents",
 		    method: 'post',
 		    type: 'json',
 		  	success: function (resp) {
@@ -65,7 +63,7 @@ var StroopExperiment = function() {
 
 	getPendingTransmissions = function(destination_uuid) {
 		reqwest({
-		    url: baseUrl + "transmissions?destination_uuid=" + destination_uuid,
+		    url: "/transmissions?destination_uuid=" + destination_uuid,
 		    method: 'get',
 		    type: 'json',
 		  	success: function (resp) {
@@ -80,7 +78,7 @@ var StroopExperiment = function() {
 
 	getInfo = function(uuid) {
 		reqwest({
-		    url: baseUrl + "information/" + uuid,
+		    url: "/information/" + uuid,
 		    method: 'get',
 		    type: 'json',
 		  	success: function (resp) {
@@ -108,8 +106,7 @@ var StroopExperiment = function() {
 		response = encodeURIComponent($("#reproduction").val());
 
 		reqwest({
-		    url: baseUrl +
-		    	"information?origin_uuid=" + agent_uuid +
+		    url: "/information?origin_uuid=" + agent_uuid +
 		    	"&contents=" + response,
 		  	method: 'post',
 		  	data: { foo: 'bar', baz: 100 },
