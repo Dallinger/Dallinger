@@ -72,28 +72,20 @@ def deploy():
     time.sleep(1)
     subprocess.call("git checkout " + id, shell=True)
 
-    # Copy custom.py into this experiment package.
+    # Copy files into this experiment package.
     src = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
         "custom.py")
     dst = os.path.join(os.getcwd(), "custom.py")
     shutil.copy(src, dst)
 
-    # Copy the Procfile into this experiment package.
-    src = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        "heroku",
-        "Procfile")
-    dst = os.path.join(os.getcwd(), "Procfile")
-    shutil.copy(src, dst)
-
-    # Copy the requirements.txt file into this experiment package.
-    src = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        "heroku",
-        "requirements.txt")
-    dst = os.path.join(os.getcwd(), "requirements.txt")
-    shutil.copy(src, dst)
+    for filename in ["Procfile", "requirements.txt", "psiturkapp.py"]:
+        src = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "heroku",
+            filename)
+        dst = os.path.join(os.getcwd(), filename)
+        shutil.copy(src, dst)
 
     # Create the server log file.
     try:
