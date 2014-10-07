@@ -55,11 +55,17 @@ class PsiTurkRecruiter(Recruiter):
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
     def open_recruitment(self):
-        self.shell.hit_create(1, "1.00", 1)
+        self.shell.hit_create(
+            1,
+            self.config.get('HIT Configuration', 'base_payment'),
+            self.config.get('HIT Configuration', 'expiration_hrs'))
 
     def recruit_new_participants(self, n=1):
         previous_participant = Participant.query\
             .order_by(desc(Participant.endhit))\
             .first()
         last_hit_id = str(previous_participant.hitid)
-        self.shell.hit_extend([last_hit_id], n, 60)
+        self.shell.hit_extend(
+            [last_hit_id],
+            n,
+            self.config.get('HIT Configuration', 'expiration_hrs'))
