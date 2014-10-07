@@ -145,9 +145,10 @@ def deploy():
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
     subprocess.call("git push heroku " + id + ":master", shell=True)
-    subprocess.call("heroku ps:scale web=1 --app " + id, shell=True)
 
-    time.sleep(8)
+    log("Starting up the web server...")
+    subprocess.call("heroku ps:scale web=1 --app " + id, shell=True)
+    time.sleep(16)
 
     # Send launch signal to server.
     log("Launching the experiment...")
