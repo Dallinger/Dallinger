@@ -149,7 +149,6 @@ def deploy():
     log("Starting up the web server...")
     subprocess.call("heroku ps:scale web=1 --app " + id, shell=True)
     subprocess.call("heroku restart --app " + id, shell=True)
-    time.sleep(4)
 
     # Send launch signal to server.
     log("Launching the experiment...")
