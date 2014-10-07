@@ -6,3 +6,4 @@
 *.egg-info
 /.coverage
 /cover/
+*.egg-info/
