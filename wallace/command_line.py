@@ -87,13 +87,6 @@ def deploy():
         dst = os.path.join(os.getcwd(), filename)
         shutil.copy(src, dst)
 
-    # Create the server log file.
-    try:
-        os.makedirs("tmp")
-        open(os.path.join("tmp", "server.log"), "a").close()
-    except:
-        pass
-
     # Commit the new files to the new experiment branch.
     log("Inserting psiTurk- and Heroku-specfic files.")
     subprocess.call("git add .", shell=True),
