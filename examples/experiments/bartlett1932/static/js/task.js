@@ -112,9 +112,10 @@ var StroopExperiment = function() {
 		  	data: { foo: 'bar', baz: 100 },
 		  	success: function (resp) {
 		  		console.log("Submitted.");
-		      	currentview = new Questionnaire();
 		    }
 		});
+
+		currentview = new Questionnaire();
 
 		// psiTurk.recordTrialData({'phase':"TEST", 'response': $("#reproduction").val()});
 	});
