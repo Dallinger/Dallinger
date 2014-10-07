@@ -147,11 +147,11 @@ def deploy():
     subprocess.call("git push heroku " + id + ":master", shell=True)
     subprocess.call("heroku ps:scale web=1 --app " + id, shell=True)
 
+    time.sleep(8)
+
     # Send launch signal to server.
     log("Launching the experiment...")
-    host = config.get('Server Parameters', 'host')
-    port = config.get('Server Parameters', 'port')
-    url = "http://" + host + ":" + port + "/launch"
+    url = "http://" + id + ".herokuapp.com/launch"
     print subprocess.call("curl -X POST " + url, shell=True)
 
     # Return to the branch we came from.
