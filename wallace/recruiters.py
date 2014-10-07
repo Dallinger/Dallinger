@@ -2,11 +2,15 @@ import os
 from boto.mturk.question import Overview, FormattedContent, QuestionContent, \
     FreeTextAnswer, Question, AnswerSpecification, QuestionForm
 from boto.mturk.connection import MTurkConnection
-import experiment_server_controller as control
 from psiturk.amt_services import MTurkServices, RDSServices
 from psiturk.psiturk_config import PsiturkConfig
-from psiturk.psiturk_org_services import PsiturkOrgServices, TunnelServices
-from psiturk.psiturk_shell import PsiturkShell, PsiturkNetworkShell
+from psiturk.psiturk_org_services import PsiturkOrgServices
+from psiturk.psiturk_shell import PsiturkNetworkShell
+
+
+class FakeExperimentServerController(object):
+    def is_server_running(self):
+        return 'yes'
 
 
 class Recruiter(object):
@@ -30,7 +34,7 @@ class PsiTurkRecruiter(Recruiter):
         self.config = PsiturkConfig()
         self.config.load_config()
 
-        server = control.ExperimentServerController(self.config)
+        server = FakeExperimentServerController()
 
         amt_services = MTurkServices(
             os.environ['aws_access_key_id'],
