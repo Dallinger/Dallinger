@@ -101,7 +101,9 @@ var StroopExperiment = function() {
 	});
 
 	$("#submit-response").click(function() {
-		console.log($("#reproduction").val());
+
+		$("#submit-response").addClass('disabled');
+		$("#submit-response").html('Sending...');
 
 		response = encodeURIComponent($("#reproduction").val());
 
@@ -109,14 +111,10 @@ var StroopExperiment = function() {
 		    url: "/information?origin_uuid=" + agent_uuid +
 		    	"&contents=" + response,
 		  	method: 'post',
-		  	data: { foo: 'bar', baz: 100 },
-		  	success: function (resp) {
-		  		console.log("Submitted.");
-		    }
+		  	data: { foo: 'bar', baz: 100 }
 		});
 
 		currentview = new Questionnaire();
-
 		// psiTurk.recordTrialData({'phase':"TEST", 'response': $("#reproduction").val()});
 	});
 
