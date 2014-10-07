@@ -6,6 +6,8 @@ from psiturk.amt_services import MTurkServices, RDSServices
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.psiturk_org_services import PsiturkOrgServices
 from psiturk.psiturk_shell import PsiturkNetworkShell
+from psiturk.models import Participant
+from sqlalchemy import desc
 
 
 class FakeExperimentServerController(object):
@@ -58,9 +60,11 @@ class PsiTurkRecruiter(Recruiter):
         self.shell.hit_create(1, "1.00", 1)
 
     def recruit_new_participants(self, n=1):
-        if "last_hit_id" in os.environ:
-            last_hit_id = str(os.environ["last_hit_id"])
-            self.shell.hit_extend([last_hit_id], n, 60)
+        previous_participant = Participant.query\
+            .order_by(desc(Participant.endhit))\
+            .first()
+        last_hit_id = str(previous_participant.hitid)
+        self.shell.hit_extend([last_hit_id], n, 60)
 
 
 class BotoRecruiter(Recruiter):
