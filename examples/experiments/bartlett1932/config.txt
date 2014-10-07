@@ -3,31 +3,31 @@ experiment = Bartlett1932
 
 [HIT Configuration]
 title = War of the Ghosts
-description = Judge the color of a series of words.
-amt_keywords = Perception, Psychology
+description = Read a brief story and answer some questions about it.
+amt_keywords = Psychology, reading, text
 lifetime = 24
 us_only = true
 approve_requirement = 95
-contact_email_on_error = youremail@gmail.com
-ad_group = Default psiTurk Stroop Example
-psiturk_keywords = stroop
-organization_name = New Great University
+contact_email_on_error = bartlett1932@mailinator.com
+ad_group = War of the Ghosts
+psiturk_keywords = ghosts
+organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
 [Database Parameters]
-database_url = sqlite:///bartlett1932.db
+database_url = postgresql://postgres@localhost/wallace
 table_name = psiturk
 
 [Server Parameters]
 host = 0.0.0.0
-port = 22362
+port = 5000
 cutoff_time = 30
-logfile = tmp/server.log
+logfile = /dev/stderr
 loglevel = 0
 debug = true
 login_username = examplename
 login_pw = examplepassword
-threads = 1
+threads = auto
 
 [Task Parameters]
 experiment_code_version = 1.0
