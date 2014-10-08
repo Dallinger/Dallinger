@@ -175,7 +175,8 @@ def export(app):
     log("Preparing to export the data...")
 
     # Create the data package
-    os.makedirs(id)
+    if not os.path.exists(id):
+        os.makedirs(id)
     open(os.path.join(id, "README.txt"), "a").close()
 
     # Export the logs
