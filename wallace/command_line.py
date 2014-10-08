@@ -177,7 +177,7 @@ def export(id):
     # Export the logs
     subprocess.call(
         "heroku logs " +
-        "-n 1500 > " + os.path.join(id, "server_logs.txt") +
+        "-n 10000 > " + os.path.join(id, "server_logs.txt") +
         " --app " + id,
         shell=True)
 
