@@ -55,4 +55,4 @@ class Bartlett1932(wallace.experiments.Experiment):
             self.recruiter().recruit_new_participants(n=1)
 
     def is_experiment_over(self):
-        return self.network.links == self.num_agents
+        return len(self.network.links) == self.num_agents
