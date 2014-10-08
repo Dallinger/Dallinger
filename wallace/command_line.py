@@ -165,8 +165,12 @@ def deploy():
 @wallace.command()
 @click.option('--id', default=None, help='ID of the deployed experiment')
 def export(id):
+@wallace.command()
+@click.option('--app', default=None, help='ID of the deployed experiment')
+def export(app):
     """Export the data."""
     print_header()
+    id = str(app)
 
     log("Preparing to export the data...")
 
