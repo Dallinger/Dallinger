@@ -93,31 +93,26 @@ class Source(Node):
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    genome_size = Column(Integer, default=8)
-    memome_size = Column(Integer, default=8)
+    ome_size = Column(Integer, default=8)
 
     @staticmethod
     def _data(length):
         return NotImplementedError
 
-    def generate_genome(self):
-        return Genome(
-            origin=self,
-            origin_uuid=self.uuid,
-            contents=self._data(self.genome_size))
+    @property
+    def omes(self):
+        return [self.ome]
 
-    def generate_memome(self):
-        return Memome(
+    @property
+    def ome(self):
+        return Info(
             origin=self,
             origin_uuid=self.uuid,
-            contents=self._data(self.memome_size))
+            contents=self._data(self.ome_size))
 
     def transmit(self, other_node):
-        genome = self.generate_genome()
-        super(Source, self).transmit(genome, other_node)
-
-        memome = self.generate_memome()
-        super(Source, self).transmit(memome, other_node)
+        for ome in self.omes:
+            super(Source, self).transmit(ome, other_node)
 
     def broadcast(self):
         for vector in self.outgoing_vectors:
