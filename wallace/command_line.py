@@ -201,6 +201,29 @@ def export(id):
     with open(dump_path, 'wb') as file:
         subprocess.call(['curl', '-o', dump_path, backup_url], stdout=file)
 
+    subprocess.call(
+        "pg_restore --verbose --clean -d wallace " + id + "/data.dump",
+        shell=True)
+
+    data_directory = "data"
+    os.makedirs(os.path.join(id, data_directory))
+
+    all_tables = ["node",
+                  "vector",
+                  "info",
+                  "transmission",
+                  "agent",
+                  "source",
+                  "psiturk"]
+
+    for table in all_tables:
+        subprocess.call(
+            "psql -d wallace --command=\"\\copy " + table + " to \'" +
+            os.path.join(id, data_directory, table) + ".csv\' csv header\"",
+            shell=True)
+
+    os.remove(os.path.join(id, dump_filename))
+
     log("Zipping up the package...")
     shutil.make_archive(id, "zip", id)
     shutil.rmtree(id)
