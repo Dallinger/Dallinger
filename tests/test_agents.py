@@ -14,12 +14,27 @@ class TestBiologicalAgents(object):
         self.db.add_all(args)
         self.db.commit()
 
-    def test_create_agent(self):
+    def test_create_agents(self):
+        agent = agents.Agent()
+        self.add(agent)
+
+        assert agent.ome is None
+        assert len(agent.omes) == 1
+
+        ome = information.Info(origin=agent, contents="foo")
+        self.add(ome)
+        self.db.commit()
+
+        assert agent.ome == ome
+
+    def test_create_biological_agent(self):
         agent = agents.BiologicalAgent()
         self.add(agent)
 
         assert agent.genome is None
         assert agent.memome is None
+
+        assert len(agent.omes) == 2
 
         genome = information.Genome(origin=agent, contents="foo")
         memome = information.Memome(origin=agent, contents="bar")
