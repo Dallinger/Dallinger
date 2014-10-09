@@ -92,8 +92,8 @@ class TestNetworks(object):
 
     def test_network_trigger_source(self):
         net = networks.Network(self.db)
-        agent1 = agents.BiologicalAgent()
-        agent2 = agents.BiologicalAgent()
+        agent1 = agents.Agent()
+        agent2 = agents.Agent()
         self.db.add_all([agent1, agent2])
         self.db.commit()
 
@@ -104,10 +104,8 @@ class TestNetworks(object):
         agent2.receive_all()
         self.db.commit()
 
-        assert agent1.genome is None
-        assert agent2.genome is None
-        assert agent1.memome is None
-        assert agent2.memome is None
+        assert agent1.ome is None
+        assert agent2.ome is None
 
         net.trigger_source(source)
 
@@ -115,11 +113,9 @@ class TestNetworks(object):
         agent2.receive_all()
         self.db.commit()
 
-        assert agent1.genome
-        assert agent2.genome
-        assert agent1.memome
-        assert agent2.memome
-        assert len(source.outgoing_transmissions) == 4
+        assert agent1.ome
+        assert agent2.ome
+        assert len(source.outgoing_transmissions) == 2
 
     def test_network_add_agent(self):
         net = networks.Network(self.db)

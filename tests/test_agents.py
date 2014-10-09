@@ -78,39 +78,30 @@ class TestBiologicalAgents(object):
         source = agents.RandomBinaryStringSource()
         self.add(source)
 
-        assert source.genome_size == 8
-        assert source.memome_size == 8
+        assert source.ome_size == 8
 
-    def test_create_random_binary_string_source_genome_size_4(self):
-        source = agents.RandomBinaryStringSource(genome_size=4)
+    def test_create_random_binary_string_source_ome_size_4(self):
+        source = agents.RandomBinaryStringSource(ome_size=4)
         self.add(source)
 
-        assert source.genome_size == 4
-        assert source.memome_size == 8
-
-    def test_create_random_binary_string_source_memome_size_4(self):
-        source = agents.RandomBinaryStringSource(memome_size=4)
-        self.add(source)
-
-        assert source.genome_size == 8
-        assert source.memome_size == 4
+        assert source.ome_size == 4
 
     def test_generate_random_binary_string_genome(self):
-        source = agents.RandomBinaryStringSource(genome_size=2)
+        source = agents.RandomBinaryStringSource(ome_size=2)
         self.add(source)
 
-        genome = source.generate_genome()
-        assert genome.contents in ["00", "01", "10", "11"]
+        ome = source.ome
+        assert ome.contents in ["00", "01", "10", "11"]
 
     def test_generate_random_binary_string_memome(self):
-        source = agents.RandomBinaryStringSource(memome_size=2)
+        source = agents.RandomBinaryStringSource(ome_size=2)
         self.add(source)
 
-        memome = source.generate_memome()
-        assert memome.contents in ["00", "01", "10", "11"]
+        ome = source.ome
+        assert ome.contents in ["00", "01", "10", "11"]
 
     def test_transmit_random_binary_string_source(self):
-        source = agents.RandomBinaryStringSource(genome_size=2, memome_size=2)
+        source = agents.RandomBinaryStringSource(ome_size=2)
         agent = agents.BiologicalAgent()
         source.connect_to(agent)
         self.add(source, agent)
@@ -121,12 +112,10 @@ class TestBiologicalAgents(object):
         agent.receive_all()
         self.db.commit()
 
-        assert agent.genome.contents in ["00", "01", "10", "11"]
-        assert agent.memome.contents in ["00", "01", "10", "11"]
+        assert agent.ome.contents in ["00", "01", "10", "11"]
 
     def test_broadcast_random_binary_string_source(self):
-        source = agents.RandomBinaryStringSource(
-            genome_size=100, memome_size=100)
+        source = agents.RandomBinaryStringSource(ome_size=100)
         agent1 = agents.BiologicalAgent()
         agent2 = agents.BiologicalAgent()
         source.connect_to(agent1)
@@ -140,5 +129,4 @@ class TestBiologicalAgents(object):
         agent2.receive_all()
         self.db.commit()
 
-        assert agent1.genome.contents != agent2.genome.contents
-        assert agent1.memome.contents != agent2.memome.contents
+        assert agent1.ome.contents != agent2.ome.contents
