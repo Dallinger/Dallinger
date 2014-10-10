@@ -8,6 +8,7 @@ from psiturk.psiturk_config import PsiturkConfig
 import os
 import subprocess
 import shutil
+import pexpect
 
 
 def log(msg, delay=0.5, chevrons=True):
@@ -35,24 +36,13 @@ def wallace():
     pass
 
 
-@wallace.command()
-def debug():
-    """Run the experiment locally."""
-    print_header()
+def setup(debug=True):
 
-
-@wallace.command()
-def deploy():
-    """Deploy app using Heroku."""
     print_header()
 
     # Generate a unique id for this experiment.
     id = "w" + str(uuid.uuid4())[0:28]
-    log("Deploying as experiment " + id + ".")
-
-    # Load psiTurk configuration.
-    config = PsiturkConfig()
-    config.load_config()
+    log("Debugging as experiment " + id + ".")
 
     # Create a git repository if one does not already exist.
     if not os.path.exists(".git"):
@@ -95,6 +85,68 @@ def deploy():
         'git commit -m "Insert psiTurk- and Heroku-specfic files"',
         shell=True)
     time.sleep(0.25)
+
+    return (id, starting_branch)
+
+
+@wallace.command()
+def debug():
+    """Run the experiment locally."""
+    (id, starting_branch) = setup(debug=True)
+
+    # Load psiTurk configuration.
+    config = PsiturkConfig()
+    config.load_config()
+
+    # Set environment variables.
+    aws_vars = ['aws_access_key_id', 'aws_secret_access_key', 'aws_region']
+    for var in aws_vars:
+        if var not in os.environ:
+            os.environ[var] = config.get('AWS Access', var)
+
+    pt_vars = ['psiturk_access_key_id', 'psiturk_secret_access_id']
+    for var in pt_vars:
+        if var not in os.environ:
+            os.environ[var] = config.get('psiTurk Access', var)
+
+    if "HOST" not in os.environ:
+        os.environ["HOST"] = config.get('Server Parameters', 'host')
+
+    # Start up the local server
+    log("Starting up the server...")
+    p = pexpect.spawn("psiturk")
+    p.expect_exact("server")
+    p.sendline("server on")
+
+    # # Send launch signal to server.
+    # log("Launching the experiment...")
+    # host = config.get("Server Parameters", "host")
+    # port = config.get("Server Parameters", "port")
+    # url = "http://" + host + ":" + port + "/launch"
+    # print subprocess.call("curl -X POST " + url, shell=True)
+
+    log("Here's the psiTurk shell...")
+    p.interact()
+
+    # Return to othe branch we came from.
+    log("Cleaning up...")
+    subprocess.call("git checkout " + starting_branch, shell=True)
+    filetypes_to_kill = [".pyc", ".psiturk_history"]
+    for filetype in filetypes_to_kill:
+        [[os.remove(f) for f in os.listdir(".") if f.endswith(filetype)]
+            for filetype in filetypes_to_kill]
+
+    log("Completed debugging of experiment " + id)
+
+
+@wallace.command()
+def deploy():
+    """Deploy app using Heroku."""
+    (id, starting_branch) = setup(debug=False)
+
+    # Load psiTurk configuration.
+    config = PsiturkConfig()
+    config.load_config()
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
