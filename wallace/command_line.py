@@ -9,6 +9,7 @@ import os
 import subprocess
 import shutil
 import pexpect
+from urlparse import urlparse
 
 
 def log(msg, delay=0.5, chevrons=True):
@@ -111,6 +112,14 @@ def debug():
 
     if "HOST" not in os.environ:
         os.environ["HOST"] = config.get('Server Parameters', 'host')
+
+    # Drop the testing database and recreate.
+    log("Resetting the database...")
+    result = urlparse(config.get("Database Parameters", "database_url"))
+    database = result.path[1:]
+    subprocess.call("dropdb " + database, shell=True)
+    subprocess.call("psql --command=\"CREATE DATABASE " + database +
+                    " WITH OWNER postgres;\"", shell=True)
 
     # Start up the local server
     log("Starting up the server...")
