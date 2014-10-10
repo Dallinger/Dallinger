@@ -9,6 +9,7 @@ SQLAlchemy==0.9.7
 Werkzeug==0.9.6
 argparse==1.2.1
 boto==2.32.1
+click==3.3
 cmd2==0.6.7
 coverage==3.7.1
 coveralls==0.4.2
