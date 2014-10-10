@@ -34,20 +34,42 @@ class PsiTurkRecruiter(Recruiter):
 
         server = FakeExperimentServerController()
 
+        # Get keys from environment variables or config file.
+        aws_access_key_id = os.getenv(
+            "aws_access_key_id",
+            self.config.get("AWS Access", "aws_access_key_id"))
+
+        aws_secret_access_key = os.getenv(
+            "aws_secret_access_key",
+            self.config.get("AWS Access", "aws_secret_access_key"))
+
+        aws_region = os.getenv(
+            "aws_region",
+            self.config.get("AWS Access", "aws_region"))
+
+        psiturk_access_key_id = os.getenv(
+            "psiturk_access_key_id",
+            self.config.get("psiTurk Access", "psiturk_access_key_id"))
+
+        psiturk_secret_access_id = os.getenv(
+            "psiturk_secret_access_id",
+            self.config.get("psiTurk Access", "psiturk_secret_access_id"))
+
+        # Set up MTurk and psiTurk services.
         amt_services = MTurkServices(
-            os.environ['aws_access_key_id'],
-            os.environ['aws_secret_access_key'],
+            aws_access_key_id,
+            aws_secret_access_key,
             self.config.getboolean(
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
         aws_rds_services = RDSServices(
-            os.environ['aws_access_key_id'],
-            os.environ['aws_secret_access_key'],
-            self.config.get('AWS Access', 'aws_region'))
+            aws_access_key_id,
+            aws_secret_access_key,
+            aws_region)
 
         web_services = PsiturkOrgServices(
-            os.environ['psiturk_access_key_id'],
-            os.environ['psiturk_secret_access_id'])
+            psiturk_access_key_id,
+            psiturk_secret_access_id)
 
         self.shell = PsiturkNetworkShell(
             self.config, amt_services, aws_rds_services, web_services, server,
