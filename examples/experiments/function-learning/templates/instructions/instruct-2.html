@@ -1,0 +1,49 @@
+<div id="container-instructions">
+
+    <h1>Instructions</h1>
+
+    <hr>
+
+    <div class="row">
+
+    <div class="col-md-4">
+        <p>Your goal is to learn the relationship between the sizes of these two bars. In the first half of the game, you will receive training. On each round, the blue bar will appear, and you will guess how big the red bar should be. Move the mouse up and down to adjust the size of the red bar, and then click to enter your response.</p>
+        <img id="both-bars" src="/static/images/both-bars.jpg" width="200px" alt="Both bars" />
+    </div>
+
+    <div class="col-md-4">
+        <p>A grey bar will appear next to it, showing you the correct answer.</p>
+        <img id="both-bars" src="/static/images/feedback.jpg" width="200px" alt="Both bars" />
+    </div>
+
+    <div class="col-md-4">
+        <p>You will then have the opportunity to fix your response, readjusting the red bar so that it perfectly matches the correct value. Press the space bar to move on to the next round.</p>
+        <img id="both-bars" src="/static/images/adjust.jpg" width="200px" alt="Both bars" />
+    </div>
+
+    </div>
+
+    <script type="text/javascript">
+    //console.log(psiTurk.getInstructionIndicator())
+    </script>
+
+    <hr>
+
+    <div class="instructionsnav">
+        <div class="row">
+            <div class="col-xs-2">
+                <button type="button" id="next" value="next" class="btn btn-primary btn-lg previous">
+                <span class="glyphicon glyphicon-arrow-left"></span> Previous
+                </button>
+            </div>
+            <div class="col-xs-8">
+            </div>
+            <div class="col-xs-2">
+                <button type="button" id="next" value="next" class="btn btn-primary btn-lg continue">
+                Next <span class="glyphicon glyphicon-arrow-right"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
