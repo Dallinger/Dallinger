@@ -139,7 +139,7 @@ def api_agent_create():
     if request.method == 'POST':
 
         # Create the newcomer and trigger experiment-specific behavior
-        newcomer = agents.Agent()
+        newcomer = exp.agent_type()
         exp.newcomer_arrival_trigger(newcomer)
 
         # Return a response

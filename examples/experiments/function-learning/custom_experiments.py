@@ -12,6 +12,7 @@ class FunctionLearning(wallace.experiments.Experiment):
         self.network = wallace.networks.Chain(self.session)
         self.process = wallace.processes.RandomWalkFromSource(self.network)
         self.recruiter = wallace.recruiters.PsiTurkRecruiter
+        self.agent_type = wallace.agents.Agent
 
         # Setup for first time experiment is accessed
         if not self.network.sources:
