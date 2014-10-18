@@ -50,10 +50,10 @@ class FunctionLearning(wallace.experiments.Experiment):
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.
-            self.recruiter().close_recruitment()
+            self.recruiter().close_recruitment(self)
         else:
             # Otherwise recruit a new participant.
-            self.recruiter().recruit_new_participants(n=1)
+            self.recruiter().recruit_new_participants(self, n=1)
 
     def is_experiment_over(self):
         return len(self.network.links) == self.num_agents

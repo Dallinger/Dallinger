@@ -13,11 +13,30 @@ class Recruiter(object):
     def __init__(self):
         super(Recruiter, self).__init__()
 
-    def recruit_new_participants(n=1):
+    def open_recruitment(self, exp):
         raise NotImplementedError
 
-    def close_recruitment():
+    def recruit_new_participants(self, exp, n=1):
         raise NotImplementedError
+
+    def close_recruitment(self, exp):
+        raise NotImplementedError
+
+
+class SimulatedRecruiter(object):
+    def __init__(self):
+        super(SimulatedRecruiter, self).__init__()
+
+    def open_recruitment(self, exp):
+        self.recruit_new_participants(exp, 1)
+
+    def recruit_new_participants(self, exp, n=1):
+        for i in xrange(n):
+            newcomer = exp.agent_type()
+            exp.newcomer_arrival_trigger(newcomer)
+
+    def close_recruitment(self, exp):
+        pass
 
 
 class PsiTurkRecruiter(Recruiter):
@@ -76,13 +95,13 @@ class PsiTurkRecruiter(Recruiter):
             self.config.getboolean(
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
-    def open_recruitment(self):
+    def open_recruitment(self, exp):
         self.shell.hit_create(
             1,
             self.config.get('HIT Configuration', 'base_payment'),
             self.config.get('HIT Configuration', 'expiration_hrs'))
 
-    def recruit_new_participants(self, n=1):
+    def recruit_new_participants(self, exp, n=1):
         previous_participant = Participant.query\
             .order_by(desc(Participant.endhit))\
             .first()
