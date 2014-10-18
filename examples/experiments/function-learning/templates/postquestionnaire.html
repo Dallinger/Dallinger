@@ -2,66 +2,63 @@
 
     <div class="alert alert-warning"><b>Done</b>. You will be eligible for full payment once you answer the following questions:</div>
 
-    <div class="instructions well">
+    <form id="postquiz" action="debrief" method="post">
 
-        <form id="postquiz" action="debrief" method="post">
-
-            <!-- beginning of a question -->
-            <div class="row question">
-                <div class="col-md-8">
-                    Describe the relationship between the size of the two bars. Use as many words as is necessary to fully describe how their sizes are related:
-                </div>
-                    <div><textarea id="relationship" class="form-control" rows="5"></textarea></div>
+        <!-- beginning of a question -->
+        <div class="row question">
+            <div class="col-md-8">
+                Describe the relationship between the size of the two bars. Use as many words as is necessary to fully describe how their sizes are related:
             </div>
-            <!-- end of a question -->
+                <div><textarea id="relationship" class="form-control" rows="5"></textarea></div>
+        </div>
+        <!-- end of a question -->
 
-            <!-- beginning of a question -->
-            <div class="row question">
-                <div class="col-md-8">
-                    On a scale of 1-10 (where 10 is the most engaged), please rate how engaged you were while performing the task:
-                </div>
-                <div class="col-md-4">
-                    <select id="engagement" name="engagement">
-                        <option value="10">10 - Very engaged</option>
-                        <option value="9">9</option>
-                        <option value="8">8</option>
-                        <option value="7">7</option>
-                        <option value="6">6</option>
-                        <option value="5" SELECTED>5 - Moderately engaged</option>
-                        <option value="4">4</option>
-                        <option value="3">3</option>
-                        <option value="2">2</option>
-                        <option value="1">1 - Not engaged</option>
-                    </select>
-                </div>
+        <!-- beginning of a question -->
+        <div class="row question">
+            <div class="col-md-8">
+                On a scale of 1-10 (where 10 is the most engaged), please rate how engaged you were while performing the task:
             </div>
-            <!-- end of a question -->
-
-
-            <!-- beginning of a question -->
-            <div class="row question">
-                <div class="col-md-8">
-                    On a scale of 1-10 (where 10 is the most difficult), please rate how difficult you found the learning task:
-                </div>
-                <div class="col-md-4">
-                    <select id="difficulty" name="difficulty">
-                        <option value="10">10 - Very difficult</option>
-                        <option value="9">9</option>
-                        <option value="8">8</option>
-                        <option value="7">7</option>
-                        <option value="6">6</option>
-                        <option value="5" SELECTED>5 - Moderate</option>
-                        <option value="4">4</option>
-                        <option value="3">3</option>
-                        <option value="2">2</option>
-                        <option value="1">1 - Very easy</option>
-                    </select>
-                </div>
+            <div class="col-md-4">
+                <select id="engagement" name="engagement">
+                    <option value="10">10 - Very engaged</option>
+                    <option value="9">9</option>
+                    <option value="8">8</option>
+                    <option value="7">7</option>
+                    <option value="6">6</option>
+                    <option value="5" SELECTED>5 - Moderately engaged</option>
+                    <option value="4">4</option>
+                    <option value="3">3</option>
+                    <option value="2">2</option>
+                    <option value="1">1 - Not engaged</option>
+                </select>
             </div>
-            <!-- end of a question -->
+        </div>
+        <!-- end of a question -->
 
-        </form>
-    </div>
+
+        <!-- beginning of a question -->
+        <div class="row question">
+            <div class="col-md-8">
+                On a scale of 1-10 (where 10 is the most difficult), please rate how difficult you found the learning task:
+            </div>
+            <div class="col-md-4">
+                <select id="difficulty" name="difficulty">
+                    <option value="10">10 - Very difficult</option>
+                    <option value="9">9</option>
+                    <option value="8">8</option>
+                    <option value="7">7</option>
+                    <option value="6">6</option>
+                    <option value="5" SELECTED>5 - Moderate</option>
+                    <option value="4">4</option>
+                    <option value="3">3</option>
+                    <option value="2">2</option>
+                    <option value="1">1 - Very easy</option>
+                </select>
+            </div>
+        </div>
+        <!-- end of a question -->
+
+    </form>
 
     <hr>
 
@@ -78,6 +75,5 @@
             </div>
         </div>
     </div>
-
 
 </div>

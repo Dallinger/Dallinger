@@ -77,14 +77,14 @@ var FunctionLearningExperiment = function() {
                 xTrain = data.x;
                 yTrain = data.y;
 
-                N = xTrain.length;
+                N = xTrain.length * 2;
                 $("#total-trials").html(N);
                 yTrainReported = [];
 
                 // Set testing variables.
                 allX = range(1, xMax);
-                xTestFromTraining = randomSubset(xTrain, N/2);
-                xTestNew = randomSubset(allX.diff(xTrain), N/2);
+                xTestFromTraining = randomSubset(xTrain, N/4);
+                xTestNew = randomSubset(allX.diff(xTrain), N/4);
                 xTest = shuffle(xTestFromTraining.concat(xTestNew));
                 yTest = [];
 		    },
@@ -144,10 +144,13 @@ var FunctionLearningExperiment = function() {
             $("#trial-number").html(trialIndex);
 
             // Set up the stimuli.
-            stimulusXSize = xTrain[trialIndex] * PPU;
+            if (trialIndex < N/2)
+                stimulusXSize = xTrain[trialIndex] * PPU;
+            else
+                stimulusXSize = xTest[trialIndex - N/2] * PPU;
             stimulusX.attr({ width: stimulusXSize });
-            stimulusY.show();
             stimulusX.show();
+            stimulusY.show();
 
             // Prevent repeat keypresses.
             Mousetrap.pause();
