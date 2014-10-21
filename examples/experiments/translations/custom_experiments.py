@@ -44,22 +44,9 @@ class Translations(Experiment):
 
         newcomer.receive_all()
 
-        self.session.add(info)
-        self.session.commit()
-
         # Trigger experiment-specific behavior that happens on creation
-        self.information_creation_trigger(info)
-
-    def transmission_reception_trigger(self, transmissions):
-        # Mark transmissions as received
-        for t in transmissions:
-            t.mark_received()
-
-    def information_creation_trigger(self, info):
-
-        agent = info.origin
-        agent.is_visible = True
-        self.network.db.add(agent)
+        newcomer.is_visible = True
+        self.network.db.add(newcomer)
         self.network.db.commit()
 
         if self.is_experiment_over():
