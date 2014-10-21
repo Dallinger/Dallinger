@@ -226,14 +226,17 @@ def deploy():
 
 
 @wallace.command()
-@click.option('--id', default=None, help='ID of the deployed experiment')
-def export(id):
-@wallace.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
-def export(app):
+@click.option('--local', default=False, help='Exporting local data')
+def export(app, local):
     """Export the data."""
     print_header()
-    id = str(app)
+
+    if app:
+        id = str(app)
+    else:
+        id = subprocess.check_output(
+            "git rev-parse --abbrev-ref HEAD", shell=True)
 
     log("Preparing to export the data...")
 
@@ -242,36 +245,37 @@ def export(app):
         os.makedirs(id)
     open(os.path.join(id, "README.txt"), "a").close()
 
-    # Export the logs
-    subprocess.call(
-        "heroku logs " +
-        "-n 10000 > " + os.path.join(id, "server_logs.txt") +
-        " --app " + id,
-        shell=True)
-
     # Save the experiment id.
     with open(os.path.join(id, "experiment_id.txt"), "w") as file:
         file.write(id)
 
-    log("Generating a backup of the database on Heroku...")
-    subprocess.call(
-        "heroku addons:add pgbackups --app " + id, shell=True)
-    subprocess.call(
-        "heroku pgbackups:capture --expire --app " + id, shell=True)
-    backup_url = subprocess.check_output(
-        "heroku pgbackups:url --app " + id, shell=True)
+    if not local:
+        # Export the logs
+        subprocess.call(
+            "heroku logs " +
+            "-n 10000 > " + os.path.join(id, "server_logs.txt") +
+            " --app " + id,
+            shell=True)
 
-    backup_url = backup_url.replace('"', '').rstrip()
+        log("Generating a backup of the database on Heroku...")
+        subprocess.call(
+            "heroku addons:add pgbackups --app " + id, shell=True)
+        subprocess.call(
+            "heroku pgbackups:capture --expire --app " + id, shell=True)
+        backup_url = subprocess.check_output(
+            "heroku pgbackups:url --app " + id, shell=True)
 
-    log("Downloading the backup...")
-    dump_filename = "data.dump"
-    dump_path = os.path.join(id, dump_filename)
-    with open(dump_path, 'wb') as file:
-        subprocess.call(['curl', '-o', dump_path, backup_url], stdout=file)
+        backup_url = backup_url.replace('"', '').rstrip()
 
-    subprocess.call(
-        "pg_restore --verbose --clean -d wallace " + id + "/data.dump",
-        shell=True)
+        log("Downloading the backup...")
+        dump_filename = "data.dump"
+        dump_path = os.path.join(id, dump_filename)
+        with open(dump_path, 'wb') as file:
+            subprocess.call(['curl', '-o', dump_path, backup_url], stdout=file)
+
+        subprocess.call(
+            "pg_restore --verbose --clean -d wallace " + id + "/data.dump",
+            shell=True)
 
     data_directory = "data"
     os.makedirs(os.path.join(id, data_directory))
@@ -290,7 +294,8 @@ def export(app):
             os.path.join(id, data_directory, table) + ".csv\' csv header\"",
             shell=True)
 
-    os.remove(os.path.join(id, dump_filename))
+    if not local:
+        os.remove(os.path.join(id, dump_filename))
 
     log("Zipping up the package...")
     shutil.make_archive(id, "zip", id)

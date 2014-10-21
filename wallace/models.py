@@ -247,3 +247,44 @@ class Transmission(Base):
 
     def __repr__(self):
         return "Transmission-{}".format(self.uuid[:6])
+
+
+class Transformation(Base):
+    __tablename__ = "transformation"
+
+    # the transformation type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'base'
+    }
+
+    # the unique transformation id
+    uuid = Column(String(32), primary_key=True, default=new_uuid)
+
+    # the node that applied this transformation
+    node_uuid = Column(String(32), ForeignKey('node.uuid'), nullable=False)
+    node = relationship(Node, backref='transformations')
+
+    # the info before it was transformed
+    info_in_uuid = Column(String(32), ForeignKey('info.uuid'), nullable=False)
+    info_in = relationship(
+        Info,
+        foreign_keys=[info_in_uuid],
+        backref="transformation_applied_to")
+
+    # the info produced as a result of the transformation
+    info_out_uuid = Column(String(32), ForeignKey('info.uuid'), nullable=False)
+    info_out = relationship(
+        Info,
+        foreign_keys=[info_out_uuid],
+        backref="transformation_whence")
+
+    # the time at which the transformation occurred
+    transform_time = Column(String(26), nullable=False, default=timenow)
+
+    def apply(self, info_in):
+        return NotImplementedError
+
+    def __repr__(self):
+        return "Transformation-{}".format(self.uuid[:6])

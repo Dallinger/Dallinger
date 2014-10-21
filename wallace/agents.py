@@ -57,6 +57,7 @@ class Agent(Node):
         pending_transmissions = self.pending_transmissions
         for transmission in pending_transmissions:
             transmission.receive_time = timenow()
+            transmission.mark_received()
             self.update(transmission.info)
 
 
