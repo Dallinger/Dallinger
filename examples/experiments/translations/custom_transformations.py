@@ -10,14 +10,14 @@ class TranslationTransformation(wallace.models.Transformation):
 
     __mapper_args__ = {"polymorphic_identity": "translation_tranformation"}
 
-    def apply(self, info_in):
+    def apply(self):
 
         # Detect the language.
         api_key = "AIzaSyBTyfWACesHGvIPrWksUOABTg7R-I_PAW4"
         base_url = "https://www.googleapis.com/language/translate/v2"
         payload = {
             "key": api_key,
-            "q": info_in.contents}
+            "q": self.info_in.contents}
         r = requests.get(base_url + "/detect", params=payload)
         print r.text
         r_dict = json.loads(r.text)
@@ -31,7 +31,7 @@ class TranslationTransformation(wallace.models.Transformation):
 
         payload = {
             "key": api_key,
-            "q": info_in.contents,
+            "q": self.info_in.contents,
             "source": source,
             "target": destination}
         r = requests.get(base_url, params=payload)
@@ -46,5 +46,7 @@ class TranslationTransformation(wallace.models.Transformation):
         info_out = wallace.models.Info(
             origin=self.node,
             contents=translation)
+
+        self.info_out = info_out
 
         return info_out

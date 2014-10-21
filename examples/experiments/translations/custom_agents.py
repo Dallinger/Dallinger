@@ -10,7 +10,5 @@ class SimulatedAgent(wallace.agents.Agent):
     def update(self, info_in):
 
         # Apply the translation transformation.
-        transformation1 = TranslationTransformation()
-        info_out = transformation1.apply(info_in)
-
-        info_out.copy_to(self)
+        transformation1 = TranslationTransformation(info_in=info_in, node=self)
+        transformation1.apply()
