@@ -283,16 +283,8 @@ class Transformation(Base):
     # the time at which the transformation occurred
     transform_time = Column(String(26), nullable=False, default=timenow)
 
-    @staticmethod
-    def transform(contents):
-        return NotImplementedError
-
     def apply(self, info_in):
-        info_out = Info(
-            origin=info_in.origin,
-            origin_uuid=info_in.origin_uuid,
-            contents=self.transform(info_in.contents))
-        return info_out
+        return NotImplementedError
 
     def __repr__(self):
         return "Transformation-{}".format(self.uuid[:6])
