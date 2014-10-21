@@ -2,6 +2,9 @@ import wallace
 import requests
 import json
 import time
+import re
+import os
+import random
 
 
 class TranslationTransformation(wallace.models.Transformation):
@@ -9,6 +12,9 @@ class TranslationTransformation(wallace.models.Transformation):
     """
 
     __mapper_args__ = {"polymorphic_identity": "translation_tranformation"}
+
+    mutation_probability = 0.01  # Probability of translating to a randomly-
+                                 # selected word from the 1000 most common.
 
     def apply(self):
 
@@ -39,6 +45,22 @@ class TranslationTransformation(wallace.models.Transformation):
         print r_dict
         translation = r_dict[
             "data"]["translations"][0]["translatedText"].encode("utf-8")
+
+        # Mutate
+        dictionary_path = os.path.join(
+            "static", "dictionaries", destination + ".txt")
+        with open(dictionary_path) as f:
+            dictionary = f.read().split()
+
+        words = list(set([w for w in re.split('\W', translation)]))
+        for word in words:
+            if random.random() < self.mutation_probability:
+                new_word = random.choice(dictionary)
+                print "old word:"
+                print word
+                print "new word:"
+                print new_word
+                translation = translation.replace(word, new_word)
 
         time.sleep(1)
 
