@@ -8,13 +8,9 @@ import random
 
 
 class TranslationTransformation(wallace.models.Transformation):
-    """Translates from English to Latin or Latin to English.
-    """
+    """Translates from English to Latin or Latin to English."""
 
     __mapper_args__ = {"polymorphic_identity": "translation_tranformation"}
-
-    mutation_probability = 0.01  # Probability of translating to a randomly-
-                                 # selected word from the 1000 most common.
 
     def apply(self):
 
@@ -54,17 +50,13 @@ class TranslationTransformation(wallace.models.Transformation):
 
         words = list(set([w for w in re.split('\W', translation)]))
         for word in words:
-            if random.random() < self.mutation_probability:
+            if random.random() < 0.02:
                 new_word = random.choice(dictionary)
-                print "old word:"
-                print word
-                print "new word:"
-                print new_word
                 translation = translation.replace(word, new_word)
 
         time.sleep(1)
 
-        # Create a new information
+        # Create a new info
         info_out = wallace.models.Info(
             origin=self.node,
             contents=translation)
