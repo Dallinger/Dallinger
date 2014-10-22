@@ -10,10 +10,10 @@ else:
     db_url = "sqlite:///wallace.db"
 
 engine = create_engine(db_url)
-db = scoped_session(sessionmaker(autoflush=True, bind=engine))
+Session = scoped_session(sessionmaker(autoflush=True, bind=engine))
 
 Base = declarative_base()
-Base.query = db.query_property()
+Base.query = Session.query_property()
 
 
 def init_db(drop_all=False):
@@ -21,4 +21,4 @@ def init_db(drop_all=False):
     if drop_all:
         Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
-    return db
+    return Session
