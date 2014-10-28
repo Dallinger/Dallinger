@@ -41,6 +41,10 @@ def setup(debug=True):
 
     print_header()
 
+    # Load psiTurk configuration.
+    config = PsiturkConfig()
+    config.load_config()
+
     # Generate a unique id for this experiment.
     id = "w" + str(uuid.uuid4())[0:28]
     log("Debugging as experiment " + id + ".")
@@ -85,6 +89,19 @@ def setup(debug=True):
     subprocess.call(
         'git commit -m "Insert psiTurk- and Heroku-specfic files"',
         shell=True)
+
+    # Tag with the experiment name.
+    name = config.get('Experiment Configuration', 'experiment')
+    last_name = subprocess.check_output(
+        "git tag | sort | tail -n 1", shell=True)
+    if last_name:
+        version = int(last_name.split("-")[-1]) + 1
+    else:
+        version = 1
+    new_name = str(name) + "-" + str(version)
+    subprocess.call("git tag " + new_name, shell=True)
+    log("Tagged as experiment " + new_name + ".")
+
     time.sleep(0.25)
 
     return (id, starting_branch)
@@ -233,7 +250,12 @@ def export(app, local):
     print_header()
 
     if app:
-        id = str(app)
+        all_tags = subprocess.check_output("git tag", shell=True).split("\n")
+        if str(app) in all_tags:
+            id = subprocess.check_output(
+                "git rev-list " + str(app) + " | head -n 1", shell=True)
+        else:
+            id = str(app)
     else:
         id = subprocess.check_output(
             "git rev-parse --abbrev-ref HEAD", shell=True)
