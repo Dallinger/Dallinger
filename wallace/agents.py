@@ -27,8 +27,6 @@ class Agent(Node):
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    is_visible = Column(Boolean, unique=False, default=True)
-
     @property
     def omes(self):
         return [self.ome]

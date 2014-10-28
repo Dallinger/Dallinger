@@ -154,26 +154,6 @@ def api_agent_create():
         return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/agents/<agent_uuid>", methods=["POST"])
-def api_agent_visibility(agent_uuid):
-
-    exp = experiment(db_session_w)
-
-    if 'is_visible' in request.args:
-
-        agent = agents.Agent\
-            .query\
-            .filter_by(uuid=agent_uuid)\
-            .one()
-
-        agent.is_visible = (request.args['is_visible'] == "True")
-
-        db_session_w.add(agent)
-        db_session_w.commit()
-
-    return "Visibility changed."
-
-
 @custom_code.route("/transmissions", defaults={"transmission_uuid": None}, methods=["POST", "GET"])
 @custom_code.route("/transmissions/<transmission_uuid>", methods=["GET"])
 def api_transmission(transmission_uuid):

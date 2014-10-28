@@ -17,7 +17,7 @@ class RandomWalkFromSource(object):
             .all()
 
         for t in all_transmissions:
-            if t.destination.is_visible:
+            if t.destination.status != "failed":
                 return t
 
         return None
