@@ -37,9 +37,13 @@ def wallace():
     pass
 
 
-def setup(debug=True):
-
+def setup(debug=True, verbose=False):
     print_header()
+
+    if verbose:
+        OUT = None
+    else:
+        OUT = open(os.devnull, 'w')
 
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -47,25 +51,25 @@ def setup(debug=True):
 
     # Generate a unique id for this experiment.
     id = "w" + str(uuid.uuid4())[0:28]
-    log("Debugging as experiment " + id + ".")
+    log("Running as experiment " + id + "...")
 
     # Create a git repository if one does not already exist.
     if not os.path.exists(".git"):
-        log("No git repository detected; creating one.")
+        log("No git repository detected; creating one...")
         cmds = ["git init",
                 "git add .",
                 'git commit -m "Experiment ' + id + '"']
         for cmd in cmds:
-            subprocess.call(cmd, shell=True)
+            subprocess.call(cmd, stdout=OUT, shell=True)
             time.sleep(0.5)
 
     # Create a new branch.
     log("Creating new branch and switching over to it...")
     starting_branch = subprocess.check_output(
         "git rev-parse --abbrev-ref HEAD", shell=True)
-    subprocess.call("git branch " + id, shell=True)
+    subprocess.call("git branch " + id, stdout=OUT, shell=True)
     time.sleep(1)
-    subprocess.call("git checkout " + id, shell=True)
+    subprocess.call("git checkout " + id, stdout=OUT, stderr=OUT, shell=True)
 
     # Copy files into this experiment package.
     src = os.path.join(
@@ -83,11 +87,12 @@ def setup(debug=True):
         shutil.copy(src, dst)
 
     # Commit the new files to the new experiment branch.
-    log("Inserting psiTurk- and Heroku-specfic files.")
-    subprocess.call("git add .", shell=True),
+    log("Inserting psiTurk- and Heroku-specfic files...")
+    subprocess.call("git add .", stdout=OUT, shell=True),
     time.sleep(0.25)
     subprocess.call(
         'git commit -m "Insert psiTurk- and Heroku-specfic files"',
+        stdout=OUT,
         shell=True)
 
     # Tag with the experiment name.
@@ -99,8 +104,8 @@ def setup(debug=True):
     else:
         version = 1
     new_name = str(name) + "-" + str(version)
-    subprocess.call("git tag " + new_name, shell=True)
-    log("Tagged as experiment " + new_name + ".")
+    subprocess.call("git tag " + new_name, stdout=OUT, shell=True)
+    log("Tagging as experiment " + new_name + "...")
 
     time.sleep(0.25)
 
@@ -108,9 +113,15 @@ def setup(debug=True):
 
 
 @wallace.command()
-def debug():
+@click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
+def debug(verbose):
     """Run the experiment locally."""
-    (id, starting_branch) = setup(debug=True)
+    if verbose:
+        OUT = None
+    else:
+        OUT = open(os.devnull, 'w')
+
+    (id, starting_branch) = setup(debug=True, verbose=verbose)
 
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -134,9 +145,9 @@ def debug():
     log("Resetting the database...")
     result = urlparse(config.get("Database Parameters", "database_url"))
     database = result.path[1:]
-    subprocess.call("dropdb " + database, shell=True)
+    subprocess.call("dropdb " + database, stdout=OUT, shell=True)
     subprocess.call("psql --command=\"CREATE DATABASE " + database +
-                    " WITH OWNER postgres;\"", shell=True)
+                    " WITH OWNER postgres;\"", stdout=OUT, shell=True)
 
     # Start up the local server
     log("Starting up the server...")
@@ -162,13 +173,20 @@ def debug():
         [[os.remove(f) for f in os.listdir(".") if f.endswith(filetype)]
             for filetype in filetypes_to_kill]
 
-    log("Completed debugging of experiment " + id)
+    log("Completed debugging of experiment " + id + ".")
 
 
 @wallace.command()
-def deploy():
+@click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
+def deploy(verbose):
     """Deploy app using Heroku."""
-    (id, starting_branch) = setup(debug=False)
+
+    if verbose:
+        OUT = None
+    else:
+        OUT = open(os.devnull, 'w')
+
+    (id, starting_branch) = setup(debug=False, verbose=verbose)
 
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -179,6 +197,7 @@ def deploy():
     subprocess.call(
         "heroku apps:create " + id +
         " --buildpack https://github.com/thenovices/heroku-buildpack-scipy",
+        stdout=OUT,
         shell=True)
 
     # Set up postgres database and AWS/psiTurk environment variables.
@@ -206,40 +225,45 @@ def deploy():
         config.get('psiTurk Access', 'psiturk_secret_access_id')
     ]
     for cmd in cmds:
-        subprocess.call(cmd + " --app " + id, shell=True)
+        subprocess.call(cmd + " --app " + id, stdout=OUT, shell=True)
 
     # Set the database URL in the config file to the newly generated one.
     log("Saving the URL of the postgres database...")
     db_url = subprocess.check_output(
         "heroku config:get DATABASE_URL --app " + id, shell=True)
     config.set("Database Parameters", "database_url", db_url.rstrip())
-    subprocess.call("git add config.txt", shell=True),
+    subprocess.call("git add config.txt", stdout=OUT, shell=True),
     time.sleep(0.25)
     subprocess.call(
         'git commit -m "Save URL of Heroku postgres database"',
+        stdout=OUT,
         shell=True)
     time.sleep(0.25)
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
-    subprocess.call("git push heroku " + id + ":master", shell=True)
+    subprocess.call("git push heroku " + id + ":master", stdout=OUT,
+                    stderr=OUT, shell=True)
 
     log("Starting up the web server...")
-    subprocess.call("heroku ps:scale web=1 --app " + id, shell=True)
+    subprocess.call(
+        "heroku ps:scale web=1 --app " + id, stdout=OUT, shell=True)
     time.sleep(8)
-    subprocess.call("heroku restart --app " + id, shell=True)
+    subprocess.call("heroku restart --app " + id, stdout=OUT, shell=True)
     time.sleep(4)
 
     # Send launch signal to server.
     log("Launching the experiment...")
     url = "http://" + id + ".herokuapp.com/launch"
-    print subprocess.call("curl -X POST " + url, shell=True)
+    print subprocess.call("curl -X POST " + url,
+                          stdout=OUT, stderr=OUT, shell=True)
 
     # Return to the branch we came from.
     log("Cleaning up...")
-    subprocess.call("git checkout " + starting_branch, shell=True)
+    subprocess.call("git checkout " + starting_branch,
+                    stdout=OUT, stderr=OUT, shell=True)
 
-    log("Completed deployment of experiment " + id)
+    log("Completed deployment of experiment " + id + ".")
 
 
 @wallace.command()
