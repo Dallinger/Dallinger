@@ -244,7 +244,8 @@ def deploy():
 
 @wallace.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
-@click.option('--local', default=False, help='Exporting local data')
+@click.option(
+    '--local', is_flag=True, flag_value=True, help='Export local data')
 def export(app, local):
     """Export the data."""
     print_header()
