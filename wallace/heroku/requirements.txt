@@ -29,5 +29,5 @@ sh==1.09
 six==1.8.0
 ua-parser==0.3.5
 user-agents==0.3.0
-git+https://4753ad3ace64ac52c8e052ff8e782eb8a6960b04:x-oauth-basic@github.com/suchow/Wallace.git@pypi-package-and-command-line
+git+https://4753ad3ace64ac52c8e052ff8e782eb8a6960b04:x-oauth-basic@github.com/suchow/Wallace.git
 wsgiref==0.1.2
