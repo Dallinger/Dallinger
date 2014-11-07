@@ -210,6 +210,17 @@ class TestModels(object):
         self._check_single_connection(node1, node2)
         assert len(vector.transmissions) == 0
 
+    def test_kill_vector(self):
+        node1 = models.Node()
+        node2 = models.Node()
+        vector = models.Vector(origin=node1, destination=node2)
+        self.add(node1, node2, vector)
+
+        assert vector.status == "alive"
+
+        vector.kill()
+        assert vector.status == "dead"
+
     def test_create_bidirectional_vectors(self):
         """Test creating a bidirectional connection between nodes"""
         node1 = models.Node()
