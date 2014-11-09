@@ -1,7 +1,7 @@
 import wallace
 
 
-class WarOfTheGhostsSource(wallace.agents.Source):
+class WarOfTheGhostsSource(wallace.sources.Source):
     """A source that transmits the War of Ghosts story from Bartlett (1932).
     """
 

@@ -1,4 +1,4 @@
-from wallace import networks, agents, db
+from wallace import networks, agents, db, sources
 
 
 class TestNetworks(object):
@@ -28,7 +28,7 @@ class TestNetworks(object):
         net = networks.Network(self.db)
         assert len(net.sources) == 0
 
-        source = agents.Source()
+        source = sources.Source()
         self.db.add(source)
         self.db.commit()
 
@@ -69,7 +69,7 @@ class TestNetworks(object):
         self.db.add_all([agent1, agent2])
         self.db.commit()
 
-        source = agents.RandomBinaryStringSource()
+        source = sources.RandomBinaryStringSource()
         net.add_global_source(source)
 
         assert len(net.links) == 2
@@ -83,7 +83,7 @@ class TestNetworks(object):
         self.db.add_all([agent1, agent2])
         self.db.commit()
 
-        source = agents.RandomBinaryStringSource()
+        source = sources.RandomBinaryStringSource()
         net.add_local_source(source, agent1)
 
         assert len(net.links) == 1
@@ -97,7 +97,7 @@ class TestNetworks(object):
         self.db.add_all([agent1, agent2])
         self.db.commit()
 
-        source = agents.RandomBinaryStringSource()
+        source = sources.RandomBinaryStringSource()
         net.add_global_source(source)
 
         agent1.receive_all()
@@ -131,14 +131,14 @@ class TestNetworks(object):
         net.add_agent()
         net.add_agent()
 
-        source = agents.RandomBinaryStringSource()
+        source = sources.RandomBinaryStringSource()
         net.add_global_source(source)
 
         assert repr(net) == "<Network with 2 agents, 1 sources, 2 links>"
 
     def test_create_chain(self):
         net = networks.Chain(self.db, 4)
-        source = agents.RandomBinaryStringSource()
+        source = sources.RandomBinaryStringSource()
         net.add_local_source(source, net.first_agent)
         assert len(net) == 4
         assert len(net.links) == 4
@@ -165,7 +165,7 @@ class TestNetworks(object):
 
     def test_chain_repr(self):
         net = networks.Chain(self.db, 4)
-        source = agents.RandomBinaryStringSource()
+        source = sources.RandomBinaryStringSource()
         net.add_local_source(source, net.first_agent)
         assert repr(net) == "<Chain with 4 agents, 1 sources, 4 links>"
 

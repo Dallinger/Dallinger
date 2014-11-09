@@ -1,4 +1,4 @@
-from wallace import models, agents, information, db
+from wallace import agents, information, db
 
 
 class TestBiologicalAgents(object):
@@ -108,60 +108,3 @@ class TestBiologicalAgents(object):
         assert agent1.memome.contents == agent2.memome.contents
         assert agent1.memome.contents == agent3.memome.contents
         assert agent1.memome.uuid != agent2.memome.uuid != agent3.genome.uuid
-
-    def test_create_random_binary_string_source(self):
-        source = agents.RandomBinaryStringSource()
-        self.add(source)
-
-        assert source.ome_size == 8
-
-    def test_create_random_binary_string_source_ome_size_4(self):
-        source = agents.RandomBinaryStringSource(ome_size=4)
-        self.add(source)
-
-        assert source.ome_size == 4
-
-    def test_generate_random_binary_string_genome(self):
-        source = agents.RandomBinaryStringSource(ome_size=2)
-        self.add(source)
-
-        ome = source.ome
-        assert ome.contents in ["00", "01", "10", "11"]
-
-    def test_generate_random_binary_string_memome(self):
-        source = agents.RandomBinaryStringSource(ome_size=2)
-        self.add(source)
-
-        ome = source.ome
-        assert ome.contents in ["00", "01", "10", "11"]
-
-    def test_transmit_random_binary_string_source(self):
-        source = agents.RandomBinaryStringSource(ome_size=2)
-        agent = agents.BiologicalAgent()
-        source.connect_to(agent)
-        self.add(source, agent)
-
-        source.transmit(agent)
-        self.db.commit()
-
-        agent.receive_all()
-        self.db.commit()
-
-        assert agent.ome.contents in ["00", "01", "10", "11"]
-
-    def test_broadcast_random_binary_string_source(self):
-        source = agents.RandomBinaryStringSource(ome_size=100)
-        agent1 = agents.BiologicalAgent()
-        agent2 = agents.BiologicalAgent()
-        source.connect_to(agent1)
-        source.connect_to(agent2)
-        self.add(source, agent1, agent2)
-
-        source.broadcast()
-        self.db.commit()
-
-        agent1.receive_all()
-        agent2.receive_all()
-        self.db.commit()
-
-        assert agent1.ome.contents != agent2.ome.contents

@@ -1,4 +1,4 @@
-from wallace import processes, agents, networks, db
+from wallace import processes, agents, sources, networks, db
 
 """This demo runs a transmission chain. The source transmits a random binary
 string to the first agent in line. At each time step, the string is passed
@@ -15,7 +15,7 @@ num_steps = 9
 n = networks.Chain(session, N)
 
 # Add a binary string source and transmit to everyone
-source = agents.RandomBinaryStringSource()
+source = sources.RandomBinaryStringSource()
 n.add_local_source(source, n.first_agent)
 n.trigger_source(source)
 

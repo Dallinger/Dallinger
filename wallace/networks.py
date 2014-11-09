@@ -1,5 +1,6 @@
 from .models import Vector
-from .agents import Agent, Source
+from .agents import Agent
+from .sources import Source
 import numpy as np
 
 

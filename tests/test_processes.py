@@ -1,4 +1,4 @@
-from wallace import processes, networks, agents, db
+from wallace import processes, networks, agents, sources, db
 
 
 class TestProcesses(object):
@@ -24,7 +24,7 @@ class TestProcesses(object):
         self.db.add_all([agent1, agent2, agent3])
         self.db.commit()
 
-        source = agents.RandomBinaryStringSource()
+        source = sources.RandomBinaryStringSource()
 
         net.add_local_source(source, agent1)
         process = processes.RandomWalkFromSource(net)
@@ -61,7 +61,7 @@ class TestProcesses(object):
         self.db.commit()
 
         # Add a global source and broadcast to all the agents.
-        source = agents.RandomBinaryStringSource()
+        source = sources.RandomBinaryStringSource()
         net.add_global_source(source)
         source.broadcast()
         self.db.commit()
@@ -102,7 +102,7 @@ class TestProcesses(object):
         self.db.commit()
 
         # Add a global source and broadcast to all the agents.
-        source = agents.RandomBinaryStringSource()
+        source = sources.RandomBinaryStringSource()
         net.add_global_source(source)
         source.broadcast()
         self.db.commit()
