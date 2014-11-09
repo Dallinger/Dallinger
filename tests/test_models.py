@@ -263,15 +263,6 @@ class TestModels(object):
         assert repr(vector1).split("-") == ["Vector", node1.uuid[:6], node2.uuid[:6]]
         assert repr(vector2).split("-") == ["Vector", node2.uuid[:6], node1.uuid[:6]]
 
-    @raises(IntegrityError, FlushError)
-    def test_create_duplicate_vector(self):
-        """Check that creating the same vector twice throws an error"""
-        node1 = models.Node()
-        node2 = models.Node()
-        vector1 = models.Vector(origin=node1, destination=node2)
-        vector2 = models.Vector(origin=node1, destination=node2)
-        self.add(node1, node2, vector1, vector2)
-
     ##################################################################
     ## Info
     ##################################################################

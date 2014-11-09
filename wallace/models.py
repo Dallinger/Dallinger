@@ -167,15 +167,18 @@ class Node(Base):
 class Vector(Base):
     __tablename__ = "vector"
 
+    # the unique vector id
+    uuid = Column(String(32), primary_key=True, default=new_uuid)
+
     # the origin node
-    origin_uuid = Column(String(32), ForeignKey('node.uuid'), primary_key=True)
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'))
     origin = relationship(
         Node, foreign_keys=[origin_uuid],
         backref="outgoing_vectors")
 
     # the destination node
     destination_uuid = Column(
-        String(32), ForeignKey('node.uuid'), primary_key=True)
+        String(32), ForeignKey('node.uuid'))
     destination = relationship(
         Node, foreign_keys=[destination_uuid],
         backref="incoming_vectors")
@@ -185,7 +188,8 @@ class Vector(Base):
                     nullable=False, default="alive")
 
     # the time when the vector changed from alive->dead
-    time_of_death = Column(String(26), nullable=True, default=None)
+    time_of_death = Column(
+        String(26), nullable=True, default=None)
 
     def kill(self):
         self.status = "dead"
