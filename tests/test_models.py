@@ -210,6 +210,17 @@ class TestModels(object):
         self._check_single_connection(node1, node2)
         assert len(vector.transmissions) == 0
 
+    def test_kill_vector(self):
+        node1 = models.Node()
+        node2 = models.Node()
+        vector = models.Vector(origin=node1, destination=node2)
+        self.add(node1, node2, vector)
+
+        assert vector.status == "alive"
+
+        vector.kill()
+        assert vector.status == "dead"
+
     def test_create_bidirectional_vectors(self):
         """Test creating a bidirectional connection between nodes"""
         node1 = models.Node()
@@ -251,15 +262,6 @@ class TestModels(object):
 
         assert repr(vector1).split("-") == ["Vector", node1.uuid[:6], node2.uuid[:6]]
         assert repr(vector2).split("-") == ["Vector", node2.uuid[:6], node1.uuid[:6]]
-
-    @raises(IntegrityError, FlushError)
-    def test_create_duplicate_vector(self):
-        """Check that creating the same vector twice throws an error"""
-        node1 = models.Node()
-        node2 = models.Node()
-        vector1 = models.Vector(origin=node1, destination=node2)
-        vector2 = models.Vector(origin=node1, destination=node2)
-        self.add(node1, node2, vector1, vector2)
 
     ##################################################################
     ## Info

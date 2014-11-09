@@ -13,7 +13,7 @@ class Network(object):
     def agents(self):
         return self.db.query(Agent)\
             .order_by(Agent.creation_time)\
-            .filter_by(is_visible=True)\
+            .filter(Agent.status != "failed")\
             .all()
 
     @property
@@ -79,7 +79,7 @@ class Chain(Network):
         if len(self) > 0:
             return self.db.query(Agent)\
                 .order_by(Agent.creation_time)\
-                .filter_by(is_visible=True)\
+                .filter(Agent.status != "failed")\
                 .first()
         else:
             return None
@@ -89,7 +89,7 @@ class Chain(Network):
         if len(self) > 0:
             return self.db.query(Agent)\
                 .order_by(Agent.creation_time.desc())\
-                .filter_by(is_visible=True)\
+                .filter(Agent.status != "failed")\
                 .first()
         else:
             return None

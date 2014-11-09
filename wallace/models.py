@@ -6,7 +6,7 @@ from .db import Base
 
 # various sqlalchemy imports
 from sqlalchemy import ForeignKey
-from sqlalchemy import Column, String, Text
+from sqlalchemy import Column, String, Text, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql import func, select
@@ -39,6 +39,21 @@ class Node(Base):
 
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
+
+    # the status of the node
+    status = Column(Enum("alive", "dead", "failed", name="node_status"),
+                    nullable=False, default="alive")
+
+    # the time when the node changed from alive->dead or alive->failed
+    time_of_death = Column(String(26), nullable=True, default=None)
+
+    def kill(self):
+        self.status = "dead"
+        self.time_of_death = timenow()
+
+    def fail(self):
+        self.status = "failed"
+        self.time_of_death = timenow()
 
     # the information created by this node
     information = relationship(
@@ -152,18 +167,33 @@ class Node(Base):
 class Vector(Base):
     __tablename__ = "vector"
 
+    # the unique vector id
+    uuid = Column(String(32), primary_key=True, default=new_uuid)
+
     # the origin node
-    origin_uuid = Column(String(32), ForeignKey('node.uuid'), primary_key=True)
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'))
     origin = relationship(
         Node, foreign_keys=[origin_uuid],
         backref="outgoing_vectors")
 
     # the destination node
     destination_uuid = Column(
-        String(32), ForeignKey('node.uuid'), primary_key=True)
+        String(32), ForeignKey('node.uuid'))
     destination = relationship(
         Node, foreign_keys=[destination_uuid],
         backref="incoming_vectors")
+
+    # the status of the vector
+    status = Column(Enum("alive", "dead", name="vector_status"),
+                    nullable=False, default="alive")
+
+    # the time when the vector changed from alive->dead
+    time_of_death = Column(
+        String(26), nullable=True, default=None)
+
+    def kill(self):
+        self.status = "dead"
+        self.time_of_death = timenow()
 
     def __repr__(self):
         return "Vector-{}-{}".format(

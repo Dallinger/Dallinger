@@ -3,33 +3,42 @@ import models
 from sqlalchemy import desc
 
 
-class RandomWalkFromSource(object):
-    """Takes a random walk over a network, starting at a node randomly selected
-    from those that receive input from a source."""
+class Process(object):
 
     def __init__(self, network):
         self.db = network.db
         self.network = network
 
-    def get_latest_transmission_to_visible(self):
+    def step(self, verbose=True):
+        pass
+
+    def is_begun(self):
+        """To tell if the process has started yet, check if there have been any
+        transmissions."""
+        return len(self.db.query(models.Transmission).all()) > 0
+
+    def get_latest_transmission_recipient(self):
         all_transmissions = self.db.query(models.Transmission)\
             .order_by(desc(models.Transmission.transmit_time))\
             .all()
 
-        for t in all_transmissions:
-            if t.destination.is_visible:
-                return t
+        return next((t.destination for t in all_transmissions
+                    if t.destination.status != "failed"),
+                    None)
 
-        return None
+
+class RandomWalkFromSource(Process):
+    """Takes a random walk over a network, starting at a node randomly selected
+    from those that receive input from a source."""
 
     def step(self, verbose=True):
 
-        t = self.get_latest_transmission_to_visible()
+        latest_recipient = self.get_latest_transmission_recipient()
 
-        if t is None:  # first step, replacer is a source
+        if not self.is_begun():  # first step, replacer is a source
             replacer = np.random.choice(self.network.sources)
         else:
-            replacer = t.destination
+            replacer = latest_recipient
 
         options = replacer.outgoing_vectors
 
@@ -41,35 +50,61 @@ class RandomWalkFromSource(object):
             raise RuntimeError("No outgoing connections to choose from.")
 
 
-class MoranProcess(object):
-    """The generalized Moran process plays out over a network. At each time
-    step, an individual is chosen for death and an individual is chosen for
-    reproduction. The individual that reproduces replaces the one that dies.
-    So far, the process is neutral and there is no mutation.
-    """
-
-    def __init__(self, network):
-        self.db = network.db
-        self.network = network
-
-    def get_latest_transmission(self):
-        return self.db.query(models.Transmission).order_by(
-            desc(models.Transmission.transmit_time)).first()
+class MoranProcessCultural(Process):
+    """The generalized cultural Moran process plays out over a network. At each
+    time step, an individual is chosen to receive information from another
+    individual. Nobody dies, but perhaps their ideas do."""
 
     def step(self, verbose=True):
 
-        if len(self.network) > 1:
-
-            latest_transmission = self.get_latest_transmission()
-
-            if latest_transmission is None:  # first step, replacer is a source
-                replacer = np.random.choice(self.network.sources)
-            else:
-                replacer = np.random.choice(self.network.agents)
-
+        if not self.is_begun():  # first step, replacer is a source
+            replacer = np.random.choice(self.network.sources)
+            replacer.broadcast()
+        else:
+            replacer = np.random.choice(self.network.agents)
             replaced = np.random.choice(replacer.outgoing_vectors).destination
             replacer.transmit(replaced)
+        self.db.commit()
+
+
+class MoranProcessSexual(Process):
+    """The generalized sexual Moran process also plays out over a network. At
+    each time step, and individual is chosen for replication and another
+    individual is chosen to die. The replication replaces the one who dies."""
+
+    def step(self, verbose=True):
+
+        if not self.is_begun():
+            replacer = np.random.choice(self.network.sources)
+            replacer.broadcast()
+        else:
+            replacer = np.random.choice(self.network.agents)
+            replaced = np.random.choice(replacer.outgoing_vectors).destination
+
+            # Make a baby.
+            baby = self.network.add_agent()
+
+            # Endow the baby with the ome of the replaced, then sever
+            # all ties. :(
+            replacer.connect_to(baby)
+            replacer.transmit(baby)
+            baby.receive_all()
+            for v in baby.incoming_vectors:
+                v.kill()
+
+            # Copy the outgoing connections.
+            for v in replaced.outgoing_vectors:
+                v.kill()
+                baby.connect_to(v.destination)
+
             self.db.commit()
 
-            # FIXME: Testing placeholder
-            replaced.receive_all()
+            # Copy the incoming connections.
+            for v in replaced.incoming_vectors:
+                v.destination.connect_to(baby)
+                v.kill()
+
+            # Kill the agent.
+            replaced.kill()
+
+        self.db.commit()

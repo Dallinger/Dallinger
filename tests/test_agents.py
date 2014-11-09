@@ -27,6 +27,26 @@ class TestBiologicalAgents(object):
 
         assert agent.ome == ome
 
+    def test_kill_agent(self):
+        agent = agents.Agent()
+        self.add(agent)
+
+        assert agent.status == "alive"
+
+        agent.kill()
+        assert agent.status == "dead"
+
+    def test_fail_agent(self):
+        agent = agents.Agent()
+        self.add(agent)
+
+        assert agent.status == "alive"
+        assert agent.time_of_death is None
+
+        agent.fail()
+        assert agent.status == "failed"
+        assert agent.time_of_death is not None
+
     def test_create_biological_agent(self):
         agent = agents.BiologicalAgent()
         self.add(agent)
