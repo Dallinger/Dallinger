@@ -1,18 +1,22 @@
-import wallace
+from wallace.networks import Chain
+from wallace.processes import RandomWalkFromSource
+from wallace.recruiters import PsiTurkRecruiter
+from wallace.agents import Agent
+from wallace.experiments import Experiment
 from custom_sources import WarOfTheGhostsSource
 
 
-class Bartlett1932(wallace.experiments.Experiment):
+class Bartlett1932(Experiment):
     def __init__(self, session):
         super(Bartlett1932, self).__init__(session)
 
         self.task = "Transmission chain"
         self.num_agents = 10
         self.num_steps = self.num_agents - 1
-        self.network = wallace.networks.Chain(self.session)
-        self.process = wallace.processes.RandomWalkFromSource(self.network)
-        self.recruiter = wallace.recruiters.PsiTurkRecruiter
-        self.agent_type = wallace.agents.Agent
+        self.network = Chain(self.session)
+        self.process = RandomWalkFromSource(self.network)
+        self.recruiter = PsiTurkRecruiter
+        self.agent_type = Agent
 
         # Setup for first time experiment is accessed
         if not self.network.sources:
