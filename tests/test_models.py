@@ -1,8 +1,5 @@
 from wallace import models, db
 from nose.tools import raises
-from sqlalchemy.exc import IntegrityError, OperationalError
-from sqlalchemy.orm.exc import FlushError
-import time
 
 
 class TestModels(object):
@@ -260,8 +257,10 @@ class TestModels(object):
         vector2 = models.Vector(origin=node2, destination=node1)
         self.add(node1, node2, vector1, vector2)
 
-        assert repr(vector1).split("-") == ["Vector", node1.uuid[:6], node2.uuid[:6]]
-        assert repr(vector2).split("-") == ["Vector", node2.uuid[:6], node1.uuid[:6]]
+        assert (repr(vector1).split("-") ==
+                ["Vector", node1.uuid[:6], node2.uuid[:6]])
+        assert (repr(vector2).split("-") ==
+                ["Vector", node2.uuid[:6], node1.uuid[:6]])
 
     ##################################################################
     ## Info
@@ -360,7 +359,8 @@ class TestModels(object):
         transmission = models.Transmission(info=info, destination=node2)
         self.add(node1, node2, vector, info, transmission)
 
-        assert repr(transmission).split("-") == ["Transmission", transmission.uuid[:6]]
+        assert (repr(transmission).split("-") ==
+                ["Transmission", transmission.uuid[:6]])
 
     def test_node_incoming_transmissions(self):
         node1 = models.Node()

@@ -177,7 +177,8 @@ class TestNetworks(object):
 
     def test_fully_connected_repr(self):
         net = networks.FullyConnected(self.db, 4)
-        assert repr(net) == "<FullyConnected with 4 agents, 0 sources, 12 links>"
+        assert (
+            repr(net) == "<FullyConnected with 4 agents, 0 sources, 12 links>")
 
     def test_create_scale_free(self):
         net = networks.ScaleFree(self.db, 4, m0=4, m=4)
