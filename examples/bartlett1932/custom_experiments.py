@@ -26,13 +26,11 @@ class Bartlett1932(Experiment):
 
     def newcomer_arrival_trigger(self, newcomer):
 
-        # Set the newcomer to invisible.
-        newcomer.is_visible = False
-
         self.network.add_agent(newcomer)
 
         # If this is the first participant, link them to the source.
-        if len(self.network) == 0:
+        if len(self.network) == 1:
+            print "got here 1.0"
             source = self.network.sources[0]
             source.connect_to(newcomer)
             self.network.db.commit()
@@ -48,7 +46,6 @@ class Bartlett1932(Experiment):
     def information_creation_trigger(self, info):
 
         agent = info.origin
-        agent.is_visible = True
         self.network.db.add(agent)
         self.network.db.commit()
 
@@ -57,7 +54,7 @@ class Bartlett1932(Experiment):
             self.recruiter().close_recruitment()
         else:
             # Otherwise recruit a new participant.
-            self.recruiter().recruit_new_participants(n=1)
+            self.recruiter().recruit_new_participants(self, n=1)
 
     def is_experiment_over(self):
         return len(self.network.links) == self.num_agents

@@ -1,22 +1,19 @@
 # this file imports custom routes into the experiment server
 
-from flask import Blueprint, render_template, request, jsonify, Response, abort, current_app
+from flask import Blueprint, render_template, request, jsonify, Response, \
+    abort, current_app
 from jinja2 import TemplateNotFound
-from functools import wraps
-from sqlalchemy import or_
 
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.experiment_errors import ExperimentError
-from psiturk.user_utils import PsiTurkAuthorization, nocache
+from psiturk.user_utils import PsiTurkAuthorization
 
 # # Database setup
-from psiturk.db import db_session, init_db
+from psiturk.db import db_session
 from psiturk.models import Participant
 from json import dumps, loads
 
-from wallace import db, experiments, agents, models, networks, processes
-
-import os
+from wallace import db, agents, models
 
 # load the configuration options
 config = PsiturkConfig()
@@ -154,27 +151,9 @@ def api_agent_create():
         return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/agents/<agent_uuid>", methods=["POST"])
-def api_agent_visibility(agent_uuid):
-
-    exp = experiment(db_session_w)
-
-    if 'is_visible' in request.args:
-
-        agent = agents.Agent\
-            .query\
-            .filter_by(uuid=agent_uuid)\
-            .one()
-
-        agent.is_visible = (request.args['is_visible'] == "True")
-
-        db_session_w.add(agent)
-        db_session_w.commit()
-
-    return "Visibility changed."
-
-
-@custom_code.route("/transmissions", defaults={"transmission_uuid": None}, methods=["POST", "GET"])
+@custom_code.route("/transmissions",
+                   defaults={"transmission_uuid": None},
+                   methods=["POST", "GET"])
 @custom_code.route("/transmissions/<transmission_uuid>", methods=["GET"])
 def api_transmission(transmission_uuid):
 
@@ -243,7 +222,9 @@ def api_transmission(transmission_uuid):
         return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/information", defaults={"info_uuid": None}, methods=["POST"])
+@custom_code.route("/information",
+                   defaults={"info_uuid": None},
+                   methods=["POST"])
 @custom_code.route("/information/<info_uuid>", methods=["GET"])
 def api_info(info_uuid):
 

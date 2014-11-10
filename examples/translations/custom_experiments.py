@@ -28,9 +28,6 @@ class Translations(Experiment):
 
     def newcomer_arrival_trigger(self, newcomer):
 
-        # Set the newcomer to invisible.
-        newcomer.is_visible = False
-
         self.network.add_agent(newcomer)
 
         # If this is the first participant, link them to the source.
@@ -45,7 +42,6 @@ class Translations(Experiment):
         newcomer.receive_all()
 
         # Trigger experiment-specific behavior that happens on creation
-        newcomer.is_visible = True
         self.network.db.add(newcomer)
         self.network.db.commit()
 
