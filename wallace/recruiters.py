@@ -5,6 +5,7 @@ from psiturk.psiturk_org_services import PsiturkOrgServices
 from psiturk.psiturk_shell import PsiturkNetworkShell
 from psiturk.models import Participant
 from sqlalchemy import desc
+import boto.sqs
 
 
 class Recruiter(object):
@@ -90,12 +91,27 @@ class PsiTurkRecruiter(Recruiter):
             psiturk_access_key_id,
             psiturk_secret_access_id)
 
+        self.sqs_connection = boto.sqs.connect_to_region(
+            "us-west-2",
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key)
+
+        # Set up Amazon Simple Queue Service.
+        self.queue = self.sqs_connection.create_queue("wallace_queue")
+        self.sqs_connection.add_permission(
+            self.queue,
+            "MTurkSendMessage",
+            "755651556756",
+            "SendMessage")
+
         self.shell = PsiturkNetworkShell(
             self.config, amt_services, aws_rds_services, web_services, server,
             self.config.getboolean(
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
     def open_recruitment(self, exp):
+
+        # Create the first HIT.
         self.shell.hit_create(
             1,
             self.config.get('HIT Configuration', 'base_payment'),
@@ -110,3 +126,7 @@ class PsiTurkRecruiter(Recruiter):
             [last_hit_id],
             n,
             self.config.get('HIT Configuration', 'expiration_hrs'))
+
+# if __name__ == "__main__":
+
+#     print "hello"
