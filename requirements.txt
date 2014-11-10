@@ -2,7 +2,6 @@ Flask==0.10.1
 GitPython==0.1.7
 Jinja2==2.7.3
 MarkupSafe==0.23
-MySQL-python==1.2.5
 PsiTurk==2.1.1
 PyYAML==3.11
 SQLAlchemy==0.9.7
