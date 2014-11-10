@@ -349,3 +349,24 @@ def export(app, local):
     shutil.rmtree(id)
 
     log("Done. Data available in " + str(id) + ".zip")
+
+
+@wallace.command()
+def teardown():
+    shutil.rmtree(".git/", ignore_errors=True)
+    files_to_remove = [
+        ".psiturk_history",
+        "custom_experiments.pyc",
+        "custom_sources.pyc",
+        "custom_transformations.pyc",
+        "custom.py",
+        "custom.pyc",
+        "Procfile",
+        "psiturkapp.py",
+        "requirements.txt"
+    ]
+    for f in files_to_remove:
+        try:
+            os.remove(f)
+        except OSError:
+            pass
