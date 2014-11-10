@@ -4,11 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 import os
 
 # create the connection to the database
-if "DATABASE_URL" in os.environ:
-    db_url = os.environ["DATABASE_URL"]
-else:
-    db_url = "sqlite:///wallace.db"
-
+db_url = os.environ.get("DATABASE_URL", "sqlite:///wallace.db")
 engine = create_engine(db_url)
 Session = scoped_session(sessionmaker(autoflush=True, bind=engine))
 
