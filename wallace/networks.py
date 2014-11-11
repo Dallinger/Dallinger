@@ -31,23 +31,19 @@ class Network(object):
     def get_degrees(self):
         return [agent.outdegree for agent in self.agents]
 
-    def add_global_source(self, source):
+    def add_source_global(self, source):
         self.db.add(source)
         for agent in self.agents:
             source.connect_to(agent)
         self.db.commit()
 
-    def add_local_source(self, source, agent):
+    def add_source_local(self, source, agent):
         self.db.add(source)
         source.connect_to(agent)
         self.db.commit()
 
     def trigger_source(self, source):
         source.broadcast()
-        self.db.commit()
-
-    def add_node(self, node):
-        self.db.add(node)
         self.db.commit()
 
     def add_agent(self, agent):
@@ -72,7 +68,8 @@ class Chain(Network):
         super(Chain, self).__init__(agent_type, db)
         if len(self) == 0:
             for i in xrange(size):
-                self.add_agent()
+                agent = agent_type()
+                self.add_agent(agent)
 
     @property
     def first_agent(self):
@@ -94,16 +91,17 @@ class Chain(Network):
         else:
             return None
 
-    def add_agent(self, newcomer=None):
-        if newcomer is None:
-            newcomer = Agent()
+    def add_agent(self, newcomer):
 
-        if len(self) == 0:
-            self.add_node(newcomer)
+        if len(self) is 0:
+            self.db.add(newcomer)
+            self.db.commit()
         else:
             last_agent = self.last_agent
-            self.add_node(newcomer)
+            self.db.add(newcomer)
             last_agent.connect_to(newcomer)
+            self.db.commit()
+
         return newcomer
 
 
@@ -115,13 +113,13 @@ class FullyConnected(Network):
         super(FullyConnected, self).__init__(agent_type, db)
         if len(self) == 0:
             for i in xrange(size):
-                self.add_agent()
+                agent = agent_type()
+                self.add_agent(agent)
 
-    def add_agent(self, newcomer=None):
-        if newcomer is None:
-            newcomer = Agent()
+    def add_agent(self, newcomer):
 
         self.db.add(newcomer)
+        self.db.commit()
 
         for agent in self.agents:
             if agent is not newcomer:
@@ -147,11 +145,10 @@ class ScaleFree(Network):
 
         if len(self) == 0:
             for i in xrange(size):
-                self.add_agent()
+                agent = agent_type()
+                self.add_agent(agent)
 
-    def add_agent(self, newcomer=None):
-        if newcomer is None:
-            newcomer = Agent()
+    def add_agent(self, newcomer):
         self.db.add(newcomer)
         self.db.commit()
 

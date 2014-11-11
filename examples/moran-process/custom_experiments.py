@@ -20,7 +20,7 @@ class SubstitutionCiphersExperiment(Experiment):
         # Setup for first time experiment is accessed
         if not self.network.sources:
             source = WarOfTheGhostsSource()
-            self.network.add_node(source)
+            self.network.add_source_global(source)
             print "Added initial source: " + str(source)
 
         # Open recruitment

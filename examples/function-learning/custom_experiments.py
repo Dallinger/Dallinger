@@ -17,7 +17,7 @@ class FunctionLearning(wallace.experiments.Experiment):
         # Setup for first time experiment is accessed
         if not self.network.sources:
             source = SinusoidalFunctionSource()
-            self.network.add_node(source)
+            self.network.add_source_global(source)
             print "Added initial source: " + str(source)
 
     def newcomer_arrival_trigger(self, newcomer):

@@ -62,7 +62,7 @@ class TestNetworks(object):
 
         assert net.get_degrees() == [1, 0]
 
-    def test_network_add_global_source(self):
+    def test_network_add_source_global(self):
         net = networks.Network(agents.Agent, self.db)
         agent1 = agents.Agent()
         agent2 = agents.Agent()
@@ -70,13 +70,13 @@ class TestNetworks(object):
         self.db.commit()
 
         source = sources.RandomBinaryStringSource()
-        net.add_global_source(source)
+        net.add_source_global(source)
 
         assert len(net.links) == 2
         assert net.get_degrees() == [0, 0]
         assert net.sources[0].outdegree == 2
 
-    def test_network_add_local_source(self):
+    def test_network_add_source_local(self):
         net = networks.Network(agents.Agent, self.db)
         agent1 = agents.Agent()
         agent2 = agents.Agent()
@@ -84,7 +84,7 @@ class TestNetworks(object):
         self.db.commit()
 
         source = sources.RandomBinaryStringSource()
-        net.add_local_source(source, agent1)
+        net.add_source_local(source, agent1)
 
         assert len(net.links) == 1
         assert net.get_degrees() == [0, 0]
@@ -98,7 +98,7 @@ class TestNetworks(object):
         self.db.commit()
 
         source = sources.RandomBinaryStringSource()
-        net.add_global_source(source)
+        net.add_source_global(source)
 
         agent1.receive_all()
         agent2.receive_all()
@@ -137,14 +137,15 @@ class TestNetworks(object):
         net.add_agent(agent2)
 
         source = sources.RandomBinaryStringSource()
-        net.add_global_source(source)
+        net.add_source_global(source)
 
         assert repr(net) == "<Network with 2 agents, 1 sources, 2 links>"
 
     def test_create_chain(self):
         net = networks.Chain(agents.Agent, self.db, 4)
         source = sources.RandomBinaryStringSource()
-        net.add_local_source(source, net.first_agent)
+        net.add_source_local(source, net.first_agent)
+
         assert len(net) == 4
         assert len(net.links) == 4
 
@@ -171,7 +172,7 @@ class TestNetworks(object):
     def test_chain_repr(self):
         net = networks.Chain(agents.Agent, self.db, 4)
         source = sources.RandomBinaryStringSource()
-        net.add_local_source(source, net.first_agent)
+        net.add_source_local(source, net.first_agent)
         assert repr(net) == "<Chain with 4 agents, 1 sources, 4 links>"
 
     def test_create_fully_connected(self):
@@ -189,10 +190,12 @@ class TestNetworks(object):
         net = networks.ScaleFree(agents.Agent, self.db, 4, m0=4, m=4)
         assert len(net.agents) == 4
         assert len(net.links) == 12
-        net.add_agent()
+        agent1 = agents.Agent()
+        net.add_agent(agent1)
         assert len(net.agents) == 5
         assert len(net.links) == 20
-        net.add_agent()
+        agent2 = agents.Agent()
+        net.add_agent(agent2)
         assert len(net.agents) == 6
         assert len(net.links) == 28
 

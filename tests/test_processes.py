@@ -26,7 +26,7 @@ class TestProcesses(object):
 
         source = sources.RandomBinaryStringSource()
 
-        net.add_local_source(source, agent1)
+        net.add_source_local(source, agent1)
         process = processes.RandomWalkFromSource(net)
 
         process.step()
@@ -66,7 +66,7 @@ class TestProcesses(object):
 
         # Add a global source and broadcast to all the agents.
         source = sources.RandomBinaryStringSource()
-        net.add_global_source(source)
+        net.add_source_global(source)
         source.broadcast()
         self.db.commit()
 
@@ -111,7 +111,7 @@ class TestProcesses(object):
 
         # Add a global source and broadcast to all the agents.
         source = sources.RandomBinaryStringSource()
-        net.add_global_source(source)
+        net.add_source_global(source)
         source.broadcast()
         self.db.commit()
 

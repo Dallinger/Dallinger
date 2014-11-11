@@ -21,7 +21,7 @@ class Bartlett1932(Experiment):
         # Setup for first time experiment is accessed
         if not self.network.sources:
             source = WarOfTheGhostsSource()
-            self.network.add_node(source)
+            self.network.add_source_local(source)
             print "Added initial source: " + str(source)
 
     def newcomer_arrival_trigger(self, newcomer):
