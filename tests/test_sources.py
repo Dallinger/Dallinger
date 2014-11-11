@@ -18,30 +18,10 @@ class TestSources(object):
         source = sources.RandomBinaryStringSource()
         self.add(source)
 
-        assert source.ome_size == 8
-
-    def test_create_random_binary_string_source_ome_size_4(self):
-        source = sources.RandomBinaryStringSource(ome_size=4)
-        self.add(source)
-
-        assert source.ome_size == 4
-
-    def test_generate_random_binary_string_genome(self):
-        source = sources.RandomBinaryStringSource(ome_size=2)
-        self.add(source)
-
-        ome = source.ome
-        assert ome.contents in ["00", "01", "10", "11"]
-
-    def test_generate_random_binary_string_memome(self):
-        source = sources.RandomBinaryStringSource(ome_size=2)
-        self.add(source)
-
-        ome = source.ome
-        assert ome.contents in ["00", "01", "10", "11"]
+        assert source
 
     def test_transmit_random_binary_string_source(self):
-        source = sources.RandomBinaryStringSource(ome_size=2)
+        source = sources.RandomBinaryStringSource()
         agent = agents.ReplicatorAgent()
         source.connect_to(agent)
         self.add(source, agent)
@@ -55,7 +35,7 @@ class TestSources(object):
         assert agent.info.contents in ["00", "01", "10", "11"]
 
     def test_broadcast_random_binary_string_source(self):
-        source = sources.RandomBinaryStringSource(ome_size=100)
+        source = sources.RandomBinaryStringSource()
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
         source.connect_to(agent1)
@@ -69,4 +49,5 @@ class TestSources(object):
         agent2.receive_all()
         self.db.commit()
 
-        assert agent1.info.contents != agent2.info.contents
+        assert agent1.info.contents in ["00", "01", "10", "11"]
+        assert agent2.info.contents in ["00", "01", "10", "11"]

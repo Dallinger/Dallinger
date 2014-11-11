@@ -1,5 +1,5 @@
 from .models import Node, Info
-from sqlalchemy import ForeignKey, Column, String, Integer
+from sqlalchemy import ForeignKey, Column, String
 import random
 
 
@@ -9,26 +9,17 @@ class Source(Node):
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    ome_size = Column(Integer, default=8)
-
     @staticmethod
-    def _data(length):
+    def _data():
         return NotImplementedError
 
-    @property
-    def omes(self):
-        return [self.ome]
-
-    @property
-    def ome(self):
-        return Info(
+    def transmit(self, other_node):
+        info = Info(
             origin=self,
             origin_uuid=self.uuid,
-            contents=self._data(self.ome_size))
+            contents=self._data())
 
-    def transmit(self, other_node):
-        for ome in self.omes:
-            super(Source, self).transmit(ome, other_node)
+        super(Source, self).transmit(info, other_node)
 
     def broadcast(self):
         for vector in self.outgoing_vectors:
@@ -43,5 +34,5 @@ class RandomBinaryStringSource(Source):
     __mapper_args__ = {"polymorphic_identity": "random_binary_string_source"}
 
     @staticmethod
-    def _data(length):
-        return "".join([str(random.randint(0, 1)) for i in range(length)])
+    def _data():
+        return "".join([str(random.randint(0, 1)) for i in range(2)])
