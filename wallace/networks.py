@@ -7,7 +7,8 @@ import numpy as np
 class Network(object):
     """A network of agents."""
 
-    def __init__(self, db):
+    def __init__(self, agent_type, db):
+        self.agent_type = agent_type
         self.db = db
 
     @property
@@ -49,11 +50,9 @@ class Network(object):
         self.db.add(node)
         self.db.commit()
 
-    def add_agent(self):
-        agent = Agent()
+    def add_agent(self, agent):
         self.db.add(agent)
         self.db.commit()
-        return agent
 
     def __len__(self):
         return len(self.agents)
@@ -69,8 +68,8 @@ class Network(object):
 class Chain(Network):
     """A -> B -> C -> ..."""
 
-    def __init__(self, db, size=0):
-        super(Chain, self).__init__(db)
+    def __init__(self, agent_type, db, size=0):
+        super(Chain, self).__init__(agent_type, db)
         if len(self) == 0:
             for i in xrange(size):
                 self.add_agent()
@@ -112,8 +111,8 @@ class FullyConnected(Network):
     """In a fully-connected network (complete graph), all possible links exist.
     """
 
-    def __init__(self, db, size=0):
-        super(FullyConnected, self).__init__(db)
+    def __init__(self, agent_type, db, size=0):
+        super(FullyConnected, self).__init__(agent_type, db)
         if len(self) == 0:
             for i in xrange(size):
                 self.add_agent()
@@ -141,9 +140,8 @@ class ScaleFree(Network):
     attachment.
     """
 
-    def __init__(self, db, size=0, m0=4, m=4):
-        super(ScaleFree, self).__init__(db)
-        self.db = db
+    def __init__(self, agent_type, db, size=0, m0=4, m=4):
+        super(ScaleFree, self).__init__(agent_type, db)
         self.m = m
         self.m0 = m0
 

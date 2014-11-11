@@ -82,7 +82,8 @@ class MoranProcessSexual(Process):
             replaced = np.random.choice(replacer.outgoing_vectors).destination
 
             # Make a baby.
-            baby = self.network.add_agent()
+            baby = self.network.agent_type()
+            self.network.add_agent(baby)
 
             # Endow the baby with the ome of the replaced, then sever
             # all ties. :(

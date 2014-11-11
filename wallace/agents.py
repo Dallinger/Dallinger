@@ -2,7 +2,7 @@ from sqlalchemy import ForeignKey, Column, String, desc
 from datetime import datetime
 
 from .models import Node, Info
-from .information import Genome, Memome
+from .information import Gene, Meme
 
 DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
 
@@ -23,29 +23,15 @@ class Agent(Node):
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    @property
-    def omes(self):
-        return [self.ome]
-
-    @property
-    def ome(self):
-        ome = Info\
-            .query\
-            .filter_by(origin_uuid=self.uuid)\
-            .order_by(desc(Info.creation_time))\
-            .first()
-        return ome
+    def update(self, info):
+        raise NotImplementedError
 
     def transmit(self, other_node):
-        for ome in self.omes:
-            super(Agent, self).transmit(ome, other_node)
+        raise NotImplementedError
 
     def broadcast(self):
         for vector in self.outgoing_vectors:
             self.transmit(vector.destination)
-
-    def update(self, info):
-        info.copy_to(self)
 
     def receive_all(self):
         pending_transmissions = self.pending_transmissions
@@ -65,18 +51,38 @@ class BiologicalAgent(Agent):
 
     @property
     def genome(self):
-        genome = Genome\
+        genome = Gene\
             .query\
             .filter_by(origin_uuid=self.uuid)\
-            .order_by(desc(Genome.creation_time))\
-            .first()
+            .order_by(desc(Gene.creation_time))\
+            .all()
         return genome
 
     @property
     def memome(self):
-        memome = Memome\
+        memome = Meme\
             .query\
             .filter_by(origin_uuid=self.uuid)\
-            .order_by(desc(Memome.creation_time))\
-            .first()
+            .order_by(desc(Meme.creation_time))\
+            .all()
         return memome
+
+
+class ReplicatorAgent(Agent):
+
+    __mapper_args__ = {"polymorphic_identity": "replicator_agent"}
+
+    @property
+    def info(self):
+        info = Info\
+            .query\
+            .filter_by(origin_uuid=self.uuid)\
+            .order_by(desc(Info.creation_time))\
+            .first()
+        return info
+
+    def update(self, info):
+        info.copy_to(self)
+
+    def transmit(self, other_node):
+        super(Agent, self).transmit(self.info, other_node)

@@ -1,4 +1,4 @@
-from wallace import processes, networks, sources, db
+from wallace import processes, networks, sources, agents, db
 
 
 class TestProcesses(object):
@@ -12,11 +12,11 @@ class TestProcesses(object):
 
     def test_random_walk_from_source(self):
 
-        net = networks.Network(self.db)
+        net = networks.Network(agents.ReplicatorAgent, self.db)
 
-        agent1 = net.add_agent()
-        agent2 = net.add_agent()
-        agent3 = net.add_agent()
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
+        agent3 = agents.ReplicatorAgent()
 
         agent1.connect_to(agent2)
         agent2.connect_to(agent3)
@@ -31,7 +31,7 @@ class TestProcesses(object):
 
         process.step()
         agent1.receive_all()
-        msg = agent1.ome.contents
+        msg = agent1.info.contents
 
         process.step()
         agent2.receive_all()
@@ -39,16 +39,20 @@ class TestProcesses(object):
         process.step()
         agent3.receive_all()
 
-        assert msg == agent3.ome.contents
+        assert msg == agent3.info.contents
 
     def test_moran_process_cultural(self):
 
         # Create a fully-connected network.
-        net = networks.Network(self.db)
+        net = networks.Network(agents.ReplicatorAgent, self.db)
 
-        agent1 = net.add_agent()
-        agent2 = net.add_agent()
-        agent3 = net.add_agent()
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
+        agent3 = agents.ReplicatorAgent()
+
+        net.add_agent(agent1)
+        net.add_agent(agent2)
+        net.add_agent(agent3)
 
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
@@ -78,18 +82,22 @@ class TestProcesses(object):
                 agent.receive_all()
 
         # Ensure that the process had reached fixation.
-        assert agent1.ome.contents == agent2.ome.contents
-        assert agent2.ome.contents == agent3.ome.contents
-        assert agent3.ome.contents == agent1.ome.contents
+        assert agent1.info.contents == agent2.info.contents
+        assert agent2.info.contents == agent3.info.contents
+        assert agent3.info.contents == agent1.info.contents
 
     def test_moran_process_sexual(self):
 
         # Create a fully-connected network.
-        net = networks.Network(self.db)
+        net = networks.Network(agents.ReplicatorAgent, self.db)
 
-        agent1 = net.add_agent()
-        agent2 = net.add_agent()
-        agent3 = net.add_agent()
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
+        agent3 = agents.ReplicatorAgent()
+
+        net.add_agent(agent1)
+        net.add_agent(agent2)
+        net.add_agent(agent3)
 
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
@@ -110,9 +118,9 @@ class TestProcesses(object):
         for agent in net.agents:
             agent.receive_all()
 
-        all_contents = [agent1.ome.contents,
-                        agent2.ome.contents,
-                        agent3.ome.contents]
+        all_contents = [agent1.info.contents,
+                        agent2.info.contents,
+                        agent3.info.contents]
 
         # Run a Moran process for 100 steps.
         process = processes.MoranProcessSexual(net)
@@ -128,4 +136,4 @@ class TestProcesses(object):
         assert agent3.status == "dead"
 
         for agent in net.agents:
-            assert agent.ome.contents in all_contents
+            assert agent.info.contents in all_contents

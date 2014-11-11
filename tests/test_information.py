@@ -16,16 +16,16 @@ class TestInformation(object):
 
     def test_create_genome(self):
         node = models.Node()
-        info = information.Genome(origin=node)
+        info = information.Gene(origin=node)
         self.add(node, info)
 
-        assert info.type == "genome"
+        assert info.type == "gene"
         assert info.contents is None
 
     def test_create_memome(self):
         node = models.Node()
-        info = information.Memome(origin=node)
+        info = information.Meme(origin=node)
         self.add(node, info)
 
-        assert info.type == "memome"
+        assert info.type == "meme"
         assert info.contents is None

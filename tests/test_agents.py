@@ -1,7 +1,8 @@
 from wallace import agents, information, db
+from nose.tools import raises
 
 
-class TestBiologicalAgents(object):
+class TestReplicatorAgents(object):
 
     def setup(self):
         self.db = db.init_db(drop_all=True)
@@ -14,18 +15,28 @@ class TestBiologicalAgents(object):
         self.db.add_all(args)
         self.db.commit()
 
-    def test_create_agents(self):
+    def test_create_agent_generic(self):
         agent = agents.Agent()
         self.add(agent)
 
-        assert agent.ome is None
-        assert len(agent.omes) == 1
+        assert agent
 
-        ome = information.Info(origin=agent, contents="foo")
-        self.add(ome)
-        self.db.commit()
+    @raises(NotImplementedError)
+    def test_create_agent_generic_transmit(self):
+        agent1 = agents.Agent()
+        agent2 = agents.Agent()
+        self.add(agent1, agent2)
+        agent1.transmit(agent2)
 
-        assert agent.ome == ome
+    @raises(NotImplementedError)
+    def test_create_agent_generic_broadcast(self):
+        agent1 = agents.Agent()
+        agent2 = agents.Agent()
+        agent3 = agents.Agent()
+        agent1.connect_to(agent2)
+        agent1.connect_to(agent3)
+        self.add(agent1, agent2, agent3)
+        agent1.broadcast()
 
     def test_kill_agent(self):
         agent = agents.Agent()
@@ -47,30 +58,24 @@ class TestBiologicalAgents(object):
         assert agent.status == "failed"
         assert agent.time_of_death is not None
 
-    def test_create_biological_agent(self):
-        agent = agents.BiologicalAgent()
+    def test_create_replicator_agent(self):
+        agent = agents.ReplicatorAgent()
         self.add(agent)
 
-        assert agent.genome is None
-        assert agent.memome is None
+        assert agent.info is None
 
-        assert len(agent.omes) == 2
-
-        genome = information.Genome(origin=agent, contents="foo")
-        memome = information.Memome(origin=agent, contents="bar")
-        self.add(genome, memome)
+        info = information.Info(origin=agent, contents="foo")
+        self.add(info)
         self.db.commit()
 
-        assert agent.genome == genome
-        assert agent.memome == memome
+        assert agent.info == info
 
     def test_agent_transmit(self):
-        agent1 = agents.BiologicalAgent()
-        agent2 = agents.BiologicalAgent()
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
         agent1.connect_to(agent2)
-        genome = information.Genome(origin=agent1, contents="foo")
-        memome = information.Memome(origin=agent1, contents="bar")
-        self.add(agent1, agent2, genome, memome)
+        info = information.Info(origin=agent1, contents="foo")
+        self.add(agent1, agent2, info)
         self.db.commit()
 
         agent1.transmit(agent2)
@@ -79,20 +84,17 @@ class TestBiologicalAgents(object):
         agent2.receive_all()
         self.db.commit()
 
-        assert agent1.genome.contents == agent2.genome.contents
-        assert agent1.genome.uuid != agent2.genome.uuid
-        assert agent1.memome.contents == agent2.memome.contents
-        assert agent1.memome.uuid != agent2.memome.uuid
+        assert agent1.info.contents == agent2.info.contents
+        assert agent1.info.uuid != agent2.info.uuid
 
     def test_agent_broadcast(self):
-        agent1 = agents.BiologicalAgent()
-        agent2 = agents.BiologicalAgent()
-        agent3 = agents.BiologicalAgent()
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
+        agent3 = agents.ReplicatorAgent()
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
-        genome = information.Genome(origin=agent1, contents="foo")
-        memome = information.Memome(origin=agent1, contents="bar")
-        self.add(agent1, agent2, agent3, genome, memome)
+        info = information.Gene(origin=agent1, contents="foo")
+        self.add(agent1, agent2, agent3, info)
         self.db.commit()
 
         agent1.broadcast()
@@ -102,9 +104,6 @@ class TestBiologicalAgents(object):
         agent3.receive_all()
         self.db.commit()
 
-        assert agent1.genome.contents == agent2.genome.contents
-        assert agent1.genome.contents == agent3.genome.contents
-        assert agent1.genome.uuid != agent2.genome.uuid != agent3.genome.uuid
-        assert agent1.memome.contents == agent2.memome.contents
-        assert agent1.memome.contents == agent3.memome.contents
-        assert agent1.memome.uuid != agent2.memome.uuid != agent3.genome.uuid
+        assert agent1.info.contents == agent2.info.contents
+        assert agent1.info.contents == agent3.info.contents
+        assert agent1.info.uuid != agent2.info.uuid != agent3.info.uuid
