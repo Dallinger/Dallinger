@@ -1,6 +1,6 @@
-import numpy as np
 import models
 from sqlalchemy import desc
+import random
 
 
 class Process(object):
@@ -36,14 +36,14 @@ class RandomWalkFromSource(Process):
         latest_recipient = self.get_latest_transmission_recipient()
 
         if not self.is_begun():  # first step, replacer is a source
-            replacer = np.random.choice(self.network.sources)
+            replacer = random.choice(self.network.sources)
         else:
             replacer = latest_recipient
 
         options = replacer.outgoing_vectors
 
         if options:
-            replaced = np.random.choice(options).destination
+            replaced = random.choice(options).destination
             replacer.transmit(replaced)
             self.db.commit()
         else:
@@ -58,11 +58,11 @@ class MoranProcessCultural(Process):
     def step(self, verbose=True):
 
         if not self.is_begun():  # first step, replacer is a source
-            replacer = np.random.choice(self.network.sources)
+            replacer = random.choice(self.network.sources)
             replacer.broadcast()
         else:
-            replacer = np.random.choice(self.network.agents)
-            replaced = np.random.choice(replacer.outgoing_vectors).destination
+            replacer = random.choice(self.network.agents)
+            replaced = random.choice(replacer.outgoing_vectors).destination
             replacer.transmit(replaced)
         self.db.commit()
 
@@ -75,11 +75,11 @@ class MoranProcessSexual(Process):
     def step(self, verbose=True):
 
         if not self.is_begun():
-            replacer = np.random.choice(self.network.sources)
+            replacer = random.choice(self.network.sources)
             replacer.broadcast()
         else:
-            replacer = np.random.choice(self.network.agents)
-            replaced = np.random.choice(replacer.outgoing_vectors).destination
+            replacer = random.choice(self.network.agents)
+            replaced = random.choice(replacer.outgoing_vectors).destination
 
             # Make a baby.
             baby = self.network.agent_type()

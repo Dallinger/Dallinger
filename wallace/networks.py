@@ -1,7 +1,7 @@
 from .models import Vector
 from .agents import Agent
 from .sources import Source
-import numpy as np
+import random
 
 
 class Network(object):
@@ -171,12 +171,16 @@ class ScaleFree(Network):
                         continue
                     else:
                         these_agents.append(agent)
-                d = np.array([a.outdegree for a in these_agents], dtype=float)
+                outdegrees = [a.outdegree for a in these_agents]
 
                 # Select a member using preferential attachment
-                p = d / np.sum(d)
-                idx_linkto = np.flatnonzero(np.random.multinomial(1, p))[0]
-                link_to = these_agents[idx_linkto]
+                p = [(d / (1.0 * sum(outdegrees))) for d in outdegrees]
+                rnd = random.random() * sum(p)
+                cur = 0.0
+                for i, p in enumerate(p):
+                    cur += p
+                    if rnd < cur:
+                        link_to = these_agents[i]
 
                 # Create link from the newcomer to the selected member and back
                 newcomer.connect_to(link_to)
