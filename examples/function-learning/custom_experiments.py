@@ -1,18 +1,22 @@
-import wallace
+from wallace.networks import Chain
+from wallace.processes import RandomWalkFromSource
+from wallace.recruiters import PsiTurkRecruiter
+from wallace.agents import ReplicatorAgent
+from wallace.experiments import Experiment
 from custom_sources import SinusoidalFunctionSource
 
 
-class FunctionLearning(wallace.experiments.Experiment):
+class FunctionLearning(Experiment):
     def __init__(self, session):
         super(FunctionLearning, self).__init__(session)
 
         self.task = "Transmission chain"
         self.num_agents = 10
         self.num_steps = self.num_agents - 1
-        self.network = wallace.networks.Chain(self.session)
-        self.process = wallace.processes.RandomWalkFromSource(self.network)
-        self.recruiter = wallace.recruiters.PsiTurkRecruiter
-        self.agent_type = wallace.agents.Agent
+        self.agent_type = ReplicatorAgent
+        self.network = Chain(self.agent_type, self.session)
+        self.process = RandomWalkFromSource(self.network)
+        self.recruiter = PsiTurkRecruiter
 
         # Setup for first time experiment is accessed
         if not self.network.sources:
@@ -22,13 +26,10 @@ class FunctionLearning(wallace.experiments.Experiment):
 
     def newcomer_arrival_trigger(self, newcomer):
 
-        # Set the newcomer to invisible.
-        newcomer.is_visible = False
-
         self.network.add_agent(newcomer)
 
         # If this is the first participant, link them to the source.
-        if len(self.network) == 0:
+        if len(self.network) == 1:
             source = self.network.sources[0]
             source.connect_to(newcomer)
             self.network.db.commit()
@@ -44,7 +45,6 @@ class FunctionLearning(wallace.experiments.Experiment):
     def information_creation_trigger(self, info):
 
         agent = info.origin
-        agent.is_visible = True
         self.network.db.add(agent)
         self.network.db.commit()
 

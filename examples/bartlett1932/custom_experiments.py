@@ -1,7 +1,7 @@
 from wallace.networks import Chain
 from wallace.processes import RandomWalkFromSource
 from wallace.recruiters import PsiTurkRecruiter
-from wallace.agents import Agent
+from wallace.agents import ReplicatorAgent
 from wallace.experiments import Experiment
 from custom_sources import WarOfTheGhostsSource
 
@@ -13,26 +13,23 @@ class Bartlett1932(Experiment):
         self.task = "Transmission chain"
         self.num_agents = 10
         self.num_steps = self.num_agents - 1
-        self.network = Chain(self.session)
+        self.agent_type = ReplicatorAgent
+        self.network = Chain(self.agent_type, self.session)
         self.process = RandomWalkFromSource(self.network)
         self.recruiter = PsiTurkRecruiter
-        self.agent_type = Agent
 
         # Setup for first time experiment is accessed
         if not self.network.sources:
             source = WarOfTheGhostsSource()
-            self.network.add_source_local(source)
+            self.network.add_source_global(source)
             print "Added initial source: " + str(source)
 
     def newcomer_arrival_trigger(self, newcomer):
 
-        # Set the newcomer to invisible.
-        newcomer.is_visible = False
-
         self.network.add_agent(newcomer)
 
         # If this is the first participant, link them to the source.
-        if len(self.network) == 0:
+        if len(self.network) == 1:
             source = self.network.sources[0]
             source.connect_to(newcomer)
             self.network.db.commit()
@@ -48,7 +45,6 @@ class Bartlett1932(Experiment):
     def information_creation_trigger(self, info):
 
         agent = info.origin
-        agent.is_visible = True
         self.network.db.add(agent)
         self.network.db.commit()
 
@@ -57,7 +53,7 @@ class Bartlett1932(Experiment):
             self.recruiter().close_recruitment()
         else:
             # Otherwise recruit a new participant.
-            self.recruiter().recruit_new_participants(n=1)
+            self.recruiter().recruit_new_participants(self, n=1)
 
     def is_experiment_over(self):
         return len(self.network.links) == self.num_agents

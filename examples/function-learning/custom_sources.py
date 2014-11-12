@@ -1,4 +1,4 @@
-from wallace.agents import Source
+from wallace.sources import Source
 from sqlalchemy.ext.declarative import declared_attr
 import random
 import json
@@ -8,11 +8,11 @@ import math
 class AbstractFunctionSource(Source):
     __abstract__ = True
 
-    def _data(self, length):
+    def _data(self):
         x_min = 1
         x_max = 100
 
-        x_values = random.sample(xrange(x_min, x_max), length)
+        x_values = random.sample(xrange(x_min, x_max), 20)
         y_values = [self.func(x) for x in x_values]
 
         data = {"x": x_values, "y": y_values}

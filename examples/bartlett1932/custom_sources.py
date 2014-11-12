@@ -8,6 +8,6 @@ class WarOfTheGhostsSource(wallace.sources.Source):
     __mapper_args__ = {"polymorphic_identity": "war_of_the_ghosts_source"}
 
     @staticmethod
-    def _data(length):
+    def _data():
         with open("static/stimuli/ghosts.md", "r") as f:
             return f.read()
