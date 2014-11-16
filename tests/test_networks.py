@@ -34,9 +34,9 @@ class TestNetworks(object):
 
         assert net.sources == [source]
 
-    def test_network_links(self):
+    def test_network_vectors(self):
         net = networks.Network(agents.Agent, self.db)
-        assert len(net.links) == 0
+        assert len(net.vectors) == 0
 
         agent1 = agents.Agent()
         agent2 = agents.Agent()
@@ -44,9 +44,9 @@ class TestNetworks(object):
         self.db.add_all([agent1, agent2])
         self.db.commit()
 
-        assert len(net.links) == 1
-        assert net.links[0].origin == agent1
-        assert net.links[0].destination == agent2
+        assert len(net.vectors) == 1
+        assert net.vectors[0].origin == agent1
+        assert net.vectors[0].destination == agent2
 
     def test_network_get_degrees(self):
         net = networks.Network(agents.Agent, self.db)
@@ -72,7 +72,7 @@ class TestNetworks(object):
         source = sources.RandomBinaryStringSource()
         net.add_source_global(source)
 
-        assert len(net.links) == 2
+        assert len(net.vectors) == 2
         assert net.get_degrees() == [0, 0]
         assert net.sources[0].outdegree == 2
 
@@ -86,7 +86,7 @@ class TestNetworks(object):
         source = sources.RandomBinaryStringSource()
         net.add_source_local(source, agent1)
 
-        assert len(net.links) == 1
+        assert len(net.vectors) == 1
         assert net.get_degrees() == [0, 0]
         assert net.sources[0].outdegree == 1
 
@@ -126,7 +126,7 @@ class TestNetworks(object):
         net.add_agent(agent2)
         net.add_agent(agent3)
         assert len(net.agents) == 3
-        assert len(net.links) == 0
+        assert len(net.vectors) == 0
         assert len(net.sources) == 0
 
     def test_network_repr(self):
@@ -139,7 +139,7 @@ class TestNetworks(object):
         source = sources.RandomBinaryStringSource()
         net.add_source_global(source)
 
-        assert repr(net) == "<Network with 2 agents, 1 sources, 2 links>"
+        assert repr(net) == "<Network with 2 agents, 1 sources, 2 vectors>"
 
     def test_create_chain(self):
         net = networks.Chain(agents.Agent, self.db, 4)
@@ -147,7 +147,7 @@ class TestNetworks(object):
         net.add_source_local(source, net.first_agent)
 
         assert len(net) == 4
-        assert len(net.links) == 4
+        assert len(net.vectors) == 4
 
     def test_empty_chain_last_agent(self):
         net = networks.Chain(agents.Agent, self.db, 0)
@@ -173,32 +173,32 @@ class TestNetworks(object):
         net = networks.Chain(agents.Agent, self.db, 4)
         source = sources.RandomBinaryStringSource()
         net.add_source_local(source, net.first_agent)
-        assert repr(net) == "<Chain with 4 agents, 1 sources, 4 links>"
+        assert repr(net) == "<Chain with 4 agents, 1 sources, 4 vectors>"
 
     def test_create_fully_connected(self):
         net = networks.FullyConnected(agents.Agent, self.db, 4)
         assert len(net) == 4
-        assert len(net.links) == 12
+        assert len(net.vectors) == 12
         assert net.get_degrees() == [3, 3, 3, 3]
 
     def test_fully_connected_repr(self):
         net = networks.FullyConnected(agents.Agent, self.db, 4)
         assert (
-            repr(net) == "<FullyConnected with 4 agents, 0 sources, 12 links>")
+            repr(net) == "<FullyConnected with 4 agents, 0 sources, 12 vectors>")
 
     def test_create_scale_free(self):
         net = networks.ScaleFree(agents.Agent, self.db, 4, m0=4, m=4)
         assert len(net.agents) == 4
-        assert len(net.links) == 12
+        assert len(net.vectors) == 12
         agent1 = agents.Agent()
         net.add_agent(agent1)
         assert len(net.agents) == 5
-        assert len(net.links) == 20
+        assert len(net.vectors) == 20
         agent2 = agents.Agent()
         net.add_agent(agent2)
         assert len(net.agents) == 6
-        assert len(net.links) == 28
+        assert len(net.vectors) == 28
 
     def test_scale_free_repr(self):
         net = networks.ScaleFree(agents.Agent, self.db, 6, m0=4, m=4)
-        assert repr(net) == "<ScaleFree with 6 agents, 0 sources, 28 links>"
+        assert repr(net) == "<ScaleFree with 6 agents, 0 sources, 28 vectors>"
