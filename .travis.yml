@@ -1,13 +1,19 @@
 language: python
 python:
-  - "2.7"
+- '2.7'
 install:
-  - "pip install -r requirements.txt"
+- pip install -r requirements.txt
 before_script:
-  - psql -c 'create database db;' -U postgres
+- psql -c 'create database db;' -U postgres
 env:
+  global:
   - DATABASE_URL=postgresql://postgres@localhost/db
+  - PORT=5000
+  - secure: isabc6zJWlMBizW/5MbjmWJ9Q2shDj0rjTPmtQmq7QZrrmxczjWfgiQE0i6tcw3wPvBIOgsA4M806ddgM/oeUPWt892BlPHUESb7j96zHtig9B/P4kwH11EPK4pEPcvg90NfVeDCqYHVSNcMtsRTSf93Fg7aT081URb7vRUykxg=
+  - secure: rWBAifHvKlQabe6gvz+edMEtjtDnpwI4RFHJB1ytYSNVKQ59s7fIk2q39IZc8K3Uix7ZtP3G7ws6ufQhOj44Pm4j1J+rbLnDjdMtmcDN5aiSnwb05JpltZXCNjUqAu/CBFZ44lnNenZp4uSLhU/kLVhB2Q+UPvyWNFgApEVoiHM=
+  - secure: fd4hFOH60UV8laBN4Mjva0w/EmVK3SVC5p/0O1oqPriPhUpoJ3eVVRvITbdvPctEJJgRR9t62rPk+Rv4EOXeRFfsjZK9gOfQqv/9VhJBebdQfOx2dwQLjDiGTrklkokDIDyfpyYOoJzZ/oP+6EneD403ilHnXC4fd/4EDQmaIRI=
+  - secure: 3rnkGugv5Hp71gjwQMUj5tup7/xk94p5IXEh0VItSXTziKn0pBY+yrCzAuIzlylbrl0baLaZOFGEFn2K+Jf+tr9mmN23X+zOUNsIqC4swlLLJx6hzH5AZaRmqzGjURM2gLISUayXGT9flOXyOKzzCGFELJKG9KlVyEOJ4fk04wQ=
 script:
-  - nosetests --with-coverage --cover-erase --cover-package wallace
+- nosetests --with-coverage --cover-erase --cover-package wallace
 after_success:
-  - coveralls
+- coveralls
