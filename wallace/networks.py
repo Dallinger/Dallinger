@@ -24,7 +24,7 @@ class Network(object):
             Source.creation_time).all()
 
     @property
-    def links(self):
+    def vectors(self):
         return self.db.query(Vector).order_by(
             Vector.origin_uuid, Vector.destination_uuid).all()
 
@@ -54,11 +54,11 @@ class Network(object):
         return len(self.agents)
 
     def __repr__(self):
-        return "<{} with {} agents, {} sources, {} links>".format(
+        return "<{} with {} agents, {} sources, {} vectors>".format(
             type(self).__name__,
             len(self.agents),
             len(self.sources),
-            len(self.links))
+            len(self.vectors))
 
 
 class Chain(Network):
@@ -106,7 +106,7 @@ class Chain(Network):
 
 
 class FullyConnected(Network):
-    """In a fully-connected network (complete graph), all possible links exist.
+    """In a fully-connected network (complete graph), all possible vectors exist.
     """
 
     def __init__(self, agent_type, db, size=0):
@@ -162,7 +162,7 @@ class ScaleFree(Network):
 
         # ...then add newcomers one by one with preferential attachment.
         else:
-            for idx_newlink in xrange(self.m):
+            for idx_newvector in xrange(self.m):
                 these_agents = []
                 for agent in self.agents:
                     if (agent == newcomer or
@@ -180,11 +180,11 @@ class ScaleFree(Network):
                 for i, p in enumerate(p):
                     cur += p
                     if rnd < cur:
-                        link_to = these_agents[i]
+                        vector_to = these_agents[i]
 
-                # Create link from the newcomer to the selected member and back
-                newcomer.connect_to(link_to)
-                newcomer.connect_from(link_to)
+                # Create vector from the newcomer to the selected member and back
+                newcomer.connect_to(vector_to)
+                newcomer.connect_from(vector_to)
                 self.db.commit()
 
         return newcomer
