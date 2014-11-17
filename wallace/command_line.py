@@ -374,3 +374,17 @@ def teardown():
 
     else:
         raise TypeError("Cannot teardown — this isn't a Wallace app.")
+
+
+@wallace.command()
+@click.option('--example', default="bartlett1932", help='Name of the example')
+def create(example):
+    try:
+        this_dir = os.path.dirname(os.path.realpath(__file__))
+        example_dir = os.path.join(this_dir, os.pardir, "examples", example)
+        shutil.copytree(example_dir, os.path.join(os.getcwd(), example))
+        log("Example created.", delay=0)
+    except TypeError:
+        print "Example '{}' does not exist.".format(example)
+    except OSError:
+        print "Example '{}' already exists here.".format(example)
