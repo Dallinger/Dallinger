@@ -106,7 +106,8 @@ class Node(Base):
             self.transmit(info, vector.destination)
 
     def update(self, info):
-        pass
+        raise NotImplementedError(
+            "The update method of node '{}' has not been overridden".format(self))
 
     @hybrid_property
     def outdegree(self):
