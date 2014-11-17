@@ -353,20 +353,24 @@ def export(app, local):
 
 @wallace.command()
 def teardown():
-    shutil.rmtree(".git/", ignore_errors=True)
-    files_to_remove = [
-        ".psiturk_history",
-        "custom_experiments.pyc",
-        "custom_sources.pyc",
-        "custom_transformations.pyc",
-        "custom.py",
-        "custom.pyc",
-        "Procfile",
-        "psiturkapp.py",
-        "requirements.txt"
-    ]
-    for f in files_to_remove:
-        try:
-            os.remove(f)
-        except OSError:
-            pass
+    if os.path.exists("config.txt"):
+        shutil.rmtree(".git/", ignore_errors=True)
+        files_to_remove = [
+            ".psiturk_history",
+            "custom_experiments.pyc",
+            "custom_sources.pyc",
+            "custom_transformations.pyc",
+            "custom.py",
+            "custom.pyc",
+            "Procfile",
+            "psiturkapp.py",
+            "requirements.txt"
+        ]
+        for f in files_to_remove:
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+
+    else:
+        raise TypeError("Cannot teardown — this isn't a Wallace app.")
