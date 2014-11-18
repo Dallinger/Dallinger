@@ -365,31 +365,6 @@ def export(app, local):
 
 
 @wallace.command()
-def teardown():
-    if os.path.exists("config.txt"):
-        shutil.rmtree(".git/", ignore_errors=True)
-        files_to_remove = [
-            ".psiturk_history",
-            "custom_experiments.pyc",
-            "custom_sources.pyc",
-            "custom_transformations.pyc",
-            "custom.py",
-            "custom.pyc",
-            "Procfile",
-            "psiturkapp.py",
-            "requirements.txt"
-        ]
-        for f in files_to_remove:
-            try:
-                os.remove(f)
-            except OSError:
-                pass
-
-    else:
-        raise TypeError("Cannot teardown — this isn't a Wallace app.")
-
-
-@wallace.command()
 @click.option('--example', default="bartlett1932", help='Name of the example')
 def create(example):
     try:
@@ -401,3 +376,21 @@ def create(example):
         print "Example '{}' does not exist.".format(example)
     except OSError:
         print "Example '{}' already exists here.".format(example)
+
+
+@wallace.command()
+def verify():
+
+    log("Checking to see if this is a Wallace-compatible directory...")
+
+    is_passing = True
+
+    filenames = ["config.txt", "experiment.py"]
+    for fn in filenames:
+        if os.path.exists(fn):
+            print fn + " is OK"
+        else:
+            print fn + " is MISSING"
+            is_passing = False
+
+    return is_passing
