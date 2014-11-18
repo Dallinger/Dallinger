@@ -30,7 +30,7 @@ db_session_w = db.init_db(drop_all=False)
 # Specify the experiment.
 try:
     this_experiment = config.get('Experiment Configuration', 'experiment')
-    mod = __import__('custom_experiments', fromlist=[this_experiment])
+    mod = __import__('wallace_experiment', fromlist=[this_experiment])
     experiment = getattr(mod, this_experiment)
 except ImportError:
     print "Error: Could not import experiment."

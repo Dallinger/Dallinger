@@ -76,6 +76,11 @@ def setup(debug=True, verbose=False):
     dst = os.path.join(tempfile.mkdtemp(), id)
     shutil.copytree(os.getcwd(), dst)
 
+    # Rename experiment.py to wallace_experiment.py to aviod psiTurk conflict.
+    os.rename(
+        os.path.join(dst, "experiment.py"),
+        os.path.join(dst, "wallace_experiment.py"))
+
     # Copy files into this experiment package.
     src = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
@@ -154,7 +159,6 @@ def debug(verbose):
 
     # Change to temporary directory.
     cwd = os.getcwd()
-    print tmp
     os.chdir(tmp)
 
     # Start up the local server

@@ -3,7 +3,7 @@ from wallace.processes import RandomWalkFromSource
 from wallace.recruiters import PsiTurkRecruiter
 from wallace.agents import ReplicatorAgent
 from wallace.experiments import Experiment
-from custom_sources import WarOfTheGhostsSource
+from wallace.sources import Source
 
 
 class Bartlett1932(Experiment):
@@ -57,3 +57,15 @@ class Bartlett1932(Experiment):
 
     def is_experiment_over(self):
         return len(self.network.links) == self.num_agents
+
+
+class WarOfTheGhostsSource(Source):
+    """A source that transmits the War of Ghosts story from Bartlett (1932).
+    """
+
+    __mapper_args__ = {"polymorphic_identity": "war_of_the_ghosts_source"}
+
+    @staticmethod
+    def _data():
+        with open("static/stimuli/ghosts.md", "r") as f:
+            return f.read()
