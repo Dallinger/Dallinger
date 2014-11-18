@@ -423,4 +423,13 @@ def verify():
         print "✗ experiment.py is MISSING"
         is_passing = False
 
+    # Make sure there's a README
+    is_txt_readme = os.path.exists("README.md")
+    is_md_readme = os.path.exists("README.txt")
+    if (not is_md_readme) and (not is_txt_readme):
+        is_passing = False
+        print "✗ README.txt or README.md is MISSING."
+    else:
+        print "✓ README is OK"
+
     return is_passing
