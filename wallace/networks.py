@@ -51,7 +51,8 @@ class Network(object):
         self.db.commit()
 
     def __len__(self):
-        return len(self.agents)
+        raise SyntaxError(
+            "len is not defined for networks. Use len(net.agents) or len(net.sources) instead.")
 
     def __repr__(self):
         return "<{} with {} agents, {} sources, {} vectors>".format(
@@ -66,14 +67,14 @@ class Chain(Network):
 
     def __init__(self, agent_type, db, size=0):
         super(Chain, self).__init__(agent_type, db)
-        if len(self) == 0:
+        if len(self.agents) == 0:
             for i in xrange(size):
                 agent = agent_type()
                 self.add_agent(agent)
 
     @property
     def first_agent(self):
-        if len(self) > 0:
+        if len(self.agents) > 0:
             return self.db.query(Agent)\
                 .order_by(Agent.creation_time)\
                 .filter(Agent.status != "failed")\
@@ -83,7 +84,7 @@ class Chain(Network):
 
     @property
     def last_agent(self):
-        if len(self) > 0:
+        if len(self.agents) > 0:
             return self.db.query(Agent)\
                 .order_by(Agent.creation_time.desc())\
                 .filter(Agent.status != "failed")\
@@ -93,7 +94,7 @@ class Chain(Network):
 
     def add_agent(self, newcomer):
 
-        if len(self) is 0:
+        if len(self.agents) is 0:
             self.db.add(newcomer)
             self.db.commit()
         else:
@@ -111,7 +112,7 @@ class FullyConnected(Network):
 
     def __init__(self, agent_type, db, size=0):
         super(FullyConnected, self).__init__(agent_type, db)
-        if len(self) == 0:
+        if len(self.agents) == 0:
             for i in xrange(size):
                 agent = agent_type()
                 self.add_agent(agent)
@@ -143,7 +144,7 @@ class ScaleFree(Network):
         self.m = m
         self.m0 = m0
 
-        if len(self) == 0:
+        if len(self.agents) == 0:
             for i in xrange(size):
                 agent = agent_type()
                 self.add_agent(agent)
@@ -153,7 +154,7 @@ class ScaleFree(Network):
         self.db.commit()
 
         # Start with a core of m0 fully-connected agents...
-        if len(self) <= self.m0:
+        if len(self.agents) <= self.m0:
             for agent in self.agents:
                 if agent is not newcomer:
                     newcomer.connect_to(agent)

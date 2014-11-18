@@ -146,7 +146,8 @@ class TestNetworks(object):
         source = sources.RandomBinaryStringSource()
         net.add_source_local(source, net.first_agent)
 
-        assert len(net) == 4
+        assert len(net.agents) == 4
+        assert len(net.sources) == 1
         assert len(net.vectors) == 4
 
     def test_empty_chain_last_agent(self):
@@ -177,7 +178,7 @@ class TestNetworks(object):
 
     def test_create_fully_connected(self):
         net = networks.FullyConnected(agents.Agent, self.db, 4)
-        assert len(net) == 4
+        assert len(net.agents) == 4
         assert len(net.vectors) == 12
         assert net.get_degrees() == [3, 3, 3, 3]
 
