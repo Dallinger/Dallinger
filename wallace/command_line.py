@@ -11,6 +11,8 @@ import shutil
 import pexpect
 from urlparse import urlparse
 import tempfile
+import inspect
+import imp
 
 
 def log(msg, delay=0.5, chevrons=True):
@@ -381,16 +383,44 @@ def create(example):
 @wallace.command()
 def verify():
 
-    log("Checking to see if this is a Wallace-compatible directory...")
-
     is_passing = True
 
-    filenames = ["config.txt", "experiment.py"]
-    for fn in filenames:
-        if os.path.exists(fn):
-            print fn + " is OK"
-        else:
-            print fn + " is MISSING"
+    # Check the config file.
+    if os.path.exists("config.txt"):
+        print "✓ config.txt is OK"
+    else:
+        print "✗ config.txt is MISSING"
+        return False
+
+    # Check the experiment file.
+    if os.path.exists("experiment.py"):
+
+        # Check if the experiment file has exactly one Experiment class.
+        tmp = tempfile.mkdtemp()
+        for f in ["experiment.py", "config.txt"]:
+            shutil.copyfile(f, os.path.join(tmp, f))
+
+        cwd = os.getcwd()
+        os.chdir(tmp)
+
+        open("__init__.py", "a").close()
+        exp = imp.load_source('experiment', os.path.join(tmp, "experiment.py"))
+
+        classes = inspect.getmembers(exp, inspect.isclass)
+        exps = [c for c in classes
+                if (c[1].__bases__[0].__name__ in "Experiment")]
+
+        if len(exps) == 0:
+            print "✗ experiment.py does not define an experiment class."
             is_passing = False
+        elif len(exps) == 1:
+            print "✓ experiment.py is OK"
+        else:
+            print "✗ experiment.py defines more than one experiment class."
+        os.chdir(cwd)
+
+    else:
+        print "✗ experiment.py is MISSING"
+        is_passing = False
 
     return is_passing
