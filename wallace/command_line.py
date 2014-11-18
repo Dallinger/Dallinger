@@ -10,6 +10,7 @@ import subprocess
 import shutil
 import pexpect
 from urlparse import urlparse
+import tempfile
 
 
 def log(msg, delay=0.5, chevrons=True):
@@ -71,20 +72,22 @@ def setup(debug=True, verbose=False):
     time.sleep(1)
     subprocess.call("git checkout " + id, stdout=OUT, stderr=OUT, shell=True)
 
+    # Copy this directory into a temporary folder.
+    dst = os.path.join(tempfile.mkdtemp(), id)
+    shutil.copytree(os.getcwd(), dst)
+
     # Copy files into this experiment package.
     src = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
         "custom.py")
-    dst = os.path.join(os.getcwd(), "custom.py")
-    shutil.copy(src, dst)
+    shutil.copy(src, os.path.join(dst, "custom.py"))
 
     for filename in ["Procfile", "requirements.txt", "psiturkapp.py"]:
         src = os.path.join(
             os.path.dirname(os.path.realpath(__file__)),
             "heroku",
             filename)
-        dst = os.path.join(os.getcwd(), filename)
-        shutil.copy(src, dst)
+        shutil.copy(src, os.path.join(dst, filename))
 
     # Commit the new files to the new experiment branch.
     log("Inserting psiTurk- and Heroku-specfic files...")
@@ -109,7 +112,7 @@ def setup(debug=True, verbose=False):
 
     time.sleep(0.25)
 
-    return (id, starting_branch)
+    return (id, starting_branch, dst)
 
 
 @wallace.command()
@@ -121,7 +124,7 @@ def debug(verbose):
     else:
         OUT = open(os.devnull, 'w')
 
-    (id, starting_branch) = setup(debug=True, verbose=verbose)
+    (id, starting_branch, tmp) = setup(debug=True, verbose=verbose)
 
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -149,6 +152,11 @@ def debug(verbose):
     subprocess.call("psql --command=\"CREATE DATABASE " + database +
                     " WITH OWNER postgres;\"", stdout=OUT, shell=True)
 
+    # Change to temporary directory.
+    cwd = os.getcwd()
+    print tmp
+    os.chdir(tmp)
+
     # Start up the local server
     log("Starting up the server...")
     p = pexpect.spawn("psiturk")
@@ -165,7 +173,8 @@ def debug(verbose):
     log("Here's the psiTurk shell...")
     p.interact()
 
-    # Return to othe branch we came from.
+    # Return to the branch we came from.
+    os.chdir(cwd)
     log("Cleaning up...")
     subprocess.call("git checkout " + starting_branch, shell=True)
     filetypes_to_kill = [".pyc", ".psiturk_history"]
