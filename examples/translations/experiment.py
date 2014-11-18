@@ -3,7 +3,7 @@ from wallace.experiments import Experiment
 from wallace.recruiters import SimulatedRecruiter
 from wallace.agents import Agent
 from wallace.sources import Source
-from wallace.transformations import Transformation
+from wallace.models import Transformation
 import requests
 import json
 import time
