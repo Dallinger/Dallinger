@@ -7,7 +7,7 @@ from psiturk.experiment_errors import ExperimentError
 from psiturk.user_utils import PsiTurkAuthorization
 
 # # Database setup
-from psiturk.db import db_session
+from psiturk.db import db_session as session_psiturk
 from psiturk.models import Participant
 from json import dumps, loads
 
@@ -25,7 +25,7 @@ custom_code = Blueprint(
     static_folder='static')
 
 # Initialize the Wallace db
-db_session_w = db.init_db(drop_all=False)
+session = db.init_db(drop_all=False)
 
 # Specify the experiment.
 try:
@@ -67,8 +67,8 @@ def compute_bonus():
                 if trial['hit'] is True:
                     bonus += 0.02
         user.bonus = bonus
-        db_session.add(user)
-        db_session.commit()
+        session_psiturk.add(user)
+        session_psiturk.commit()
         resp = {"bonusComputed": "success"}
         return jsonify(**resp)
     except:
@@ -77,7 +77,7 @@ def compute_bonus():
 
 @custom_code.route('/launch', methods=["POST"])
 def launch():
-    exp = experiment(db_session_w)
+    exp = experiment(session)
 
     # Submit the first HIT
     exp.recruiter().open_recruitment(exp)
@@ -91,7 +91,7 @@ def launch():
 @custom_code.route("/agents", methods=["POST", "GET"])
 def api_agent_create():
 
-    exp = experiment(db_session_w)
+    exp = experiment(session)
 
     if request.method == 'POST':
 
@@ -117,7 +117,7 @@ def api_agent_create():
 @custom_code.route("/transmissions/<transmission_uuid>", methods=["GET"])
 def api_transmission(transmission_uuid):
 
-    exp = experiment(db_session_w)
+    exp = experiment(session)
 
     if request.method == 'GET':
 
@@ -173,8 +173,8 @@ def api_transmission(transmission_uuid):
 
         transmission = models.Transmission(info=info, destination=destination)
 
-        db_session_w.add(transmission)
-        db_session_w.commit()
+        session.add(transmission)
+        session.commit()
 
         data = {'uuid': transmission.uuid}
         js = dumps(data)
@@ -188,7 +188,7 @@ def api_transmission(transmission_uuid):
 @custom_code.route("/information/<info_uuid>", methods=["GET"])
 def api_info(info_uuid):
 
-    exp = experiment(db_session_w)
+    exp = experiment(session)
 
     if request.method == 'GET':
 
@@ -220,8 +220,8 @@ def api_info(info_uuid):
                 origin=node,
                 contents=request.args['contents'])
 
-            db_session_w.add(info)
-            db_session_w.commit()
+            session.add(info)
+            session.commit()
 
             # Trigger experiment-specific behavior that happens on creationg
             exp.information_creation_trigger(info)
