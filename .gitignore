@@ -7,3 +7,4 @@
 /.coverage
 /cover/
 *.egg-info/
+*.db-journal
