@@ -41,7 +41,7 @@ class Translations(Experiment):
         self.network.add_agent(newcomer)
 
         # If this is the first participant, link them to the source.
-        if len(self.network) == 0:
+        if len(self.network.agents) == 0:
             source = self.network.sources[0]
             source.connect_to(newcomer)
             self.network.db.commit()

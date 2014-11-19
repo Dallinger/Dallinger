@@ -29,7 +29,7 @@ class Bartlett1932(Experiment):
         self.network.add_agent(newcomer)
 
         # If this is the first participant, link them to the source.
-        if len(self.network) == 1:
+        if len(self.network.agents) == 1:
             source = self.network.sources[0]
             source.connect_to(newcomer)
             self.network.db.commit()
