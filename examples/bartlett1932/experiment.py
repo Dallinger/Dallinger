@@ -56,7 +56,7 @@ class Bartlett1932(Experiment):
             self.recruiter().recruit_new_participants(self, n=1)
 
     def is_experiment_over(self):
-        return len(self.network.links) == self.num_agents
+        return len(self.network.agents) == self.num_agents
 
 
 class WarOfTheGhostsSource(Source):
