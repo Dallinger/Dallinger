@@ -13,6 +13,7 @@ from urlparse import urlparse
 import tempfile
 import inspect
 import imp
+import pkg_resources
 
 
 def log(msg, delay=0.5, chevrons=True):
@@ -51,6 +52,15 @@ def setup(debug=True, verbose=False):
     # Load psiTurk configuration.
     config = PsiturkConfig()
     config.load_config()
+
+    # Check that the version of Wallace specified in the config file is the one
+    # that we are currently running.
+    wallace_version = config.get('Experiment Configuration', 'wallace_version')
+    this_version = pkg_resources.require("wallace")[0].version
+    if wallace_version != this_version:
+        raise AssertionError(
+            "You are using Wallace v" + this_version + ", "
+            "but the experiment requires v" + wallace_version)
 
     # Generate a unique id for this experiment.
     id = "w" + str(uuid.uuid4())[0:28]

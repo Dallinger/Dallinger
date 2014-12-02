@@ -1,5 +1,6 @@
 [Experiment Configuration]
 experiment = Bartlett1932
+wallace_version = 0.1
 
 [HIT Configuration]
 title = War of the Ghosts

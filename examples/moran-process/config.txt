@@ -1,5 +1,6 @@
 [Experiment Configuration]
 experiment = SubstitutionCiphersExperiment
+wallace_version = 0.1
 
 [HIT Configuration]
 title = Moran Process

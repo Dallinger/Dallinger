@@ -1,5 +1,6 @@
 [Experiment Configuration]
 experiment = FunctionLearning
+wallace_version = 0.1
 
 [HIT Configuration]
 title = Function learning
