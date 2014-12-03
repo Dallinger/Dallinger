@@ -223,7 +223,19 @@ def deploy(verbose):
     else:
         OUT = open(os.devnull, 'w')
 
-    (id, starting_branch) = setup(debug=False, verbose=verbose)
+    (id, starting_branch, tmp) = setup(debug=False, verbose=verbose)
+
+    # Change to temporary directory.
+    cwd = os.getcwd()
+    os.chdir(tmp)
+
+    # Commit Heroku-specific files to tmp folder's git repo.
+    cmds = ["git init",
+            "git add --all",
+            'git commit -m "Experiment ' + id + '"']
+    for cmd in cmds:
+        subprocess.call(cmd, stdout=OUT, shell=True)
+        time.sleep(0.5)
 
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -301,6 +313,8 @@ def deploy(verbose):
                     stdout=OUT, stderr=OUT, shell=True)
 
     log("Completed deployment of experiment " + id + ".")
+
+    os.chdir(cwd)
 
 
 @wallace.command()
