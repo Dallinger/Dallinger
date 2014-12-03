@@ -13,6 +13,9 @@ from json import dumps, loads
 
 from wallace import db, agents, models
 
+import imp
+import inspect
+
 # load the configuration options
 config = PsiturkConfig()
 config.load_config()
@@ -29,7 +32,11 @@ session = db.init_db(drop_all=False)
 
 # Specify the experiment.
 try:
-    this_experiment = config.get('Experiment Configuration', 'experiment')
+    exp = imp.load_source('experiment', "wallace_experiment.py")
+    classes = inspect.getmembers(exp, inspect.isclass)
+    exps = [c for c in classes
+            if (c[1].__bases__[0].__name__ in "Experiment")]
+    this_experiment = exps[0][0]
     mod = __import__('wallace_experiment', fromlist=[this_experiment])
     experiment = getattr(mod, this_experiment)
 except ImportError:
