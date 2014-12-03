@@ -16,14 +16,6 @@ import imp
 import pkg_resources
 
 
-def log(msg, delay=0.5, chevrons=True):
-    if chevrons:
-        click.echo("\n❯❯ " + msg)
-    else:
-        click.echo(msg)
-    time.sleep(delay)
-
-
 def print_header():
     log("""
      _    _    __    __    __      __    ___  ____
@@ -36,9 +28,13 @@ def print_header():
     """, 0.5, False)
 
 
-def printv(msg, verbose=False):
+def log(msg, delay=0.5, chevrons=True, verbose=True):
     if verbose:
-        print msg
+        if chevrons:
+            click.echo("\n❯❯ " + msg)
+        else:
+            click.echo(msg)
+        time.sleep(delay)
 
 
 @click.group()
@@ -56,6 +52,7 @@ def setup(debug=True, verbose=False):
         OUT = open(os.devnull, 'w')
 
     # Verify that the package is usable.
+    log("Verifying that directory is compatible with Wallace...")
     if not verify_package(verbose=verbose):
         raise AssertionError(
             "This is not a valid Wallace app. " +
@@ -427,9 +424,11 @@ def verify_package(verbose=True):
 
     # Check the config file.
     if os.path.exists("config.txt"):
-        printv("✓ config.txt is OK", verbose=verbose)
+        log("✓ config.txt is OK",
+            delay=0, chevrons=False, verbose=verbose)
     else:
-        printv("✗ config.txt is MISSING", verbose=verbose)
+        log("✗ config.txt is MISSING",
+            delay=0, chevrons=False, verbose=verbose)
         return False
 
     # Check the experiment file.
@@ -451,20 +450,20 @@ def verify_package(verbose=True):
                 if (c[1].__bases__[0].__name__ in "Experiment")]
 
         if len(exps) == 0:
-            printv(
-                "✗ experiment.py does not define an experiment class.",
-                verbose=verbose)
+            log("✗ experiment.py does not define an experiment class.",
+                delay=0, chevrons=False, verbose=verbose)
             is_passing = False
         elif len(exps) == 1:
-            printv("✓ experiment.py is OK", verbose=verbose)
+            log("✓ experiment.py is OK",
+                delay=0, chevrons=False, verbose=verbose)
         else:
-            printv(
-                "✗ experiment.py defines more than one experiment class.",
-                verbose=verbose)
+            log("✗ experiment.py defines more than one experiment class.",
+                delay=0, chevrons=False, verbose=verbose)
         os.chdir(cwd)
 
     else:
-        printv("✗ experiment.py is MISSING", verbose=verbose)
+        log("✗ experiment.py is MISSING",
+            delay=0, chevrons=False, verbose=verbose)
         is_passing = False
 
     # Make sure there's a help file.
@@ -472,8 +471,10 @@ def verify_package(verbose=True):
     is_md_readme = os.path.exists("README.txt")
     if (not is_md_readme) and (not is_txt_readme):
         is_passing = False
-        printv("✗ README.txt or README.md is MISSING.", verbose=verbose)
+        log("✗ README.txt or README.md is MISSING.",
+            delay=0, chevrons=False, verbose=verbose)
     else:
-        printv("✓ README is OK", verbose=verbose)
+        log("✓ README is OK",
+            delay=0, chevrons=False, verbose=verbose)
 
     return is_passing
