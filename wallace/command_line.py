@@ -75,27 +75,16 @@ def setup(debug=True, verbose=False):
     id = "w" + str(uuid.uuid4())[0:28]
     log("Running as experiment " + id + "...")
 
-    # Create a git repository if one does not already exist.
-    if not os.path.exists(".git"):
-        log("No git repository detected; creating one...")
-        cmds = ["git init",
-                "git add .",
-                'git commit -m "Experiment ' + id + '"']
-        for cmd in cmds:
-            subprocess.call(cmd, stdout=OUT, shell=True)
-            time.sleep(0.5)
-
-    # Create a new branch.
-    log("Creating new branch and switching over to it...")
-    starting_branch = subprocess.check_output(
-        "git rev-parse --abbrev-ref HEAD", shell=True)
-    subprocess.call("git branch " + id, stdout=OUT, shell=True)
-    time.sleep(1)
-    subprocess.call("git checkout " + id, stdout=OUT, stderr=OUT, shell=True)
-
-    # Copy this directory into a temporary folder.
+    # Copy this directory into a temporary folder, ignoring .git
     dst = os.path.join(tempfile.mkdtemp(), id)
-    shutil.copytree(os.getcwd(), dst)
+    to_ignore = shutil.ignore_patterns(".git/*")
+    shutil.copytree(os.getcwd(), dst, ignore=to_ignore)
+
+    print dst
+
+    # Change directory to the temporary folder.
+    cwd = os.getcwd()
+    os.chdir(dst)
 
     # Rename experiment.py to wallace_experiment.py to aviod psiTurk conflict.
     os.rename(
@@ -115,30 +104,11 @@ def setup(debug=True, verbose=False):
             filename)
         shutil.copy(src, os.path.join(dst, filename))
 
-    # Commit the new files to the new experiment branch.
-    log("Inserting psiTurk- and Heroku-specfic files...")
-    subprocess.call("git add .", stdout=OUT, shell=True),
-    time.sleep(0.25)
-    subprocess.call(
-        'git commit -m "Insert psiTurk- and Heroku-specfic files"',
-        stdout=OUT,
-        shell=True)
-
-    # Tag with the experiment name.
-    name = config.get('Experiment Configuration', 'experiment')
-    last_name = subprocess.check_output(
-        "git tag | sort | tail -n 1", shell=True)
-    if last_name:
-        version = int(last_name.split("-")[-1]) + 1
-    else:
-        version = 1
-    new_name = str(name) + "-" + str(version)
-    subprocess.call("git tag " + new_name, stdout=OUT, shell=True)
-    log("Tagging as experiment " + new_name + "...")
-
     time.sleep(0.25)
 
-    return (id, starting_branch, dst)
+    os.chdir(cwd)
+
+    return (id, dst)
 
 
 @wallace.command()
@@ -150,7 +120,11 @@ def debug(verbose):
     else:
         OUT = open(os.devnull, 'w')
 
-    (id, starting_branch, tmp) = setup(debug=True, verbose=verbose)
+    (id, tmp) = setup(debug=True, verbose=verbose)
+
+    # Switch to the temporary directory.
+    cwd = os.getcwd()
+    os.chdir(tmp)
 
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -178,10 +152,6 @@ def debug(verbose):
     subprocess.call("psql --command=\"CREATE DATABASE " + database +
                     " WITH OWNER postgres;\"", stdout=OUT, shell=True)
 
-    # Change to temporary directory.
-    cwd = os.getcwd()
-    os.chdir(tmp)
-
     # Start up the local server
     log("Starting up the server...")
     p = pexpect.spawn("psiturk")
@@ -191,16 +161,8 @@ def debug(verbose):
     log("Here's the psiTurk shell...")
     p.interact()
 
-    # Return to the branch we came from.
-    os.chdir(cwd)
-    log("Cleaning up...")
-    subprocess.call("git checkout " + starting_branch, shell=True)
-    filetypes_to_kill = [".pyc", ".psiturk_history"]
-    for filetype in filetypes_to_kill:
-        [[os.remove(f) for f in os.listdir(".") if f.endswith(filetype)]
-            for filetype in filetypes_to_kill]
-
     log("Completed debugging of experiment " + id + ".")
+    os.chdir(cwd)
 
 
 @wallace.command()
@@ -213,7 +175,7 @@ def deploy(verbose):
     else:
         OUT = open(os.devnull, 'w')
 
-    (id, starting_branch, tmp) = setup(debug=False, verbose=verbose)
+    (id, tmp) = setup(debug=False, verbose=verbose)
 
     # Change to temporary directory.
     cwd = os.getcwd()
@@ -281,7 +243,7 @@ def deploy(verbose):
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
-    subprocess.call("git push heroku " + id + ":master", stdout=OUT,
+    subprocess.call("git push heroku master", stdout=OUT,
                     stderr=OUT, shell=True)
 
     log("Starting up the web server...")
@@ -292,13 +254,9 @@ def deploy(verbose):
     time.sleep(4)
 
     # Return to the branch we came from.
-    log("Cleaning up...")
-    subprocess.call("git checkout " + starting_branch,
-                    stdout=OUT, stderr=OUT, shell=True)
+    os.chdir(cwd)
 
     log("Completed deployment of experiment " + id + ".")
-
-    os.chdir(cwd)
 
 
 @wallace.command()
