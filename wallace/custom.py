@@ -35,6 +35,10 @@ try:
 except ImportError:
     print "Error: Could not import experiment."
 
+# Launch the experiment.
+exp = experiment(session)
+exp.recruiter().open_recruitment(exp)
+
 
 ###########################################################
 #  serving warm, fresh, & sweet custom, user-provided routes
@@ -73,19 +77,6 @@ def compute_bonus():
         return jsonify(**resp)
     except:
         abort(404)  # again, bad to display HTML, but...
-
-
-@custom_code.route('/launch', methods=["POST"])
-def launch():
-    exp = experiment(session)
-
-    # Submit the first HIT
-    exp.recruiter().open_recruitment(exp)
-
-    # Return a response.
-    data = {"status": "launched"}
-    js = dumps(data)
-    return Response(js, status=200, mimetype='application/json')
 
 
 @custom_code.route("/agents", methods=["POST", "GET"])

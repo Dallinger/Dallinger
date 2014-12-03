@@ -188,13 +188,6 @@ def debug(verbose):
     p.expect_exact("server")
     p.sendline("server on")
 
-    # # Send launch signal to server.
-    # log("Launching the experiment...")
-    # host = config.get("Server Parameters", "host")
-    # port = config.get("Server Parameters", "port")
-    # url = "http://" + host + ":" + port + "/launch"
-    # print subprocess.call("curl -X POST " + url, shell=True)
-
     log("Here's the psiTurk shell...")
     p.interact()
 
