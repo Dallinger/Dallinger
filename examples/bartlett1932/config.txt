@@ -29,7 +29,7 @@ loglevel = 0
 debug = true
 login_username = examplename
 login_pw = examplepassword
-threads = auto
+threads = 1
 
 [Task Parameters]
 experiment_code_version = 1.0
