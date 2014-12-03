@@ -36,18 +36,30 @@ def print_header():
     """, 0.5, False)
 
 
+def printv(msg, verbose=False):
+    if verbose:
+        print msg
+
+
 @click.group()
 def wallace():
     pass
 
 
 def setup(debug=True, verbose=False):
+
     print_header()
 
     if verbose:
         OUT = None
     else:
         OUT = open(os.devnull, 'w')
+
+    # Verify that the package is usable.
+    if not verify_package(verbose=verbose):
+        raise AssertionError(
+            "This is not a valid Wallace app. " +
+            "Fix the errors and then try running 'wallace verify'.")
 
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -392,14 +404,18 @@ def create(example):
 
 @wallace.command()
 def verify():
+    verify_package(verbose=True)
+
+
+def verify_package(verbose=True):
 
     is_passing = True
 
     # Check the config file.
     if os.path.exists("config.txt"):
-        print "✓ config.txt is OK"
+        printv("✓ config.txt is OK", verbose=verbose)
     else:
-        print "✗ config.txt is MISSING"
+        printv("✗ config.txt is MISSING", verbose=verbose)
         return False
 
     # Check the experiment file.
@@ -421,16 +437,20 @@ def verify():
                 if (c[1].__bases__[0].__name__ in "Experiment")]
 
         if len(exps) == 0:
-            print "✗ experiment.py does not define an experiment class."
+            printv(
+                "✗ experiment.py does not define an experiment class.",
+                verbose=verbose)
             is_passing = False
         elif len(exps) == 1:
-            print "✓ experiment.py is OK"
+            printv("✓ experiment.py is OK", verbose=verbose)
         else:
-            print "✗ experiment.py defines more than one experiment class."
+            printv(
+                "✗ experiment.py defines more than one experiment class.",
+                verbose=verbose)
         os.chdir(cwd)
 
     else:
-        print "✗ experiment.py is MISSING"
+        printv("✗ experiment.py is MISSING", verbose=verbose)
         is_passing = False
 
     # Make sure there's a README
@@ -438,8 +458,8 @@ def verify():
     is_md_readme = os.path.exists("README.txt")
     if (not is_md_readme) and (not is_txt_readme):
         is_passing = False
-        print "✗ README.txt or README.md is MISSING."
+        printv("✗ README.txt or README.md is MISSING.", verbose=verbose)
     else:
-        print "✓ README is OK"
+        printv("✓ README is OK", verbose=verbose)
 
     return is_passing
