@@ -467,7 +467,7 @@ def verify_package(verbose=True):
         printv("✗ experiment.py is MISSING", verbose=verbose)
         is_passing = False
 
-    # Make sure there's a README
+    # Make sure there's a help file.
     is_txt_readme = os.path.exists("README.md")
     is_md_readme = os.path.exists("README.txt")
     if (not is_md_readme) and (not is_txt_readme):
