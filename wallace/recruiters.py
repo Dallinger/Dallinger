@@ -126,7 +126,3 @@ class PsiTurkRecruiter(Recruiter):
             [last_hit_id],
             n,
             self.config.get('HIT Configuration', 'expiration_hrs'))
-
-# if __name__ == "__main__":
-
-#     print "hello"
