@@ -9,7 +9,6 @@ import os
 import subprocess
 import shutil
 import pexpect
-from urlparse import urlparse
 import tempfile
 import inspect
 import imp
@@ -45,11 +44,6 @@ def wallace():
 def setup(debug=True, verbose=False):
 
     print_header()
-
-    if verbose:
-        OUT = None
-    else:
-        OUT = open(os.devnull, 'w')
 
     # Verify that the package is usable.
     log("Verifying that directory is compatible with Wallace...")
@@ -115,11 +109,6 @@ def setup(debug=True, verbose=False):
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 def debug(verbose):
     """Run the experiment locally."""
-    if verbose:
-        OUT = None
-    else:
-        OUT = open(os.devnull, 'w')
-
     (id, tmp) = setup(debug=True, verbose=verbose)
 
     # Switch to the temporary directory.
@@ -143,14 +132,6 @@ def debug(verbose):
 
     if "HOST" not in os.environ:
         os.environ["HOST"] = config.get('Server Parameters', 'host')
-
-    # Drop the testing database and recreate.
-    log("Resetting the database...")
-    result = urlparse(config.get("Database Parameters", "database_url"))
-    database = result.path[1:]
-    subprocess.call("dropdb " + database, stdout=OUT, shell=True)
-    subprocess.call("psql --command=\"CREATE DATABASE " + database +
-                    " WITH OWNER postgres;\"", stdout=OUT, shell=True)
 
     # Start up the local server
     log("Starting up the server...")
