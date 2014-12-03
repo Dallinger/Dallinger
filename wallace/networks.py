@@ -60,6 +60,19 @@ class Network(object):
             len(self.sources),
             len(self.links))
 
+    def print_verbose(self):
+        print "Agents: "
+        for a in self.agents:
+            print a
+
+        print "\nSources: "
+        for s in self.sources:
+            print s
+            
+        print "\nVectors: "
+        for v in self.vectors:
+            print v
+
 
 class Chain(Network):
     """A -> B -> C -> ..."""
