@@ -291,12 +291,6 @@ def deploy(verbose):
     subprocess.call("heroku restart --app " + id, stdout=OUT, shell=True)
     time.sleep(4)
 
-    # Send launch signal to server.
-    log("Launching the experiment...")
-    url = "http://" + id + ".herokuapp.com/launch"
-    print subprocess.call("curl -X POST " + url,
-                          stdout=OUT, stderr=OUT, shell=True)
-
     # Return to the branch we came from.
     log("Cleaning up...")
     subprocess.call("git checkout " + starting_branch,
