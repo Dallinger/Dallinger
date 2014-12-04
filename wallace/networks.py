@@ -16,6 +16,7 @@ class Network(object):
         return self.db.query(Agent)\
             .order_by(Agent.creation_time)\
             .filter(Agent.status != "failed")\
+            .filter(Agent.status != "dead")\
             .all()
 
     @property
