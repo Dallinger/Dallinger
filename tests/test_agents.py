@@ -2,7 +2,7 @@ from wallace import agents, information, db
 from nose.tools import raises
 
 
-class TestReplicatorAgents(object):
+class TestAgents(object):
 
     def setup(self):
         self.db = db.init_db(drop_all=True)
