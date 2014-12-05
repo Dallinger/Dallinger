@@ -36,6 +36,12 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
         time.sleep(delay)
 
 
+def ensure_heroku_logged_in():
+    p = pexpect.spawn("heroku auth:whoami")
+    p.interact()
+    print ""
+
+
 @click.group()
 def wallace():
     pass
@@ -157,6 +163,10 @@ def deploy(verbose):
         OUT = open(os.devnull, 'w')
 
     (id, tmp) = setup(debug=False, verbose=verbose)
+
+    # Log in to Heroku if we aren't already.
+    log("Making sure that you are logged in to Heroku.")
+    ensure_heroku_logged_in()
 
     # Change to temporary directory.
     cwd = os.getcwd()
