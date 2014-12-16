@@ -241,8 +241,8 @@ def deploy(verbose):
     subprocess.call(
         "heroku ps:scale web=1 --app " + id, stdout=OUT, shell=True)
     time.sleep(8)
-    subprocess.call("heroku restart --app " + id, stdout=OUT, shell=True)
-    time.sleep(4)
+    # subprocess.call("heroku restart --app " + id, stdout=OUT, shell=True)
+    # time.sleep(4)
 
     # Return to the branch we came from.
     os.chdir(cwd)
