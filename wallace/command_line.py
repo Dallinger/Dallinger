@@ -82,6 +82,14 @@ def setup(debug=True, verbose=False):
 
     print dst
 
+    # Save the experiment id
+    with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
+        file.write(id)
+
+    # Zip up the temporary directory and place it in the cwd.
+    log("Freezing the experiment package...")
+    shutil.make_archive(id + "-code", "zip", dst)
+
     # Change directory to the temporary folder.
     cwd = os.getcwd()
     os.chdir(dst)
@@ -331,7 +339,7 @@ def export(app, local):
         os.remove(os.path.join(id, dump_filename))
 
     log("Zipping up the package...")
-    shutil.make_archive(id, "zip", id)
+    shutil.make_archive(id + '-data', "zip", id)
     shutil.rmtree(id)
 
     log("Done. Data available in " + str(id) + ".zip")
