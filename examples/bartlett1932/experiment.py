@@ -50,7 +50,7 @@ class Bartlett1932(Experiment):
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.
-            self.recruiter().close_recruitment()
+            self.recruiter().close_recruitment(self)
         else:
             # Otherwise recruit a new participant.
             self.recruiter().recruit_new_participants(self, n=1)
