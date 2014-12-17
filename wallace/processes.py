@@ -35,12 +35,13 @@ class RandomWalkFromSource(Process):
 
         latest_recipient = self.get_latest_transmission_recipient()
 
-        if not self.is_begun():  # first step, replacer is a source
+        if (not self.is_begun()) or (latest_recipient is None):
             replacer = random.choice(self.network.sources)
         else:
             replacer = latest_recipient
 
-        options = replacer.outgoing_vectors
+        options = [v for v in replacer.outgoing_vectors
+                   if v.destination.status == "alive"]
 
         if options:
             replaced = random.choice(options).destination
