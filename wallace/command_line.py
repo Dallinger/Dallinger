@@ -133,6 +133,10 @@ def debug(verbose):
     config = PsiturkConfig()
     config.load_config()
 
+    # Check that the experiment is not reing run in live mode.
+    if config.get('Shell Parameters', 'launch_in_sandbox_mode') == 'false':
+        raise AssertionError("Experiment is being debugged in live mode")
+
     # Set environment variables.
     aws_vars = ['aws_access_key_id', 'aws_secret_access_key', 'aws_region']
     for var in aws_vars:
