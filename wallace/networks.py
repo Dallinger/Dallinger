@@ -70,7 +70,7 @@ class Network(object):
         print "\nSources: "
         for s in self.sources:
             print s
-            
+
         print "\nVectors: "
         for v in self.vectors:
             print v
@@ -189,15 +189,15 @@ class ScaleFree(Network):
                 outdegrees = [a.outdegree for a in these_agents]
 
                 # Select a member using preferential attachment
-                p = [(d / (1.0 * sum(outdegrees))) for d in outdegrees]
-                rnd = random.random() * sum(p)
+                ps = [(d / (1.0 * sum(outdegrees))) for d in outdegrees]
+                rnd = random.random() * sum(ps)
                 cur = 0.0
-                for i, p in enumerate(p):
+                for i, p in enumerate(ps):
                     cur += p
                     if rnd < cur:
                         vector_to = these_agents[i]
 
-                # Create vector from the newcomer to the selected member and back
+                # Create vector from newcomer to selected member and back
                 newcomer.connect_to(vector_to)
                 newcomer.connect_from(vector_to)
                 self.db.commit()
