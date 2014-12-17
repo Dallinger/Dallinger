@@ -14,31 +14,26 @@ Wallace is a platform for conducting research on experimental cultural evolution
     
 Features
 --------
-
 - Run experiments on experimental cultural evolution
 - Coordinates participant recruitment using Mechanical Turk
 - Example experiments that cover a range of common experimental designs
 
 Installation
 ------------
-
 Install Wallace by running:
 
     pip install wallace
 
 Contribute
 ----------
-
-- Issue Tracker: github.com/suchow/Wallace/issues
-- Source Code: github.com/suchow/Wallace
+- Issue Tracker: http://github.com/suchow/Wallace/issues
+- Source Code: http://github.com/suchow/Wallace
 
 Support
 -------
-
 If you are having issues, please let us know.
-We have a mailing list located at: wallace-project@lists.berkeley.edu
+We run a users group at https://groups.google.com/d/forum/wallace-users
 
 License
 -------
-
 The project is licensed under the MIT license.
