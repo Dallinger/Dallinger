@@ -198,6 +198,8 @@ def deploy(verbose):
 
         "heroku pg:wait",
 
+        "heroku addons:add papertrail",
+
         "heroku config:set HOST=" +
         id + ".herokuapp.com",
 
@@ -333,6 +335,12 @@ def export(app, local):
     shutil.rmtree(id)
 
     log("Done. Data available in " + str(id) + ".zip")
+
+
+@wallace.command()
+@click.option('--app', default=None, help='ID of the deployed experiment')
+def logs(app):
+    subprocess.call("heroku addons:open papertrail --app " + app, shell=True)
 
 
 @wallace.command()
