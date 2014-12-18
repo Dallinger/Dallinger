@@ -7,7 +7,9 @@ class Experiment(object):
         pass
 
     def transmission_reception_trigger(self, transmissions):
-        pass
+        # Mark transmissions as received
+        for t in transmissions:
+            t.mark_received()
 
     def information_creation_trigger(self, info):
         pass

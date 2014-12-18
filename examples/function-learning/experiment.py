@@ -41,11 +41,6 @@ class FunctionLearning(Experiment):
         # Run the next step of the process.
         self.process.step()
 
-    def transmission_reception_trigger(self, transmissions):
-        # Mark transmissions as received
-        for t in transmissions:
-            t.mark_received()
-
     def information_creation_trigger(self, info):
 
         agent = info.origin
