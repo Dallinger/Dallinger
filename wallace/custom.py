@@ -124,7 +124,7 @@ def api_transmission(transmission_uuid):
             print "no transmission uuid specified"
             pending_transmissions = models.Transmission\
                 .query\
-                .filter_by(destination_uuid=request.args['destination_uuid'])\
+                .filter_by(destination_uuid=request.values['destination_uuid'])\
                 .filter_by(receive_time=None)\
                 .order_by(models.Transmission.transmit_time)\
                 .all()
@@ -161,12 +161,12 @@ def api_transmission(transmission_uuid):
 
         info = models.Info\
             .query\
-            .filter_by(uuid=request.args['info_uuid'])\
+            .filter_by(uuid=request.values['info_uuid'])\
             .one()
 
         destination = agents.Agent\
             .query\
-            .filter_by(uuid=request.args['destination_uuid'])\
+            .filter_by(uuid=request.values['destination_uuid'])\
             .one()
 
         transmission = models.Transmission(info=info, destination=destination)
@@ -206,17 +206,17 @@ def api_info(info_uuid):
 
     if request.method == "POST":
 
-        if 'origin_uuid' in request.args:
+        if 'origin_uuid' in request.values:
 
             # models
             node = models.Node\
                 .query\
-                .filter_by(uuid=request.args['origin_uuid'])\
+                .filter_by(uuid=request.values['origin_uuid'])\
                 .one()
 
             info = models.Info(
                 origin=node,
-                contents=request.args['contents'])
+                contents=request.values['contents'])
 
             session.add(info)
             session.commit()

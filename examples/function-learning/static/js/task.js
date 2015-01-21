@@ -168,9 +168,12 @@ var FunctionLearningExperiment = function() {
                 response = encodeURIComponent(JSON.stringify({"x": xTest, "y": yTest}));
 
                 reqwest({
-                    url: "/information?origin_uuid=" + agent_uuid +
-                        "&contents=" + response,
+                    url: "/information",
                     method: 'post',
+                    data: {
+                        origin_uuid: agent_uuid,
+                        contents: response
+                    }
                 });
 
                 // Show the questionnaire.

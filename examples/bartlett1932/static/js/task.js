@@ -108,10 +108,12 @@ var StroopExperiment = function() {
 		response = encodeURIComponent($("#reproduction").val());
 
 		reqwest({
-		    url: "/information?origin_uuid=" + agent_uuid +
-		    	"&contents=" + response,
+		    url: "/information",
 		  	method: 'post',
-		  	data: { foo: 'bar', baz: 100 }
+		  	data: {
+		  		origin_uuid: agent_uuid,
+		  		contents: response
+		  	}
 		});
 
 		currentview = new Questionnaire();
