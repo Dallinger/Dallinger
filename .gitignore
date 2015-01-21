@@ -8,3 +8,4 @@
 /cover/
 *.egg-info/
 *.db-journal
+*.zip
