@@ -353,7 +353,12 @@ def export(app, local):
 @wallace.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def logs(app):
-    subprocess.call("heroku addons:open papertrail --app " + app, shell=True)
+    if app is None:
+        raise TypeError("Select an experiment using the --app flag.")
+    else:
+        subprocess.call(
+            "heroku addons:open papertrail --app " + app, shell=True)
+
 
 
 @wallace.command()
