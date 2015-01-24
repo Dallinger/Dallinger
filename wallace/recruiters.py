@@ -110,12 +110,24 @@ class PsiTurkRecruiter(Recruiter):
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
     def open_recruitment(self, exp):
+        """Open recruitment for the first HIT, unless it's already open."""
 
-        # Create the first HIT.
-        self.shell.hit_create(
-            1,
-            self.config.get('HIT Configuration', 'base_payment'),
-            self.config.get('HIT Configuration', 'expiration_hrs'))
+        try:
+            previous_participant = Participant.query\
+                .order_by(desc(Participant.endhit))\
+                .first()
+            last_hit_id = str(previous_participant.hitid)
+
+        except Exception:
+            # Create the first HIT.
+            self.shell.hit_create(
+                1,
+                self.config.get('HIT Configuration', 'base_payment'),
+                self.config.get('HIT Configuration', 'expiration_hrs'))
+
+        else:
+            # HIT was already created, no need to recreate.
+            print "Reject recruitment reopening, HIT id: " + last_hit_id
 
     def recruit_new_participants(self, exp, n=1):
         previous_participant = Participant.query\
