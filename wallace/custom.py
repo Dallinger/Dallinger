@@ -15,6 +15,7 @@ from wallace import db, agents, models
 
 import imp
 import inspect
+import urllib
 
 # load the configuration options
 config = PsiturkConfig()
@@ -214,9 +215,11 @@ def api_info(info_uuid):
                 .filter_by(uuid=request.values['origin_uuid'])\
                 .one()
 
+            cnts = urllib.unquote(request.values['contents']).decode('utf8')
+
             info = models.Info(
                 origin=node,
-                contents=request.values['contents'])
+                contents=cnts)
 
             session.add(info)
             session.commit()
