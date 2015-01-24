@@ -24,6 +24,22 @@ class Recruiter(object):
         raise NotImplementedError
 
 
+class HotAirRecruiter(object):
+    """The hot air recruiter prints statements about recruiting, but doesn't
+    actually recruit anyone."""
+    def __init__(self):
+        super(HotAirRecruiter, self).__init__()
+
+    def open_recruitment(self, exp):
+        print "Opening recruitment."
+
+    def recruit_new_participants(self, exp, n=1):
+        print "Recruiting a new participant."
+
+    def close_recruitment(self, exp):
+        print "Close recruitment."
+
+
 class SimulatedRecruiter(object):
     def __init__(self):
         super(SimulatedRecruiter, self).__init__()

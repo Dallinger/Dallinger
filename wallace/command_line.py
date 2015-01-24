@@ -13,6 +13,7 @@ import tempfile
 import inspect
 import imp
 import pkg_resources
+import re
 
 
 def print_header():
@@ -134,9 +135,22 @@ def debug(verbose):
     config = PsiturkConfig()
     config.load_config()
 
-    # Check that the experiment is not reing run in live mode.
-    if config.get('Shell Parameters', 'launch_in_sandbox_mode') == 'false':
-        raise AssertionError("Experiment is being debugged in live mode")
+    # Set the mode to debug.
+    config.set("Experiment Configuration", "mode", "debug")
+
+    # Swap in the HotAirRecruiter
+    os.rename("wallace_experiment.py", "wallace_experiment_tmp.py")
+    with open("wallace_experiment_tmp.py", "r+") as f:
+        with open("wallace_experiment.py", "w+") as f2:
+            f2.write("from wallace.recruiters import HotAirRecruiter\n")
+            for idx, line in enumerate(f):
+                if re.search("\s*self.recruiter = (.*)", line):
+                    p = line.partition("self.recruiter =")
+                    f2.write(p[0] + p[1] + ' HotAirRecruiter\n')
+                else:
+                    f2.write(line)
+
+    os.remove("wallace_experiment_tmp.py")
 
     # Set environment variables.
     aws_vars = ['aws_access_key_id', 'aws_secret_access_key', 'aws_region']
@@ -165,10 +179,7 @@ def debug(verbose):
     os.chdir(cwd)
 
 
-@wallace.command()
-@click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def deploy(verbose):
-    """Deploy app using Heroku."""
+def deploy_sandbox_shared_setup(verbose=True):
 
     if verbose:
         OUT = None
@@ -266,6 +277,44 @@ def deploy(verbose):
 
 
 @wallace.command()
+@click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
+def sandbox(verbose):
+    """Deploy app using Heroku to the MTurk Sandbox"""
+
+    # Load psiTurk configuration.
+    config = PsiturkConfig()
+    config.load_config()
+
+    # Set the mode.
+    config.set("Experiment Configuration", "mode", "sandbox")
+
+    # Ensure that psiTurk is in sandbox mode.
+    config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
+
+    # Do shared setup.
+    deploy_sandbox_shared_setup(verbose=verbose)
+
+
+@wallace.command()
+@click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
+def deploy(verbose):
+    """Deploy app using Heroku to MTurk."""
+
+    # Load psiTurk configuration.
+    config = PsiturkConfig()
+    config.load_config()
+
+    # Set the mode.
+    config.set("Experiment Configuration", "mode", "deploy")
+
+    # Ensure that psiTurk is not in sandbox mode.
+    config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
+
+    # Do shared setup.
+    deploy_sandbox_shared_setup(verbose=verbose)
+
+
+@wallace.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option(
     '--local', is_flag=True, flag_value=True, help='Export local data')
@@ -358,7 +407,6 @@ def logs(app):
     else:
         subprocess.call(
             "heroku addons:open papertrail --app " + app, shell=True)
-
 
 
 @wallace.command()
