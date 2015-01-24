@@ -166,6 +166,8 @@ var Questionnaire = function() {
 	psiTurk.recordTrialData({'phase':'postquestionnaire', 'status':'begin'});
 
 	$("#next").click(function () {
+		$('#next').prop('disabled', true);
+		$("#next-symbol").attr('class', 'glyphicon glyphicon-refresh glyphicon-refresh-animate');
 	    record_responses();
 	    psiTurk.saveData({
             success: function(){
