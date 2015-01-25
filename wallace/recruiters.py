@@ -127,12 +127,8 @@ class PsiTurkRecruiter(Recruiter):
 
     def open_recruitment(self, exp):
         """Open recruitment for the first HIT, unless it's already open."""
-
         try:
-            previous_participant = Participant.query\
-                .order_by(desc(Participant.endhit))\
-                .first()
-            last_hit_id = str(previous_participant.hitid)
+            Participant.query.all()
 
         except Exception:
             # Create the first HIT.
@@ -142,8 +138,8 @@ class PsiTurkRecruiter(Recruiter):
                 self.config.get('HIT Configuration', 'expiration_hrs'))
 
         else:
-            # HIT was already created, no need to recreate.
-            print "Reject recruitment reopening, HIT id: " + last_hit_id
+            # HIT was already created, no need to recreate it.
+            print "Reject recruitment reopening: experiment has started."
 
     def recruit_new_participants(self, exp, n=1):
         previous_participant = Participant.query\
