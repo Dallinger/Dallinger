@@ -180,7 +180,7 @@ def debug(verbose):
     os.chdir(cwd)
 
 
-def deploy_sandbox_shared_setup(verbose=True):
+def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
     if verbose:
         OUT = None
@@ -265,8 +265,8 @@ def deploy_sandbox_shared_setup(verbose=True):
                     stderr=OUT, shell=True)
 
     log("Starting up the web server...")
-    subprocess.call(
-        "heroku ps:scale web=1 --app " + id, stdout=OUT, shell=True)
+    subprocess.call("heroku ps:scale web=" + str(web_procs) +
+                    " --app " + id, stdout=OUT, shell=True)
     time.sleep(8)
     # subprocess.call("heroku restart --app " + id, stdout=OUT, shell=True)
     # time.sleep(4)
@@ -279,7 +279,8 @@ def deploy_sandbox_shared_setup(verbose=True):
 
 @wallace.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def sandbox(verbose):
+@click.option('--web', default=1, help='Web processes')
+def sandbox(verbose, web):
     """Deploy app using Heroku to the MTurk Sandbox"""
 
     # Load psiTurk configuration.
@@ -293,12 +294,14 @@ def sandbox(verbose):
     config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(verbose=verbose)
+    deploy_sandbox_shared_setup(
+        verbose=verbose, web_procs=web)
 
 
 @wallace.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def deploy(verbose):
+@click.option('--web', default=1, help='Web processes')
+def deploy(verbose, web):
     """Deploy app using Heroku to MTurk."""
 
     # Load psiTurk configuration.
@@ -312,7 +315,8 @@ def deploy(verbose):
     config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(verbose=verbose)
+    deploy_sandbox_shared_setup(
+        verbose=verbose, web_procs=web)
 
 
 @wallace.command()
