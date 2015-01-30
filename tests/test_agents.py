@@ -136,3 +136,121 @@ class TestAgents(object):
 
         transmissions = info.transmissions
         assert len(transmissions) == 2
+
+    def test_create_biological_agent(self):
+
+        agent = agents.BiologicalAgent()
+        self.add(agent)
+
+        assert len(agent.memome) == 0
+        assert len(agent.genome) == 0
+
+        meme = information.Meme(origin=agent, contents="foo")
+        gene = information.Gene(origin=agent, contents="bar")
+        self.add(meme)
+        self.add(gene)
+        self.db.commit()
+
+        assert meme in agent.memome
+        assert gene in agent.genome
+
+    def test_transmit_selector_default(self):
+
+        # Create a network of two biological agents.
+        agent1 = agents.BiologicalAgent()
+        agent2 = agents.BiologicalAgent()
+        agent1.connect_to(agent2)
+
+        self.add(agent1)
+        self.add(agent2)
+        self.db.commit()
+
+        meme = information.Meme(origin=agent1, contents="foo")
+        gene = information.Gene(origin=agent1, contents="bar")
+        self.add(meme)
+        self.add(gene)
+        self.db.commit()
+
+        assert len(agent1.genome) == 1
+        assert len(agent1.genome) == 1
+        assert len(agent2.genome) == 0
+        assert len(agent2.genome) == 0
+
+        # Transmit from agent 1 to 2.
+        agent1.transmit(agent2)
+
+        # Receive the transmission.
+        agent2.receive_all()
+        self.db.commit()
+
+        # Make sure that Agent 2 has a blank memome and the right gene.
+        assert "foo" == agent2.memome[0].contents
+        assert "bar" == agent2.genome[0].contents
+
+    def test_transmit_selector_specific_info(self):
+
+        # Create a network of two biological agents.
+        agent1 = agents.BiologicalAgent()
+        agent2 = agents.BiologicalAgent()
+        agent1.connect_to(agent2)
+
+        self.add(agent1)
+        self.add(agent2)
+        self.db.commit()
+
+        meme = information.Meme(origin=agent1, contents="foo")
+        gene = information.Gene(origin=agent1, contents="bar")
+        self.add(meme)
+        self.add(gene)
+        self.db.commit()
+
+        assert len(agent1.genome) == 1
+        assert len(agent1.genome) == 1
+        assert len(agent2.genome) == 0
+        assert len(agent2.genome) == 0
+
+        # Transmit from agent 1 to 2.
+        agent1.transmit(agent2, selector=gene)
+
+        # Receive the transmission.
+        agent2.receive_all()
+        self.db.commit()
+
+        # Make sure that Agent 2 has a blank memome and the right gene.
+        assert not agent2.memome
+        assert "bar" == agent2.genome[0].contents
+
+    def test_transmit_selector_all_of_type(self):
+
+        # Create a network of two biological agents.
+        agent1 = agents.BiologicalAgent()
+        agent2 = agents.BiologicalAgent()
+        agent1.connect_to(agent2)
+
+        self.add(agent1)
+        self.add(agent2)
+        self.db.commit()
+
+        meme1 = information.Meme(origin=agent1, contents="foo1")
+        meme2 = information.Meme(origin=agent1, contents="foo2")
+        meme3 = information.Meme(origin=agent1, contents="foo3")
+        gene = information.Gene(origin=agent1, contents="bar")
+        self.add(meme1, meme2, meme3)
+        self.add(gene)
+        self.db.commit()
+
+        assert len(agent1.memome) == 3
+        assert len(agent2.memome) == 0
+        assert len(agent1.genome) == 1
+        assert len(agent2.genome) == 0
+
+        # Transmit memes from agent 1 to 2.
+        agent1.transmit(agent2, selector=information.Meme)
+
+        # Receive the transmission.
+        agent2.receive_all()
+        self.db.commit()
+
+        # Make sure that Agent 2 has a blank memome and the right gene.
+        assert not agent2.genome
+        assert len(agent2.memome) == 3
