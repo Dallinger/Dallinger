@@ -1,4 +1,4 @@
-from wallace import agents, information, db
+from wallace import agents, information, db, information, models
 from nose.tools import raises
 
 
@@ -25,6 +25,7 @@ class TestAgents(object):
     def test_create_agent_generic_transmit(self):
         agent1 = agents.Agent()
         agent2 = agents.Agent()
+        agent1.connect_to(agent2)
         self.add(agent1, agent2)
         agent1.transmit(agent2)
 
@@ -74,7 +75,7 @@ class TestAgents(object):
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
         agent1.connect_to(agent2)
-        info = information.Info(origin=agent1, contents="foo")
+        info = models.Info(origin=agent1, contents="foo")
         self.add(agent1, agent2, info)
         self.db.commit()
 
@@ -87,13 +88,38 @@ class TestAgents(object):
         assert agent1.info.contents == agent2.info.contents
         assert agent1.info.uuid != agent2.info.uuid
 
+        transmission = info.transmissions[0]
+        assert transmission.info_uuid == info.uuid
+        assert transmission.origin_uuid == agent1.uuid
+        assert transmission.destination_uuid == agent2.uuid
+
+    @raises(ValueError)
+    def test_agent_transmit_no_connection(self):
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
+        info = models.Info(origin=agent1, contents="foo")
+        self.add(agent1, agent2, info)
+        agent1.transmit(agent2, info)
+        self.db.commit()
+
+    @raises(ValueError)
+    def test_agent_transmit_invalid_info(self):
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
+        agent1.connect_to(agent2)
+        info = models.Info(origin=agent2, contents="foo")
+        self.add(agent1, agent2, info)
+
+        agent1.transmit(agent2, info)
+        self.db.commit()
+
     def test_agent_broadcast(self):
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
         agent3 = agents.ReplicatorAgent()
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
-        info = information.Gene(origin=agent1, contents="foo")
+        info = models.Info(origin=agent1, contents="foo")
         self.add(agent1, agent2, agent3, info)
         self.db.commit()
 
@@ -107,3 +133,6 @@ class TestAgents(object):
         assert agent1.info.contents == agent2.info.contents
         assert agent1.info.contents == agent3.info.contents
         assert agent1.info.uuid != agent2.info.uuid != agent3.info.uuid
+
+        transmissions = info.transmissions
+        assert len(transmissions) == 2

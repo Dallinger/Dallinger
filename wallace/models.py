@@ -5,7 +5,7 @@ from datetime import datetime
 from .db import Base
 
 # various sqlalchemy imports
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, desc
 from sqlalchemy import Column, String, Text, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -81,29 +81,14 @@ class Node(Base):
         vector = Vector(origin=other_node, destination=self)
         self.incoming_vectors.append(vector)
 
-    def transmit(self, info, other_node):
-        """Transmits the specified info to 'other_node'. The info must have
-        been created by this node, and this node must be connected to
-        'other_node'.
-
-        """
-        if not self.has_connection_to(other_node):
-            raise ValueError(
-                "'{}' is not connected to '{}'".format(self, other_node))
-        if not info.origin_uuid == self.uuid:
-            raise ValueError(
-                "'{}' was not created by '{}'".format(info, self))
-
-        t = Transmission(info=info, destination=other_node)
-        info.transmissions.append(t)
+    def transmit(self, other_node, selector=None):
+        raise NotImplementedError
 
     def broadcast(self, info):
         """Broadcast the specified info to all connected nodes. The info must
-        have been created by this node.
-
-        """
+        have been created by this node."""
         for vector in self.outgoing_vectors:
-            self.transmit(info, vector.destination)
+            self.transmit(vector.destination, info)
 
     def update(self, info):
         raise NotImplementedError(

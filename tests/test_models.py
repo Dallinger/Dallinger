@@ -1,4 +1,4 @@
-from wallace import models, db
+from wallace import models, db, agents
 from nose.tools import raises
 
 
@@ -90,60 +90,6 @@ class TestModels(object):
         self.add(node1, node2)
 
         self._check_single_connection(node2, node1)
-
-    def test_node_transmit(self):
-        node1 = models.Node()
-        node2 = models.Node()
-        node1.connect_to(node2)
-        info = models.Info(origin=node1, contents="foo")
-        self.add(node1, node2, info)
-
-        node1.transmit(info, node2)
-        self.db.commit()
-
-        transmission = info.transmissions[0]
-        assert transmission.info_uuid == info.uuid
-        assert transmission.origin_uuid == node1.uuid
-        assert transmission.destination_uuid == node2.uuid
-
-    @raises(ValueError)
-    def test_node_transmit_no_connection(self):
-        node1 = models.Node()
-        node2 = models.Node()
-        info = models.Info(origin=node1, contents="foo")
-        self.add(node1, node2, info)
-
-        node1.transmit(info, node2)
-        self.db.commit()
-
-    @raises(ValueError)
-    def test_node_transmit_invalid_info(self):
-        node1 = models.Node()
-        node2 = models.Node()
-        node1.connect_to(node2)
-        info = models.Info(origin=node2, contents="foo")
-        self.add(node1, node2, info)
-
-        node1.transmit(info, node2)
-        self.db.commit()
-
-    def test_node_broadcast(self):
-        node1 = models.Node()
-        self.db.add(node1)
-
-        for i in xrange(5):
-            new_node = models.Node()
-            node1.connect_to(new_node)
-            self.db.add(new_node)
-
-        info = models.Info(origin=node1, contents="foo")
-        self.add(info)
-
-        node1.broadcast(info)
-        self.db.commit()
-
-        transmissions = info.transmissions
-        assert len(transmissions) == 5
 
     def test_node_outdegree(self):
         node1 = models.Node()
@@ -309,26 +255,26 @@ class TestModels(object):
 
     def test_info_copy_to(self):
         """Check that Info.copy_to works correctly"""
-        node1 = models.Node()
-        node2 = models.Node()
-        node1.connect_to(node2)
-        self.add(node1, node2)
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
+        agent1.connect_to(agent2)
+        self.add(agent1, agent2)
 
-        info1 = models.Info(origin=node1, contents="foo")
-        node1.transmit(info1, node2)
-        info2 = info1.copy_to(node2)
+        info1 = models.Info(origin=agent1, contents="foo")
+        agent1.transmit(agent2, info1)
+        info2 = info1.copy_to(agent2)
         self.add(info1, info2)
 
         assert info1.uuid != info2.uuid
         assert info1.type == info2.type
         assert info1.creation_time != info2.creation_time
         assert info1.contents == info2.contents
-        assert info1.origin_uuid == node1.uuid
-        assert info2.origin_uuid == node2.uuid
+        assert info1.origin_uuid == agent1.uuid
+        assert info2.origin_uuid == agent2.uuid
         assert len(info1.transmissions) == 1
         assert len(info2.transmissions) == 0
-        assert node1.information == [info1]
-        assert node2.information == [info2]
+        assert agent1.information == [info1]
+        assert agent2.information == [info2]
 
     ##################################################################
     ## Transmission
@@ -363,41 +309,41 @@ class TestModels(object):
                 ["Transmission", transmission.uuid[:6]])
 
     def test_node_incoming_transmissions(self):
-        node1 = models.Node()
-        node2 = models.Node()
-        node3 = models.Node()
-        node1.connect_from(node2)
-        node1.connect_from(node3)
-        self.add(node1, node2, node3)
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
+        agent3 = agents.ReplicatorAgent()
+        agent1.connect_from(agent2)
+        agent1.connect_from(agent3)
+        self.add(agent1, agent2, agent3)
 
-        info1 = models.Info(origin=node2, contents="foo")
-        info2 = models.Info(origin=node3, contents="bar")
+        info1 = models.Info(origin=agent2, contents="foo")
+        info2 = models.Info(origin=agent3, contents="bar")
         self.add(info1, info2)
 
-        node2.transmit(info1, node1)
-        node3.transmit(info2, node1)
+        agent2.transmit(agent1, info1)
+        agent3.transmit(agent1, info2)
         self.db.commit()
 
-        assert len(node1.incoming_transmissions) == 2
-        assert len(node2.incoming_transmissions) == 0
-        assert len(node3.incoming_transmissions) == 0
+        assert len(agent1.incoming_transmissions) == 2
+        assert len(agent2.incoming_transmissions) == 0
+        assert len(agent3.incoming_transmissions) == 0
 
     def test_node_outgoing_transmissions(self):
-        node1 = models.Node()
-        node2 = models.Node()
-        node3 = models.Node()
-        node1.connect_to(node2)
-        node1.connect_to(node3)
-        self.add(node1, node2, node3)
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
+        agent3 = agents.ReplicatorAgent()
+        agent1.connect_to(agent2)
+        agent1.connect_to(agent3)
+        self.add(agent1, agent2, agent3)
 
-        info1 = models.Info(origin=node1, contents="foo")
-        info2 = models.Info(origin=node1, contents="bar")
+        info1 = models.Info(origin=agent1, contents="foo")
+        info2 = models.Info(origin=agent1, contents="bar")
         self.add(info1, info2)
 
-        node1.transmit(info1, node2)
-        node1.transmit(info2, node3)
+        agent1.transmit(agent2, info1)
+        agent1.transmit(agent3, info2)
         self.db.commit()
 
-        assert len(node1.outgoing_transmissions) == 2
-        assert len(node2.outgoing_transmissions) == 0
-        assert len(node3.outgoing_transmissions) == 0
+        assert len(agent1.outgoing_transmissions) == 2
+        assert len(agent2.outgoing_transmissions) == 0
+        assert len(agent3.outgoing_transmissions) == 0
