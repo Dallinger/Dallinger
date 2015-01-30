@@ -1,4 +1,4 @@
-from .models import Node, Info
+from .models import Node, Info, Transmission
 from sqlalchemy import ForeignKey, Column, String
 import random
 
@@ -19,7 +19,8 @@ class Source(Node):
             origin_uuid=self.uuid,
             contents=self._data())
 
-        super(Source, self).transmit(info, other_node)
+        t = Transmission(info=info, destination=other_node)
+        info.transmissions.append(t)
 
     def broadcast(self):
         for vector in self.outgoing_vectors:

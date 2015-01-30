@@ -1,7 +1,7 @@
 from sqlalchemy import ForeignKey, Column, String, desc
 from datetime import datetime
 
-from .models import Node, Info
+from .models import Node, Info, Transmission
 from .information import Gene, Meme
 
 DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
@@ -23,10 +23,43 @@ class Agent(Node):
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    def update(self, info):
+    def transmit(self, other_node, selector=None):
+        """Transmits the specified info to 'other_node'. The info must have
+        been created by this node, and this node must be connected to
+        'other_node'.
+        """
+        if not self.has_connection_to(other_node):
+            raise ValueError(
+                "'{}' is not connected to '{}'".format(self, other_node))
+
+        # Transmit using the default logic.
+        if selector is None:
+            selections = self._selector()
+
+        # Transmit the specified info.
+        elif isinstance(selector, Info):
+            if not selector.origin_uuid == self.uuid:
+                raise ValueError(
+                    "'{}' was not created by '{}'".format(selector, self))
+
+            selections = [selector]
+
+        # Transmit all information of the specified class.
+        elif issubclass(selector, Info):
+            selections = selector\
+                .query\
+                .filter_by(origin_uuid=self.uuid)\
+                .order_by(desc(Info.creation_time))\
+                .all()
+
+        for s in selections:
+            t = Transmission(info=s, destination=other_node)
+            s.transmissions.append(t)
+
+    def _selector(self):
         raise NotImplementedError
 
-    def transmit(self, other_node):
+    def update(self, info):
         raise NotImplementedError
 
     def broadcast(self):
@@ -67,6 +100,14 @@ class BiologicalAgent(Agent):
             .all()
         return memome
 
+    def _selector(self):
+        """Returns a list of Infos that should be transmitted by default, when
+        a selector is not specified."""
+        return [self.genome[0], self.memome[0]]
+
+    def update(self, info):
+        info.copy_to(self)
+
 
 class ReplicatorAgent(Agent):
 
@@ -84,5 +125,5 @@ class ReplicatorAgent(Agent):
     def update(self, info):
         info.copy_to(self)
 
-    def transmit(self, other_node):
-        super(Agent, self).transmit(self.info, other_node)
+    def _selector(self):
+        return [self.info]
