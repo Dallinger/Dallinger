@@ -9,22 +9,31 @@ class Source(Node):
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
+    def _selector(self):
+        return []
+
     @staticmethod
     def _data():
         return NotImplementedError
 
-    def transmit(self, other_node):
-        info = Info(
+    def transmit(self, other_node, selector=None):
+
+        if selector is None:
+            cls = Info
+
+        elif issubclass(selector, Info):
+            cls = selector
+
+        info = cls(
             origin=self,
             origin_uuid=self.uuid,
             contents=self._data())
 
-        t = Transmission(info=info, destination=other_node)
-        info.transmissions.append(t)
+        super(Source, self).transmit(other_node, selector=info)
 
     def broadcast(self):
         for vector in self.outgoing_vectors:
-            self.transmit(vector.destination)
+            self.transmit(vector.destination, selector=Info)
 
 
 class RandomBinaryStringSource(Source):

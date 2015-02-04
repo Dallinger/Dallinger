@@ -82,7 +82,37 @@ class Node(Base):
         self.incoming_vectors.append(vector)
 
     def transmit(self, other_node, selector=None):
-        raise NotImplementedError
+        """Transmits the specified info to 'other_node'. The info must have
+        been created by this node, and this node must be connected to
+        'other_node'.
+        """
+        if not self.has_connection_to(other_node):
+            raise ValueError(
+                "'{}' is not connected to '{}'".format(self, other_node))
+
+        # Transmit using the default logic.
+        if selector is None:
+            selections = self._selector()
+
+        # Transmit the specified info.
+        elif isinstance(selector, Info):
+            if not selector.origin_uuid == self.uuid:
+                raise ValueError(
+                    "'{}' was not created by '{}'".format(selector, self))
+
+            selections = [selector]
+
+        # Transmit all information of the specified class.
+        elif issubclass(selector, Info):
+            selections = selector\
+                .query\
+                .filter_by(origin_uuid=self.uuid)\
+                .order_by(desc(Info.creation_time))\
+                .all()
+
+        for s in selections:
+            t = Transmission(info=s, destination=other_node)
+            s.transmissions.append(t)
 
     def broadcast(self, info):
         """Broadcast the specified info to all connected nodes. The info must
