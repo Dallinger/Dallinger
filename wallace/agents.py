@@ -72,8 +72,9 @@ class BiologicalAgent(Agent):
         a selector is not specified."""
         return [self.genome[0], self.memome[0]]
 
-    def update(self, info):
-        info.copy_to(self)
+    def update(self, infos):
+        for info in infos:
+            info.copy_to(self)
 
 
 class ReplicatorAgent(Agent):
@@ -89,8 +90,9 @@ class ReplicatorAgent(Agent):
             .first()
         return info
 
-    def update(self, info):
-        info.copy_to(self)
+    def update(self, infos):
+        for info in infos:
+            info.copy_to(self)
 
     def _selector(self):
         return [self.info]
