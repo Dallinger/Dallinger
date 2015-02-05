@@ -115,7 +115,7 @@ class Node(Base):
 
         # Transmit using the default logic.
         if selector is None:
-            selections = self._selector()
+            selector = self._selector()
 
         # Transmit the specified info.
         if isinstance(selector, Info):
