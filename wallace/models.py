@@ -118,7 +118,7 @@ class Node(Base):
             selections = self._selector()
 
         # Transmit the specified info.
-        elif isinstance(selector, Info):
+        if isinstance(selector, Info):
             if not selector.origin_uuid == self.uuid:
                 raise ValueError(
                     "'{}' was not created by '{}'".format(selector, self))
