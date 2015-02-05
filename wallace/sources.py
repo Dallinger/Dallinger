@@ -12,8 +12,8 @@ class Source(Node):
     def _selector(self):
         return []
 
-    @staticmethod
-    def _data():
+    def create_information(self):
+        """Generate new information."""
         return NotImplementedError
 
     def transmit(self, other_node, selector=None):
