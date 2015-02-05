@@ -127,7 +127,7 @@ class Node(Base):
 
             selections = [selector]
 
-        if isinstance(selector, list) and all([isinstance(o, Info) for o in selector]):
+        elif isinstance(selector, list) and all([isinstance(o, Info) for o in selector]):
 
             selections = selector
 
