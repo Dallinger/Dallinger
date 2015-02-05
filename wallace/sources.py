@@ -10,11 +10,11 @@ class Source(Node):
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     def _selector(self):
-        return None
+        raise NotImplementedError("You need to overwrite the default _selector")
 
     def create_information(self):
         """Generate new information."""
-        return NotImplementedError
+        raise NotImplementedError("You need to overwrite the default create_information")
 
 
 class RandomBinaryStringSource(Source):

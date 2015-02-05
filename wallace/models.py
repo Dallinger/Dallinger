@@ -116,6 +116,8 @@ class Node(Base):
         # Transmit using the default logic.
         if selector is None:
             selector = self._selector()
+            if selector is None:
+                raise ValueError("Your default selector cannot be None.")
 
         # Transmit the specified info.
         if isinstance(selector, Info):
