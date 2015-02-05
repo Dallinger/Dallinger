@@ -143,11 +143,11 @@ class Node(Base):
             t = Transmission(info=s, destination=other_node)
             s.transmissions.append(t)
 
-    def broadcast(self, info=None):
+    def broadcast(self, selector=None):
         """Broadcast the specified info to all connected nodes. The info must
         have been created by this node."""
         for vector in self.outgoing_vectors:
-            self.transmit(vector.destination, info)
+            self.transmit(vector.destination, selector)
 
     def update(self, infos):
         raise NotImplementedError(

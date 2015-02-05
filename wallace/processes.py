@@ -60,7 +60,7 @@ class MoranProcessCultural(Process):
 
         if not self.is_begun():  # first step, replacer is a source
             replacer = random.choice(self.network.sources)
-            replacer.broadcast()
+            replacer.broadcast(selector=models.Info)
         else:
             replacer = random.choice(self.network.agents)
             replaced = random.choice(replacer.outgoing_vectors).destination
