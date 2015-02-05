@@ -125,6 +125,10 @@ class Node(Base):
 
             selections = [selector]
 
+        if isinstance(selector, list) and all([isinstance(o, Info) for o in selector]):
+
+            selections = selector
+
         # Transmit all information of the specified class.
         elif issubclass(selector, Info):
             selections = selector\
@@ -143,7 +147,7 @@ class Node(Base):
         for vector in self.outgoing_vectors:
             self.transmit(vector.destination, info)
 
-    def update(self, info):
+    def update(self, infos):
         raise NotImplementedError(
             "The update method of node '{}' has not been overridden".format(self))
 

@@ -26,7 +26,7 @@ class Agent(Node):
     def _selector(self):
         raise NotImplementedError
 
-    def update(self, info):
+    def update(self, infos):
         raise NotImplementedError
 
     def broadcast(self):
@@ -38,7 +38,7 @@ class Agent(Node):
         for transmission in pending_transmissions:
             transmission.receive_time = timenow()
             transmission.mark_received()
-            self.update(transmission.info)
+        self.update([t.info for t in pending_transmissions])
 
 
 class BiologicalAgent(Agent):
