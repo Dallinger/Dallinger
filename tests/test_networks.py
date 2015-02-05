@@ -90,33 +90,6 @@ class TestNetworks(object):
         assert net.get_degrees() == [0, 0]
         assert net.sources[0].outdegree == 1
 
-    def test_network_trigger_source(self):
-        net = networks.Network(agents.Agent, self.db)
-        agent1 = agents.ReplicatorAgent()
-        agent2 = agents.ReplicatorAgent()
-        self.db.add_all([agent1, agent2])
-        self.db.commit()
-
-        source = sources.RandomBinaryStringSource()
-        net.add_source_global(source)
-
-        agent1.receive_all()
-        agent2.receive_all()
-        self.db.commit()
-
-        assert agent1.info is None
-        assert agent2.info is None
-
-        net.trigger_source(source)
-
-        agent1.receive_all()
-        agent2.receive_all()
-        self.db.commit()
-
-        assert agent1.info
-        assert agent2.info
-        assert len(source.outgoing_transmissions) == 2
-
     def test_network_add_agent(self):
         net = networks.Network(agents.Agent, self.db)
         agent1 = agents.Agent()

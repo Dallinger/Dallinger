@@ -43,10 +43,6 @@ class Network(object):
         source.connect_to(agent)
         self.db.commit()
 
-    def trigger_source(self, source):
-        source.broadcast()
-        self.db.commit()
-
     def add_agent(self, agent):
         self.db.add(agent)
         self.db.commit()
