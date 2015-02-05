@@ -10,7 +10,7 @@ class Source(Node):
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     def _selector(self):
-        return []
+        return None
 
     def create_information(self):
         """Generate new information."""
