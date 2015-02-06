@@ -9,14 +9,20 @@ class Source(Node):
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    def create_information(self):
+    def create_information(self, what=what, who=who):
         """Generate new information."""
         raise NotImplementedError(
             "You need to overwrite the default create_information.")
 
-    def transmit(self, other_node, selector=None):
-        infos = self.create_information(selector)
-        super(Source, self).transmit(other_node, selector=infos)
+    def _what(self):
+        return Info
+
+    def _who(self):
+        return Node
+
+    def transmit(self, who=None, what=None):
+        self.create_information(what=what, who=who)
+        super(Source, self).transmit(who=who, what=what)
 
 
 class RandomBinaryStringSource(Source):

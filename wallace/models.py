@@ -37,8 +37,13 @@ class Environment(Base):
         'polymorphic_identity': 'base'
     }
 
-    # the state of the environment
-    state = Column(Text())
+    def state(self):
+        state = Info\
+            .query\
+            .filter_by(origin_uuid=self.uuid)\
+            .order_by(desc(Info.creation_time))\
+            .first()
+        return state
 
     # the time when the environment was created
     creation_time = Column(String(26), nullable=False, default=timenow)
@@ -104,50 +109,60 @@ class Node(Base):
         vector = Vector(origin=other_node, destination=self)
         self.incoming_vectors.append(vector)
 
-    def transmit(self, other_node, selector=None):
-        """Transmits the specified info to 'other_node'. The info must have
-        been created by this node, and this node must be connected to
-        'other_node'.
-        """
-        if not self.has_connection_to(other_node):
-            raise ValueError(
-                "'{}' is not connected to '{}'".format(self, other_node))
-
-        # Transmit using the default logic.
-        if selector is None:
-            selector = self._selector()
-            if selector is None:
-                raise ValueError("Your default selector cannot be None.")
-
-        # Transmit the specified info.
-        if isinstance(selector, Info):
-            if not selector.origin_uuid == self.uuid:
-                raise ValueError(
-                    "'{}' was not created by '{}'".format(selector, self))
-
-            selections = [selector]
-
-        elif isinstance(selector, list) and all([isinstance(o, Info) for o in selector]):
-
-            selections = selector
-
-        # Transmit all information of the specified class.
-        elif issubclass(selector, Info):
-            selections = selector\
+    def transmit(self, what=None, who=None):
+        """Transmits what to who"""
+        """Will work provided what is an Info or a class of Info, or a list containing the two"""
+        """If what=None the _what() method is called to generate what"""
+        """Will work provided who is a Node you are connected to or a class of Nodes, or a list containing the two"""
+        """If who=None the _who() method is called to generate who"""
+        if what is None:
+            what = self._what()
+            if what is None or (isinstance(what, List) and None in what):
+                raise ValueError("Your _what() method cannot return None.")
+            else:
+                self.transmit(what=what, who=who)
+        elif isinstance(what, List):
+            for which in what:
+                self.transmit(what=which, who=who)
+        elif issubclass(what, Info):
+            infos = what\
                 .query\
                 .filter_by(origin_uuid=self.uuid)\
                 .order_by(desc(Info.creation_time))\
                 .all()
+            self.transmit(what=infos, who=who)
+        elif isinstance(what, Info):
+            if who is None:
+                who = self._who()
+                if who is None or (isinstance(who,List) and None in who):
+                    raise ValueError("Your _who() method cannot return None.")
+                else:
+                    self.transmit(what=what, who=who)
+            elif isinstance(who, List):
+                for whom in who:
+                    self.transmit(what=what, who=whom)
+            elif issubclass(who, Node):
+                whom = successors\
+                .query\
+                .all()
+                whom = [w for w in whom if isinstance(w,who)]
+            elif isinstance(who, Node):
+                if not self.has_connection_to(who):
+                    raise ValueError(
+                        "You are trying to transmit from'{}' to '{}', but they are not connected".format(self, who))
+                else:
+                    t = Transmission(info=what, destination=who)
+                    what.transmissions.append(t)
+            else:
+                raise ValueError("You are trying to transmit to '{}', but it is not a Node").format(who)
+        else
+            raise ValueError("You are trying to transmit '{}', but it is not an Info").format(what)
 
-        for s in selections:
-            t = Transmission(info=s, destination=other_node)
-            s.transmissions.append(t)
+    def _what(self):
+        raise NotImplementedError("You need to override the default _what method if you want to transmit(what=None)")
 
-    def broadcast(self, selector=None):
-        """Broadcast the specified info to all connected nodes. The info must
-        have been created by this node."""
-        for vector in self.outgoing_vectors:
-            self.transmit(vector.destination, selector)
+    def _who(self):
+        raise NotImplementedError("You need to override the default _who method if you want to transmit(who=None)")
 
     def update(self, infos):
         raise NotImplementedError(
