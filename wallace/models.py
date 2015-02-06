@@ -24,6 +24,29 @@ def timenow():
     return time.strftime(DATETIME_FMT)
 
 
+class Environment(Base):
+    __tablename__ = "environment"
+
+    # the unique environment id
+    uuid = Column(String(32), primary_key=True, default=new_uuid)
+
+    # the environment type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'base'
+    }
+
+    # the state of the environment
+    state = Column(Text())
+
+    # the time when the environment was created
+    creation_time = Column(String(26), nullable=False, default=timenow)
+
+    def __repr__(self):
+        return "Environment-{}-{}".format(self.uuid[:6], self.type)
+
+
 class Node(Base):
     __tablename__ = "node"
 

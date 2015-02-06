@@ -15,6 +15,20 @@ class TestModels(object):
         self.db.add_all(args)
         self.db.commit()
 
+
+    ##################################################################
+    ## Environment
+    ##################################################################
+    def test_create_environment(self):
+        """Create an environment"""
+        environment = models.Environment(state="foo")
+        self.add(environment)
+
+        assert len(environment.uuid) == 32
+        assert environment.type == "base"
+        assert environment.creation_time
+        assert environment.state == "foo"
+
     ##################################################################
     ## Node
     ##################################################################
