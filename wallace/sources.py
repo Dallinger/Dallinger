@@ -14,12 +14,6 @@ class Source(Node):
         raise NotImplementedError(
             "You need to overwrite the default create_information.")
 
-    def _what(self):
-        return Info
-
-    def _who(self):
-        return Node
-
     def transmit(self, who=None, what=None):
         self.create_information(what=what, who=who)
         super(Source, self).transmit(who=who, what=what)

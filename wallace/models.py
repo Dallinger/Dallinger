@@ -159,10 +159,10 @@ class Node(Base):
             raise ValueError("You are trying to transmit '{}', but it is not an Info").format(what)
 
     def _what(self):
-        raise NotImplementedError("You need to override the default _what method if you want to transmit(what=None)")
+        return Info
 
     def _who(self):
-        raise NotImplementedError("You need to override the default _who method if you want to transmit(who=None)")
+        return Node
 
     def update(self, infos):
         raise NotImplementedError(
