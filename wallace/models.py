@@ -110,18 +110,19 @@ class Node(Base):
         self.incoming_vectors.append(vector)
 
     def transmit(self, what=None, who=None):
-        """Transmits what to who"""
-        """Will work provided what is an Info or a class of Info, or a list containing the two"""
-        """If what=None the _what() method is called to generate what"""
-        """Will work provided who is a Node you are connected to or a class of Nodes, or a list containing the two"""
-        """If who=None the _who() method is called to generate who"""
+        """Transmits what to whom. Will work provided what is an Info or a
+        class of Info, or a list containing the two. If what=None the _what()
+        method is called to generate what. Will work provided who is a Node you
+        are connected to or a class of Nodes, or a list containing the two If
+        who=None the _who() method is called to generate who
+        """
         if what is None:
             what = self._what()
-            if what is None or (isinstance(what, List) and None in what):
+            if what is None or (isinstance(what, list) and None in what):
                 raise ValueError("Your _what() method cannot return None.")
             else:
                 self.transmit(what=what, who=who)
-        elif isinstance(what, List):
+        elif isinstance(what, list):
             for which in what:
                 self.transmit(what=which, who=who)
         elif issubclass(what, Info):
@@ -134,18 +135,18 @@ class Node(Base):
         elif isinstance(what, Info):
             if who is None:
                 who = self._who()
-                if who is None or (isinstance(who,List) and None in who):
+                if who is None or (isinstance(who, list) and None in who):
                     raise ValueError("Your _who() method cannot return None.")
                 else:
                     self.transmit(what=what, who=who)
-            elif isinstance(who, List):
+            elif isinstance(who, list):
                 for whom in who:
                     self.transmit(what=what, who=whom)
             elif issubclass(who, Node):
-                whom = successors\
-                .query\
-                .all()
-                whom = [w for w in whom if isinstance(w,who)]
+                whom = self.successors\
+                           .query\
+                           .all()
+                whom = [w for w in whom if isinstance(w, who)]
             elif isinstance(who, Node):
                 if not self.has_connection_to(who):
                     raise ValueError(
@@ -155,7 +156,7 @@ class Node(Base):
                     what.transmissions.append(t)
             else:
                 raise ValueError("You are trying to transmit to '{}', but it is not a Node").format(who)
-        else
+        else:
             raise ValueError("You are trying to transmit '{}', but it is not an Info").format(what)
 
     def _what(self):
