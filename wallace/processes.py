@@ -45,7 +45,7 @@ class RandomWalkFromSource(Process):
 
         if options:
             replaced = random.choice(options).destination
-            replacer.transmit(replaced)
+            replacer.transmit(who=replaced)
             self.db.commit()
         else:
             raise RuntimeError("No outgoing connections to choose from.")
@@ -60,11 +60,11 @@ class MoranProcessCultural(Process):
 
         if not self.is_begun():  # first step, replacer is a source
             replacer = random.choice(self.network.sources)
-            replacer.broadcast(selector=models.Info)
+            replacer.transmit()
         else:
             replacer = random.choice(self.network.agents)
             replaced = random.choice(replacer.outgoing_vectors).destination
-            replacer.transmit(replaced)
+            replacer.transmit(who=replaced)
         self.db.commit()
 
 
@@ -77,7 +77,7 @@ class MoranProcessSexual(Process):
 
         if not self.is_begun():
             replacer = random.choice(self.network.sources)
-            replacer.broadcast()
+            replacer.transmit()
         else:
             replacer = random.choice(self.network.agents)
             replaced = random.choice(replacer.outgoing_vectors).destination
@@ -89,7 +89,7 @@ class MoranProcessSexual(Process):
             # Endow the baby with the ome of the replaced, then sever
             # all ties. :(
             replacer.connect_to(baby)
-            replacer.transmit(baby)
+            replacer.transmit(who=baby)
             baby.receive_all()
             for v in baby.incoming_vectors:
                 v.kill()

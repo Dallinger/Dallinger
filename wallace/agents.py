@@ -29,10 +29,6 @@ class Agent(Node):
     def update(self, infos):
         raise NotImplementedError
 
-    def broadcast(self):
-        for vector in self.outgoing_vectors:
-            self.transmit(vector.destination)
-
     def receive_all(self):
         pending_transmissions = self.pending_transmissions
         for transmission in pending_transmissions:
@@ -94,5 +90,5 @@ class ReplicatorAgent(Agent):
         for info in infos:
             info.copy_to(self)
 
-    def _selector(self):
+    def _what(self):
         return [self.info]

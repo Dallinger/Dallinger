@@ -12,6 +12,8 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql import func, select
 from sqlalchemy.ext.associationproxy import association_proxy
 
+import inspect
+
 DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
 
 
@@ -125,7 +127,7 @@ class Node(Base):
         elif isinstance(what, list):
             for which in what:
                 self.transmit(what=which, who=who)
-        elif issubclass(what, Info):
+        elif inspect.isclass(what) and issubclass(what, Info):
             infos = what\
                 .query\
                 .filter_by(origin_uuid=self.uuid)\
@@ -133,6 +135,11 @@ class Node(Base):
                 .all()
             self.transmit(what=infos, who=who)
         elif isinstance(what, Info):
+
+            # Check if sender owns the info.
+            if what.origin_uuid != self.uuid:
+                raise ValueError("Cannot transmit because {} is not the origin of {}".format(self, what))
+
             if who is None:
                 who = self._who()
                 if who is None or (isinstance(who, list) and None in who):
@@ -142,12 +149,11 @@ class Node(Base):
             elif isinstance(who, list):
                 for whom in who:
                     self.transmit(what=what, who=whom)
-            elif issubclass(who, Node):
-                whom = self.successors\
-                           .query\
-                           .all()
-                whom = [w for w in whom if isinstance(w, who)]
+            elif inspect.isclass(who) and issubclass(who, Node):
+                whom = [w for w in self.successors if isinstance(w, who)]
+                self.transmit(what=what, who=whom)
             elif isinstance(who, Node):
+
                 if not self.has_connection_to(who):
                     raise ValueError(
                         "You are trying to transmit from'{}' to '{}', but they are not connected".format(self, who))
@@ -155,9 +161,9 @@ class Node(Base):
                     t = Transmission(info=what, destination=who)
                     what.transmissions.append(t)
             else:
-                raise ValueError("You are trying to transmit to '{}', but it is not a Node").format(who)
+                raise ValueError("You are trying to transmit to '{}', but it is not a Node".format(who))
         else:
-            raise ValueError("You are trying to transmit '{}', but it is not an Info").format(what)
+            raise ValueError("You are trying to transmit '{}', but it is not an Info".format(what))
 
     def _what(self):
         return Info
