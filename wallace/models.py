@@ -26,10 +26,10 @@ def timenow():
     return time.strftime(DATETIME_FMT)
 
 
-class Environment(Base):
-    __tablename__ = "environment"
+class ICBase(Base):
+    __tablename__ = "icbase"
 
-    # the unique environment id
+    # the unique icbase id
     uuid = Column(String(32), primary_key=True, default=new_uuid)
 
     # the environment type -- this allows for inheritance
@@ -37,6 +37,24 @@ class Environment(Base):
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'base'
+    }
+
+    # the information created by this icbase
+    information = relationship(
+        "Info", backref='origin', order_by="Info.creation_time")
+
+
+class Environment(ICBase):
+    __tablename__ = "environment"
+
+    # the unique environment id
+    uuid = Column(String(32), ForeignKey("icbase.uuid"), primary_key=True, default=new_uuid)
+
+    # the node type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'icbase'
     }
 
     def state(self):
@@ -54,17 +72,17 @@ class Environment(Base):
         return "Environment-{}-{}".format(self.uuid[:6], self.type)
 
 
-class Node(Base):
+class Node(ICBase):
     __tablename__ = "node"
 
     # the unique node id
-    uuid = Column(String(32), primary_key=True, default=new_uuid)
+    uuid = Column(String(32), ForeignKey("icbase.uuid"), primary_key=True, default=new_uuid)
 
     # the node type -- this allows for inheritance
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
-        'polymorphic_identity': 'base'
+        'polymorphic_identity': 'icbase'
     }
 
     # the time when the node was created
@@ -84,10 +102,6 @@ class Node(Base):
     def fail(self):
         self.status = "failed"
         self.time_of_death = timenow()
-
-    # the information created by this node
-    information = relationship(
-        "Info", backref='origin', order_by="Info.creation_time")
 
     # the predecessors and successors
     successors = relationship(
@@ -291,7 +305,7 @@ class Info(Base):
     }
 
     # the node that created this info
-    origin_uuid = Column(String(32), ForeignKey('node.uuid'), nullable=False)
+    origin_uuid = Column(String(32), ForeignKey('icbase.uuid'), nullable=False)
 
     # the time when the info was created
     creation_time = Column(String(26), nullable=False, default=timenow)

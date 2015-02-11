@@ -25,7 +25,7 @@ class TestModels(object):
         self.add(environment)
 
         assert len(environment.uuid) == 32
-        assert environment.type == "base"
+        assert environment.type == "icbase"
         assert environment.creation_time
         assert environment.state == "foo"
 
@@ -39,7 +39,7 @@ class TestModels(object):
         self.add(node)
 
         assert len(node.uuid) == 32
-        assert node.type == "base"
+        assert node.type == "icbase"
         assert node.creation_time
         assert len(node.information) == 0
         assert node.outdegree == 0
@@ -60,7 +60,7 @@ class TestModels(object):
         node = models.Node()
         self.add(node)
 
-        assert repr(node).split("-") == ["Node", node.uuid[:6], "base"]
+        assert repr(node).split("-") == ["Node", node.uuid[:6], "icbase"]
 
     def _check_single_connection(self, node1, node2):
         assert node1.has_connection_to(node2)
