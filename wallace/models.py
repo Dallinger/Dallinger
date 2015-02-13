@@ -125,7 +125,6 @@ class Node(Base):
                 to_whom = [w for w in self.successors if isinstance(w, to_whom)]
                 self.transmit(what=what, to_whom=to_whom)
             elif isinstance(to_whom, Node):
-
                 if not self.has_connection_to(to_whom):
                     raise ValueError(
                         "You are trying to transmit from'{}' to '{}', but they are not connected".format(self, to_whom))
@@ -143,13 +142,8 @@ class Node(Base):
     def _to_whom(self):
         return Node
 
-    def observe(self, node):
-        if not isinstance(node, Node):
-            raise ValueError("Only nodes can be observed.")
-        node.get_observed(by_whom=self)
-
-    def get_observed(by_whom=None):
-        raise NotImplementedError
+    def observe(self, environment):
+        environment.get_observed(by_whom=self)
 
     def update(self, infos):
         raise NotImplementedError(

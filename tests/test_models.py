@@ -17,20 +17,6 @@ class TestModels(object):
 
 
     ##################################################################
-    ## Environment
-    ##################################################################
-    def test_create_environment(self):
-        """Create an environment"""
-        environment = environments.Environment()
-        state = information.State(origin=environment, contents="foo")
-        self.add(environment, state)
-
-        assert len(environment.uuid) == 32
-        assert environment.type == "environment"
-        assert environment.creation_time
-        assert environment.state.contents == "foo"
-
-    ##################################################################
     ## Node
     ##################################################################
 
