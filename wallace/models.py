@@ -70,6 +70,11 @@ class Node(Base):
         backref="predecessors"
     )
 
+    @property
+    def successors2(self):
+        outgoing_vectors = Vector.query.filter_by(origin=self).all()
+        return [v.destination for v in outgoing_vectors]
+
     def __repr__(self):
         return "Node-{}-{}".format(self.uuid[:6], self.type)
 
@@ -144,6 +149,7 @@ class Node(Base):
 
     def observe(self, environment):
         environment.get_observed(by_whom=self)
+        self.receive_all()
 
     def update(self, infos):
         raise NotImplementedError(
@@ -173,7 +179,8 @@ class Node(Base):
 
     def has_connection_to(self, other_node):
         """Whether this node has a connection to 'other_node'."""
-        return other_node in self.successors
+        # return other_node in self.successors
+        return other_node in self.successors2
 
     def has_connection_from(self, other_node):
         """Whether this node has a connection from 'other_node'."""

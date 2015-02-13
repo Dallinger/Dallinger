@@ -34,7 +34,6 @@ class TestEnvironments(object):
         self.add(agent)
 
         agent.observe(environment)
-        agent.receive_all()
         # raw_input()
 
         assert agent.info.contents == "foo"
