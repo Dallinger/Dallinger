@@ -1,4 +1,4 @@
-from wallace import models, db, agents
+from wallace import models, db, agents, information
 from nose.tools import raises
 
 
@@ -21,13 +21,14 @@ class TestModels(object):
     ##################################################################
     def test_create_environment(self):
         """Create an environment"""
-        environment = models.Environment(state="foo")
-        self.add(environment)
+        environment = models.Environment()
+        state = information.State(origin=environment, contents="foo")
+        self.add(environment, state)
 
         assert len(environment.uuid) == 32
         assert environment.type == "icbase"
         assert environment.creation_time
-        assert environment.state == "foo"
+        assert environment.state.contents == "foo"
 
     ##################################################################
     ## Node

@@ -57,6 +57,7 @@ class Environment(ICBase):
         'polymorphic_identity': 'icbase'
     }
 
+    @property
     def state(self):
         state = Info\
             .query\
