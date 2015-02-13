@@ -83,65 +83,73 @@ class Node(Base):
         vector = Vector(origin=other_node, destination=self)
         self.incoming_vectors.append(vector)
 
-    def transmit(self, what=None, who=None):
+    def transmit(self, what=None, to_whom=None):
         """Transmits what to whom. Will work provided what is an Info or a
         class of Info, or a list containing the two. If what=None the _what()
         method is called to generate what. Will work provided who is a Node you
         are connected to or a class of Nodes, or a list containing the two If
-        who=None the _who() method is called to generate who
+        to_whom=None the _to_whom() method is called to generate to_whom.
         """
         if what is None:
             what = self._what()
             if what is None or (isinstance(what, list) and None in what):
                 raise ValueError("Your _what() method cannot return None.")
             else:
-                self.transmit(what=what, who=who)
+                self.transmit(what=what, to_whom=to_whom)
         elif isinstance(what, list):
-            for which in what:
-                self.transmit(what=which, who=who)
+            for w in what:
+                self.transmit(what=w, to_whom=to_whom)
         elif inspect.isclass(what) and issubclass(what, Info):
             infos = what\
                 .query\
                 .filter_by(origin_uuid=self.uuid)\
                 .order_by(desc(Info.creation_time))\
                 .all()
-            self.transmit(what=infos, who=who)
+            self.transmit(what=infos, to_whom=to_whom)
         elif isinstance(what, Info):
 
             # Check if sender owns the info.
             if what.origin_uuid != self.uuid:
                 raise ValueError("Cannot transmit because {} is not the origin of {}".format(self, what))
 
-            if who is None:
-                who = self._who()
-                if who is None or (isinstance(who, list) and None in who):
-                    raise ValueError("Your _who() method cannot return None.")
+            if to_whom is None:
+                to_whom = self._to_whom()
+                if to_whom is None or (isinstance(to_whom, list) and None in to_whom):
+                    raise ValueError("Your _to_whom() method cannot return None.")
                 else:
-                    self.transmit(what=what, who=who)
-            elif isinstance(who, list):
-                for whom in who:
-                    self.transmit(what=what, who=whom)
-            elif inspect.isclass(who) and issubclass(who, Node):
-                whom = [w for w in self.successors if isinstance(w, who)]
-                self.transmit(what=what, who=whom)
-            elif isinstance(who, Node):
+                    self.transmit(what=what, to_whom=to_whom)
+            elif isinstance(to_whom, list):
+                for w in to_whom:
+                    self.transmit(what=what, to_whom=w)
+            elif inspect.isclass(to_whom) and issubclass(to_whom, Node):
+                to_whom = [w for w in self.successors if isinstance(w, to_whom)]
+                self.transmit(what=what, to_whom=to_whom)
+            elif isinstance(to_whom, Node):
 
-                if not self.has_connection_to(who):
+                if not self.has_connection_to(to_whom):
                     raise ValueError(
-                        "You are trying to transmit from'{}' to '{}', but they are not connected".format(self, who))
+                        "You are trying to transmit from'{}' to '{}', but they are not connected".format(self, to_whom))
                 else:
-                    t = Transmission(info=what, destination=who)
+                    t = Transmission(info=what, destination=to_whom)
                     what.transmissions.append(t)
             else:
-                raise ValueError("You are trying to transmit to '{}', but it is not a Node".format(who))
+                raise ValueError("You are trying to transmit to '{}', but it is not a Node".format(to_whom))
         else:
             raise ValueError("You are trying to transmit '{}', but it is not an Info".format(what))
 
     def _what(self):
         return Info
 
-    def _who(self):
+    def _to_whom(self):
         return Node
+
+    def observe(self, node):
+        if not isinstance(node, Node):
+            raise ValueError("Only nodes can be observed.")
+        node.get_observed(by_whom=self)
+
+    def get_observed(by_whom=None):
+        raise NotImplementedError
 
     def update(self, infos):
         raise NotImplementedError(

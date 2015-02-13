@@ -9,14 +9,14 @@ class Source(Node):
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    def create_information(self, what=None, who=None):
+    def create_information(self, what=None, to_whom=None):
         """Generate new information."""
         raise NotImplementedError(
             "You need to overwrite the default create_information.")
 
-    def transmit(self, who=None, what=None):
-        self.create_information(what=what, who=who)
-        super(Source, self).transmit(who=who, what=what)
+    def transmit(self, what=None, to_whom=None):
+        self.create_information(what=what, to_whom=to_whom)
+        super(Source, self).transmit(to_whom=to_whom, what=what)
 
 
 class RandomBinaryStringSource(Source):
@@ -26,7 +26,7 @@ class RandomBinaryStringSource(Source):
 
     __mapper_args__ = {"polymorphic_identity": "random_binary_string_source"}
 
-    def create_information(self, what=None, who=None):
+    def create_information(self, what=None, to_whom=None):
         Info(
             origin=self,
             origin_uuid=self.uuid,

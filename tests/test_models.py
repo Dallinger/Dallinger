@@ -278,7 +278,7 @@ class TestModels(object):
         info1 = models.Info(origin=agent1, contents="foo")
         self.add(info1)
 
-        agent1.transmit(what=info1, who=agent2)
+        agent1.transmit(what=info1, to_whom=agent2)
         info2 = info1.copy_to(agent2)
         self.add(info2)
 
@@ -337,8 +337,8 @@ class TestModels(object):
         info2 = models.Info(origin=agent3, contents="bar")
         self.add(info1, info2)
 
-        agent2.transmit(what=info1, who=agent1)
-        agent3.transmit(what=info2, who=agent1)
+        agent2.transmit(what=info1, to_whom=agent1)
+        agent3.transmit(what=info2, to_whom=agent1)
         self.db.commit()
 
         assert len(agent1.incoming_transmissions) == 2
@@ -357,8 +357,8 @@ class TestModels(object):
         info2 = models.Info(origin=agent1, contents="bar")
         self.add(info1, info2)
 
-        agent1.transmit(what=info1, who=agent2)
-        agent1.transmit(what=info2, who=agent3)
+        agent1.transmit(what=info1, to_whom=agent2)
+        agent1.transmit(what=info2, to_whom=agent3)
         self.db.commit()
 
         assert len(agent1.outgoing_transmissions) == 2
