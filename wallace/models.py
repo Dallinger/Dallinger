@@ -26,64 +26,17 @@ def timenow():
     return time.strftime(DATETIME_FMT)
 
 
-class ICBase(Base):
-    __tablename__ = "icbase"
+class Node(Base):
+    __tablename__ = "node"
 
-    # the unique icbase id
+    # the unique node id
     uuid = Column(String(32), primary_key=True, default=new_uuid)
 
-    # the environment type -- this allows for inheritance
+    # the node type -- this allows for inheritance
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'base'
-    }
-
-    # the information created by this icbase
-    information = relationship(
-        "Info", backref='origin', order_by="Info.creation_time")
-
-
-class Environment(ICBase):
-    __tablename__ = "environment"
-
-    # the unique environment id
-    uuid = Column(String(32), ForeignKey("icbase.uuid"), primary_key=True, default=new_uuid)
-
-    # the node type -- this allows for inheritance
-    type = Column(String(50))
-    __mapper_args__ = {
-        'polymorphic_on': type,
-        'polymorphic_identity': 'icbase'
-    }
-
-    @property
-    def state(self):
-        state = Info\
-            .query\
-            .filter_by(origin_uuid=self.uuid)\
-            .order_by(desc(Info.creation_time))\
-            .first()
-        return state
-
-    # the time when the environment was created
-    creation_time = Column(String(26), nullable=False, default=timenow)
-
-    def __repr__(self):
-        return "Environment-{}-{}".format(self.uuid[:6], self.type)
-
-
-class Node(ICBase):
-    __tablename__ = "node"
-
-    # the unique node id
-    uuid = Column(String(32), ForeignKey("icbase.uuid"), primary_key=True, default=new_uuid)
-
-    # the node type -- this allows for inheritance
-    type = Column(String(50))
-    __mapper_args__ = {
-        'polymorphic_on': type,
-        'polymorphic_identity': 'icbase'
     }
 
     # the time when the node was created
@@ -95,6 +48,10 @@ class Node(ICBase):
 
     # the time when the node changed from alive->dead or alive->failed
     time_of_death = Column(String(26), nullable=True, default=None)
+
+    # the information created by this node
+    information = relationship(
+        "Info", backref='origin', order_by="Info.creation_time")
 
     def kill(self):
         self.status = "dead"
@@ -306,7 +263,7 @@ class Info(Base):
     }
 
     # the node that created this info
-    origin_uuid = Column(String(32), ForeignKey('icbase.uuid'), nullable=False)
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'), nullable=False)
 
     # the time when the info was created
     creation_time = Column(String(26), nullable=False, default=timenow)

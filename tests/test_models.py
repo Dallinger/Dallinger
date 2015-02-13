@@ -1,4 +1,4 @@
-from wallace import models, db, agents, information
+from wallace import models, db, agents, information, environments
 from nose.tools import raises
 
 
@@ -21,12 +21,12 @@ class TestModels(object):
     ##################################################################
     def test_create_environment(self):
         """Create an environment"""
-        environment = models.Environment()
+        environment = environments.Environment()
         state = information.State(origin=environment, contents="foo")
         self.add(environment, state)
 
         assert len(environment.uuid) == 32
-        assert environment.type == "icbase"
+        assert environment.type == "environment"
         assert environment.creation_time
         assert environment.state.contents == "foo"
 
@@ -40,7 +40,7 @@ class TestModels(object):
         self.add(node)
 
         assert len(node.uuid) == 32
-        assert node.type == "icbase"
+        assert node.type == "base"
         assert node.creation_time
         assert len(node.information) == 0
         assert node.outdegree == 0
@@ -61,7 +61,7 @@ class TestModels(object):
         node = models.Node()
         self.add(node)
 
-        assert repr(node).split("-") == ["Node", node.uuid[:6], "icbase"]
+        assert repr(node).split("-") == ["Node", node.uuid[:6], "base"]
 
     def _check_single_connection(self, node1, node2):
         assert node1.has_connection_to(node2)
