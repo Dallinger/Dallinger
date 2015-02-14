@@ -30,6 +30,15 @@ class Agent(Node):
     def update(self, infos):
         raise NotImplementedError
 
+    def replicate(self, info_in):
+        """Create a new info of the same type as the incoming info."""
+        info_type = type(info_in)
+        info_out = info_type(origin=self, contents=info_in.contents)
+
+        # Register the transformation.
+        Replication(info_out=info_out, info_in=info_in, node=self)
+
+
     def receive_all(self):
         pending_transmissions = self.pending_transmissions
         for transmission in pending_transmissions:
@@ -71,12 +80,7 @@ class BiologicalAgent(Agent):
 
     def update(self, infos):
         for info_in in infos:
-            # Create a new info of the same type as the incoming info.
-            info_type = type(info_in)
-            info_out = info_type(origin=self, contents=info_in.contents)
-
-            # Register the transformation.
-            Replication(info_out=info_out, info_in=info_in, node=self)
+            self.replicate(info_in)
 
 
 class ReplicatorAgent(Agent):
@@ -93,13 +97,9 @@ class ReplicatorAgent(Agent):
         return info
 
     def update(self, infos):
+        """Replicate the incoming information."""
         for info_in in infos:
-            # Create a new info of the same type as the incoming info.
-            info_type = type(info_in)
-            info_out = info_type(origin=self, contents=info_in.contents)
-
-            # Register the transformation.
-            Replication(info_out=info_out, info_in=info_in, node=self)
+            self.replicate(info_in)
 
     def _what(self):
         return [self.info]
