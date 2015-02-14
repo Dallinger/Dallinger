@@ -279,6 +279,18 @@ class TestModels(object):
         assert agent1.information == [info1]
         assert agent2.information == [info2]
 
+    @raises(ValueError)
+    def test_info_write_twice(self):
+        """Overwrite an info's contents."""
+        node = models.Node()
+        info = models.Info(origin=node, contents="foo")
+
+        self.add(node, info)
+
+        assert info.contents == "foo"
+        info.contents = "ofo"
+
+
     ##################################################################
     ## Transmission
     ##################################################################

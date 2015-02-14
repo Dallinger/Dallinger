@@ -7,7 +7,7 @@ from .db import Base
 # various sqlalchemy imports
 from sqlalchemy import ForeignKey, desc
 from sqlalchemy import Column, String, Text, Enum
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql import func, select
 from sqlalchemy.ext.associationproxy import association_proxy
@@ -280,6 +280,13 @@ class Info(Base):
     # the contents of the info
     contents = Column(Text())
 
+    @validates("contents")
+    def _write_once(self, key, value):
+        existing = getattr(self, key)
+        if existing is not None:
+            raise ValueError("The contents of an info is write-once.")
+        return value
+
     def __repr__(self):
         return "Info-{}-{}".format(self.uuid[:6], self.type)
 
@@ -360,9 +367,6 @@ class Transformation(Base):
 
     # the time at which the transformation occurred
     transform_time = Column(String(26), nullable=False, default=timenow)
-
-    def apply(self, info_in):
-        return NotImplementedError
 
     def __repr__(self):
         return "Transformation-{}".format(self.uuid[:6])
