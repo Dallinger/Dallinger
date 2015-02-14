@@ -1,7 +1,8 @@
 from sqlalchemy import ForeignKey, Column, String, desc
 from datetime import datetime
 
-from .models import Node, Info, Transmission
+from .models import Node, Info, Transmission, Transformation
+from .transformations import Replication
 from .information import Gene, Meme
 
 DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
@@ -69,8 +70,13 @@ class BiologicalAgent(Agent):
         return [self.genome[0], self.memome[0]]
 
     def update(self, infos):
-        for info in infos:
-            info.copy_to(self)
+        for info_in in infos:
+            # Create a new info of the same type as the incoming info.
+            info_type = type(info_in)
+            info_out = info_type(origin=self, contents=info_in.contents)
+
+            # Register the transformation.
+            Replication(info_out=info_out, info_in=info_in, node=self)
 
 
 class ReplicatorAgent(Agent):
@@ -87,8 +93,13 @@ class ReplicatorAgent(Agent):
         return info
 
     def update(self, infos):
-        for info in infos:
-            info.copy_to(self)
+        for info_in in infos:
+            # Create a new info of the same type as the incoming info.
+            info_type = type(info_in)
+            info_out = info_type(origin=self, contents=info_in.contents)
+
+            # Register the transformation.
+            Replication(info_out=info_out, info_in=info_in, node=self)
 
     def _what(self):
         return [self.info]

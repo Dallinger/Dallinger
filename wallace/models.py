@@ -290,10 +290,6 @@ class Info(Base):
     def __repr__(self):
         return "Info-{}-{}".format(self.uuid[:6], self.type)
 
-    def copy_to(self, other_node):
-        cls = type(self)
-        return cls(origin=other_node, contents=self.contents)
-
 
 class Transmission(Base):
     __tablename__ = "transmission"

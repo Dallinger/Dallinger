@@ -28,7 +28,7 @@ class TestTransformations(object):
         info_out = models.Info(origin=node, contents=info_in.contents)
 
         # Register the transformation.
-        transformation = transformations.IdentityTransformation(
+        transformation = transformations.Replication(
             info_out=info_out,
             info_in=info_in,
             node=node)

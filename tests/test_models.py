@@ -254,31 +254,6 @@ class TestModels(object):
 
         assert repr(info).split("-") == ["Info", info.uuid[:6], "base"]
 
-    def test_info_copy_to(self):
-        """Check that Info.copy_to works correctly"""
-        agent1 = agents.ReplicatorAgent()
-        agent2 = agents.ReplicatorAgent()
-        agent1.connect_to(agent2)
-        self.add(agent1, agent2)
-
-        info1 = models.Info(origin=agent1, contents="foo")
-        self.add(info1)
-
-        agent1.transmit(what=info1, to_whom=agent2)
-        info2 = info1.copy_to(agent2)
-        self.add(info2)
-
-        assert info1.uuid != info2.uuid
-        assert info1.type == info2.type
-        assert info1.creation_time != info2.creation_time
-        assert info1.contents == info2.contents
-        assert info1.origin_uuid == agent1.uuid
-        assert info2.origin_uuid == agent2.uuid
-        assert len(info1.transmissions) == 1
-        assert len(info2.transmissions) == 0
-        assert agent1.information == [info1]
-        assert agent2.information == [info2]
-
     @raises(ValueError)
     def test_info_write_twice(self):
         """Overwrite an info's contents."""
