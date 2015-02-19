@@ -10,7 +10,7 @@ class Replication(Transformation):
 
 class Mutation(Transformation):
 
-    """The identity transformation."""
+    """The mutation transformation."""
 
     __mapper_args__ = {"polymorphic_identity": "mutation"}
 
