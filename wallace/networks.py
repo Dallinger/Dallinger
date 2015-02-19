@@ -7,8 +7,14 @@ import random
 class Network(object):
     """A network of agents."""
 
-    def __init__(self, agent_type, db):
-        self.agent_type = agent_type
+    def __init__(self, agent_type_generator, db):
+
+        # Wrap the generator in a function if it isn't already one.
+        if hasattr(agent_type_generator, '__call__'):
+            self.agent_type_generator = agent_type_generator
+        else:
+            self.agent_type_generator = lambda: agent_type_generator
+
         self.db = db
 
     @property

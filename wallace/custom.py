@@ -95,7 +95,8 @@ def api_agent_create():
     if request.method == 'POST':
 
         # Create the newcomer and trigger experiment-specific behavior
-        newcomer = exp.agent_type()
+        newcomer_type = exp.agent_type_generator()
+        newcomer = newcomer_type()
         exp.newcomer_arrival_trigger(newcomer)
 
         # Return a response
