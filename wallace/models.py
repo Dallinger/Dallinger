@@ -155,6 +155,13 @@ class Node(Base):
         raise NotImplementedError(
             "The update method of node '{}' has not been overridden".format(self))
 
+    def receive_all(self):
+        pending_transmissions = self.pending_transmissions
+        for transmission in pending_transmissions:
+            transmission.receive_time = timenow()
+            transmission.mark_received()
+        self.update([t.info for t in pending_transmissions])
+
     @hybrid_property
     def outdegree(self):
         """The outdegree (number of outgoing edges) of this node."""
