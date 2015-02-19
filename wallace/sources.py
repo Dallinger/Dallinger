@@ -14,10 +14,6 @@ class Source(Node):
         raise NotImplementedError(
             "You need to overwrite the default create_information.")
 
-    def transmit(self, what=None, to_whom=None):
-        info = self.create_information()
-        super(Source, self).transmit(to_whom=to_whom, what=info)
-
 
 class RandomBinaryStringSource(Source):
     """An agent whose genome and memome are random binary strings. The source
