@@ -13,3 +13,10 @@ class Mutation(Transformation):
     """The identity transformation."""
 
     __mapper_args__ = {"polymorphic_identity": "mutation"}
+
+
+class Observation(Transformation):
+
+    """The observation transformation."""
+
+    __mapper_args__ = {"polymorphic_identity": "observation"}
