@@ -1,4 +1,4 @@
-from .models import Vector
+from .models import Vector, Node
 from .agents import Agent
 from .sources import Source
 import random
@@ -10,10 +10,11 @@ class Network(object):
     def __init__(self, agent_type_generator, db):
 
         # Wrap the generator in a function if it isn't already one.
-        if hasattr(agent_type_generator, '__call__'):
-            self.agent_type_generator = agent_type_generator
-        else:
+        try:
+            assert(issubclass(agent_type_generator, Node))
             self.agent_type_generator = lambda: agent_type_generator
+        except:
+            self.agent_type_generator = agent_type_generator
 
         self.db = db
 
@@ -81,12 +82,11 @@ class Network(object):
 class Chain(Network):
     """A -> B -> C -> ..."""
 
-    def __init__(self, agent_type, db, size=0):
-        super(Chain, self).__init__(agent_type, db)
+    def __init__(self, agent_type_generator, db, size=0):
+        super(Chain, self).__init__(agent_type_generator, db)
         if len(self.agents) == 0:
             for i in xrange(size):
-                agent = agent_type()
-                self.add_agent(agent)
+                self.add_agent(self.agent_type_generator()())
 
     @property
     def first_agent(self):
@@ -126,12 +126,11 @@ class FullyConnected(Network):
     """In a fully-connected network (complete graph), all possible vectors exist.
     """
 
-    def __init__(self, agent_type, db, size=0):
-        super(FullyConnected, self).__init__(agent_type, db)
+    def __init__(self, agent_type_generator, db, size=0):
+        super(FullyConnected, self).__init__(agent_type_generator, db)
         if len(self.agents) == 0:
             for i in xrange(size):
-                agent = agent_type()
-                self.add_agent(agent)
+                self.add_agent(self.agent_type_generator()())
 
     def add_agent(self, newcomer):
 
@@ -155,15 +154,14 @@ class ScaleFree(Network):
     attachment.
     """
 
-    def __init__(self, agent_type, db, size=0, m0=4, m=4):
-        super(ScaleFree, self).__init__(agent_type, db)
+    def __init__(self, agent_type_generator, db, size=0, m0=4, m=4):
+        super(ScaleFree, self).__init__(agent_type_generator, db)
         self.m = m
         self.m0 = m0
 
         if len(self.agents) == 0:
             for i in xrange(size):
-                agent = agent_type()
-                self.add_agent(agent)
+                self.add_agent(self.agent_type_generator()())
 
     def add_agent(self, newcomer):
         self.db.add(newcomer)
