@@ -67,7 +67,8 @@ class TestProcesses(object):
         # Add a global source and broadcast to all the agents.
         source = sources.RandomBinaryStringSource()
         net.add_source_global(source)
-        source.transmit()
+        info = source.create_information()
+        source.transmit(what=info)
         self.db.commit()
 
         for agent in net.agents:
@@ -112,7 +113,8 @@ class TestProcesses(object):
         # Add a global source and broadcast to all the agents.
         source = sources.RandomBinaryStringSource()
         net.add_source_global(source)
-        source.transmit()
+        info = source.create_information()
+        source.transmit(what=info)
         self.db.commit()
 
         for agent in net.agents:

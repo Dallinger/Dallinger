@@ -31,3 +31,6 @@ class RandomBinaryStringSource(Source):
 
     def _binary_string(self):
         return "".join([str(random.randint(0, 1)) for i in range(2)])
+
+    def _what(self):
+        return self.create_information()
