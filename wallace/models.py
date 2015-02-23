@@ -75,6 +75,11 @@ class Node(Base):
         outgoing_vectors = Vector.query.filter_by(origin=self).all()
         return [v.destination for v in outgoing_vectors]
 
+    @property
+    def predecessors2(self):
+        incoming_vectors = Vector.query.filter_by(destination=self).all()
+        return [v.origin for v in incoming_vectors]
+
     def __repr__(self):
         return "Node-{}-{}".format(self.uuid[:6], self.type)
 
