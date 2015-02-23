@@ -1,4 +1,4 @@
-from wallace import sources, agents, db, environments, information
+from wallace import agents, db, environments, information
 
 
 class TestEnvironments(object):
@@ -33,7 +33,7 @@ class TestEnvironments(object):
         agent = agents.ReplicatorAgent()
         self.add(agent)
 
+        environment.connect_to(agent)
         agent.observe(environment)
-        # raw_input()
 
         assert agent.info.contents == "foo"
