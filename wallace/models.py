@@ -300,18 +300,9 @@ class Vector(Base):
     time_of_death = Column(
         String(26), nullable=True, default=None)
 
-    # the network that this node is a part of
-    network_uuid = Column(
-        String(32), ForeignKey('network.uuid'), nullable=True)
+    network_uuid = association_proxy('origin', 'network_uuid')
 
-    network = relationship(
-        "Network", foreign_keys=[network_uuid],
-        backref="vectors")
-
-    # the network of the vector, which is proxied by association from the
-    # info itself
-    # network_uuid = association_proxy('origin', 'network_uuid')
-    # network = association_proxy('origin', 'network', backref="vectors")
+    network = association_proxy('origin', 'network')
 
     def kill(self):
         self.status = "dead"
@@ -349,21 +340,6 @@ class Network(Base):
 
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
-
-    # # the nodes that are part of this network
-    # nodes = relationship(
-    #     "Node", backref='network', order_by="Node.creation_time")
-
-    # def __init__(self, agent_type_generator, db):
-
-    #     # Wrap the generator in a function if it isn't already one.
-    #     try:
-    #         assert(issubclass(agent_type_generator, Node))
-    #         self.agent_type_generator = lambda: agent_type_generator
-    #     except:
-    #         self.agent_type_generator = agent_type_generator
-
-    #     self.db = db
 
     @property
     def agents(self):
