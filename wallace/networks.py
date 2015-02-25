@@ -2,27 +2,6 @@ from .models import Network
 import random
 
 
-class SuperNetwork(object):
-
-    @property
-    def networks(self):
-        return Network.query.all()
-
-    def add_agent(self, newcomer):
-        # Select the network with the fewest agents.
-        plenitude = [len(net.agents) for net in self.networks]
-        net = self.networks[plenitude.index(min(plenitude))]
-
-        # Place the newcomer in the selected network.
-        vectors = net.add_agent(newcomer)
-
-        return vectors
-
-    def __repr__(self):
-        """Print the supernetwork in a nice format."""
-        return "SuperNetwork ({} subnets)".format(len(self.networks))
-
-
 class Chain(Network):
     """A -> B -> C -> ..."""
 
