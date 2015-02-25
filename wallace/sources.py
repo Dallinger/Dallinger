@@ -1,18 +1,6 @@
-from .models import Node, Info
+from .models import Node, Info, Source
 from sqlalchemy import ForeignKey, Column, String
 import random
-
-
-class Source(Node):
-    __tablename__ = "source"
-    __mapper_args__ = {"polymorphic_identity": "generic_source"}
-
-    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
-
-    def create_information(self):
-        """Generate new information."""
-        raise NotImplementedError(
-            "You need to overwrite the default create_information.")
 
 
 class RandomBinaryStringSource(Source):

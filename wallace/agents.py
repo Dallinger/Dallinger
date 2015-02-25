@@ -1,42 +1,6 @@
-from sqlalchemy import ForeignKey, Column, String, desc
-from datetime import datetime
-
-from .models import Node, Info, Transmission, Transformation
-from .transformations import Replication
+from sqlalchemy import desc
+from .models import Info, Agent
 from .information import Gene, Meme
-
-DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
-
-
-def timenow():
-    time = datetime.now()
-    return time.strftime(DATETIME_FMT)
-
-
-class Agent(Node):
-    """Agents have genomes and memomes, and update their contents when faced.
-    By default, agents transmit unadulterated copies of their genomes and
-    memomes, with no error or mutation.
-    """
-
-    __tablename__ = "agent"
-    __mapper_args__ = {"polymorphic_identity": "agent"}
-
-    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
-
-    def _selector(self):
-        raise NotImplementedError
-
-    def update(self, infos):
-        raise NotImplementedError
-
-    def replicate(self, info_in):
-        """Create a new info of the same type as the incoming info."""
-        info_type = type(info_in)
-        info_out = info_type(origin=self, contents=info_in.contents)
-
-        # Register the transformation.
-        Replication(info_out=info_out, info_in=info_in, node=self)
 
 
 class BiologicalAgent(Agent):

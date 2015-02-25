@@ -53,6 +53,14 @@ class Node(Base):
     information = relationship(
         "Info", backref='origin', order_by="Info.creation_time")
 
+    # the network that this node is a part of
+    network_uuid = Column(
+        String(32), ForeignKey('network.uuid'), nullable=True)
+
+    network = relationship(
+        "Network", foreign_keys=[network_uuid],
+        backref="nodes")
+
     def kill(self):
         self.status = "dead"
         self.time_of_death = timenow()
@@ -87,11 +95,13 @@ class Node(Base):
         """Creates a directed edge from self to other_node"""
         vector = Vector(origin=self, destination=other_node)
         self.outgoing_vectors.append(vector)
+        return vector
 
     def connect_from(self, other_node):
         """Creates a directed edge from other_node to self"""
         vector = Vector(origin=other_node, destination=self)
         self.incoming_vectors.append(vector)
+        return vector
 
     def transmit(self, what=None, to_whom=None):
         """Transmits what to whom. Will work provided what is an Info or a
@@ -224,6 +234,45 @@ class Node(Base):
             .all()
 
 
+class Agent(Node):
+    """Agents have genomes and memomes, and update their contents when faced.
+    By default, agents transmit unadulterated copies of their genomes and
+    memomes, with no error or mutation.
+    """
+
+    __tablename__ = "agent"
+    __mapper_args__ = {"polymorphic_identity": "agent"}
+
+    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
+
+    def _selector(self):
+        raise NotImplementedError
+
+    def update(self, infos):
+        raise NotImplementedError
+
+    def replicate(self, info_in):
+        """Create a new info of the same type as the incoming info."""
+        info_type = type(info_in)
+        info_out = info_type(origin=self, contents=info_in.contents)
+
+        # Register the transformation.
+        from .transformations import Replication
+        Replication(info_out=info_out, info_in=info_in, node=self)
+
+
+class Source(Node):
+    __tablename__ = "source"
+    __mapper_args__ = {"polymorphic_identity": "generic_source"}
+
+    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
+
+    def create_information(self):
+        """Generate new information."""
+        raise NotImplementedError(
+            "You need to overwrite the default create_information.")
+
+
 class Vector(Base):
     __tablename__ = "vector"
 
@@ -251,6 +300,19 @@ class Vector(Base):
     time_of_death = Column(
         String(26), nullable=True, default=None)
 
+    # the network that this node is a part of
+    network_uuid = Column(
+        String(32), ForeignKey('network.uuid'), nullable=True)
+
+    network = relationship(
+        "Network", foreign_keys=[network_uuid],
+        backref="vectors")
+
+    # the network of the vector, which is proxied by association from the
+    # info itself
+    # network_uuid = association_proxy('origin', 'network_uuid')
+    # network = association_proxy('origin', 'network', backref="vectors")
+
     def kill(self):
         self.status = "dead"
         self.time_of_death = timenow()
@@ -268,6 +330,114 @@ class Vector(Base):
                 destination_uuid=self.destination_uuid)\
             .order_by(Transmission.transmit_time)\
             .all()
+
+
+class Network(Base):
+    """A network of nodes."""
+
+    __tablename__ = "network"
+
+    # the unique network id
+    uuid = Column(String(32), primary_key=True, default=new_uuid)
+
+    # the node type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'base'
+    }
+
+    # the time when the node was created
+    creation_time = Column(String(26), nullable=False, default=timenow)
+
+    # # the nodes that are part of this network
+    # nodes = relationship(
+    #     "Node", backref='network', order_by="Node.creation_time")
+
+    # def __init__(self, agent_type_generator, db):
+
+    #     # Wrap the generator in a function if it isn't already one.
+    #     try:
+    #         assert(issubclass(agent_type_generator, Node))
+    #         self.agent_type_generator = lambda: agent_type_generator
+    #     except:
+    #         self.agent_type_generator = agent_type_generator
+
+    #     self.db = db
+
+    @property
+    def agents(self):
+        return Agent\
+            .query\
+            .order_by(Agent.creation_time)\
+            .filter(Agent.status != "failed")\
+            .filter(Agent.network == self)\
+            .filter(Agent.status != "dead")\
+            .all()
+
+    @property
+    def sources(self):
+        return Source\
+            .query\
+            .order_by(Source.creation_time)\
+            .filter(Source.network == self)\
+            .all()
+
+    @property
+    def vectors(self):
+        return Vector\
+            .query\
+            .order_by(Vector.origin_uuid, Vector.destination_uuid)\
+            .filter(Vector.network == self)\
+            .all()
+
+    def get_degrees(self):
+        return [agent.outdegree for agent in self.agents]
+
+    def add_source_global(self, source):
+        vectors = []
+        for agent in self.agents:
+            vectors.append(source.connect_to(agent))
+
+        source.network = self
+        for vector in vectors:
+            vector.network = self
+        return vectors
+
+    def add_source_local(self, source, agent):
+        source.network = self
+        vector = source.connect_to(agent)
+        vector.network = self
+        return [vector]
+
+    def add_agent(self, agent):
+        agent.network = self
+        return []
+
+    def __len__(self):
+        raise SyntaxError(
+            "len is not defined for networks. Use len(net.agents) or len(net.sources) instead.")
+
+    def __repr__(self):
+        return "<Network-{}-{} with {} agents, {} sources, {} vectors>".format(
+            self.uuid[:6],
+            self.type,
+            len(self.agents),
+            len(self.sources),
+            len(self.vectors))
+
+    def print_verbose(self):
+        print "Agents: "
+        for a in self.agents:
+            print a
+
+        print "\nSources: "
+        for s in self.sources:
+            print s
+
+        print "\nVectors: "
+        for v in self.vectors:
+            print v
 
 
 class Info(Base):

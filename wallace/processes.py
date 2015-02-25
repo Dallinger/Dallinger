@@ -6,7 +6,6 @@ import random
 class Process(object):
 
     def __init__(self, network):
-        self.db = network.db
         self.network = network
 
     def step(self, verbose=True):
@@ -15,10 +14,11 @@ class Process(object):
     def is_begun(self):
         """To tell if the process has started yet, check if there have been any
         transmissions."""
-        return len(self.db.query(models.Transmission).all()) > 0
+        return len(models.Transmission.query.all()) > 0
 
     def get_latest_transmission_recipient(self):
-        all_transmissions = self.db.query(models.Transmission)\
+        all_transmissions = models.Transmission\
+            .query\
             .order_by(desc(models.Transmission.transmit_time))\
             .all()
 
@@ -46,7 +46,6 @@ class RandomWalkFromSource(Process):
         if options:
             replaced = random.choice(options).destination
             replacer.transmit(to_whom=replaced)
-            self.db.commit()
         else:
             raise RuntimeError("No outgoing connections to choose from.")
 
@@ -65,7 +64,6 @@ class MoranProcessCultural(Process):
             replacer = random.choice(self.network.agents)
             replaced = random.choice(replacer.outgoing_vectors).destination
             replacer.transmit(to_whom=replaced)
-        self.db.commit()
 
 
 class MoranProcessSexual(Process):
@@ -99,8 +97,6 @@ class MoranProcessSexual(Process):
                 v.kill()
                 baby.connect_to(v.destination)
 
-            self.db.commit()
-
             # Copy the incoming connections.
             for v in replaced.incoming_vectors:
                 v.destination.connect_to(baby)
@@ -108,5 +104,3 @@ class MoranProcessSexual(Process):
 
             # Kill the agent.
             replaced.kill()
-
-        self.db.commit()
