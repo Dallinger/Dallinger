@@ -22,9 +22,11 @@ class Process(object):
             .order_by(desc(models.Transmission.transmit_time))\
             .all()
 
-        return next((t.destination for t in all_transmissions
-                    if t.destination.status != "failed"),
-                    None)
+        return next(
+            (t.destination for t in all_transmissions
+                if (t.destination.status != "failed") and
+                (t.destination.network == self.network)),
+            None)
 
 
 class RandomWalkFromSource(Process):
@@ -40,11 +42,17 @@ class RandomWalkFromSource(Process):
         else:
             replacer = latest_recipient
 
+        print replacer
+
         options = [v for v in replacer.outgoing_vectors
                    if v.destination.status == "alive"]
 
+        print options
+
         if options:
             replaced = random.choice(options).destination
+            print replaced
+            print "transmitting..."
             replacer.transmit(to_whom=replaced)
         else:
             raise RuntimeError("No outgoing connections to choose from.")

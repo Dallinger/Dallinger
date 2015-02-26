@@ -12,8 +12,8 @@ class Chain(Network):
         newcomer.network = self
 
         vectors = []
-        if len(self.agents) > 1:
-            vector = self.agents[-2].connect_to(newcomer)
+        if len(self.nodes) > 1:
+            vector = self.nodes[-2].connect_to(newcomer)
             vectors.append(vector)
 
         for vector in vectors:

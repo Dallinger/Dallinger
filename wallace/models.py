@@ -370,6 +370,9 @@ class Network(Base):
     def get_degrees(self):
         return [agent.outdegree for agent in self.agents]
 
+    def add_source(self, source):
+        source.network = self
+
     def add_source_global(self, source):
         vectors = []
         for agent in self.agents:

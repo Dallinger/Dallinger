@@ -94,10 +94,29 @@ def api_agent_create():
 
     if request.method == 'POST':
 
-        # Create the newcomer and trigger experiment-specific behavior
-        newcomer_type = exp.agent_type_generator()
+        # Figure out which network to place the next newcomer in.
+        plenitude = [len(net.agents) for net in exp.networks]
+        net = exp.networks[plenitude.index(min(plenitude))]
+
+        # Generate the right kind of newcomer.
+        try:
+            assert(issubclass(exp.agent_type_generator, models.Node))
+            agent_type_generator = lambda: exp.agent_type_generator
+        except:
+            agent_type_generator = agent_type_generator
+
+        newcomer_type = agent_type_generator()
         newcomer = newcomer_type()
-        exp.newcomer_arrival_trigger(newcomer)
+        session.add(newcomer)
+        session.commit()
+
+        # Add the newcomer to the agent.
+        vectors = net.add_agent(newcomer)
+        session.add_all(vectors)
+        session.commit()
+
+        # Run the next step of the process.
+        exp.process_type(net).step()
 
         # Return a response
         data = {'agents': {'uuid': newcomer.uuid}}
