@@ -18,26 +18,40 @@ class TestProcesses(object):
         agent2 = agents.ReplicatorAgent()
         agent3 = agents.ReplicatorAgent()
 
+        net.add_agent(agent1)
+        net.add_agent(agent2)
+        net.add_agent(agent3)
+
         agent1.connect_to(agent2)
         agent2.connect_to(agent3)
 
-        self.db.add_all([agent1, agent2, agent3])
+        self.db.add_all([net, agent1, agent2, agent3])
         self.db.commit()
 
         source = sources.RandomBinaryStringSource()
 
-        net.add_source_local(source, agent1)
-        process = processes.RandomWalkFromSource(net)
+        self.db.add(source)
 
+        source.create_information()
+        net.add_source_local(source, agent1)
+
+        process = processes.RandomWalkFromSource(net)
         process.step()
+
         agent1.receive_all()
         msg = agent1.info.contents
+
+        self.db.commit()
 
         process.step()
         agent2.receive_all()
 
+        self.db.commit()
+
         process.step()
         agent3.receive_all()
+
+        self.db.commit()
 
         assert msg == agent3.info.contents
 
