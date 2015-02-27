@@ -4,6 +4,7 @@ from wallace.recruiters import PsiTurkRecruiter
 from wallace.agents import ReplicatorAgent
 from wallace.experiments import Experiment
 from wallace.sources import Source
+from wallace.models import Network, Agent, Info
 import random
 import json
 from sqlalchemy.ext.declarative import declared_attr
@@ -16,36 +17,38 @@ class FunctionLearning(Experiment):
 
         self.task = "Transmission chain"
         self.num_agents = 10
+        self.num_repeats = 4
         self.num_steps = self.num_agents - 1
-        self.agent_type = ReplicatorAgent
-        self.network = Chain(self.agent_type, self.session)
-        self.process = RandomWalkFromSource(self.network)
+        self.agent_type_generator = ReplicatorAgent
+        self.network_type = Chain
+        self.process_type = RandomWalkFromSource
         self.recruiter = PsiTurkRecruiter
 
+        # Get a list of all the networks, creating them if they don't already
+        # exist.
+        self.networks = Network.query.all()
+        if not self.networks:
+            for i in range(self.num_repeats):
+                net = self.network_type()
+                self.session.add(net)
+        self.networks = Network.query.all()
+
         # Setup for first time experiment is accessed
-        if not self.network.sources:
-            source = SinusoidalFunctionSource()
-            self.network.add_source_global(source)
-            print "Added initial source: " + str(source)
-
-    def newcomer_arrival_trigger(self, newcomer):
-
-        self.network.add_agent(newcomer)
-
-        # If this is the first participant, link them to the source.
-        if len(self.network.agents) == 1:
-            source = self.network.sources[0]
-            source.connect_to(newcomer)
-            self.network.db.commit()
-
-        # Run the next step of the process.
-        self.process.step()
+        for net in self.networks:
+            if not net.sources:
+                source = SinusoidalFunctionSource()
+                self.session.add(source)
+                self.session.commit()
+                net.add_source(source)
+                print source
+                print "Added initial source: " + str(source)
+                self.session.commit()
 
     def information_creation_trigger(self, info):
 
         agent = info.origin
-        self.network.db.add(agent)
-        self.network.db.commit()
+        self.session.add(agent)
+        self.session.commit()
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.
@@ -55,11 +58,18 @@ class FunctionLearning(Experiment):
             self.recruiter().recruit_new_participants(self, n=1)
 
     def is_experiment_over(self):
-        return len(self.network.agents) == self.num_agents
+        return len(Agent.query.all()) == self.num_agents
 
 
 class AbstractFunctionSource(Source):
     __abstract__ = True
+
+    def create_information(self):
+        info = Info(
+            origin=self,
+            origin_uuid=self.uuid,
+            contents=self._data())
+        return info
 
     def _data(self):
         x_min = 1
@@ -71,6 +81,9 @@ class AbstractFunctionSource(Source):
         data = {"x": x_values, "y": y_values}
 
         return json.dumps(data)
+
+    def _what(self):
+        return self.create_information()
 
     @declared_attr
     def __mapper_args__(cls):
