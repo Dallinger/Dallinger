@@ -57,6 +57,10 @@ class Node(Base):
     network_uuid = Column(
         String(32), ForeignKey('network.uuid'), nullable=True)
 
+    # the participant uuid is the sha512 hash of the psiTurk uniqueId of the
+    # participant who was this node.
+    participant_uuid = Column(String(128), nullable=True)
+
     network = relationship(
         "Network", foreign_keys=[network_uuid],
         backref="nodes")
@@ -417,6 +421,13 @@ class Network(Base):
         print "\nVectors: "
         for v in self.vectors:
             print v
+
+    def has_participant(self, participant_uuid):
+        nodes = Node.query\
+            .filter_by(participant_uuid=participant_uuid)\
+            .filter_by(network=self).all()
+
+        return any(nodes)
 
 
 class Info(Base):

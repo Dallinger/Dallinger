@@ -21,4 +21,4 @@ class Experiment(object):
         pass
 
     def is_experiment_over(self):
-        raise NotImplementedError
+        return all([self.is_network_full(net) for net in self.networks])

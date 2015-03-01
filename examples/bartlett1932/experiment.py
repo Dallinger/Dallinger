@@ -12,10 +12,9 @@ class Bartlett1932(Experiment):
         super(Bartlett1932, self).__init__(session)
 
         self.task = "Transmission chain"
-        self.num_agents = 10
-        self.num_steps = self.num_agents - 1
-        self.agent_type_generator = ReplicatorAgent
+        self.max_population_size = 10
         self.num_repeats = 4
+        self.agent_type_generator = ReplicatorAgent
         self.network_type = Chain
         self.process_type = RandomWalkFromSource
         self.recruiter = PsiTurkRecruiter
@@ -53,8 +52,8 @@ class Bartlett1932(Experiment):
             # Otherwise recruit a new participant.
             self.recruiter().recruit_new_participants(self, n=1)
 
-    def is_experiment_over(self):
-        return len(Agent.query.all()) == self.num_agents
+    def is_network_full(self, network):
+        return len(network.agents) >= self.max_population_size
 
 
 class WarOfTheGhostsSource(Source):

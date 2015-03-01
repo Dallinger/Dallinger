@@ -17,6 +17,8 @@ import imp
 import inspect
 import urllib
 
+import hashlib
+
 # load the configuration options
 config = PsiturkConfig()
 config.load_config()
@@ -94,34 +96,48 @@ def api_agent_create():
 
     if request.method == 'POST':
 
-        # Figure out which network to place the next newcomer in.
-        plenitude = [len(net.agents) for net in exp.networks]
-        net = exp.networks[plenitude.index(min(plenitude))]
+        # Figure out whether this MTurk participant is allowed to create
+        # another agent in this experiment.
+        participant_uuid = hashlib.sha512(
+            request.values["unique_id"]).hexdigest()
 
-        # Generate the right kind of newcomer.
-        try:
-            assert(issubclass(exp.agent_type_generator, models.Node))
-            agent_type_generator = lambda: exp.agent_type_generator
-        except:
-            agent_type_generator = agent_type_generator
+        legal_networks = [net for net in exp.networks if
+                          ((not exp.is_network_full(net)) and
+                           (not net.has_participant(participant_uuid)))]
 
-        newcomer_type = agent_type_generator()
-        newcomer = newcomer_type()
-        session.add(newcomer)
-        session.commit()
+        if legal_networks:
 
-        # Add the newcomer to the agent.
-        vectors = net.add_agent(newcomer)
-        session.add_all(vectors)
-        session.commit()
+            # Figure out which network to place the next newcomer in.
+            plenitude = [len(net.agents) for net in legal_networks]
+            net = legal_networks[plenitude.index(min(plenitude))]
 
-        # Run the next step of the process.
-        exp.process_type(net).step()
+            # Generate the right kind of newcomer.
+            try:
+                assert(issubclass(exp.agent_type_generator, models.Node))
+                agent_type_generator = lambda: exp.agent_type_generator
+            except:
+                agent_type_generator = agent_type_generator
 
-        # Return a response
-        data = {'agents': {'uuid': newcomer.uuid}}
-        js = dumps(data)
-        return Response(js, status=200, mimetype='application/json')
+            newcomer_type = agent_type_generator()
+            newcomer = newcomer_type(participant_uuid=participant_uuid)
+            session.add(newcomer)
+            session.commit()
+
+            # Add the newcomer to the agent.
+            vectors = net.add_agent(newcomer)
+            session.add_all(vectors)
+            session.commit()
+
+            # Run the next step of the process.
+            exp.process_type(net).step()
+
+            # Return a response
+            data = {'agents': {'uuid': newcomer.uuid}}
+            js = dumps(data)
+            return Response(js, status=200, mimetype='application/json')
+
+        else:
+            return Response(status=403)
 
     if request.method == "GET":
         data_agents = [agent.uuid for agent in exp.network.agents]

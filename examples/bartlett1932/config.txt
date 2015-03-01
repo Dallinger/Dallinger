@@ -1,5 +1,6 @@
 [Experiment Configuration]
 wallace_version = 0.1
+mode = sandbox
 
 [HIT Configuration]
 title = War of the Ghosts
@@ -17,7 +18,7 @@ organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
 [Database Parameters]
-database_url = sqlite:///wallace.db
+database_url = postgresql://postgres@localhost/wallace
 table_name = psiturk
 
 [Server Parameters]
