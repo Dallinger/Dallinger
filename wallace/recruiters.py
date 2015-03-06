@@ -138,7 +138,7 @@ class PsiTurkRecruiter(Recruiter):
                 self.config.get('HIT Configuration', 'base_payment'),
                 self.config.get('HIT Configuration', 'expiration_hrs'))
 
-            print "##HITTypeId: ".format(self.shell.amt_services.hit_type_id)
+            # print "##HITTypeId: ".format(self.shell.amt_services.hit_type_id)
 
         else:
             # HIT was already created, no need to recreate it.
