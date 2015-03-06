@@ -92,7 +92,7 @@ class PsiTurkRecruiter(Recruiter):
             self.config.get("psiTurk Access", "psiturk_secret_access_id"))
 
         # Set up MTurk and psiTurk services.
-        amt_services = MTurkServices(
+        self.amt_services = MTurkServices(
             aws_access_key_id,
             aws_secret_access_key,
             self.config.getboolean(
@@ -121,7 +121,8 @@ class PsiTurkRecruiter(Recruiter):
             "SendMessage")
 
         self.shell = PsiturkNetworkShell(
-            self.config, amt_services, aws_rds_services, web_services, server,
+            self.config, self.amt_services, aws_rds_services, web_services,
+            server,
             self.config.getboolean(
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
@@ -136,6 +137,8 @@ class PsiTurkRecruiter(Recruiter):
                 1,
                 self.config.get('HIT Configuration', 'base_payment'),
                 self.config.get('HIT Configuration', 'expiration_hrs'))
+
+            print "##HITTypeId: ".format(self.shell.amt_services.hit_type_id)
 
         else:
             # HIT was already created, no need to recreate it.
