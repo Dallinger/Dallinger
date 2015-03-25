@@ -136,7 +136,7 @@ class PsiTurkRecruiter(Recruiter):
             self.shell.hit_create(
                 1,
                 self.config.get('HIT Configuration', 'base_payment'),
-                self.config.get('HIT Configuration', 'expiration_minutes'))
+                self.config.get('HIT Configuration', 'expiration_hrs'))
 
             # print "##HITTypeId: ".format(self.shell.amt_services.hit_type_id)
 
@@ -152,4 +152,4 @@ class PsiTurkRecruiter(Recruiter):
         self.shell.hit_extend(
             [last_hit_id],
             n,
-            self.config.get('HIT Configuration', 'expiration_minutes'))
+            self.config.get('HIT Configuration', 'expiration_hrs'))
