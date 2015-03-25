@@ -259,6 +259,12 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
         shell=True)
     time.sleep(0.25)
 
+    # Set the notification URL in the cofig file to the notifications URL.
+    config.set(
+        "Server Parameters",
+        "notification_url",
+        id + ".herokuapp.com/notifications")
+
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
     subprocess.call("git push heroku master", stdout=OUT,

@@ -31,6 +31,7 @@ debug = true
 login_username = examplename
 login_pw = examplepassword
 threads = 1
+notification_url = None
 
 [Task Parameters]
 experiment_code_version = 1.0
