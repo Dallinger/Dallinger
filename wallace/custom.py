@@ -267,3 +267,11 @@ def api_info(info_uuid):
             js = dumps(data)
 
             return Response(js, status=200, mimetype='application/json')
+
+
+@custom_code.route("/notifications", methods=["POST", "GET"])
+def api_notifications():
+    print "Received a notification:"
+    for v in request.values:
+        print v
+    print "---"
