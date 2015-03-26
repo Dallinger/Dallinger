@@ -301,8 +301,8 @@ def api_notifications():
         # Get the all nodes associated with the participant.
         nodes = models.Node\
             .query\
-            .filter_by(participant_uuid=participant.uniqueid)\
-            .one()
+            .filter_by(participant_uuid=participant_uuid)\
+            .all()
 
         for node in nodes:
             print "Failing node {}.".format(node)
