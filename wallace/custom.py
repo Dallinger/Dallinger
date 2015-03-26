@@ -275,3 +275,43 @@ def api_notifications():
     for v in request.values:
         print v
     print "---"
+
+    event_type = request.values['Event.1.EventType']
+
+    if event_type == 'AssignmentAccepted':
+        print "Participant accepted assignment."
+
+    elif event_type == 'AssignmentAbandoned':
+        print "Participant abandoned assignment."
+
+        # Get the assignment id.
+        print "Assignment ID:"
+        assignment_id = request.values['Event.1.AssignmentId']
+        print assignment_id
+
+        # Transform the assignment id to a unique id from the psiTurk table.
+        participant = Participant.query.\
+            filter(Participant.assignmentid == assignment_id).\
+            one()
+
+        # Get the all nodes associated with the participant.
+        nodes = models.Node\
+            .query\
+            .filter_by(participant_uuid=participant.uniqueid)\
+            .one()
+
+        for node in nodes:
+            print "Failing node {}.".format(node)
+            node.fail()
+
+    return Response(
+        dumps({"status": "success"}), status=200, mimetype='application/json')
+
+    # all_event_types = [
+    #     "AssignmentAccepted",
+    #     "AssignmentAbandoned",
+    #     "AssignmentReturned",
+    #     "AssignmentSubmitted",
+    #     "HITReviewable",
+    #     "HITExpired",
+    # ]
