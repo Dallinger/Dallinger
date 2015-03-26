@@ -113,10 +113,13 @@ class TestNetworks(object):
     def test_network_add_agent(self):
         net = networks.Network()
         self.db.add(net)
+        self.db.commit()
 
         agent1 = agents.Agent()
         agent2 = agents.Agent()
         agent3 = agents.Agent()
+        self.db.add_all([agent1, agent2, agent3])
+        self.db.commit()
 
         net.add_agent(agent1)
         net.add_agent(agent2)

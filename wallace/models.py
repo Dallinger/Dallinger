@@ -61,9 +61,7 @@ class Node(Base):
     # participant who was this node.
     participant_uuid = Column(String(128), nullable=True)
 
-    network = relationship(
-        "Network", foreign_keys=[network_uuid],
-        backref="nodes")
+    network = relationship("Network", foreign_keys=[network_uuid])
 
     def kill(self):
         self.status = "dead"
@@ -362,6 +360,10 @@ class Network(Base):
             .order_by(Source.creation_time)\
             .filter(Source.network == self)\
             .all()
+
+    @property
+    def nodes(self):
+        return self.sources + self.agents
 
     @property
     def vectors(self):
