@@ -290,10 +290,13 @@ def api_notifications():
         assignment_id = request.values['Event.1.AssignmentId']
         print assignment_id
 
-        # Transform the assignment id to a unique id from the psiTurk table.
+        # Transform the assignment id to the SHA512 hash of the unique id
+        # from the psiTurk table.
         participant = Participant.query.\
             filter(Participant.assignmentid == assignment_id).\
             one()
+
+        participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
 
         # Get the all nodes associated with the participant.
         nodes = models.Node\
