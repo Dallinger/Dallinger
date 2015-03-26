@@ -281,8 +281,9 @@ def api_notifications():
     if event_type == 'AssignmentAccepted':
         print "Participant accepted assignment."
 
-    elif event_type == 'AssignmentAbandoned':
-        print "Participant abandoned assignment."
+    elif event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
+
+        print "Participant stopped working."
 
         # Get the assignment id.
         print "Assignment ID:"
