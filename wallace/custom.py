@@ -114,11 +114,11 @@ def api_agent_create():
             # Generate the right kind of newcomer.
             try:
                 assert(issubclass(exp.agent_type_generator, models.Node))
-                agent_type_generator = lambda: exp.agent_type_generator
+                agent_type_generator = lambda network=net: exp.agent_type_generator
             except:
-                agent_type_generator = agent_type_generator
+                agent_type_generator = exp.agent_type_generator
 
-            newcomer_type = agent_type_generator()
+            newcomer_type = agent_type_generator(network=net)
             newcomer = newcomer_type(participant_uuid=participant_uuid)
             session.add(newcomer)
             session.commit()
@@ -153,6 +153,7 @@ def api_agent_create():
 def api_transmission(transmission_uuid):
 
     exp = experiment(session)
+    session.commit()
 
     if request.method == 'GET':
 
