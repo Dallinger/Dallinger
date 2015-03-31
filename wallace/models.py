@@ -142,7 +142,8 @@ class Node(Base):
         if what is None:
             what = self._what()
             if what is None or (isinstance(what, list) and None in what):
-                raise ValueError("Your _what() method cannot return None.")
+                raise ValueError("The _what() of {} is returning None."
+                                 .format(self))
             else:
                 self.transmit(what=what, to_whom=to_whom)
         elif isinstance(what, list):
@@ -159,31 +160,39 @@ class Node(Base):
 
             # Check if sender owns the info.
             if what.origin_uuid != self.uuid:
-                raise ValueError("Cannot transmit because {} is not the origin of {}".format(self, what))
+                raise ValueError(
+                    "Cannot transmit because {} is not the origin of {}"
+                    .format(self, what))
 
             if to_whom is None:
                 to_whom = self._to_whom()
-                if to_whom is None or (isinstance(to_whom, list) and None in to_whom):
-                    raise ValueError("Your _to_whom() method cannot return None.")
+                if to_whom is None or (
+                   isinstance(to_whom, list) and None in to_whom):
+                    raise ValueError("the _to_whom() of {} is returning None."
+                                     .format(self))
                 else:
                     self.transmit(what=what, to_whom=to_whom)
             elif isinstance(to_whom, list):
                 for w in to_whom:
                     self.transmit(what=what, to_whom=w)
             elif inspect.isclass(to_whom) and issubclass(to_whom, Node):
-                to_whom = [w for w in self.successors if isinstance(w, to_whom)]
+                to_whom = [w for w in self.successors
+                           if isinstance(w, to_whom)]
                 self.transmit(what=what, to_whom=to_whom)
             elif isinstance(to_whom, Node):
                 if not self.has_connection_to(to_whom):
                     raise ValueError(
-                        "You are trying to transmit from'{}' to '{}', but they are not connected".format(self, to_whom))
+                        ("Cannot transmit from {} to {}: ",
+                         "they are not connected").format(self, to_whom))
                 else:
                     t = Transmission(info=what, destination=to_whom)
                     what.transmissions.append(t)
             else:
-                raise ValueError("You are trying to transmit to '{}', but it is not a Node".format(to_whom))
+                raise ValueError("Cannot transmit to '{}': ",
+                                 "it is not a Node".format(to_whom))
         else:
-            raise ValueError("You are trying to transmit '{}', but it is not an Info".format(what))
+            raise ValueError("Cannot transmit '{}': it is not an Info"
+                             .format(what))
 
     def _what(self):
         return Info
@@ -196,7 +205,8 @@ class Node(Base):
 
     def update(self, infos):
         raise NotImplementedError(
-            "The update method of node '{}' has not been overridden".format(self))
+            "The update method of node '{}' has not been overridden"
+            .format(self))
 
     def receive_all(self):
         pending_transmissions = self.pending_transmissions
@@ -230,11 +240,11 @@ class Node(Base):
     def has_connection_to(self, other_node):
         """Whether this node has a connection to 'other_node'."""
         # return other_node in self.successors
-        return other_node in self.successors2
+        return other_node in self.downstream_nodes
 
     def has_connection_from(self, other_node):
         """Whether this node has a connection from 'other_node'."""
-        return other_node in self.predecessors
+        return other_node in self.upstream_nodes
 
     @property
     def incoming_transmissions(self):
@@ -274,10 +284,14 @@ class Agent(Node):
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     def _selector(self):
-        raise NotImplementedError
+        raise NotImplementedError(
+            "_selector is deprecated and needs to be overridden - ",
+            "use _what() instead and remember to override it.")
 
     def update(self, infos):
-        raise NotImplementedError
+        raise NotImplementedError(
+            "You have not overridden the update method in {}"
+            .format(type(self)))
 
     def replicate(self, info_in):
         """Create a new info of the same type as the incoming info."""
@@ -298,7 +312,8 @@ class Source(Node):
     def create_information(self):
         """Generate new information."""
         raise NotImplementedError(
-            "You need to overwrite the default create_information.")
+            "{} cannot create_information as it does not override ",
+            "the default method.".format(type(self)))
 
 
 class Vector(Base):
