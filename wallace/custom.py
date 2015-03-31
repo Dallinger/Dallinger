@@ -11,7 +11,7 @@ from psiturk.db import db_session as session_psiturk
 from psiturk.models import Participant
 from json import dumps, loads
 
-from wallace import db, agents, models
+from wallace import db, agents, models, information
 
 import imp
 import inspect
@@ -251,15 +251,15 @@ def api_info(info_uuid):
 
         else:
 
-            information = models.Info\
+            infos = models.Info\
                 .query\
                 .filter_by(origin_uuid=request.values['origin_uuid'])\
                 .order_by(models.Info.creation_time)\
                 .all()
 
             data_information = []
-            for i in xrange(len(information)):
-                info = information[i]
+            for i in xrange(len(infos)):
+                info = infos[i]
 
                 data_information.append({
                     "info_uuid": info.uuid,
@@ -284,7 +284,25 @@ def api_info(info_uuid):
 
             cnts = urllib.unquote(request.values['contents']).decode('utf8')
 
-            info = models.Info(
+            # Create an Info of the requested type.
+            info_type = request.values['info_type']
+
+            if (info_type is None) or (info_type == "base"):
+                cls = models.Info
+
+            elif info_type == "meme":
+                cls = information.Meme
+
+            elif info_type == "gene":
+                cls = information.Gene
+
+            elif info_type == "state":
+                cls = information.State
+
+            else:
+                raise ValueError("Requested info_type does not exist.")
+
+            info = cls(
                 origin=node,
                 contents=cnts)
 
