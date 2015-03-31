@@ -82,15 +82,35 @@ class Node(Base):
 
     @property
     def successors2(self):
+        print "successors2 is deprecated, use downstream_nodes instead"
+        return downstream_nodes(self, Agent)
+        # outgoing_vectors = Vector.query.filter_by(origin=self).all()
+        # return [v.destination for v in outgoing_vectors
+        #         if isinstance(v.destination, Agent)]
+
+    @property
+    def downstream_nodes(self, type=None):
+        if type is None:
+            type = Node
         outgoing_vectors = Vector.query.filter_by(origin=self).all()
         return [v.destination for v in outgoing_vectors
-                if isinstance(v.destination, Agent)]
+                if isinstance(v.destination, type)]
+
+    @property
+    def upstream_nodes(self, type=None):
+        if type is None:
+            type = Node
+        incoming_vectors = Vector.query.filter_by(destination=self).all()
+        return [v.destination for v in incoming_vectors
+                if isinstance(v.destination, type)]
 
     @property
     def predecessors2(self):
-        incoming_vectors = Vector.query.filter_by(destination=self).all()
-        return [v.origin for v in incoming_vectors
-                if isinstance(v.origin, Agent)]
+        print "predecessors2 is deprecated, use upstream_nodes instead"
+        return upstream_nodes(self, Agent)
+        # incoming_vectors = Vector.query.filter_by(destination=self).all()
+        # return [v.origin for v in incoming_vectors
+        #         if isinstance(v.origin, Agent)]
 
     def __repr__(self):
         return "Node-{}-{}".format(self.uuid[:6], self.type)
