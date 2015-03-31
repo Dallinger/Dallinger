@@ -117,6 +117,12 @@ class Node(Base):
 
     def connect_to(self, other_node):
         """Creates a directed edge from self to other_node"""
+        if self.network_uuid != other_node.network_uuid:
+            raise(ValueError("{} cannot connect to {} as they are not \
+                                in the same network. {} is in network {}, \
+                                but {} is in network {}."
+                             .format(self, other_node, self, self.network_uuid,
+                                     other_node, other_node.network_uuid)))
         vector = Vector(origin=self, destination=other_node)
         self.outgoing_vectors.append(vector)
         return vector
