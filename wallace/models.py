@@ -271,6 +271,14 @@ class Node(Base):
             .order_by(Transmission.transmit_time)\
             .all()
 
+    @property
+    def information_of_type(self, type=Info):
+        return Info\
+            .query\
+            .filter_by(origin=self)\
+            .order_by(Info.creation_time)\
+            .all()
+
 
 class Agent(Node):
     """Agents have genomes and memomes, and update their contents when faced.
