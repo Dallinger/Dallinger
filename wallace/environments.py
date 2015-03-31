@@ -28,7 +28,10 @@ class Environment(Node):
 
     def get_observed(self, by_whom=None):
         """When observed, transmit the state."""
-        self.transmit(what=self.state, to_whom=by_whom)
+        self.transmit(to_whom=by_whom)
+
+    def _what(self):
+        return self.state
 
     def __repr__(self):
         """Print the environment in a nice format."""
