@@ -6,7 +6,7 @@ from .db import Base
 
 # various sqlalchemy imports
 from sqlalchemy import ForeignKey, desc
-from sqlalchemy import Column, String, Text, Enum
+from sqlalchemy import Column, String, Text, Enum, Float
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql import func, select
@@ -290,6 +290,7 @@ class Agent(Node):
     __mapper_args__ = {"polymorphic_identity": "agent"}
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
+    fitness = Column(Float, nullable=False, default=None)
 
     def _selector(self):
         raise NotImplementedError(
@@ -299,6 +300,11 @@ class Agent(Node):
     def update(self, infos):
         raise NotImplementedError(
             "You have not overridden the update method in {}"
+            .format(type(self)))
+
+    def calculate_fitness(self):
+        raise NotImplementedError(
+            "You have not overridden the calculate_fitness method in {}"
             .format(type(self)))
 
     def replicate(self, info_in):
