@@ -129,8 +129,7 @@ class Node(Base):
 
     def connect_from(self, other_node):
         """Creates a directed edge from other_node to self"""
-        vector = Vector(origin=other_node, destination=self)
-        self.incoming_vectors.append(vector)
+        vector = other_node.connect_to(self)
         return vector
 
     def transmit(self, what=None, to_whom=None):
