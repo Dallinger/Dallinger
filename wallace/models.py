@@ -182,8 +182,8 @@ class Node(Base):
             elif isinstance(to_whom, Node):
                 if not self.has_connection_to(to_whom):
                     raise ValueError(
-                        ("Cannot transmit from {} to {}: ",
-                         "they are not connected").format(self, to_whom))
+                        "Cannot transmit from {} to {}: " +
+                        "they are not connected".format(self, to_whom))
                 else:
                     t = Transmission(info=what, destination=to_whom)
                     what.transmissions.append(t)
@@ -272,8 +272,11 @@ class Node(Base):
             .all()
 
     @property
-    def information_of_type(self, type=Info):
-        return Info\
+    def information_of_type(self, type=None):
+        if not type:
+            type = Info
+
+        return type\
             .query\
             .filter_by(origin=self)\
             .order_by(Info.creation_time)\
@@ -290,7 +293,7 @@ class Agent(Node):
     __mapper_args__ = {"polymorphic_identity": "agent"}
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
-    fitness = Column(Float, nullable=False, default=None)
+    fitness = Column(Float, nullable=True, default=None)
 
     def _selector(self):
         raise NotImplementedError(
