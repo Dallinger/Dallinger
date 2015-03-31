@@ -179,6 +179,7 @@ def api_transmission(transmission_uuid):
 
         # Build a dict with info about the transmissions
         data_transmissions = []
+        data = []
         for i in xrange(len(pending_transmissions)):
             t = pending_transmissions[i]
 
@@ -191,6 +192,11 @@ def api_transmission(transmission_uuid):
                 "receive_time": t.receive_time
             })
             data = {"transmissions": data_transmissions}
+
+        if not data:
+            print "{} made a GET request for transmissions, ".format(
+                request.values['destination_uuid']) + \
+                "but there were no transmissions to get."
 
         js = dumps(data)
         return Response(js, status=200, mimetype='application/json')
@@ -220,7 +226,7 @@ def api_transmission(transmission_uuid):
 
 @custom_code.route("/information",
                    defaults={"info_uuid": None},
-                   methods=["POST"])
+                   methods=["POST", "GET"])
 @custom_code.route("/information/<info_uuid>", methods=["GET"])
 def api_info(info_uuid):
 
@@ -229,6 +235,7 @@ def api_info(info_uuid):
     if request.method == 'GET':
 
         if info_uuid is not None:
+
             info = models.Info.query.filter_by(uuid=info_uuid).one()
 
             data = {
@@ -240,6 +247,29 @@ def api_info(info_uuid):
             }
             js = dumps(data)
 
+            return Response(js, status=200, mimetype='application/json')
+
+        else:
+
+            information = models.Info\
+                .query\
+                .filter_by(origin_uuid=request.values['origin_uuid'])\
+                .order_by(models.Info.creation_time)\
+                .all()
+
+            data_information = []
+            for i in xrange(len(information)):
+                info = information[i]
+
+                data_information.append({
+                    "info_uuid": info.uuid,
+                    "type": info.type,
+                    "origin_uuid": info.origin_uuid,
+                    "creation_time": info.creation_time,
+                    "contents": info.contents
+                })
+
+            js = dumps({"information": data_information})
             return Response(js, status=200, mimetype='application/json')
 
     if request.method == "POST":
