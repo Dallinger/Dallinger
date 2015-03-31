@@ -168,7 +168,6 @@ class Node(Base):
 
     def observe(self, environment):
         environment.get_observed(by_whom=self)
-        self.receive_all()
 
     def update(self, infos):
         raise NotImplementedError(
