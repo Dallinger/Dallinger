@@ -119,12 +119,14 @@ var StroopExperiment = function() {
 		  	method: 'post',
 		  	data: {
 		  		origin_uuid: agent_uuid,
-		  		contents: response
+		  		contents: response,
+		  		info_type: "base"
 		  	},
 		  	success: function (resp) {
 		  		createAgent();
 		  	}
 		});
+
 		// currentview = new Questionnaire();
 		// psiTurk.recordTrialData({'phase':"TEST", 'response': $("#reproduction").val()});
 	});

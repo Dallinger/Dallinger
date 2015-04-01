@@ -2,9 +2,10 @@ from wallace.networks import Chain
 from wallace.models import Info, Network
 from wallace.processes import RandomWalkFromSource
 from wallace.recruiters import PsiTurkRecruiter
-from wallace.agents import ReplicatorAgent, Agent
+from wallace.agents import ReplicatorAgent
 from wallace.experiments import Experiment
 from wallace.sources import Source
+import random
 
 
 class Bartlett1932(Experiment):
@@ -70,7 +71,18 @@ class WarOfTheGhostsSource(Source):
         return info
 
     def _story(self):
-        with open("static/stimuli/ghosts.md", "r") as f:
+        stories = [
+            "ghosts.md",
+            "cricket.md",
+            "moochi.md",
+            "outwit.md",
+            "raid.md",
+            "species.md",
+            "tennis.md",
+            "vagabond.md"
+        ]
+        story = random.choice(stories)
+        with open("static/stimuli/{}".format(story), "r") as f:
             return f.read()
 
     def _what(self):
