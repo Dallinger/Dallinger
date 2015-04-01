@@ -431,7 +431,8 @@ class Network(Base):
             .filter(Vector.network == self)\
             .all()
 
-    def get_degrees(self):
+    @property
+    def degrees(self):
         return [agent.outdegree for agent in self.agents]
 
     def add_source(self, source):
