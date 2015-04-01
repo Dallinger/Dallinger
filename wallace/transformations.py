@@ -1,16 +1,22 @@
-from models import Transformation, Info
+from models import Transformation
 
 
-class IdentityTransformation(Transformation):
+class Replication(Transformation):
+
     """The identity transformation."""
 
-    __mapper_args__ = {"polymorphic_identity": "identity_tranformation"}
+    __mapper_args__ = {"polymorphic_identity": "replication"}
 
-    def apply(self):
-        info_out = Info(
-            origin=self.node,
-            contents=self.info_in.contents)
 
-        self.info_out = info_out
+class Mutation(Transformation):
 
-        return info_out
+    """The mutation transformation."""
+
+    __mapper_args__ = {"polymorphic_identity": "mutation"}
+
+
+class Observation(Transformation):
+
+    """The observation transformation."""
+
+    __mapper_args__ = {"polymorphic_identity": "observation"}

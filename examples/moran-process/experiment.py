@@ -60,11 +60,11 @@ class SimulatedAgent(Agent):
 
     __mapper_args__ = {"polymorphic_identity": "simulated_agent"}
 
-    def update(self, info_in):
-
-        # Apply the translation transformation.
-        transformation1 = SubstitutionCipher(info_in=info_in, node=self)
-        transformation1.apply()
+    def update(self, infos):
+        for info in infos:
+            # Apply the translation transformation.
+            transformation1 = SubstitutionCipher(info_in=info, node=self)
+            transformation1.apply()
 
 
 class WarOfTheGhostsSource(Source):

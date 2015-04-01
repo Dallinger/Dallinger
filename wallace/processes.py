@@ -6,7 +6,6 @@ import random
 class Process(object):
 
     def __init__(self, network):
-        self.db = network.db
         self.network = network
 
     def step(self, verbose=True):
@@ -15,16 +14,19 @@ class Process(object):
     def is_begun(self):
         """To tell if the process has started yet, check if there have been any
         transmissions."""
-        return len(self.db.query(models.Transmission).all()) > 0
+        return len(models.Transmission.query.all()) > 0
 
     def get_latest_transmission_recipient(self):
-        all_transmissions = self.db.query(models.Transmission)\
+        all_transmissions = models.Transmission\
+            .query\
             .order_by(desc(models.Transmission.transmit_time))\
             .all()
 
-        return next((t.destination for t in all_transmissions
-                    if t.destination.status != "failed"),
-                    None)
+        return next(
+            (t.destination for t in all_transmissions
+                if (t.destination.status != "failed") and
+                (t.destination.network == self.network)),
+            None)
 
 
 class RandomWalkFromSource(Process):
@@ -45,8 +47,7 @@ class RandomWalkFromSource(Process):
 
         if options:
             replaced = random.choice(options).destination
-            replacer.transmit(replaced)
-            self.db.commit()
+            replacer.transmit(to_whom=replaced)
         else:
             raise RuntimeError("No outgoing connections to choose from.")
 
@@ -60,12 +61,11 @@ class MoranProcessCultural(Process):
 
         if not self.is_begun():  # first step, replacer is a source
             replacer = random.choice(self.network.sources)
-            replacer.broadcast()
+            replacer.transmit()
         else:
             replacer = random.choice(self.network.agents)
             replaced = random.choice(replacer.outgoing_vectors).destination
-            replacer.transmit(replaced)
-        self.db.commit()
+            replacer.transmit(to_whom=replaced)
 
 
 class MoranProcessSexual(Process):
@@ -77,19 +77,19 @@ class MoranProcessSexual(Process):
 
         if not self.is_begun():
             replacer = random.choice(self.network.sources)
-            replacer.broadcast()
+            replacer.transmit()
         else:
             replacer = random.choice(self.network.agents)
             replaced = random.choice(replacer.outgoing_vectors).destination
 
-            # Make a baby.
-            baby = self.network.agent_type()
+            # Make a baby
+            baby = self.network.agent_type_generator()()
             self.network.add_agent(baby)
 
             # Endow the baby with the ome of the replaced, then sever
             # all ties. :(
             replacer.connect_to(baby)
-            replacer.transmit(baby)
+            replacer.transmit(to_whom=baby)
             baby.receive_all()
             for v in baby.incoming_vectors:
                 v.kill()
@@ -99,8 +99,6 @@ class MoranProcessSexual(Process):
                 v.kill()
                 baby.connect_to(v.destination)
 
-            self.db.commit()
-
             # Copy the incoming connections.
             for v in replaced.incoming_vectors:
                 v.destination.connect_to(baby)
@@ -108,5 +106,3 @@ class MoranProcessSexual(Process):
 
             # Kill the agent.
             replaced.kill()
-
-        self.db.commit()

@@ -50,13 +50,14 @@ var StroopExperiment = function() {
 		reqwest({
 		    url: "/agents",
 		    method: 'post',
+		    data: { unique_id: uniqueId },
 		    type: 'json',
 		  	success: function (resp) {
 		  		agent_uuid = resp.agents.uuid;
 		     	getPendingTransmissions(agent_uuid);
 		    },
 		    error: function (err) {
-		    	console.log(err);
+			  	currentview = new Questionnaire();
 		    }
 		});
 	};
@@ -85,6 +86,8 @@ var StroopExperiment = function() {
 		     	story = resp.contents;
 		     	storyHTML = markdown.toHTML(story);
 		     	$("#story").html(storyHTML);
+		     	$("#stimulus").show();
+				$("#response-form").hide();
 		     	$("#finish-reading").show();
 		    },
 		    error: function (err) {
@@ -98,6 +101,8 @@ var StroopExperiment = function() {
 	$("#finish-reading").click(function() {
 		$("#stimulus").hide();
 		$("#response-form").show();
+		$("#submit-response").removeClass('disabled');
+		$("#submit-response").html('Submit');
 	});
 
 	$("#submit-response").click(function() {
@@ -107,16 +112,22 @@ var StroopExperiment = function() {
 
 		response = encodeURIComponent($("#reproduction").val());
 
+		$("#reproduction").val("");
+
 		reqwest({
 		    url: "/information",
 		  	method: 'post',
 		  	data: {
 		  		origin_uuid: agent_uuid,
-		  		contents: response
+		  		contents: response,
+		  		info_type: "base"
+		  	},
+		  	success: function (resp) {
+		  		createAgent();
 		  	}
 		});
 
-		currentview = new Questionnaire();
+		// currentview = new Questionnaire();
 		// psiTurk.recordTrialData({'phase':"TEST", 'response': $("#reproduction").val()});
 	});
 

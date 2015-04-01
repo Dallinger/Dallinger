@@ -1,44 +1,6 @@
-from sqlalchemy import ForeignKey, Column, String, desc
-from datetime import datetime
-
-from .models import Node, Info, Transmission
+from sqlalchemy import desc
+from .models import Info, Agent
 from .information import Gene, Meme
-
-DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
-
-
-def timenow():
-    time = datetime.now()
-    return time.strftime(DATETIME_FMT)
-
-
-class Agent(Node):
-    """Agents have genomes and memomes, and update their contents when faced.
-    By default, agents transmit unadulterated copies of their genomes and
-    memomes, with no error or mutation.
-    """
-
-    __tablename__ = "agent"
-    __mapper_args__ = {"polymorphic_identity": "agent"}
-
-    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
-
-    def _selector(self):
-        raise NotImplementedError
-
-    def update(self, info):
-        raise NotImplementedError
-
-    def broadcast(self):
-        for vector in self.outgoing_vectors:
-            self.transmit(vector.destination)
-
-    def receive_all(self):
-        pending_transmissions = self.pending_transmissions
-        for transmission in pending_transmissions:
-            transmission.receive_time = timenow()
-            transmission.mark_received()
-            self.update(transmission.info)
 
 
 class BiologicalAgent(Agent):
@@ -72,8 +34,9 @@ class BiologicalAgent(Agent):
         a selector is not specified."""
         return [self.genome[0], self.memome[0]]
 
-    def update(self, info):
-        info.copy_to(self)
+    def update(self, infos):
+        for info_in in infos:
+            self.replicate(info_in)
 
 
 class ReplicatorAgent(Agent):
@@ -89,8 +52,10 @@ class ReplicatorAgent(Agent):
             .first()
         return info
 
-    def update(self, info):
-        info.copy_to(self)
+    def update(self, infos):
+        """Replicate the incoming information."""
+        for info_in in infos:
+            self.replicate(info_in)
 
-    def _selector(self):
+    def _what(self):
         return [self.info]

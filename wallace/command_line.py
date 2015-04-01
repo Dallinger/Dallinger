@@ -246,6 +246,12 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
     for cmd in cmds:
         subprocess.call(cmd + " --app " + id, stdout=OUT, shell=True)
 
+    # Set the notification URL in the cofig file to the notifications URL.
+    config.set(
+        "Server Parameters",
+        "notification_url",
+        "http://" + id + ".herokuapp.com/notifications")
+
     # Set the database URL in the config file to the newly generated one.
     log("Saving the URL of the postgres database...")
     db_url = subprocess.check_output(
@@ -254,7 +260,7 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
     subprocess.call("git add config.txt", stdout=OUT, shell=True),
     time.sleep(0.25)
     subprocess.call(
-        'git commit -m "Save URL of Heroku postgres database"',
+        'git commit -m "Save URLs for database and notifications"',
         stdout=OUT,
         shell=True)
     time.sleep(0.25)

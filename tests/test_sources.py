@@ -26,7 +26,7 @@ class TestSources(object):
         source.connect_to(agent)
         self.add(source, agent)
 
-        source.transmit(agent)
+        source.transmit(to_whom=agent)
         self.db.commit()
 
         agent.receive_all()
@@ -42,7 +42,7 @@ class TestSources(object):
         source.connect_to(agent2)
         self.add(source, agent1, agent2)
 
-        source.broadcast()
+        source.transmit(what=source.create_information())
         self.db.commit()
 
         agent1.receive_all()

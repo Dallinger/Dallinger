@@ -1,148 +1,47 @@
-from .models import Vector
-from .agents import Agent
-from .sources import Source
+from .models import Network
 import random
-
-
-class Network(object):
-    """A network of agents."""
-
-    def __init__(self, agent_type, db):
-        self.agent_type = agent_type
-        self.db = db
-
-    @property
-    def agents(self):
-        return self.db.query(Agent)\
-            .order_by(Agent.creation_time)\
-            .filter(Agent.status != "failed")\
-            .filter(Agent.status != "dead")\
-            .all()
-
-    @property
-    def sources(self):
-        return self.db.query(Source).order_by(
-            Source.creation_time).all()
-
-    @property
-    def vectors(self):
-        return self.db.query(Vector).order_by(
-            Vector.origin_uuid, Vector.destination_uuid).all()
-
-    def get_degrees(self):
-        return [agent.outdegree for agent in self.agents]
-
-    def add_source_global(self, source):
-        self.db.add(source)
-        for agent in self.agents:
-            source.connect_to(agent)
-        self.db.commit()
-
-    def add_source_local(self, source, agent):
-        self.db.add(source)
-        source.connect_to(agent)
-        self.db.commit()
-
-    def trigger_source(self, source):
-        source.broadcast()
-        self.db.commit()
-
-    def add_agent(self, agent):
-        self.db.add(agent)
-        self.db.commit()
-
-    def __len__(self):
-        raise SyntaxError(
-            "len is not defined for networks. Use len(net.agents) or len(net.sources) instead.")
-
-    def __repr__(self):
-        return "<{} with {} agents, {} sources, {} vectors>".format(
-            type(self).__name__,
-            len(self.agents),
-            len(self.sources),
-            len(self.vectors))
-
-    def print_verbose(self):
-        print "Agents: "
-        for a in self.agents:
-            print a
-
-        print "\nSources: "
-        for s in self.sources:
-            print s
-
-        print "\nVectors: "
-        for v in self.vectors:
-            print v
 
 
 class Chain(Network):
     """A -> B -> C -> ..."""
 
-    def __init__(self, agent_type, db, size=0):
-        super(Chain, self).__init__(agent_type, db)
-        if len(self.agents) == 0:
-            for i in xrange(size):
-                agent = agent_type()
-                self.add_agent(agent)
-
-    @property
-    def first_agent(self):
-        if len(self.agents) > 0:
-            return self.db.query(Agent)\
-                .order_by(Agent.creation_time)\
-                .filter(Agent.status != "failed")\
-                .first()
-        else:
-            return None
-
-    @property
-    def last_agent(self):
-        if len(self.agents) > 0:
-            return self.db.query(Agent)\
-                .order_by(Agent.creation_time.desc())\
-                .filter(Agent.status != "failed")\
-                .first()
-        else:
-            return None
+    __mapper_args__ = {"polymorphic_identity": "chain"}
 
     def add_agent(self, newcomer):
 
-        if len(self.agents) is 0:
-            self.db.add(newcomer)
-            self.db.commit()
-        else:
-            last_agent = self.last_agent
-            self.db.add(newcomer)
-            last_agent.connect_to(newcomer)
-            self.db.commit()
+        newcomer.network = self
 
-        return newcomer
+        vectors = []
+        if len(self.nodes) > 1:
+            vector = self.nodes[-2].connect_to(newcomer)
+            vectors.append(vector)
+
+        for vector in vectors:
+            vector.network = self
+
+        return vectors
 
 
 class FullyConnected(Network):
     """In a fully-connected network (complete graph), all possible vectors exist.
     """
 
-    def __init__(self, agent_type, db, size=0):
-        super(FullyConnected, self).__init__(agent_type, db)
-        if len(self.agents) == 0:
-            for i in xrange(size):
-                agent = agent_type()
-                self.add_agent(agent)
+    __mapper_args__ = {"polymorphic_identity": "fully-connected"}
 
     def add_agent(self, newcomer):
 
-        self.db.add(newcomer)
-        self.db.commit()
+        newcomer.network = self
 
+        vectors = []
         for agent in self.agents:
             if agent is not newcomer:
-                newcomer.connect_to(agent)
-                newcomer.connect_from(agent)
+                vectors.append(agent.connect_to(newcomer))
+                vectors.append(agent.connect_from(newcomer))
 
-        self.db.commit()
-        return newcomer
+        for vector in vectors:
+            vector.network = self
+
+        return vectors
 
 
 class ScaleFree(Network):
@@ -153,27 +52,24 @@ class ScaleFree(Network):
     attachment.
     """
 
-    def __init__(self, agent_type, db, size=0, m0=4, m=4):
-        super(ScaleFree, self).__init__(agent_type, db)
+    __mapper_args__ = {"polymorphic_identity": "scale-free"}
+
+    def __init__(self, m0=4, m=4):
         self.m = m
         self.m0 = m0
 
-        if len(self.agents) == 0:
-            for i in xrange(size):
-                agent = agent_type()
-                self.add_agent(agent)
-
     def add_agent(self, newcomer):
-        self.db.add(newcomer)
-        self.db.commit()
+
+        newcomer.network = self
+
+        vectors = []
 
         # Start with a core of m0 fully-connected agents...
         if len(self.agents) <= self.m0:
             for agent in self.agents:
                 if agent is not newcomer:
-                    newcomer.connect_to(agent)
-                    newcomer.connect_from(agent)
-            self.db.commit()
+                    vectors.append(newcomer.connect_to(agent))
+                    vectors.append(newcomer.connect_from(agent))
 
         # ...then add newcomers one by one with preferential attachment.
         else:
@@ -198,8 +94,10 @@ class ScaleFree(Network):
                         vector_to = these_agents[i]
 
                 # Create vector from newcomer to selected member and back
-                newcomer.connect_to(vector_to)
-                newcomer.connect_from(vector_to)
-                self.db.commit()
+                vectors.append(newcomer.connect_to(vector_to))
+                vectors.append(newcomer.connect_from(vector_to))
 
-        return newcomer
+        for vector in vectors:
+            vector.network = self
+
+        return vectors

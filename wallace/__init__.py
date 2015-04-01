@@ -1,4 +1,5 @@
-from . import models, information, agents, networks, processes
+from . import models, information, agents, sources, networks
+from . import processes, transformations, environments, experiments
 
 __all__ = ['models', 'information', 'agents', 'sources', 'networks',
-           'processes', 'transformations']
+           'processes', 'transformations', 'environments', 'experiments']

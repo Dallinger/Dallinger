@@ -1,4 +1,4 @@
-from wallace import models, db, agents
+from wallace import models, db, agents, information, environments
 from nose.tools import raises
 
 
@@ -15,19 +15,6 @@ class TestModels(object):
         self.db.add_all(args)
         self.db.commit()
 
-
-    ##################################################################
-    ## Environment
-    ##################################################################
-    def test_create_environment(self):
-        """Create an environment"""
-        environment = models.Environment(state="foo")
-        self.add(environment)
-
-        assert len(environment.uuid) == 32
-        assert environment.type == "base"
-        assert environment.creation_time
-        assert environment.state == "foo"
 
     ##################################################################
     ## Node
@@ -267,28 +254,17 @@ class TestModels(object):
 
         assert repr(info).split("-") == ["Info", info.uuid[:6], "base"]
 
-    def test_info_copy_to(self):
-        """Check that Info.copy_to works correctly"""
-        agent1 = agents.ReplicatorAgent()
-        agent2 = agents.ReplicatorAgent()
-        agent1.connect_to(agent2)
-        self.add(agent1, agent2)
+    @raises(ValueError)
+    def test_info_write_twice(self):
+        """Overwrite an info's contents."""
+        node = models.Node()
+        info = models.Info(origin=node, contents="foo")
 
-        info1 = models.Info(origin=agent1, contents="foo")
-        agent1.transmit(agent2, info1)
-        info2 = info1.copy_to(agent2)
-        self.add(info1, info2)
+        self.add(node, info)
 
-        assert info1.uuid != info2.uuid
-        assert info1.type == info2.type
-        assert info1.creation_time != info2.creation_time
-        assert info1.contents == info2.contents
-        assert info1.origin_uuid == agent1.uuid
-        assert info2.origin_uuid == agent2.uuid
-        assert len(info1.transmissions) == 1
-        assert len(info2.transmissions) == 0
-        assert agent1.information == [info1]
-        assert agent2.information == [info2]
+        assert info.contents == "foo"
+        info.contents = "ofo"
+
 
     ##################################################################
     ## Transmission
@@ -334,8 +310,8 @@ class TestModels(object):
         info2 = models.Info(origin=agent3, contents="bar")
         self.add(info1, info2)
 
-        agent2.transmit(agent1, info1)
-        agent3.transmit(agent1, info2)
+        agent2.transmit(what=info1, to_whom=agent1)
+        agent3.transmit(what=info2, to_whom=agent1)
         self.db.commit()
 
         assert len(agent1.incoming_transmissions) == 2
@@ -354,8 +330,8 @@ class TestModels(object):
         info2 = models.Info(origin=agent1, contents="bar")
         self.add(info1, info2)
 
-        agent1.transmit(agent2, info1)
-        agent1.transmit(agent3, info2)
+        agent1.transmit(what=info1, to_whom=agent2)
+        agent1.transmit(what=info2, to_whom=agent3)
         self.db.commit()
 
         assert len(agent1.outgoing_transmissions) == 2

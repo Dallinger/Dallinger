@@ -11,11 +11,13 @@ from psiturk.db import db_session as session_psiturk
 from psiturk.models import Participant
 from json import dumps, loads
 
-from wallace import db, agents, models
+from wallace import db, agents, models, information
 
 import imp
 import inspect
 import urllib
+
+import hashlib
 
 # load the configuration options
 config = PsiturkConfig()
@@ -94,14 +96,48 @@ def api_agent_create():
 
     if request.method == 'POST':
 
-        # Create the newcomer and trigger experiment-specific behavior
-        newcomer = exp.agent_type()
-        exp.newcomer_arrival_trigger(newcomer)
+        # Figure out whether this MTurk participant is allowed to create
+        # another agent in this experiment.
+        participant_uuid = hashlib.sha512(
+            request.values["unique_id"]).hexdigest()
 
-        # Return a response
-        data = {'agents': {'uuid': newcomer.uuid}}
-        js = dumps(data)
-        return Response(js, status=200, mimetype='application/json')
+        legal_networks = [net for net in exp.networks if
+                          ((not exp.is_network_full(net)) and
+                           (not net.has_participant(participant_uuid)))]
+
+        if legal_networks:
+
+            # Figure out which network to place the next newcomer in.
+            plenitude = [len(net.agents) for net in legal_networks]
+            net = legal_networks[plenitude.index(min(plenitude))]
+
+            # Generate the right kind of newcomer.
+            try:
+                assert(issubclass(exp.agent_type_generator, models.Node))
+                agent_type_generator = lambda network=net: exp.agent_type_generator
+            except:
+                agent_type_generator = exp.agent_type_generator
+
+            newcomer_type = agent_type_generator(network=net)
+            newcomer = newcomer_type(participant_uuid=participant_uuid)
+            session.add(newcomer)
+            session.commit()
+
+            # Add the newcomer to the agent.
+            vectors = net.add_agent(newcomer)
+            session.add_all(vectors)
+            session.commit()
+
+            # Run the next step of the process.
+            exp.process_type(net).step()
+
+            # Return a response
+            data = {'agents': {'uuid': newcomer.uuid}}
+            js = dumps(data)
+            return Response(js, status=200, mimetype='application/json')
+
+        else:
+            return Response(status=403)
 
     if request.method == "GET":
         data_agents = [agent.uuid for agent in exp.network.agents]
@@ -117,6 +153,7 @@ def api_agent_create():
 def api_transmission(transmission_uuid):
 
     exp = experiment(session)
+    session.commit()
 
     if request.method == 'GET':
 
@@ -142,6 +179,7 @@ def api_transmission(transmission_uuid):
 
         # Build a dict with info about the transmissions
         data_transmissions = []
+        data = []
         for i in xrange(len(pending_transmissions)):
             t = pending_transmissions[i]
 
@@ -154,6 +192,11 @@ def api_transmission(transmission_uuid):
                 "receive_time": t.receive_time
             })
             data = {"transmissions": data_transmissions}
+
+        if not data:
+            print "{} made a GET request for transmissions, ".format(
+                request.values['destination_uuid']) + \
+                "but there were no transmissions to get."
 
         js = dumps(data)
         return Response(js, status=200, mimetype='application/json')
@@ -183,7 +226,7 @@ def api_transmission(transmission_uuid):
 
 @custom_code.route("/information",
                    defaults={"info_uuid": None},
-                   methods=["POST"])
+                   methods=["POST", "GET"])
 @custom_code.route("/information/<info_uuid>", methods=["GET"])
 def api_info(info_uuid):
 
@@ -192,6 +235,7 @@ def api_info(info_uuid):
     if request.method == 'GET':
 
         if info_uuid is not None:
+
             info = models.Info.query.filter_by(uuid=info_uuid).one()
 
             data = {
@@ -203,6 +247,29 @@ def api_info(info_uuid):
             }
             js = dumps(data)
 
+            return Response(js, status=200, mimetype='application/json')
+
+        else:
+
+            infos = models.Info\
+                .query\
+                .filter_by(origin_uuid=request.values['origin_uuid'])\
+                .order_by(models.Info.creation_time)\
+                .all()
+
+            data_information = []
+            for i in xrange(len(infos)):
+                info = infos[i]
+
+                data_information.append({
+                    "info_uuid": info.uuid,
+                    "type": info.type,
+                    "origin_uuid": info.origin_uuid,
+                    "creation_time": info.creation_time,
+                    "contents": info.contents
+                })
+
+            js = dumps({"information": data_information})
             return Response(js, status=200, mimetype='application/json')
 
     if request.method == "POST":
@@ -217,7 +284,25 @@ def api_info(info_uuid):
 
             cnts = urllib.unquote(request.values['contents']).decode('utf8')
 
-            info = models.Info(
+            # Create an Info of the requested type.
+            info_type = request.values['info_type']
+
+            if (info_type is None) or (info_type == "base"):
+                cls = models.Info
+
+            elif info_type == "meme":
+                cls = information.Meme
+
+            elif info_type == "gene":
+                cls = information.Gene
+
+            elif info_type == "state":
+                cls = information.State
+
+            else:
+                raise ValueError("Requested info_type does not exist.")
+
+            info = cls(
                 origin=node,
                 contents=cnts)
 
@@ -231,3 +316,55 @@ def api_info(info_uuid):
             js = dumps(data)
 
             return Response(js, status=200, mimetype='application/json')
+
+
+@custom_code.route("/notifications", methods=["POST", "GET"])
+def api_notifications():
+    print "Received a notification:"
+    for v in request.values:
+        print v
+    print "---"
+
+    event_type = request.values['Event.1.EventType']
+
+    if event_type == 'AssignmentAccepted':
+        print "Participant accepted assignment."
+
+    elif event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
+
+        print "Participant stopped working."
+
+        # Get the assignment id.
+        print "Assignment ID:"
+        assignment_id = request.values['Event.1.AssignmentId']
+        print assignment_id
+
+        # Transform the assignment id to the SHA512 hash of the unique id
+        # from the psiTurk table.
+        participant = Participant.query.\
+            filter(Participant.assignmentid == assignment_id).\
+            one()
+
+        participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
+
+        # Get the all nodes associated with the participant.
+        nodes = models.Node\
+            .query\
+            .filter_by(participant_uuid=participant_uuid)\
+            .all()
+
+        for node in nodes:
+            print "Failing node {}.".format(node)
+            node.fail()
+
+    return Response(
+        dumps({"status": "success"}), status=200, mimetype='application/json')
+
+    # all_event_types = [
+    #     "AssignmentAccepted",
+    #     "AssignmentAbandoned",
+    #     "AssignmentReturned",
+    #     "AssignmentSubmitted",
+    #     "HITReviewable",
+    #     "HITExpired",
+    # ]
