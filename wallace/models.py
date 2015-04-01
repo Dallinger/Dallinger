@@ -435,6 +435,9 @@ class Network(Base):
     def degrees(self):
         return [agent.outdegree for agent in self.agents]
 
+    def add(self, base):
+        base.network = self
+
     def add_source(self, source):
         source.network = self
 
