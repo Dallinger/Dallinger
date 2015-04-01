@@ -118,13 +118,12 @@ class Node(Base):
     def connect_to(self, other_node):
         """Creates a directed edge from self to other_node"""
         if self.network_uuid != other_node.network_uuid:
-            raise(ValueError("{} cannot connect to {} as they are not \
-                                in the same network. {} is in network {}, \
-                                but {} is in network {}."
+            raise(ValueError(("{} cannot connect to {} as they are not " +
+                              "in the same network. {} is in network {}, " +
+                              "but {} is in network {}.")
                              .format(self, other_node, self, self.network_uuid,
                                      other_node, other_node.network_uuid)))
         vector = Vector(origin=self, destination=other_node)
-        self.outgoing_vectors.append(vector)
         return vector
 
     def connect_from(self, other_node):
@@ -443,20 +442,21 @@ class Network(Base):
         source.network = self
 
     def add_source_global(self, source):
-        vectors = []
-        for agent in self.agents:
-            vectors.append(source.connect_to(agent))
 
         source.network = self
-        for vector in vectors:
-            vector.network = self
-        return vectors
+
+        for agent in self.agents:
+            source.connect_to(agent)
 
     def add_source_local(self, source, agent):
+
         source.network = self
-        vector = source.connect_to(agent)
-        vector.network = self
-        return [vector]
+
+        uid = source.uuid
+        source = Node.query\
+            .filter_by(uuid=uid).one()
+
+        source.connect_to(agent)
 
     def add_agent(self, agent):
         agent.network = self
