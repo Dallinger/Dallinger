@@ -83,7 +83,7 @@ class Node(Base):
     @property
     def successors2(self):
         print "successors2 is deprecated, use downstream_nodes instead"
-        return downstream_nodes(self, Agent)
+        return self.downstream_nodes(type=Agent)
         # outgoing_vectors = Vector.query.filter_by(origin=self).all()
         # return [v.destination for v in outgoing_vectors
         #         if isinstance(v.destination, Agent)]
@@ -107,7 +107,7 @@ class Node(Base):
     @property
     def predecessors2(self):
         print "predecessors2 is deprecated, use upstream_nodes instead"
-        return upstream_nodes(self, Agent)
+        return self.upstream_nodes(type=Agent)
         # incoming_vectors = Vector.query.filter_by(destination=self).all()
         # return [v.origin for v in incoming_vectors
         #         if isinstance(v.origin, Agent)]
