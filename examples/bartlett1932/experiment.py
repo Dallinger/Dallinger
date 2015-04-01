@@ -12,7 +12,6 @@ class Bartlett1932(Experiment):
     def __init__(self, session):
         super(Bartlett1932, self).__init__(session)
 
-        self.task = "Transmission chain"
         self.max_population_size = 10
         self.num_repeats = 4
         self.agent_type_generator = ReplicatorAgent

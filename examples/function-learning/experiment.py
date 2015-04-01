@@ -1,4 +1,5 @@
 import wallace
+from wallace.agents import ReplicatorAgent
 import random
 import json
 from sqlalchemy.ext.declarative import declared_attr
@@ -7,14 +8,15 @@ import math
 
 class FunctionLearning(wallace.experiments.Experiment):
     def __init__(self, session):
-        self.num_agents_per_chain = 10
+        super(FunctionLearning, self).__init__(session)
+
+
+        self.max_population_size = 10
         self.num_repeats = 4
-        self.agent_type_generator = wallace.agents.ReplicatorAgent
+        self.agent_type_generator = ReplicatorAgent
         self.network_type = wallace.networks.Chain
         self.process_type = wallace.processes.RandomWalkFromSource
         self.recruiter = wallace.recruiters.PsiTurkRecruiter
-
-        super(FunctionLearning, self).__init__(session)
 
         # Get a list of all the networks, creating them if they don't already
         # exist.
@@ -49,10 +51,13 @@ class FunctionLearning(wallace.experiments.Experiment):
             # Otherwise recruit a new participant.
             self.recruiter().recruit_new_participants(self, n=1)
 
-    def is_experiment_over(self):
-        current = len(wallace.models.Agent.query.all())
-        needed = self.num_agents_per_chain * self.num_repeats
-        return current == needed
+    def is_network_full(self, network):
+        return len(network.agents) >= self.max_population_size
+
+    # def is_experiment_over(self):
+    #     current = len(wallace.models.Agent.query.all())
+    #     needed = self.num_agents_per_chain * self.num_repeats
+    #     return current == needed
 
 
 class AbstractFnSource(wallace.models.Source):
