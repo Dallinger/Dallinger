@@ -76,7 +76,8 @@ class SimulatedAgent(Agent):
         for info in infos:
 
             # Apply the translation transformation.
-            transformation1 = TranslationTransformation(info_in=info, node=self)
+            transformation1 = TranslationTransformation(
+                info_in=info, node=self)
             transformation1.apply()
 
 

@@ -472,7 +472,8 @@ class Network(Base):
 
     def __len__(self):
         raise SyntaxError(
-            "len is not defined for networks. Use len(net.agents) or len(net.sources) instead.")
+            "len is not defined for networks. " +
+            "Use len(net.agents) or len(net.sources) instead.")
 
     def __repr__(self):
         return "<Network-{}-{} with {} agents, {} sources, {} vectors>".format(

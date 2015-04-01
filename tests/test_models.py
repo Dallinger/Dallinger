@@ -1,4 +1,4 @@
-from wallace import models, db, agents, information, environments
+from wallace import models, db, agents
 from nose.tools import raises
 
 
@@ -15,9 +15,8 @@ class TestModels(object):
         self.db.add_all(args)
         self.db.commit()
 
-
     ##################################################################
-    ## Node
+    # Node
     ##################################################################
 
     def test_create_node(self):
@@ -141,7 +140,7 @@ class TestModels(object):
         assert node2.has_connection_from(node1)
 
     ##################################################################
-    ## Vector
+    # Vector
     ##################################################################
 
     def test_create_vector(self):
@@ -210,7 +209,7 @@ class TestModels(object):
                 ["Vector", node2.uuid[:6], node1.uuid[:6]])
 
     ##################################################################
-    ## Info
+    # Info
     ##################################################################
 
     def test_create_info(self):
@@ -265,9 +264,8 @@ class TestModels(object):
         assert info.contents == "foo"
         info.contents = "ofo"
 
-
     ##################################################################
-    ## Transmission
+    # Transmission
     ##################################################################
 
     def test_create_transmission(self):

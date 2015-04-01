@@ -113,7 +113,8 @@ class TestProcesses(object):
     #     vector5 = agent3.connect_to(agent1)
     #     vector6 = agent3.connect_to(agent2)
 
-    #     self.db.add_all([vector1, vector2, vector3, vector4, vector5, vector6])
+    #     self.db.add_all(
+    #    [vector1, vector2, vector3, vector4, vector5, vector6])
 
     #     # Add a global source and broadcast to all the agents.
     #     source = sources.RandomBinaryStringSource()
