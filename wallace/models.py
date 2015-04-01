@@ -218,7 +218,8 @@ class Node(Base):
     @hybrid_property
     def outdegree(self):
         """The outdegree (number of outgoing edges) of this node."""
-        return len(self.outgoing_vectors)
+        # return len(self.outgoing_vectors)
+        return len(Vector.query.filter_by(origin=self).all())
 
     @outdegree.expression
     def outdegree(self):
