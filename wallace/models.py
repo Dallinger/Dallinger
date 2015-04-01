@@ -101,8 +101,8 @@ class Node(Base):
         if type is None:
             type = Node
         incoming_vectors = Vector.query.filter_by(destination=self).all()
-        return [v.destination for v in incoming_vectors
-                if isinstance(v.destination, type)]
+        return [v.origin for v in incoming_vectors
+                if isinstance(v.origin, type)]
 
     @property
     def predecessors2(self):
