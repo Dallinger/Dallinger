@@ -25,15 +25,13 @@ class TestProcesses(object):
         agent1.connect_to(agent2)
         agent2.connect_to(agent3)
 
-        self.db.add_all([net, agent1, agent2, agent3])
-        self.db.commit()
+        self.db.add_all([agent1, agent2, agent3])
 
         source = sources.RandomBinaryStringSource()
-
         self.db.add(source)
 
+        net.add_source_local(source, net.agents[0])
         source.create_information()
-        net.add_source_local(source, agent1)
 
         process = processes.RandomWalkFromSource(net)
         process.step()
@@ -41,17 +39,11 @@ class TestProcesses(object):
         agent1.receive_all()
         msg = agent1.info.contents
 
-        self.db.commit()
-
         process.step()
         agent2.receive_all()
 
-        self.db.commit()
-
         process.step()
         agent3.receive_all()
-
-        self.db.commit()
 
         assert msg == agent3.info.contents
 
@@ -63,6 +55,7 @@ class TestProcesses(object):
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
         agent3 = agents.ReplicatorAgent()
+        self.db.add_all([agent1, agent2, agent3])
 
         net.add_agent(agent1)
         net.add_agent(agent2)
@@ -75,15 +68,12 @@ class TestProcesses(object):
         agent3.connect_to(agent1)
         agent3.connect_to(agent2)
 
-        self.db.add_all([agent1, agent2, agent3])
-        self.db.commit()
-
         # Add a global source and broadcast to all the agents.
         source = sources.RandomBinaryStringSource()
+        self.db.add(source)
         net.add_source_global(source)
         info = source.create_information()
         source.transmit(what=info)
-        self.db.commit()
 
         for agent in net.agents:
             agent.receive_all()
