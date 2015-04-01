@@ -83,31 +83,39 @@ class Node(Base):
     @property
     def successors2(self):
         print "successors2 is deprecated, use downstream_nodes instead"
-        return self.downstream_nodes(type=Agent)
+        return [n for n in self.downstream_nodes if isinstance(n, Agent)]
         # outgoing_vectors = Vector.query.filter_by(origin=self).all()
         # return [v.destination for v in outgoing_vectors
         #         if isinstance(v.destination, Agent)]
 
     @property
-    def downstream_nodes(self, type=None):
-        if type is None:
-            type = Node
+    def downstream_nodes(self):
         outgoing_vectors = Vector.query.filter_by(origin=self).all()
         return [v.destination for v in outgoing_vectors
-                if isinstance(v.destination, type)]
+                if isinstance(v.destination, Node)]
 
     @property
-    def upstream_nodes(self, type=None):
-        if type is None:
-            type = Node
+    def downstream_agents(self):
+        outgoing_vectors = Vector.query.filter_by(origin=self).all()
+        return [v.destination for v in outgoing_vectors
+                if isinstance(v.destination, Agent)]
+
+    @property
+    def upstream_nodes(self):
         incoming_vectors = Vector.query.filter_by(destination=self).all()
         return [v.origin for v in incoming_vectors
-                if isinstance(v.origin, type)]
+                if isinstance(v.origin, Node)]
+
+    @property
+    def upstream_agents(self):
+        incoming_vectors = Vector.query.filter_by(destination=self).all()
+        return [v.origin for v in incoming_vectors
+                if isinstance(v.origin, Agent)]
 
     @property
     def predecessors2(self):
         print "predecessors2 is deprecated, use upstream_nodes instead"
-        return self.upstream_nodes(type=Agent)
+        return [n for n in self.upstream_nodes if isinstance(n, Agent)]
         # incoming_vectors = Vector.query.filter_by(destination=self).all()
         # return [v.origin for v in incoming_vectors
         #         if isinstance(v.origin, Agent)]
