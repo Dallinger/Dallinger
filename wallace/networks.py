@@ -29,13 +29,14 @@ class FullyConnected(Network):
     __mapper_args__ = {"polymorphic_identity": "fully-connected"}
 
     def add_agent(self, newcomer):
+
+        newcomer.network = self
+
         vectors = []
         for agent in self.agents:
             if agent is not newcomer:
                 vectors.append(agent.connect_to(newcomer))
                 vectors.append(agent.connect_from(newcomer))
-
-        newcomer.network = self
 
         for vector in vectors:
             vector.network = self
@@ -58,6 +59,8 @@ class ScaleFree(Network):
         self.m0 = m0
 
     def add_agent(self, newcomer):
+
+        newcomer.network = self
 
         vectors = []
 
@@ -93,8 +96,6 @@ class ScaleFree(Network):
                 # Create vector from newcomer to selected member and back
                 vectors.append(newcomer.connect_to(vector_to))
                 vectors.append(newcomer.connect_from(vector_to))
-
-        newcomer.network = self
 
         for vector in vectors:
             vector.network = self
