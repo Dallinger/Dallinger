@@ -1,14 +1,17 @@
+"""Network structures commonly used in simulations of evolution."""
+
 from .models import Network
 import random
 
 
 class Chain(Network):
+
     """A -> B -> C -> ..."""
 
     __mapper_args__ = {"polymorphic_identity": "chain"}
 
     def add_agent(self, newcomer):
-
+        """Add an agent, connecting it to the previous node."""
         newcomer.network = self
 
         vectors = []
@@ -23,13 +26,13 @@ class Chain(Network):
 
 
 class FullyConnected(Network):
-    """In a fully-connected network (complete graph), all possible vectors exist.
-    """
+
+    """A fully-connected network (complete graph) with all possible vectors."""
 
     __mapper_args__ = {"polymorphic_identity": "fully-connected"}
 
     def add_agent(self, newcomer):
-
+        """Add an agent, connecting it to everyone and back."""
         newcomer.network = self
 
         vectors = []
@@ -45,8 +48,10 @@ class FullyConnected(Network):
 
 
 class ScaleFree(Network):
-    """Barabasi-Albert (1999) model for constructing a scale-free network. The
-    construction process begins with a fully-connected network with m0
+
+    """Barabasi-Albert (1999) model for constructing a scale-free network.
+
+    The construction process begins with a fully-connected network with m0
     individuals. Each newcomer makes m connections with existing memebers of
     the network. Critically, new connections are chosen using preferential
     attachment.
@@ -59,7 +64,7 @@ class ScaleFree(Network):
         self.m0 = m0
 
     def add_agent(self, newcomer):
-
+        """Add newcomers one by one, using linear preferential attachment."""
         newcomer.network = self
 
         vectors = []
