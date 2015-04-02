@@ -1,3 +1,5 @@
+"""This is Wallace, a platform for simulating evolution with people."""
+
 from . import models, information, agents, sources, networks
 from . import processes, transformations, environments, experiments
 

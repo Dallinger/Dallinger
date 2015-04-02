@@ -10,7 +10,6 @@ class FunctionLearning(wallace.experiments.Experiment):
     def __init__(self, session):
         super(FunctionLearning, self).__init__(session)
 
-
         self.max_population_size = 10
         self.num_repeats = 4
         self.agent_type_generator = ReplicatorAgent

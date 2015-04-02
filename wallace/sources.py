@@ -1,12 +1,10 @@
-from .models import Node, Info, Source
-from sqlalchemy import ForeignKey, Column, String
+from .models import Info, Source
 import random
 
 
 class RandomBinaryStringSource(Source):
-    """An agent whose genome and memome are random binary strings. The source
-    only transmits; it does not update.
-    """
+
+    """An source that transmits random binary strings."""
 
     __mapper_args__ = {"polymorphic_identity": "random_binary_string_source"}
 

@@ -1,3 +1,5 @@
+"""Bartlett's trasmission chain experiment from Remembering (1932)."""
+
 from wallace.networks import Chain
 from wallace.models import Info, Network
 from wallace.processes import RandomWalkFromSource
@@ -53,16 +55,18 @@ class Bartlett1932(Experiment):
             self.recruiter().recruit_new_participants(self, n=1)
 
     def is_network_full(self, network):
+        """The network is full when it reaches its maximum size."""
         return len(network.agents) >= self.max_population_size
 
 
 class WarOfTheGhostsSource(Source):
-    """A source that transmits the War of Ghosts story from Bartlett (1932).
-    """
+
+    """Transmit the War of Ghosts story from Bartlett (1932)."""
 
     __mapper_args__ = {"polymorphic_identity": "war_of_the_ghosts_source"}
 
     def create_information(self):
+        """Create an info whose contents is a story."""
         info = Info(
             origin=self,
             origin_uuid=self.uuid,
@@ -70,6 +74,7 @@ class WarOfTheGhostsSource(Source):
         return info
 
     def _story(self):
+        """Return the text of a story from Bartlett (1932)."""
         stories = [
             "ghosts.md",
             "cricket.md",
@@ -85,4 +90,5 @@ class WarOfTheGhostsSource(Source):
             return f.read()
 
     def _what(self):
+        """By default, the source transmits a randomly-chosen story."""
         return self.create_information()

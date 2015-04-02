@@ -1,4 +1,3 @@
-import sys
 from setuptools import setup
 
 setup_args = dict(

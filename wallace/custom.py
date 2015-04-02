@@ -1,12 +1,11 @@
 # this file imports custom routes into the experiment server
-
 from flask import Blueprint, request, jsonify, Response, abort
 
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.experiment_errors import ExperimentError
 from psiturk.user_utils import PsiTurkAuthorization
 
-# # Database setup
+# Database setup
 from psiturk.db import db_session as session_psiturk
 from psiturk.models import Participant
 from json import dumps, loads

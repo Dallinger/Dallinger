@@ -1,4 +1,4 @@
-from wallace import processes, networks, sources, agents, db, models
+from wallace import processes, networks, sources, agents, db
 
 
 class TestProcesses(object):

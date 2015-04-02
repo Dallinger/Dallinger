@@ -1,3 +1,5 @@
+"""Recruiters manage the flow of participants to the experiment."""
+
 import os
 from psiturk.amt_services import MTurkServices, RDSServices
 from psiturk.psiturk_config import PsiturkConfig
@@ -10,7 +12,8 @@ import boto.sqs
 
 class Recruiter(object):
     """A recruiter manages the flow of participants to the experiment website,
-    recruiting new participants and retaining those who are still needed."""
+    recruiting new participants and retaining those who are still needed.
+    """
     def __init__(self):
         super(Recruiter, self).__init__()
 
