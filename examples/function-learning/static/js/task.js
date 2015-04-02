@@ -36,13 +36,14 @@ var FunctionLearningExperiment = function() {
 		reqwest({
 		    url: "/agents",
 		    method: 'post',
+            data: { unique_id: uniqueId },
 		    type: 'json',
 		  	success: function (resp) {
 		  		agent_uuid = resp.agents.uuid;
 		     	getPendingTransmissions(agent_uuid);
 		    },
 		    error: function (err) {
-		    	console.log(err);
+                currentview = new Questionnaire();
 		    }
 		});
 	};

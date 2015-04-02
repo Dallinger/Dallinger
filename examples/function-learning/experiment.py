@@ -1,5 +1,6 @@
 import wallace
 from wallace.agents import ReplicatorAgent
+from wallace.models import Source
 import random
 import json
 from sqlalchemy.ext.declarative import declared_attr
@@ -53,13 +54,8 @@ class FunctionLearning(wallace.experiments.Experiment):
     def is_network_full(self, network):
         return len(network.agents) >= self.max_population_size
 
-    # def is_experiment_over(self):
-    #     current = len(wallace.models.Agent.query.all())
-    #     needed = self.num_agents_per_chain * self.num_repeats
-    #     return current == needed
 
-
-class AbstractFnSource(wallace.models.Source):
+class AbstractFnSource(Source):
     __abstract__ = True
 
     def create_information(self):
@@ -88,53 +84,53 @@ class AbstractFnSource(wallace.models.Source):
         return {"polymorphic_identity": cls.__name__.lower()}
 
 
-class IdentityFunctionSource(AbstractFnSource, wallace.models.Source):
+class IdentityFunctionSource(AbstractFnSource, Source):
     def func(self, x):
         return x
 
 
-class AdditiveInverseFunctionSource(AbstractFnSource, wallace.models.Source):
+class AdditiveInverseFunctionSource(AbstractFnSource, Source):
     def func(self, x):
         return 100 - x
 
 
-class SinusoidalFunctionSource(AbstractFnSource, wallace.models.Source):
+class SinusoidalFunctionSource(AbstractFnSource, Source):
     def func(self, x):
         return 50.5 + 49.5 * math.sin(math.pi / 2 + x / (5 * math.pi))
 
 
-class RandomMappingFunctionSource(AbstractFnSource, wallace.models.Source):
+class RandomMappingFunctionSource(AbstractFnSource, Source):
     m = random.shuffle(range(1, 100))
 
     def func(self, x):
         return self.m[x - 1]
 
 
-class StepFunctionSource(AbstractFnSource, wallace.models.Source):
+class StepFunctionSource(AbstractFnSource, Source):
     def func(self, x):
         return 75 if x >= 50 else 25
 
 
-class ConstantFunctionSource(AbstractFnSource, wallace.models.Source):
+class ConstantFunctionSource(AbstractFnSource, Source):
     def func(self, x):
         return 50
 
 
-class LogisticFunctionSource(AbstractFnSource, wallace.models.Source):
+class LogisticFunctionSource(AbstractFnSource, Source):
     def func(self, x):
         return 1 / (0.01 + math.exp(-0.092 * x))
 
 
-class ExponentialFunctionSource(AbstractFnSource, wallace.models.Source):
+class ExponentialFunctionSource(AbstractFnSource, Source):
     def func(self, x):
         return 100 * math.exp(-0.05 * x)
 
 
-class TriangleWaveFunctionSource(AbstractFnSource, wallace.models.Source):
+class TriangleWaveFunctionSource(AbstractFnSource, Source):
     def func(self, x):
         return 2 * (100 - x) if x >= 50 else 2 * x
 
 
-class SquareWaveFunctionSource(AbstractFnSource, wallace.models.Source):
+class SquareWaveFunctionSource(AbstractFnSource, Source):
     def func(self, x):
         return 75 if (math.fmod(x, 50) <= 25) else 25
