@@ -16,8 +16,8 @@ from wallace import db, agents, models, information
 import imp
 import inspect
 import urllib
-
 import hashlib
+import random
 
 # load the configuration options
 config = PsiturkConfig()
@@ -109,7 +109,8 @@ def api_agent_create():
 
             # Figure out which network to place the next newcomer in.
             plenitude = [len(net.agents) for net in legal_networks]
-            net = legal_networks[plenitude.index(min(plenitude))]
+            idxs = [i for i, x in enumerate(plenitude) if x == min(plenitude)]
+            net = legal_networks[random.choice(idxs)]
 
             # Generate the right kind of newcomer.
             try:
