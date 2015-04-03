@@ -305,11 +305,14 @@ class Node(Base):
     def has_connection_to(self, other_node):
         """Whether this node has a connection to 'other_node'."""
         # return other_node in self.successors
-        return other_node in self.downstream_nodes
+        if not isinstance(other_node, Node):
+            raise(ValueError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
+                format(self, other_node, other_node, type(other_node))))
+        return other_node in self.get_downstream_nodes()
 
     def has_connection_from(self, other_node):
         """Whether this node has a connection from 'other_node'."""
-        return other_node in self.upstream_nodes
+        return other_node.has_connection_to(self)
 
     @property
     def incoming_transmissions(self):
