@@ -125,6 +125,37 @@ class TestNetworks(object):
         assert len(net.vectors) == 0
         assert len(net.sources) == 0
 
+    def test_network_downstream_nodes(self):
+        net = networks.Network()
+
+        node1 = models.Node()
+        node2 = models.Node()
+        agent1 = agents.Agent()
+        agent2 = agents.ReplicatorAgent()
+        source1 = models.Source()
+        source2 = models.Source()
+
+        self.db.add_all([node1, node2, agent1, agent2, source1, source2])
+        net.add([node1, node2, agent1, agent2, source1, source2])
+
+        node1.connect_to([node2, agent1, agent2, source1, source2])
+
+        assert node1.get_downstream_nodes() == [node2, agent1, agent2, source1, source2]
+        assert node1.outdegree == 5
+        assert node1.get_downstream_nodes(type=agents.Agent) == [agent1, agent2]
+        assert node1.get_downstream_nodes(type=agents.Agent) == [agent1, agent2]
+
+        source1.kill()
+        source2.fail()
+
+        assert node1.get_downstream_nodes(status="dead") == [source1]
+        assert node1.get_downstream_nodes(status="failed") == [source2]
+        assert node1.get_downstream_nodes(status="alive") == [node2, agent1, agent2]
+        assert node1.get_downstream_nodes(status="all") == [node2, agent1, agent2, source1, source2]
+
+        assert_raises(ValueError, node1.get_downstream_nodes, status="blagjrg")
+
+
     def test_network_repr(self):
         net = networks.Network()
 

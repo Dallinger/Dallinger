@@ -169,19 +169,32 @@ class Node(Base):
 
     def connect_to(self, other_node):
         """Creates a directed edge from self to other_node"""
-        if self.network_uuid != other_node.network_uuid:
+        """other_node may be a list of nodes"""
+        if isinstance(other_node, list) :
+            for node in other_node:
+                self.connect_to(node)
+        elif self == other_node:
+            raise(ValueError("{} cannot connect to itself.".format(self)))
+        elif not isinstance(other_node, Node):
+            raise(ValueError('{} cannot connect to {} as it is a {}'.format(self, other_node, type(other_node))))
+        elif self.network_uuid != other_node.network_uuid:
             raise(ValueError(("{} cannot connect to {} as they are not " +
                               "in the same network. {} is in network {}, " +
                               "but {} is in network {}.")
                              .format(self, other_node, self, self.network_uuid,
                                      other_node, other_node.network_uuid)))
-        vector = Vector(origin=self, destination=other_node)
-        return vector
+        else:
+            Vector(origin=self, destination=other_node, network=self.network)
+            #vector = Vector(origin=self, destination=other_node)
+            #return vector
 
     def connect_from(self, other_node):
         """Creates a directed edge from other_node to self"""
-        vector = other_node.connect_to(self)
-        return vector
+        if isinstance(other_node, list) :
+            for node in other_node:
+                node.connect_to(self)
+        else:
+            other_node.connect_to(self)
 
     def transmit(self, what=None, to_whom=None):
         """Transmits what to whom. Will work provided what is an Info or a
