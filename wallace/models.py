@@ -199,8 +199,8 @@ class Node(Base):
     def transmit(self, what=None, to_whom=None):
         """Transmits what to whom. Will work provided what is an Info or a
         class of Info, or a list containing the two. If what=None the _what()
-        method is called to generate what. Will work provided who is a Node you
-        are connected to or a class of Nodes, or a list containing the two If
+        method is called to generate what. Will work provided to_whom is a Node you
+        are connected to or a class of Nodes, or a list containing the two. If
         to_whom=None the _to_whom() method is called to generate to_whom.
         """
         if what is None:
@@ -365,8 +365,8 @@ class Agent(Node):
 
     def _selector(self):
         raise NotImplementedError(
-            "_selector is deprecated and needs to be overridden - ",
-            "use _what() instead and remember to override it.")
+            "_selector is deprecated - ",
+            "use _what() instead.")
 
     def update(self, infos):
         raise NotImplementedError(
