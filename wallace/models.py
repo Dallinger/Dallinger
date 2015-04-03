@@ -469,6 +469,26 @@ class Network(Base):
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
+    def get_nodes(self, type=Node, status="alive"):
+        if not issubclass(type, Node):
+            raise(ValueError("Cannot get_nodes of type {} as it is not a valid type.".format(type)))
+        if status == "alive" or status == "dead" or status == "failed":
+            return type\
+                .query\
+                .order_by(type.creation_time)\
+                .filter(type.status == status)\
+                .filter(type.network == self)\
+                .all()
+        elif status == "all":
+            return type\
+                .query\
+                .order_by(type.creation_time)\
+                .filter(type.network == self)\
+                .all()
+        else:
+            raise(ValueError("Cannot get_nodes with status {} as it is not a valid status.".format(status)))
+
+
     @property
     def agents(self):
         return Agent\

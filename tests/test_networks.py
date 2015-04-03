@@ -1,4 +1,5 @@
 from wallace import networks, agents, db, sources, models
+from nose.tools import assert_raises
 
 
 class TestNetworks(object):
@@ -36,6 +37,29 @@ class TestNetworks(object):
         self.db.add(source)
 
         assert net.sources == [source]
+
+        def test_network_get_nodes(self):
+            net = models.Network()
+
+            node1 = models.Node
+            node2 = models.Node
+            agent1 = agents.Agent()
+            agent2 = agents.Agent()
+            agent3 = agents.Agent()
+
+            net.add([node1, node2, agent1, agent2, agent3])
+
+            assert net.get_nodes() == [node1, node2, agent1, agent2, agent3]
+            assert net.get_nodes(type=agents.Agent) == [agent1, agent2, agent3]
+
+            node1.kill()
+            agent1.fail()
+        
+            assert net.get_nodes() == [node2, agent2, agent3]
+            assert net.get_nodes(status="all") == [node1, node2, agent1, agent2, agent3]
+            assert net.get_nodes(status="dead") == [node1]
+            assert net.get_nodes(type=agents.Agent, status="all") == [agent1, agent2, agent3]
+
 
     def test_network_vectors(self):
         net = networks.Network()
