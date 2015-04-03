@@ -524,7 +524,11 @@ class Network(Base):
         return [agent.outdegree for agent in self.agents]
 
     def add(self, base):
-        base.network = self
+        if isinstance(base, list) :
+            for b in base:
+                b.network = self
+        else:
+            base.network = self
 
     def add_source(self, source):
         source.network = self
