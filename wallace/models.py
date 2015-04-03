@@ -80,45 +80,89 @@ class Node(Base):
         backref="predecessors"
     )
 
+    def get_incoming_vectors(self, status="alive"):
+        if status == "all":
+            incoming_vectors = Vector.query.filter_by(destination=self).all()
+        elif status == "alive" or status == "dead":
+            incoming_vectors = Vector.query.filter_by(destination=self).filter_by(status=status).all()
+        else:
+            raise(ValueError("Cannot get_incoming_vectors with status {} as it is not a valid status.".format(status)))
+        return incoming_vectors
+
+    def get_outgoing_vectors(self, status="alive"):
+        if status == "all":
+            outgoing_vectors = Vector.query.filter_by(origin=self).all()
+        elif status == "alive" or status == "dead":
+            outgoing_vectors = Vector.query.filter_by(origin=self).filter_by(status=status).all()
+        else:
+            raise(ValueError("Cannot get_outgoing_vectors with status {} as it is not a valid status.".format(status)))
+        return outgoing_vectors
+
+    def get_downstream_nodes(self, type=None, status="alive"):
+        if type == None:
+            type = Node
+        if status == "all":
+            return [v.destination for v in self.get_outgoing_vectors()
+                if isinstance(v.destination, type)]
+        elif status == "alive" or status == "dead" or status == "failed":
+            return [v.destination for v in self.get_outgoing_vectors()
+                if isinstance(v.destination, type) and v.destination.status == status]
+        else:
+            raise(ValueError("Cannot get_downstream_nodes with status {} as it is not a valid status.".format(status)))
+
+    def get_upstream_nodes(self, type=None, status="alive"):
+        if type == None:
+            type = Node
+        if status == "all":
+            return [v.origin for v in self.get_incoming_vectors()
+                if isinstance(v.origin, type)]
+        elif status == "alive" or status == "dead" or status == "failed":
+            return [v.origin for v in self.get_incoming_vectors()
+                if isinstance(v.origin, type) and v.origin.status == status]
+        else:
+            raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
+
+    def get_info(self, type=None):
+        if type == None:
+            type = Info
+        if not issubclass(type, Info):
+            raise(ValueError("Cannot get-info of type {} as it is not a valid type.".format(type)))
+        else:
+            return type\
+                .query\
+                .order_by(type.creation_time)\
+                .filter(type.origin == self)\
+                .all()
+
     @property
     def successors2(self):
-        print "successors2 is deprecated, use downstream_nodes instead"
-        return [n for n in self.downstream_nodes if isinstance(n, Agent)]
-        # outgoing_vectors = Vector.query.filter_by(origin=self).all()
-        # return [v.destination for v in outgoing_vectors
-        #         if isinstance(v.destination, Agent)]
+        print "successors2 is deprecated, use get_downstream_nodes(type=Agent) instead"
+        return self.get_downstream_nodes(type=Agent)
 
     @property
     def downstream_nodes(self):
-        outgoing_vectors = Vector.query.filter_by(origin=self).all()
-        return [v.destination for v in outgoing_vectors
-                if isinstance(v.destination, Node)]
+        print "downstream_nodes is deprecated, use get_downstream_nodes() instead"
+        return self.get_downstream_nodes()
 
     @property
     def downstream_agents(self):
-        outgoing_vectors = Vector.query.filter_by(origin=self).all()
-        return [v.destination for v in outgoing_vectors
-                if isinstance(v.destination, Agent)]
+        print "downstream_agents is deprecated, use get_downstream_nodes(type=Agent) instead"
+        return self.get_downstream_nodes(type=Agent)
 
     @property
     def upstream_nodes(self):
-        incoming_vectors = Vector.query.filter_by(destination=self).all()
-        return [v.origin for v in incoming_vectors
-                if isinstance(v.origin, Node)]
+        print "upstream_nodes is deprecated, use get_upstream_nodes() instead"
+        return self.get_upstream_nodes()
 
     @property
     def upstream_agents(self):
-        incoming_vectors = Vector.query.filter_by(destination=self).all()
-        return [v.origin for v in incoming_vectors
-                if isinstance(v.origin, Agent)]
+        print "upstream_agents is deprecated, use get_upstream_nodes(type=Agent) instead"
+        return self.get_upstream_nodes(type=Agent)
 
     @property
     def predecessors2(self):
-        print "predecessors2 is deprecated, use upstream_nodes instead"
-        return [n for n in self.upstream_nodes if isinstance(n, Agent)]
-        # incoming_vectors = Vector.query.filter_by(destination=self).all()
-        # return [v.origin for v in incoming_vectors
-        #         if isinstance(v.origin, Agent)]
+        print "predecessors2 is deprecated, use get_upstream_nodes(type=Agent) instead"
+        return self.get_upstream_nodes(type=Agent)
 
     def __repr__(self):
         return "Node-{}-{}".format(self.uuid[:6], self.type)
