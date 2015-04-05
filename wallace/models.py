@@ -271,7 +271,10 @@ class Node(Base):
         return Node
 
     def observe(self, environment):
-        environment.get_observed(by_whom=self)
+        state = environment.get_observed(by_whom=self)
+        self.receive(state)
+        return state
+
 
     def update(self, infos):
         raise NotImplementedError(
