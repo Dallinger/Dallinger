@@ -168,13 +168,17 @@ class Node(Base):
         return "Node-{}-{}".format(self.uuid[:6], self.type)
 
     def connect_to(self, other_node):
-        """Creates a directed edge from self to other_node"""
-        """other_node may be a list of nodes"""
+        """Creates a directed edge from self to other_node
+        other_node may be a list of nodes
+        will raise an error if you try to conntect_to anything other than a node
+        will also raise an error if you try to connect_to a source"""
         if isinstance(other_node, list) :
             for node in other_node:
                 self.connect_to(node)
         elif self == other_node:
             raise(ValueError("{} cannot connect to itself.".format(self)))
+        elif isinstance(other_node, Source):
+            raise(ValueError("{} cannot connect_to {} as it is a Source.".format(self, other_node)))
         elif not isinstance(other_node, Node):
             raise(ValueError('{} cannot connect to {} as it is a {}'.format(self, other_node, type(other_node))))
         elif self.network_uuid != other_node.network_uuid:
@@ -189,7 +193,9 @@ class Node(Base):
             #return vector
 
     def connect_from(self, other_node):
-        """Creates a directed edge from other_node to self"""
+        """Creates a directed edge from other_node to self
+        other_node may be a list of nodes
+        will raise an error if you try to connect_from anything other than a node"""
         if isinstance(other_node, list) :
             for node in other_node:
                 node.connect_to(self)
