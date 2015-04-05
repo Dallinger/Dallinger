@@ -29,6 +29,7 @@ class Environment(Node):
     def get_observed(self, by_whom=None):
         """When observed, transmit the state."""
         self.transmit(to_whom=by_whom)
+        return self._what()
 
     def _what(self):
         return self.state
