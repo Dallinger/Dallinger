@@ -1,5 +1,5 @@
-from sqlalchemy import ForeignKey, Column, String, desc
-from .models import Node, Info
+from sqlalchemy import ForeignKey, Column, String
+from .models import Node
 from information import State
 
 
@@ -20,11 +20,12 @@ class Environment(Node):
     @property
     def state(self):
         """The state is the most recently created info of type State."""
-        return State\
-            .query\
-            .filter_by(origin_uuid=self.uuid)\
-            .order_by(desc(Info.creation_time))\
-            .first()
+        return self.get_info(type=State)[-1]
+        # return State\
+        #     .query\
+        #     .filter_by(origin_uuid=self.uuid)\
+        #     .order_by(desc(Info.creation_time))\
+        #     .first()
 
     def get_observed(self, by_whom=None):
         """When observed, transmit the state."""
