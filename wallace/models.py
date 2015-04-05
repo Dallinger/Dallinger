@@ -288,6 +288,28 @@ class Node(Base):
             transmission.mark_received()
         self.update([t.info for t in pending_transmissions])
 
+    def receive(self, thing):
+        if isinstance(thing, Transmission):
+            if thing in self.pending_transmissions:
+                thing.receive_time = timenow()
+                thing.mark_received()
+                self.update(thing.info)
+            else:
+                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, thing)))
+        elif isinstance(thing, Info):
+            relevant_transmissions = []
+            for transmission in self.pending_transmissions:
+                if transmission.info == thing:
+                    relevant_transmissions.append(transmission)
+            if (len(relevant_transmissions) > 0):
+                for transmission in relevant_transmissions:
+                    transmission.receive_time = timenow()
+                    transmission.mark_received()
+                self.update([t.info for t in relevant_transmissions])
+            else:
+                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, thing)))
+
+
     @hybrid_property
     def outdegree(self):
         """The outdegree (number of outgoing edges) of this node."""
