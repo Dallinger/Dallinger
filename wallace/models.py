@@ -272,7 +272,6 @@ class Node(Base):
 
     def observe(self, environment):
         state = environment.get_observed(by_whom=self)
-        self.receive(state)
         return state
 
 
