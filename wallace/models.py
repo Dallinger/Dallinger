@@ -562,18 +562,16 @@ class Network(Base):
             base.network = self
 
     def add_source(self, source):
-        source.network = self
+        self.add(source)
 
     def add_source_global(self, source):
-
-        source.network = self
+        self.add(source)
 
         for agent in self.agents:
             source.connect_to(agent)
 
     def add_source_local(self, source, agent):
-
-        source.network = self
+        self.add(source)
 
         uid = source.uuid
         source = Node.query\
@@ -582,8 +580,7 @@ class Network(Base):
         source.connect_to(agent)
 
     def add_agent(self, agent):
-        agent.network = self
-        return []
+        self.add(agent)
 
     def __len__(self):
         raise SyntaxError(

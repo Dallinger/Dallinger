@@ -38,27 +38,28 @@ class TestNetworks(object):
 
         assert net.sources == [source]
 
-        def test_network_get_nodes(self):
-            net = models.Network()
+    def test_network_get_nodes(self):
+        net = models.Network()
 
-            node1 = models.Node
-            node2 = models.Node
-            agent1 = agents.Agent()
-            agent2 = agents.Agent()
-            agent3 = agents.Agent()
+        node1 = models.Node()
+        node2 = models.Node()
+        agent1 = agents.Agent()
+        agent2 = agents.Agent()
+        agent3 = agents.Agent()
 
-            net.add([node1, node2, agent1, agent2, agent3])
+        net.add([node1, node2, agent1, agent2, agent3])
+        self.db.add_all([node1, node2, agent1, agent2, agent3])
 
-            assert net.get_nodes() == [node1, node2, agent1, agent2, agent3]
-            assert net.get_nodes(type=agents.Agent) == [agent1, agent2, agent3]
+        assert net.get_nodes() == [node1, node2, agent1, agent2, agent3]
+        assert net.get_nodes(type=agents.Agent) == [agent1, agent2, agent3]
 
-            node1.kill()
-            agent1.fail()
-        
-            assert net.get_nodes() == [node2, agent2, agent3]
-            assert net.get_nodes(status="all") == [node1, node2, agent1, agent2, agent3]
-            assert net.get_nodes(status="dead") == [node1]
-            assert net.get_nodes(type=agents.Agent, status="all") == [agent1, agent2, agent3]
+        node1.kill()
+        agent1.fail()
+    
+        assert net.get_nodes() == [node2, agent2, agent3]
+        assert net.get_nodes(status="all") == [node1, node2, agent1, agent2, agent3]
+        assert net.get_nodes(status="dead") == [node1]
+        assert net.get_nodes(type=agents.Agent, status="all") == [agent1, agent2, agent3]
 
 
     def test_network_vectors(self):
@@ -162,20 +163,26 @@ class TestNetworks(object):
         self.db.add_all([node1, node2, agent1, agent2, source1, source2])
         net.add([node1, node2, agent1, agent2, source1, source2])
 
-        node1.connect_to([node2, agent1, agent2, source1, source2])
+        # just FYI this commit is needed, but the get_nodes() will work just as well.
+        # WHY IS THIS?!?!?!
+        self.db.commit()
+        #print net.get_nodes()
+        
+        node1.connect_to([node2, agent1, agent2])
 
-        assert node1.get_downstream_nodes() == [node2, agent1, agent2, source1, source2]
-        assert node1.outdegree == 5
+        assert_raises(ValueError, node1.connect_to, source1)
+
+        assert node1.get_downstream_nodes() == [node2, agent1, agent2]
+        assert node1.outdegree == 3
         assert node1.get_downstream_nodes(type=agents.Agent) == [agent1, agent2]
-        assert node1.get_downstream_nodes(type=agents.Agent) == [agent1, agent2]
 
-        source1.kill()
-        source2.fail()
+        agent1.kill()
+        agent2.fail()
 
-        assert node1.get_downstream_nodes(status="dead") == [source1]
-        assert node1.get_downstream_nodes(status="failed") == [source2]
-        assert node1.get_downstream_nodes(status="alive") == [node2, agent1, agent2]
-        assert node1.get_downstream_nodes(status="all") == [node2, agent1, agent2, source1, source2]
+        assert node1.get_downstream_nodes(status="dead") == [agent1]
+        assert node1.get_downstream_nodes(status="failed") == [agent2]
+        assert node1.get_downstream_nodes(status="alive") == [node2]
+        assert node1.get_downstream_nodes(status="all") == [node2, agent1, agent2]
 
         assert_raises(ValueError, node1.get_downstream_nodes, status="blagjrg")
 
