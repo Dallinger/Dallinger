@@ -14,15 +14,8 @@ class Chain(Network):
         """Add an agent, connecting it to the previous node."""
         newcomer.network = self
 
-        vectors = []
         if len(self.nodes) > 1:
-            vector = self.nodes[-2].connect_to(newcomer)
-            vectors.append(vector)
-
-        for vector in vectors:
-            vector.network = self
-
-        return vectors
+            self.nodes[-2].connect_to(newcomer)
 
 
 class FullyConnected(Network):
@@ -35,16 +28,10 @@ class FullyConnected(Network):
         """Add an agent, connecting it to everyone and back."""
         newcomer.network = self
 
-        vectors = []
         for agent in self.agents:
             if agent is not newcomer:
-                vectors.append(agent.connect_to(newcomer))
-                vectors.append(agent.connect_from(newcomer))
-
-        for vector in vectors:
-            vector.network = self
-
-        return vectors
+                agent.connect_to(newcomer)
+                agent.connect_from(newcomer)
 
 
 class ScaleFree(Network):
@@ -67,14 +54,12 @@ class ScaleFree(Network):
         """Add newcomers one by one, using linear preferential attachment."""
         newcomer.network = self
 
-        vectors = []
-
         # Start with a core of m0 fully-connected agents...
         if len(self.agents) <= self.m0:
             for agent in self.agents:
                 if agent is not newcomer:
-                    vectors.append(newcomer.connect_to(agent))
-                    vectors.append(newcomer.connect_from(agent))
+                    newcomer.connect_to(agent)
+                    newcomer.connect_from(agent)
 
         # ...then add newcomers one by one with preferential attachment.
         else:
@@ -99,10 +84,5 @@ class ScaleFree(Network):
                         vector_to = these_agents[i]
 
                 # Create vector from newcomer to selected member and back
-                vectors.append(newcomer.connect_to(vector_to))
-                vectors.append(newcomer.connect_from(vector_to))
-
-        for vector in vectors:
-            vector.network = self
-
-        return vectors
+                newcomer.connect_to(vector_to)
+                newcomer.connect_from(vector_to)

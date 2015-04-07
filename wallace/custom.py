@@ -123,9 +123,8 @@ def api_agent_create():
             session.add(newcomer)
             session.commit()
 
-            # Add the newcomer to the agent.
-            vectors = net.add_agent(newcomer)
-            session.add_all(vectors)
+            # Add the newcomer to the network.
+            net.add_agent(newcomer)
             session.commit()
 
             # Run the next step of the process.

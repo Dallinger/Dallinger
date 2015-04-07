@@ -80,70 +80,133 @@ class Node(Base):
         backref="predecessors"
     )
 
+    def get_incoming_vectors(self, status="alive"):
+        if status == "all":
+            incoming_vectors = Vector.query.filter_by(destination=self).all()
+        elif status == "alive" or status == "dead":
+            incoming_vectors = Vector.query.filter_by(destination=self).filter_by(status=status).all()
+        else:
+            raise(ValueError("Cannot get_incoming_vectors with status {} as it is not a valid status.".format(status)))
+        return incoming_vectors
+
+    def get_outgoing_vectors(self, status="alive"):
+        if status == "all":
+            outgoing_vectors = Vector.query.filter_by(origin=self).all()
+        elif status == "alive" or status == "dead":
+            outgoing_vectors = Vector.query.filter_by(origin=self).filter_by(status=status).all()
+        else:
+            raise(ValueError("Cannot get_outgoing_vectors with status {} as it is not a valid status.".format(status)))
+        return outgoing_vectors
+
+    def get_downstream_nodes(self, type=None, status="alive"):
+        if type == None:
+            type = Node
+        if status == "all":
+            return [v.destination for v in self.get_outgoing_vectors()
+                if isinstance(v.destination, type)]
+        elif status == "alive" or status == "dead" or status == "failed":
+            return [v.destination for v in self.get_outgoing_vectors()
+                if isinstance(v.destination, type) and v.destination.status == status]
+        else:
+            raise(ValueError("Cannot get_downstream_nodes with status {} as it is not a valid status.".format(status)))
+
+    def get_upstream_nodes(self, type=None, status="alive"):
+        if type == None:
+            type = Node
+        if status == "all":
+            return [v.origin for v in self.get_incoming_vectors()
+                if isinstance(v.origin, type)]
+        elif status == "alive" or status == "dead" or status == "failed":
+            return [v.origin for v in self.get_incoming_vectors()
+                if isinstance(v.origin, type) and v.origin.status == status]
+        else:
+            raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
+
+    def get_info(self, type=None):
+        if type == None:
+            type = Info
+        if not issubclass(type, Info):
+            raise(ValueError("Cannot get-info of type {} as it is not a valid type.".format(type)))
+        else:
+            return type\
+                .query\
+                .order_by(type.creation_time)\
+                .filter(type.origin == self)\
+                .all()
+
     @property
     def successors2(self):
-        print "successors2 is deprecated, use downstream_nodes instead"
-        return [n for n in self.downstream_nodes if isinstance(n, Agent)]
-        # outgoing_vectors = Vector.query.filter_by(origin=self).all()
-        # return [v.destination for v in outgoing_vectors
-        #         if isinstance(v.destination, Agent)]
+        print "successors2 is deprecated, use get_downstream_nodes(type=Agent) instead"
+        return self.get_downstream_nodes(type=Agent)
 
     @property
     def downstream_nodes(self):
-        outgoing_vectors = Vector.query.filter_by(origin=self).all()
-        return [v.destination for v in outgoing_vectors
-                if isinstance(v.destination, Node)]
+        print "downstream_nodes is deprecated, use get_downstream_nodes() instead"
+        return self.get_downstream_nodes()
 
     @property
     def downstream_agents(self):
-        outgoing_vectors = Vector.query.filter_by(origin=self).all()
-        return [v.destination for v in outgoing_vectors
-                if isinstance(v.destination, Agent)]
+        print "downstream_agents is deprecated, use get_downstream_nodes(type=Agent) instead"
+        return self.get_downstream_nodes(type=Agent)
 
     @property
     def upstream_nodes(self):
-        incoming_vectors = Vector.query.filter_by(destination=self).all()
-        return [v.origin for v in incoming_vectors
-                if isinstance(v.origin, Node)]
+        print "upstream_nodes is deprecated, use get_upstream_nodes() instead"
+        return self.get_upstream_nodes()
 
     @property
     def upstream_agents(self):
-        incoming_vectors = Vector.query.filter_by(destination=self).all()
-        return [v.origin for v in incoming_vectors
-                if isinstance(v.origin, Agent)]
+        print "upstream_agents is deprecated, use get_upstream_nodes(type=Agent) instead"
+        return self.get_upstream_nodes(type=Agent)
 
     @property
     def predecessors2(self):
-        print "predecessors2 is deprecated, use upstream_nodes instead"
-        return [n for n in self.upstream_nodes if isinstance(n, Agent)]
-        # incoming_vectors = Vector.query.filter_by(destination=self).all()
-        # return [v.origin for v in incoming_vectors
-        #         if isinstance(v.origin, Agent)]
+        print "predecessors2 is deprecated, use get_upstream_nodes(type=Agent) instead"
+        return self.get_upstream_nodes(type=Agent)
 
     def __repr__(self):
         return "Node-{}-{}".format(self.uuid[:6], self.type)
 
     def connect_to(self, other_node):
-        """Creates a directed edge from self to other_node"""
-        if self.network_uuid != other_node.network_uuid:
+        """Creates a directed edge from self to other_node
+        other_node may be a list of nodes
+        will raise an error if you try to conntect_to anything other than a node
+        will also raise an error if you try to connect_to a source"""
+        if isinstance(other_node, list) :
+            for node in other_node:
+                self.connect_to(node)
+        elif self == other_node:
+            raise(ValueError("{} cannot connect to itself.".format(self)))
+        elif isinstance(other_node, Source):
+            raise(ValueError("{} cannot connect_to {} as it is a Source.".format(self, other_node)))
+        elif not isinstance(other_node, Node):
+            raise(ValueError('{} cannot connect to {} as it is a {}'.format(self, other_node, type(other_node))))
+        elif self.network_uuid != other_node.network_uuid:
             raise(ValueError(("{} cannot connect to {} as they are not " +
                               "in the same network. {} is in network {}, " +
                               "but {} is in network {}.")
                              .format(self, other_node, self, self.network_uuid,
                                      other_node, other_node.network_uuid)))
-        vector = Vector(origin=self, destination=other_node)
-        return vector
+        else:
+            Vector(origin=self, destination=other_node, network=self.network)
+            #vector = Vector(origin=self, destination=other_node)
+            #return vector
 
     def connect_from(self, other_node):
-        """Creates a directed edge from other_node to self"""
-        vector = other_node.connect_to(self)
-        return vector
+        """Creates a directed edge from other_node to self
+        other_node may be a list of nodes
+        will raise an error if you try to connect_from anything other than a node"""
+        if isinstance(other_node, list) :
+            for node in other_node:
+                node.connect_to(self)
+        else:
+            other_node.connect_to(self)
 
     def transmit(self, what=None, to_whom=None):
         """Transmits what to whom. Will work provided what is an Info or a
         class of Info, or a list containing the two. If what=None the _what()
-        method is called to generate what. Will work provided who is a Node you
-        are connected to or a class of Nodes, or a list containing the two If
+        method is called to generate what. Will work provided to_whom is a Node you
+        are connected to or a class of Nodes, or a list containing the two. If
         to_whom=None the _to_whom() method is called to generate to_whom.
         """
         if what is None:
@@ -208,7 +271,9 @@ class Node(Base):
         return Node
 
     def observe(self, environment):
-        environment.get_observed(by_whom=self)
+        state = environment.get_observed(by_whom=self)
+        return state
+
 
     def update(self, infos):
         raise NotImplementedError(
@@ -221,6 +286,28 @@ class Node(Base):
             transmission.receive_time = timenow()
             transmission.mark_received()
         self.update([t.info for t in pending_transmissions])
+
+    def receive(self, thing):
+        if isinstance(thing, Transmission):
+            if thing in self.pending_transmissions:
+                thing.receive_time = timenow()
+                thing.mark_received()
+                self.update(thing.info)
+            else:
+                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, thing)))
+        elif isinstance(thing, Info):
+            relevant_transmissions = []
+            for transmission in self.pending_transmissions:
+                if transmission.info == thing:
+                    relevant_transmissions.append(transmission)
+            if (len(relevant_transmissions) > 0):
+                for transmission in relevant_transmissions:
+                    transmission.receive_time = timenow()
+                    transmission.mark_received()
+                self.update([t.info for t in relevant_transmissions])
+            else:
+                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, thing)))
+
 
     @hybrid_property
     def outdegree(self):
@@ -248,11 +335,14 @@ class Node(Base):
     def has_connection_to(self, other_node):
         """Whether this node has a connection to 'other_node'."""
         # return other_node in self.successors
-        return other_node in self.downstream_nodes
+        if not isinstance(other_node, Node):
+            raise(ValueError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
+                format(self, other_node, other_node, type(other_node))))
+        return other_node in self.get_downstream_nodes()
 
     def has_connection_from(self, other_node):
         """Whether this node has a connection from 'other_node'."""
-        return other_node in self.upstream_nodes
+        return other_node.has_connection_to(self)
 
     @property
     def incoming_transmissions(self):
@@ -305,8 +395,8 @@ class Agent(Node):
 
     def _selector(self):
         raise NotImplementedError(
-            "_selector is deprecated and needs to be overridden - ",
-            "use _what() instead and remember to override it.")
+            "_selector is deprecated - ",
+            "use _what() instead.")
 
     def update(self, infos):
         raise NotImplementedError(
@@ -409,6 +499,26 @@ class Network(Base):
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
+    def get_nodes(self, type=Node, status="alive"):
+        if not issubclass(type, Node):
+            raise(ValueError("Cannot get_nodes of type {} as it is not a valid type.".format(type)))
+        if status == "alive" or status == "dead" or status == "failed":
+            return type\
+                .query\
+                .order_by(type.creation_time)\
+                .filter(type.status == status)\
+                .filter(type.network == self)\
+                .all()
+        elif status == "all":
+            return type\
+                .query\
+                .order_by(type.creation_time)\
+                .filter(type.network == self)\
+                .all()
+        else:
+            raise(ValueError("Cannot get_nodes with status {} as it is not a valid status.".format(status)))
+
+
     @property
     def agents(self):
         return Agent\
@@ -444,21 +554,23 @@ class Network(Base):
         return [agent.outdegree for agent in self.agents]
 
     def add(self, base):
-        base.network = self
+        if isinstance(base, list) :
+            for b in base:
+                b.network = self
+        else:
+            base.network = self
 
     def add_source(self, source):
-        source.network = self
+        self.add(source)
 
     def add_source_global(self, source):
-
-        source.network = self
+        self.add(source)
 
         for agent in self.agents:
             source.connect_to(agent)
 
     def add_source_local(self, source, agent):
-
-        source.network = self
+        self.add(source)
 
         uid = source.uuid
         source = Node.query\
@@ -467,8 +579,7 @@ class Network(Base):
         source.connect_to(agent)
 
     def add_agent(self, agent):
-        agent.network = self
-        return []
+        self.add(agent)
 
     def __len__(self):
         raise SyntaxError(

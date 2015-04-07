@@ -1,5 +1,5 @@
 from wallace import models, db, agents
-from nose.tools import raises
+from nose.tools import raises, assert_raises
 
 
 class TestModels(object):
@@ -77,10 +77,26 @@ class TestModels(object):
         """Test connecting one node to another"""
         node1 = models.Node()
         node2 = models.Node()
-        node1.connect_to(node2)
-        self.add(node1, node2)
+        node3 = models.Node()
+        node4 = models.Node()
+        self.add(node1, node2, node3, node4)
 
-        self._check_single_connection(node1, node2)
+        node1.connect_to(node2)
+
+        assert node1.get_downstream_nodes() == [node2]
+        assert node2.get_upstream_nodes() == [node1]
+
+        node2.connect_to([node3, node4])
+
+        assert node2.get_downstream_nodes() == [node3, node4]
+        assert node3.get_upstream_nodes() == [node2]
+
+        assert_raises(ValueError, node1.connect_to, other_node=node1)
+
+        net = models.Network()
+        self.add(net)
+
+        assert_raises(ValueError, node1.connect_to, other_node=net)
 
     def test_node_connect_from(self):
         """Test connecting one node from another"""

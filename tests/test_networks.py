@@ -1,4 +1,5 @@
 from wallace import networks, agents, db, sources, models
+from nose.tools import assert_raises
 
 
 class TestNetworks(object):
@@ -36,6 +37,30 @@ class TestNetworks(object):
         self.db.add(source)
 
         assert net.sources == [source]
+
+    def test_network_get_nodes(self):
+        net = models.Network()
+
+        node1 = models.Node()
+        node2 = models.Node()
+        agent1 = agents.Agent()
+        agent2 = agents.Agent()
+        agent3 = agents.Agent()
+
+        net.add([node1, node2, agent1, agent2, agent3])
+        self.db.add_all([node1, node2, agent1, agent2, agent3])
+
+        assert net.get_nodes() == [node1, node2, agent1, agent2, agent3]
+        assert net.get_nodes(type=agents.Agent) == [agent1, agent2, agent3]
+
+        node1.kill()
+        agent1.fail()
+    
+        assert net.get_nodes() == [node2, agent2, agent3]
+        assert net.get_nodes(status="all") == [node1, node2, agent1, agent2, agent3]
+        assert net.get_nodes(status="dead") == [node1]
+        assert net.get_nodes(type=agents.Agent, status="all") == [agent1, agent2, agent3]
+
 
     def test_network_vectors(self):
         net = networks.Network()
@@ -124,6 +149,43 @@ class TestNetworks(object):
         assert len(net.agents) == 3
         assert len(net.vectors) == 0
         assert len(net.sources) == 0
+
+    def test_network_downstream_nodes(self):
+        net = networks.Network()
+
+        node1 = models.Node()
+        node2 = models.Node()
+        agent1 = agents.Agent()
+        agent2 = agents.ReplicatorAgent()
+        source1 = models.Source()
+        source2 = models.Source()
+
+        self.db.add_all([node1, node2, agent1, agent2, source1, source2])
+        net.add([node1, node2, agent1, agent2, source1, source2])
+
+        # just FYI this commit is needed, but the get_nodes() will work just as well.
+        # WHY IS THIS?!?!?!
+        self.db.commit()
+        #print net.get_nodes()
+        
+        node1.connect_to([node2, agent1, agent2])
+
+        assert_raises(ValueError, node1.connect_to, source1)
+
+        assert node1.get_downstream_nodes() == [node2, agent1, agent2]
+        assert node1.outdegree == 3
+        assert node1.get_downstream_nodes(type=agents.Agent) == [agent1, agent2]
+
+        agent1.kill()
+        agent2.fail()
+
+        assert node1.get_downstream_nodes(status="dead") == [agent1]
+        assert node1.get_downstream_nodes(status="failed") == [agent2]
+        assert node1.get_downstream_nodes(status="alive") == [node2]
+        assert node1.get_downstream_nodes(status="all") == [node2, agent1, agent2]
+
+        assert_raises(ValueError, node1.get_downstream_nodes, status="blagjrg")
+
 
     def test_network_repr(self):
         net = networks.Network()
