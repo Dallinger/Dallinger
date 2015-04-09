@@ -20,7 +20,7 @@ class Environment(Node):
     @property
     def state(self):
         """The state is the most recently created info of type State."""
-        return self.get_info(type=State)[-1]
+        return self.get_infos(type=State)[-1]
         # return State\
         #     .query\
         #     .filter_by(origin_uuid=self.uuid)\

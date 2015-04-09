@@ -122,7 +122,7 @@ class Node(Base):
         else:
             raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
 
-    def get_info(self, type=None):
+    def get_infos(self, type=None):
         if type == None:
             type = Info
         if not issubclass(type, Info):
@@ -324,7 +324,7 @@ class Node(Base):
     @hybrid_property
     def indegree(self):
         """The indegree (number of incoming edges) of this node."""
-        return len(self.incoming_vectors)
+        return len(self.get_incoming_vectors())
 
     @indegree.expression
     def indegree(self):
@@ -353,30 +353,80 @@ class Node(Base):
         else:
             return other_node.has_connection_to(self)
 
+    def get_transmissions(self, type=None, status="all"):
+        if type is None:
+            raise(ValueError("You cannot get_transmissions without specifying the type of transmission you want" +
+                "It should be incoming, outgoing or all"))
+        if type not in ["incoming", "outgoing", "all"]:
+            raise(ValueError("You cannot get_transmissions of type {}.".format(type) +
+                "Type can only be incoming, outgoing or all."))
+        if status not in ["all", "pending", "received"]:
+            raise(ValueError("You cannot get_transmission of status {}.".format(status) +
+                "Status can only be pending, received or all"))
+        if type == "all":
+            return self.get_transmissions(type="incoming", status=status) + self.get_transmission(type="outgoing",status=status)
+        elif status == "all":
+            return self.get_transmissions(type=type, status="pending") + self.get_transmissions(type=type, status="received")
+        elif type == "incoming" and status == "received":
+            return Transmission\
+                .query\
+                .filter_by(destination_uuid=self.uuid)\
+                .filter(Transmission.receive_time != None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        elif type == "incoming" and status == "pending":
+            return Transmission\
+                .query\
+                .filter_by(destination_uuid=self.uuid)\
+                .filter_by(receive_time=None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        elif type == "outgoing" and status == "received":
+            return Transmission\
+                .query\
+                .filter_by(origin_uuid=self.uuid)\
+                .filter(Transmission.receive_time != None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        elif type == "outgoing" and status == "pending":
+            return Transmission\
+                .query\
+                .filter_by(origin_uuid=self.uuid)\
+                .filter_by(receive_time=None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        else:
+            raise(ValueError("Something has gone horribly wrong with the get_transmission method." +
+                "status: {}, type: {}".format(status, type)))
+
+
     @property
     def incoming_transmissions(self):
-        return Transmission\
-            .query\
-            .filter_by(destination_uuid=self.uuid)\
-            .order_by(Transmission.transmit_time)\
-            .all()
+        return self.get_transmissions(type="incoming")
+        # Transmission\
+        #     .query\
+        #     .filter_by(destination_uuid=self.uuid)\
+        #     .order_by(Transmission.transmit_time)\
+        #     .all()
 
     @property
     def outgoing_transmissions(self):
-        return Transmission\
-            .query\
-            .filter_by(origin_uuid=self.uuid)\
-            .order_by(Transmission.transmit_time)\
-            .all()
+        return self.get_transmissions(type="outgoing")
+        # return Transmission\
+        #     .query\
+        #     .filter_by(origin_uuid=self.uuid)\
+        #     .order_by(Transmission.transmit_time)\
+        #     .all()
 
     @property
     def pending_transmissions(self):
-        return Transmission\
-            .query\
-            .filter_by(destination_uuid=self.uuid)\
-            .filter_by(receive_time=None)\
-            .order_by(Transmission.transmit_time)\
-            .all()
+        return self.get_transmissions(type="incoming", status="pending")
+        # return Transmission\
+        #     .query\
+        #     .filter_by(destination_uuid=self.uuid)\
+        #     .filter_by(receive_time=None)\
+        #     .order_by(Transmission.transmit_time)\
+        #     .all()
 
     @property
     def information_of_type(self, type=None):
