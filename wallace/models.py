@@ -333,16 +333,25 @@ class Node(Base):
             .label("indegree")
 
     def has_connection_to(self, other_node):
-        """Whether this node has a connection to 'other_node'."""
+        """Whether this node has a connection to 'other_node'.
+        Can take a list of nodes. If passed a list returns a list
+        of booleans."""
         # return other_node in self.successors
-        if not isinstance(other_node, Node):
+        if isinstance(other_node, list):
+            return [self.has_connection_to(n) for n in other_node]
+        elif not isinstance(other_node, Node):
             raise(ValueError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
                 format(self, other_node, other_node, type(other_node))))
         return other_node in self.get_downstream_nodes()
 
     def has_connection_from(self, other_node):
-        """Whether this node has a connection from 'other_node'."""
-        return other_node.has_connection_to(self)
+        """Whether this node has a connection from 'other_node'.
+        Can take a list of nodes. If passed a list returns a list
+        of booleans."""
+        if isinstance(other_node, list):
+            return [n.has_connection_to(self) for n in list]
+        else:
+            return other_node.has_connection_to(self)
 
     @property
     def incoming_transmissions(self):
