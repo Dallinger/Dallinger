@@ -78,7 +78,7 @@ def setup(debug=True, verbose=False):
 
     # Copy this directory into a temporary folder, ignoring .git
     dst = os.path.join(tempfile.mkdtemp(), id)
-    to_ignore = shutil.ignore_patterns(".git/*")
+    to_ignore = shutil.ignore_patterns(".git/*", "*.db")
     shutil.copytree(os.getcwd(), dst, ignore=to_ignore)
 
     print dst
