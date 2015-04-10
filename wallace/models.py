@@ -577,6 +577,12 @@ class Network(Base):
         else:
             raise(ValueError("Cannot get_nodes with status {} as it is not a valid status.".format(status)))
 
+    def nodes_of_participant(self, uuid):
+        return Node\
+            .query\
+            .filter_by(network=self)\
+            .filter_by(participant_uuid=uuid)\
+            .all()
 
     @property
     def agents(self):
