@@ -23,7 +23,7 @@ class TestEnvironments(object):
         assert len(environment.uuid) == 32
         assert environment.type == "environment"
         assert environment.creation_time
-        assert environment.state.contents == "foo"
+        assert environment.state().contents == "foo"
 
     def test_create_environment_get_observed(self):
         environment = environments.Environment()

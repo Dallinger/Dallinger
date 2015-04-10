@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Column, String
+from sqlalchemy import ForeignKey, Column, String, desc
 from .models import Node
 from information import State
 
@@ -17,15 +17,18 @@ class Environment(Node):
     # the unique environment id
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
-    @property
-    def state(self):
-        """The state is the most recently created info of type State."""
-        return self.get_infos(type=State)[-1]
-        # return State\
-        #     .query\
-        #     .filter_by(origin_uuid=self.uuid)\
-        #     .order_by(desc(Info.creation_time))\
-        #     .first()
+    def state(self, time=None):
+        """By default, state() returns the most recently created info of type State.
+        If you specify a time it will return the most recent state at that point in time"""
+        if time is None:
+            return self.get_infos(type=State)[-1]
+        else:
+            return State\
+            .query\
+            .filter_by(origin_uuid=self.uuid)\
+            .filter(State.creation_time < time)\
+            .order_by(desc(State.creation_time))\
+            .first()
 
     def get_observed(self, by_whom=None):
         """When observed, transmit the state."""
@@ -33,7 +36,7 @@ class Environment(Node):
         return self._what()
 
     def _what(self):
-        return self.state
+        return self.state()
 
     def __repr__(self):
         """Print the environment in a nice format."""
