@@ -99,9 +99,16 @@ def api_agent_create():
         participant_uuid = hashlib.sha512(
             request.values["unique_id"]).hexdigest()
 
-        legal_networks = [net for net in exp.networks if
-                          ((not exp.is_network_full(net)) and
-                           (not net.has_participant(participant_uuid)))]
+        num_networks_participated_in = sum(
+            [net.has_participant(participant_uuid) for net in exp.networks])
+
+        if num_networks_participated_in < exp.num_repeats_practice:
+            legal_networks = [exp.networks[num_networks_participated_in]]
+
+        else:
+            legal_networks = [net for net in exp.networks if
+                              ((not exp.is_network_full(net)) and
+                               (not net.has_participant(participant_uuid)))]
 
         if legal_networks:
 
