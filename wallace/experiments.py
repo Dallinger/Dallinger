@@ -22,3 +22,7 @@ class Experiment(object):
 
     def is_experiment_over(self):
         return all([self.is_network_full(net) for net in self.networks])
+
+    def bonus(self, participant_uuid=None):
+        """Compute the bonus for the given participant."""
+        return 0

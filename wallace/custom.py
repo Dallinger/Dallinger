@@ -59,6 +59,7 @@ exp.recruiter().open_recruitment(exp)
 # ----------------------------------------------
 @custom_code.route('/compute_bonus', methods=['GET'])
 def compute_bonus():
+    exp = experiment(session)
     # check that user provided the correct keys
     # errors will not be that gracefull here if being
     # accessed by the Javascrip client
@@ -67,24 +68,22 @@ def compute_bonus():
     uniqueId = request.args['uniqueId']
 
     try:
+
+        # Compute the bonus using experiment-specific logic.
+        bonus = exp.bonus(
+            participant_uuid=hashlib.sha512(uniqueId).hexdigest())
+
         # lookup user in database
         user = Participant.query.\
             filter(Participant.uniqueid == uniqueId).\
             one()
-        user_data = loads(user.datastring)  # load datastring from JSON
-        bonus = 0
-
-        for record in user_data['data']:  # for line in data file
-            trial = record['trialdata']
-            if trial['phase'] == 'TEST':
-                if trial['hit'] is True:
-                    bonus += 0.02
         user.bonus = bonus
         session_psiturk.add(user)
         session_psiturk.commit()
         resp = {"bonusComputed": "success"}
         return jsonify(**resp)
-    except:
+    except Exception, e:
+        print e
         abort(404)  # again, bad to display HTML, but...
 
 
