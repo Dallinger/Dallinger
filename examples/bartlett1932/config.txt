@@ -18,14 +18,14 @@ organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
 [Database Parameters]
-database_url = postgresql://postgres@localhost/wallace
+database_url = sqlite:///wallace.db
 table_name = psiturk
 
 [Server Parameters]
 host = 0.0.0.0
 port = 5000
 cutoff_time = 30
-logfile = server.log
+logfile = /dev/stderr
 loglevel = 0
 debug = true
 login_username = examplename

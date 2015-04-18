@@ -15,7 +15,8 @@ class Bartlett1932(Experiment):
         super(Bartlett1932, self).__init__(session)
 
         self.max_population_size = 10
-        self.num_repeats = 4
+        self.num_repeats_experiment = 4
+        self.num_repeats_practice = 2
         self.agent_type_generator = ReplicatorAgent
         self.network_type = Chain
         self.process_type = RandomWalkFromSource
@@ -25,7 +26,7 @@ class Bartlett1932(Experiment):
         # exist.
         self.networks = Network.query.all()
         if not self.networks:
-            for i in range(self.num_repeats):
+            for i in range(self.num_repeats_experiment + self.num_repeats_practice):
                 net = self.network_type()
                 self.session.add(net)
         self.networks = Network.query.all()
