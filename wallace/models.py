@@ -80,13 +80,6 @@ class Node(Base):
         backref="predecessors"
     )
 
-    alive_successors = relationship(
-        "Node",
-        secondary="vector",
-        primaryjoin="and_(Node.uuid==vector.c.origin_uuid, vector.c.status==\"alive\")",
-        secondaryjoin="Node.uuid==vector.c.destination_uuid",
-    )
-
     alive_incoming_vectors = relationship(
         "Vector",
         primaryjoin="and_(Node.uuid==vector.c.destination_uuid, vector.c.status==\"alive\")")
@@ -128,42 +121,26 @@ class Node(Base):
     def get_downstream_nodes(self, type=None, status="alive"):
         if type is None:
             type = Node
-
-        if status not in ("all", "alive", "dead", "failed"):
-            raise(ValueError("Cannot get_downstream_nodes with status {} as it is not a valid status.".format(status)))
-
         if status == "all":
-            return type.query\
-                .join(Vector.destination.of_type(type))\
-                .filter(Vector.origin_uuid == self.uuid)\
-                .all()
+            return [v.destination for v in self.get_outgoing_vectors()
+                    if isinstance(v.destination, type)]
+        elif status == "alive" or status == "dead" or status == "failed":
+            return [v.destination for v in self.get_outgoing_vectors()
+                    if isinstance(v.destination, type) and v.destination.status == status]
         else:
-            return type.query\
-                .join(Vector.destination.of_type(type))\
-                .filter(and_(
-                    Vector.origin_uuid == self.uuid,
-                    type.status == status))\
-                .all()
+            raise(ValueError("Cannot get_downstream_nodes with status {} as it is not a valid status.".format(status)))
 
     def get_upstream_nodes(self, type=None, status="alive"):
         if type is None:
             type = Node
-
-        if status not in ("all", "alive", "dead", "failed"):
-            raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
-
         if status == "all":
-            return type.query\
-                .join(Vector.origin.of_type(type))\
-                .filter(Vector.destination_uuid == self.uuid)\
-                .all()
+            return [v.origin for v in self.get_incoming_vectors()
+                    if isinstance(v.origin, type)]
+        elif status == "alive" or status == "dead" or status == "failed":
+            return [v.origin for v in self.get_incoming_vectors()
+                    if isinstance(v.origin, type) and v.origin.status == status]
         else:
-            return type.query\
-                .join(Vector.origin.of_type(type))\
-                .filter(and_(
-                    Vector.destination_uuid == self.uuid,
-                    type.status == status))\
-                .all()
+            raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
 
     def get_infos(self, type=None):
         if type is None:
@@ -387,7 +364,7 @@ class Node(Base):
         elif not isinstance(other_node, Node):
             raise(TypeError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
                   format(self, other_node, other_node, type(other_node))))
-        return other_node in self.alive_successors
+        return other_node in self.get_downstream_nodes()
 
     def has_connection_from(self, other_node):
         """Whether this node has a connection from 'other_node'.
