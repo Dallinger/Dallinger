@@ -333,18 +333,9 @@ def export(app, local):
     """Export the data."""
     print_header()
 
-    if app:
-        all_tags = subprocess.check_output("git tag", shell=True).split("\n")
-        if str(app) in all_tags:
-            id = subprocess.check_output(
-                "git rev-list " + str(app) + " | head -n 1", shell=True)
-        else:
-            id = str(app)
-    else:
-        id = subprocess.check_output(
-            "git rev-parse --abbrev-ref HEAD", shell=True)
-
     log("Preparing to export the data...")
+
+    id = str(app)
 
     # Create the data package
     if not os.path.exists(id):
@@ -365,13 +356,15 @@ def export(app, local):
 
         log("Generating a backup of the database on Heroku...")
         subprocess.call(
-            "heroku addons:add pgbackups --app " + id, shell=True)
-        subprocess.call(
-            "heroku pgbackups:capture --expire --app " + id, shell=True)
+            "heroku pg:backups capture --app " + id, shell=True)
+        # subprocess.call(
+        #     "heroku pgbackups:capture --expire --app " + id, shell=True)
         backup_url = subprocess.check_output(
-            "heroku pgbackups:url --app " + id, shell=True)
+            "heroku pg:backups public-url --app " + id, shell=True)
 
         backup_url = backup_url.replace('"', '').rstrip()
+        m = re.search("https:.*", backup_url)
+        backup_url = m.group(0)
 
         log("Downloading the backup...")
         dump_filename = "data.dump"
