@@ -412,6 +412,7 @@ def export(app, local):
 @wallace.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def logs(app):
+    """Show the logs."""
     if app is None:
         raise TypeError("Select an experiment using the --app flag.")
     else:
@@ -422,6 +423,7 @@ def logs(app):
 @wallace.command()
 @click.option('--example', default="bartlett1932", help='Name of the example')
 def create(example):
+    """Create a copy of the given example."""
     try:
         this_dir = os.path.dirname(os.path.realpath(__file__))
         example_dir = os.path.join(this_dir, os.pardir, "examples", example)
@@ -435,6 +437,7 @@ def create(example):
 
 @wallace.command()
 def verify():
+    """Verify that app is compatible with Wallace."""
     verify_package(verbose=True)
 
 
