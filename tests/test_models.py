@@ -30,8 +30,8 @@ class TestModels(object):
         assert len(node.information) == 0
         assert node.outdegree == 0
         assert node.indegree == 0
-        assert len(node.all_outgoing_vectors) == 0
-        assert len(node.all_incoming_vectors) == 0
+        assert len(node.outgoing_vectors) == 0
+        assert len(node.incoming_vectors) == 0
 
     def test_different_node_uuids(self):
         """Test that two nodes have different uuids"""
@@ -54,14 +54,14 @@ class TestModels(object):
         assert node2.has_connection_from(node1)
         assert not node2.has_connection_to(node1)
 
-        vector = node1.all_outgoing_vectors[0]
+        vector = node1.outgoing_vectors[0]
         assert vector.origin_uuid == node1.uuid
         assert vector.destination_uuid == node2.uuid
 
-        assert node1.all_outgoing_vectors == [vector]
-        assert len(node1.all_incoming_vectors) == 0
-        assert len(node2.all_outgoing_vectors) == 0
-        assert node2.all_incoming_vectors == [vector]
+        assert node1.outgoing_vectors == [vector]
+        assert len(node1.incoming_vectors) == 0
+        assert len(node2.outgoing_vectors) == 0
+        assert node2.incoming_vectors == [vector]
 
         assert node1.indegree == 0
         assert node1.outdegree == 1
@@ -176,23 +176,9 @@ class TestModels(object):
         self.add(node1, node2, vector)
 
         assert vector.status == "alive"
-        assert node1.all_outgoing_vectors == [vector]
-        assert node1.alive_outgoing_vectors == [vector]
-        assert node1.dead_outgoing_vectors == []
-        assert node2.all_incoming_vectors == [vector]
-        assert node2.alive_incoming_vectors == [vector]
-        assert node2.dead_incoming_vectors == []
 
         vector.kill()
         assert vector.status == "dead"
-        self.db.commit()
-
-        assert node1.all_outgoing_vectors == [vector]
-        assert node1.alive_outgoing_vectors == []
-        assert node1.dead_outgoing_vectors == [vector]
-        assert node2.all_incoming_vectors == [vector]
-        assert node2.alive_incoming_vectors == []
-        assert node2.dead_incoming_vectors == [vector]
 
     def test_create_bidirectional_vectors(self):
         """Test creating a bidirectional connection between nodes"""
@@ -207,10 +193,10 @@ class TestModels(object):
         assert vector2.origin_uuid == node2.uuid
         assert vector2.destination_uuid == node1.uuid
 
-        assert node1.all_incoming_vectors == [vector2]
-        assert node1.all_outgoing_vectors == [vector1]
-        assert node2.all_incoming_vectors == [vector1]
-        assert node2.all_outgoing_vectors == [vector2]
+        assert node1.incoming_vectors == [vector2]
+        assert node1.outgoing_vectors == [vector1]
+        assert node2.incoming_vectors == [vector1]
+        assert node2.outgoing_vectors == [vector2]
 
         assert node1.has_connection_to(node2)
         assert node1.has_connection_from(node2)

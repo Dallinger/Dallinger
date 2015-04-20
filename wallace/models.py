@@ -7,9 +7,9 @@ from .db import Base
 # various sqlalchemy imports
 from sqlalchemy import ForeignKey, desc
 from sqlalchemy import Column, String, Text, Enum, Float
-from sqlalchemy.orm import relationship, validates, column_property
+from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.sql import func, select, and_
+from sqlalchemy.sql import func, select
 from sqlalchemy.ext.associationproxy import association_proxy
 
 import inspect
@@ -80,40 +80,20 @@ class Node(Base):
         backref="predecessors"
     )
 
-    alive_incoming_vectors = relationship(
-        "Vector",
-        primaryjoin="and_(Node.uuid==vector.c.destination_uuid, vector.c.status==\"alive\")")
-
-    dead_incoming_vectors = relationship(
-        "Vector",
-        primaryjoin="and_(Node.uuid==vector.c.destination_uuid, vector.c.status==\"dead\")")
-
-    alive_outgoing_vectors = relationship(
-        "Vector",
-        primaryjoin="and_(Node.uuid==vector.c.origin_uuid, vector.c.status==\"alive\")")
-
-    dead_outgoing_vectors = relationship(
-        "Vector",
-        primaryjoin="and_(Node.uuid==vector.c.origin_uuid, vector.c.status==\"dead\")")
-
     def get_incoming_vectors(self, status="alive"):
         if status == "all":
-            incoming_vectors = self.all_incoming_vectors
-        elif status == "alive":
-            incoming_vectors = self.alive_incoming_vectors
-        elif status == "dead":
-            incoming_vectors = self.dead_incoming_vectors
+            incoming_vectors = Vector.query.filter_by(destination=self).all()
+        elif status == "alive" or status == "dead":
+            incoming_vectors = Vector.query.filter_by(destination=self).filter_by(status=status).all()
         else:
             raise(ValueError("Cannot get_incoming_vectors with status {} as it is not a valid status.".format(status)))
         return incoming_vectors
 
     def get_outgoing_vectors(self, status="alive"):
         if status == "all":
-            outgoing_vectors = self.all_outgoing_vectors
-        elif status == "alive":
-            outgoing_vectors = self.alive_outgoing_vectors
-        elif status == "dead":
-            outgoing_vectors = self.dead_outgoing_vectors
+            outgoing_vectors = Vector.query.filter_by(origin=self).all()
+        elif status == "alive" or status == "dead":
+            outgoing_vectors = Vector.query.filter_by(origin=self).filter_by(status=status).all()
         else:
             raise(ValueError("Cannot get_outgoing_vectors with status {} as it is not a valid status.".format(status)))
         return outgoing_vectors
@@ -523,14 +503,14 @@ class Vector(Base):
     origin_uuid = Column(String(32), ForeignKey('node.uuid'))
     origin = relationship(
         Node, foreign_keys=[origin_uuid],
-        backref="all_outgoing_vectors")
+        backref="outgoing_vectors")
 
     # the destination node
     destination_uuid = Column(
         String(32), ForeignKey('node.uuid'))
     destination = relationship(
         Node, foreign_keys=[destination_uuid],
-        backref="all_incoming_vectors")
+        backref="incoming_vectors")
 
     # the status of the vector
     status = Column(Enum("alive", "dead", name="vector_status"),
