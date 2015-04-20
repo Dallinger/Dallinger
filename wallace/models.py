@@ -218,6 +218,8 @@ class Node(Base):
         if isinstance(other_node, list):
             for node in other_node:
                 self.connect_to(node)
+        elif self.has_connection_to(other_node):
+            print "Warning! {} is already connected to {}, cannot make another vector without killing the old one.".format(self, other_node)
         elif self == other_node:
             raise(ValueError("{} cannot connect to itself.".format(self)))
         elif isinstance(other_node, Source):
