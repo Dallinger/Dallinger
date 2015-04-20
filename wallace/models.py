@@ -623,16 +623,16 @@ class Network(Base):
     def add(self, base):
         if isinstance(base, list):
             for b in base:
-                b.network = self
-        else:
+                self.add(b)
+        elif isinstance(base, Node):
             base.network = self
-
-    def add_source(self, source):
-        self.add(source)
-
+        else: 
+            raise(TypeError("Cannot add {} to the network as it is a {}. " + 
+                             "Only Nodes can be added to networks.").format(base, type(base)))
 
     def add_agent(self, agent):
-        self.add(agent)
+        raise NotImplementedError("You need to overwrite add_agent(). " +
+                                    "If you want to simply assign a Node to a Network use the generic add() instead")
 
     def __len__(self):
         raise SyntaxError(

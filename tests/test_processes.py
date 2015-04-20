@@ -18,9 +18,9 @@ class TestProcesses(object):
         agent2 = agents.ReplicatorAgent()
         agent3 = agents.ReplicatorAgent()
 
-        net.add_agent(agent1)
-        net.add_agent(agent2)
-        net.add_agent(agent3)
+        net.add(agent1)
+        net.add(agent2)
+        net.add(agent3)
 
         agent1.connect_to(agent2)
         agent2.connect_to(agent3)
@@ -58,9 +58,9 @@ class TestProcesses(object):
         agent3 = agents.ReplicatorAgent()
         self.db.add_all([agent1, agent2, agent3])
 
-        net.add_agent(agent1)
-        net.add_agent(agent2)
-        net.add_agent(agent3)
+        net.add(agent1)
+        net.add(agent2)
+        net.add(agent3)
 
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
@@ -104,9 +104,9 @@ class TestProcesses(object):
     #     agent3 = agents.ReplicatorAgent()
     #     self.db.add_all([agent1, agent2, agent3])
 
-    #     net.add_agent(agent1)
-    #     net.add_agent(agent2)
-    #     net.add_agent(agent3)
+    #     net.add(agent1)
+    #     net.add(agent2)
+    #     net.add(agent3)
 
     #     vector1 = agent1.connect_to(agent2)
     #     vector2 = agent1.connect_to(agent3)

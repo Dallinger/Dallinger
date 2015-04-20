@@ -37,7 +37,7 @@ class Bartlett1932(Experiment):
                 source = WarOfTheGhostsSource()
                 self.session.add(source)
                 self.session.commit()
-                net.add_source(source)
+                net.add(source)
                 print source
                 print "Added initial source: " + str(source)
                 self.session.commit()

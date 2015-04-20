@@ -14,9 +14,6 @@ class Experiment(object):
     def information_creation_trigger(self, info):
         pass
 
-    def add_sources(self):
-        pass
-
     def step(self):
         pass
 
