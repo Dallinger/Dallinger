@@ -27,8 +27,10 @@ class Translations(Experiment):
         # Setup for first time experiment is accessed
         if not self.network.sources:
             source = WarOfTheGhostsSource()
+            self.save(source)
             self.network.add(source)
             source.connect_to(self.network.agents)
+            self.save()
             print "Added initial source: " + str(source)
 
         # Open recruitment
@@ -45,7 +47,7 @@ class Translations(Experiment):
         if len(self.network.agents) == 0:
             source = self.network.sources[0]
             source.connect_to(newcomer)
-            self.network.db.commit()
+            self.save()
 
         # Run the next step of the process.
         self.process.step()
@@ -54,8 +56,7 @@ class Translations(Experiment):
 
         # Trigger experiment-specific behavior that happens on creation
         newcomer.is_visible = True
-        self.network.db.add(newcomer)
-        self.network.db.commit()
+        self.save(newcomer)
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.

@@ -22,8 +22,9 @@ class SubstitutionCiphersExperiment(Experiment):
         # Setup for first time experiment is accessed
         if not self.network.sources:
             source = WarOfTheGhostsSource()
-            self.network.add(source)
+            self.save(source)
             source.connect_to(self.network.agents)
+            self.save()
             print "Added initial source: " + str(source)
 
         # Open recruitment
@@ -32,13 +33,13 @@ class SubstitutionCiphersExperiment(Experiment):
     def newcomer_arrival_trigger(self, newcomer):
 
         self.network.add_agent(newcomer)
-        self.network.db.commit()
+        self.save()
 
         # If this is the first participant, link them to the source.
         if len(self.network.agents) == 1:
             source = self.network.sources[0]
             source.connect_to(newcomer)
-            self.network.db.commit()
+            self.save()
 
         # Run the next step of the process.
         self.process.step()

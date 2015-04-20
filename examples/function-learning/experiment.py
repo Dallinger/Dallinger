@@ -23,26 +23,22 @@ class FunctionLearning(wallace.experiments.Experiment):
         self.networks = wallace.models.Network.query.all()
         if not self.networks:
             for i in range(self.num_repeats):
-                net = self.network_type()
-                self.session.add(net)
+                self.save(self.network_type())
         self.networks = wallace.models.Network.query.all()
 
         # Setup for first time experiment is accessed
         for net in self.networks:
             if not net.sources:
                 source = SinusoidalFunctionSource()
-                self.session.add(source)
-                self.session.commit()
+                self.save(source)
                 net.add(source)
+                self.save()
                 print source
                 print "Added initial source: " + str(source)
-                self.session.commit()
 
     def information_creation_trigger(self, info):
 
-        agent = info.origin
-        self.session.add(agent)
-        self.session.commit()
+        self.save(info.origin)
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.
