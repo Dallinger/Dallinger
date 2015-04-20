@@ -274,8 +274,12 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
     subprocess.call("heroku ps:scale web=" + str(web_procs) +
                     " --app " + id, stdout=OUT, shell=True)
     time.sleep(8)
-    # subprocess.call("heroku restart --app " + id, stdout=OUT, shell=True)
-    # time.sleep(4)
+
+    url = subprocess.check_output("heroku logs --app " + id + " | sort | " +
+                                  "sed -n 's|.*URL:||p'", shell=True)
+
+    log("URLs:")
+    print url
 
     # Return to the branch we came from.
     os.chdir(cwd)
