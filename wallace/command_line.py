@@ -15,6 +15,8 @@ import imp
 import pkg_resources
 import re
 
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
 
 def print_header():
     log("""
@@ -43,7 +45,7 @@ def ensure_heroku_logged_in():
     print ""
 
 
-@click.group()
+@click.group(context_settings=CONTEXT_SETTINGS)
 def wallace():
     pass
 
