@@ -1,7 +1,7 @@
 Wallace
 =======
 [![Build Status](https://magnum.travis-ci.com/suchow/Wallace.svg?token=ygVLzsadbn3UbxEk8GzT&branch=master)](https://magnum.travis-ci.com/suchow/Wallace)
-[![Coverage Status](https://coveralls.io/repos/suchow/Wallace/badge.png?branch=master)](https://coveralls.io/r/suchow/Wallace?branch=master)
+[![Coverage Status](https://coveralls.io/repos/suchow/Wallace/badge.svg?branch=master&t=LV4Dke)](https://coveralls.io/r/suchow/Wallace?branch=master)
 [![License](http://img.shields.io/badge/license-MIT-red.svg)](http://en.wikipedia.org/wiki/MIT_License)
 
 <img src="portrait.jpg?raw=true" width="125" alt="Portrait of Alfred Russel Wallace">
