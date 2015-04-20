@@ -42,9 +42,7 @@ class RandomWalkFromSource(Process):
         else:
             replacer = latest_recipient
 
-        options = [v for v in replacer.outgoing_vectors
-                   if v.destination.status == "alive"]
-
+        options = replacer.alive_outgoing_vectors
         if options:
             replaced = random.choice(options).destination
             replacer.transmit(to_whom=replaced)
@@ -64,7 +62,7 @@ class MoranProcessCultural(Process):
             replacer.transmit()
         else:
             replacer = random.choice(self.network.agents)
-            replaced = random.choice(replacer.outgoing_vectors).destination
+            replaced = random.choice(replacer.all_outgoing_vectors).destination
             replacer.transmit(to_whom=replaced)
 
 
@@ -80,7 +78,7 @@ class MoranProcessSexual(Process):
             replacer.transmit()
         else:
             replacer = random.choice(self.network.agents)
-            replaced = random.choice(replacer.outgoing_vectors).destination
+            replaced = random.choice(replacer.all_outgoing_vectors).destination
 
             # Make a baby
             baby = self.network.agent_type_generator()()
@@ -95,7 +93,7 @@ class MoranProcessSexual(Process):
                 v.kill()
 
             # Copy the outgoing connections.
-            for v in replaced.outgoing_vectors:
+            for v in replaced.all_outgoing_vectors:
                 v.kill()
                 baby.connect_to(v.destination)
 

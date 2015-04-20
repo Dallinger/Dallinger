@@ -165,6 +165,7 @@ class TestNetworks(object):
         net.add([node1, node2, agent1, agent2, source1, source2])
 
         node1.connect_to([node2, agent1, agent2])
+        self.db.commit()
 
         assert_raises(TypeError, node1.connect_to, source1)
 
@@ -174,6 +175,7 @@ class TestNetworks(object):
 
         agent1.kill()
         agent2.fail()
+        self.db.commit()
 
         assert node1.get_downstream_nodes(status="dead") == [agent1]
         assert node1.get_downstream_nodes(status="failed") == [agent2]

@@ -7,9 +7,9 @@ from .db import Base
 # various sqlalchemy imports
 from sqlalchemy import ForeignKey, desc
 from sqlalchemy import Column, String, Text, Enum, Float
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.orm import relationship, validates, column_property
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.sql import func, select
+from sqlalchemy.sql import func, select, and_
 from sqlalchemy.ext.associationproxy import association_proxy
 
 import inspect
@@ -80,20 +80,47 @@ class Node(Base):
         backref="predecessors"
     )
 
+    alive_successors = relationship(
+        "Node",
+        secondary="vector",
+        primaryjoin="and_(Node.uuid==vector.c.origin_uuid, vector.c.status==\"alive\")",
+        secondaryjoin="Node.uuid==vector.c.destination_uuid",
+    )
+
+    alive_incoming_vectors = relationship(
+        "Vector",
+        primaryjoin="and_(Node.uuid==vector.c.destination_uuid, vector.c.status==\"alive\")")
+
+    dead_incoming_vectors = relationship(
+        "Vector",
+        primaryjoin="and_(Node.uuid==vector.c.destination_uuid, vector.c.status==\"dead\")")
+
+    alive_outgoing_vectors = relationship(
+        "Vector",
+        primaryjoin="and_(Node.uuid==vector.c.origin_uuid, vector.c.status==\"alive\")")
+
+    dead_outgoing_vectors = relationship(
+        "Vector",
+        primaryjoin="and_(Node.uuid==vector.c.origin_uuid, vector.c.status==\"dead\")")
+
     def get_incoming_vectors(self, status="alive"):
         if status == "all":
-            incoming_vectors = Vector.query.filter_by(destination=self).all()
-        elif status == "alive" or status == "dead":
-            incoming_vectors = Vector.query.filter_by(destination=self).filter_by(status=status).all()
+            incoming_vectors = self.all_incoming_vectors
+        elif status == "alive":
+            incoming_vectors = self.alive_incoming_vectors
+        elif status == "dead":
+            incoming_vectors = self.dead_incoming_vectors
         else:
             raise(ValueError("Cannot get_incoming_vectors with status {} as it is not a valid status.".format(status)))
         return incoming_vectors
 
     def get_outgoing_vectors(self, status="alive"):
         if status == "all":
-            outgoing_vectors = Vector.query.filter_by(origin=self).all()
-        elif status == "alive" or status == "dead":
-            outgoing_vectors = Vector.query.filter_by(origin=self).filter_by(status=status).all()
+            outgoing_vectors = self.all_outgoing_vectors
+        elif status == "alive":
+            outgoing_vectors = self.alive_outgoing_vectors
+        elif status == "dead":
+            outgoing_vectors = self.dead_outgoing_vectors
         else:
             raise(ValueError("Cannot get_outgoing_vectors with status {} as it is not a valid status.".format(status)))
         return outgoing_vectors
@@ -101,26 +128,42 @@ class Node(Base):
     def get_downstream_nodes(self, type=None, status="alive"):
         if type is None:
             type = Node
-        if status == "all":
-            return [v.destination for v in self.get_outgoing_vectors()
-                    if isinstance(v.destination, type)]
-        elif status == "alive" or status == "dead" or status == "failed":
-            return [v.destination for v in self.get_outgoing_vectors()
-                    if isinstance(v.destination, type) and v.destination.status == status]
-        else:
+
+        if status not in ("all", "alive", "dead", "failed"):
             raise(ValueError("Cannot get_downstream_nodes with status {} as it is not a valid status.".format(status)))
+
+        if status == "all":
+            return type.query\
+                .join(Vector.destination.of_type(type))\
+                .filter(Vector.origin_uuid == self.uuid)\
+                .all()
+        else:
+            return type.query\
+                .join(Vector.destination.of_type(type))\
+                .filter(and_(
+                    Vector.origin_uuid == self.uuid,
+                    type.status == status))\
+                .all()
 
     def get_upstream_nodes(self, type=None, status="alive"):
         if type is None:
             type = Node
-        if status == "all":
-            return [v.origin for v in self.get_incoming_vectors()
-                    if isinstance(v.origin, type)]
-        elif status == "alive" or status == "dead" or status == "failed":
-            return [v.origin for v in self.get_incoming_vectors()
-                    if isinstance(v.origin, type) and v.origin.status == status]
-        else:
+
+        if status not in ("all", "alive", "dead", "failed"):
             raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
+
+        if status == "all":
+            return type.query\
+                .join(Vector.origin.of_type(type))\
+                .filter(Vector.destination_uuid == self.uuid)\
+                .all()
+        else:
+            return type.query\
+                .join(Vector.origin.of_type(type))\
+                .filter(and_(
+                    Vector.destination_uuid == self.uuid,
+                    type.status == status))\
+                .all()
 
     def get_infos(self, type=None):
         if type is None:
@@ -342,7 +385,7 @@ class Node(Base):
         elif not isinstance(other_node, Node):
             raise(TypeError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
                   format(self, other_node, other_node, type(other_node))))
-        return other_node in self.get_downstream_nodes()
+        return other_node in self.alive_successors
 
     def has_connection_from(self, other_node):
         """Whether this node has a connection from 'other_node'.
@@ -501,14 +544,14 @@ class Vector(Base):
     origin_uuid = Column(String(32), ForeignKey('node.uuid'))
     origin = relationship(
         Node, foreign_keys=[origin_uuid],
-        backref="outgoing_vectors")
+        backref="all_outgoing_vectors")
 
     # the destination node
     destination_uuid = Column(
         String(32), ForeignKey('node.uuid'))
     destination = relationship(
         Node, foreign_keys=[destination_uuid],
-        backref="incoming_vectors")
+        backref="all_incoming_vectors")
 
     # the status of the vector
     status = Column(Enum("alive", "dead", name="vector_status"),
