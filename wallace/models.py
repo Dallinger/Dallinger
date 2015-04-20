@@ -398,7 +398,7 @@ class Node(Base):
                 .order_by(Transmission.transmit_time)\
                 .all()
         else:
-            raise(Exception("The arguments passed to get_transmissions() did not cause an error," + 
+            raise(Exception("The arguments passed to get_transmissions() did not cause an error," +
                   " but also did not cause the method to run properly. This needs to be fixed asap." +
                   "status: {}, type: {}".format(status, type)))
 
@@ -628,8 +628,8 @@ class Network(Base):
                 self.add(b)
         elif isinstance(base, Node):
             base.network = self
-        else: 
-            raise(TypeError("Cannot add {} to the network as it is a {}. " + 
+        else:
+            raise(TypeError("Cannot add {} to the network as it is a {}. " +
                              "Only Nodes can be added to networks.").format(base, type(base)))
 
     def add_agent(self, agent):
