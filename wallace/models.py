@@ -126,7 +126,7 @@ class Node(Base):
         if type is None:
             type = Info
         if not issubclass(type, Info):
-            raise(ValueError("Cannot get-info of type {} as it is not a valid type.".format(type)))
+            raise(TypeError("Cannot get-info of type {} as it is not a valid type.".format(type)))
         else:
             return type\
                 .query\
@@ -178,9 +178,9 @@ class Node(Base):
         elif self == other_node:
             raise(ValueError("{} cannot connect to itself.".format(self)))
         elif isinstance(other_node, Source):
-            raise(ValueError("{} cannot connect_to {} as it is a Source.".format(self, other_node)))
+            raise(TypeError("{} cannot connect_to {} as it is a Source.".format(self, other_node)))
         elif not isinstance(other_node, Node):
-            raise(ValueError('{} cannot connect to {} as it is a {}'.format(self, other_node, type(other_node))))
+            raise(TypeError('{} cannot connect to {} as it is a {}'.format(self, other_node, type(other_node))))
         elif self.network_uuid != other_node.network_uuid:
             raise(ValueError(("{} cannot connect to {} as they are not " +
                               "in the same network. {} is in network {}, " +
@@ -234,7 +234,7 @@ class Node(Base):
             # Check if sender owns the info.
             if what.origin_uuid != self.uuid:
                 raise ValueError(
-                    "Cannot transmit because {} is not the origin of {}"
+                    "{} cannot transmit {} because it is not its origin"
                     .format(self, what))
 
             if to_whom is None:
@@ -261,10 +261,10 @@ class Node(Base):
                     t = Transmission(info=what, destination=to_whom)
                     what.transmissions.append(t)
             else:
-                raise ValueError("Cannot transmit to '{}': ",
+                raise TypeError("Cannot transmit to '{}': ",
                                  "it is not a Node".format(to_whom))
         else:
-            raise ValueError("Cannot transmit '{}': it is not an Info"
+            raise TypeError("Cannot transmit '{}': it is not an Info"
                              .format(what))
 
     def _what(self):
@@ -340,7 +340,7 @@ class Node(Base):
         if isinstance(other_node, list):
             return [self.has_connection_to(n) for n in other_node]
         elif not isinstance(other_node, Node):
-            raise(ValueError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
+            raise(TypeError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
                   format(self, other_node, other_node, type(other_node))))
         return other_node in self.get_downstream_nodes()
 
@@ -396,7 +396,8 @@ class Node(Base):
                 .order_by(Transmission.transmit_time)\
                 .all()
         else:
-            raise(ValueError("Something has gone horribly wrong with the get_transmission method." +
+            raise(Exception("The arguments passed to get_transmissions() did not cause an error," + 
+                  " but also did not cause the method to run properly. This needs to be fixed asap." +
                   "status: {}, type: {}".format(status, type)))
 
     @property
@@ -453,7 +454,7 @@ class Agent(Node):
     fitness = Column(Float, nullable=True, default=None)
 
     def _selector(self):
-        raise NotImplementedError(
+        raise DeprecationWarning(
             "_selector is deprecated - ",
             "use _what() instead.")
 
@@ -561,7 +562,7 @@ class Network(Base):
 
     def get_nodes(self, type=Node, status="alive"):
         if not issubclass(type, Node):
-            raise(ValueError("Cannot get_nodes of type {} as it is not a valid type.".format(type)))
+            raise(TypeError("Cannot get_nodes of type {} as it is not a valid type.".format(type)))
         if status == "alive" or status == "dead" or status == "failed":
             return type\
                 .query\
@@ -650,7 +651,7 @@ class Network(Base):
     def __len__(self):
         raise SyntaxError(
             "len is not defined for networks. " +
-            "Use len(net.agents) or len(net.sources) instead.")
+            "Use len(net.get_nodes()) instead.")
 
     def __repr__(self):
         return "<Network-{}-{} with {} agents, {} sources, {} vectors>".format(
