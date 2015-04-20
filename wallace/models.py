@@ -203,11 +203,14 @@ class Node(Base):
             other_node.connect_to(self)
 
     def transmit(self, what=None, to_whom=None):
-        """Transmits what to whom. Will work provided what is an Info or a
-        class of Info, or a list containing the two. If what=None the _what()
-        method is called to generate what. Will work provided to_whom is a Node you
-        are connected to or a class of Nodes, or a list containing the two. If
-        to_whom=None the _to_whom() method is called to generate to_whom.
+        """
+        Transmit what to whom.
+
+        Will work provided what is an Info or a class of Info, or a list
+        containing the two. If what=None the _what() method is called to
+        generate what. Will work provided to_whom is a Node you are connected
+        to or a class of Nodes, or a list containing the two. If to_whom=None
+        the _to_whom() method is called to generate to_whom.
         """
         if what is None:
             what = self._what()
@@ -331,15 +334,14 @@ class Node(Base):
             .label("indegree")
 
     def has_connection_to(self, other_node):
-        """Whether this node has a connection to 'other_node'.
-        Can take a list of nodes. If passed a list returns a list
-        of booleans."""
+        """Whether this node has a connection to 'other_node'. Can take a list
+        of nodes. If passed a list returns a list of booleans."""
         # return other_node in self.successors
         if isinstance(other_node, list):
             return [self.has_connection_to(n) for n in other_node]
         elif not isinstance(other_node, Node):
             raise(ValueError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
-                format(self, other_node, other_node, type(other_node))))
+                  format(self, other_node, other_node, type(other_node))))
         return other_node in self.get_downstream_nodes()
 
     def has_connection_from(self, other_node):
@@ -354,13 +356,13 @@ class Node(Base):
     def get_transmissions(self, type=None, status="all"):
         if type is None:
             raise(ValueError("You cannot get_transmissions without specifying the type of transmission you want" +
-                "It should be incoming, outgoing or all"))
+                  "It should be incoming, outgoing or all"))
         if type not in ["incoming", "outgoing", "all"]:
             raise(ValueError("You cannot get_transmissions of type {}.".format(type) +
-                "Type can only be incoming, outgoing or all."))
+                  "Type can only be incoming, outgoing or all."))
         if status not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get_transmission of status {}.".format(status) +
-                "Status can only be pending, received or all"))
+                  "Status can only be pending, received or all"))
         if type == "all":
             return self.get_transmissions(type="incoming", status=status) + self.get_transmission(type="outgoing", status=status)
         elif status == "all":
@@ -395,7 +397,7 @@ class Node(Base):
                 .all()
         else:
             raise(ValueError("Something has gone horribly wrong with the get_transmission method." +
-                "status: {}, type: {}".format(status, type)))
+                  "status: {}, type: {}".format(status, type)))
 
     @property
     def incoming_transmissions(self):
@@ -438,6 +440,7 @@ class Node(Base):
 
 
 class Agent(Node):
+
     """Agents have genomes and memomes, and update their contents when faced.
     By default, agents transmit unadulterated copies of their genomes and
     memomes, with no error or mutation.
@@ -538,6 +541,7 @@ class Vector(Base):
 
 
 class Network(Base):
+
     """A network of nodes."""
 
     __tablename__ = "network"
