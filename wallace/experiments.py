@@ -3,6 +3,11 @@ class Experiment(object):
         self.task = "Experiment title"
         self.session = session
 
+    def save(self, *objects):
+        if len(objects) > 0:
+            self.session.add_all(objects)
+        self.session.commit()
+
     def newcomer_arrival_trigger(self, newcomer):
         pass
 
