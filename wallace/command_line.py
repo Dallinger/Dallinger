@@ -138,6 +138,7 @@ def debug(verbose):
     # Set the mode to debug.
     config.set("Experiment Configuration", "mode", "debug")
     config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
+    config.set("Server Parameters", "logfile", os.path.join(cwd, config.get("Server Parameters", "logfile")))
 
     # Swap in the HotAirRecruiter
     os.rename("wallace_experiment.py", "wallace_experiment_tmp.py")
@@ -170,8 +171,9 @@ def debug(verbose):
     # Start up the local server
     log("Starting up the server...")
     p = pexpect.spawn("psiturk")
-    p.expect_exact("server")
+    p.expect_exact("]$")
     p.sendline("server on")
+    p.expect_exact("Experiment server launching...")
 
     log("Here's the psiTurk shell...")
     p.interact()
@@ -295,6 +297,7 @@ def sandbox(verbose, web):
 
     # Set the mode.
     config.set("Experiment Configuration", "mode", "sandbox")
+    config.set("Server Parameters", "logfile", "-")
 
     # Ensure that psiTurk is in sandbox mode.
     config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
@@ -316,6 +319,7 @@ def deploy(verbose, web):
 
     # Set the mode.
     config.set("Experiment Configuration", "mode", "deploy")
+    config.set("Server Parameters", "logfile", "-")
 
     # Ensure that psiTurk is not in sandbox mode.
     config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
