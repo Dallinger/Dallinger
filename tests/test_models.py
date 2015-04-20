@@ -96,7 +96,7 @@ class TestModels(object):
         net = models.Network()
         self.add(net)
 
-        assert_raises(ValueError, node1.connect_to, other_node=net)
+        assert_raises(TypeError, node1.connect_to, other_node=net)
 
     def test_node_connect_from(self):
         """Test connecting one node from another"""

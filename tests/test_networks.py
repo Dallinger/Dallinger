@@ -169,7 +169,7 @@ class TestNetworks(object):
 
         node1.connect_to([node2, agent1, agent2])
 
-        assert_raises(ValueError, node1.connect_to, source1)
+        assert_raises(TypeError, node1.connect_to, source1)
 
         assert node1.get_downstream_nodes() == [node2, agent1, agent2]
         assert node1.outdegree == 3
