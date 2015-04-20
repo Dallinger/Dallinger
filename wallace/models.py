@@ -99,31 +99,31 @@ class Node(Base):
         return outgoing_vectors
 
     def get_downstream_nodes(self, type=None, status="alive"):
-        if type == None:
+        if type is None:
             type = Node
         if status == "all":
             return [v.destination for v in self.get_outgoing_vectors()
-                if isinstance(v.destination, type)]
+                    if isinstance(v.destination, type)]
         elif status == "alive" or status == "dead" or status == "failed":
             return [v.destination for v in self.get_outgoing_vectors()
-                if isinstance(v.destination, type) and v.destination.status == status]
+                    if isinstance(v.destination, type) and v.destination.status == status]
         else:
             raise(ValueError("Cannot get_downstream_nodes with status {} as it is not a valid status.".format(status)))
 
     def get_upstream_nodes(self, type=None, status="alive"):
-        if type == None:
+        if type is None:
             type = Node
         if status == "all":
             return [v.origin for v in self.get_incoming_vectors()
-                if isinstance(v.origin, type)]
+                    if isinstance(v.origin, type)]
         elif status == "alive" or status == "dead" or status == "failed":
             return [v.origin for v in self.get_incoming_vectors()
-                if isinstance(v.origin, type) and v.origin.status == status]
+                    if isinstance(v.origin, type) and v.origin.status == status]
         else:
             raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
 
     def get_infos(self, type=None):
-        if type == None:
+        if type is None:
             type = Info
         if not issubclass(type, Info):
             raise(ValueError("Cannot get-info of type {} as it is not a valid type.".format(type)))
@@ -172,7 +172,7 @@ class Node(Base):
         other_node may be a list of nodes
         will raise an error if you try to conntect_to anything other than a node
         will also raise an error if you try to connect_to a source"""
-        if isinstance(other_node, list) :
+        if isinstance(other_node, list):
             for node in other_node:
                 self.connect_to(node)
         elif self == other_node:
@@ -196,7 +196,7 @@ class Node(Base):
         """Creates a directed edge from other_node to self
         other_node may be a list of nodes
         will raise an error if you try to connect_from anything other than a node"""
-        if isinstance(other_node, list) :
+        if isinstance(other_node, list):
             for node in other_node:
                 node.connect_to(self)
         else:
@@ -274,7 +274,6 @@ class Node(Base):
         state = environment.get_observed(by_whom=self)
         return state
 
-
     def update(self, infos):
         raise NotImplementedError(
             "The update method of node '{}' has not been overridden"
@@ -307,7 +306,6 @@ class Node(Base):
                 self.update([t.info for t in relevant_transmissions])
             else:
                 raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, thing)))
-
 
     @hybrid_property
     def outdegree(self):
@@ -364,7 +362,7 @@ class Node(Base):
             raise(ValueError("You cannot get_transmission of status {}.".format(status) +
                 "Status can only be pending, received or all"))
         if type == "all":
-            return self.get_transmissions(type="incoming", status=status) + self.get_transmission(type="outgoing",status=status)
+            return self.get_transmissions(type="incoming", status=status) + self.get_transmission(type="outgoing", status=status)
         elif status == "all":
             return self.get_transmissions(type=type, status="pending") + self.get_transmissions(type=type, status="received")
         elif type == "incoming" and status == "received":
@@ -398,7 +396,6 @@ class Node(Base):
         else:
             raise(ValueError("Something has gone horribly wrong with the get_transmission method." +
                 "status: {}, type: {}".format(status, type)))
-
 
     @property
     def incoming_transmissions(self):
@@ -619,7 +616,7 @@ class Network(Base):
         return [agent.outdegree for agent in self.agents]
 
     def add(self, base):
-        if isinstance(base, list) :
+        if isinstance(base, list):
             for b in base:
                 b.network = self
         else:

@@ -8,7 +8,7 @@ from psiturk.user_utils import PsiTurkAuthorization
 # Database setup
 from psiturk.db import db_session as session_psiturk
 from psiturk.models import Participant
-from json import dumps, loads
+from json import dumps
 
 from wallace import db, agents, models, information
 

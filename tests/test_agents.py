@@ -1,4 +1,4 @@
-from wallace import agents, information, db, information, models
+from wallace import agents, information, db, models
 from nose.tools import raises
 
 

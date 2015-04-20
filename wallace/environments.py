@@ -18,17 +18,18 @@ class Environment(Node):
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     def state(self, time=None):
-        """By default, state() returns the most recently created info of type State.
-        If you specify a time it will return the most recent state at that point in time"""
+        """By default, state() returns the most recently created info of type
+        State. If you specify a time, it will return the most recent state at
+        that point in time."""
         if time is None:
             return self.get_infos(type=State)[-1]
         else:
             return State\
-            .query\
-            .filter_by(origin_uuid=self.uuid)\
-            .filter(State.creation_time < time)\
-            .order_by(desc(State.creation_time))\
-            .first()
+                .query\
+                .filter_by(origin_uuid=self.uuid)\
+                .filter(State.creation_time < time)\
+                .order_by(desc(State.creation_time))\
+                .first()
 
     def get_observed(self, by_whom=None):
         """When observed, transmit the state."""

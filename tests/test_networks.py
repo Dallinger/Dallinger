@@ -55,12 +55,11 @@ class TestNetworks(object):
 
         node1.kill()
         agent1.fail()
-    
+
         assert net.get_nodes() == [node2, agent2, agent3]
         assert net.get_nodes(status="all") == [node1, node2, agent1, agent2, agent3]
         assert net.get_nodes(status="dead") == [node1]
         assert net.get_nodes(type=agents.Agent, status="all") == [agent1, agent2, agent3]
-
 
     def test_network_vectors(self):
         net = networks.Network()
@@ -167,7 +166,7 @@ class TestNetworks(object):
         # WHY IS THIS?!?!?!
         self.db.commit()
         #print net.get_nodes()
-        
+
         node1.connect_to([node2, agent1, agent2])
 
         assert_raises(ValueError, node1.connect_to, source1)
@@ -185,7 +184,6 @@ class TestNetworks(object):
         assert node1.get_downstream_nodes(status="all") == [node2, agent1, agent2]
 
         assert_raises(ValueError, node1.get_downstream_nodes, status="blagjrg")
-
 
     def test_network_repr(self):
         net = networks.Network()
