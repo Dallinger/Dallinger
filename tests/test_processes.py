@@ -33,6 +33,7 @@ class TestProcesses(object):
         net.add(source)
         source.connect_to(net.agents[0])
         source.create_information()
+        self.db.commit()
 
         process = processes.RandomWalkFromSource(net)
         process.step()
@@ -75,6 +76,7 @@ class TestProcesses(object):
         net.add(source)
         source.connect_to(net.agents)
         info = source.create_information()
+        self.db.commit()
         source.transmit(what=info)
 
         for agent in net.agents:

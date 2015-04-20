@@ -34,6 +34,8 @@ class TestEnvironments(object):
         self.add(agent)
 
         environment.connect_to(agent)
+        self.db.commit()
+
         agent.observe(environment)
         agent.receive_all()
 
