@@ -630,20 +630,6 @@ class Network(Base):
     def add_source(self, source):
         self.add(source)
 
-    def add_source_global(self, source):
-        self.add(source)
-
-        for agent in self.agents:
-            source.connect_to(agent)
-
-    def add_source_local(self, source, agent):
-        self.add(source)
-
-        uid = source.uuid
-        source = Node.query\
-            .filter_by(uuid=uid).one()
-
-        source.connect_to(agent)
 
     def add_agent(self, agent):
         self.add(agent)

@@ -27,7 +27,8 @@ class Translations(Experiment):
         # Setup for first time experiment is accessed
         if not self.network.sources:
             source = WarOfTheGhostsSource()
-            self.network.add_source_global(source)
+            self.network.add(source)
+            source.connect_to(self.network.agents)
             print "Added initial source: " + str(source)
 
         # Open recruitment

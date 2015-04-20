@@ -106,7 +106,8 @@ class TestNetworks(object):
 
         source = sources.RandomBinaryStringSource()
         self.db.add(source)
-        net.add_source_global(source)
+        net.add(source)
+        source.connect_to(net.agents)
 
         assert len(net.vectors) == 2
         assert source.network == net
@@ -127,7 +128,8 @@ class TestNetworks(object):
 
         source = sources.RandomBinaryStringSource()
         self.db.add(source)
-        net.add_source_local(source, net.agents[0])
+        net.add(source)
+        source.connect_to(net.agents[0])
 
         assert len(net.vectors) == 1
         assert net.degrees == [0, 0]
@@ -162,11 +164,6 @@ class TestNetworks(object):
         self.db.add_all([node1, node2, agent1, agent2, source1, source2])
         net.add([node1, node2, agent1, agent2, source1, source2])
 
-        # just FYI this commit is needed, but the get_nodes() will work just as well.
-        # WHY IS THIS?!?!?!
-        self.db.commit()
-        #print net.get_nodes()
-
         node1.connect_to([node2, agent1, agent2])
 
         assert_raises(TypeError, node1.connect_to, source1)
@@ -198,7 +195,8 @@ class TestNetworks(object):
         source = sources.RandomBinaryStringSource()
         self.db.add(source)
 
-        net.add_source_global(source)
+        net.add(source)
+        source.connect_to(net.agents)
 
         assert repr(net)[:8] == "<Network"
         assert repr(net)[15:] == "-base with 2 agents, 1 sources, 2 vectors>"
@@ -213,7 +211,8 @@ class TestNetworks(object):
 
         source = sources.RandomBinaryStringSource()
         self.db.add(source)
-        net.add_source_local(source, net.agents[0])
+        net.add(source)
+        source.connect_to(net.agents[0])
 
         assert len(net.agents) == 4
         assert len(net.sources) == 1
@@ -231,8 +230,9 @@ class TestNetworks(object):
 
         source = sources.RandomBinaryStringSource()
         self.db.add(source)
+        net.add(source)
 
-        net.add_source_local(source, net.agents[0])
+        source.connect_to(net.agents[0])
 
         assert repr(net)[:9] == "<Network-"
         assert repr(net)[15:] == "-chain with 4 agents, 1 sources, 4 vectors>"
