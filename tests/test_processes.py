@@ -72,17 +72,17 @@ class TestProcesses(object):
         self.db.add(source)
         net.add(source)
         for agent in net.nodes(type=Agent):
-        	source.connect_to(agent)
-        	source.transmit(to_whom=agent)
-        	agent.receive_all()
+            source.connect_to(agent)
+            source.transmit(to_whom=agent)
+            agent.receive_all()
 
         # Run a Moran process for 100 steps.
         process = processes.MoranProcessCultural(net)
 
         for i in xrange(100):
-        	process.step()
-        	for agent in net.nodes(type=Agent):
-        		agent.receive_all()
+            process.step()
+            for agent in net.nodes(type=Agent):
+                agent.receive_all()
 
         # Ensure that the process had reached fixation.
         assert agent1.infos()[-1].contents == agent2.infos()[-1].contents
