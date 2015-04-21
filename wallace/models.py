@@ -558,6 +558,13 @@ class Network(Base):
             .filter_by(participant_uuid=uuid)\
             .all()
 
+    vectors = relationship(
+        "Vector",
+        secondary=Node.__table__,
+        primaryjoin="Network.uuid==Node.network_uuid",
+        secondaryjoin="Node.uuid==Vector.origin_uuid",
+    )
+
     # @property
     # def agents(self):
     #     return Agent\
