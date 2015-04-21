@@ -212,8 +212,7 @@ class TestNetworks(object):
 
         source = sources.RandomBinaryStringSource()
         self.db.add(source)
-        net.add(source)
-        source.connect_to(net.nodes(type=models.Agent)[0])
+        net.add_source(source)
 
         assert len(net.nodes(type=models.Agent)) == 4
         assert len(net.nodes(type=models.Source)) == 1
@@ -231,9 +230,7 @@ class TestNetworks(object):
 
         source = sources.RandomBinaryStringSource()
         self.db.add(source)
-        net.add(source)
-
-        source.connect_to(net.nodes(type=models.Agent)[0])
+        net.add_source(source)
 
         assert repr(net)[:9] == "<Network-"
         assert repr(net)[15:] == "-chain with 4 agents, 1 sources, 4 vectors>"

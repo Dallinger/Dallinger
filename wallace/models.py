@@ -565,28 +565,6 @@ class Network(Base):
         secondaryjoin="Node.uuid==Vector.origin_uuid",
     )
 
-    # @property
-    # def agents(self):
-    #     return Agent\
-    #         .query\
-    #         .order_by(Agent.creation_time)\
-    #         .filter(Agent.status != "failed")\
-    #         .filter(Agent.network == self)\
-    #         .filter(Agent.status != "dead")\
-    #         .all()
-
-    # @property
-    # def sources(self):
-    #     return Source\
-    #         .query\
-    #         .order_by(Source.creation_time)\
-    #         .filter(Source.network == self)\
-    #         .all()
-
-    #@property
-    #def nodes(self):
-    #    return self.nodes(type=Source) + self.nodes(type=Agent)
-
     @property
     def degrees(self):
         return [agent.outdegree for agent in self.nodes(type=Agent)]

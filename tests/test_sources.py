@@ -32,7 +32,7 @@ class TestSources(object):
         agent.receive_all()
         self.db.commit()
 
-        assert agent.info.contents in ["00", "01", "10", "11"]
+        assert agent.infos()[0].contents in ["00", "01", "10", "11"]
 
     def test_broadcast_random_binary_string_source(self):
         source = sources.RandomBinaryStringSource()
@@ -49,5 +49,5 @@ class TestSources(object):
         agent2.receive_all()
         self.db.commit()
 
-        assert agent1.info.contents in ["00", "01", "10", "11"]
-        assert agent2.info.contents in ["00", "01", "10", "11"]
+        assert agent1.infos()[0].contents in ["00", "01", "10", "11"]
+        assert agent2.infos()[0].contents in ["00", "01", "10", "11"]

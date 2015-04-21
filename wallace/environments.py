@@ -6,10 +6,10 @@ from information import State
 class Environment(Node):
 
     """
-    Define an environment node.
-
-    Environments are nodes that have a state and that receive a transmission
-    from anyone that observes them.
+    Environments are Nodes with the following features:
+    1 - they have the get_observed function
+    2 - by default they transmit the most recent info of type State
+    3 - the state() method can be passed a time to get the state at that time
     """
 
     __tablename__ = "environment"

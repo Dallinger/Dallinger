@@ -31,7 +31,7 @@ class FunctionLearning(wallace.experiments.Experiment):
             if not net.nodes(type=Source):
                 source = SinusoidalFunctionSource()
                 self.save(source)
-                net.add(source)
+                net.add_source(source)
                 self.save()
                 print source
                 print "Added initial source: " + str(source)
@@ -71,9 +71,6 @@ class AbstractFnSource(Source):
         data = {"x": x_values, "y": y_values}
 
         return json.dumps(data)
-
-    def _what(self):
-        return self.create_information()
 
     @declared_attr
     def __mapper_args__(cls):

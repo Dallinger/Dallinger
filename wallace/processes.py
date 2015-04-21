@@ -10,7 +10,7 @@ class Process(object):
         self.network = network
 
     def step(self, verbose=True):
-        pass
+        raise(NotImplementedError("Your process needs to override the step() function"))
 
     def is_begun(self):
         """To tell if the process has started yet, check if there have been any
@@ -65,8 +65,8 @@ class MoranProcessCultural(Process):
             replacer.transmit()
         else:
             replacer = random.choice(self.network.nodes(type=Agent))
-            replaced = random.choice(replacer.outgoing_vectors()).destination
-            replacer.transmit(to_whom=replaced)
+            replaced = random.choice(replacer.downstream_nodes(type=Agent))
+            replacer.transmit(what=replacer.infos()[-1], to_whom=replaced)
 
 
 class MoranProcessSexual(Process):

@@ -1,4 +1,5 @@
 from wallace import agents, information, db, models
+from wallace.information import Meme, Gene
 from nose.tools import raises
 
 
@@ -54,13 +55,13 @@ class TestAgents(object):
         agent = agents.ReplicatorAgent()
         self.add(agent)
 
-        assert agent.info is None
+        assert len(agent.infos()) is 0
 
         info = information.Info(origin=agent, contents="foo")
         self.add(info)
         self.db.commit()
 
-        assert agent.info == info
+        assert agent.infos()[0] == info
 
     def test_agent_transmit(self):
         agent1 = agents.ReplicatorAgent()
@@ -76,8 +77,8 @@ class TestAgents(object):
         agent2.receive_all()
         self.db.commit()
 
-        assert agent1.info.contents == agent2.info.contents
-        assert agent1.info.uuid != agent2.info.uuid
+        assert agent1.infos()[0].contents == agent2.infos()[0].contents
+        assert agent1.infos()[0].uuid != agent2.infos()[0].uuid
 
         transmission = info.transmissions[0]
         assert transmission.info_uuid == info.uuid
@@ -121,35 +122,18 @@ class TestAgents(object):
         agent3.receive_all()
         self.db.commit()
 
-        assert agent1.info.contents == agent2.info.contents
-        assert agent1.info.contents == agent3.info.contents
-        assert agent1.info.uuid != agent2.info.uuid != agent3.info.uuid
+        assert agent1.infos()[0].contents == agent2.infos()[0].contents
+        assert agent1.infos()[0].contents == agent3.infos()[0].contents
+        assert agent1.infos()[0].uuid != agent2.infos()[0].uuid != agent3.infos()[0].uuid
 
         transmissions = info.transmissions
         assert len(transmissions) == 2
 
-    def test_create_biological_agent(self):
-
-        agent = agents.BiologicalAgent()
-        self.add(agent)
-
-        assert len(agent.memome) == 0
-        assert len(agent.genome) == 0
-
-        meme = information.Meme(origin=agent, contents="foo")
-        gene = information.Gene(origin=agent, contents="bar")
-        self.add(meme)
-        self.add(gene)
-        self.db.commit()
-
-        assert meme in agent.memome
-        assert gene in agent.genome
-
     def test_transmit_selector_default(self):
 
         # Create a network of two biological agents.
-        agent1 = agents.BiologicalAgent()
-        agent2 = agents.BiologicalAgent()
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
         agent1.connect_to(agent2)
 
         self.add(agent1)
@@ -162,10 +146,10 @@ class TestAgents(object):
         self.add(gene)
         self.db.commit()
 
-        assert len(agent1.genome) == 1
-        assert len(agent1.genome) == 1
-        assert len(agent2.genome) == 0
-        assert len(agent2.genome) == 0
+        assert len(agent1.infos(type=Gene)) == 1
+        assert len(agent1.infos(type=Gene)) == 1
+        assert len(agent2.infos(type=Gene)) == 0
+        assert len(agent2.infos(type=Gene)) == 0
 
         # Transmit from agent 1 to 2.
         agent1.transmit(to_whom=agent2)
@@ -175,14 +159,14 @@ class TestAgents(object):
         self.db.commit()
 
         # Make sure that Agent 2 has a blank memome and the right gene.
-        assert "foo" == agent2.memome[0].contents
-        assert "bar" == agent2.genome[0].contents
+        assert "foo" == agent2.infos(type=Meme)[0].contents
+        assert "bar" == agent2.infos(type=Gene)[0].contents
 
     def test_transmit_selector_specific_info(self):
 
         # Create a network of two biological agents.
-        agent1 = agents.BiologicalAgent()
-        agent2 = agents.BiologicalAgent()
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
         agent1.connect_to(agent2)
 
         self.add(agent1)
@@ -195,10 +179,10 @@ class TestAgents(object):
         self.add(gene)
         self.db.commit()
 
-        assert len(agent1.genome) == 1
-        assert len(agent1.genome) == 1
-        assert len(agent2.genome) == 0
-        assert len(agent2.genome) == 0
+        assert len(agent1.infos(type=Gene)) == 1
+        assert len(agent1.infos(type=Gene)) == 1
+        assert len(agent2.infos(type=Gene)) == 0
+        assert len(agent2.infos(type=Gene)) == 0
 
         # Transmit from agent 1 to 2.
         agent1.transmit(what=gene, to_whom=agent2)
@@ -208,14 +192,14 @@ class TestAgents(object):
         self.db.commit()
 
         # Make sure that Agent 2 has a blank memome and the right gene.
-        assert not agent2.memome
-        assert "bar" == agent2.genome[0].contents
+        assert not agent2.infos(type=Meme)
+        assert "bar" == agent2.infos(type=Gene)[0].contents
 
     def test_transmit_selector_all_of_type(self):
 
         # Create a network of two biological agents.
-        agent1 = agents.BiologicalAgent()
-        agent2 = agents.BiologicalAgent()
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
         agent1.connect_to(agent2)
 
         self.add(agent1)
@@ -230,10 +214,10 @@ class TestAgents(object):
         self.add(gene)
         self.db.commit()
 
-        assert len(agent1.memome) == 3
-        assert len(agent2.memome) == 0
-        assert len(agent1.genome) == 1
-        assert len(agent2.genome) == 0
+        assert len(agent1.infos(type=Meme)) == 3
+        assert len(agent2.infos(type=Meme)) == 0
+        assert len(agent1.infos(type=Gene)) == 1
+        assert len(agent2.infos(type=Gene)) == 0
 
         # Transmit memes from agent 1 to 2.
         agent1.transmit(what=information.Meme, to_whom=agent2)
@@ -243,5 +227,5 @@ class TestAgents(object):
         self.db.commit()
 
         # Make sure that Agent 2 has a blank memome and the right gene.
-        assert not agent2.genome
-        assert len(agent2.memome) == 3
+        assert not agent2.infos(type=Gene)
+        assert len(agent2.infos(type=Meme)) == 3

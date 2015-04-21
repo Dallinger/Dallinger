@@ -4,7 +4,7 @@ import random
 
 class RandomBinaryStringSource(Source):
 
-    """An source that transmits random binary strings."""
+    """A source that transmits random binary strings."""
 
     __mapper_args__ = {"polymorphic_identity": "random_binary_string_source"}
 

@@ -34,10 +34,10 @@ class Bartlett1932(Experiment):
             if not net.nodes(type=Source):
                 source = WarOfTheGhostsSource()
                 self.save(source)
-                net.add(source)
+                net.add_source(source)
                 self.save()
-                print source
-                print "Added initial source: " + str(source)
+                #print source
+                #print "Added initial source: " + str(source)
 
     def information_creation_trigger(self, info):
 
@@ -84,7 +84,3 @@ class WarOfTheGhostsSource(Source):
         story = random.choice(stories)
         with open("static/stimuli/{}".format(story), "r") as f:
             return f.read()
-
-    def _what(self):
-        """By default, the source transmits a randomly-chosen story."""
-        return self.create_information()

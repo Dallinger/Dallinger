@@ -1,37 +1,52 @@
 """Network structures commonly used in simulations of evolution."""
 
-from .models import Network, Agent
+from .models import Network, Agent, Source
 import random
 
 
 class Chain(Network):
 
-    """A -> B -> C -> ..."""
+    """
+    Source -> Agent -> Agent -> Agent -> ...
+    The source is optional and can be added at any time
+    """
 
     __mapper_args__ = {"polymorphic_identity": "chain"}
 
     def add_agent(self, newcomer):
         """Add an agent, connecting it to the previous node."""
-        newcomer.network = self
+        self.add(newcomer)
 
-        if len(self.nodes()) > 1:
-            self.nodes()[-2].connect_to(newcomer)
+        if len(self.nodes(type=Agent)) > 1:
+            self.nodes(type=Agent)[-2].connect_to(newcomer)
+        elif len(self.nodes(type=Source)) > 0:
+            self.nodes(type=Source)[0].connect_to(newcomer)
+
+    def add_source(self, source):
+        if len(self.nodes(type=Source)) > 0:
+            raise(Exception("Cannot add another source to Chain network as it already has a source"))
+        else:
+            self.add(source)
+            if len(self.nodes(type=Agent)) > 0:
+                source.connect_to(self.nodes(type=Agent)[0])
 
 
 class FullyConnected(Network):
 
-    """A fully-connected network (complete graph) with all possible vectors."""
+    """
+    A fully-connected network (complete graph) with all possible vectors.
+    i.e., everyone connects to everyone else
+    """
 
     __mapper_args__ = {"polymorphic_identity": "fully-connected"}
 
     def add_agent(self, newcomer):
         """Add an agent, connecting it to everyone and back."""
-        newcomer.network = self
+        self.add(newcomer)
 
-        for agent in self.nodes(type=Agent):
-            if agent is not newcomer:
-                agent.connect_to(newcomer)
-                agent.connect_from(newcomer)
+        for agent in self.nodes(type=Agent)[:-1]:
+            agent.connect_to(newcomer)
+            newcomer.connect_to(agent)
 
 
 class ScaleFree(Network):
@@ -39,9 +54,10 @@ class ScaleFree(Network):
     """Barabasi-Albert (1999) model for constructing a scale-free network.
 
     The construction process begins with a fully-connected network with m0
-    individuals. Each newcomer makes m connections with existing memebers of
-    the network. Critically, new connections are chosen using preferential
-    attachment.
+    individuals. After that point, every newcomer makes m connections with
+    existing memebers of the network. Critically, new connections are
+    chosen using preferential attachment (i.e., you connect with agents
+    according to how many connections they already have).
     """
 
     __mapper_args__ = {"polymorphic_identity": "scale-free"}
@@ -52,14 +68,13 @@ class ScaleFree(Network):
 
     def add_agent(self, newcomer):
         """Add newcomers one by one, using linear preferential attachment."""
-        newcomer.network = self
+        self.add(newcomer)
 
         # Start with a core of m0 fully-connected agents...
         if len(self.nodes(type=Agent)) <= self.m0:
-            for agent in self.nodes(type=Agent):
-                if agent is not newcomer:
-                    newcomer.connect_to(agent)
-                    newcomer.connect_from(agent)
+            for agent in self.nodes(type=Agent)[:-1]:
+                newcomer.connect_to(agent)
+                agent.connect_to(newcomer)
 
         # ...then add newcomers one by one with preferential attachment.
         else:
