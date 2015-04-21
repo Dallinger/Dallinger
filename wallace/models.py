@@ -581,14 +581,6 @@ class Network(Base):
     #    return self.nodes(type=Source) + self.nodes(type=Agent)
 
     @property
-    def vectors(self):
-        return Vector\
-            .query\
-            .order_by(Vector.origin_uuid, Vector.destination_uuid)\
-            .filter(Vector.network == self)\
-            .all()
-
-    @property
     def degrees(self):
         return [agent.outdegree for agent in self.nodes(type=Agent)]
 
