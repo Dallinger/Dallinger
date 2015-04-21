@@ -73,6 +73,7 @@ class TestNetworks(object):
         net.add(agent1)
         net.add(agent2)
         agent1.connect_to(agent2)
+        self.db.commit()
 
         assert len(net.vectors) == 1
         assert net.vectors[0].origin == agent1
@@ -266,17 +267,24 @@ class TestNetworks(object):
             agent = agents.Agent()
             self.db.add(agent)
             net.add_agent(agent)
+        self.db.commit()
 
         assert len(net.agents) == 4
         assert len(net.vectors) == 12
+
         agent1 = agents.Agent()
         self.db.add(agent1)
         net.add_agent(agent1)
+        self.db.commit()
+
         assert len(net.agents) == 5
         assert len(net.vectors) == 20
+
         agent2 = agents.Agent()
         self.db.add(agent2)
         net.add_agent(agent2)
+        self.db.commit()
+
         assert len(net.agents) == 6
         assert len(net.vectors) == 28
 
