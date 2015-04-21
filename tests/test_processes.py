@@ -1,4 +1,5 @@
-from wallace import processes, networks, sources, agents, db
+from wallace import processes, networks, sources, agents, db, models
+from wallace.models import Agent
 
 
 class TestProcesses(object):
@@ -31,7 +32,7 @@ class TestProcesses(object):
         self.db.add(source)
 
         net.add(source)
-        source.connect_to(net.agents[0])
+        source.connect_to(net.nodes(type=Agent)[0])
         source.create_information()
 
         process = processes.RandomWalkFromSource(net)
@@ -73,11 +74,11 @@ class TestProcesses(object):
         source = sources.RandomBinaryStringSource()
         self.db.add(source)
         net.add(source)
-        source.connect_to(net.agents)
+        source.connect_to(net.nodes(type=Agent))
         info = source.create_information()
         source.transmit(what=info)
 
-        for agent in net.agents:
+        for agent in net.nodes(type=Agent):
             agent.receive_all()
 
         # Run a Moran process for 100 steps.
@@ -85,7 +86,7 @@ class TestProcesses(object):
 
         for i in range(100):
             process.step()
-            for agent in net.agents:
+            for agent in net.nodes(type=Agent):
                 agent.receive_all()
 
         # Ensure that the process had reached fixation.
@@ -123,14 +124,14 @@ class TestProcesses(object):
     #     self.db.add(source)
 
     #     net.add(source)
-    #     source.connect_to(net.agents)
+    #     source.connect_to(net.nodes(type=Agent))
 
     #     info = source.create_information()
     #     self.db.add(info)
 
     #     source.transmit(what=info)
 
-    #     for agent in net.agents:
+    #     for agent in net.nodes(type=Agent):
     #         agent.receive_all()
 
     #     all_contents = [agent1.info.contents,
@@ -142,7 +143,7 @@ class TestProcesses(object):
 
     #     for i in range(100):
     #         process.step()
-    #         for agent in net.agents:
+    #         for agent in net.nodes(type=Agent):
     #             agent.receive_all()
 
     #     # Ensure that the process had reached fixation.
@@ -150,5 +151,5 @@ class TestProcesses(object):
     #     assert agent2.status == "dead"
     #     assert agent3.status == "dead"
 
-    #     for agent in net.agents:
+    #     for agent in net.nodes(type=Agent):
     #         assert agent.info.contents in all_contents

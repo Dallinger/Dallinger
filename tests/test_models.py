@@ -30,8 +30,8 @@ class TestModels(object):
         assert len(node.information) == 0
         assert node.outdegree == 0
         assert node.indegree == 0
-        assert len(node.outgoing_vectors) == 0
-        assert len(node.incoming_vectors) == 0
+        assert len(node.outgoing_vectors()) == 0
+        assert len(node.incoming_vectors()) == 0
 
     def test_different_node_uuids(self):
         """Test that two nodes have different uuids"""
@@ -54,14 +54,14 @@ class TestModels(object):
         assert node2.has_connection_from(node1)
         assert not node2.has_connection_to(node1)
 
-        vector = node1.outgoing_vectors[0]
+        vector = node1.outgoing_vectors()[0]
         assert vector.origin_uuid == node1.uuid
         assert vector.destination_uuid == node2.uuid
 
-        assert node1.outgoing_vectors == [vector]
-        assert len(node1.incoming_vectors) == 0
-        assert len(node2.outgoing_vectors) == 0
-        assert node2.incoming_vectors == [vector]
+        assert node1.outgoing_vectors() == [vector]
+        assert len(node1.incoming_vectors()) == 0
+        assert len(node2.outgoing_vectors()) == 0
+        assert node2.incoming_vectors() == [vector]
 
         assert node1.indegree == 0
         assert node1.outdegree == 1
@@ -83,13 +83,13 @@ class TestModels(object):
 
         node1.connect_to(node2)
 
-        assert node1.get_downstream_nodes() == [node2]
-        assert node2.get_upstream_nodes() == [node1]
+        assert node1.downstream_nodes() == [node2]
+        assert node2.upstream_nodes() == [node1]
 
         node2.connect_to([node3, node4])
 
-        assert node2.get_downstream_nodes() == [node3, node4]
-        assert node3.get_upstream_nodes() == [node2]
+        assert node2.downstream_nodes() == [node3, node4]
+        assert node3.upstream_nodes() == [node2]
 
         assert_raises(ValueError, node1.connect_to, other_node=node1)
 
@@ -193,10 +193,10 @@ class TestModels(object):
         assert vector2.origin_uuid == node2.uuid
         assert vector2.destination_uuid == node1.uuid
 
-        assert node1.incoming_vectors == [vector2]
-        assert node1.outgoing_vectors == [vector1]
-        assert node2.incoming_vectors == [vector1]
-        assert node2.outgoing_vectors == [vector2]
+        assert node1.incoming_vectors() == [vector2]
+        assert node1.outgoing_vectors() == [vector1]
+        assert node2.incoming_vectors() == [vector1]
+        assert node2.outgoing_vectors() == [vector2]
 
         assert node1.has_connection_to(node2)
         assert node1.has_connection_from(node2)
@@ -328,9 +328,9 @@ class TestModels(object):
         agent3.transmit(what=info2, to_whom=agent1)
         self.db.commit()
 
-        assert len(agent1.get_transmissions(type="incoming")) == 2
-        assert len(agent2.get_transmissions(type="incoming")) == 0
-        assert len(agent3.get_transmissions(type="incoming")) == 0
+        assert len(agent1.transmissions(type="incoming")) == 2
+        assert len(agent2.transmissions(type="incoming")) == 0
+        assert len(agent3.transmissions(type="incoming")) == 0
 
     def test_node_outgoing_transmissions(self):
         agent1 = agents.ReplicatorAgent()
@@ -348,6 +348,6 @@ class TestModels(object):
         agent1.transmit(what=info2, to_whom=agent3)
         self.db.commit()
 
-        assert len(agent1.get_transmissions(type="outgoing")) == 2
-        assert len(agent2.get_transmissions(type="outgoing")) == 0
-        assert len(agent3.get_transmissions(type="outgoing")) == 0
+        assert len(agent1.transmissions(type="outgoing")) == 2
+        assert len(agent2.transmissions(type="outgoing")) == 0
+        assert len(agent3.transmissions(type="outgoing")) == 0

@@ -1,4 +1,5 @@
 import models
+from models import Agent, Source
 from sqlalchemy import desc
 import random
 
@@ -38,11 +39,11 @@ class RandomWalkFromSource(Process):
         latest_recipient = self.get_latest_transmission_recipient()
 
         if (not self.is_begun()) or (latest_recipient is None):
-            replacer = random.choice(self.network.sources)
+            replacer = random.choice(self.network.nodes(type=Source))
         else:
             replacer = latest_recipient
 
-        options = [v for v in replacer.outgoing_vectors
+        options = [v for v in replacer.outgoing_vectors()
                    if v.destination.status == "alive"]
 
         if options:
@@ -60,11 +61,11 @@ class MoranProcessCultural(Process):
     def step(self, verbose=True):
 
         if not self.is_begun():  # first step, replacer is a source
-            replacer = random.choice(self.network.sources)
+            replacer = random.choice(self.network.nodes(type=Source))
             replacer.transmit()
         else:
-            replacer = random.choice(self.network.agents)
-            replaced = random.choice(replacer.outgoing_vectors).destination
+            replacer = random.choice(self.network.nodes(type=Agent))
+            replaced = random.choice(replacer.outgoing_vectors()).destination
             replacer.transmit(to_whom=replaced)
 
 
@@ -76,10 +77,10 @@ class MoranProcessSexual(Process):
     def step(self, verbose=True):
 
         if not self.is_begun():
-            replacer = random.choice(self.network.sources)
+            replacer = random.choice(self.network.nodes(type=Source))
             replacer.transmit()
         else:
-            replacer = random.choice(self.network.agents)
+            replacer = random.choice(self.network.nodes(type=Agent))
             replaced = random.choice(replacer.outgoing_vectors).destination
 
             # Make a baby

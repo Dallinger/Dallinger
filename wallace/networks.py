@@ -1,6 +1,6 @@
 """Network structures commonly used in simulations of evolution."""
 
-from .models import Network
+from .models import Network, Agent
 import random
 
 
@@ -14,8 +14,8 @@ class Chain(Network):
         """Add an agent, connecting it to the previous node."""
         newcomer.network = self
 
-        if len(self.nodes) > 1:
-            self.nodes[-2].connect_to(newcomer)
+        if len(self.nodes()) > 1:
+            self.nodes()[-2].connect_to(newcomer)
 
 
 class FullyConnected(Network):
@@ -28,7 +28,7 @@ class FullyConnected(Network):
         """Add an agent, connecting it to everyone and back."""
         newcomer.network = self
 
-        for agent in self.agents:
+        for agent in self.nodes(type=Agent):
             if agent is not newcomer:
                 agent.connect_to(newcomer)
                 agent.connect_from(newcomer)
@@ -55,8 +55,8 @@ class ScaleFree(Network):
         newcomer.network = self
 
         # Start with a core of m0 fully-connected agents...
-        if len(self.agents) <= self.m0:
-            for agent in self.agents:
+        if len(self.nodes(type=Agent)) <= self.m0:
+            for agent in self.nodes(type=Agent):
                 if agent is not newcomer:
                     newcomer.connect_to(agent)
                     newcomer.connect_from(agent)
@@ -65,7 +65,7 @@ class ScaleFree(Network):
         else:
             for idx_newvector in xrange(self.m):
                 these_agents = []
-                for agent in self.agents:
+                for agent in self.nodes(type=Agent):
                     if (agent == newcomer or
                             agent.has_connection_from(newcomer) or
                             agent.has_connection_to(newcomer)):

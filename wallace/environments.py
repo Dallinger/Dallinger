@@ -22,7 +22,7 @@ class Environment(Node):
         """The most recently created info of type State. If you specify a time,
         it will return the most recent state at that point in time."""
         if time is None:
-            return self.get_infos(type=State)[-1]
+            return self.infos(type=State)[-1]
         else:
             return State\
                 .query\

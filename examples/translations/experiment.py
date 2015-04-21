@@ -1,9 +1,7 @@
 import wallace
 from wallace.experiments import Experiment
 from wallace.recruiters import SimulatedRecruiter
-from wallace.agents import Agent
-from wallace.sources import Source
-from wallace.models import Transformation
+from wallace.models import Transformation, Agent, Source
 import requests
 import json
 import time
@@ -25,11 +23,11 @@ class Translations(Experiment):
         self.recruiter = SimulatedRecruiter
 
         # Setup for first time experiment is accessed
-        if not self.network.sources:
+        if not self.network.nodes(type=Source):
             source = WarOfTheGhostsSource()
             self.save(source)
             self.network.add(source)
-            source.connect_to(self.network.agents)
+            source.connect_to(self.network.nodes(type=Agent))
             self.save()
             print "Added initial source: " + str(source)
 
@@ -44,8 +42,8 @@ class Translations(Experiment):
         self.network.add_agent(newcomer)
 
         # If this is the first participant, link them to the source.
-        if len(self.network.agents) == 0:
-            source = self.network.sources[0]
+        if len(self.network.nodes(type=Agent)) == 0:
+            source = self.network.nodes(type=Source)[0]
             source.connect_to(newcomer)
             self.save()
 

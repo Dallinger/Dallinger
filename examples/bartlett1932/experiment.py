@@ -1,12 +1,11 @@
 """Bartlett's trasmission chain experiment from Remembering (1932)."""
 
 from wallace.networks import Chain
-from wallace.models import Info, Network
+from wallace.models import Info, Network, Agent, Source
 from wallace.processes import RandomWalkFromSource
 from wallace.recruiters import PsiTurkRecruiter
 from wallace.agents import ReplicatorAgent
 from wallace.experiments import Experiment
-from wallace.sources import Source
 import random
 
 
@@ -32,7 +31,7 @@ class Bartlett1932(Experiment):
 
         # Setup for first time experiment is accessed
         for net in self.networks:
-            if not net.sources:
+            if not net.nodes(type=Source):
                 source = WarOfTheGhostsSource()
                 self.save(source)
                 net.add(source)
@@ -53,7 +52,7 @@ class Bartlett1932(Experiment):
 
     def is_network_full(self, network):
         """The network is full when it reaches its maximum size."""
-        return len(network.agents) >= self.max_population_size
+        return len(network.nodes(type=Agent)) >= self.max_population_size
 
 
 class WarOfTheGhostsSource(Source):

@@ -80,49 +80,49 @@ class Node(Base):
         backref="predecessors"
     )
 
-    def get_incoming_vectors(self, status="alive"):
+    def incoming_vectors(self, status="alive"):
         if status == "all":
             incoming_vectors = Vector.query.filter_by(destination=self).all()
         elif status == "alive" or status == "dead":
             incoming_vectors = Vector.query.filter_by(destination=self).filter_by(status=status).all()
         else:
-            raise(ValueError("Cannot get_incoming_vectors with status {} as it is not a valid status.".format(status)))
+            raise(ValueError("Cannot get incoming_vectors with status {} as it is not a valid status.".format(status)))
         return incoming_vectors
 
-    def get_outgoing_vectors(self, status="alive"):
+    def outgoing_vectors(self, status="alive"):
         if status == "all":
             outgoing_vectors = Vector.query.filter_by(origin=self).all()
         elif status == "alive" or status == "dead":
             outgoing_vectors = Vector.query.filter_by(origin=self).filter_by(status=status).all()
         else:
-            raise(ValueError("Cannot get_outgoing_vectors with status {} as it is not a valid status.".format(status)))
+            raise(ValueError("Cannot get outgoing_vectors with status {} as it is not a valid status.".format(status)))
         return outgoing_vectors
 
-    def get_downstream_nodes(self, type=None, status="alive"):
+    def downstream_nodes(self, type=None, status="alive"):
         if type is None:
             type = Node
         if status == "all":
-            return [v.destination for v in self.get_outgoing_vectors()
+            return [v.destination for v in self.outgoing_vectors()
                     if isinstance(v.destination, type)]
         elif status == "alive" or status == "dead" or status == "failed":
-            return [v.destination for v in self.get_outgoing_vectors()
+            return [v.destination for v in self.outgoing_vectors()
                     if isinstance(v.destination, type) and v.destination.status == status]
         else:
-            raise(ValueError("Cannot get_downstream_nodes with status {} as it is not a valid status.".format(status)))
+            raise(ValueError("Cannot get downstream_nodes with status {} as it is not a valid status.".format(status)))
 
-    def get_upstream_nodes(self, type=None, status="alive"):
+    def upstream_nodes(self, type=None, status="alive"):
         if type is None:
             type = Node
         if status == "all":
-            return [v.origin for v in self.get_incoming_vectors()
+            return [v.origin for v in self.incoming_vectors()
                     if isinstance(v.origin, type)]
         elif status == "alive" or status == "dead" or status == "failed":
-            return [v.origin for v in self.get_incoming_vectors()
+            return [v.origin for v in self.incoming_vectors()
                     if isinstance(v.origin, type) and v.origin.status == status]
         else:
             raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
 
-    def get_infos(self, type=None):
+    def infos(self, type=None):
         if type is None:
             type = Info
         if not issubclass(type, Info):
@@ -133,36 +133,6 @@ class Node(Base):
                 .order_by(type.creation_time)\
                 .filter(type.origin == self)\
                 .all()
-
-    @property
-    def successors2(self):
-        print "successors2 is deprecated, use get_downstream_nodes(type=Agent) instead"
-        return self.get_downstream_nodes(type=Agent)
-
-    @property
-    def downstream_nodes(self):
-        print "downstream_nodes is deprecated, use get_downstream_nodes() instead"
-        return self.get_downstream_nodes()
-
-    @property
-    def downstream_agents(self):
-        print "downstream_agents is deprecated, use get_downstream_nodes(type=Agent) instead"
-        return self.get_downstream_nodes(type=Agent)
-
-    @property
-    def upstream_nodes(self):
-        print "upstream_nodes is deprecated, use get_upstream_nodes() instead"
-        return self.get_upstream_nodes()
-
-    @property
-    def upstream_agents(self):
-        print "upstream_agents is deprecated, use get_upstream_nodes(type=Agent) instead"
-        return self.get_upstream_nodes(type=Agent)
-
-    @property
-    def predecessors2(self):
-        print "predecessors2 is deprecated, use get_upstream_nodes(type=Agent) instead"
-        return self.get_upstream_nodes(type=Agent)
 
     def __repr__(self):
         return "Node-{}-{}".format(self.uuid[:6], self.type)
@@ -327,7 +297,7 @@ class Node(Base):
     @hybrid_property
     def indegree(self):
         """The indegree (number of incoming edges) of this node."""
-        return len(self.get_incoming_vectors())
+        return len(self.incoming_vectors())
 
     @indegree.expression
     def indegree(self):
@@ -344,7 +314,7 @@ class Node(Base):
         elif not isinstance(other_node, Node):
             raise(TypeError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
                   format(self, other_node, other_node, type(other_node))))
-        return other_node in self.get_downstream_nodes()
+        return other_node in self.downstream_nodes()
 
     def has_connection_from(self, other_node):
         """Whether this node has a connection from 'other_node'.
@@ -355,20 +325,20 @@ class Node(Base):
         else:
             return other_node.has_connection_to(self)
 
-    def get_transmissions(self, type=None, status="all"):
+    def transmissions(self, type=None, status="all"):
         if type is None:
-            raise(ValueError("You cannot get_transmissions without specifying the type of transmission you want" +
+            raise(ValueError("You cannot get transmissions without specifying the type of transmission you want" +
                   "It should be incoming, outgoing or all"))
         if type not in ["incoming", "outgoing", "all"]:
-            raise(ValueError("You cannot get_transmissions of type {}.".format(type) +
+            raise(ValueError("You cannot get transmissions of type {}.".format(type) +
                   "Type can only be incoming, outgoing or all."))
         if status not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get_transmission of status {}.".format(status) +
+            raise(ValueError("You cannot get transmission of status {}.".format(status) +
                   "Status can only be pending, received or all"))
         if type == "all":
-            return self.get_transmissions(type="incoming", status=status) + self.get_transmission(type="outgoing", status=status)
+            return self.transmissions(type="incoming", status=status) + self.transmissions(type="outgoing", status=status)
         elif status == "all":
-            return self.get_transmissions(type=type, status="pending") + self.get_transmissions(type=type, status="received")
+            return self.transmissions(type=type, status="pending") + self.transmissions(type=type, status="received")
         elif type == "incoming" and status == "received":
             return Transmission\
                 .query\
@@ -398,13 +368,13 @@ class Node(Base):
                 .order_by(Transmission.transmit_time)\
                 .all()
         else:
-            raise(Exception("The arguments passed to get_transmissions() did not cause an error," +
+            raise(Exception("The arguments passed to transmissions() did not cause an error," +
                   " but also did not cause the method to run properly. This needs to be fixed asap." +
                   "status: {}, type: {}".format(status, type)))
 
     @property
     def incoming_transmissions(self):
-        return self.get_transmissions(type="incoming")
+        return self.transmissions(type="incoming")
         # Transmission\
         #     .query\
         #     .filter_by(destination_uuid=self.uuid)\
@@ -413,7 +383,7 @@ class Node(Base):
 
     @property
     def outgoing_transmissions(self):
-        return self.get_transmissions(type="outgoing")
+        return self.transmissions(type="outgoing")
         # return Transmission\
         #     .query\
         #     .filter_by(origin_uuid=self.uuid)\
@@ -422,7 +392,7 @@ class Node(Base):
 
     @property
     def pending_transmissions(self):
-        return self.get_transmissions(type="incoming", status="pending")
+        return self.transmissions(type="incoming", status="pending")
         # return Transmission\
         #     .query\
         #     .filter_by(destination_uuid=self.uuid)\
@@ -503,14 +473,14 @@ class Vector(Base):
     origin_uuid = Column(String(32), ForeignKey('node.uuid'))
     origin = relationship(
         Node, foreign_keys=[origin_uuid],
-        backref="outgoing_vectors")
+        backref="all_outgoing_vectors")
 
     # the destination node
     destination_uuid = Column(
         String(32), ForeignKey('node.uuid'))
     destination = relationship(
         Node, foreign_keys=[destination_uuid],
-        backref="incoming_vectors")
+        backref="all_incoming_vectors")
 
     # the status of the vector
     status = Column(Enum("alive", "dead", name="vector_status"),
@@ -562,9 +532,9 @@ class Network(Base):
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
-    def get_nodes(self, type=Node, status="alive"):
+    def nodes(self, type=Node, status="alive"):
         if not issubclass(type, Node):
-            raise(TypeError("Cannot get_nodes of type {} as it is not a valid type.".format(type)))
+            raise(TypeError("Cannot get nodes of type {} as it is not a valid type.".format(type)))
         if status == "alive" or status == "dead" or status == "failed":
             return type\
                 .query\
@@ -579,7 +549,7 @@ class Network(Base):
                 .filter(type.network == self)\
                 .all()
         else:
-            raise(ValueError("Cannot get_nodes with status {} as it is not a valid status.".format(status)))
+            raise(ValueError("Cannot get nodes with status {} as it is not a valid status.".format(status)))
 
     def nodes_of_participant(self, uuid):
         return Node\
@@ -588,27 +558,27 @@ class Network(Base):
             .filter_by(participant_uuid=uuid)\
             .all()
 
-    @property
-    def agents(self):
-        return Agent\
-            .query\
-            .order_by(Agent.creation_time)\
-            .filter(Agent.status != "failed")\
-            .filter(Agent.network == self)\
-            .filter(Agent.status != "dead")\
-            .all()
+    # @property
+    # def agents(self):
+    #     return Agent\
+    #         .query\
+    #         .order_by(Agent.creation_time)\
+    #         .filter(Agent.status != "failed")\
+    #         .filter(Agent.network == self)\
+    #         .filter(Agent.status != "dead")\
+    #         .all()
 
-    @property
-    def sources(self):
-        return Source\
-            .query\
-            .order_by(Source.creation_time)\
-            .filter(Source.network == self)\
-            .all()
+    # @property
+    # def sources(self):
+    #     return Source\
+    #         .query\
+    #         .order_by(Source.creation_time)\
+    #         .filter(Source.network == self)\
+    #         .all()
 
-    @property
-    def nodes(self):
-        return self.sources + self.agents
+    #@property
+    #def nodes(self):
+    #    return self.nodes(type=Source) + self.nodes(type=Agent)
 
     @property
     def vectors(self):
@@ -620,7 +590,7 @@ class Network(Base):
 
     @property
     def degrees(self):
-        return [agent.outdegree for agent in self.agents]
+        return [agent.outdegree for agent in self.nodes(type=Agent)]
 
     def add(self, base):
         if isinstance(base, list):
@@ -639,23 +609,23 @@ class Network(Base):
     def __len__(self):
         raise SyntaxError(
             "len is not defined for networks. " +
-            "Use len(net.get_nodes()) instead.")
+            "Use len(net.nodes()) instead.")
 
     def __repr__(self):
         return "<Network-{}-{} with {} agents, {} sources, {} vectors>".format(
             self.uuid[:6],
             self.type,
-            len(self.agents),
-            len(self.sources),
+            len(self.nodes(type=Agent)),
+            len(self.nodes(type=Source)),
             len(self.vectors))
 
     def print_verbose(self):
         print "Agents: "
-        for a in self.agents:
+        for a in self.nodes(type=Agent):
             print a
 
         print "\nSources: "
-        for s in self.sources:
+        for s in self.nodes(type=Source):
             print s
 
         print "\nVectors: "

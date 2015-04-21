@@ -1,6 +1,6 @@
 import wallace
 from wallace.agents import ReplicatorAgent
-from wallace.models import Source
+from wallace.models import Source, Agent
 import random
 import json
 from sqlalchemy.ext.declarative import declared_attr
@@ -28,7 +28,7 @@ class FunctionLearning(wallace.experiments.Experiment):
 
         # Setup for first time experiment is accessed
         for net in self.networks:
-            if not net.sources:
+            if not net.nodes(type=Source):
                 source = SinusoidalFunctionSource()
                 self.save(source)
                 net.add(source)
@@ -48,7 +48,7 @@ class FunctionLearning(wallace.experiments.Experiment):
             self.recruiter().recruit_new_participants(self, n=1)
 
     def is_network_full(self, network):
-        return len(network.agents) >= self.max_population_size
+        return len(network.nodes(type=Agent)) >= self.max_population_size
 
 
 class AbstractFnSource(Source):

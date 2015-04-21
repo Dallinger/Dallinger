@@ -11,6 +11,7 @@ from psiturk.models import Participant
 from json import dumps
 
 from wallace import db, agents, models, information
+from wallace.models import Agent
 
 import imp
 import inspect
@@ -113,7 +114,7 @@ def api_agent_create():
         if legal_networks:
 
             # Figure out which network to place the next newcomer in.
-            plenitude = [len(net.agents) for net in legal_networks]
+            plenitude = [len(net.nodes(type=Agent)) for net in legal_networks]
             idxs = [i for i, x in enumerate(plenitude) if x == min(plenitude)]
             net = legal_networks[random.choice(idxs)]
 
@@ -145,7 +146,7 @@ def api_agent_create():
             return Response(status=403)
 
     if request.method == "GET":
-        data_agents = [agent.uuid for agent in exp.network.agents]
+        data_agents = [agent.uuid for agent in exp.network.nodes(type=Agent)]
         data = {"agents": data_agents}
         js = dumps(data)
         return Response(js, status=200, mimetype='application/json')

@@ -1,9 +1,7 @@
 import wallace
 from wallace.experiments import Experiment
 from wallace.recruiters import SimulatedRecruiter
-from wallace.sources import Source
-from wallace.agents import Agent
-from wallace.models import Transformation, Info
+from wallace.models import Transformation, Info, Agent, Source
 from collections import OrderedDict
 
 
@@ -20,10 +18,11 @@ class SubstitutionCiphersExperiment(Experiment):
         self.recruiter = SimulatedRecruiter
 
         # Setup for first time experiment is accessed
-        if not self.network.sources:
+        if not self.network.nodes(type=Source):
             source = WarOfTheGhostsSource()
+            self.network.add(source)
             self.save(source)
-            source.connect_to(self.network.agents)
+            source.connect_to(self.network.nodes(type=Agent))
             self.save()
             print "Added initial source: " + str(source)
 
@@ -36,8 +35,8 @@ class SubstitutionCiphersExperiment(Experiment):
         self.save()
 
         # If this is the first participant, link them to the source.
-        if len(self.network.agents) == 1:
-            source = self.network.sources[0]
+        if len(self.network.nodes(type=Agent)) == 1:
+            source = self.network.nodes(type=Source)[0]
             source.connect_to(newcomer)
             self.save()
 
