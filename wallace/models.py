@@ -562,6 +562,13 @@ class Network(Base):
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
+    vectors = relationship(
+        "Vector",
+        secondary=Node.__table__,
+        primaryjoin="Network.uuid==Node.network_uuid",
+        secondaryjoin="Node.uuid==Vector.origin_uuid",
+    )
+
     def get_nodes(self, type=Node, status="alive"):
         if not issubclass(type, Node):
             raise(TypeError("Cannot get_nodes of type {} as it is not a valid type.".format(type)))
@@ -609,14 +616,6 @@ class Network(Base):
     @property
     def nodes(self):
         return self.sources + self.agents
-
-    @property
-    def vectors(self):
-        return Vector\
-            .query\
-            .order_by(Vector.origin_uuid, Vector.destination_uuid)\
-            .filter(Vector.network == self)\
-            .all()
 
     @property
     def degrees(self):
