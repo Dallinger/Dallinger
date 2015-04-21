@@ -34,6 +34,9 @@ class RandomWalkFromSource(Process):
     """Takes a random walk over a network, starting at a node randomly selected
     from those that receive input from a source."""
 
+    def __init__(self, network):
+        self.network = network
+
     def step(self, verbose=True):
 
         latest_recipient = self.get_latest_transmission_recipient()
@@ -58,6 +61,9 @@ class MoranProcessCultural(Process):
     time step, an individual is chosen to receive information from another
     individual. Nobody dies, but perhaps their ideas do."""
 
+    def __init__(self, network):
+        self.network = network
+
     def step(self, verbose=True):
 
         if not self.is_begun():  # first step, replacer is a source
@@ -72,7 +78,13 @@ class MoranProcessCultural(Process):
 class MoranProcessSexual(Process):
     """The generalized sexual Moran process also plays out over a network. At
     each time step, and individual is chosen for replication and another
-    individual is chosen to die. The replication replaces the one who dies."""
+    individual is chosen to die. The replication replaces the one who dies.
+
+    For this process to work you need to add a new agent before calling step.
+    """
+
+    def __init__(self, network):
+        self.network = network
 
     def step(self, verbose=True):
 
@@ -80,30 +92,22 @@ class MoranProcessSexual(Process):
             replacer = random.choice(self.network.nodes(type=Source))
             replacer.transmit()
         else:
-            replacer = random.choice(self.network.nodes(type=Agent))
-            replaced = random.choice(replacer.outgoing_vectors).destination
+            replacer = random.choice(self.network.nodes(type=Agent)[:-1])
+            replaced = random.choice(replacer.downstream_nodes(type=Agent))
 
-            # Make a baby
-            baby = self.network.agent_type_generator()()
-            self.network.add_agent(baby)
+            # Find the baby just added
+            baby = self.network.nodes(type=Agent)[-1]
 
-            # Endow the baby with the ome of the replaced, then sever
-            # all ties. :(
-            replacer.connect_to(baby)
-            replacer.transmit(to_whom=baby)
-            baby.receive_all()
-            for v in baby.incoming_vectors:
-                v.kill()
+            # Give the baby the same outgoing connections as the replaced.
+            for node in replaced.downstream_nodes():
+                baby.connect_to(node)
 
-            # Copy the outgoing connections.
-            for v in replaced.outgoing_vectors:
-                v.kill()
-                baby.connect_to(v.destination)
+            # Give the baby the same incoming connections as the replaced.
+            for node in replaced.upstream_nodes():
+                node.connect_to(baby)
 
-            # Copy the incoming connections.
-            for v in replaced.incoming_vectors:
-                v.destination.connect_to(baby)
-                v.kill()
-
-            # Kill the agent.
+            # Kill the replaced agent.
             replaced.kill()
+
+            # Endow the baby with the ome of the replacer.
+            replacer.transmit(to_whom=baby)

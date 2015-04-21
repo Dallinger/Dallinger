@@ -64,12 +64,26 @@ class Node(Base):
     network = relationship("Network", foreign_keys=[network_uuid])
 
     def kill(self):
-        self.status = "dead"
-        self.time_of_death = timenow()
+        if self.status == "dead":
+            raise AttributeError("You cannot kill {} - it is already dead.".format(self))
+        else:
+            self.status = "dead"
+            self.time_of_death = timenow()
+            for v in self.incoming_vectors():
+                v.kill()
+            for v in self.outgoing_vectors():
+                v.kill()
 
     def fail(self):
-        self.status = "failed"
-        self.time_of_death = timenow()
+        if self.status == "failed":
+            raise AttributeError("You cannot fail {} - it has already failed.".format(self))
+        else:
+            self.status = "failed"
+            self.time_of_death = timenow()
+            for v in self.incoming_vectors():
+                v.kill()
+            for v in self.outgoing_vectors():
+                v.kill()
 
     # the predecessors and successors
     successors = relationship(
@@ -495,8 +509,11 @@ class Vector(Base):
     network = association_proxy('origin', 'network')
 
     def kill(self):
-        self.status = "dead"
-        self.time_of_death = timenow()
+        if self.status == "dead":
+            raise AttributeError("You cannot kill {}, it is already dead.".format(self))
+        else:
+            self.status = "dead"
+            self.time_of_death = timenow()
 
     def __repr__(self):
         return "Vector-{}-{}".format(

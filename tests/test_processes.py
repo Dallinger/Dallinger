@@ -89,62 +89,56 @@ class TestProcesses(object):
         assert agent2.infos()[-1].contents == agent3.infos()[-1].contents
         assert agent3.infos()[-1].contents == agent1.infos()[-1].contents
 
-#     # def test_moran_process_sexual(self):  # FIXME
+    def test_moran_process_sexual(self):
 
-#     #     # Create a fully-connected network.
-#     #     net = networks.Network()
-#     #     self.db.add(net)
+        # Create a fully-connected network.
+        net = networks.Network()
+        self.db.add(net)
 
-#     #     agent1 = agents.ReplicatorAgent()
-#     #     agent2 = agents.ReplicatorAgent()
-#     #     agent3 = agents.ReplicatorAgent()
-#     #     self.db.add_all([agent1, agent2, agent3])
+        agent1 = agents.ReplicatorAgent()
+        agent2 = agents.ReplicatorAgent()
+        agent3 = agents.ReplicatorAgent()
+        self.db.add_all([agent1, agent2, agent3])
 
-#     #     net.add(agent1)
-#     #     net.add(agent2)
-#     #     net.add(agent3)
+        net.add([agent1, agent2, agent3])
 
-#     #     vector1 = agent1.connect_to(agent2)
-#     #     vector2 = agent1.connect_to(agent3)
-#     #     vector3 = agent2.connect_to(agent1)
-#     #     vector4 = agent2.connect_to(agent3)
-#     #     vector5 = agent3.connect_to(agent1)
-#     #     vector6 = agent3.connect_to(agent2)
+        agent1.connect_to(agent2)
+        agent1.connect_to(agent3)
+        agent2.connect_to(agent1)
+        agent2.connect_to(agent3)
+        agent3.connect_to(agent1)
+        agent3.connect_to(agent2)
 
-#     #     self.db.add_all(
-#     #    [vector1, vector2, vector3, vector4, vector5, vector6])
+        # Add a global source and broadcast to all the agents.
+        source = sources.RandomBinaryStringSource()
+        self.db.add(source)
 
-#     #     # Add a global source and broadcast to all the agents.
-#     #     source = sources.RandomBinaryStringSource()
-#     #     self.db.add(source)
+        net.add(source)
+        source.connect_to(net.nodes(type=Agent))
 
-#     #     net.add(source)
-#     #     source.connect_to(net.nodes(type=Agent))
+        info = source.create_information()
+        self.db.add(info)
 
-#     #     info = source.create_information()
-#     #     self.db.add(info)
+        for agent in net.nodes(type=Agent):
+            source.transmit(to_whom=agent)
+            agent.receive_all()
 
-#     #     source.transmit(what=info)
+        # Run a Moran process for 100 steps.
+        process = processes.MoranProcessSexual(net)
 
-#     #     for agent in net.nodes(type=Agent):
-#     #         agent.receive_all()
+        for i in range(100):
+            newcomer = agents.ReplicatorAgent()
+            net.add(newcomer)
+            self.db.add(newcomer)
+            process.step()
+            for agent in net.nodes(type=Agent):
+                agent.receive_all()
 
-#     #     all_contents = [agent1.info.contents,
-#     #                     agent2.info.contents,
-#     #                     agent3.info.contents]
+        # Ensure that the process had reached fixation.
+        assert agent1.status == "dead"
+        assert agent2.status == "dead"
+        assert agent3.status == "dead"
 
-#     #     # Run a Moran process for 100 steps.
-#     #     process = processes.MoranProcessSexual(net)
-
-#     #     for i in range(100):
-#     #         process.step()
-#     #         for agent in net.nodes(type=Agent):
-#     #             agent.receive_all()
-
-#     #     # Ensure that the process had reached fixation.
-#     #     assert agent1.status == "dead"
-#     #     assert agent2.status == "dead"
-#     #     assert agent3.status == "dead"
-
-#     #     for agent in net.nodes(type=Agent):
-#     #         assert agent.info.contents in all_contents
+        for a in net.nodes(type=Agent):
+            for a2 in net.nodes(type=Agent):
+                assert a.infos()[0].contents == a2.infos()[0].contents
