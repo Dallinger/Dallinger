@@ -1,15 +1,27 @@
 
 # Commands
-* [`wallace deploy`](#deploy)
+* [`wallace verify`](#logs)
 * [`wallace debug`](#debug)
+* [`wallace sandbox`](#sandbox)
+* [`wallace deploy`](#deploy)
+* [`wallace logs`](#logs)
 * [`wallace status`](#status)
 * [`wallace export`](#export)
 
-##deploy
-Deploys the experiment to Heroku.
+##verify
+Verifies that a directory is a Wallace-compatible app.
 
 ##debug
-Deploys the experiment locally.
+Runs the experiment locally.
+
+##sandbox
+Runs the experiment on MTurk's sandbox using Heroku as a server.
+
+##deploy
+Runs the experiment live on MTurk using Heroku as a server.
+
+##logs
+Opens the Wallace logs in Papertrail.
 
 ##status
 Returns the status of an experiment.
