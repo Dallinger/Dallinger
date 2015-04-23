@@ -198,6 +198,7 @@ class Node(Base):
         to or a class of Nodes, or a list containing the two. If to_whom=None
         the _to_whom() method is called to generate to_whom.
         """
+
         if what is None:
             what = self._what()
             if what is None or (isinstance(what, list) and None in what):
