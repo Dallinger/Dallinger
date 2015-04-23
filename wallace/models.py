@@ -477,6 +477,9 @@ class Source(Node):
             "{} cannot create_information as it does not override ",
             "the default method.".format(type(self)))
 
+    def _what(self):
+        return self.create_information()
+
 
 class Vector(Base):
     __tablename__ = "vector"

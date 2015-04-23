@@ -84,6 +84,3 @@ class WarOfTheGhostsSource(Source):
         story = random.choice(stories)
         with open("static/stimuli/{}".format(story), "r") as f:
             return f.read()
-
-    def _what(self):
-        return self.create_information()
