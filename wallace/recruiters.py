@@ -110,19 +110,6 @@ class PsiTurkRecruiter(Recruiter):
             psiturk_access_key_id,
             psiturk_secret_access_id)
 
-        self.sqs_connection = boto.sqs.connect_to_region(
-            "us-west-2",
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key)
-
-        # Set up Amazon Simple Queue Service.
-        self.queue = self.sqs_connection.create_queue("wallace_queue")
-        self.sqs_connection.add_permission(
-            self.queue,
-            "MTurkSendMessage",
-            "755651556756",
-            "SendMessage")
-
         self.shell = PsiturkNetworkShell(
             self.config, self.amt_services, aws_rds_services, web_services,
             server,

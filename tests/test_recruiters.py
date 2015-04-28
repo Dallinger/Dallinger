@@ -26,20 +26,6 @@ class TestRecruiters(object):
         from wallace.recruiters import PsiTurkRecruiter
         assert PsiTurkRecruiter()
 
-    def test_add_message_to_psiturk_recruiter_queue(self):
-        from wallace.recruiters import PsiTurkRecruiter
-        import boto.sqs
-
-        recruiter = PsiTurkRecruiter()
-
-        m = boto.sqs.message.Message()
-        m.set_body("hello world.")
-        recruiter.queue.write(m)
-
-        rs = recruiter.queue.get_messages()
-        for m in rs:
-            assert m.get_body() == "hello world."
-
     def test_recruiter_simulated(self):
         from wallace.recruiters import SimulatedRecruiter
         assert SimulatedRecruiter()

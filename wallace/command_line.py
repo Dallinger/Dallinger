@@ -172,13 +172,19 @@ def debug(verbose):
 
     # Start up the local server
     log("Starting up the server...")
-    p = pexpect.spawn("psiturk")
-    p.expect_exact("]$")
-    p.sendline("server on")
-    p.expect_exact("Experiment server launching...")
 
-    log("Here's the psiTurk shell...")
-    p.interact()
+    # Try opening the psiTurk shell.
+    try:
+        p = pexpect.spawn("psiturk")
+        p.expect_exact("]$")
+        p.sendline("server on")
+        p.expect_exact("Experiment server launching...")
+
+        log("Here's the psiTurk shell...")
+        p.interact()
+
+    except Exception:
+        print "\nCouldn't open the psiTurk shell. Internet connection okay?"
 
     log("Completed debugging of experiment " + id + ".")
     os.chdir(cwd)
