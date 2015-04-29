@@ -49,6 +49,31 @@ class FullyConnected(Network):
             newcomer.connect_to(agent)
 
 
+class DiscreteGenerational(Network):
+
+    __mapper_args__ = {"polymorphic_identity": "discrete-generational"}
+
+    def __init__(self, generation_size=10, generations=10):
+        self.generation_size = generation_size
+        self.generations = generations
+
+    def add_agent(self, newcomer):
+        if len(self.nodes(type=Source)) == 0 and self.source_type is not None:
+            self.add(self.source_type())
+        self.add(newcomer)
+        num_agents = len(self.nodes(type=Agent))
+        if num_agents <= self.generation_size:
+            newcomer.connect_from(self.nodes(type=Source)[0])
+        else:
+            current_generation = int((num_agents-1)/float(self.generation_size))
+            newcomer.connect_from(self.agents_of_generation(current_generation-1))
+
+    def agents_of_generation(self, generation):
+        first_index = generation*self.generation_size
+        last_index = first_index+(self.generation_size)
+        return self.nodes(type=Agent)[first_index:last_index]
+
+
 class ScaleFree(Network):
 
     """Barabasi-Albert (1999) model for constructing a scale-free network.

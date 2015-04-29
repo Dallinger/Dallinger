@@ -295,3 +295,31 @@ class TestNetworks(object):
         assert repr(net)[:9] == "<Network-"
         assert repr(net)[15:] == ("-scale-free with 6 agents, "
                                   "0 sources, 28 vectors>")
+
+    def test_discrete_generational(self):
+        n_gens = 3
+        gen_size = 3
+
+        net = networks.DiscreteGenerational(generations=n_gens, generation_size=gen_size)
+        source = sources.RandomBinaryStringSource()
+        net.add(source)
+        self.db.add(source)
+        agents = []
+        for i in range(n_gens*gen_size):
+            agents.append(models.Agent())
+            self.db.add(agents[-1])
+            net.add_agent(agents[-1])
+
+        assert len(net.nodes(type=models.Source)) == 1
+        assert len(net.nodes(type=models.Agent)) == n_gens*gen_size
+
+        for a in range(n_gens*gen_size):
+            for b in range(n_gens*gen_size):
+                a_gen = int((a)/float(gen_size))
+                b_gen = int((b)/float(gen_size))
+                if b_gen == (1+a_gen):
+                    assert agents[a].has_connection_to(agents[b])
+                else:
+                    assert (agents[a].has_connection_to(agents[b]) is False)
+                if a_gen == 0:
+                    assert isinstance(agents[a].upstream_nodes()[0], models.Source)
