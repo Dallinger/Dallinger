@@ -2,6 +2,7 @@ class Experiment(object):
     def __init__(self, session):
         self.task = "Experiment title"
         self.session = session
+        self.num_repeats_practice = 0
 
     def save(self, *objects):
         if len(objects) > 0:
