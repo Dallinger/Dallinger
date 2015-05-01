@@ -1,6 +1,9 @@
 import wallace
 from wallace.agents import ReplicatorAgent
 from wallace.models import Source, Agent
+from wallace.networks import Chain
+from wallace.processes import RandomWalkFromSource
+from wallace.recruiters import PsiTurkRecruiter
 import random
 import json
 from sqlalchemy.ext.declarative import declared_attr
@@ -11,20 +14,12 @@ class FunctionLearning(wallace.experiments.Experiment):
     def __init__(self, session):
         super(FunctionLearning, self).__init__(session)
 
-        self.max_population_size = 10
-        self.num_repeats = 4
-        self.agent_type_generator = ReplicatorAgent
-        self.network_type = wallace.networks.Chain
-        self.process_type = wallace.processes.RandomWalkFromSource
-        self.recruiter = wallace.recruiters.PsiTurkRecruiter
-
-        # Get a list of all the networks, creating them if they don't already
-        # exist.
-        self.networks = wallace.models.Network.query.all()
-        if not self.networks:
-            for i in range(self.num_repeats):
-                self.save(self.network_type())
-        self.networks = wallace.models.Network.query.all()
+        self.num_repeats_experiment = 4
+        self.agent = ReplicatorAgent
+        self.network = lambda: Chain(max_size=2)
+        self.process = RandomWalkFromSource
+        self.recruiter = PsiTurkRecruiter
+        self.setup()
 
         # Setup for first time experiment is accessed
         for net in self.networks:
@@ -36,9 +31,7 @@ class FunctionLearning(wallace.experiments.Experiment):
                 print source
                 print "Added initial source: " + str(source)
 
-    def information_creation_trigger(self, info):
-
-        self.save(info.origin)
+    def participant_completion_trigger(self, info):
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.
@@ -46,9 +39,6 @@ class FunctionLearning(wallace.experiments.Experiment):
         else:
             # Otherwise recruit a new participant.
             self.recruiter().recruit_new_participants(self, n=1)
-
-    def is_network_full(self, network):
-        return len(network.nodes(type=Agent)) >= self.max_population_size
 
 
 class AbstractFnSource(Source):

@@ -104,11 +104,15 @@ def api_agent_create():
             [net.has_participant(participant_uuid) for net in exp.networks])
 
         if num_networks_participated_in < exp.num_repeats_practice:
-            legal_networks = [exp.networks[num_networks_participated_in]]
+            practice_net = exp.networks[num_networks_participated_in]
+            if not practice_net.full():
+                legal_networks = [practice_net]
+            else:
+                legal_networks = []
 
         else:
             legal_networks = [net for net in exp.networks if
-                              ((not exp.is_network_full(net)) and
+                              ((not net.full()) and
                                (not net.has_participant(participant_uuid)))]
 
         if legal_networks:
@@ -120,10 +124,10 @@ def api_agent_create():
 
             # Generate the right kind of newcomer.
             try:
-                assert(issubclass(exp.agent_type_generator, models.Node))
-                atg = lambda network=net: exp.agent_type_generator
+                assert(issubclass(exp.agent, models.Node))
+                atg = lambda network=net: exp.agent
             except:
-                atg = exp.agent_type_generator
+                atg = exp.agent
 
             newcomer_type = atg(network=net)
             newcomer = newcomer_type(participant_uuid=participant_uuid)
@@ -135,7 +139,7 @@ def api_agent_create():
             session.commit()
 
             # Run the next step of the process.
-            exp.process_type(net).step()
+            exp.process(net).step()
 
             # Return a response
             data = {'agents': {'uuid': newcomer.uuid}}
@@ -326,6 +330,9 @@ def api_info(info_uuid):
 
 @custom_code.route("/notifications", methods=["POST", "GET"])
 def api_notifications():
+
+    exp = experiment(session)
+
     print "Received a notification:"
     for v in request.values:
         print v
@@ -362,6 +369,14 @@ def api_notifications():
         for node in nodes:
             print "Failing node {}.".format(node)
             node.fail()
+
+    elif event_type == 'HITReviewable':
+        # Accept the HIT.
+
+        # Reward the bonus.
+
+        # Recruit new participants.
+        exp.participant_completion_trigger()
 
     return Response(
         dumps({"status": "success"}), status=200, mimetype='application/json')
