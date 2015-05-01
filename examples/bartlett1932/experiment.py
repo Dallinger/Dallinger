@@ -5,7 +5,6 @@ from wallace.models import Info, Agent, Source
 from wallace.processes import RandomWalkFromSource
 from wallace.agents import ReplicatorAgent
 from wallace.experiments import Experiment
-from wallace.recruiters import PsiTurkRecruiter
 import random
 
 
@@ -20,7 +19,6 @@ class Bartlett1932(Experiment):
         self.num_repeats_practice = 2
         self.agent_type_generator = ReplicatorAgent
         self.process_type = RandomWalkFromSource
-        self.recruiter = PsiTurkRecruiter
         self.network = lambda: Chain()
         self.setup()
 

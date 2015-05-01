@@ -3,10 +3,12 @@ from models import Network
 
 class Experiment(object):
     def __init__(self, session):
+        from recruiters import PsiTurkRecruiter
         self.task = "Experiment title"
         self.session = session
         self.num_repeats_practice = 0
         self.num_repeats_experiment = 0
+        self.recruiter = PsiTurkRecruiter
 
     def setup(self):
         # Create the networks iff they don't already exist.
