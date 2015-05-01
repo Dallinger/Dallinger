@@ -53,16 +53,24 @@ class DiscreteGenerational(Network):
 
     __mapper_args__ = {"polymorphic_identity": "discrete-generational"}
 
-    def __init__(self, generation_size=10, generations=10):
-        self.generation_size = generation_size
-        self.generations = generations
+    def __init__(self):
+        self.max_size = self.generations*self.generation_size
+
+    @property
+    def generations(self):
+        return 10
+
+    @property
+    def generation_size(self):
+        return 10
+
+    @property
+    def initial_source(self):
+        return True
 
     def add_agent(self, newcomer):
-        if len(self.nodes(type=Source)) == 0 and self.source_type is not None:
-            self.add(self.source_type())
-        self.add(newcomer)
         num_agents = len(self.nodes(type=Agent))
-        if num_agents <= self.generation_size:
+        if num_agents <= self.generation_size and self.initial_source:
             newcomer.connect_from(self.nodes(type=Source)[0])
         else:
             current_generation = int((num_agents-1)/float(self.generation_size))

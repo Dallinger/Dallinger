@@ -297,10 +297,9 @@ class TestNetworks(object):
                                   "0 sources, 28 vectors>")
 
     def test_discrete_generational(self):
-        n_gens = 3
-        gen_size = 3
-
-        net = networks.DiscreteGenerational(generations=n_gens, generation_size=gen_size)
+        net = networks.DiscreteGenerational()
+        n_gens = net.generations
+        gen_size = net.generation_size
         source = sources.RandomBinaryStringSource()
         net.add(source)
         self.db.add(source)
@@ -308,6 +307,7 @@ class TestNetworks(object):
         for i in range(n_gens*gen_size):
             agents.append(models.Agent())
             self.db.add(agents[-1])
+            net.add(agents[-1])
             net.add_agent(agents[-1])
 
         assert len(net.nodes(type=models.Source)) == 1
