@@ -1,4 +1,5 @@
-from models import Network
+from wallace.models import Network, Node, Agent
+import random
 
 
 class Experiment(object):
@@ -37,6 +38,52 @@ class Experiment(object):
 
     def step(self):
         pass
+
+    def create_agent_trigger(self, agent, network):
+        network.add_agent(agent)
+        self.process(network).step()
+
+    def assign_agent_to_participant(self, participant_uuid):
+
+        num_networks_participated_in = sum(
+            [net.has_participant(participant_uuid) for net in self.networks])
+
+        if num_networks_participated_in < self.num_repeats_practice:
+            practice_net = self.networks[num_networks_participated_in]
+            if not practice_net.full():
+                legal_networks = [practice_net]
+            else:
+                legal_networks = []
+
+        else:
+            legal_networks = [net for net in self.networks if
+                              ((not net.full()) and
+                               (not net.has_participant(participant_uuid)))]
+
+        if legal_networks:
+            # Figure out which network to place the next newcomer in.
+            plenitude = [len(net.nodes(type=Agent)) for net in legal_networks]
+            idxs = [i for i, x in enumerate(plenitude) if x == min(plenitude)]
+            net = legal_networks[random.choice(idxs)]
+
+            # Generate the right kind of newcomer.
+            try:
+                assert(issubclass(self.agent, Node))
+                atg = lambda network=net: self.agent
+            except:
+                atg = self.agent
+
+            newcomer_type = atg(network=net)
+            newcomer = newcomer_type(participant_uuid=participant_uuid)
+            self.save(newcomer)
+
+            # Add the newcomer to the network.
+            net.add(newcomer)
+            self.create_agent_trigger(agent=newcomer, network=net)
+            return newcomer
+        else:
+            raise Exception
+
 
     def is_experiment_over(self):
         return all([net.full() for net in self.networks])

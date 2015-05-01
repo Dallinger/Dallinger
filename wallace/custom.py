@@ -100,53 +100,12 @@ def api_agent_create():
         participant_uuid = hashlib.sha512(
             request.values["unique_id"]).hexdigest()
 
-        num_networks_participated_in = sum(
-            [net.has_participant(participant_uuid) for net in exp.networks])
-
-        if num_networks_participated_in < exp.num_repeats_practice:
-            practice_net = exp.networks[num_networks_participated_in]
-            if not practice_net.full():
-                legal_networks = [practice_net]
-            else:
-                legal_networks = []
-
-        else:
-            legal_networks = [net for net in exp.networks if
-                              ((not net.full()) and
-                               (not net.has_participant(participant_uuid)))]
-
-        if legal_networks:
-
-            # Figure out which network to place the next newcomer in.
-            plenitude = [len(net.nodes(type=Agent)) for net in legal_networks]
-            idxs = [i for i, x in enumerate(plenitude) if x == min(plenitude)]
-            net = legal_networks[random.choice(idxs)]
-
-            # Generate the right kind of newcomer.
-            try:
-                assert(issubclass(exp.agent, models.Node))
-                atg = lambda network=net: exp.agent
-            except:
-                atg = exp.agent
-
-            newcomer_type = atg(network=net)
-            newcomer = newcomer_type(participant_uuid=participant_uuid)
-            session.add(newcomer)
-            session.commit()
-
-            # Add the newcomer to the network.
-            net.add_agent(newcomer)
-            session.commit()
-
-            # Run the next step of the process.
-            exp.process(net).step()
-
-            # Return a response
+        try:
+            newcomer = exp.assign_agent_to_participant(participant_uuid)
             data = {'agents': {'uuid': newcomer.uuid}}
             js = dumps(data)
             return Response(js, status=200, mimetype='application/json')
-
-        else:
+        except:
             return Response(status=403)
 
     if request.method == "GET":
