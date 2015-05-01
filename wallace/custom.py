@@ -104,7 +104,11 @@ def api_agent_create():
             [net.has_participant(participant_uuid) for net in exp.networks])
 
         if num_networks_participated_in < exp.num_repeats_practice:
-            legal_networks = [exp.networks[num_networks_participated_in]]
+            practice_net = exp.networks[num_networks_participated_in]
+            if not exp.is_network_full(practice_net):
+                legal_networks = [practice_net]
+            else:
+                legal_networks = []
 
         else:
             legal_networks = [net for net in exp.networks if
