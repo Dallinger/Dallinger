@@ -14,10 +14,9 @@ class FunctionLearning(wallace.experiments.Experiment):
     def __init__(self, session):
         super(FunctionLearning, self).__init__(session)
 
-        self.max_population_size = 10
         self.num_repeats_experiment = 4
         self.agent_type_generator = ReplicatorAgent
-        self.network = lambda: Chain()
+        self.network = lambda: Chain(max_size=2)
         self.process_type = RandomWalkFromSource
         self.recruiter = PsiTurkRecruiter
         self.setup()
@@ -40,9 +39,6 @@ class FunctionLearning(wallace.experiments.Experiment):
         else:
             # Otherwise recruit a new participant.
             self.recruiter().recruit_new_participants(self, n=1)
-
-    def is_network_full(self, network):
-        return len(network.nodes(type=Agent)) >= self.max_population_size
 
 
 class AbstractFnSource(Source):

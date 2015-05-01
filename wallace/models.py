@@ -6,7 +6,7 @@ from .db import Base
 
 # various sqlalchemy imports
 from sqlalchemy import ForeignKey, desc
-from sqlalchemy import Column, String, Text, Enum, Float
+from sqlalchemy import Column, String, Text, Enum, Float, Integer
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql import func, select
@@ -553,6 +553,8 @@ class Network(Base):
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
+    max_size = Column(Integer, nullable=False, default=1e6)
+
     def nodes(self, type=Node, status="alive"):
         if not issubclass(type, Node):
             raise(TypeError("Cannot get nodes of type {} as it is not a valid type.".format(type)))
@@ -585,6 +587,9 @@ class Network(Base):
         primaryjoin="Network.uuid==Node.network_uuid",
         secondaryjoin="Node.uuid==Vector.origin_uuid",
     )
+
+    def full(self):
+        return len(self.nodes(type=Agent)) >= self.max_size
 
     @property
     def degrees(self):

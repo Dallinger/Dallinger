@@ -14,12 +14,11 @@ class Bartlett1932(Experiment):
 
         super(Bartlett1932, self).__init__(session)
 
-        self.max_population_size = 10
-        self.num_repeats_experiment = 4
-        self.num_repeats_practice = 2
+        self.num_repeats_experiment = 1
+        self.num_repeats_practice = 0
         self.agent_type_generator = ReplicatorAgent
         self.process_type = RandomWalkFromSource
-        self.network = lambda: Chain()
+        self.network = lambda: Chain(max_size=3)
         self.setup()
 
         # Setup for first time experiment is accessed
@@ -38,10 +37,6 @@ class Bartlett1932(Experiment):
         else:
             # Otherwise recruit a new participant.
             self.recruiter().recruit_new_participants(self, n=1)
-
-    def is_network_full(self, network):
-        """The network is full when it reaches its maximum size."""
-        return len(network.nodes(type=Agent)) >= self.max_population_size
 
 
 class WarOfTheGhostsSource(Source):
