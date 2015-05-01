@@ -1,6 +1,9 @@
 import wallace
 from wallace.agents import ReplicatorAgent
 from wallace.models import Source, Agent
+from wallace.networks import Chain
+from wallace.processes import RandomWalkFromSource
+from wallace.recruiters import PsiTurkRecruiter
 import random
 import json
 from sqlalchemy.ext.declarative import declared_attr
@@ -12,19 +15,12 @@ class FunctionLearning(wallace.experiments.Experiment):
         super(FunctionLearning, self).__init__(session)
 
         self.max_population_size = 10
-        self.num_repeats = 4
+        self.num_repeats_experiment = 4
         self.agent_type_generator = ReplicatorAgent
-        self.network_type = wallace.networks.Chain
-        self.process_type = wallace.processes.RandomWalkFromSource
-        self.recruiter = wallace.recruiters.PsiTurkRecruiter
-
-        # Get a list of all the networks, creating them if they don't already
-        # exist.
-        self.networks = wallace.models.Network.query.all()
-        if not self.networks:
-            for i in range(self.num_repeats):
-                self.save(self.network_type())
-        self.networks = wallace.models.Network.query.all()
+        self.network = lambda: Chain()
+        self.process_type = RandomWalkFromSource
+        self.recruiter = PsiTurkRecruiter
+        self.setup()
 
         # Setup for first time experiment is accessed
         for net in self.networks:
