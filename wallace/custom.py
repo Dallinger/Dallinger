@@ -124,10 +124,10 @@ def api_agent_create():
 
             # Generate the right kind of newcomer.
             try:
-                assert(issubclass(exp.agent_type_generator, models.Node))
-                atg = lambda network=net: exp.agent_type_generator
+                assert(issubclass(exp.agent, models.Node))
+                atg = lambda network=net: exp.agent
             except:
-                atg = exp.agent_type_generator
+                atg = exp.agent
 
             newcomer_type = atg(network=net)
             newcomer = newcomer_type(participant_uuid=participant_uuid)
