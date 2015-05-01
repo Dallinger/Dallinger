@@ -32,9 +32,7 @@ class FunctionLearning(wallace.experiments.Experiment):
                 print source
                 print "Added initial source: " + str(source)
 
-    def information_creation_trigger(self, info):
-
-        self.save(info.origin)
+    def participant_completion_trigger(self, info):
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.

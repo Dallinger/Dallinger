@@ -32,9 +32,7 @@ class Bartlett1932(Experiment):
                 net.add_source(source)
                 self.save()
 
-    def information_creation_trigger(self, info):
-
-        self.save(info.origin)
+    def participant_completion_trigger(self):
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.

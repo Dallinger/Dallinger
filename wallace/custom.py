@@ -326,6 +326,9 @@ def api_info(info_uuid):
 
 @custom_code.route("/notifications", methods=["POST", "GET"])
 def api_notifications():
+
+    exp = experiment(session)
+
     print "Received a notification:"
     for v in request.values:
         print v
@@ -362,6 +365,14 @@ def api_notifications():
         for node in nodes:
             print "Failing node {}.".format(node)
             node.fail()
+
+    elif event_type == 'HITReviewable':
+        # Accept the HIT.
+
+        # Reward the bonus.
+
+        # Recruit new participants.
+        exp.participant_completion_trigger()
 
     return Response(
         dumps({"status": "success"}), status=200, mimetype='application/json')

@@ -31,7 +31,7 @@ class Experiment(object):
             t.mark_received()
 
     def information_creation_trigger(self, info):
-        pass
+        self.save(info.origin)
 
     def step(self):
         pass
