@@ -17,7 +17,7 @@ class Bartlett1932(Experiment):
         self.num_repeats_experiment = 1
         self.num_repeats_practice = 0
         self.agent_type_generator = ReplicatorAgent
-        self.process_type = RandomWalkFromSource
+        self.process = RandomWalkFromSource
         self.network = lambda: Chain(max_size=3)
         self.setup()
 

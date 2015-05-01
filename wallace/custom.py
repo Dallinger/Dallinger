@@ -139,7 +139,7 @@ def api_agent_create():
             session.commit()
 
             # Run the next step of the process.
-            exp.process_type(net).step()
+            exp.process(net).step()
 
             # Return a response
             data = {'agents': {'uuid': newcomer.uuid}}

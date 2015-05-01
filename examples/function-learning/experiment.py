@@ -17,7 +17,7 @@ class FunctionLearning(wallace.experiments.Experiment):
         self.num_repeats_experiment = 4
         self.agent_type_generator = ReplicatorAgent
         self.network = lambda: Chain(max_size=2)
-        self.process_type = RandomWalkFromSource
+        self.process = RandomWalkFromSource
         self.recruiter = PsiTurkRecruiter
         self.setup()
 
