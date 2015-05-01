@@ -1,3 +1,5 @@
+"""Install Wallace as a command line utility."""
+
 from setuptools import setup
 
 setup_args = dict(

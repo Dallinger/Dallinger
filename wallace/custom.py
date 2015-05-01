@@ -17,7 +17,6 @@ import imp
 import inspect
 import urllib
 import hashlib
-import random
 
 # load the configuration options
 config = PsiturkConfig()

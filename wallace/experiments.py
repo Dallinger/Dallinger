@@ -84,7 +84,6 @@ class Experiment(object):
         else:
             raise Exception
 
-
     def is_experiment_over(self):
         return all([net.full() for net in self.networks])
 
