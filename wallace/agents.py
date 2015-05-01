@@ -1,6 +1,4 @@
-#from sqlalchemy import desc
-from .models import Info, Agent
-from .information import Gene, Meme
+from .models import Agent
 
 
 class ReplicatorAgent(Agent):

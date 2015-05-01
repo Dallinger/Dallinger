@@ -1,7 +1,7 @@
 """Bartlett's trasmission chain experiment from Remembering (1932)."""
 
 from wallace.networks import Chain
-from wallace.models import Info, Agent, Source
+from wallace.models import Info, Source
 from wallace.processes import RandomWalkFromSource
 from wallace.agents import ReplicatorAgent
 from wallace.experiments import Experiment
