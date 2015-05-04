@@ -662,6 +662,10 @@ class Info(Base):
     # the time when the info was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
+    network_uuid = association_proxy('origin', 'network_uuid')
+
+    network = association_proxy('origin', 'network')
+
     # the contents of the info
     contents = Column(Text())
 
@@ -697,6 +701,10 @@ class Transmission(Base):
     origin_uuid = association_proxy('info', 'origin_uuid')
     origin = association_proxy('info', 'origin')
 
+    network_uuid = association_proxy('info', 'network_uuid')
+
+    network = association_proxy('info', 'network')
+
     # the destination of the info
     destination_uuid = Column(
         String(32), ForeignKey('node.uuid'), nullable=False)
@@ -731,6 +739,10 @@ class Transformation(Base):
     # the node that applied this transformation
     node_uuid = Column(String(32), ForeignKey('node.uuid'), nullable=False)
     node = relationship(Node, backref='transformations')
+
+    network_uuid = association_proxy('node', 'network_uuid')
+
+    network = association_proxy('node', 'network')
 
     # the info before it was transformed
     info_in_uuid = Column(String(32), ForeignKey('info.uuid'), nullable=False)
