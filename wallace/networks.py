@@ -1,6 +1,8 @@
 """Network structures commonly used in simulations of evolution."""
 
 from .models import Network, Agent, Source
+from sqlalchemy import Column, Integer, Boolean, String
+from sqlalchemy import ForeignKey
 import random
 
 
@@ -51,22 +53,19 @@ class FullyConnected(Network):
 
 class DiscreteGenerational(Network):
 
+    __tablename__ = "discrete_generational_networks"
     __mapper_args__ = {"polymorphic_identity": "discrete-generational"}
 
-    def __init__(self):
+    uuid = Column(String(32), ForeignKey("network.uuid"), primary_key=True)
+    generation_size = Column(Integer, nullable=False, default=10)
+    generations = Column(Integer, nullable=False, default=10)
+    initial_source = Column(Boolean, nullable=False, default=True)
+
+    def __init__(self, generations, generation_size, initial_source):
+        self.generations = generations
+        self.generation_size = generation_size
         self.max_size = self.generations*self.generation_size
-
-    @property
-    def generations(self):
-        return 10
-
-    @property
-    def generation_size(self):
-        return 10
-
-    @property
-    def initial_source(self):
-        return True
+        self.initial_source = initial_source
 
     def add_agent(self, newcomer):
         num_agents = len(self.nodes(type=Agent))

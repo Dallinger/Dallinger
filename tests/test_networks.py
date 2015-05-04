@@ -297,9 +297,11 @@ class TestNetworks(object):
                                   "0 sources, 28 vectors>")
 
     def test_discrete_generational(self):
-        net = networks.DiscreteGenerational()
-        n_gens = net.generations
-        gen_size = net.generation_size
+        n_gens = 4
+        gen_size = 4
+
+        net = networks.DiscreteGenerational(generations=n_gens, generation_size=gen_size, initial_source=True)
+
         source = sources.RandomBinaryStringSource()
         net.add(source)
         self.db.add(source)
