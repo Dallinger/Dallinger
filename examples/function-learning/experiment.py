@@ -2,7 +2,7 @@ import wallace
 from wallace.agents import ReplicatorAgent
 from wallace.models import Source, Agent
 from wallace.networks import Chain
-from wallace.processes import RandomWalkFromSource
+from wallace import processes
 from wallace.recruiters import PsiTurkRecruiter
 import random
 import json
@@ -17,7 +17,6 @@ class FunctionLearning(wallace.experiments.Experiment):
         self.num_repeats_experiment = 4
         self.agent = ReplicatorAgent
         self.network = lambda: Chain(max_size=2)
-        self.process = RandomWalkFromSource
         self.recruiter = PsiTurkRecruiter
         self.setup()
 
@@ -39,6 +38,10 @@ class FunctionLearning(wallace.experiments.Experiment):
         else:
             # Otherwise recruit a new participant.
             self.recruiter().recruit_new_participants(self, n=1)
+
+    def create_agent_trigger(self, agent, network):
+        network.add_agent(agent)
+        processes.random_walk(network)
 
 
 class AbstractFnSource(Source):

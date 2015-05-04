@@ -2,7 +2,7 @@
 
 from wallace.networks import Chain
 from wallace.models import Info, Source
-from wallace.processes import RandomWalkFromSource
+from wallace import processes
 from wallace.agents import ReplicatorAgent
 from wallace.experiments import Experiment
 import random
@@ -17,7 +17,6 @@ class Bartlett1932(Experiment):
         self.num_repeats_experiment = 1
         self.num_repeats_practice = 0
         self.agent = ReplicatorAgent
-        self.process = RandomWalkFromSource
         self.network = lambda: Chain(max_size=3)
         self.setup()
 
@@ -37,6 +36,10 @@ class Bartlett1932(Experiment):
         else:
             # Otherwise recruit a new participant.
             self.recruiter().recruit_new_participants(self, n=1)
+
+    def create_agent_trigger(self, agent, network):
+        network.add_agent(agent)
+        processes.random_walk(network)
 
 
 class WarOfTheGhostsSource(Source):

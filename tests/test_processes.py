@@ -35,16 +35,15 @@ class TestProcesses(object):
         source.connect_to(net.nodes(type=Agent)[0])
         source.create_information()
 
-        process = processes.RandomWalkFromSource(net)
-        process.step()
+        processes.random_walk(net)
 
         agent1.receive_all()
         msg = agent1.infos()[0].contents
 
-        process.step()
+        processes.random_walk(net)
         agent2.receive_all()
 
-        process.step()
+        processes.random_walk(net)
         agent3.receive_all()
 
         assert msg == agent3.infos()[0].contents
@@ -77,10 +76,8 @@ class TestProcesses(object):
             agent.receive_all()
 
         # Run a Moran process for 100 steps.
-        process = processes.MoranProcessCultural(net)
-
         for i in xrange(100):
-            process.step()
+            processes.moran_cultural(net)
             for agent in net.nodes(type=Agent):
                 agent.receive_all()
 
@@ -124,13 +121,11 @@ class TestProcesses(object):
             agent.receive_all()
 
         # Run a Moran process for 100 steps.
-        process = processes.MoranProcessSexual(net)
-
         for i in range(100):
             newcomer = agents.ReplicatorAgent()
             net.add(newcomer)
             self.db.add(newcomer)
-            process.step()
+            processes.moran_sexual(net)
             for agent in net.nodes(type=Agent):
                 agent.receive_all()
 

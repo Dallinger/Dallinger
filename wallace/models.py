@@ -581,6 +581,42 @@ class Network(Base):
             .filter_by(participant_uuid=uuid)\
             .all()
 
+    def transmissions(self, status="all"):
+        if status not in ["all", "pending", "received"]:
+            raise(ValueError("You cannot get transmission of status {}.".format(status) +
+                  "Status can only be pending, received or all"))
+        elif status == "all":
+            return Transmission\
+                .query\
+                .filter_by(network_uuid=self.uuid)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        elif status == "received":
+            return Transmission\
+                .query\
+                .filter_by(network_uuid=self.uuid)\
+                .filter(Transmission.receive_time != None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        elif status == "pending":
+            return Transmission\
+                .query\
+                .filter_by(network_uuid=self.uuid)\
+                .filter_by(receive_time=None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        else:
+            raise(Exception("The arguments passed to transmissions() did not cause an error," +
+                  " but also did not cause the method to run properly. This needs to be fixed asap." +
+                  "status: {}, type: {}".format(status, type)))
+
+    def latest_transmission_recipient(self):
+        received_transmissions = reversed(self.transmissions(status="received"))
+        return next(
+            (t.destination for t in received_transmissions
+                if (t.destination.status != "failed")),
+            None)
+
     vectors = relationship(
         "Vector",
         secondary=Node.__table__,
@@ -603,11 +639,7 @@ class Network(Base):
             base.network = self
         else:
             raise(TypeError("Cannot add {} to the network as it is a {}. " +
-                             "Only Nodes can be added to networks.").format(base, type(base)))
-
-    def add_agent(self, agent):
-        raise NotImplementedError("You need to overwrite add_agent(). " +
-                                    "If you want to simply assign a Node to a Network use the generic add() instead")
+                            "Only Nodes can be added to networks.").format(base, type(base)))
 
     def __len__(self):
         raise SyntaxError(
