@@ -5,7 +5,7 @@ from datetime import datetime
 from .db import Base
 
 # various sqlalchemy imports
-from sqlalchemy import ForeignKey, desc
+from sqlalchemy import ForeignKey, desc, or_
 from sqlalchemy import Column, String, Text, Enum, Float, Integer
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -350,38 +350,66 @@ class Node(Base):
         if status not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of status {}.".format(status) +
                   "Status can only be pending, received or all"))
-        if type == "all":
-            return self.transmissions(type="incoming", status=status) + self.transmissions(type="outgoing", status=status)
-        elif status == "all":
-            return self.transmissions(type=type, status="pending") + self.transmissions(type=type, status="received")
-        elif type == "incoming" and status == "received":
-            return Transmission\
-                .query\
-                .filter_by(destination_uuid=self.uuid)\
-                .filter(Transmission.receive_time != None)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-        elif type == "incoming" and status == "pending":
-            return Transmission\
-                .query\
-                .filter_by(destination_uuid=self.uuid)\
-                .filter_by(receive_time=None)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-        elif type == "outgoing" and status == "received":
-            return Transmission\
-                .query\
-                .filter_by(origin_uuid=self.uuid)\
-                .filter(Transmission.receive_time != None)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-        elif type == "outgoing" and status == "pending":
-            return Transmission\
-                .query\
-                .filter_by(origin_uuid=self.uuid)\
-                .filter_by(receive_time=None)\
-                .order_by(Transmission.transmit_time)\
-                .all()
+        if type == "incoming":
+            if status == "all":
+                return Transmission\
+                    .query\
+                    .filter_by(destination_uuid=self.uuid)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif status == "pending":
+                return Transmission\
+                    .query\
+                    .filter_by(destination_uuid=self.uuid)\
+                    .filter(Transmission.receive_time == None)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif status == "received":
+                return Transmission\
+                    .query\
+                    .filter_by(destination_uuid=self.uuid)\
+                    .filter(Transmission.receive_time != None)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+        elif type == "outgoing":
+            if status == "all":
+                return Transmission\
+                    .query\
+                    .filter_by(origin_uuid=self.uuid)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif status == "pending":
+                return Transmission\
+                    .query\
+                    .filter_by(origin_uuid=self.uuid)\
+                    .filter(Transmission.receive_time == None)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif status == "received":
+                return Transmission\
+                    .query\
+                    .filter_by(origin_uuid=self.uuid)\
+                    .filter(Transmission.receive_time != None)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+        elif type == "all":
+            if status == "all":
+                return Transmission\
+                    .query\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif status == "pending":
+                return Transmission\
+                    .query\
+                    .filter(Transmission.receive_time == None)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif status == "received":
+                return Transmission\
+                    .query\
+                    .filter(Transmission.receive_time != None)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
         else:
             raise(Exception("The arguments passed to transmissions() did not cause an error," +
                   " but also did not cause the method to run properly. This needs to be fixed asap." +
