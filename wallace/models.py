@@ -571,7 +571,7 @@ class Network(Base):
     # the unique network id
     uuid = Column(String(32), primary_key=True, default=new_uuid)
 
-    # the node type -- this allows for inheritance
+    # the network type -- this allows for inheritance
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
@@ -582,6 +582,8 @@ class Network(Base):
     creation_time = Column(String(26), nullable=False, default=timenow)
 
     max_size = Column(Integer, nullable=False, default=1e6)
+
+    role = Column(String(26), nullable=False, default="default")
 
     def nodes(self, type=Node, status="alive"):
         if not issubclass(type, Node):

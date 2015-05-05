@@ -7,18 +7,31 @@ class Experiment(object):
         from recruiters import PsiTurkRecruiter
         self.task = "Experiment title"
         self.session = session
-        self.num_repeats_practice = 0
-        self.num_repeats_experiment = 0
+        self.practice_repeats = 0
+        self.experiment_repeats = 0
         self.recruiter = PsiTurkRecruiter
 
     def setup(self):
-        # Create the networks iff they don't already exist.
-        self.networks = Network.query.all()
-        if not self.networks:
-            repeats = self.num_repeats_experiment + self.num_repeats_practice
-            for i in range(repeats):
-                self.save(self.network())
-        self.networks = Network.query.all()
+        # Create the networks if they don't already exist.
+        if not self.networks():
+            for _ in range(self.practice_repeats):
+                network = self.network()
+                network.role = "practice"
+                self.save(network)
+            for _ in range(self.experiment_repeats):
+                network = self.network()
+                network.role = "experiment"
+                self.save(network)
+
+    def networks(self, role="all"):
+        if role == "all":
+            return Network.query.all()
+        else:
+            return Network\
+                .query\
+                .filter_by(role=role)\
+                .order_by(Network.creation_time)\
+                .all()
 
     def save(self, *objects):
         if len(objects) > 0:
@@ -45,47 +58,41 @@ class Experiment(object):
 
     def assign_agent_to_participant(self, participant_uuid):
 
-        num_networks_participated_in = sum(
-            [net.has_participant(participant_uuid) for net in self.networks])
+        legal_practice_networks = [net for net in self.networks(role="practice") if
+                                   (not net.has_participant(participant_uuid)) and
+                                   (not net.full())]
 
-        if num_networks_participated_in < self.num_repeats_practice:
-            practice_net = self.networks[num_networks_participated_in]
-            if not practice_net.full():
-                legal_networks = [practice_net]
+        if legal_practice_networks:
+            chosen_network = legal_practice_networks[0]
+        else:
+            legal_experiment_networks = [net for net in self.networks() if
+                                         (net.role != "practice") and
+                                         (not net.full())]
+            if legal_experiment_networks:
+                plenitude = [len(net.nodes(type=Agent)) for net in legal_experiment_networks]
+                idxs = [i for i, x in enumerate(plenitude) if x == min(plenitude)]
+                chosen_network = legal_experiment_networks[random.choice(idxs)]
             else:
-                legal_networks = []
+                raise Exception
 
-        else:
-            legal_networks = [net for net in self.networks if
-                              ((not net.full()) and
-                               (not net.has_participant(participant_uuid)))]
+        # Generate the right kind of newcomer.
+        try:
+            assert(issubclass(self.agent, Node))
+            atg = lambda network=chosen_network: self.agent
+        except:
+            atg = self.agent
 
-        if legal_networks:
-            # Figure out which network to place the next newcomer in.
-            plenitude = [len(net.nodes(type=Agent)) for net in legal_networks]
-            idxs = [i for i, x in enumerate(plenitude) if x == min(plenitude)]
-            net = legal_networks[random.choice(idxs)]
+        newcomer_type = atg(network=chosen_network)
+        newcomer = newcomer_type(participant_uuid=participant_uuid)
+        self.save(newcomer)
 
-            # Generate the right kind of newcomer.
-            try:
-                assert(issubclass(self.agent, Node))
-                atg = lambda network=net: self.agent
-            except:
-                atg = self.agent
-
-            newcomer_type = atg(network=net)
-            newcomer = newcomer_type(participant_uuid=participant_uuid)
-            self.save(newcomer)
-
-            # Add the newcomer to the network.
-            net.add(newcomer)
-            self.create_agent_trigger(agent=newcomer, network=net)
-            return newcomer
-        else:
-            raise Exception
+        # Add the newcomer to the network.
+        chosen_network.add(newcomer)
+        self.create_agent_trigger(agent=newcomer, network=chosen_network)
+        return newcomer
 
     def is_experiment_over(self):
-        return all([net.full() for net in self.networks])
+        return all([net.full() for net in self.networks()])
 
     def participant_completion_trigger(self, participant_uuid=None):
 
