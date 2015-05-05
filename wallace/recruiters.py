@@ -7,7 +7,6 @@ from psiturk.psiturk_org_services import PsiturkOrgServices
 from psiturk.psiturk_shell import PsiturkNetworkShell
 from psiturk.models import Participant
 from sqlalchemy import desc
-import boto.sqs
 
 
 class Recruiter(object):
