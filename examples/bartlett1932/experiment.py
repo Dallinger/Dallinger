@@ -41,6 +41,12 @@ class Bartlett1932(Experiment):
         network.add_agent(agent)
         processes.random_walk(network)
 
+    def bonus(self, participant_uuid=None):
+        """Compute the bonus for the given participant.
+        This is called automatically when a participant finishes,
+        it is called immediately prior to the participant_completion_trigger"""
+        return 1
+
 
 class WarOfTheGhostsSource(Source):
 
