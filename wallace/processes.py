@@ -73,7 +73,6 @@ def moran_sexual(network):
 
 def transmit_by_fitness(to_whom=None, what=None, from_whom=Agent):
 
-    parent = None
     potential_parents = to_whom.upstream_nodes(type=from_whom)
     potential_parent_fitnesses = [p.fitness for p in potential_parents]
     potential_parent_probabilities = [(f/(1.0*sum(potential_parent_fitnesses))) for f in potential_parent_fitnesses]
