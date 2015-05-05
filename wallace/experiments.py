@@ -58,18 +58,24 @@ class Experiment(object):
 
     def assign_agent_to_participant(self, participant_uuid):
 
-        legal_practice_networks = [net for net in self.networks(role="practice") if
-                                   (not net.has_participant(participant_uuid)) and
-                                   (not net.full())]
+        legal_practice_networks = [
+            net for net in self.networks(role="practice") if
+            (not net.has_participant(participant_uuid)) and
+            (not net.full())
+        ]
 
         if legal_practice_networks:
             chosen_network = legal_practice_networks[0]
         else:
-            legal_experiment_networks = [net for net in self.networks() if
-                                         (net.role != "practice") and
-                                         (not net.full())]
+            legal_experiment_networks = [
+                net for net in self.networks() if
+                (not net.has_participant(participant_uuid)) and
+                (net.role != "practice") and
+                (not net.full())
+            ]
             if legal_experiment_networks:
-                plenitude = [len(net.nodes(type=Agent)) for net in legal_experiment_networks]
+                plenitude = [
+                len(net.nodes(type=Agent)) for net in legal_experiment_networks]
                 idxs = [i for i, x in enumerate(plenitude) if x == min(plenitude)]
                 chosen_network = legal_experiment_networks[random.choice(idxs)]
             else:
