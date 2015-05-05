@@ -67,11 +67,12 @@ def compute_bonus():
         raise ExperimentError('improper_inputs')
     uniqueId = request.args['uniqueId']
 
-    try:
+    p_uuid = hashlib.sha512(uniqueId).hexdigest()
 
+    try:
         # Compute the bonus using experiment-specific logic.
         bonus = exp.bonus(
-            participant_uuid=hashlib.sha512(uniqueId).hexdigest())
+            participant_uuid=p_uuid)
 
         # lookup user in database
         user = Participant.query.\
@@ -80,6 +81,9 @@ def compute_bonus():
         user.bonus = bonus
         session_psiturk.add(user)
         session_psiturk.commit()
+
+        exp.participant_completion_trigger(participant_uuid=p_uuid)
+
         resp = {"bonusComputed": "success"}
         return jsonify(**resp)
     except Exception, e:

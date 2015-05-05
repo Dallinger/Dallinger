@@ -1,4 +1,5 @@
 from wallace import networks, agents, db, sources, models
+import random
 from nose.tools import assert_raises
 
 
@@ -14,6 +15,27 @@ class TestNetworks(object):
     def test_create_network(self):
         net = models.Network()
         assert isinstance(net, models.Network)
+
+    def test_node_failure(self):
+        net = networks.Network()
+        for _ in range(5):
+            agent = models.Agent()
+            self.db.add(agent)
+            net.add(agent)
+        agent = None
+        source = models.Source()
+        self.db.add(source)
+        net.add(source)
+
+        assert len(net.nodes(type=models.Agent)) == 5
+
+        random.choice(net.nodes(type=models.Agent)).fail()
+
+        assert len(net.nodes(type=models.Agent)) == 4
+        assert len(net.nodes(type=models.Agent, status="all")) == 5
+        assert len(net.nodes()) == 5
+        assert len(net.nodes(status="all")) == 6
+        assert len(net.nodes(status="failed")) == 1
 
     def test_network_agents(self):
         net = networks.Network()

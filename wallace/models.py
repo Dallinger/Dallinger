@@ -602,11 +602,11 @@ class Network(Base):
         else:
             raise(ValueError("Cannot get nodes with status {} as it is not a valid status.".format(status)))
 
-    def nodes_of_participant(self, uuid):
+    def nodes_of_participant(self, participant_uuid):
         return Node\
             .query\
             .filter_by(network=self)\
-            .filter_by(participant_uuid=uuid)\
+            .filter_by(participant_uuid=participant_uuid)\
             .all()
 
     def transmissions(self, status="all"):
