@@ -111,6 +111,9 @@ class Experiment(object):
         it is called immediately prior to the participant_completion_trigger"""
         return 0
 
+    def bonus_reason(self):
+        return "Thank for participating! Here is your bonus."
+
     def participant_attention_check(self, participant_uuid=None):
         """
         Perform a check on a participant to see if they have passed

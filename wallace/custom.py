@@ -334,8 +334,14 @@ def api_notifications():
         exp.participant_completion_trigger(participant_uuid=participant_uuid)
 
         # Accept the HIT.
+        exp.recruiter.approve_hit(exp, assignment_id)
 
         # Reward the bonus.
+        exp.recruiter.reward_bonus(
+            exp,
+            assignment_id,
+            exp.bonus(participant_uuid=participant_uuid),
+            exp.bonus_reason())
 
     return Response(
         dumps({"status": "success"}), status=200, mimetype='application/json')

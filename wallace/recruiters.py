@@ -143,3 +143,9 @@ class PsiTurkRecruiter(Recruiter):
             [last_hit_id],
             n,
             self.config.get('HIT Configuration', 'duration'))
+
+    def approve_hit(self, exp, assignment_id):
+        return self.amt_services.approve_worker(assignment_id)
+
+    def reward_bonus(self, exp, assignment_id, amount, reason):
+        return self.amt_services.bonus_worker(assignment_id, amount, reason)
