@@ -14,14 +14,14 @@ class Bartlett1932(Experiment):
 
         super(Bartlett1932, self).__init__(session)
 
-        self.num_repeats_experiment = 1
-        self.num_repeats_practice = 0
+        self.practice_repeats = 0
+        self.experiment_repeats = 1
         self.agent = ReplicatorAgent
         self.network = lambda: Chain(max_size=3)
         self.setup()
 
         # Setup for first time experiment is accessed
-        for net in self.networks:
+        for net in self.networks():
             if not net.nodes(type=Source):
                 source = WarOfTheGhostsSource()
                 self.save(source)
