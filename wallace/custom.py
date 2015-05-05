@@ -82,8 +82,6 @@ def compute_bonus():
         session_psiturk.add(user)
         session_psiturk.commit()
 
-        exp.participant_completion_trigger(participant_uuid=p_uuid)
-
         resp = {"bonusComputed": "success"}
         return jsonify(**resp)
     except Exception, e:
@@ -298,7 +296,19 @@ def api_notifications():
     print "Received a notification:"
     for v in request.values:
         print v
-    print "---"
+
+    # Get the assignment id.
+    assignment_id = request.values['Event.1.AssignmentId']
+    print "Assignment ID:"
+    print assignment_id
+
+    # Transform the assignment id to the SHA512 hash of the unique id from the
+    # psiTurk table.
+    participant = Participant.query.\
+        filter(Participant.assignmentid == assignment_id).\
+        one()
+
+    participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
 
     event_type = request.values['Event.1.EventType']
 
@@ -308,19 +318,6 @@ def api_notifications():
     elif event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
 
         print "Participant stopped working."
-
-        # Get the assignment id.
-        print "Assignment ID:"
-        assignment_id = request.values['Event.1.AssignmentId']
-        print assignment_id
-
-        # Transform the assignment id to the SHA512 hash of the unique id
-        # from the psiTurk table.
-        participant = Participant.query.\
-            filter(Participant.assignmentid == assignment_id).\
-            one()
-
-        participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
 
         # Get the all nodes associated with the participant.
         nodes = models.Node\
@@ -333,12 +330,12 @@ def api_notifications():
             node.fail()
 
     elif event_type == 'HITReviewable':
+        # Recruit new participants.
+        exp.participant_completion_trigger(participant_uuid=participant_uuid)
+
         # Accept the HIT.
 
         # Reward the bonus.
-
-        # Recruit new participants.
-        exp.participant_completion_trigger()
 
     return Response(
         dumps({"status": "success"}), status=200, mimetype='application/json')
