@@ -49,6 +49,7 @@ class TestModels(object):
         assert repr(node).split("-") == ["Node", node.uuid[:6], "base"]
 
     def _check_single_connection(self, node1, node2):
+
         assert node1.has_connection_to(node2)
         assert not node1.has_connection_from(node2)
         assert node2.has_connection_from(node1)
@@ -68,10 +69,10 @@ class TestModels(object):
         assert node2.indegree == 1
         assert node2.outdegree == 0
 
-        assert node1.downstream_nodes() == [node2]
-        assert len(node1.upstream_nodes()) == 0
-        assert node2.upstream_nodes() == [node1]
-        assert len(node2.downstream_nodes()) == 0
+        assert node1.neighbors(connection="to") == [node2]
+        assert len(node1.neighbors(connection="from")) == 0
+        assert node2.neighbors(connection="from") == [node1]
+        assert len(node2.neighbors(connection="to")) == 0
 
     def test_node_connect_to(self):
         """Test connecting one node to another"""
@@ -84,14 +85,14 @@ class TestModels(object):
 
         node1.connect_to(node2)
 
-        assert node1.downstream_nodes() == [node2]
+        assert node1.neighbors(connection="to") == [node2]
 
-        assert node2.upstream_nodes() == [node1]
+        assert node2.neighbors(connection="from") == [node1]
 
         node2.connect_to([node3, node4])
 
-        assert node2.downstream_nodes() == [node3, node4]
-        assert node3.upstream_nodes() == [node2]
+        assert node2.neighbors(connection="to") == [node3, node4]
+        assert node3.neighbors(connection="from") == [node2]
 
         assert_raises(ValueError, node1.connect_to, other_node=node1)
 
@@ -178,11 +179,15 @@ class TestModels(object):
         """Test creating a vector between two nodes"""
         node1 = models.Node()
         node2 = models.Node()
-        vector = models.Vector(origin=node1, destination=node2)
-        self.add(node1, node2, vector)
+        #vector = models.Vector(origin=node1, destination=node2)
+        #self.add(node1, node2, vector)
+        self.add(node1, node2)
+        self.db.commit()
+
+        node1.connect_to(node2)
 
         self._check_single_connection(node1, node2)
-        assert len(vector.transmissions) == 0
+        #assert len(vector.transmissions) == 0
 
     def test_kill_vector(self):
         node1 = models.Node()

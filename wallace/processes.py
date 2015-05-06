@@ -15,10 +15,10 @@ def random_walk(network):
         sender = network.latest_transmission_recipient()
 
     # work out who is going to receive
-    if len(sender.downstream_nodes(type=Agent)) == 0:
+    if len(sender.neighbors(connection="to", type=Agent)) == 0:
         raise Exception("Cannot execute random walk from {} as it has no downstream agents.".format(sender))
     else:
-        receiver = random.choice(sender.downstream_nodes(type=Agent))
+        receiver = random.choice(sender.neighbors(connection="to", type=Agent))
 
     # transmit
     sender.transmit(to_whom=receiver)
@@ -34,7 +34,7 @@ def moran_cultural(network):
         replacer.transmit()
     else:
         replacer = random.choice(network.nodes(type=Agent))
-        replaced = random.choice(replacer.downstream_nodes(type=Agent))
+        replaced = random.choice(replacer.neighbors(connection="to", type=Agent))
         replacer.transmit(what=replacer.infos()[-1], to_whom=replaced)
 
 
@@ -51,17 +51,17 @@ def moran_sexual(network):
         replacer.transmit()
     else:
         replacer = random.choice(network.nodes(type=Agent)[:-1])
-        replaced = random.choice(replacer.downstream_nodes(type=Agent))
+        replaced = random.choice(replacer.neighbors(connection="to", type=Agent))
 
         # Find the baby just added
         baby = network.nodes(type=Agent)[-1]
 
         # Give the baby the same outgoing connections as the replaced.
-        for node in replaced.downstream_nodes():
+        for node in replaced.neighbors(connection="to"):
             baby.connect_to(node)
 
         # Give the baby the same incoming connections as the replaced.
-        for node in replaced.upstream_nodes():
+        for node in replaced.neighbors(connection="from"):
             node.connect_to(baby)
 
         # Kill the replaced agent.
@@ -73,7 +73,7 @@ def moran_sexual(network):
 
 def transmit_by_fitness(to_whom=None, what=None, from_whom=Agent):
 
-    potential_parents = to_whom.upstream_nodes(type=from_whom)
+    potential_parents = to_whom.neighbors(connection="from", type=from_whom)
     potential_parent_fitnesses = [p.fitness for p in potential_parents]
     potential_parent_probabilities = [(f/(1.0*sum(potential_parent_fitnesses))) for f in potential_parent_fitnesses]
 

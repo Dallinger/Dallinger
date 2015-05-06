@@ -105,11 +105,11 @@ class Node(Base):
         if direction == "all":
             if status == "all":
                 return Vector.query\
-                    .filter_by(or_(destination=self, origin=self))\
+                    .filter(or_(Vector.destination == self, Vector.origin == self))\
                     .all()
             else:
                 return Vector.query\
-                    .filter_by(or_(destination=self, origin=self))\
+                    .filter(or_(Vector.destination == self, Vector.origin == self))\
                     .filter_by(status=status)\
                     .all()
         elif direction == "incoming":
@@ -133,33 +133,24 @@ class Node(Base):
                     .filter_by(status=status)\
                     .all()
 
-    def downstream_nodes(self, type=None, status="alive"):
-        """
-        Get all nodes of given type that this node connects to.
-        If status is alive/dead/failed, looks for nodes of that status along
-        vectors of that status (i.e., dead nodes at the end of dead vectors).
-        """
+    def neighbors(self, type=None, status="alive", connection="all"):
         if type is None:
             type = Node
-        if status in ["alive", "dead", "failed"]:
-            return [v.destination for v in self.vectors(direction="outgoing", status=status)
-                    if isinstance(v.destination, type) and v.destination.status == status]
-        else:
-            raise(ValueError("Cannot get downstream_nodes with status {} as it is not a valid status.".format(status)))
-
-    def upstream_nodes(self, type=None, status="alive"):
-        """
-        Get all nodes of given type that connect to this node.
-        If status is alive/dead/failed, looks for nodes of that status along
-        vectors of that status (i.e., dead nodes at the end of dead vectors).
-        """
-        if type is None:
-            type = Node
-        if status in ["alive", "dead", "failed"]:
-            return [v.origin for v in self.vectors(direction="incoming", status=status)
-                    if isinstance(v.origin, type) and v.origin.status == status]
-        else:
-            raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
+        if not issubclass(type, Node):
+            raise ValueError("{} is not a valid neighbor type, needs to be a subclass of Node.".format(type))
+        if status not in ["alive", "dead", "failed"]:
+            raise Warning("Warning, possible typo: {} is not a standard vector status".format(status))
+        if connection not in ["all", "from", "to"]:
+            raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
+        if connection == "all":
+            neighbors = ([v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type)] +
+                         [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type)])
+            neighbors.sort(key=lambda node: node.creation_time)
+            return list(set(neighbors))
+        if connection == "to":
+            return [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type)]
+        if connection == "from":
+            return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type)]
 
     def infos(self, type=None, status="alive"):
         """
@@ -278,7 +269,7 @@ class Node(Base):
                 for w in to_whom:
                     self.transmit(what=what, to_whom=w)
             elif inspect.isclass(to_whom) and issubclass(to_whom, Node):
-                to_whom = [w for w in self.downstream_nodes(type=to_whom)]
+                to_whom = [w for w in self.neighbors(connection="to", type=to_whom)]
                 self.transmit(what=what, to_whom=to_whom)
             elif isinstance(to_whom, Node):
                 if not self.has_connection_to(to_whom):
@@ -366,7 +357,7 @@ class Node(Base):
         if isinstance(other_node, list):
             return [self.has_connection_to(n) for n in other_node]
         elif isinstance(other_node, Node):
-            return other_node in self.downstream_nodes()
+            return other_node in self.neighbors(connection="to")
         else:
             raise(TypeError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
                   format(self, other_node, other_node, type(other_node))))

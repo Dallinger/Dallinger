@@ -194,20 +194,20 @@ class TestNetworks(object):
 
         assert_raises(TypeError, node1.connect_to, source1)
 
-        assert node1.downstream_nodes() == [node2, agent1, agent2]
+        assert node1.neighbors(connection="to") == [node2, agent1, agent2]
         assert node1.outdegree == 3
-        assert node1.downstream_nodes(type=agents.Agent) == [agent1, agent2]
+        assert node1.neighbors(connection="to", type=models.Agent) == [agent1, agent2]
 
         agent1.die()
         agent2.fail()
 
         # these assertions removed pending resolution of issue #164
-        #assert node1.downstream_nodes(status="dead") == [agent1]
-        #assert node1.downstream_nodes(status="failed") == [agent2]
-        #assert node1.downstream_nodes(status="alive") == [node2]
-        #assert node1.downstream_nodes(status="all") == [node2, agent1, agent2]
+        #assert node1.neighbors(connection="to", status="dead") == [agent1]
+        #assert node1.neighbors(connection="to, status="failed") == [agent2]
+        #assert node1.neighbors(connection="to, status="alive") == [node2]
+        #assert node1.neighbors(connection="to, status="all") == [node2, agent1, agent2]
 
-        assert_raises(ValueError, node1.downstream_nodes, status="blagjrg")
+        assert_raises(Warning, node1.neighbors, connection="to", status="blagjrg")
 
     def test_network_repr(self):
         net = networks.Network()
@@ -349,4 +349,4 @@ class TestNetworks(object):
                 else:
                     assert (agents[a].has_connection_to(agents[b]) is False)
                 if a_gen == 0:
-                    assert isinstance(agents[a].upstream_nodes()[0], models.Source)
+                    assert isinstance(agents[a].neighbors(connection="from")[0], models.Source)
