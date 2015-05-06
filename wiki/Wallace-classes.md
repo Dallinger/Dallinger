@@ -10,7 +10,7 @@ Each Node represents a single point in a single network. A Node can be occupied 
 
 ### Methods common to all Nodes
 
-#### kill()
+#### die()
 Sets the status of the Node to dead. This may be used to distinguish Nodes that have completed all actions they will ever do from those that are ongoing.
 
 #### fail()

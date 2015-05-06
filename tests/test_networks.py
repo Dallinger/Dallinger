@@ -75,7 +75,7 @@ class TestNetworks(object):
         assert net.nodes() == [node1, node2, agent1, agent2, agent3]
         assert net.nodes(type=agents.Agent) == [agent1, agent2, agent3]
 
-        node1.kill()
+        node1.die()
         agent1.fail()
 
         assert net.nodes() == [node2, agent2, agent3]
@@ -198,7 +198,7 @@ class TestNetworks(object):
         assert node1.outdegree == 3
         assert node1.downstream_nodes(type=agents.Agent) == [agent1, agent2]
 
-        agent1.kill()
+        agent1.die()
         agent2.fail()
 
         # these assertions removed pending resolution of issue #164

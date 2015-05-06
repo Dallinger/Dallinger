@@ -43,7 +43,7 @@ class TestAgents(object):
 
         assert agent.status == "alive"
 
-        agent.kill()
+        agent.die()
         assert agent.status == "dead"
 
     def test_fail_agent(self):

@@ -192,7 +192,7 @@ class TestModels(object):
 
         assert vector.status == "alive"
 
-        vector.kill()
+        vector.die()
         assert vector.status == "dead"
 
     def test_create_bidirectional_vectors(self):
