@@ -27,6 +27,11 @@ def timenow():
 
 
 class Node(Base):
+
+    """ ###################################
+    SQLAlchemy stuff. Touch at your peril!
+    ################################### """
+
     __tablename__ = "node"
 
     # the unique node id
@@ -63,41 +68,19 @@ class Node(Base):
 
     network = relationship("Network", foreign_keys=[network_uuid])
 
-    def die(self):
-        if self.status == "dead":
-            raise AttributeError("You cannot kill {} - it is already dead.".format(self))
-        else:
-            self.status = "dead"
-            self.time_of_death = timenow()
-            for v in self.vectors(direction="incoming"):
-                v.die()
-            for v in self.vectors(direction="outgoing"):
-                v.die()
-            for i in self.infos():
-                i.die()
-            for t in self.transmissions(direction="incoming", state="all"):
-                t.die()
-            for t in self.transmissions(direction="outgoing", state="all"):
-                t.die()
+    def __repr__(self):
+        return "Node-{}-{}".format(self.uuid[:6], self.type)
 
-    def fail(self):
-        if self.status == "failed":
-            raise AttributeError("You cannot fail {} - it has already failed.".format(self))
-        else:
-            self.status = "failed"
-            self.time_of_death = timenow()
-            for v in self.vectors(direction="incoming"):
-                v.fail()
-            for v in self.vectors(direction="outgoing"):
-                v.fail()
-            for i in self.infos():
-                i.fail()
-            for t in self.transmissions(direction="incoming", state="all"):
-                t.fail()
-            for t in self.transmissions(direction="outgoing", state="all"):
-                t.fail()
+    """ ###################################
+    Methods that get things about a node
+    ################################### """
 
     def vectors(self, direction="all", status="alive"):
+        """
+        Get vectors that connect to this node.
+        Direction can be "all", "incoming" or "outgoing", but defaults to "all".
+        Status can be "alive", "dead", "failed" or anything else, but defaults to alive.
+        """
         if direction not in ["all", "incoming", "outgoing"]:
             raise ValueError("{} is not a valid vector direction. Must be all, incoming or outgoing.".format(direction))
         if status not in ["alive", "dead", "failed"]:
@@ -134,12 +117,18 @@ class Node(Base):
                     .all()
 
     def neighbors(self, type=None, status="alive", connection="all"):
+        """
+        Get nodes one vector away from this node.
+        Type must be a subclass of Node, but defaults to Node.
+        Status can be "alive", "dead", "failed" or anything else, but defaults to alive.
+        Connection can be "to" "from" or "all", but defaults to "all".
+        """
         if type is None:
             type = Node
         if not issubclass(type, Node):
             raise ValueError("{} is not a valid neighbor type, needs to be a subclass of Node.".format(type))
         if status not in ["alive", "dead", "failed"]:
-            raise Warning("Warning, possible typo: {} is not a standard vector status".format(status))
+            raise Warning("Warning, possible typo: {} is not a standard neighbor status".format(status))
         if connection not in ["all", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
         if connection == "all":
@@ -154,15 +143,17 @@ class Node(Base):
 
     def infos(self, type=None, status="alive"):
         """
-        Get infos that originated at this node.
-        By passing status as an argument you can get alive/dead/failed infos.
-        Status defaults to alive.
+        Get infos that originate from this node.
+        Type must be a subclass of info, but defaults to Info.
+        Status can be "alive", "dead", "failed" or anything else, but defaults to alive.
         """
 
         if type is None:
             type = Info
         if not issubclass(type, Info):
             raise(TypeError("Cannot get-info of type {} as it is not a valid type.".format(type)))
+        if status not in ["alive", "dead", "failed"]:
+            raise Warning("Warning, possible typo: {} is not a standard info status".format(status))
         else:
             return type\
                 .query\
@@ -171,18 +162,69 @@ class Node(Base):
                 .filter_by(status=status)\
                 .all()
 
-    def __repr__(self):
-        return "Node-{}-{}".format(self.uuid[:6], self.type)
+    """ ###################################
+    Methods that make nodes do things
+    ################################### """
+
+    def die(self):
+        """
+        Kill a node.
+        Sets the node's status to "dead".
+        Does the same to:
+            (1) all vectors that connect to for from the node.
+            (2) all infos that originated from the nodes_of_participant.
+            (3) all transmissions sent by or to the node.
+        """
+        if self.status == "dead":
+            raise AttributeError("You cannot kill {} - it is already dead.".format(self))
+        else:
+            self.status = "dead"
+            self.time_of_death = timenow()
+            for v in self.vectors(direction="incoming"):
+                v.die()
+            for v in self.vectors(direction="outgoing"):
+                v.die()
+            for i in self.infos():
+                i.die()
+            for t in self.transmissions(direction="incoming", state="all"):
+                t.die()
+            for t in self.transmissions(direction="outgoing", state="all"):
+                t.die()
+
+    def fail(self):
+        """
+        Fail a node.
+        Sets the node's status to "failed".
+        Does the same to:
+            (1) all vectors that connect to for from the node.
+            (2) all infos that originated from the nodes_of_participant.
+            (3) all transmissions sent by or to the node.
+        """
+        if self.status == "failed":
+            raise AttributeError("You cannot fail {} - it has already failed.".format(self))
+        else:
+            self.status = "failed"
+            self.time_of_death = timenow()
+            for v in self.vectors(direction="incoming"):
+                v.fail()
+            for v in self.vectors(direction="outgoing"):
+                v.fail()
+            for i in self.infos():
+                i.fail()
+            for t in self.transmissions(direction="incoming", state="all"):
+                t.fail()
+            for t in self.transmissions(direction="outgoing", state="all"):
+                t.fail()
 
     def connect_to(self, other_node):
         """Creates a vector from self to other_node.
         other_node may be a list of nodes.
         Will raise an error if:
-        (1) other_node is not a node or list of nodes
-        (2) other_node is a source
-        (3) other_node is not alive
-        (4) other_node is yourself
-        (5) other_node is in a different network
+            (1) other_node is not a node or list of nodes
+            (2) other_node is a source
+            (3) other_node is not alive
+            (4) other_node is yourself
+            (5) other_node is in a different network
         If self is already connected to other_node a Warning
         is raised and nothing happens.
         """
@@ -212,9 +254,9 @@ class Node(Base):
                 Vector(origin=self, destination=other_node, network=self.network)
 
     def connect_from(self, other_node):
-        """Creates a directed edge from other_node to self
+        """Creates a vector from other_node to self
         other_node may be a list of nodes
-        will raise an error if you try to connect_from anything other than a node"""
+        see connect_to"""
         if isinstance(other_node, list):
             for node in other_node:
                 node.connect_to(self)
@@ -223,13 +265,24 @@ class Node(Base):
 
     def transmit(self, what=None, to_whom=None):
         """
-        Transmit what to whom.
-
-        Will work provided what is an Info or a class of Info, or a list
-        containing the two. If what=None the _what() method is called to
-        generate what. Will work provided to_whom is a Node you are connected
-        to or a class of Nodes, or a list containing the two. If to_whom=None
-        the _to_whom() method is called to generate to_whom.
+        Transmit one or more infos from one node to another.
+        "what" dictates which infos are sent, it can be:
+            (1) None (in which case the node's _what method is called).
+            (2) an info (in which case the node transmits the info)
+            (3) a subclass of Info (in which case the node transmits all its infos of that type)
+            (4) a list of any combination of the above
+        "to_whom" dictates which node(s) the infos are sent to, it can be:
+            (1) None (in which case the node's _to_whom method is called)
+            (2) a node (in which case the node transmits to that node)
+            (3) a subclass of Node (in which case the node transmits to all nodes of that type it is connected to)
+            (4) a list of any combination of the above
+        Will additionally raise an error if:
+            (1) _what() or _to_whom() returns None or a list containing None.
+            (2) what is/contains an info that does not originate from the transmitting node
+            (3) to_whom is/contains a node that the transmitting node is not connected to.
+        Note that if _what() or _to_whom() return a list containing a list that
+        contains None (or an even more deeply buried None) no error will be raised
+        but an infinite loop will occur.
         """
 
         if what is None:
@@ -281,10 +334,10 @@ class Node(Base):
                     what.transmissions.append(t)
             else:
                 raise TypeError("Cannot transmit to '{}': ",
-                                 "it is not a Node".format(to_whom))
+                                "it is not a Node".format(to_whom))
         else:
             raise TypeError("Cannot transmit '{}': it is not an Info"
-                             .format(what))
+                            .format(what))
 
     def _what(self):
         return Info
@@ -293,15 +346,19 @@ class Node(Base):
         return Node
 
     def observe(self, environment):
+        """
+        Observe prompts a node of type Environment to transmit to this node.
+        It also returns the information that was transmitted.
+        See also Environment.get_observed().
+        """
         state = environment.get_observed(by_whom=self)
         return state
 
-    def update(self, infos):
-        raise NotImplementedError(
-            "The update method of node '{}' has not been overridden"
-            .format(self))
-
     def receive_all(self):
+        """
+        Marks all pending transmissions as received and then passes them as a list to update().
+        See also receive().
+        """
         pending_transmissions = self.transmissions(direction="incoming", state="pending")
         for transmission in pending_transmissions:
             transmission.receive_time = timenow()
@@ -309,6 +366,12 @@ class Node(Base):
         self.update([t.info for t in pending_transmissions])
 
     def receive(self, thing):
+        """
+        Marks a specific transmission or type of transmission as received
+        and then passes it/them to update().
+        "thing" is the transmission to be received and can be a specific info or subclass of Info.
+        Will raise an error if the node is told to receive a transmission it has not been sent.
+        """
         if isinstance(thing, Transmission):
             if thing in self.transmissions(direction="incoming", state="pending"):
                 thing.receive_time = timenow()
@@ -328,6 +391,16 @@ class Node(Base):
                 self.update([t.info for t in relevant_transmissions])
             else:
                 raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, thing)))
+
+    def update(self, infos):
+        """
+        Update controls the default behavior of a node when it receives infos.
+        It needs to be overridden, for informative examples see the update methods
+        of Agent and ReplicatorAgent.
+        """
+        raise NotImplementedError(
+            "The update method of node '{}' has not been overridden"
+            .format(self))
 
     @hybrid_property
     def outdegree(self):
