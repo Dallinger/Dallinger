@@ -28,6 +28,10 @@ def timenow():
 
 class Node(Base):
 
+    """
+    A Node is a point in a network.
+    """
+
     """ ###################################
     SQLAlchemy stuff. Touch at your peril!
     ################################### """
@@ -79,11 +83,11 @@ class Node(Base):
         """
         Get vectors that connect to this node.
         Direction can be "all", "incoming" or "outgoing", but defaults to "all".
-        Status can be "alive", "dead", "failed" or anything else, but defaults to alive.
+        Status can be "all", alive" (the default), "dead", "failed" or anything else.
         """
         if direction not in ["all", "incoming", "outgoing"]:
             raise ValueError("{} is not a valid vector direction. Must be all, incoming or outgoing.".format(direction))
-        if status not in ["alive", "dead", "failed"]:
+        if status not in ["all", "alive", "dead", "failed"]:
             raise Warning("Warning, possible typo: {} is not a standard vector status".format(status))
 
         if direction == "all":
@@ -204,80 +208,17 @@ class Node(Base):
             raise(ValueError("You cannot get transmissions of direction {}.".format(direction) +
                   "Type can only be incoming, outgoing or all."))
         if state not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of status {}.".format(status) +
-                  "Status can only be pending, received or all"))
+            raise(ValueError("You cannot get transmission of state {}.".format(status) +
+                  "State can only be pending, received or all"))
         if status not in ["alive", "dead", "failed"]:
             raise Warning("Warning, possible typo: {} is not a standard info status".format(status))
 
-        if direction == "incoming":
-            if state == "all":
-                return Transmission\
-                    .query\
-                    .filter_by(destination_uuid=self.uuid)\
-                    .filter_by(status=status)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "pending":
-                return Transmission\
-                    .query\
-                    .filter_by(destination_uuid=self.uuid)\
-                    .filter_by(status=status)\
-                    .filter(Transmission.receive_time == None)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "received":
-                return Transmission\
-                    .query\
-                    .filter_by(destination_uuid=self.uuid)\
-                    .filter_by(status=status)\
-                    .filter(Transmission.receive_time != None)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-        if direction == "outgoing":
-            if state == "all":
-                return Transmission\
-                    .query\
-                    .filter_by(origin_uuid=self.uuid)\
-                    .filter_by(status=status)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "pending":
-                return Transmission\
-                    .query\
-                    .filter_by(origin_uuid=self.uuid)\
-                    .filter_by(status=status)\
-                    .filter(Transmission.receive_time == None)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "received":
-                return Transmission\
-                    .query\
-                    .filter_by(origin_uuid=self.uuid)\
-                    .filter_by(status=status)\
-                    .filter(Transmission.receive_time != None)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-        if direction == "all":
-            if state == "all":
-                return Transmission\
-                    .query\
-                    .filter_by(status=status)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "pending":
-                return Transmission\
-                    .query\
-                    .filter(Transmission.receive_time == None)\
-                    .filter_by(status=status)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "received":
-                return Transmission\
-                    .query\
-                    .filter(Transmission.receive_time != None)\
-                    .filter_by(status=status)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
+        vectors = self.vectors(direction=direction, status="all")
+
+        transmissions = []
+        for v in vectors:
+            transmissions += [t for t in v.transmissions(state=state)]
+        return transmissions
 
     """ ###################################
     Methods that make nodes do things
@@ -297,16 +238,10 @@ class Node(Base):
         else:
             self.status = "dead"
             self.time_of_death = timenow()
-            for v in self.vectors(direction="incoming"):
-                v.die()
-            for v in self.vectors(direction="outgoing"):
+            for v in self.vectors(direction="all", status="alive"):
                 v.die()
             for i in self.infos():
                 i.die()
-            for t in self.transmissions(direction="incoming", state="all"):
-                t.die()
-            for t in self.transmissions(direction="outgoing", state="all"):
-                t.die()
 
     def fail(self):
         """
@@ -366,7 +301,7 @@ class Node(Base):
                                      other_node, other_node.network_uuid)))
         else:
             if self.is_connected(direction="to", other_node=other_node):
-                print "Warning! {} is already connected to {}, cannot make another vector without killing the old one.".format(self, other_node)
+                raise Warning("Warning! {} is already connected to {}, cannot make another vector without killing the old one.".format(self, other_node))
             else:
                 Vector(origin=self, destination=other_node, network=self.network)
 
@@ -447,7 +382,8 @@ class Node(Base):
                         "Cannot transmit from {} to {}: " +
                         "they are not connected".format(self, to_whom))
                 else:
-                    t = Transmission(info=what, destination=to_whom)
+                    vector = [v for v in self.vectors(direction="outgoing") if v.destination == to_whom][0]
+                    t = Transmission(info=what, destination=to_whom, vector=vector)
                     what.transmissions.append(t)
             else:
                 raise TypeError("Cannot transmit to '{}': ",
@@ -507,6 +443,7 @@ class Node(Base):
         Replicate can be called by update.
         It causes the node to duplicate the info.
         """
+
         info_type = type(info_in)
         info_out = info_type(origin=self, contents=info_in.contents)
 
@@ -556,6 +493,16 @@ class Source(Node):
 
 
 class Vector(Base):
+
+    """
+    A Vector is a path that links two Nodes.
+    Nodes can only send each other information if they are linked by a Vector.
+    """
+
+    """ ###################################
+    SQLAlchemy stuff. Touch at your peril!
+    ################################### """
+
     __tablename__ = "vector"
 
     # the unique vector id
@@ -586,6 +533,48 @@ class Vector(Base):
 
     network = association_proxy('origin', 'network')
 
+    def __repr__(self):
+        return "Vector-{}-{}".format(
+            self.origin_uuid[:6], self.destination_uuid[:6])
+
+    """ ###################################
+    Methods that get things about a Vector
+    ################################### """
+
+    def transmissions(self, state="all"):
+        """
+        Get transmissions sent along this Vector.
+        State can be "all" (the default), "pending", or "received".
+        """
+
+        if state not in ["all", "pending", "received"]:
+            raise(ValueError("You cannot get {} transmissions.".format(state) +
+                  "State can only be pending, received or all"))
+        if state == "all":
+            return Transmission\
+                .query\
+                .filter_by(vector=self)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        if state == "pending":
+            return Transmission\
+                .query\
+                .filter_by(vector=self)\
+                .filter(Transmission.receive_time == None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        if state == "received":
+            return Transmission\
+                .query\
+                .filter_by(vector=self)\
+                .filter(Transmission.receive_time != None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+
+    """ ###################################
+    Methods that make Vectors do things
+    ################################### """
+
     def die(self):
         if self.status == "dead":
             raise AttributeError("You cannot kill {}, it is already dead.".format(self))
@@ -599,20 +588,6 @@ class Vector(Base):
         else:
             self.status = "failed"
             self.time_of_death = timenow()
-
-    def __repr__(self):
-        return "Vector-{}-{}".format(
-            self.origin_uuid[:6], self.destination_uuid[:6])
-
-    @property
-    def transmissions(self):
-        return Transmission\
-            .query\
-            .filter_by(
-                origin_uuid=self.origin_uuid,
-                destination_uuid=self.destination_uuid)\
-            .order_by(Transmission.transmit_time)\
-            .all()
 
 
 class Network(Base):
@@ -837,6 +812,10 @@ class Transmission(Base):
     origin_uuid = association_proxy('info', 'origin_uuid')
     origin = association_proxy('info', 'origin')
 
+    # the vector the transmission passed along
+    vector_uuid = Column(String(32), ForeignKey('vector.uuid'), nullable=False)
+    vector = relationship(Vector, backref='all_transmissions')
+
     network_uuid = association_proxy('info', 'network_uuid')
 
     network = association_proxy('info', 'network')
@@ -864,11 +843,11 @@ class Transmission(Base):
             self.status = "failed"
             self.time_of_death = timenow()
 
-    @property
-    def vector(self):
-        return Vector.query.filter_by(
-            origin_uuid=self.origin_uuid,
-            destination_uuid=self.destination_uuid).one()
+    # @property
+    # def vector(self):
+    #     return Vector.query.filter_by(
+    #         origin_uuid=self.origin_uuid,
+    #         destination_uuid=self.destination_uuid).one()
 
     def mark_received(self):
         self.receive_time = timenow()

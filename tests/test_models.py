@@ -231,8 +231,8 @@ class TestModels(object):
         assert len(node1.vectors(direction="outgoing")) == 1
         assert len(node2.vectors(direction="outgoing")) == 1
 
-        assert len(vector1.transmissions) == 0
-        assert len(vector2.transmissions) == 0
+        assert len(vector1.transmissions()) == 0
+        assert len(vector2.transmissions()) == 0
 
     def test_vector_repr(self):
         """Test the repr of a vector"""
@@ -311,10 +311,17 @@ class TestModels(object):
         """Try creating a transmission"""
         node1 = models.Node()
         node2 = models.Node()
-        vector = models.Vector(origin=node1, destination=node2)
+        self.add(node1, node2)
+        self.db.commit()
+        node1.connect_to(node2)
+
         info = models.Info(origin=node1)
-        transmission = models.Transmission(info=info, destination=node2)
-        self.add(node1, node2, vector, info, transmission)
+        node1.transmit(what=node1.infos()[0], to_whom=node2)
+        #transmission = models.Transmission(info=info, destination=node2)
+        #self.add(node1, node2, vector, info, transmission)
+
+        transmission = node1.transmissions()[0]
+        vector = node1.vectors()[0]
 
         assert len(transmission.uuid) == 32
         assert transmission.info_uuid == info.uuid
@@ -322,15 +329,19 @@ class TestModels(object):
         assert transmission.destination_uuid == vector.destination_uuid
         assert transmission.transmit_time
         assert transmission.vector == vector
-        assert vector.transmissions == [transmission]
+        assert vector.transmissions() == [transmission]
 
     def test_transmission_repr(self):
         node1 = models.Node()
         node2 = models.Node()
-        vector = models.Vector(origin=node1, destination=node2)
-        info = models.Info(origin=node1)
-        transmission = models.Transmission(info=info, destination=node2)
-        self.add(node1, node2, vector, info, transmission)
+        self.add(node1, node2)
+
+        node1.connect_to(node2)
+        models.Info(origin=node1)
+
+        node1.transmit(what=node1.infos()[0], to_whom=node2)
+        transmission = node1.transmissions()[0]
+        node1.vectors()[0]
 
         assert (repr(transmission).split("-") ==
                 ["Transmission", transmission.uuid[:6]])

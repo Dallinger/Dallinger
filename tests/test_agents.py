@@ -75,16 +75,12 @@ class TestAgents(object):
         self.add(agent1)
         self.add(agent2)
         self.db.commit()
+
         agent1.connect_to(agent2)
         info = models.Info(origin=agent1, contents="foo")
-        self.add(agent1, agent2, info)
-        self.db.commit()
 
-        agent1.transmit(to_whom=agent2)
-        self.db.commit()
-
+        agent1.transmit(what=agent1.infos()[0], to_whom=agent2)
         agent2.receive()
-        self.db.commit()
 
         assert agent1.infos()[0].contents == agent2.infos()[0].contents
         assert agent1.infos()[0].uuid != agent2.infos()[0].uuid

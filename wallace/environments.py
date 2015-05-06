@@ -31,11 +31,6 @@ class Environment(Node):
                 .order_by(desc(State.creation_time))\
                 .first()
 
-    # def get_observed(self, by_whom=None):
-    #     """When observed, transmit the state."""
-    #     self.transmit(to_whom=by_whom)
-    #     return self._what()
-
     def _what(self):
         return self.state()
 
