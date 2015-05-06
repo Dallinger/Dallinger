@@ -50,10 +50,10 @@ class TestModels(object):
 
     def _check_single_connection(self, node1, node2):
 
-        assert node1.has_connection_to(node2)
-        assert not node1.has_connection_from(node2)
-        assert node2.has_connection_from(node1)
-        assert not node2.has_connection_to(node1)
+        assert node1.is_connected(direction="to", other_node=node2)
+        assert not node1.is_connected(direction="from", other_node=node2)
+        assert node2.is_connected(direction="from", other_node=node1)
+        assert not node2.is_connected(direction="to", other_node=node2)
 
         vector = node1.vectors(direction="outgoing")[0]
         assert vector.origin_uuid == node1.uuid
@@ -159,8 +159,8 @@ class TestModels(object):
         node1.connect_to(node2)
         self.add(node1, node2)
 
-        assert node1.has_connection_to(node2)
-        assert not node2.has_connection_to(node1)
+        assert node1.is_connected(direction="to", other_node=node2)
+        assert not node2.is_connected(direction="to", other_node=node1)
 
     def test_node_has_connection_from(self):
         node1 = models.Node()
@@ -171,8 +171,8 @@ class TestModels(object):
         node1.connect_to(node2)
         self.add(node1, node2)
 
-        assert not node1.has_connection_from(node2)
-        assert node2.has_connection_from(node1)
+        assert not node1.is_connected(direction="from", other_node=node2)
+        assert node2.is_connected(direction="from", other_node=node1)
 
     ##################################################################
     # Vector
@@ -221,10 +221,10 @@ class TestModels(object):
         assert node2.vectors(direction="incoming") == [vector1]
         assert node2.vectors(direction="outgoing") == [vector2]
 
-        assert node1.has_connection_to(node2)
-        assert node1.has_connection_from(node2)
-        assert node2.has_connection_to(node1)
-        assert node2.has_connection_from(node1)
+        assert node1.is_connected(direction="to", other_node=node2)
+        assert node1.is_connected(direction="from", other_node=node2)
+        assert node2.is_connected(direction="to", other_node=node1)
+        assert node2.is_connected(direction="from", other_node=node1)
 
         assert len(node1.vectors(direction="incoming")) == 1
         assert len(node2.vectors(direction="incoming")) == 1

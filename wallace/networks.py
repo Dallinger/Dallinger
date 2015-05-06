@@ -114,8 +114,8 @@ class ScaleFree(Network):
                 these_agents = []
                 for agent in self.nodes(type=Agent):
                     if (agent == newcomer or
-                            agent.has_connection_from(newcomer) or
-                            agent.has_connection_to(newcomer)):
+                            agent.is_connected(direction="from", other_node=newcomer) or
+                            agent.is_connected(direction="to", other_node=newcomer)):
                         continue
                     else:
                         these_agents.append(agent)

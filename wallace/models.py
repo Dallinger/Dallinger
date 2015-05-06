@@ -141,6 +141,27 @@ class Node(Base):
         if connection == "from":
             return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type)]
 
+    def is_connected(self, other_node, direction="either", status="alive"):
+        if status not in ["alive", "dead", "failed"]:
+            raise Warning("Warning, possible typo: {} is not a standard connection status".format(status))
+        if direction not in ["to", "from", "either", "both"]:
+            raise ValueError("{} is not a valid direction for is_connected".format(direction))
+        if isinstance(other_node, list):
+            return [self.is_connected(other_node=n, status=status, direction=direction) for n in other_node]
+        elif isinstance(other_node, Node):
+            if direction == "to":
+                return other_node in self.neighbors(connection="to", status=status)
+            elif direction == "from":
+                return other_node in self.neighbors(connection="from", status=status)
+            elif direction == "either":
+                return other_node in self.neighbors(status=status)
+            else:
+                return (other_node in self.neighbors(connection="to", status=status) and
+                        other_node in self.neighbors(connection="from", status=status))
+        else:
+            raise(TypeError("Cannot perform is_connected over obvjects of type {}.".
+                  format(type(other_node))))
+
     def infos(self, type=None, status="alive"):
         """
         Get infos that originate from this node.
@@ -248,7 +269,7 @@ class Node(Base):
                              .format(self, other_node, self, self.network_uuid,
                                      other_node, other_node.network_uuid)))
         else:
-            if self.has_connection_to(other_node):
+            if self.is_connected(direction="to", other_node=other_node):
                 print "Warning! {} is already connected to {}, cannot make another vector without killing the old one.".format(self, other_node)
             else:
                 Vector(origin=self, destination=other_node, network=self.network)
@@ -325,7 +346,7 @@ class Node(Base):
                 to_whom = [w for w in self.neighbors(connection="to", type=to_whom)]
                 self.transmit(what=what, to_whom=to_whom)
             elif isinstance(to_whom, Node):
-                if not self.has_connection_to(to_whom):
+                if not self.is_connected(direction="to", other_node=to_whom):
                     raise ValueError(
                         "Cannot transmit from {} to {}: " +
                         "they are not connected".format(self, to_whom))
@@ -402,26 +423,6 @@ class Node(Base):
         raise NotImplementedError(
             "The update method of node '{}' has not been overridden"
             .format(self))
-
-    def has_connection_to(self, other_node):
-        """Whether this node has a connection to 'other_node'. Can take a list
-        of nodes. If passed a list returns a list of booleans."""
-        if isinstance(other_node, list):
-            return [self.has_connection_to(n) for n in other_node]
-        elif isinstance(other_node, Node):
-            return other_node in self.neighbors(connection="to")
-        else:
-            raise(TypeError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
-                  format(self, other_node, other_node, type(other_node))))
-
-    def has_connection_from(self, other_node):
-        """Whether this node has a connection from 'other_node'.
-        Can take a list of nodes. If passed a list returns a list
-        of booleans."""
-        if isinstance(other_node, list):
-            return [n.has_connection_to(self) for n in list]
-        else:
-            return other_node.has_connection_to(self)
 
     def transmissions(self, direction=None, state="all", status="alive"):
         if direction is None:

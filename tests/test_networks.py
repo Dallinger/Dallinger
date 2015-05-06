@@ -345,8 +345,8 @@ class TestNetworks(object):
                 a_gen = int((a)/float(gen_size))
                 b_gen = int((b)/float(gen_size))
                 if b_gen == (1+a_gen):
-                    assert agents[a].has_connection_to(agents[b])
+                    assert agents[a].is_connected(direction="to", other_node=agents[b])
                 else:
-                    assert (agents[a].has_connection_to(agents[b]) is False)
+                    assert (agents[a].is_connected(direction="to", other_node=agents[b]) is False)
                 if a_gen == 0:
                     assert isinstance(agents[a].neighbors(connection="from")[0], models.Source)
