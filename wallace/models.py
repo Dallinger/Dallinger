@@ -5,7 +5,7 @@ from datetime import datetime
 from .db import Base
 
 # various sqlalchemy imports
-from sqlalchemy import ForeignKey, desc
+from sqlalchemy import ForeignKey, desc, or_
 from sqlalchemy import Column, String, Text, Enum, Float, Integer
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -69,9 +69,9 @@ class Node(Base):
         else:
             self.status = "dead"
             self.time_of_death = timenow()
-            for v in self.incoming_vectors():
+            for v in self.vectors(direction="incoming"):
                 v.die()
-            for v in self.outgoing_vectors():
+            for v in self.vectors(direction="outgoing"):
                 v.die()
             for i in self.infos():
                 i.die()
@@ -86,9 +86,9 @@ class Node(Base):
         else:
             self.status = "failed"
             self.time_of_death = timenow()
-            for v in self.incoming_vectors():
+            for v in self.vectors(direction="incoming"):
                 v.fail()
-            for v in self.outgoing_vectors():
+            for v in self.vectors(direction="outgoing"):
                 v.fail()
             for i in self.infos():
                 i.fail()
@@ -97,23 +97,41 @@ class Node(Base):
             for t in self.transmissions(direction="outgoing", state="all"):
                 t.fail()
 
-    def incoming_vectors(self, status="alive"):
-        if status == "all":
-            incoming_vectors = Vector.query.filter_by(destination=self).all()
-        elif status in ["alive", "dead", "failed"]:
-            incoming_vectors = Vector.query.filter_by(destination=self).filter_by(status=status).all()
-        else:
-            raise(ValueError("Cannot get incoming_vectors with status {} as it is not a valid status.".format(status)))
-        return incoming_vectors
-
-    def outgoing_vectors(self, status="alive"):
-        if status == "all":
-            outgoing_vectors = Vector.query.filter_by(origin=self).all()
-        elif status in ["alive", "dead", "failed"]:
-            outgoing_vectors = Vector.query.filter_by(origin=self).filter_by(status=status).all()
-        else:
-            raise(ValueError("Cannot get outgoing_vectors with status {} as it is not a valid status.".format(status)))
-        return outgoing_vectors
+    def vectors(self, direction="all", status="alive"):
+        if direction not in ["all", "incoming", "outgoing"]:
+            raise ValueError("{} is not a valid vector direction. Must be all, incoming or outgoing.".format(direction))
+        if status not in ["alive", "dead", "failed"]:
+            raise Warning("Warning, possible typo: {} is not a standard vector status".format(status))
+        if direction == "all":
+            if status == "all":
+                return Vector.query\
+                    .filter_by(or_(destination=self, origin=self))\
+                    .all()
+            else:
+                return Vector.query\
+                    .filter_by(or_(destination=self, origin=self))\
+                    .filter_by(status=status)\
+                    .all()
+        elif direction == "incoming":
+            if status == "all":
+                return Vector.query\
+                    .filter_by(destination=self)\
+                    .all()
+            else:
+                return Vector.query\
+                    .filter_by(destination=self)\
+                    .filter_by(status=status)\
+                    .all()
+        elif direction == "outgoing":
+            if status == "all":
+                return Vector.query\
+                    .filter_by(origin=self)\
+                    .all()
+            else:
+                return Vector.query\
+                    .filter_by(origin=self)\
+                    .filter_by(status=status)\
+                    .all()
 
     def downstream_nodes(self, type=None, status="alive"):
         """
@@ -124,7 +142,7 @@ class Node(Base):
         if type is None:
             type = Node
         if status in ["alive", "dead", "failed"]:
-            return [v.destination for v in self.outgoing_vectors(status=status)
+            return [v.destination for v in self.vectors(direction="outgoing", status=status)
                     if isinstance(v.destination, type) and v.destination.status == status]
         else:
             raise(ValueError("Cannot get downstream_nodes with status {} as it is not a valid status.".format(status)))
@@ -138,7 +156,7 @@ class Node(Base):
         if type is None:
             type = Node
         if status in ["alive", "dead", "failed"]:
-            return [v.origin for v in self.incoming_vectors(status=status)
+            return [v.origin for v in self.vectors(direction="incoming", status=status)
                     if isinstance(v.origin, type) and v.origin.status == status]
         else:
             raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
@@ -323,8 +341,7 @@ class Node(Base):
     @hybrid_property
     def outdegree(self):
         """The outdegree (number of outgoing edges) of this node."""
-        # return len(self.outgoing_vectors)
-        return len(Vector.query.filter_by(origin=self).all())
+        return len(self.vectors(direction="outgoing"))
 
     @outdegree.expression
     def outdegree(self):
@@ -335,7 +352,7 @@ class Node(Base):
     @hybrid_property
     def indegree(self):
         """The indegree (number of incoming edges) of this node."""
-        return len(self.incoming_vectors())
+        return len(self.vectors(direction="incoming"))
 
     @indegree.expression
     def indegree(self):

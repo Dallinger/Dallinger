@@ -30,8 +30,8 @@ class TestModels(object):
         assert len(node.information) == 0
         assert node.outdegree == 0
         assert node.indegree == 0
-        assert len(node.outgoing_vectors()) == 0
-        assert len(node.incoming_vectors()) == 0
+        assert len(node.vectors(direction="outgoing")) == 0
+        assert len(node.vectors(direction="incoming")) == 0
 
     def test_different_node_uuids(self):
         """Test that two nodes have different uuids"""
@@ -54,14 +54,14 @@ class TestModels(object):
         assert node2.has_connection_from(node1)
         assert not node2.has_connection_to(node1)
 
-        vector = node1.outgoing_vectors()[0]
+        vector = node1.vectors(direction="outgoing")[0]
         assert vector.origin_uuid == node1.uuid
         assert vector.destination_uuid == node2.uuid
 
-        assert node1.outgoing_vectors() == [vector]
-        assert len(node1.incoming_vectors()) == 0
-        assert len(node2.outgoing_vectors()) == 0
-        assert node2.incoming_vectors() == [vector]
+        assert node1.vectors(direction="outgoing") == [vector]
+        assert len(node1.vectors(direction="incoming")) == 0
+        assert len(node2.vectors(direction="outgoing")) == 0
+        assert node2.vectors(direction="incoming") == [vector]
 
         assert node1.indegree == 0
         assert node1.outdegree == 1
@@ -208,10 +208,10 @@ class TestModels(object):
         assert vector2.origin_uuid == node2.uuid
         assert vector2.destination_uuid == node1.uuid
 
-        assert node1.incoming_vectors() == [vector2]
-        assert node1.outgoing_vectors() == [vector1]
-        assert node2.incoming_vectors() == [vector1]
-        assert node2.outgoing_vectors() == [vector2]
+        assert node1.vectors(direction="incoming") == [vector2]
+        assert node1.vectors(direction="outgoing") == [vector1]
+        assert node2.vectors(direction="incoming") == [vector1]
+        assert node2.vectors(direction="outgoing") == [vector2]
 
         assert node1.has_connection_to(node2)
         assert node1.has_connection_from(node2)
