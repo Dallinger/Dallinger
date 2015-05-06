@@ -395,34 +395,13 @@ class Node(Base):
     def update(self, infos):
         """
         Update controls the default behavior of a node when it receives infos.
-        It needs to be overridden, for informative examples see the update methods
+        It needs to be overridden.
+        For informative examples see the update methods
         of Agent and ReplicatorAgent.
         """
         raise NotImplementedError(
             "The update method of node '{}' has not been overridden"
             .format(self))
-
-    @hybrid_property
-    def outdegree(self):
-        """The outdegree (number of outgoing edges) of this node."""
-        return len(self.vectors(direction="outgoing"))
-
-    @outdegree.expression
-    def outdegree(self):
-        return select([func.count(Vector.destination_uuid)])\
-            .where(Vector.origin_uuid == Node.uuid)\
-            .label("outdegree")
-
-    @hybrid_property
-    def indegree(self):
-        """The indegree (number of incoming edges) of this node."""
-        return len(self.vectors(direction="incoming"))
-
-    @indegree.expression
-    def indegree(self):
-        return select([func.count(Vector.origin_uuid)])\
-            .where(Vector.destination_uuid == Node.uuid)\
-            .label("indegree")
 
     def has_connection_to(self, other_node):
         """Whether this node has a connection to 'other_node'. Can take a list

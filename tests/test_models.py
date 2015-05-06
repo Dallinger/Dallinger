@@ -28,8 +28,8 @@ class TestModels(object):
         assert node.type == "base"
         assert node.creation_time
         assert len(node.information) == 0
-        assert node.outdegree == 0
-        assert node.indegree == 0
+        assert len(node.vectors(direction="outgoing")) == 0
+        assert len(node.vectors(direction="incoming")) == 0
         assert len(node.vectors(direction="outgoing")) == 0
         assert len(node.vectors(direction="incoming")) == 0
 
@@ -64,10 +64,10 @@ class TestModels(object):
         assert len(node2.vectors(direction="outgoing")) == 0
         assert node2.vectors(direction="incoming") == [vector]
 
-        assert node1.indegree == 0
-        assert node1.outdegree == 1
-        assert node2.indegree == 1
-        assert node2.outdegree == 0
+        assert len(node1.vectors(direction="incoming")) == 0
+        assert len(node1.vectors(direction="outgoing")) == 1
+        assert len(node2.vectors(direction="incoming")) == 1
+        assert len(node2.vectors(direction="outgoing")) == 0
 
         assert node1.neighbors(connection="to") == [node2]
         assert len(node1.neighbors(connection="from")) == 0
@@ -120,16 +120,18 @@ class TestModels(object):
         self.db.add(node1)
 
         for i in xrange(5):
-            assert node1.outdegree == i
+            assert len(node1.vectors(direction="outgoing")) == i
             new_node = models.Node()
             self.add(new_node)
             self.db.commit()
             node1.connect_to(new_node)
             self.add(new_node)
 
-        assert node1.outdegree == 5
+        assert len(node1.vectors(direction="outgoing")) == 5
 
-        node5 = self.db.query(models.Node).filter_by(outdegree=5).one()
+        nodes = self.db.query(models.Node).all()
+
+        node5 = [n for n in nodes if len(n.vectors(direction="outgoing")) == 5][0]
         assert node5 == node1
 
     def test_node_indegree(self):
@@ -137,14 +139,15 @@ class TestModels(object):
         self.db.add(node1)
 
         for i in xrange(5):
-            assert node1.indegree == i
+            assert len(node1.vectors(direction="incoming")) == i
             new_node = models.Node()
             node1.connect_from(new_node)
             self.add(new_node)
 
-        assert node1.indegree == 5
+        assert len(node1.vectors(direction="incoming")) == 5
 
-        node5 = self.db.query(models.Node).filter_by(indegree=5).one()
+        nodes = self.db.query(models.Node).all()
+        node5 = [n for n in nodes if len(n.vectors(direction="incoming")) == 5][0]
         assert node5 == node1
 
     def test_node_has_connection_to(self):
@@ -223,10 +226,10 @@ class TestModels(object):
         assert node2.has_connection_to(node1)
         assert node2.has_connection_from(node1)
 
-        assert node1.indegree == 1
-        assert node2.indegree == 1
-        assert node1.outdegree == 1
-        assert node2.outdegree == 1
+        assert len(node1.vectors(direction="incoming")) == 1
+        assert len(node2.vectors(direction="incoming")) == 1
+        assert len(node1.vectors(direction="outgoing")) == 1
+        assert len(node2.vectors(direction="outgoing")) == 1
 
         assert len(vector1.transmissions) == 0
         assert len(vector2.transmissions) == 0

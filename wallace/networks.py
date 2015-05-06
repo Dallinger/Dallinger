@@ -119,7 +119,7 @@ class ScaleFree(Network):
                         continue
                     else:
                         these_agents.append(agent)
-                outdegrees = [a.outdegree for a in these_agents]
+                outdegrees = [len(a.vectors(direction="outgoing")) for a in these_agents]
 
                 # Select a member using preferential attachment
                 ps = [(d / (1.0 * sum(outdegrees))) for d in outdegrees]

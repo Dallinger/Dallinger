@@ -112,11 +112,11 @@ class TestNetworks(object):
         net.add(agent1)
         net.add(agent2)
 
-        assert net.degrees == [0, 0]
+        assert [len(n.vectors(direction="outgoing")) for n in net.nodes()] == [0, 0]
 
         agent1.connect_to(agent2)
 
-        assert net.degrees == [1, 0]
+        assert [len(n.vectors(direction="outgoing")) for n in net.nodes()] == [1, 0]
 
     def test_network_add_source_global(self):
         net = networks.Network()
@@ -137,8 +137,8 @@ class TestNetworks(object):
         assert len(net.vectors) == 2
         assert source.network == net
         assert agent1.network == net
-        assert net.degrees == [0, 0]
-        assert net.nodes(type=models.Source)[0].outdegree == 2
+        assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=models.Agent)] == [0, 0]
+        assert len(net.nodes(type=models.Source)[0].vectors(direction="outgoing")) == 2
 
     def test_network_add_source_local(self):
         net = networks.Network()
@@ -157,8 +157,8 @@ class TestNetworks(object):
         source.connect_to(net.nodes(type=models.Agent)[0])
 
         assert len(net.vectors) == 1
-        assert net.degrees == [0, 0]
-        assert net.nodes(type=models.Source)[0].outdegree == 1
+        assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=models.Agent)] == [0, 0]
+        assert len(net.nodes(type=models.Source)[0].vectors(direction="outgoing")) == 1
 
     def test_network_add_agent(self):
         net = networks.Network()
@@ -195,7 +195,7 @@ class TestNetworks(object):
         assert_raises(TypeError, node1.connect_to, source1)
 
         assert node1.neighbors(connection="to") == [node2, agent1, agent2]
-        assert node1.outdegree == 3
+        assert len(node1.vectors(direction="outgoing")) == 3
         assert node1.neighbors(connection="to", type=models.Agent) == [agent1, agent2]
 
         agent1.die()
@@ -270,7 +270,7 @@ class TestNetworks(object):
 
         assert len(net.nodes(type=models.Agent)) == 4
         assert len(net.vectors) == 12
-        assert net.degrees == [3, 3, 3, 3]
+        assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=models.Agent)] == [3, 3, 3, 3]
 
     def test_fully_connected_repr(self):
         net = networks.FullyConnected()
