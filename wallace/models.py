@@ -97,15 +97,6 @@ class Node(Base):
             for t in self.transmissions(direction="outgoing", state="all"):
                 t.fail()
 
-    # the predecessors and successors
-    successors = relationship(
-        "Node",
-        secondary="vector",
-        primaryjoin="Node.uuid==vector.c.origin_uuid",
-        secondaryjoin="Node.uuid==vector.c.destination_uuid",
-        backref="predecessors"
-    )
-
     def incoming_vectors(self, status="alive"):
         if status == "all":
             incoming_vectors = Vector.query.filter_by(destination=self).all()
@@ -269,8 +260,7 @@ class Node(Base):
                 for w in to_whom:
                     self.transmit(what=what, to_whom=w)
             elif inspect.isclass(to_whom) and issubclass(to_whom, Node):
-                to_whom = [w for w in self.successors
-                           if isinstance(w, to_whom)]
+                to_whom = [w for w in self.downstream_nodes(type=to_whom)]
                 self.transmit(what=what, to_whom=to_whom)
             elif isinstance(to_whom, Node):
                 if not self.has_connection_to(to_whom):

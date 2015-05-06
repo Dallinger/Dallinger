@@ -68,10 +68,10 @@ class TestModels(object):
         assert node2.indegree == 1
         assert node2.outdegree == 0
 
-        assert node1.successors == [node2]
-        assert len(node1.predecessors) == 0
-        assert node2.predecessors == [node1]
-        assert len(node2.successors) == 0
+        assert node1.downstream_nodes() == [node2]
+        assert len(node1.upstream_nodes()) == 0
+        assert node2.upstream_nodes() == [node1]
+        assert len(node2.downstream_nodes()) == 0
 
     def test_node_connect_to(self):
         """Test connecting one node to another"""
