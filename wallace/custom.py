@@ -287,14 +287,8 @@ def api_notifications():
 
     exp = experiment(session)
 
-    print "Received a notification:"
-    for v in request.values:
-        print v
-
     # Get the assignment id.
     assignment_id = request.values['Event.1.AssignmentId']
-    print "Assignment ID:"
-    print assignment_id
 
     # Transform the assignment id to the SHA512 hash of the unique id from the
     # psiTurk table.
@@ -324,6 +318,9 @@ def api_notifications():
             node.fail()
 
     elif event_type == 'HITReviewable':
+
+        print "HIT became reviewable."
+
         # Recruit new participants.
         exp.participant_completion_trigger(participant_uuid=participant_uuid)
 
