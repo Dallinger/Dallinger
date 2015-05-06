@@ -22,6 +22,10 @@ class TestProcesses(object):
         net.add(agent1)
         net.add(agent2)
         net.add(agent3)
+        self.db.add(agent1)
+        self.db.add(agent2)
+        self.db.add(agent3)
+        self.db.commit()
 
         agent1.connect_to(agent2)
         agent2.connect_to(agent3)
@@ -58,6 +62,7 @@ class TestProcesses(object):
         agent3 = agents.ReplicatorAgent()
         self.db.add_all([agent1, agent2, agent3])
         net.add([agent1, agent2, agent3])
+        self.db.commit()
 
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
@@ -96,6 +101,7 @@ class TestProcesses(object):
         agent2 = agents.ReplicatorAgent()
         agent3 = agents.ReplicatorAgent()
         self.db.add_all([agent1, agent2, agent3])
+        self.db.commit()
 
         net.add([agent1, agent2, agent3])
 

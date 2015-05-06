@@ -97,7 +97,7 @@ class Node(Base):
     def incoming_vectors(self, status="alive"):
         if status == "all":
             incoming_vectors = Vector.query.filter_by(destination=self).all()
-        elif status == "alive" or status == "dead":
+        elif status in ["alive", "dead", "failed"]:
             incoming_vectors = Vector.query.filter_by(destination=self).filter_by(status=status).all()
         else:
             raise(ValueError("Cannot get incoming_vectors with status {} as it is not a valid status.".format(status)))
@@ -106,37 +106,47 @@ class Node(Base):
     def outgoing_vectors(self, status="alive"):
         if status == "all":
             outgoing_vectors = Vector.query.filter_by(origin=self).all()
-        elif status == "alive" or status == "dead":
+        elif status in ["alive", "dead", "failed"]:
             outgoing_vectors = Vector.query.filter_by(origin=self).filter_by(status=status).all()
         else:
             raise(ValueError("Cannot get outgoing_vectors with status {} as it is not a valid status.".format(status)))
         return outgoing_vectors
 
     def downstream_nodes(self, type=None, status="alive"):
+        """
+        Get all nodes of given type that this node connects to.
+        If status is alive/dead/failed, looks for nodes of that status along
+        vectors of that status (i.e., dead nodes at the end of dead vectors).
+        """
         if type is None:
             type = Node
-        if status == "all":
-            return [v.destination for v in self.outgoing_vectors()
-                    if isinstance(v.destination, type)]
-        elif status == "alive" or status == "dead" or status == "failed":
-            return [v.destination for v in self.outgoing_vectors()
+        if status in ["alive", "dead", "failed"]:
+            return [v.destination for v in self.outgoing_vectors(status=status)
                     if isinstance(v.destination, type) and v.destination.status == status]
         else:
             raise(ValueError("Cannot get downstream_nodes with status {} as it is not a valid status.".format(status)))
 
     def upstream_nodes(self, type=None, status="alive"):
+        """
+        Get all nodes of given type that connect to this node.
+        If status is alive/dead/failed, looks for nodes of that status along
+        vectors of that status (i.e., dead nodes at the end of dead vectors).
+        """
         if type is None:
             type = Node
-        if status == "all":
-            return [v.origin for v in self.incoming_vectors()
-                    if isinstance(v.origin, type)]
-        elif status == "alive" or status == "dead" or status == "failed":
-            return [v.origin for v in self.incoming_vectors()
+        if status in ["alive", "dead", "failed"]:
+            return [v.origin for v in self.incoming_vectors(status=status)
                     if isinstance(v.origin, type) and v.origin.status == status]
         else:
             raise(ValueError("Cannot get_upstream_nodes with status {} as it is not a valid status.".format(status)))
 
-    def infos(self, type=None):
+    def infos(self, type=None, status="alive"):
+        """
+        Get infos that originated at this node.
+        By passing status as an argument you can get alive/dead/failed infos.
+        Status defaults to alive.
+        """
+
         if type is None:
             type = Info
         if not issubclass(type, Info):
@@ -146,27 +156,37 @@ class Node(Base):
                 .query\
                 .order_by(type.creation_time)\
                 .filter(type.origin == self)\
+                .filter_by(status=status)\
                 .all()
 
     def __repr__(self):
         return "Node-{}-{}".format(self.uuid[:6], self.type)
 
     def connect_to(self, other_node):
-        """Creates a directed edge from self to other_node
-        other_node may be a list of nodes
-        will raise an error if you try to conntect_to anything other than a node
-        will also raise an error if you try to connect_to a source"""
-        if isinstance(other_node, list):
-            for node in other_node:
-                self.connect_to(node)
-        elif self.has_connection_to(other_node):
-            print "Warning! {} is already connected to {}, cannot make another vector without killing the old one.".format(self, other_node)
-        elif self == other_node:
-            raise(ValueError("{} cannot connect to itself.".format(self)))
+        """Creates a vector from self to other_node.
+        other_node may be a list of nodes.
+        Will raise an error if:
+        (1) other_node is not a node or list of nodes
+        (2) other_node is a source
+        (3) other_node is not alive
+        (4) other_node is yourself
+        (5) other_node is in a different network
+        If self is already connected to other_node a Warning
+        is raised and nothing happens.
+        """
+
+        if not isinstance(other_node, Node):
+            if isinstance(other_node, list):
+                for node in other_node:
+                    self.connect_to(node)
+            else:
+                raise(TypeError('{} cannot connect to {} as it is a {}'.format(self, other_node, type(other_node))))
         elif isinstance(other_node, Source):
             raise(TypeError("{} cannot connect_to {} as it is a Source.".format(self, other_node)))
-        elif not isinstance(other_node, Node):
-            raise(TypeError('{} cannot connect to {} as it is a {}'.format(self, other_node, type(other_node))))
+        elif other_node.status != "alive":
+            raise(ValueError("{} cannot connect to {} as it is {}".format(self, other_node, other_node.status)))
+        elif self == other_node:
+            raise(ValueError("{} cannot connect to itself.".format(self)))
         elif self.network_uuid != other_node.network_uuid:
             raise(ValueError(("{} cannot connect to {} as they are not " +
                               "in the same network. {} is in network {}, " +
@@ -174,9 +194,10 @@ class Node(Base):
                              .format(self, other_node, self, self.network_uuid,
                                      other_node, other_node.network_uuid)))
         else:
-            Vector(origin=self, destination=other_node, network=self.network)
-            #vector = Vector(origin=self, destination=other_node)
-            #return vector
+            if self.has_connection_to(other_node):
+                print "Warning! {} is already connected to {}, cannot make another vector without killing the old one.".format(self, other_node)
+            else:
+                Vector(origin=self, destination=other_node, network=self.network)
 
     def connect_from(self, other_node):
         """Creates a directed edge from other_node to self
@@ -323,13 +344,13 @@ class Node(Base):
     def has_connection_to(self, other_node):
         """Whether this node has a connection to 'other_node'. Can take a list
         of nodes. If passed a list returns a list of booleans."""
-        # return other_node in self.successors
         if isinstance(other_node, list):
             return [self.has_connection_to(n) for n in other_node]
-        elif not isinstance(other_node, Node):
+        elif isinstance(other_node, Node):
+            return other_node in self.downstream_nodes()
+        else:
             raise(TypeError("Cannot check if {} is connected to {} as {} is not a Node, it is a {}".
                   format(self, other_node, other_node, type(other_node))))
-        return other_node in self.downstream_nodes()
 
     def has_connection_from(self, other_node):
         """Whether this node has a connection from 'other_node'.
@@ -529,7 +550,7 @@ class Vector(Base):
         backref="all_incoming_vectors")
 
     # the status of the vector
-    status = Column(Enum("alive", "dead", name="vector_status"),
+    status = Column(Enum("alive", "dead", "failed", name="vector_status"),
                     nullable=False, default="alive")
 
     # the time when the vector changed from alive->dead
@@ -727,6 +748,10 @@ class Info(Base):
     network_uuid = association_proxy('origin', 'network_uuid')
 
     network = association_proxy('origin', 'network')
+
+    # the status of the info
+    status = Column(Enum("alive", "dead", "failed", name="vector_status"),
+                    nullable=False, default="alive")
 
     # the contents of the info
     contents = Column(Text())

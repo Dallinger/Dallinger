@@ -80,10 +80,12 @@ class TestModels(object):
         node3 = models.Node()
         node4 = models.Node()
         self.add(node1, node2, node3, node4)
+        self.db.commit()
 
         node1.connect_to(node2)
 
         assert node1.downstream_nodes() == [node2]
+
         assert node2.upstream_nodes() == [node1]
 
         node2.connect_to([node3, node4])
@@ -102,6 +104,11 @@ class TestModels(object):
         """Test connecting one node from another"""
         node1 = models.Node()
         node2 = models.Node()
+
+        self.add(node1)
+        self.add(node2)
+        self.db.commit()
+
         node1.connect_from(node2)
         self.add(node1, node2)
 
@@ -114,6 +121,8 @@ class TestModels(object):
         for i in xrange(5):
             assert node1.outdegree == i
             new_node = models.Node()
+            self.add(new_node)
+            self.db.commit()
             node1.connect_to(new_node)
             self.add(new_node)
 
@@ -140,6 +149,9 @@ class TestModels(object):
     def test_node_has_connection_to(self):
         node1 = models.Node()
         node2 = models.Node()
+        self.add(node1, node2)
+        self.db.commit()
+
         node1.connect_to(node2)
         self.add(node1, node2)
 
@@ -149,6 +161,9 @@ class TestModels(object):
     def test_node_has_connection_from(self):
         node1 = models.Node()
         node2 = models.Node()
+        self.add(node1, node2)
+        self.db.commit()
+
         node1.connect_to(node2)
         self.add(node1, node2)
 
@@ -316,6 +331,9 @@ class TestModels(object):
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
         agent3 = agents.ReplicatorAgent()
+        self.add(agent1, agent2, agent3)
+        self.db.commit()
+
         agent1.connect_from(agent2)
         agent1.connect_from(agent3)
         self.add(agent1, agent2, agent3)
@@ -336,6 +354,9 @@ class TestModels(object):
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
         agent3 = agents.ReplicatorAgent()
+        self.add(agent1, agent2, agent3)
+        self.db.commit()
+
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
         self.add(agent1, agent2, agent3)

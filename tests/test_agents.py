@@ -26,6 +26,12 @@ class TestAgents(object):
         agent1 = agents.Agent()
         agent2 = agents.Agent()
         agent3 = agents.Agent()
+
+        self.add(agent1)
+        self.add(agent2)
+        self.add(agent3)
+        self.db.commit()
+
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
         self.add(agent1, agent2, agent3)
@@ -66,6 +72,9 @@ class TestAgents(object):
     def test_agent_transmit(self):
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
+        self.add(agent1)
+        self.add(agent2)
+        self.db.commit()
         agent1.connect_to(agent2)
         info = models.Info(origin=agent1, contents="foo")
         self.add(agent1, agent2, info)
@@ -98,6 +107,10 @@ class TestAgents(object):
     def test_agent_transmit_invalid_info(self):
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
+        self.add(agent1)
+        self.add(agent2)
+        self.db.commit()
+
         agent1.connect_to(agent2)
         info = models.Info(origin=agent2, contents="foo")
         self.add(agent1, agent2, info)
@@ -109,6 +122,12 @@ class TestAgents(object):
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
         agent3 = agents.ReplicatorAgent()
+
+        self.add(agent1)
+        self.add(agent2)
+        self.add(agent3)
+        self.db.commit()
+
         agent1.connect_to(agent2)
         agent1.connect_to(agent3)
         info = models.Info(origin=agent1, contents="foo")
@@ -134,6 +153,11 @@ class TestAgents(object):
         # Create a network of two biological agents.
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
+
+        self.add(agent1)
+        self.add(agent2)
+        self.db.commit()
+
         agent1.connect_to(agent2)
 
         self.add(agent1)
@@ -167,6 +191,11 @@ class TestAgents(object):
         # Create a network of two biological agents.
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
+
+        self.add(agent1)
+        self.add(agent2)
+        self.db.commit()
+
         agent1.connect_to(agent2)
 
         self.add(agent1)
@@ -200,6 +229,11 @@ class TestAgents(object):
         # Create a network of two biological agents.
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
+
+        self.add(agent1)
+        self.add(agent2)
+        self.db.commit()
+
         agent1.connect_to(agent2)
 
         self.add(agent1)

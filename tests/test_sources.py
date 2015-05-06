@@ -23,6 +23,10 @@ class TestSources(object):
     def test_transmit_random_binary_string_source(self):
         source = sources.RandomBinaryStringSource()
         agent = agents.ReplicatorAgent()
+        self.db.add(source)
+        self.db.add(agent)
+        self.db.commit()
+
         source.connect_to(agent)
         self.add(source, agent)
 
@@ -38,6 +42,9 @@ class TestSources(object):
         source = sources.RandomBinaryStringSource()
         agent1 = agents.ReplicatorAgent()
         agent2 = agents.ReplicatorAgent()
+        self.db.add(agent1)
+        self.db.add(agent2)
+        self.db.commit()
         source.connect_to(agent1)
         source.connect_to(agent2)
         self.add(source, agent1, agent2)

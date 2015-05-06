@@ -94,6 +94,8 @@ class TestNetworks(object):
 
         net.add(agent1)
         net.add(agent2)
+        self.db.commit()
+
         agent1.connect_to(agent2)
         self.db.commit()
 
@@ -186,6 +188,7 @@ class TestNetworks(object):
 
         self.db.add_all([node1, node2, agent1, agent2, source1, source2])
         net.add([node1, node2, agent1, agent2, source1, source2])
+        self.db.commit()
 
         node1.connect_to([node2, agent1, agent2])
 
