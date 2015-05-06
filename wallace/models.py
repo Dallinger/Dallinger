@@ -85,6 +85,7 @@ class Node(Base):
             raise ValueError("{} is not a valid vector direction. Must be all, incoming or outgoing.".format(direction))
         if status not in ["alive", "dead", "failed"]:
             raise Warning("Warning, possible typo: {} is not a standard vector status".format(status))
+
         if direction == "all":
             if status == "all":
                 return Vector.query\
@@ -95,7 +96,7 @@ class Node(Base):
                     .filter(or_(Vector.destination == self, Vector.origin == self))\
                     .filter_by(status=status)\
                     .all()
-        elif direction == "incoming":
+        if direction == "incoming":
             if status == "all":
                 return Vector.query\
                     .filter_by(destination=self)\
@@ -105,7 +106,7 @@ class Node(Base):
                     .filter_by(destination=self)\
                     .filter_by(status=status)\
                     .all()
-        elif direction == "outgoing":
+        if direction == "outgoing":
             if status == "all":
                 return Vector.query\
                     .filter_by(origin=self)\
@@ -131,57 +132,152 @@ class Node(Base):
             raise Warning("Warning, possible typo: {} is not a standard neighbor status".format(status))
         if connection not in ["all", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
+
         if connection == "all":
-            neighbors = ([v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type)] +
-                         [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type)])
-            neighbors.sort(key=lambda node: node.creation_time)
-            return list(set(neighbors))
+            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type)] +
+                                 [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type)]))
+            return neighbors.sort(key=lambda node: node.creation_time)
         if connection == "to":
             return [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type)]
         if connection == "from":
             return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type)]
 
     def is_connected(self, other_node, direction="either", status="alive"):
+        """
+        Checks whether this node is connected to the other_node.
+        other_node can be a list of nodes or a single node.
+        direction can be "to", "from", "both" or "either" (the default).
+        status can be anything, but standard values are "alive" (the default)
+        "dead" and "failed".
+        """
         if status not in ["alive", "dead", "failed"]:
             raise Warning("Warning, possible typo: {} is not a standard connection status".format(status))
         if direction not in ["to", "from", "either", "both"]:
             raise ValueError("{} is not a valid direction for is_connected".format(direction))
-        if isinstance(other_node, list):
-            return [self.is_connected(other_node=n, status=status, direction=direction) for n in other_node]
-        elif isinstance(other_node, Node):
-            if direction == "to":
-                return other_node in self.neighbors(connection="to", status=status)
-            elif direction == "from":
-                return other_node in self.neighbors(connection="from", status=status)
-            elif direction == "either":
-                return other_node in self.neighbors(status=status)
-            else:
-                return (other_node in self.neighbors(connection="to", status=status) and
-                        other_node in self.neighbors(connection="from", status=status))
-        else:
+        if not (isinstance(other_node, list) or isinstance(other_node, Node)):
             raise(TypeError("Cannot perform is_connected over obvjects of type {}.".
                   format(type(other_node))))
+
+        if isinstance(other_node, list):
+            return [self.is_connected(other_node=n, status=status, direction=direction) for n in other_node]
+        if isinstance(other_node, Node):
+            if direction == "to":
+                return other_node in self.neighbors(connection="to", status=status)
+            if direction == "from":
+                return other_node in self.neighbors(connection="from", status=status)
+            if direction == "either":
+                return other_node in self.neighbors(status=status)
+            if direction == "both":
+                return (other_node in self.neighbors(connection="to", status=status) and
+                        other_node in self.neighbors(connection="from", status=status))
 
     def infos(self, type=None, status="alive"):
         """
         Get infos that originate from this node.
-        Type must be a subclass of info, but defaults to Info.
-        Status can be "alive", "dead", "failed" or anything else, but defaults to alive.
+        Type must be a subclass of info, the default is Info.
+        Status can be anything, but standard values are "alive" (the default),
+        "dead" and "failed".
         """
-
         if type is None:
             type = Info
         if not issubclass(type, Info):
             raise(TypeError("Cannot get-info of type {} as it is not a valid type.".format(type)))
         if status not in ["alive", "dead", "failed"]:
             raise Warning("Warning, possible typo: {} is not a standard info status".format(status))
-        else:
-            return type\
-                .query\
-                .order_by(type.creation_time)\
-                .filter(type.origin == self)\
-                .filter_by(status=status)\
-                .all()
+
+        return type\
+            .query\
+            .order_by(type.creation_time)\
+            .filter(type.origin == self)\
+            .filter_by(status=status)\
+            .all()
+
+    def transmissions(self, direction="all", state="all", status="alive"):
+        """
+        Get transmissions sent to or from this node.
+        Direction can be "all", "incoming" or "outgoing", but defaults to "all".
+        State can be "all" (the default), "pending", or "received".
+        Status can be anything, but standard values are "alive" (the default),
+        "dead" and "failed".
+        """
+        if direction not in ["incoming", "outgoing", "all"]:
+            raise(ValueError("You cannot get transmissions of direction {}.".format(direction) +
+                  "Type can only be incoming, outgoing or all."))
+        if state not in ["all", "pending", "received"]:
+            raise(ValueError("You cannot get transmission of status {}.".format(status) +
+                  "Status can only be pending, received or all"))
+        if status not in ["alive", "dead", "failed"]:
+            raise Warning("Warning, possible typo: {} is not a standard info status".format(status))
+
+        if direction == "incoming":
+            if state == "all":
+                return Transmission\
+                    .query\
+                    .filter_by(destination_uuid=self.uuid)\
+                    .filter_by(status=status)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif state == "pending":
+                return Transmission\
+                    .query\
+                    .filter_by(destination_uuid=self.uuid)\
+                    .filter_by(status=status)\
+                    .filter(Transmission.receive_time == None)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif state == "received":
+                return Transmission\
+                    .query\
+                    .filter_by(destination_uuid=self.uuid)\
+                    .filter_by(status=status)\
+                    .filter(Transmission.receive_time != None)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+        if direction == "outgoing":
+            if state == "all":
+                return Transmission\
+                    .query\
+                    .filter_by(origin_uuid=self.uuid)\
+                    .filter_by(status=status)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif state == "pending":
+                return Transmission\
+                    .query\
+                    .filter_by(origin_uuid=self.uuid)\
+                    .filter_by(status=status)\
+                    .filter(Transmission.receive_time == None)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif state == "received":
+                return Transmission\
+                    .query\
+                    .filter_by(origin_uuid=self.uuid)\
+                    .filter_by(status=status)\
+                    .filter(Transmission.receive_time != None)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+        if direction == "all":
+            if state == "all":
+                return Transmission\
+                    .query\
+                    .filter_by(status=status)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif state == "pending":
+                return Transmission\
+                    .query\
+                    .filter(Transmission.receive_time == None)\
+                    .filter_by(status=status)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
+            elif state == "received":
+                return Transmission\
+                    .query\
+                    .filter(Transmission.receive_time != None)\
+                    .filter_by(status=status)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
 
     """ ###################################
     Methods that make nodes do things
@@ -423,90 +519,6 @@ class Node(Base):
         raise NotImplementedError(
             "The update method of node '{}' has not been overridden"
             .format(self))
-
-    def transmissions(self, direction=None, state="all", status="alive"):
-        if direction is None:
-            raise(ValueError("You cannot get transmissions without specifying the type of transmission you want" +
-                  "It should be incoming, outgoing or all"))
-        if direction not in ["incoming", "outgoing", "all"]:
-            raise(ValueError("You cannot get transmissions of type {}.".format(type) +
-                  "Type can only be incoming, outgoing or all."))
-        if state not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of status {}.".format(status) +
-                  "Status can only be pending, received or all"))
-        if direction == "incoming":
-            if state == "all":
-                return Transmission\
-                    .query\
-                    .filter_by(destination_uuid=self.uuid)\
-                    .filter_by(status="alive")\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "pending":
-                return Transmission\
-                    .query\
-                    .filter_by(destination_uuid=self.uuid)\
-                    .filter_by(status="alive")\
-                    .filter(Transmission.receive_time == None)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "received":
-                return Transmission\
-                    .query\
-                    .filter_by(destination_uuid=self.uuid)\
-                    .filter_by(status="alive")\
-                    .filter(Transmission.receive_time != None)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-        elif direction == "outgoing":
-            if state == "all":
-                return Transmission\
-                    .query\
-                    .filter_by(origin_uuid=self.uuid)\
-                    .filter_by(status="alive")\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "pending":
-                return Transmission\
-                    .query\
-                    .filter_by(origin_uuid=self.uuid)\
-                    .filter_by(status="alive")\
-                    .filter(Transmission.receive_time == None)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "received":
-                return Transmission\
-                    .query\
-                    .filter_by(origin_uuid=self.uuid)\
-                    .filter_by(status="alive")\
-                    .filter(Transmission.receive_time != None)\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-        elif direction == "all":
-            if state == "all":
-                return Transmission\
-                    .query\
-                    .filter_by(status="alive")\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "pending":
-                return Transmission\
-                    .query\
-                    .filter(Transmission.receive_time == None)\
-                    .filter_by(status="alive")\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-            elif state == "received":
-                return Transmission\
-                    .query\
-                    .filter(Transmission.receive_time != None)\
-                    .filter_by(status="alive")\
-                    .order_by(Transmission.transmit_time)\
-                    .all()
-        else:
-            raise(Exception("The arguments passed to transmissions() did not cause an error," +
-                  " but also did not cause the method to run properly. This needs to be fixed asap." +
-                  "status: {}, type: {}".format(status, type)))
 
 
 class Agent(Node):
