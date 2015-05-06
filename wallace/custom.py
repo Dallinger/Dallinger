@@ -321,9 +321,9 @@ def api_notifications():
             print "Failing node {}.".format(node)
             node.fail()
 
-    elif event_type == 'HITReviewable':
+    elif event_type == 'AssignmentSubmitted':
 
-        print "HIT became reviewable."
+        print "Assignment became reviewable."
 
         # Recruit new participants.
         exp.participant_completion_trigger(participant_uuid=participant_uuid)
