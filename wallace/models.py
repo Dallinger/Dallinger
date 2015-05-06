@@ -730,6 +730,15 @@ class Network(Base):
 
 
 class Info(Base):
+    """
+    An Info is a unit of information.
+    Infos can be sent along Vectors with Transmissions.
+    """
+
+    """ ###################################
+    SQLAlchemy stuff. Touch at your peril!
+    ################################### """
+
     __tablename__ = "info"
 
     # the unique info id
@@ -767,6 +776,14 @@ class Info(Base):
 
 
 class Transmission(Base):
+    """
+    A Transmission is when an Info is sent along a Vector.
+    """
+
+    """ ###################################
+    SQLAlchemy stuff. Touch at your peril!
+    ################################### """
+
     __tablename__ = "transmission"
 
     # the unique transmission id
@@ -800,26 +817,6 @@ class Transmission(Base):
         String(32), ForeignKey('node.uuid'), nullable=False)
     destination = relationship(Node, foreign_keys=[destination_uuid])
 
-    def die(self):
-        if self.status == "dead":
-            raise AttributeError("You cannot kill {} - it is already dead.".format(self))
-        else:
-            self.status = "dead"
-            self.time_of_death = timenow()
-
-    def fail(self):
-        if self.status == "failed":
-            raise AttributeError("You cannot fail {} - it has already failed.".format(self))
-        else:
-            self.status = "failed"
-            self.time_of_death = timenow()
-
-    # @property
-    # def vector(self):
-    #     return Vector.query.filter_by(
-    #         origin_uuid=self.origin_uuid,
-    #         destination_uuid=self.destination_uuid).one()
-
     def mark_received(self):
         self.receive_time = timenow()
 
@@ -828,6 +825,14 @@ class Transmission(Base):
 
 
 class Transformation(Base):
+    """
+    A Transformation is when one info is used to generate another Info.
+    """
+
+    """ ###################################
+    SQLAlchemy stuff. Touch at your peril!
+    ################################### """
+
     __tablename__ = "transformation"
 
     # the transformation type -- this allows for inheritance
