@@ -496,19 +496,30 @@ class Node(Base):
         """
         Update controls the default behavior of a node when it receives infos.
         It needs to be overridden.
-        For informative examples see the update methods
-        of Agent and ReplicatorAgent.
+        For informative examples see the ReplicatorAgent.update().
         """
         raise NotImplementedError(
             "The update method of node '{}' has not been overridden"
             .format(self))
 
+    def replicate(self, info_in):
+        """
+        Replicate can be called by update.
+        It causes the node to duplicate the info.
+        """
+        info_type = type(info_in)
+        info_out = info_type(origin=self, contents=info_in.contents)
+
+        from .transformations import Replication
+        # Register the transformation.
+        Replication(info_out=info_out, info_in=info_in, node=self)
+
 
 class Agent(Node):
 
-    """Agents have genomes and memomes, and update their contents when faced.
-    By default, agents transmit unadulterated copies of their genomes and
-    memomes, with no error or mutation.
+    """
+    An Agent is a type of Node.
+    Unlike a base Node it has a fitness.
     """
 
     __tablename__ = "agent"
@@ -517,45 +528,31 @@ class Agent(Node):
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
     fitness = Column(Float, nullable=True, default=None)
 
-    def _selector(self):
-        raise DeprecationWarning(
-            "_selector is deprecated - ",
-            "use _what() instead.")
-
-    def update(self, infos):
-        raise NotImplementedError(
-            "You have not overridden the update method in {}"
-            .format(type(self)))
-
     def calculate_fitness(self):
-        raise NotImplementedError(
-            "You have not overridden the calculate_fitness method in {}"
-            .format(type(self)))
-
-    def replicate(self, info_in):
-        """Create a new info of the same type as the incoming info."""
-        info_type = type(info_in)
-        info_out = info_type(origin=self, contents=info_in.contents)
-
-        # Register the transformation.
-        from .transformations import Replication
-        Replication(info_out=info_out, info_in=info_in, node=self)
+        raise NotImplementedError("{}.calculate_fitness() needs to be written.".format(type(self)))
 
 
 class Source(Node):
+    """
+    A Source is a type of Node.
+    Unlike a base Node it has a create_information method.
+    By default, when asked to transmit, a Source creates new information
+    and sends that information.
+    Sources cannot receive information.
+    """
     __tablename__ = "source"
     __mapper_args__ = {"polymorphic_identity": "generic_source"}
 
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     def create_information(self):
-        """Generate new information."""
-        raise NotImplementedError(
-            "{} cannot create_information as it does not override ",
-            "the default method.".format(type(self)))
+        raise NotImplementedError("{}.create_information() needs to be written.".format(type(self)))
 
     def _what(self):
         return self.create_information()
+
+    def receive(self, what):
+        raise Exception("Sources cannot receive transmissions.")
 
 
 class Vector(Base):
