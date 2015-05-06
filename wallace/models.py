@@ -462,15 +462,6 @@ class Node(Base):
     def _to_whom(self):
         return Node
 
-    def observe(self, environment):
-        """
-        Observe prompts a node of type Environment to transmit to this node.
-        It also returns the information that was transmitted.
-        See also Environment.get_observed().
-        """
-        state = environment.get_observed(by_whom=self)
-        return state
-
     def receive_all(self):
         """
         Marks all pending transmissions as received and then passes them as a list to update().
