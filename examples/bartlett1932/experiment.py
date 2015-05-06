@@ -28,15 +28,6 @@ class Bartlett1932(Experiment):
                 net.add_source(source)
                 self.save()
 
-    def participant_completion_trigger(self):
-
-        if self.is_experiment_over():
-            # If the experiment is over, stop recruiting and export the data.
-            self.recruiter().close_recruitment(self)
-        else:
-            # Otherwise recruit a new participant.
-            self.recruiter().recruit_new_participants(self, n=1)
-
     def create_agent_trigger(self, agent, network):
         network.add_agent(agent)
         processes.random_walk(network)
