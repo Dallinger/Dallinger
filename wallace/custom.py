@@ -89,7 +89,7 @@ def compute_bonus():
         abort(404)  # again, bad to display HTML, but...
 
 
-@custom_code.route("/agents", methods=["POST", "GET"])
+@custom_code.route("/agents", methods=["POST"])
 def api_agent_create():
 
     exp = experiment(session)
@@ -108,12 +108,6 @@ def api_agent_create():
             return Response(js, status=200, mimetype='application/json')
         except:
             return Response(status=403)
-
-    if request.method == "GET":
-        data_agents = [agent.uuid for agent in exp.network.nodes(type=Agent)]
-        data = {"agents": data_agents}
-        js = dumps(data)
-        return Response(js, status=200, mimetype='application/json')
 
 
 @custom_code.route("/transmissions",
