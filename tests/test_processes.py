@@ -39,14 +39,14 @@ class TestProcesses(object):
 
         processes.random_walk(net)
 
-        agent1.receive_all()
+        agent1.receive()
         msg = agent1.infos()[0].contents
 
         processes.random_walk(net)
-        agent2.receive_all()
+        agent2.receive()
 
         processes.random_walk(net)
-        agent3.receive_all()
+        agent3.receive()
 
         assert msg == agent3.infos()[0].contents
 
@@ -76,13 +76,13 @@ class TestProcesses(object):
         for agent in net.nodes(type=Agent):
             source.connect_to(agent)
             source.transmit(to_whom=agent)
-            agent.receive_all()
+            agent.receive()
 
         # Run a Moran process for 100 steps.
         for i in xrange(100):
             processes.moran_cultural(net)
             for agent in net.nodes(type=Agent):
-                agent.receive_all()
+                agent.receive()
 
         # Ensure that the process had reached fixation.
         assert agent1.infos()[-1].contents == agent2.infos()[-1].contents
@@ -122,7 +122,7 @@ class TestProcesses(object):
 
         for agent in net.nodes(type=Agent):
             source.transmit(to_whom=agent)
-            agent.receive_all()
+            agent.receive()
 
         # Run a Moran process for 100 steps.
         for i in range(100):
@@ -131,7 +131,7 @@ class TestProcesses(object):
             self.db.add(newcomer)
             processes.moran_sexual(net)
             for agent in net.nodes(type=Agent):
-                agent.receive_all()
+                agent.receive()
 
         # Ensure that the process had reached fixation.
         assert agent1.status == "dead"

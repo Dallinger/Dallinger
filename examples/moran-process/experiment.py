@@ -43,7 +43,7 @@ class SubstitutionCiphersExperiment(Experiment):
         # Run the next step of the process.
         self.process.step()
 
-        newcomer.receive_all()
+        newcomer.receive()
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.

@@ -83,7 +83,7 @@ class TestAgents(object):
         agent1.transmit(to_whom=agent2)
         self.db.commit()
 
-        agent2.receive_all()
+        agent2.receive()
         self.db.commit()
 
         assert agent1.infos()[0].contents == agent2.infos()[0].contents
@@ -137,8 +137,8 @@ class TestAgents(object):
         agent1.transmit(what=models.Info, to_whom=agents.Agent)
         self.db.commit()
 
-        agent2.receive_all()
-        agent3.receive_all()
+        agent2.receive()
+        agent3.receive()
         self.db.commit()
 
         assert agent1.infos()[0].contents == agent2.infos()[0].contents
@@ -179,7 +179,7 @@ class TestAgents(object):
         agent1.transmit(to_whom=agent2)
 
         # Receive the transmission.
-        agent2.receive_all()
+        agent2.receive()
         self.db.commit()
 
         # Make sure that Agent 2 has a blank memome and the right gene.
@@ -217,7 +217,7 @@ class TestAgents(object):
         agent1.transmit(what=gene, to_whom=agent2)
 
         # Receive the transmission.
-        agent2.receive_all()
+        agent2.receive()
         self.db.commit()
 
         # Make sure that Agent 2 has a blank memome and the right gene.
@@ -257,7 +257,7 @@ class TestAgents(object):
         agent1.transmit(what=information.Meme, to_whom=agent2)
 
         # Receive the transmission.
-        agent2.receive_all()
+        agent2.receive()
         self.db.commit()
 
         # Make sure that Agent 2 has a blank memome and the right gene.

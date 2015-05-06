@@ -50,7 +50,7 @@ class Translations(Experiment):
         # Run the next step of the process.
         self.process.step()
 
-        newcomer.receive_all()
+        newcomer.receive()
 
         # Trigger experiment-specific behavior that happens on creation
         newcomer.is_visible = True

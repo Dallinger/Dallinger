@@ -35,6 +35,6 @@ class TestEnvironments(object):
 
         environment.connect_to(agent)
         environment.transmit(to_whom=agent)
-        agent.receive_all()
+        agent.receive()
 
         assert agent.infos()[0].contents == "foo"

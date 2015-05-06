@@ -33,7 +33,7 @@ class TestSources(object):
         source.transmit(to_whom=agent)
         self.db.commit()
 
-        agent.receive_all()
+        agent.receive()
         self.db.commit()
 
         assert agent.infos()[0].contents in ["00", "01", "10", "11"]
@@ -52,8 +52,8 @@ class TestSources(object):
         source.transmit(what=source.create_information())
         self.db.commit()
 
-        agent1.receive_all()
-        agent2.receive_all()
+        agent1.receive()
+        agent2.receive()
         self.db.commit()
 
         assert agent1.infos()[0].contents in ["00", "01", "10", "11"]

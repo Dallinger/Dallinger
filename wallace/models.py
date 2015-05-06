@@ -462,43 +462,35 @@ class Node(Base):
     def _to_whom(self):
         return Node
 
-    def receive_all(self):
+    def receive(self, what="all"):
         """
-        Marks all pending transmissions as received and then passes them as a list to update().
-        See also receive().
-        """
-        pending_transmissions = self.transmissions(direction="incoming", state="pending")
-        for transmission in pending_transmissions:
-            transmission.receive_time = timenow()
-            transmission.mark_received()
-        self.update([t.info for t in pending_transmissions])
-
-    def receive(self, thing):
-        """
-        Marks a specific transmission or type of transmission as received
-        and then passes it/them to update().
-        "thing" is the transmission to be received and can be a specific info or subclass of Info.
+        Marks transmissions as received then passes their infos to update().
+        "what" can be:
+            (1) "all" (the default) in which case all pending transmissions are received
+            (2) a specific transmission.
+            (3) a subclass of Transmission, in which case all pending transmissions of that type are received.
         Will raise an error if the node is told to receive a transmission it has not been sent.
         """
-        if isinstance(thing, Transmission):
-            if thing in self.transmissions(direction="incoming", state="pending"):
-                thing.receive_time = timenow()
-                thing.mark_received()
-                self.update(thing.info)
+        received_transmissions = []
+        if what == "all":
+            pending_transmissions = self.transmissions(direction="incoming", state="pending")
+            for transmission in pending_transmissions:
+                transmission.receive_time = timenow()
+                received_transmissions.append(transmission)
+        elif isinstance(what, Transmission):
+            if what in self.transmissions(direction="incoming", state="pending"):
+                what.receive_time = timenow()
+                received_transmissions.append(what)
             else:
-                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, thing)))
-        elif isinstance(thing, Info):
-            relevant_transmissions = []
-            for transmission in self.transmissions(direction="incoming", state="pending"):
-                if transmission.info == thing:
-                    relevant_transmissions.append(transmission)
-            if (len(relevant_transmissions) > 0):
-                for transmission in relevant_transmissions:
-                    transmission.receive_time = timenow()
-                    transmission.mark_received()
-                self.update([t.info for t in relevant_transmissions])
-            else:
-                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, thing)))
+                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, what)))
+        elif issubclass(what, Transmission):
+            pending_transmissions = [t for t in self.transmissions(direction="incoming", state="pending") if isinstance(t, what)]
+            for transmission in pending_transmissions:
+                transmission.receive_time = timenow()
+                received_transmissions.append(transmission)
+        else:
+            raise ValueError("Nodes cannot receive {}".format(what))
+        self.update([t.info for t in received_transmissions])
 
     def update(self, infos):
         """
