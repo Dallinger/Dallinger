@@ -81,9 +81,9 @@ class Node(Base):
 
     def vectors(self, direction="all", status="alive"):
         """
-        Get vectors that connect to this node.
+        Get vectors that connect at this node.
         Direction can be "all", "incoming" or "outgoing", but defaults to "all".
-        Status can be "all", alive" (the default), "dead", "failed" or anything else.
+        Status can be "all", "alive" (the default), "dead", "failed" or anything else.
         """
         if direction not in ["all", "incoming", "outgoing"]:
             raise ValueError("{} is not a valid vector direction. Must be all, incoming or outgoing.".format(direction))
@@ -138,13 +138,13 @@ class Node(Base):
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
 
         if connection == "all":
-            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type)] +
-                                 [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type)]))
+            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.origin.status == status] +
+                                 [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]))
             return neighbors.sort(key=lambda node: node.creation_time)
         if connection == "to":
-            return [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type)]
+            return [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.origin.status == status]
         if connection == "from":
-            return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type)]
+            return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]
 
     def is_connected(self, other_node, direction="either", status="alive"):
         """
@@ -175,7 +175,7 @@ class Node(Base):
                 return (other_node in self.neighbors(connection="to", status=status) and
                         other_node in self.neighbors(connection="from", status=status))
 
-    def infos(self, type=None, status="alive"):
+    def infos(self, type=None):
         """
         Get infos that originate from this node.
         Type must be a subclass of info, the default is Info.
@@ -186,17 +186,14 @@ class Node(Base):
             type = Info
         if not issubclass(type, Info):
             raise(TypeError("Cannot get-info of type {} as it is not a valid type.".format(type)))
-        if status not in ["alive", "dead", "failed"]:
-            raise Warning("Warning, possible typo: {} is not a standard info status".format(status))
 
         return type\
             .query\
             .order_by(type.creation_time)\
             .filter(type.origin == self)\
-            .filter_by(status=status)\
             .all()
 
-    def transmissions(self, direction="all", state="all", status="alive"):
+    def transmissions(self, direction="all", state="all"):
         """
         Get transmissions sent to or from this node.
         Direction can be "all", "incoming" or "outgoing", but defaults to "all".
@@ -208,10 +205,8 @@ class Node(Base):
             raise(ValueError("You cannot get transmissions of direction {}.".format(direction) +
                   "Type can only be incoming, outgoing or all."))
         if state not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of state {}.".format(status) +
+            raise(ValueError("You cannot get transmission of state {}.".format(state) +
                   "State can only be pending, received or all"))
-        if status not in ["alive", "dead", "failed"]:
-            raise Warning("Warning, possible typo: {} is not a standard info status".format(status))
 
         vectors = self.vectors(direction=direction, status="all")
 
@@ -238,10 +233,8 @@ class Node(Base):
         else:
             self.status = "dead"
             self.time_of_death = timenow()
-            for v in self.vectors(direction="all", status="alive"):
+            for v in self.vectors(status="alive"):
                 v.die()
-            for i in self.infos():
-                i.die()
 
     def fail(self):
         """
@@ -257,16 +250,10 @@ class Node(Base):
         else:
             self.status = "failed"
             self.time_of_death = timenow()
-            for v in self.vectors(direction="incoming"):
+            for v in self.vectors(status="alive"):
                 v.fail()
-            for v in self.vectors(direction="outgoing"):
+            for v in self.vectors(status="dead"):
                 v.fail()
-            for i in self.infos():
-                i.fail()
-            for t in self.transmissions(direction="incoming", state="all"):
-                t.fail()
-            for t in self.transmissions(direction="outgoing", state="all"):
-                t.fail()
 
     def connect_to(self, other_node):
         """Creates a vector from self to other_node.
@@ -592,7 +579,14 @@ class Vector(Base):
 
 class Network(Base):
 
-    """A network of nodes."""
+    """
+    A Network is a collection of Nodes and Vectors.
+    Vectors can only link Nodes if they are in the same network
+    """
+
+    """ ###################################
+    SQLAlchemy stuff. Touch at your peril!
+    ################################### """
 
     __tablename__ = "network"
 
@@ -613,48 +607,72 @@ class Network(Base):
 
     role = Column(String(26), nullable=False, default="default")
 
-    def nodes(self, type=Node, status="alive"):
+    def __len__(self):
+        raise SyntaxError(
+            "len is not defined for networks. " +
+            "Use len(net.nodes()) instead.")
+
+    def __repr__(self):
+        return "<Network-{}-{} with {} agents, {} sources, {} vectors>".format(
+            self.uuid[:6],
+            self.type,
+            len(self.nodes(type=Agent)),
+            len(self.nodes(type=Source)),
+            len(self.vectors))
+
+    """ ###################################
+    Methods that get things about a Network
+    ################################### """
+
+    def nodes(self, type=Node, status="alive", participant_uuid=None):
         if not issubclass(type, Node):
             raise(TypeError("Cannot get nodes of type {} as it is not a valid type.".format(type)))
-        if status == "alive" or status == "dead" or status == "failed":
-            return type\
-                .query\
-                .order_by(type.creation_time)\
-                .filter(type.status == status)\
-                .filter(type.network == self)\
-                .all()
-        elif status == "all":
-            return type\
-                .query\
-                .order_by(type.creation_time)\
-                .filter(type.network == self)\
-                .all()
+        if status not in ["all", "alive", "dead", "failed"]:
+            raise Warning("Warning, possible typo: {} is not a standard node status".format(status))
+
+        if participant_uuid is not None:
+            if status == "all":
+                return type\
+                    .query\
+                    .filter_by(network=self)\
+                    .filter_by(participant_uuid=participant_uuid)\
+                    .all()
+            else:
+                return type\
+                    .query\
+                    .filter_by(network=self)\
+                    .filter_by(participant_uuid=participant_uuid)\
+                    .filter_by(status=status)\
+                    .all()
         else:
-            raise(ValueError("Cannot get nodes with status {} as it is not a valid status.".format(status)))
+            if status == "all":
+                return type\
+                    .query\
+                    .order_by(type.creation_time)\
+                    .filter(type.network == self)\
+                    .all()
+            else:
+                return type\
+                    .query\
+                    .order_by(type.creation_time)\
+                    .filter(type.status == status)\
+                    .filter(type.network == self)\
+                    .all()
 
-    def nodes_of_participant(self, participant_uuid):
-        return Node\
-            .query\
-            .filter_by(network=self)\
-            .filter_by(participant_uuid=participant_uuid)\
-            .all()
-
-    def transmissions(self, state="all", status="alive"):
+    def transmissions(self, state="all"):
         if state not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of status {}.".format(status) +
-                  "Status can only be pending, received or all"))
+            raise(ValueError("You cannot get transmission of state {}.".format(state) +
+                  "State can only be pending, received or all"))
         elif state == "all":
             return Transmission\
                 .query\
                 .filter_by(network_uuid=self.uuid)\
-                .filter_by(status=status)\
                 .order_by(Transmission.transmit_time)\
                 .all()
         elif state == "received":
             return Transmission\
                 .query\
                 .filter_by(network_uuid=self.uuid)\
-                .filter_by(status=status)\
                 .filter(Transmission.receive_time != None)\
                 .order_by(Transmission.transmit_time)\
                 .all()
@@ -662,14 +680,9 @@ class Network(Base):
             return Transmission\
                 .query\
                 .filter_by(network_uuid=self.uuid)\
-                .filter_by(status=status)\
                 .filter_by(receive_time=None)\
                 .order_by(Transmission.transmit_time)\
                 .all()
-        else:
-            raise(Exception("The arguments passed to transmissions() did not cause an error," +
-                  " but also did not cause the method to run properly. This needs to be fixed asap." +
-                  "status: {}, type: {}".format(status, type)))
 
     def latest_transmission_recipient(self):
         received_transmissions = reversed(self.transmissions(state="received"))
@@ -688,9 +701,9 @@ class Network(Base):
     def full(self):
         return len(self.nodes(type=Agent)) >= self.max_size
 
-    @property
-    def degrees(self):
-        return [agent.outdegree for agent in self.nodes(type=Agent)]
+    """ ###################################
+    Methods that make Networks do things
+    ################################### """
 
     def add(self, base):
         if isinstance(base, list):
@@ -701,19 +714,6 @@ class Network(Base):
         else:
             raise(TypeError("Cannot add {} to the network as it is a {}. " +
                             "Only Nodes can be added to networks.").format(base, type(base)))
-
-    def __len__(self):
-        raise SyntaxError(
-            "len is not defined for networks. " +
-            "Use len(net.nodes()) instead.")
-
-    def __repr__(self):
-        return "<Network-{}-{} with {} agents, {} sources, {} vectors>".format(
-            self.uuid[:6],
-            self.type,
-            len(self.nodes(type=Agent)),
-            len(self.nodes(type=Source)),
-            len(self.vectors))
 
     def print_verbose(self):
         print "Agents: "
@@ -727,13 +727,6 @@ class Network(Base):
         print "\nVectors: "
         for v in self.vectors:
             print v
-
-    def has_participant(self, participant_uuid):
-        nodes = Node.query\
-            .filter_by(participant_uuid=participant_uuid)\
-            .filter_by(network=self).all()
-
-        return any(nodes)
 
 
 class Info(Base):
@@ -759,10 +752,6 @@ class Info(Base):
 
     network = association_proxy('origin', 'network')
 
-    # the status of the info
-    status = Column(Enum("alive", "dead", "failed", name="info_status"),
-                    nullable=False, default="alive")
-
     # the contents of the info
     contents = Column(Text())
 
@@ -775,20 +764,6 @@ class Info(Base):
 
     def __repr__(self):
         return "Info-{}-{}".format(self.uuid[:6], self.type)
-
-    def die(self):
-        if self.status == "dead":
-            raise AttributeError("You cannot kill {} - it is already dead.".format(self))
-        else:
-            self.status = "dead"
-            self.time_of_death = timenow()
-
-    def fail(self):
-        if self.status == "failed":
-            raise AttributeError("You cannot fail {} - it has already failed.".format(self))
-        else:
-            self.status = "failed"
-            self.time_of_death = timenow()
 
 
 class Transmission(Base):
@@ -819,10 +794,6 @@ class Transmission(Base):
     network_uuid = association_proxy('info', 'network_uuid')
 
     network = association_proxy('info', 'network')
-
-    # the status of the transmission
-    status = Column(Enum("alive", "dead", "failed", name="transmission_status"),
-                    nullable=False, default="alive")
 
     # the destination of the info
     destination_uuid = Column(
