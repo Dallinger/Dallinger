@@ -300,7 +300,11 @@ def api_notifications():
 
     event_type = request.values['Event.1.EventType']
 
+    print "Triggered event of type {} for assignment {}".format(
+        event_type, assignment_id)
+
     if event_type == 'AssignmentAccepted':
+
         print "Participant accepted assignment."
 
     elif event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
