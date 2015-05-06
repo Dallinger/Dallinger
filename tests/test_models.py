@@ -346,9 +346,9 @@ class TestModels(object):
         agent3.transmit(what=info2, to_whom=agent1)
         self.db.commit()
 
-        assert len(agent1.transmissions(type="incoming")) == 2
-        assert len(agent2.transmissions(type="incoming")) == 0
-        assert len(agent3.transmissions(type="incoming")) == 0
+        assert len(agent1.transmissions(direction="incoming")) == 2
+        assert len(agent2.transmissions(direction="incoming")) == 0
+        assert len(agent3.transmissions(direction="incoming")) == 0
 
     def test_node_outgoing_transmissions(self):
         agent1 = agents.ReplicatorAgent()
@@ -369,6 +369,6 @@ class TestModels(object):
         agent1.transmit(what=info2, to_whom=agent3)
         self.db.commit()
 
-        assert len(agent1.transmissions(type="outgoing")) == 2
-        assert len(agent2.transmissions(type="outgoing")) == 0
-        assert len(agent3.transmissions(type="outgoing")) == 0
+        assert len(agent1.transmissions(direction="outgoing")) == 2
+        assert len(agent2.transmissions(direction="outgoing")) == 0
+        assert len(agent3.transmissions(direction="outgoing")) == 0

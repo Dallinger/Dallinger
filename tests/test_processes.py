@@ -30,8 +30,6 @@ class TestProcesses(object):
         agent1.connect_to(agent2)
         agent2.connect_to(agent3)
 
-        self.db.add_all([agent1, agent2, agent3])
-
         source = sources.RandomBinaryStringSource()
         self.db.add(source)
 

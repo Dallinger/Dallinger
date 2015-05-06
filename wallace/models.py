@@ -303,7 +303,7 @@ class Node(Base):
             .format(self))
 
     def receive_all(self):
-        pending_transmissions = self.pending_transmissions
+        pending_transmissions = self.transmissions(direction="incoming", state="pending")
         for transmission in pending_transmissions:
             transmission.receive_time = timenow()
             transmission.mark_received()
@@ -311,7 +311,7 @@ class Node(Base):
 
     def receive(self, thing):
         if isinstance(thing, Transmission):
-            if thing in self.pending_transmissions:
+            if thing in self.transmissions(direction="incoming", state="pending"):
                 thing.receive_time = timenow()
                 thing.mark_received()
                 self.update(thing.info)
@@ -319,7 +319,7 @@ class Node(Base):
                 raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, thing)))
         elif isinstance(thing, Info):
             relevant_transmissions = []
-            for transmission in self.pending_transmissions:
+            for transmission in self.transmissions(direction="incoming", state="pending"):
                 if transmission.info == thing:
                     relevant_transmissions.append(transmission)
             if (len(relevant_transmissions) > 0):
@@ -373,119 +373,89 @@ class Node(Base):
         else:
             return other_node.has_connection_to(self)
 
-    def transmissions(self, type=None, status="all"):
-        if type is None:
+    def transmissions(self, direction=None, state="all", status="alive"):
+        if direction is None:
             raise(ValueError("You cannot get transmissions without specifying the type of transmission you want" +
                   "It should be incoming, outgoing or all"))
-        if type not in ["incoming", "outgoing", "all"]:
+        if direction not in ["incoming", "outgoing", "all"]:
             raise(ValueError("You cannot get transmissions of type {}.".format(type) +
                   "Type can only be incoming, outgoing or all."))
-        if status not in ["all", "pending", "received"]:
+        if state not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of status {}.".format(status) +
                   "Status can only be pending, received or all"))
-        if type == "incoming":
-            if status == "all":
+        if direction == "incoming":
+            if state == "all":
                 return Transmission\
                     .query\
                     .filter_by(destination_uuid=self.uuid)\
+                    .filter_by(status="alive")\
                     .order_by(Transmission.transmit_time)\
                     .all()
-            elif status == "pending":
+            elif state == "pending":
                 return Transmission\
                     .query\
                     .filter_by(destination_uuid=self.uuid)\
+                    .filter_by(status="alive")\
                     .filter(Transmission.receive_time == None)\
                     .order_by(Transmission.transmit_time)\
                     .all()
-            elif status == "received":
+            elif state == "received":
                 return Transmission\
                     .query\
                     .filter_by(destination_uuid=self.uuid)\
+                    .filter_by(status="alive")\
                     .filter(Transmission.receive_time != None)\
                     .order_by(Transmission.transmit_time)\
                     .all()
-        elif type == "outgoing":
-            if status == "all":
+        elif direction == "outgoing":
+            if state == "all":
                 return Transmission\
                     .query\
                     .filter_by(origin_uuid=self.uuid)\
+                    .filter_by(status="alive")\
                     .order_by(Transmission.transmit_time)\
                     .all()
-            elif status == "pending":
+            elif state == "pending":
                 return Transmission\
                     .query\
                     .filter_by(origin_uuid=self.uuid)\
+                    .filter_by(status="alive")\
                     .filter(Transmission.receive_time == None)\
                     .order_by(Transmission.transmit_time)\
                     .all()
-            elif status == "received":
+            elif state == "received":
                 return Transmission\
                     .query\
                     .filter_by(origin_uuid=self.uuid)\
+                    .filter_by(status="alive")\
                     .filter(Transmission.receive_time != None)\
                     .order_by(Transmission.transmit_time)\
                     .all()
-        elif type == "all":
-            if status == "all":
+        elif direction == "all":
+            if state == "all":
                 return Transmission\
                     .query\
+                    .filter_by(status="alive")\
                     .order_by(Transmission.transmit_time)\
                     .all()
-            elif status == "pending":
+            elif state == "pending":
                 return Transmission\
                     .query\
                     .filter(Transmission.receive_time == None)\
+                    .filter_by(status="alive")\
                     .order_by(Transmission.transmit_time)\
                     .all()
-            elif status == "received":
+            elif state == "received":
                 return Transmission\
                     .query\
                     .filter(Transmission.receive_time != None)\
+                    .filter_by(status="alive")\
                     .order_by(Transmission.transmit_time)\
                     .all()
         else:
             raise(Exception("The arguments passed to transmissions() did not cause an error," +
                   " but also did not cause the method to run properly. This needs to be fixed asap." +
                   "status: {}, type: {}".format(status, type)))
-
-    @property
-    def incoming_transmissions(self):
-        return self.transmissions(type="incoming")
-        # Transmission\
-        #     .query\
-        #     .filter_by(destination_uuid=self.uuid)\
-        #     .order_by(Transmission.transmit_time)\
-        #     .all()
-
-    @property
-    def outgoing_transmissions(self):
-        return self.transmissions(type="outgoing")
-        # return Transmission\
-        #     .query\
-        #     .filter_by(origin_uuid=self.uuid)\
-        #     .order_by(Transmission.transmit_time)\
-        #     .all()
-
-    @property
-    def pending_transmissions(self):
-        return self.transmissions(type="incoming", status="pending")
-        # return Transmission\
-        #     .query\
-        #     .filter_by(destination_uuid=self.uuid)\
-        #     .filter_by(receive_time=None)\
-        #     .order_by(Transmission.transmit_time)\
-        #     .all()
-
-    @property
-    def information_of_type(self, type=None):
-        if not type:
-            type = Info
-
-        return type\
-            .query\
-            .filter_by(origin=self)\
-            .order_by(Info.creation_time)\
-            .all()
 
 
 class Agent(Node):
@@ -651,27 +621,30 @@ class Network(Base):
             .filter_by(participant_uuid=participant_uuid)\
             .all()
 
-    def transmissions(self, status="all"):
-        if status not in ["all", "pending", "received"]:
+    def transmissions(self, state="all", status="alive"):
+        if state not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of status {}.".format(status) +
                   "Status can only be pending, received or all"))
-        elif status == "all":
+        elif state == "all":
             return Transmission\
                 .query\
                 .filter_by(network_uuid=self.uuid)\
+                .filter_by(status=status)\
                 .order_by(Transmission.transmit_time)\
                 .all()
-        elif status == "received":
+        elif state == "received":
             return Transmission\
                 .query\
                 .filter_by(network_uuid=self.uuid)\
+                .filter_by(status=status)\
                 .filter(Transmission.receive_time != None)\
                 .order_by(Transmission.transmit_time)\
                 .all()
-        elif status == "pending":
+        elif state == "pending":
             return Transmission\
                 .query\
                 .filter_by(network_uuid=self.uuid)\
+                .filter_by(status=status)\
                 .filter_by(receive_time=None)\
                 .order_by(Transmission.transmit_time)\
                 .all()
@@ -681,7 +654,7 @@ class Network(Base):
                   "status: {}, type: {}".format(status, type)))
 
     def latest_transmission_recipient(self):
-        received_transmissions = reversed(self.transmissions(status="received"))
+        received_transmissions = reversed(self.transmissions(state="received"))
         return next(
             (t.destination for t in received_transmissions
                 if (t.destination.status != "failed")),
@@ -769,7 +742,7 @@ class Info(Base):
     network = association_proxy('origin', 'network')
 
     # the status of the info
-    status = Column(Enum("alive", "dead", "failed", name="vector_status"),
+    status = Column(Enum("alive", "dead", "failed", name="info_status"),
                     nullable=False, default="alive")
 
     # the contents of the info
