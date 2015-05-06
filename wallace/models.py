@@ -73,6 +73,12 @@ class Node(Base):
                 v.die()
             for v in self.outgoing_vectors():
                 v.die()
+            for i in self.infos():
+                i.die()
+            for t in self.transmissions(direction="incoming", state="all"):
+                t.die()
+            for t in self.transmissions(direction="outgoing", state="all"):
+                t.die()
 
     def fail(self):
         if self.status == "failed":
@@ -84,6 +90,12 @@ class Node(Base):
                 v.fail()
             for v in self.outgoing_vectors():
                 v.fail()
+            for i in self.infos():
+                i.fail()
+            for t in self.transmissions(direction="incoming", state="all"):
+                t.fail()
+            for t in self.transmissions(direction="outgoing", state="all"):
+                t.fail()
 
     # the predecessors and successors
     successors = relationship(
@@ -773,6 +785,20 @@ class Info(Base):
     def __repr__(self):
         return "Info-{}-{}".format(self.uuid[:6], self.type)
 
+    def die(self):
+        if self.status == "dead":
+            raise AttributeError("You cannot kill {} - it is already dead.".format(self))
+        else:
+            self.status = "dead"
+            self.time_of_death = timenow()
+
+    def fail(self):
+        if self.status == "failed":
+            raise AttributeError("You cannot fail {} - it has already failed.".format(self))
+        else:
+            self.status = "failed"
+            self.time_of_death = timenow()
+
 
 class Transmission(Base):
     __tablename__ = "transmission"
@@ -799,10 +825,28 @@ class Transmission(Base):
 
     network = association_proxy('info', 'network')
 
+    # the status of the transmission
+    status = Column(Enum("alive", "dead", "failed", name="transmission_status"),
+                    nullable=False, default="alive")
+
     # the destination of the info
     destination_uuid = Column(
         String(32), ForeignKey('node.uuid'), nullable=False)
     destination = relationship(Node, foreign_keys=[destination_uuid])
+
+    def die(self):
+        if self.status == "dead":
+            raise AttributeError("You cannot kill {} - it is already dead.".format(self))
+        else:
+            self.status = "dead"
+            self.time_of_death = timenow()
+
+    def fail(self):
+        if self.status == "failed":
+            raise AttributeError("You cannot fail {} - it has already failed.".format(self))
+        else:
+            self.status = "failed"
+            self.time_of_death = timenow()
 
     @property
     def vector(self):
