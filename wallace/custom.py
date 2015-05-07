@@ -335,9 +335,8 @@ def api_notifications():
         print "Participant status is {}.".format(participant.status)
         print "Participant status type is {}".format(type(participant.status))
 
-        # If the participant's status is 4, skip because we did this already.
-        # lookup user in database
-        if participant.status < 4:
+        # Skip if the participant's status is 5 or greater (credited).
+        if participant.status < 5:
 
             # Recruit new participants.
             exp.participant_completion_trigger(
@@ -353,7 +352,7 @@ def api_notifications():
                 exp.bonus_reason())
 
             # Assign participant status 4.
-            participant.status = 4
+            participant.status = 5
             session_psiturk.add(participant)
             session_psiturk.commit()
 
