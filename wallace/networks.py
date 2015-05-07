@@ -100,10 +100,10 @@ class DiscreteGenerational(Network):
     __mapper_args__ = {"polymorphic_identity": "discrete-generational"}
 
     def __init__(self, generations, generation_size, initial_source):
-        self.property1 = generations
-        self.property2 = generation_size
-        self.property3 = initial_source
-        self.max_size = self.generations*self.generation_size
+        self.property1 = repr(generations)
+        self.property2 = repr(generation_size)
+        self.property3 = repr(initial_source)
+        self.max_size = repr(generations*generation_size)
 
     @property
     def generations(self):
@@ -146,8 +146,8 @@ class ScaleFree(Network):
     __mapper_args__ = {"polymorphic_identity": "scale-free"}
 
     def __init__(self, m0, m):
-        self.property1 = m0
-        self.property2 = m
+        self.property1 = repr(m0)
+        self.property2 = repr(m)
 
     @property
     def m0(self):

@@ -66,6 +66,14 @@ class Node(Base):
 
     network = relationship("Network", foreign_keys=[network_uuid])
 
+    # unused by default, these columns store additional properties used
+    # by other types of node
+    property1 = Column(String(26), nullable=True, default=None)
+    property2 = Column(String(26), nullable=True, default=None)
+    property3 = Column(String(26), nullable=True, default=None)
+    property4 = Column(String(26), nullable=True, default=None)
+    property5 = Column(String(26), nullable=True, default=None)
+
     def __repr__(self):
         """Representation of a node when printed."""
         return "Node-{}-{}".format(self.uuid[:6], self.type)
@@ -478,15 +486,17 @@ class Agent(Node):
 
     """An Agent is a Node with a fitness."""
 
-    __tablename__ = "agent"
     __mapper_args__ = {"polymorphic_identity": "agent"}
 
-    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
-    fitness = Column(Float, nullable=True, default=None)
+    def set_fitness(self, fitness):
+        self.property1 = repr(fitness)
 
-    def calculate_fitness(self):
-        raise NotImplementedError(
-            "{}.calculate_fitness() needs to be written.".format(type(self)))
+    @property
+    def fitness(self):
+        if self.property1 is None:
+            return None
+        else:
+            return float(self.property1)
 
 
 class Source(Node):
@@ -498,10 +508,7 @@ class Source(Node):
     information. Sources cannot receive transmissions.
     """
 
-    __tablename__ = "source"
     __mapper_args__ = {"polymorphic_identity": "generic_source"}
-
-    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     def create_information(self):
         """Create a new info with contents defined by the source."""
