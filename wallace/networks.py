@@ -51,6 +51,42 @@ class FullyConnected(Network):
             newcomer.connect_to(agent)
 
 
+class Star(Network):
+
+    """
+    A star network has a central node, with a pair of vectors, incoming and
+    outgoing, with all other nodes.
+    """
+
+    __mapper_args__ = {"polymorphic_identity": "star"}
+
+    def add_agent(self, newcomer):
+        """Add an agent and connect it to the center."""
+        self.add(newcomer)
+
+        if len(self.nodes(type=Agent)) > 1:
+            center = self.nodes(type=Agent)[0]
+            center.connect_to(newcomer)
+            newcomer.connect_to(center)
+
+
+class Burst(Network):
+
+    """
+    A burst network has a central node with an outgoing connection to all the
+    other nodes.
+    """
+
+    __mapper_args__ = {"polymorphic_identity": "burst"}
+
+    def add_agent(self, newcomer):
+        """Add an agent and connect it to the center."""
+        self.add(newcomer)
+
+        if len(self.nodes(type=Agent)) > 1:
+            self.nodes(type=Agent)[0].connect_to(newcomer)
+
+
 class DiscreteGenerational(Network):
 
     __tablename__ = "discrete_generational_networks"
