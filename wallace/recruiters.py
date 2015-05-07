@@ -10,9 +10,9 @@ from sqlalchemy import desc
 
 
 class Recruiter(object):
-    """A recruiter manages the flow of participants to the experiment website,
-    recruiting new participants and retaining those who are still needed.
-    """
+
+    """Define the base recruiter."""
+
     def __init__(self):
         super(Recruiter, self).__init__()
 
@@ -27,8 +27,9 @@ class Recruiter(object):
 
 
 class HotAirRecruiter(object):
-    """The hot air recruiter prints statements about recruiting, but doesn't
-    actually recruit anyone."""
+
+    """Print statements about recruiting, but don't actually recruit."""
+
     def __init__(self):
         super(HotAirRecruiter, self).__init__()
 
@@ -43,6 +44,7 @@ class HotAirRecruiter(object):
 
 
 class SimulatedRecruiter(object):
+
     def __init__(self):
         super(SimulatedRecruiter, self).__init__()
 
@@ -59,6 +61,8 @@ class SimulatedRecruiter(object):
 
 
 class PsiTurkRecruiter(Recruiter):
+
+    """Recruit participants from Amazon Mechanical Turk."""
 
     def __init__(self):
 

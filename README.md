@@ -6,7 +6,7 @@ Wallace
 
 <img src="portrait.jpg?raw=true" width="125" alt="Portrait of Alfred Russel Wallace">
 
-Wallace is a platform for conducting research on experimental cultural evolution. Its namesake is Alfred Russel Wallace, a British naturalist and the oft-ignored codiscoverer of evolution by natural selection. You can use Wallace to create new experiments or to reproduce existing experiments. For example, the following code runs a replication of Bartlett's 1932 study, where participants pass a story down a chain, from one to the next.
+Wallace is a platform for conducting research on experimental cultural evolution. Its namesake is Alfred Russel Wallace, a British naturalist and the oft-ignored codiscoverer of evolution by natural selection. You can use Wallace to create new experiments or to reproduce existing experiments. For example, the following code runs a replication of Bartlett's 1932 study, in which participants pass a story down a chain, from one person to the next.
 
     wallace create bartlett1932
     cd bartlett1932
@@ -14,9 +14,9 @@ Wallace is a platform for conducting research on experimental cultural evolution
     
 Features
 --------
-- Run experiments on experimental cultural evolution
+- Runs experiments on experimental cultural evolution
 - Coordinates participant recruitment using Mechanical Turk
-- Example experiments that cover a range of common experimental designs
+- Demos of common experimental paradigms
 
 Installation
 ------------

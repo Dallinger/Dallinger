@@ -1,3 +1,5 @@
+"""Subclasses of information."""
+
 from .models import Info
 
 

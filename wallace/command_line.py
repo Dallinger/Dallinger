@@ -140,7 +140,10 @@ def debug(verbose):
     # Set the mode to debug.
     config.set("Experiment Configuration", "mode", "debug")
     config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
-    config.set("Server Parameters", "logfile", os.path.join(cwd, config.get("Server Parameters", "logfile")))
+    config.set(
+        "Server Parameters",
+        "logfile",
+        os.path.join(cwd, config.get("Server Parameters", "logfile")))
 
     # Swap in the HotAirRecruiter
     os.rename("wallace_experiment.py", "wallace_experiment_tmp.py")

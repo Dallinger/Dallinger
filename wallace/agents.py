@@ -1,3 +1,5 @@
+"""Custom agents."""
+
 from .models import Agent
 
 

@@ -1,26 +1,23 @@
+"""Processes manipulate networks and their parts."""
+
 from models import Agent, Source
 import random
 
-def random_walk(network):
-    """Takes a random walk over a network, starting at a node randomly selected
-    from those that receive input from a source."""
 
+def random_walk(network):
+    """Take a random walk from a source.
+
+    Start at a node randomly selected from those that receive input from a
+    source. At each step, transmit to a randomly-selected downstream node.
+    """
     # work out who is going to transmit
-    if (not network.transmissions()) or (network.latest_transmission_recipient() is None):
-        if len(network.nodes(type=Source)) == 0:
-            raise Exception("Cannot start random walk as network does not contain a source.")
-        else:
-            sender = random.choice(network.nodes(type=Source))
+    if ((not network.transmissions()) or (network.latest_transmission_recipient() is None)):
+        sender = random.choice(network.nodes(type=Source))
     else:
         sender = network.latest_transmission_recipient()
 
-    # work out who is going to receive
-    if len(sender.neighbors(connection="to", type=Agent)) == 0:
-        raise Exception("Cannot execute random walk from {} as it has no downstream agents.".format(sender))
-    else:
-        receiver = random.choice(sender.neighbors(connection="to", type=Agent))
+    receiver = random.choice(sender.neighbors(connection="to", type=Agent))
 
-    # transmit
     sender.transmit(to_whom=receiver)
 
 
@@ -73,16 +70,16 @@ def moran_sexual(network):
 
 def transmit_by_fitness(to_whom=None, what=None, from_whom=Agent):
 
-    potential_parents = to_whom.neighbors(connection="from", type=from_whom)
-    potential_parent_fitnesses = [p.fitness for p in potential_parents]
-    potential_parent_probabilities = [(f/(1.0*sum(potential_parent_fitnesses))) for f in potential_parent_fitnesses]
+    parents = to_whom.neighbors(connection="from", type=from_whom)
+    parent_fitnesses = [p.fitness for p in parents]
+    parent_probs = [(f/(1.0*sum(parent_fitnesses))) for f in parent_fitnesses]
 
     rnd = random.random()
     temp = 0.0
-    for i, probability in enumerate(potential_parent_probabilities):
+    for i, probability in enumerate(parent_probs):
         temp += probability
         if temp > rnd:
-            parent = potential_parents[i]
+            parent = parents[i]
             break
 
     parent.transmit(what=what, to_whom=to_whom)

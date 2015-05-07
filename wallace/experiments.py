@@ -1,8 +1,11 @@
+"""The base experiment class."""
+
 from wallace.models import Network, Node, Agent
 import random
 
 
 class Experiment(object):
+
     def __init__(self, session):
         from recruiters import PsiTurkRecruiter
         self.task = "Experiment title"

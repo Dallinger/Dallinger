@@ -143,8 +143,9 @@ class Node(Base):
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
 
         if connection == "all":
-            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.origin.status == status] +
-                                 [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]))
+            neighbors = list(set(
+                    [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.origin.status == status] +
+                    [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]))
             return neighbors.sort(key=lambda node: node.creation_time)
 
         elif connection == "to":
@@ -154,8 +155,8 @@ class Node(Base):
             return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]
 
     def is_connected(self, other_node, direction="either", status="alive"):
-        """
-        Checks whether this node is connected to the other_node.
+        """Check whether this node is connected to the other_node.
+
         other_node can be a list of nodes or a single node.
         direction can be "to", "from", "both" or "either" (the default).
         status can be anything, but standard values are "alive" (the default)
@@ -163,21 +164,28 @@ class Node(Base):
         """
         if status not in ["alive", "dead", "failed"]:
             raise Warning("Warning, possible typo: {} is not a standard connection status".format(status))
+
         if direction not in ["to", "from", "either", "both"]:
             raise ValueError("{} is not a valid direction for is_connected".format(direction))
+
         if not (isinstance(other_node, list) or isinstance(other_node, Node)):
             raise(TypeError("Cannot perform is_connected over obvjects of type {}.".
                   format(type(other_node))))
 
         if isinstance(other_node, list):
             return [self.is_connected(other_node=n, status=status, direction=direction) for n in other_node]
+
         if isinstance(other_node, Node):
+
             if direction == "to":
                 return other_node in self.neighbors(connection="to", status=status)
+
             if direction == "from":
                 return other_node in self.neighbors(connection="from", status=status)
+
             if direction == "either":
                 return other_node in self.neighbors(status=status)
+
             if direction == "both":
                 return (other_node in self.neighbors(connection="to", status=status) and
                         other_node in self.neighbors(connection="from", status=status))
@@ -191,6 +199,7 @@ class Node(Base):
         """
         if type is None:
             type = Info
+
         if not issubclass(type, Info):
             raise(TypeError("Cannot get-info of type {} as it is not a valid type.".format(type)))
 
@@ -211,6 +220,7 @@ class Node(Base):
         if direction not in ["incoming", "outgoing", "all"]:
             raise(ValueError("You cannot get transmissions of direction {}.".format(direction) +
                   "Type can only be incoming, outgoing or all."))
+
         if state not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of state {}.".format(state) +
                   "State can only be pending, received or all"))
@@ -237,6 +247,7 @@ class Node(Base):
         """
         if self.status == "dead":
             raise AttributeError("You cannot kill {} - it is already dead.".format(self))
+
         else:
             self.status = "dead"
             self.time_of_death = timenow()
@@ -253,12 +264,15 @@ class Node(Base):
             (3) all transmissions sent by or to the node.
         """
         if self.status == "failed":
-            raise AttributeError("You cannot fail {} - it has already failed.".format(self))
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+
         else:
             self.status = "failed"
             self.time_of_death = timenow()
+
             for v in self.vectors(status="alive"):
                 v.fail()
+
             for v in self.vectors(status="dead"):
                 v.fail()
 
@@ -476,13 +490,14 @@ class Agent(Node):
 
 
 class Source(Node):
+
+    """A Source is a Node that generates information.
+
+    Unlike a base Node it has a create_information method. By default, when
+    asked to transmit, a Source creates new information and sends that
+    information. Sources cannot receive transmissions.
     """
-    A Source is a type of Node.
-    Unlike a base Node it has a create_information method.
-    By default, when asked to transmit, a Source creates new information
-    and sends that information.
-    Sources cannot receive information.
-    """
+
     __tablename__ = "source"
     __mapper_args__ = {"polymorphic_identity": "generic_source"}
 
@@ -532,6 +547,7 @@ class Vector(Base):
     # the destination node
     destination_uuid = Column(
         String(32), ForeignKey('node.uuid'))
+
     destination = relationship(
         Node, foreign_keys=[destination_uuid],
         backref="all_incoming_vectors")
@@ -565,12 +581,14 @@ class Vector(Base):
         if state not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get {} transmissions.".format(state) +
                   "State can only be pending, received or all"))
+
         if state == "all":
             return Transmission\
                 .query\
                 .filter_by(vector=self)\
                 .order_by(Transmission.transmit_time)\
                 .all()
+
         if state == "pending":
             return Transmission\
                 .query\
@@ -578,6 +596,7 @@ class Vector(Base):
                 .filter(Transmission.receive_time == None)\
                 .order_by(Transmission.transmit_time)\
                 .all()
+
         if state == "received":
             return Transmission\
                 .query\
@@ -649,8 +668,10 @@ class Network(Base):
     ################################### """
 
     def nodes(self, type=Node, status="alive", participant_uuid=None):
+
         if not issubclass(type, Node):
             raise(TypeError("Cannot get nodes of type {} as it is not a valid type.".format(type)))
+
         if status not in ["all", "alive", "dead", "failed"]:
             raise Warning("Warning, possible typo: {} is not a standard node status".format(status))
 
@@ -687,12 +708,14 @@ class Network(Base):
         if state not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of state {}.".format(state) +
                   "State can only be pending, received or all"))
+
         elif state == "all":
             return Transmission\
                 .query\
                 .filter_by(network_uuid=self.uuid)\
                 .order_by(Transmission.transmit_time)\
                 .all()
+
         elif state == "received":
             return Transmission\
                 .query\
@@ -700,6 +723,7 @@ class Network(Base):
                 .filter(Transmission.receive_time != None)\
                 .order_by(Transmission.transmit_time)\
                 .all()
+
         elif state == "pending":
             return Transmission\
                 .query\
@@ -740,6 +764,7 @@ class Network(Base):
                             "Only Nodes can be added to networks.").format(base, type(base)))
 
     def print_verbose(self):
+        """Print a verbose representation of a network."""
         print "Agents: "
         for a in self.nodes(type=Agent):
             print a
