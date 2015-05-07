@@ -1,4 +1,5 @@
-# this file imports custom routes into the experiment server
+"""Import custom routes into the experiment server."""
+
 from flask import Blueprint, request, jsonify, Response, abort
 
 from psiturk.psiturk_config import PsiturkConfig
@@ -11,7 +12,6 @@ from psiturk.models import Participant
 from json import dumps
 
 from wallace import db, agents, models, information
-from wallace.models import Agent
 
 import imp
 import inspect
@@ -61,8 +61,8 @@ exp.recruiter().open_recruitment()
 def compute_bonus():
     exp = experiment(session)
     # check that user provided the correct keys
-    # errors will not be that gracefull here if being
-    # accessed by the Javascrip client
+    # errors will not be that graceful here if being
+    # accessed by the Javascript client
     if 'uniqueId' not in request.args:
         raise ExperimentError('improper_inputs')
     uniqueId = request.args['uniqueId']
