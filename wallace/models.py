@@ -650,6 +650,14 @@ class Network(Base):
 
     role = Column(String(26), nullable=False, default="default")
 
+    # unused by default, these columns store additional properties used
+    # by other types of network
+    property1 = Column(String(26), nullable=True, default=None)
+    property2 = Column(String(26), nullable=True, default=None)
+    property3 = Column(String(26), nullable=True, default=None)
+    property4 = Column(String(26), nullable=True, default=None)
+    property5 = Column(String(26), nullable=True, default=None)
+
     def __len__(self):
         raise SyntaxError(
             "len is not defined for networks. " +

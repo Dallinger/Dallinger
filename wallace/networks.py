@@ -89,19 +89,25 @@ class Burst(Network):
 
 class DiscreteGenerational(Network):
 
-    __tablename__ = "discrete_generational_networks"
     __mapper_args__ = {"polymorphic_identity": "discrete-generational"}
 
-    uuid = Column(String(32), ForeignKey("network.uuid"), primary_key=True)
-    generation_size = Column(Integer, nullable=False, default=10)
-    generations = Column(Integer, nullable=False, default=10)
-    initial_source = Column(Boolean, nullable=False, default=True)
+    @property
+    def generations(self):
+        return int(self.property1)
+
+    @property
+    def generation_size(self):
+        return int(self.property2)
+
+    @property
+    def initial_source(self):
+        return bool(self.property3)
 
     def __init__(self, generations, generation_size, initial_source):
-        self.generations = generations
-        self.generation_size = generation_size
+        self.property1 = str(generations)
+        self.property2 = str(generation_size)
+        self.property3 = str(initial_source)
         self.max_size = self.generations*self.generation_size
-        self.initial_source = initial_source
 
     def add_agent(self, newcomer):
         num_agents = len(self.nodes(type=Agent))
