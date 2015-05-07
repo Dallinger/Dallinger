@@ -489,11 +489,19 @@ class Source(Node):
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     def create_information(self):
-        raise NotImplementedError(
-            "{}.create_information() needs to be written.".format(type(self)))
+        """Create a new info with contents defined by the source."""
+        info = Info(
+            origin=self,
+            origin_uuid=self.uuid,
+            contents=self._contents())
+        return info
 
     def _what(self):
         return self.create_information()
+
+    def _contents(self):
+        raise NotImplementedError(
+            "{}.contents() needs to be defined.".format(type(self)))
 
     def receive(self, what):
         raise Exception("Sources cannot receive transmissions.")

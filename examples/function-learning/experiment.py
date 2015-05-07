@@ -47,14 +47,7 @@ class FunctionLearning(wallace.experiments.Experiment):
 class AbstractFnSource(Source):
     __abstract__ = True
 
-    def create_information(self):
-        info = wallace.models.Info(
-            origin=self,
-            origin_uuid=self.uuid,
-            contents=self._data())
-        return info
-
-    def _data(self):
+    def _contents(self):
         x_min = 1
         x_max = 100
 

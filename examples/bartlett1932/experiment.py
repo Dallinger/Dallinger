@@ -45,15 +45,7 @@ class WarOfTheGhostsSource(Source):
 
     __mapper_args__ = {"polymorphic_identity": "war_of_the_ghosts_source"}
 
-    def create_information(self):
-        """Create an info whose contents is a story."""
-        info = Info(
-            origin=self,
-            origin_uuid=self.uuid,
-            contents=self._story())
-        return info
-
-    def _story(self):
+    def _contents(self):
         """Return the text of a story from Bartlett (1932)."""
         stories = [
             "ghosts.md",
