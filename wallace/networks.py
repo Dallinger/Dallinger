@@ -89,7 +89,21 @@ class Burst(Network):
 
 class DiscreteGenerational(Network):
 
+    """
+    A discrete generational network arranges agents into none-overlapping generations.
+    Each agent is connected to all agents in the previous generation.
+    If initial_source is true agents in the first generation will connect to the first source.
+    generation_size dictates how many agents are in each generation, generations sets
+    how many generations the networks involves.
+    """
+
     __mapper_args__ = {"polymorphic_identity": "discrete-generational"}
+
+    def __init__(self, generations, generation_size, initial_source):
+        self.property1 = generations
+        self.property2 = generation_size
+        self.property3 = initial_source
+        self.max_size = self.generations*self.generation_size
 
     @property
     def generations(self):
@@ -102,12 +116,6 @@ class DiscreteGenerational(Network):
     @property
     def initial_source(self):
         return bool(self.property3)
-
-    def __init__(self, generations, generation_size, initial_source):
-        self.property1 = str(generations)
-        self.property2 = str(generation_size)
-        self.property3 = str(initial_source)
-        self.max_size = self.generations*self.generation_size
 
     def add_agent(self, newcomer):
         num_agents = len(self.nodes(type=Agent))
@@ -125,7 +133,8 @@ class DiscreteGenerational(Network):
 
 class ScaleFree(Network):
 
-    """Barabasi-Albert (1999) model for constructing a scale-free network.
+    """
+    Barabasi-Albert (1999) model for constructing a scale-free network.
 
     The construction process begins with a fully-connected network with m0
     individuals. After that point, every newcomer makes m connections with
@@ -136,9 +145,17 @@ class ScaleFree(Network):
 
     __mapper_args__ = {"polymorphic_identity": "scale-free"}
 
-    def __init__(self, m0=4, m=4):
-        self.m = m
-        self.m0 = m0
+    def __init__(self, m0, m):
+        self.property1 = m0
+        self.property2 = m
+
+    @property
+    def m0(self):
+        return int(self.property1)
+
+    @property
+    def m(self):
+        return int(self.property2)
 
     def add_agent(self, newcomer):
         """Add newcomers one by one, using linear preferential attachment."""

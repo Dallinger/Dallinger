@@ -669,7 +669,7 @@ class Network(Base):
             self.type,
             len(self.nodes(type=Agent)),
             len(self.nodes(type=Source)),
-            len(self.vectors))
+            len(self.vectors()))
 
     """ ###################################
     Methods that get things about a Network
@@ -747,12 +747,19 @@ class Network(Base):
                 if (t.destination.status != "failed")),
             None)
 
-    vectors = relationship(
-        "Vector",
-        secondary=Node.__table__,
-        primaryjoin="Network.uuid==Node.network_uuid",
-        secondaryjoin="Node.uuid==Vector.origin_uuid",
-    )
+    def vectors(self, status="alive"):
+        if status not in ["all", "alive", "dead", "failed"]:
+            raise Warning("Warning, possible typo: {} is not a standard node status".format(status))
+
+        if status == "all":
+            return Vector.query\
+                .filter_by(network=self)\
+                .all()
+        else:
+            return Vector.query\
+                .filter_by(network=self)\
+                .filter_by(status=status)\
+                .all()
 
     def full(self):
         return len(self.nodes(type=Agent)) >= self.max_size

@@ -86,7 +86,7 @@ class TestNetworks(object):
     def test_network_vectors(self):
         net = networks.Network()
 
-        assert len(net.vectors) == 0
+        assert len(net.vectors()) == 0
 
         agent1 = agents.Agent()
         agent2 = agents.Agent()
@@ -99,9 +99,9 @@ class TestNetworks(object):
         agent1.connect_to(agent2)
         self.db.commit()
 
-        assert len(net.vectors) == 1
-        assert net.vectors[0].origin == agent1
-        assert net.vectors[0].destination == agent2
+        assert len(net.vectors()) == 1
+        assert net.vectors()[0].origin == agent1
+        assert net.vectors()[0].destination == agent2
 
     def test_network_degrees(self):
         net = networks.Network()
@@ -134,7 +134,7 @@ class TestNetworks(object):
         net.add(source)
         source.connect_to(net.nodes(type=models.Agent))
 
-        assert len(net.vectors) == 2
+        assert len(net.vectors()) == 2
         assert source.network == net
         assert agent1.network == net
         assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=models.Agent)] == [0, 0]
@@ -156,7 +156,7 @@ class TestNetworks(object):
         net.add(source)
         source.connect_to(net.nodes(type=models.Agent)[0])
 
-        assert len(net.vectors) == 1
+        assert len(net.vectors()) == 1
         assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=models.Agent)] == [0, 0]
         assert len(net.nodes(type=models.Source)[0].vectors(direction="outgoing")) == 1
 
@@ -173,7 +173,7 @@ class TestNetworks(object):
         net.add(agent3)
 
         assert len(net.nodes(type=models.Agent)) == 3
-        assert len(net.vectors) == 0
+        assert len(net.vectors()) == 0
         assert len(net.nodes(type=models.Source)) == 0
 
     def test_network_downstream_nodes(self):
@@ -242,7 +242,7 @@ class TestNetworks(object):
 
         assert len(net.nodes(type=models.Agent)) == 4
         assert len(net.nodes(type=models.Source)) == 1
-        assert len(net.vectors) == 4
+        assert len(net.vectors()) == 4
         assert net.nodes(type=models.Agent)[0].network == net
         assert net.nodes(type=models.Source)[0].network == net
 
@@ -269,7 +269,7 @@ class TestNetworks(object):
             net.add_agent(agent)
 
         assert len(net.nodes(type=models.Agent)) == 4
-        assert len(net.vectors) == 12
+        assert len(net.vectors()) == 12
         assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=models.Agent)] == [3, 3, 3, 3]
 
     def test_fully_connected_repr(self):
@@ -284,30 +284,32 @@ class TestNetworks(object):
                                   ", 0 sources, 12 vectors>")
 
     def test_create_scale_free(self):
-        net = networks.ScaleFree(m0=4, m=4)
+        m0 = 4
+        m = 4
+        net = networks.ScaleFree(m0=m0, m=m)
 
-        for i in range(4):
+        for i in range(m0):
             agent = agents.Agent()
             self.db.add(agent)
             net.add_agent(agent)
         self.db.commit()
 
-        assert len(net.nodes(type=models.Agent)) == 4
-        assert len(net.vectors) == 12
+        assert len(net.nodes(type=models.Agent)) == m0
+        assert len(net.vectors()) == m0*(m0 - 1)
 
         agent1 = agents.Agent()
         self.db.add(agent1)
         net.add_agent(agent1)
         self.db.commit()
-        assert len(net.nodes(type=models.Agent)) == 5
-        assert len(net.vectors) == 20
+        assert len(net.nodes(type=models.Agent)) == m0 + 1
+        assert len(net.vectors()) == m0*(m0 - 1) + 2*m
 
         agent2 = agents.Agent()
         self.db.add(agent2)
         net.add_agent(agent2)
         self.db.commit()
-        assert len(net.nodes(type=models.Agent)) == 6
-        assert len(net.vectors) == 28
+        assert len(net.nodes(type=models.Agent)) == m0 + 2
+        assert len(net.vectors()) == m0*(m0 - 1) + 2*2*m
 
     def test_scale_free_repr(self):
         net = networks.ScaleFree(m0=4, m=4)
