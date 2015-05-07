@@ -240,6 +240,15 @@ class Node(Base):
             transmissions += [t for t in v.transmissions(state=state)]
         return transmissions
 
+    def transformations(self, type=None):
+        if type is None:
+            type = Transformation
+        return type\
+            .query\
+            .order_by(type.transform_time)\
+            .filter(type.node == self)\
+            .all()
+
     """ ###################################
     Methods that make nodes do things
     ################################### """
