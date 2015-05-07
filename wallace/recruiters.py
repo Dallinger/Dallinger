@@ -16,13 +16,13 @@ class Recruiter(object):
     def __init__(self):
         super(Recruiter, self).__init__()
 
-    def open_recruitment(self, exp):
+    def open_recruitment(self):
         raise NotImplementedError
 
-    def recruit_new_participants(self, exp, n=1):
+    def recruit_new_participants(self, n=1):
         raise NotImplementedError
 
-    def close_recruitment(self, exp):
+    def close_recruitment(self):
         raise NotImplementedError
 
 
@@ -32,13 +32,13 @@ class HotAirRecruiter(object):
     def __init__(self):
         super(HotAirRecruiter, self).__init__()
 
-    def open_recruitment(self, exp):
+    def open_recruitment(self):
         print "Opening recruitment."
 
-    def recruit_new_participants(self, exp, n=1):
+    def recruit_new_participants(self, n=1):
         print "Recruiting a new participant."
 
-    def close_recruitment(self, exp):
+    def close_recruitment(self):
         print "Close recruitment."
 
 
@@ -46,15 +46,15 @@ class SimulatedRecruiter(object):
     def __init__(self):
         super(SimulatedRecruiter, self).__init__()
 
-    def open_recruitment(self, exp):
+    def open_recruitment(self, exp=None):
         self.recruit_new_participants(exp, 1)
 
-    def recruit_new_participants(self, exp, n=1):
+    def recruit_new_participants(self, n=1, exp=None):
         for i in xrange(n):
             newcomer = exp.agent_type()
             exp.newcomer_arrival_trigger(newcomer)
 
-    def close_recruitment(self, exp):
+    def close_recruitment(self):
         pass
 
 
@@ -115,7 +115,7 @@ class PsiTurkRecruiter(Recruiter):
             self.config.getboolean(
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
-    def open_recruitment(self, exp):
+    def open_recruitment(self):
         """Open recruitment for the first HIT, unless it's already open."""
         try:
             Participant.query.all()
@@ -133,7 +133,7 @@ class PsiTurkRecruiter(Recruiter):
             # HIT was already created, no need to recreate it.
             print "Reject recruitment reopening: experiment has started."
 
-    def recruit_new_participants(self, exp, n=1):
+    def recruit_new_participants(self, n=1):
         previous_participant = Participant.query\
             .order_by(desc(Participant.endhit))\
             .first()
@@ -143,8 +143,8 @@ class PsiTurkRecruiter(Recruiter):
             n,
             self.config.get('HIT Configuration', 'duration'))
 
-    def approve_hit(self, exp, assignment_id):
+    def approve_hit(self, assignment_id):
         return self.amt_services.approve_worker(assignment_id)
 
-    def reward_bonus(self, exp, assignment_id, amount, reason):
+    def reward_bonus(self, assignment_id, amount, reason):
         return self.amt_services.bonus_worker(assignment_id, amount, reason)

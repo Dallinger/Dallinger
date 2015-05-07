@@ -106,10 +106,10 @@ class Experiment(object):
 
         if self.is_experiment_over():
             # If the experiment is over, stop recruiting and export the data.
-            self.recruiter().close_recruitment(self)
+            self.recruiter().close_recruitment()
         else:
             # Otherwise recruit a new participant.
-            self.recruiter().recruit_new_participants(self, n=1)
+            self.recruiter().recruit_new_participants(n=1)
 
     def bonus(self, participant_uuid=None):
         """Compute the bonus for the given participant.
