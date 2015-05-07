@@ -292,11 +292,18 @@ def api_notifications():
 
     # Transform the assignment id to the SHA512 hash of the unique id from the
     # psiTurk table.
-    participant = Participant.query.\
-        filter(Participant.assignmentid == assignment_id).\
-        one()
+    try:
+        participant = Participant.query.\
+            filter(Participant.assignmentid == assignment_id).\
+            one()
 
-    participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
+        participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
+
+    except:
+        return Response(
+            dumps({"status": "error"}),
+            status=200,
+            mimetype='application/json')
 
     event_type = request.values['Event.1.EventType']
 
@@ -348,7 +355,9 @@ def api_notifications():
             session_psiturk.commit()
 
     return Response(
-        dumps({"status": "success"}), status=200, mimetype='application/json')
+        dumps({"status": "success"}),
+        status=200,
+        mimetype='application/json')
 
     # all_event_types = [
     #     "AssignmentAccepted",
