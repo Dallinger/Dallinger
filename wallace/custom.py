@@ -332,6 +332,9 @@ def api_notifications():
 
         print "Assignment became reviewable."
 
+        print "Participant status is {}.".format(participant.status)
+        print "Participant status type is {}".format(type(participant.status))
+
         # If the participant's status is 4, skip because we did this already.
         # lookup user in database
         if participant.status < 4:
