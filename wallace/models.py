@@ -1,15 +1,13 @@
+"""Define Wallace's core models."""
+
 from uuid import uuid4
 from datetime import datetime
 
-# get the connection to the database
 from .db import Base
 
-# various sqlalchemy imports
 from sqlalchemy import ForeignKey, desc, or_
 from sqlalchemy import Column, String, Text, Enum, Float, Integer
 from sqlalchemy.orm import relationship, validates
-from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.sql import func, select
 from sqlalchemy.ext.associationproxy import association_proxy
 
 import inspect
@@ -18,23 +16,19 @@ DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
 
 
 def new_uuid():
+    """Generate a unique identifier."""
     return uuid4().hex
 
 
 def timenow():
+    """A string representing the current date and time."""
     time = datetime.now()
     return time.strftime(DATETIME_FMT)
 
 
 class Node(Base):
 
-    """
-    A Node is a point in a network.
-    """
-
-    """ ###################################
-    SQLAlchemy stuff. Touch at your peril!
-    ################################### """
+    """Nodes are entities that are connected to form networks."""
 
     __tablename__ = "node"
 
@@ -73,6 +67,7 @@ class Node(Base):
     network = relationship("Network", foreign_keys=[network_uuid])
 
     def __repr__(self):
+        """Representation of a node when printed."""
         return "Node-{}-{}".format(self.uuid[:6], self.type)
 
     """ ###################################
@@ -82,15 +77,17 @@ class Node(Base):
     def vectors(self, direction="all", status="alive"):
         """
         Get vectors that connect at this node.
-        Direction can be "all", "incoming" or "outgoing", but defaults to "all".
-        Status can be "all", "alive" (the default), "dead", "failed" or anything else.
+
+        Direction can be "incoming", "outgoing" or "all" (default). Status can
+        be "all", "alive" (default), "dead", "failed".
         """
         if direction not in ["all", "incoming", "outgoing"]:
-            raise ValueError("{} is not a valid vector direction. Must be all, incoming or outgoing.".format(direction))
-        if status not in ["all", "alive", "dead", "failed"]:
-            raise Warning("Warning, possible typo: {} is not a standard vector status".format(status))
+            raise ValueError(
+                "{} is not a valid vector direction. "
+                "Must be all, incoming or outgoing.".format(direction))
 
         if direction == "all":
+
             if status == "all":
                 return Vector.query\
                     .filter(or_(Vector.destination == self, Vector.origin == self))\
@@ -100,7 +97,9 @@ class Node(Base):
                     .filter(or_(Vector.destination == self, Vector.origin == self))\
                     .filter_by(status=status)\
                     .all()
+
         if direction == "incoming":
+
             if status == "all":
                 return Vector.query\
                     .filter_by(destination=self)\
@@ -110,7 +109,9 @@ class Node(Base):
                     .filter_by(destination=self)\
                     .filter_by(status=status)\
                     .all()
+
         if direction == "outgoing":
+
             if status == "all":
                 return Vector.query\
                     .filter_by(origin=self)\
@@ -123,17 +124,21 @@ class Node(Base):
 
     def neighbors(self, type=None, status="alive", connection="all"):
         """
-        Get nodes one vector away from this node.
+        Get a node's neighbors.
+
         Type must be a subclass of Node, but defaults to Node.
         Status can be "alive", "dead", "failed" or anything else, but defaults to alive.
         Connection can be "to" "from" or "all", but defaults to "all".
         """
         if type is None:
             type = Node
+
         if not issubclass(type, Node):
             raise ValueError("{} is not a valid neighbor type, needs to be a subclass of Node.".format(type))
+
         if status not in ["alive", "dead", "failed"]:
             raise Warning("Warning, possible typo: {} is not a standard neighbor status".format(status))
+
         if connection not in ["all", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
 
@@ -141,9 +146,11 @@ class Node(Base):
             neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.origin.status == status] +
                                  [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]))
             return neighbors.sort(key=lambda node: node.creation_time)
-        if connection == "to":
+
+        elif connection == "to":
             return [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.origin.status == status]
-        if connection == "from":
+
+        elif connection == "from":
             return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]
 
     def is_connected(self, other_node, direction="either", status="alive"):
@@ -238,8 +245,8 @@ class Node(Base):
 
     def fail(self):
         """
-        Fail a node.
-        Sets the node's status to "failed".
+        Fail a node, setting its status to "failed".
+
         Does the same to:
             (1) all vectors that connect to for from the node.
             (2) all infos that originated from the nodes_of_participant.
@@ -256,7 +263,8 @@ class Node(Base):
                 v.fail()
 
     def connect_to(self, other_node):
-        """Creates a vector from self to other_node.
+        """Create a vector from self to other_node.
+
         other_node may be a list of nodes.
         Will raise an error if:
             (1) other_node is not a node or list of nodes
@@ -267,19 +275,23 @@ class Node(Base):
         If self is already connected to other_node a Warning
         is raised and nothing happens.
         """
-
         if not isinstance(other_node, Node):
+
             if isinstance(other_node, list):
                 for node in other_node:
                     self.connect_to(node)
             else:
                 raise(TypeError('{} cannot connect to {} as it is a {}'.format(self, other_node, type(other_node))))
+
         elif isinstance(other_node, Source):
             raise(TypeError("{} cannot connect_to {} as it is a Source.".format(self, other_node)))
+
         elif other_node.status != "alive":
             raise(ValueError("{} cannot connect to {} as it is {}".format(self, other_node, other_node.status)))
+
         elif self == other_node:
             raise(ValueError("{} cannot connect to itself.".format(self)))
+
         elif self.network_uuid != other_node.network_uuid:
             raise(ValueError(("{} cannot connect to {} as they are not " +
                               "in the same network. {} is in network {}, " +
@@ -293,9 +305,11 @@ class Node(Base):
                 Vector(origin=self, destination=other_node, network=self.network)
 
     def connect_from(self, other_node):
-        """Creates a vector from other_node to self
+        """Create a vector from other_node to self.
+
         other_node may be a list of nodes
-        see connect_to"""
+        see connect_to
+        """
         if isinstance(other_node, list):
             for node in other_node:
                 node.connect_to(self)
@@ -305,6 +319,7 @@ class Node(Base):
     def transmit(self, what=None, to_whom=None):
         """
         Transmit one or more infos from one node to another.
+
         "what" dictates which infos are sent, it can be:
             (1) None (in which case the node's _what method is called).
             (2) an info (in which case the node transmits the info)
@@ -323,7 +338,6 @@ class Node(Base):
         contains None (or an even more deeply buried None) no error will be raised
         but an infinite loop will occur.
         """
-
         if what is None:
             what = self._what()
             if what is None or (isinstance(what, list) and None in what):
@@ -331,9 +345,11 @@ class Node(Base):
                                  .format(self))
             else:
                 self.transmit(what=what, to_whom=to_whom)
+
         elif isinstance(what, list):
             for w in what:
                 self.transmit(what=w, to_whom=to_whom)
+
         elif inspect.isclass(what) and issubclass(what, Info):
             infos = what\
                 .query\
@@ -341,6 +357,7 @@ class Node(Base):
                 .order_by(desc(Info.creation_time))\
                 .all()
             self.transmit(what=infos, to_whom=to_whom)
+
         elif isinstance(what, Info):
 
             # Check if sender owns the info.
@@ -357,12 +374,15 @@ class Node(Base):
                                      .format(self))
                 else:
                     self.transmit(what=what, to_whom=to_whom)
+
             elif isinstance(to_whom, list):
                 for w in to_whom:
                     self.transmit(what=what, to_whom=w)
+
             elif inspect.isclass(to_whom) and issubclass(to_whom, Node):
                 to_whom = [w for w in self.neighbors(connection="to", type=to_whom)]
                 self.transmit(what=what, to_whom=to_whom)
+
             elif isinstance(to_whom, Node):
                 if not self.is_connected(direction="to", other_node=to_whom):
                     raise ValueError(
@@ -387,7 +407,8 @@ class Node(Base):
 
     def receive(self, what="all"):
         """
-        Marks transmissions as received then passes their infos to update().
+        Mark transmissions as received, then pass their infos to update().
+
         "what" can be:
             (1) "all" (the default) in which case all pending transmissions are received
             (2) a specific transmission.
@@ -400,12 +421,14 @@ class Node(Base):
             for transmission in pending_transmissions:
                 transmission.receive_time = timenow()
                 received_transmissions.append(transmission)
+
         elif isinstance(what, Transmission):
             if what in self.transmissions(direction="incoming", state="pending"):
                 what.receive_time = timenow()
                 received_transmissions.append(what)
             else:
                 raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, what)))
+
         elif issubclass(what, Transmission):
             pending_transmissions = [t for t in self.transmissions(direction="incoming", state="pending") if isinstance(t, what)]
             for transmission in pending_transmissions:
@@ -413,6 +436,7 @@ class Node(Base):
                 received_transmissions.append(transmission)
         else:
             raise ValueError("Nodes cannot receive {}".format(what))
+
         self.update([t.info for t in received_transmissions])
 
     def update(self, infos):
@@ -426,25 +450,19 @@ class Node(Base):
             .format(self))
 
     def replicate(self, info_in):
-        """
-        Replicate can be called by update.
-        It causes the node to duplicate the info.
-        """
-
+        """Duplicate the info. Can be called by update."""
         info_type = type(info_in)
         info_out = info_type(origin=self, contents=info_in.contents)
 
         from .transformations import Replication
+
         # Register the transformation.
         Replication(info_out=info_out, info_in=info_in, node=self)
 
 
 class Agent(Node):
 
-    """
-    An Agent is a type of Node.
-    Unlike a base Node it has a fitness.
-    """
+    """An Agent is a Node with a fitness."""
 
     __tablename__ = "agent"
     __mapper_args__ = {"polymorphic_identity": "agent"}
@@ -453,7 +471,8 @@ class Agent(Node):
     fitness = Column(Float, nullable=True, default=None)
 
     def calculate_fitness(self):
-        raise NotImplementedError("{}.calculate_fitness() needs to be written.".format(type(self)))
+        raise NotImplementedError(
+            "{}.calculate_fitness() needs to be written.".format(type(self)))
 
 
 class Source(Node):
@@ -470,7 +489,8 @@ class Source(Node):
     uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     def create_information(self):
-        raise NotImplementedError("{}.create_information() needs to be written.".format(type(self)))
+        raise NotImplementedError(
+            "{}.create_information() needs to be written.".format(type(self)))
 
     def _what(self):
         return self.create_information()
@@ -524,9 +544,9 @@ class Vector(Base):
         return "Vector-{}-{}".format(
             self.origin_uuid[:6], self.destination_uuid[:6])
 
-    """ ###################################
-    Methods that get things about a Vector
-    ################################### """
+    ###################################
+    # Methods that get things about a Vector
+    ###################################
 
     def transmissions(self, state="all"):
         """
@@ -558,9 +578,9 @@ class Vector(Base):
                 .order_by(Transmission.transmit_time)\
                 .all()
 
-    """ ###################################
-    Methods that make Vectors do things
-    ################################### """
+    ###################################
+    # Methods that make Vectors do things
+    ###################################
 
     def die(self):
         if self.status == "dead":
@@ -583,10 +603,6 @@ class Network(Base):
     A Network is a collection of Nodes and Vectors.
     Vectors can only link Nodes if they are in the same network
     """
-
-    """ ###################################
-    SQLAlchemy stuff. Touch at your peril!
-    ################################### """
 
     __tablename__ = "network"
 
@@ -735,10 +751,6 @@ class Info(Base):
     Infos can be sent along Vectors with Transmissions.
     """
 
-    """ ###################################
-    SQLAlchemy stuff. Touch at your peril!
-    ################################### """
-
     __tablename__ = "info"
 
     # the unique info id
@@ -779,10 +791,6 @@ class Transmission(Base):
     """
     A Transmission is when an Info is sent along a Vector.
     """
-
-    """ ###################################
-    SQLAlchemy stuff. Touch at your peril!
-    ################################### """
 
     __tablename__ = "transmission"
 
@@ -828,10 +836,6 @@ class Transformation(Base):
     """
     A Transformation is when one info is used to generate another Info.
     """
-
-    """ ###################################
-    SQLAlchemy stuff. Touch at your peril!
-    ################################### """
 
     __tablename__ = "transformation"
 
