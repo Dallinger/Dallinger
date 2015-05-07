@@ -325,17 +325,27 @@ def api_notifications():
 
         print "Assignment became reviewable."
 
-        # Recruit new participants.
-        exp.participant_completion_trigger(participant_uuid=participant_uuid)
+        # If the participant's status is 4, skip because we did this already.
+        # lookup user in database
+        if participant.status < 4:
 
-        # Accept the HIT.
-        exp.recruiter().approve_hit(assignment_id)
+            # Recruit new participants.
+            exp.participant_completion_trigger(
+                participant_uuid=participant_uuid)
 
-        # Reward the bonus.
-        exp.recruiter().reward_bonus(
-            assignment_id,
-            exp.bonus(participant_uuid=participant_uuid),
-            exp.bonus_reason())
+            # Accept the HIT.
+            exp.recruiter().approve_hit(assignment_id)
+
+            # Reward the bonus.
+            exp.recruiter().reward_bonus(
+                assignment_id,
+                exp.bonus(participant_uuid=participant_uuid),
+                exp.bonus_reason())
+
+            # Assign participant status 4.
+            participant.status = 4
+            session_psiturk.add(participant)
+            session_psiturk.commit()
 
     return Response(
         dumps({"status": "success"}), status=200, mimetype='application/json')
