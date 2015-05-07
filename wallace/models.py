@@ -571,6 +571,14 @@ class Vector(Base):
 
     network = association_proxy('origin', 'network')
 
+    # unused by default, these columns store additional properties used
+    # by other types of vector
+    property1 = Column(String(26), nullable=True, default=None)
+    property2 = Column(String(26), nullable=True, default=None)
+    property3 = Column(String(26), nullable=True, default=None)
+    property4 = Column(String(26), nullable=True, default=None)
+    property5 = Column(String(26), nullable=True, default=None)
+
     def __repr__(self):
         return "Vector-{}-{}".format(
             self.origin_uuid[:6], self.destination_uuid[:6])
@@ -828,6 +836,14 @@ class Info(Base):
 
     network = association_proxy('origin', 'network')
 
+    # unused by default, these columns store additional properties used
+    # by other types of info
+    property1 = Column(String(26), nullable=True, default=None)
+    property2 = Column(String(26), nullable=True, default=None)
+    property3 = Column(String(26), nullable=True, default=None)
+    property4 = Column(String(26), nullable=True, default=None)
+    property5 = Column(String(26), nullable=True, default=None)
+
     # the contents of the info
     contents = Column(Text())
 
@@ -874,6 +890,14 @@ class Transmission(Base):
     network_uuid = association_proxy('info', 'network_uuid')
 
     network = association_proxy('info', 'network')
+
+    # unused by default, these columns store additional properties used
+    # by other types of transmission
+    property1 = Column(String(26), nullable=True, default=None)
+    property2 = Column(String(26), nullable=True, default=None)
+    property3 = Column(String(26), nullable=True, default=None)
+    property4 = Column(String(26), nullable=True, default=None)
+    property5 = Column(String(26), nullable=True, default=None)
 
     # the destination of the info
     destination_uuid = Column(
@@ -928,6 +952,14 @@ class Transformation(Base):
 
     # the time at which the transformation occurred
     transform_time = Column(String(26), nullable=False, default=timenow)
+
+    # unused by default, these columns store additional properties used
+    # by other types of transformation
+    property1 = Column(String(26), nullable=True, default=None)
+    property2 = Column(String(26), nullable=True, default=None)
+    property3 = Column(String(26), nullable=True, default=None)
+    property4 = Column(String(26), nullable=True, default=None)
+    property5 = Column(String(26), nullable=True, default=None)
 
     def __repr__(self):
         return "Transformation-{}".format(self.uuid[:6])
