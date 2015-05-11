@@ -738,7 +738,26 @@ class Network(Base):
                     .filter(type.network == self)\
                     .all()
 
-    def transmissions(self, state="all"):
+    def infos(self, type=None, origin_status="alive"):
+        """
+        Get infos in the network.
+
+        type specifies the type of info (defaults to Info).
+        only infos created by nodes with a status of origin_status will be returned.
+        origin_status can be "all", "alive" (default), "dead" or "failed".
+        To get infos from a specific node see the infos() method in class Node.
+        """
+        if type is None:
+            type = Info
+        if origin_status not in ["all", "alive", "dead", "failed"]:
+            raise ValueError("{} is not a valid origin status".format(origin_status))
+
+        all_infos = type.query.filter_by(network=self).all()
+
+        if origin_status == "all":
+            return all_infos
+        else:
+            return [i for i in all_infos if i.origin.status == origin_status]
         if state not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of state {}.".format(state) +
                   "State can only be pending, received or all"))
