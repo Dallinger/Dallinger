@@ -787,7 +787,11 @@ class Network(Base):
                 .order_by(Transmission.transmit_time)\
                 .all()
 
-    def latest_transmission_recipient(self):
+        if vector_status == "all":
+            return all_transmissions
+        else:
+            return [t for t in all_transmissions if t.vector.status == vector_status]
+
     def transformations(self, type=None, node_status="alive"):
         """
         Get transformations in the network.
