@@ -85,7 +85,7 @@ class TestAgents(object):
         assert agent1.infos()[0].contents == agent2.infos()[0].contents
         assert agent1.infos()[0].uuid != agent2.infos()[0].uuid
 
-        transmission = info.transmissions[0]
+        transmission = info.transmissions()[0]
         assert transmission.info_uuid == info.uuid
         assert transmission.origin_uuid == agent1.uuid
         assert transmission.destination_uuid == agent2.uuid
@@ -141,7 +141,7 @@ class TestAgents(object):
         assert agent1.infos()[0].contents == agent3.infos()[0].contents
         assert agent1.infos()[0].uuid != agent2.infos()[0].uuid != agent3.infos()[0].uuid
 
-        transmissions = info.transmissions
+        transmissions = info.transmissions()
         assert len(transmissions) == 2
 
     def test_transmit_selector_default(self):

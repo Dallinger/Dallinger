@@ -432,8 +432,7 @@ class Node(Base):
                         "they are not connected".format(self, to_whom))
                 else:
                     vector = [v for v in self.vectors(direction="outgoing") if v.destination == to_whom][0]
-                    t = Transmission(info=what, destination=to_whom, vector=vector)
-                    what.transmissions.append(t)
+                    Transmission(info=what, vector=vector)
             else:
                 raise TypeError("Cannot transmit to '{}': ",
                                 "it is not a Node".format(to_whom))
@@ -990,28 +989,31 @@ class Transmission(Base):
     # the unique transmission id
     uuid = Column(String(32), primary_key=True, default=new_uuid)
 
+    # the vector the transmission passed along
+    vector_uuid = Column(String(32), ForeignKey('vector.uuid'), nullable=False)
+    vector = relationship(Vector, backref='all_transmissions')
+
     # the info that was transmitted
     info_uuid = Column(String(32), ForeignKey('info.uuid'), nullable=False)
-    info = relationship(Info, backref='transmissions')
+    info = relationship(Info, backref='all_transmissions')
+
+    # the origin of the transmission, provxied from the vector
+    origin_uuid = association_proxy('info', 'origin_uuid')
+    origin = association_proxy('info', 'origin')
+
+    # the destination of the transmission, proxied from the vector
+    destination_uuid = association_proxy('vector', 'destination_uuid')
+    destination = association_proxy('vector', 'destination')
+
+    # the network of the transformation, proxied from the vector
+    network_uuid = association_proxy('info', 'network_uuid')
+    network = association_proxy('info', 'network')
 
     # the time at which the transmission occurred
     transmit_time = Column(String(26), nullable=False, default=timenow)
 
     # the time at which the transmission was received
     receive_time = Column(String(26), nullable=True, default=None)
-
-    # the origin of the info, which is proxied by association from the
-    # info itself
-    origin_uuid = association_proxy('info', 'origin_uuid')
-    origin = association_proxy('info', 'origin')
-
-    # the vector the transmission passed along
-    vector_uuid = Column(String(32), ForeignKey('vector.uuid'), nullable=False)
-    vector = relationship(Vector, backref='all_transmissions')
-
-    network_uuid = association_proxy('info', 'network_uuid')
-
-    network = association_proxy('info', 'network')
 
     # unused by default, these columns store additional properties used
     # by other types of transmission
@@ -1020,11 +1022,6 @@ class Transmission(Base):
     property3 = Column(String(26), nullable=True, default=None)
     property4 = Column(String(26), nullable=True, default=None)
     property5 = Column(String(26), nullable=True, default=None)
-
-    # the destination of the info
-    destination_uuid = Column(
-        String(32), ForeignKey('node.uuid'), nullable=False)
-    destination = relationship(Node, foreign_keys=[destination_uuid])
 
     def mark_received(self):
         self.receive_time = timenow()
