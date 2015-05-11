@@ -1090,14 +1090,6 @@ class Transformation(Base):
     # the unique transformation id
     uuid = Column(String(32), primary_key=True, default=new_uuid)
 
-    # the node that applied this transformation
-    node_uuid = Column(String(32), ForeignKey('node.uuid'), nullable=False)
-    node = relationship(Node, backref='transformations')
-
-    network_uuid = association_proxy('node', 'network_uuid')
-
-    network = association_proxy('node', 'network')
-
     # the info before it was transformed
     info_in_uuid = Column(String(32), ForeignKey('info.uuid'), nullable=False)
     info_in = relationship(
@@ -1111,6 +1103,14 @@ class Transformation(Base):
         Info,
         foreign_keys=[info_out_uuid],
         backref="transformation_whence")
+
+    # the node that applied this transformation, proxied from the info_out
+    node_uuid = association_proxy('info_out', 'origin_uuid')
+    node = association_proxy('info_out', 'origin')
+
+    # the network the transformation is in, proxied from the node
+    network_uuid = association_proxy('info_out', 'network_uuid')
+    network = association_proxy('info_out', 'network')
 
     # the time at which the transformation occurred
     transform_time = Column(String(26), nullable=False, default=timenow)
