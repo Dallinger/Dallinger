@@ -765,54 +765,7 @@ class Node(Base):
 
         # Register the transformation.
         Replication(info_out=info_out, info_in=info_in)
-
-
-class Agent(Node):
-
-    """An Agent is a Node with a fitness."""
-
-    __mapper_args__ = {"polymorphic_identity": "agent"}
-
-    def set_fitness(self, fitness):
-        self.property1 = repr(fitness)
-
-    @property
-    def fitness(self):
-        if self.property1 is None:
-            return None
-        else:
-            return float(self.property1)
-
-
-class Source(Node):
-
-    """A Source is a Node that generates information.
-
-    Unlike a base Node it has a create_information method. By default, when
-    asked to transmit, a Source creates new information and sends that
-    information. Sources cannot receive transmissions.
-    """
-
-    __mapper_args__ = {"polymorphic_identity": "generic_source"}
-
-    def create_information(self):
-        """Create a new info with contents defined by the source."""
-        info = Info(
-            origin=self,
-            origin_uuid=self.uuid,
-            contents=self._contents())
-        return info
-
-    def _what(self):
-        return self.create_information()
-
-    def _contents(self):
-        raise NotImplementedError(
-            "{}.contents() needs to be defined.".format(type(self)))
-
-    def receive(self, what):
-        raise Exception("Sources cannot receive transmissions.")
-
+        
 
 class Vector(Base):
 
