@@ -26,6 +26,8 @@ class TestTransformations(object):
 
         # Create a new info based on the old one.
         info_out = models.Info(origin=node, contents=info_in.contents)
+        self.db.add(info_in)
+        self.db.commit()
 
         # Register the transformation.
         transformation = transformations.Replication(

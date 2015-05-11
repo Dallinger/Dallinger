@@ -1081,3 +1081,20 @@ class Transformation(Base):
 
     def __repr__(self):
         return "Transformation-{}".format(self.uuid[:6])
+
+    def __init__(self, info_in, info_out):
+        self.check_for_transformation(info_in, info_out)
+        self.info_in = info_in
+        self.info_out = info_out
+
+    def check_for_transformation(self, info_in, info_out):
+        # check the infos are Infos.
+        if not isinstance(info_in, Info):
+            raise TypeError("{} cannot be transformed as it is a {}".format(info_in, type(info_in)))
+        if not isinstance(info_out, Info):
+            raise TypeError("{} cannot be transformed as it is a {}".format(info_out, type(info_out)))
+
+        node = info_out.origin
+        # check the info_in is from the node or has been sent to the node
+        if not ((info_in.origin != node) or (info_in not in [t.info for t in node.transmissions(direction="incoming", state="received")])):
+            raise ValueError("{} cannot transform {} as it has not been sent it or made it.".format(node, info_in))
