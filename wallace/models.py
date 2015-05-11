@@ -757,16 +757,6 @@ class Node(Base):
         """
         pass
 
-    def replicate(self, info_in):
-        """Duplicate the info. Can be called by update."""
-        info_type = type(info_in)
-        info_out = info_type(origin=self, contents=info_in.contents)
-
-        from .transformations import Replication
-
-        # Register the transformation.
-        Replication(info_out=info_out, info_in=info_in)
-
 
 class Vector(Base):
 
