@@ -491,7 +491,7 @@ class Node(Base):
         from .transformations import Replication
 
         # Register the transformation.
-        Replication(info_out=info_out, info_in=info_in, node=self)
+        Replication(info_out=info_out, info_in=info_in)
 
 
 class Agent(Node):
