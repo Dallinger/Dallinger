@@ -479,12 +479,9 @@ class Node(Base):
     def update(self, infos):
         """
         Update controls the default behavior of a node when it receives infos.
-        It needs to be overridden.
-        For informative examples see the ReplicatorAgent.update().
+        By default it does nothing.
         """
-        raise NotImplementedError(
-            "The update method of node '{}' has not been overridden"
-            .format(self))
+        pass
 
     def replicate(self, info_in):
         """Duplicate the info. Can be called by update."""
