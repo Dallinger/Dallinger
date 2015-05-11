@@ -175,16 +175,16 @@ class Node(Base):
                 [v.origin for v in self.vectors(direction="incoming", status=status)
                  if isinstance(v.origin, type) and v.origin.status == status]]
 
-    def is_connected(self, other_node, direction="either", status="alive"):
-        """Check whether this node is connected to the other_node.
+    def is_connected(self, other_node, direction="to", status="alive"):
+        """
+        Check whether this node is connected to the other_node.
 
         other_node can be a list of nodes or a single node.
-        direction can be "to", "from", "both" or "either" (the default).
-        status can be anything, but standard values are "alive" (the default)
-        "dead" and "failed".
+        direction can be "to" (default), "from", "both" or "either".
+        status can be "alive" (default), "dead", "failed" and "all".
         """
-        if status not in ["alive", "dead", "failed"]:
-            raise Warning("Warning, possible typo: {} is not a standard connection status".format(status))
+        if status not in ["alive", "dead", "failed", "all"]:
+            raise ValueError("{} is not a valid connection status".format(status))
 
         if direction not in ["to", "from", "either", "both"]:
             raise ValueError("{} is not a valid direction for is_connected".format(direction))
@@ -205,11 +205,10 @@ class Node(Base):
                 return other_node in self.neighbors(connection="from", status=status)
 
             if direction == "either":
-                return other_node in self.neighbors(status=status)
+                return other_node in self.neighbors(connection="either", status=status)
 
             if direction == "both":
-                return (other_node in self.neighbors(connection="to", status=status) and
-                        other_node in self.neighbors(connection="from", status=status))
+                return other_node in self.neighbors(connection="both", status=status)
 
     def infos(self, type=None):
         """
