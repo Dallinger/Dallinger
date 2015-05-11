@@ -214,8 +214,6 @@ class Node(Base):
         """
         Get infos that originate from this node.
         Type must be a subclass of info, the default is Info.
-        Status can be anything, but standard values are "alive" (the default),
-        "dead" and "failed".
         """
         if type is None:
             type = Info
