@@ -670,8 +670,12 @@ class Network(Base):
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
+    # how big the network can get, this number is used by the full()
+    # method to decide whether the network is full
     max_size = Column(Integer, nullable=False, default=1e6)
 
+    # the role of the network, by default wallace initializes all
+    # networks as either "practice" or "experiment"
     role = Column(String(26), nullable=False, default="default")
 
     # unused by default, these columns store additional properties used
@@ -702,6 +706,13 @@ class Network(Base):
     ################################### """
 
     def nodes(self, type=Node, status="alive", participant_uuid=None):
+        """
+        Get nodes in the network.
+
+        type specifies the type of Node.
+        Status can be "all", "alive" (default), "dead" or "failed".
+        If a participant_uuid is passed only nodes with that participant_uuid will be returned.
+        """
 
         if not issubclass(type, Node):
             raise(TypeError("Cannot get nodes of type {} as it is not a valid type.".format(type)))
@@ -760,9 +771,18 @@ class Network(Base):
             return [i for i in all_infos if i.origin.status == origin_status]
 
     def transmissions(self, state="all", vector_status="alive"):
+        """
+        Get transmissions in the network.
+
+        only transmissions along vectors with a status of vector_status will be returned.
+        vector_status "all", "alive" (default), "dead" or "failed".
+        To get transmissions from a specific vector see the transmissions() method in class Vector.
+        """
         if state not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of state {}.".format(state) +
                   "State can only be pending, received or all"))
+        if vector_status not in ["all", "alive", "dead", "failed"]:
+            raise ValueError("{} is not a valid vector status".format(vector_status))
 
         if state == "all":
             all_transmissions = Transmission\
@@ -826,6 +846,13 @@ class Network(Base):
             None)
 
     def vectors(self, status="alive"):
+        """
+        Get vectors in the network.
+
+        Status can be "all", "alive" (default), "dead" or "failed".
+        To get vectors attached to a specific node see the vectors() method in class Node.
+        """
+
         if status not in ["all", "alive", "dead", "failed"]:
             raise Warning("Warning, possible typo: {} is not a standard node status".format(status))
 
@@ -850,6 +877,11 @@ class Network(Base):
     ################################### """
 
     def add(self, base):
+        """
+        Add a node to the network.
+
+        Only Nodes can be added to a network.
+        """
         if isinstance(base, list):
             for b in base:
                 self.add(b)
