@@ -59,10 +59,6 @@ class Node(Base):
     # the time when the node changed from alive->dead or alive->failed
     time_of_death = Column(String(26), nullable=True, default=None)
 
-    # the information created by this node
-    information = relationship(
-        "Info", backref='origin', order_by="Info.creation_time")
-
     # the participant uuid is the sha512 hash of the psiTurk uniqueId of the
     # participant who was this node.
     participant_uuid = Column(String(128), nullable=True)
