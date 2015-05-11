@@ -861,17 +861,30 @@ class Network(Base):
 
     def print_verbose(self):
         """Print a verbose representation of a network."""
-        print "Agents: "
-        for a in self.nodes(type=Agent):
+        print "Nodes: "
+        for a in (self.nodes(status="dead") +
+                  self.nodes(status="alive")):
             print a
 
-        print "\nSources: "
-        for s in self.nodes(type=Source):
-            print s
-
         print "\nVectors: "
-        for v in self.vectors:
+        for v in (self.vectors(status="dead") +
+                  self.vectors(status="alive")):
             print v
+
+        print "\nInfos: "
+        for i in (self.infos(origin_status="dead") +
+                  self.infos(origin_status="alive")):
+            print i
+
+        print "\nTransmissions: "
+        for t in (self.transmissions(vector_status="dead") +
+                  self.transmissions(vector_status="alive")):
+            print t
+
+        print "\nTransformations: "
+        for t in (self.transformations(node_status="dead") +
+                  self.transformations(node_status="dead")):
+            print t
 
 
 class Info(Base):
