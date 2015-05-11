@@ -346,7 +346,7 @@ class Node(Base):
         """Create a vector from other_node to self.
 
         other_node may be a list of nodes
-        see connect_to
+        see Node.connect_to()
         """
         if isinstance(other_node, list):
             for node in other_node:
@@ -360,18 +360,18 @@ class Node(Base):
 
         "what" dictates which infos are sent, it can be:
             (1) None (in which case the node's _what method is called).
-            (2) an info (in which case the node transmits the info)
+            (2) an Info (in which case the node transmits the info)
             (3) a subclass of Info (in which case the node transmits all its infos of that type)
             (4) a list of any combination of the above
         "to_whom" dictates which node(s) the infos are sent to, it can be:
             (1) None (in which case the node's _to_whom method is called)
-            (2) a node (in which case the node transmits to that node)
+            (2) a Node (in which case the node transmits to that node)
             (3) a subclass of Node (in which case the node transmits to all nodes of that type it is connected to)
             (4) a list of any combination of the above
         Will additionally raise an error if:
             (1) _what() or _to_whom() returns None or a list containing None.
             (2) what is/contains an info that does not originate from the transmitting node
-            (3) to_whom is/contains a node that the transmitting node is not connected to.
+            (3) to_whom is/contains a node that the transmitting node does have have a live connection with.
         Note that if _what() or _to_whom() return a list containing a list that
         contains None (or an even more deeply buried None) no error will be raised
         but an infinite loop will occur.
