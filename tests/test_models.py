@@ -27,7 +27,7 @@ class TestModels(object):
         assert len(node.uuid) == 32
         assert node.type == "base"
         assert node.creation_time
-        assert len(node.information) == 0
+        assert len(node.infos()) == 0
         assert len(node.vectors(direction="outgoing")) == 0
         assert len(node.vectors(direction="incoming")) == 0
         assert len(node.vectors(direction="outgoing")) == 0
@@ -262,9 +262,9 @@ class TestModels(object):
         assert info.origin_uuid == node.uuid
         assert info.creation_time
         assert info.contents == "foo"
-        assert len(info.transmissions) == 0
+        assert len(info.transmissions()) == 0
 
-        assert node.information == [info]
+        assert node.infos() == [info]
 
     def test_create_two_infos(self):
         """Try creating two infos"""
@@ -280,9 +280,9 @@ class TestModels(object):
         assert len(info1.transmissions()) == 0
         assert len(info2.transmissions()) == 0
 
-        assert len(node.information) == 2
-        assert info1 in node.information
-        assert info2 in node.information
+        assert len(node.infos()) == 2
+        assert info1 in node.infos()
+        assert info2 in node.infos()
 
     def test_info_repr(self):
         """Check the info repr"""
