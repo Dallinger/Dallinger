@@ -271,13 +271,13 @@ class Node(Base):
         """
         Kill a node.
         Sets the node's status to "dead".
-        Does the same to:
-            (1) all vectors that connect to for from the node.
-            (2) all infos that originated from the nodes_of_participant.
-            (3) all transmissions sent by or to the node.
+        Also kills all vectors that connect to or from the node.
+
+        You cannot kill a node that is already dead or failed.
         """
-        if self.status == "dead":
-            raise AttributeError("You cannot kill {} - it is already dead.".format(self))
+
+        if self.status != "alive":
+            raise AttributeError("You cannot kill {} - it is already {}.".format(self, self.status))
 
         else:
             self.status = "dead"
