@@ -812,10 +812,17 @@ class Network(Base):
             return all_transformations
         else:
             return [t for t in all_transformations if t.node.status == node_status]
+
+    def latest_transmission_recipient(self, status="alive"):
+        """
+        Get the node of the given status that most recently received a transmission.
+
+        status can be "all", "alive" (default), "dead" or "failed".
+        """
         received_transmissions = reversed(self.transmissions(state="received"))
         return next(
             (t.destination for t in received_transmissions
-                if (t.destination.status != "failed")),
+                if (t.destination.status == status)),
             None)
 
     def vectors(self, status="alive"):
