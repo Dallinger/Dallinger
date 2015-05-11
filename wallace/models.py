@@ -943,13 +943,17 @@ class Info(Base):
 
     # the node that created this info
     origin_uuid = Column(String(32), ForeignKey('node.uuid'), nullable=False)
+    origin = relationship(Node, backref='all_infos')
+
+    # the network the info is in, proxied from the origin node
+    network_uuid = association_proxy('origin', 'network_uuid')
+    network = association_proxy('origin', 'network')
 
     # the time when the info was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
-    network_uuid = association_proxy('origin', 'network_uuid')
-
-    network = association_proxy('origin', 'network')
+    # the contents of the info
+    contents = Column(Text())
 
     # unused by default, these columns store additional properties used
     # by other types of info
@@ -958,9 +962,6 @@ class Info(Base):
     property3 = Column(String(26), nullable=True, default=None)
     property4 = Column(String(26), nullable=True, default=None)
     property5 = Column(String(26), nullable=True, default=None)
-
-    # the contents of the info
-    contents = Column(Text())
 
     @validates("contents")
     def _write_once(self, key, value):
