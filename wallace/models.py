@@ -28,7 +28,9 @@ def timenow():
 
 class Node(Base):
 
-    """Nodes are entities that are connected to form networks."""
+    """
+    A Node is a point in a Network
+    """
 
     __tablename__ = "node"
 
@@ -41,6 +43,11 @@ class Node(Base):
         'polymorphic_on': type,
         'polymorphic_identity': 'base'
     }
+
+    # the network that this node is a part of
+    network_uuid = Column(
+        String(32), ForeignKey('network.uuid'), nullable=True)
+    network = relationship("Network", foreign_keys=[network_uuid])
 
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
@@ -56,15 +63,9 @@ class Node(Base):
     information = relationship(
         "Info", backref='origin', order_by="Info.creation_time")
 
-    # the network that this node is a part of
-    network_uuid = Column(
-        String(32), ForeignKey('network.uuid'), nullable=True)
-
     # the participant uuid is the sha512 hash of the psiTurk uniqueId of the
     # participant who was this node.
     participant_uuid = Column(String(128), nullable=True)
-
-    network = relationship("Network", foreign_keys=[network_uuid])
 
     # unused by default, these columns store additional properties used
     # by other types of node
