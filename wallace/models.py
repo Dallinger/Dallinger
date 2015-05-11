@@ -638,8 +638,8 @@ class Vector(Base):
     ###################################
 
     def die(self):
-        if self.status == "dead":
-            raise AttributeError("You cannot kill {}, it is already dead.".format(self))
+        if self.status != "alive":
+            raise AttributeError("You cannot kill {}, it is {}.".format(self, self.status))
         else:
             self.status = "dead"
             self.time_of_death = timenow()
