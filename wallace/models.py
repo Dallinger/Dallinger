@@ -564,12 +564,17 @@ class Vector(Base):
         backref="all_outgoing_vectors")
 
     # the destination node
-    destination_uuid = Column(
-        String(32), ForeignKey('node.uuid'))
-
+    destination_uuid = Column(String(32), ForeignKey('node.uuid'))
     destination = relationship(
         Node, foreign_keys=[destination_uuid],
         backref="all_incoming_vectors")
+
+    # the network the vector is in, proxied from the origin
+    network_uuid = association_proxy('origin', 'network_uuid')
+    network = association_proxy('origin', 'network')
+
+    # the time when the node was created
+    creation_time = Column(String(26), nullable=False, default=timenow)
 
     # the status of the vector
     status = Column(Enum("alive", "dead", "failed", name="vector_status"),
@@ -578,10 +583,6 @@ class Vector(Base):
     # the time when the vector changed from alive->dead
     time_of_death = Column(
         String(26), nullable=True, default=None)
-
-    network_uuid = association_proxy('origin', 'network_uuid')
-
-    network = association_proxy('origin', 'network')
 
     # unused by default, these columns store additional properties used
     # by other types of vector
