@@ -226,7 +226,7 @@ class TestNetworks(object):
         source.connect_to(net.nodes(type=models.Agent))
 
         assert repr(net)[:8] == "<Network"
-        assert repr(net)[15:] == "-base with 2 agents, 1 sources, 2 vectors>"
+        assert repr(net)[15:] == "-base with 3 nodes, 2 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
     def test_create_chain(self):
         net = networks.Chain()
@@ -259,7 +259,7 @@ class TestNetworks(object):
         net.add_source(source)
 
         assert repr(net)[:9] == "<Network-"
-        assert repr(net)[15:] == "-chain with 4 agents, 1 sources, 4 vectors>"
+        assert repr(net)[15:] == "-chain with 5 nodes, 4 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
     def test_create_fully_connected(self):
         net = networks.FullyConnected()
@@ -280,8 +280,7 @@ class TestNetworks(object):
             net.add_agent(agent)
 
         assert repr(net)[:9] == "<Network-"
-        assert repr(net)[15:] == ("-fully-connected with 4 agents"
-                                  ", 0 sources, 12 vectors>")
+        assert repr(net)[15:] == ("-fully-connected with 4 nodes, 12 vectors, 0 infos, 0 transmissions and 0 transformations>")
 
     def test_create_scale_free(self):
         m0 = 4
@@ -320,8 +319,7 @@ class TestNetworks(object):
             net.add_agent(agent)
 
         assert repr(net)[:9] == "<Network-"
-        assert repr(net)[15:] == ("-scale-free with 6 agents, "
-                                  "0 sources, 28 vectors>")
+        assert repr(net)[15:] == ("-scale-free with 6 nodes, 28 vectors, 0 infos, 0 transmissions and 0 transformations>")
 
     def test_discrete_generational(self):
         n_gens = 4

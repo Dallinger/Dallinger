@@ -688,12 +688,14 @@ class Network(Base):
             "Use len(net.nodes()) instead.")
 
     def __repr__(self):
-        return "<Network-{}-{} with {} agents, {} sources, {} vectors>".format(
+        return "<Network-{}-{} with {} nodes, {} vectors, {} infos, {} transmissions and {} transformations>".format(
             self.uuid[:6],
             self.type,
-            len(self.nodes(type=Agent)),
-            len(self.nodes(type=Source)),
-            len(self.vectors()))
+            len(self.nodes()),
+            len(self.vectors()),
+            len(self.infos()),
+            len(self.transmissions()),
+            len(self.transformations()))
 
     """ ###################################
     Methods that get things about a Network
