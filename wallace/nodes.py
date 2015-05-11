@@ -1,6 +1,7 @@
 from wallace.models import *
 from wallace.transformations import *
 from wallace.information import *
+import random
 
 
 ###################################
@@ -97,9 +98,6 @@ class Environment(Node):
     """
 
     __mapper_args__ = {"polymorphic_identity": "environment"}
-
-    # the unique environment id
-    uuid = Column(String(32), ForeignKey("node.uuid"), primary_key=True)
 
     def state(self, time=None):
         """The most recently created info of type State. If you specify a time,

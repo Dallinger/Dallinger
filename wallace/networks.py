@@ -1,6 +1,7 @@
 """Network structures commonly used in simulations of evolution."""
 
-from .models import Network, Agent, Source
+from .models import Network
+from .nodes import Agent, Source
 from sqlalchemy import Column, Integer, Boolean, String
 from sqlalchemy import ForeignKey
 import random

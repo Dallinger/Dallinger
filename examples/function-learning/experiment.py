@@ -1,6 +1,5 @@
 import wallace
-from wallace.agents import ReplicatorAgent
-from wallace.models import Source, Agent
+from wallace.nodes import ReplicatorAgent, Source
 from wallace.networks import Chain
 from wallace import processes
 from wallace.recruiters import PsiTurkRecruiter

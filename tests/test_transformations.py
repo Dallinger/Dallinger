@@ -30,8 +30,7 @@ class TestTransformations(object):
         # Register the transformation.
         transformation = transformations.Replication(
             info_out=info_out,
-            info_in=info_in,
-            node=node)
+            info_in=info_in)
 
         self.db.add(transformation)
         self.db.commit()
@@ -56,8 +55,7 @@ class TestTransformations(object):
         # Register the transformation.
         transformation = transformations.Transformation(
             info_out=info_out,
-            info_in=info_in,
-            node=node)
+            info_in=info_in)
 
         self.db.add(transformation)
         self.db.commit()

@@ -1,4 +1,4 @@
-from wallace import models, db, agents
+from wallace import models, db, nodes
 from nose.tools import raises, assert_raises
 
 
@@ -347,9 +347,9 @@ class TestModels(object):
                 ["Transmission", transmission.uuid[:6]])
 
     def test_node_incoming_transmissions(self):
-        agent1 = agents.ReplicatorAgent()
-        agent2 = agents.ReplicatorAgent()
-        agent3 = agents.ReplicatorAgent()
+        agent1 = nodes.ReplicatorAgent()
+        agent2 = nodes.ReplicatorAgent()
+        agent3 = nodes.ReplicatorAgent()
         self.add(agent1, agent2, agent3)
         self.db.commit()
 
@@ -370,9 +370,9 @@ class TestModels(object):
         assert len(agent3.transmissions(direction="incoming")) == 0
 
     def test_node_outgoing_transmissions(self):
-        agent1 = agents.ReplicatorAgent()
-        agent2 = agents.ReplicatorAgent()
-        agent3 = agents.ReplicatorAgent()
+        agent1 = nodes.ReplicatorAgent()
+        agent2 = nodes.ReplicatorAgent()
+        agent3 = nodes.ReplicatorAgent()
         self.add(agent1, agent2, agent3)
         self.db.commit()
 

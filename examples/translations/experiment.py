@@ -1,7 +1,8 @@
 import wallace
 from wallace.experiments import Experiment
 from wallace.recruiters import SimulatedRecruiter
-from wallace.models import Transformation, Agent, Source
+from wallace.models import Transformation
+from wallace.nodes import Agent, Source
 import requests
 import json
 import time

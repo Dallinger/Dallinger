@@ -1,6 +1,7 @@
 """The base experiment class."""
 
-from wallace.models import Network, Node, Agent
+from wallace.models import Network, Node
+from wallace.nodes import Agent
 import random
 
 

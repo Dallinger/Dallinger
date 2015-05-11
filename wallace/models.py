@@ -574,6 +574,7 @@ class Node(Base):
                 v.fail()
 
     def connect_to(self, other_node):
+        from wallace.nodes import Source
         """Create a vector from self to other_node.
 
         other_node may be a list of nodes.
@@ -765,7 +766,7 @@ class Node(Base):
 
         # Register the transformation.
         Replication(info_out=info_out, info_in=info_in)
-        
+
 
 class Vector(Base):
 

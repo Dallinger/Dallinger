@@ -1,5 +1,6 @@
-from wallace import processes, networks, sources, agents, db, models
-from wallace.models import Agent, Network
+from wallace import processes, networks, nodes, db, models
+from wallace.models import Network
+from wallace.nodes import Agent
 
 
 class TestProcesses(object):
@@ -15,9 +16,9 @@ class TestProcesses(object):
 
         net = models.Network()
 
-        agent1 = agents.ReplicatorAgent()
-        agent2 = agents.ReplicatorAgent()
-        agent3 = agents.ReplicatorAgent()
+        agent1 = nodes.ReplicatorAgent()
+        agent2 = nodes.ReplicatorAgent()
+        agent3 = nodes.ReplicatorAgent()
 
         net.add(agent1)
         net.add(agent2)
@@ -30,7 +31,7 @@ class TestProcesses(object):
         agent1.connect_to(agent2)
         agent2.connect_to(agent3)
 
-        source = sources.RandomBinaryStringSource()
+        source = nodes.RandomBinaryStringSource()
         self.db.add(source)
 
         net.add(source)
@@ -55,9 +56,9 @@ class TestProcesses(object):
         # Create a fully-connected network.
         net = models.Network()
 
-        agent1 = agents.ReplicatorAgent()
-        agent2 = agents.ReplicatorAgent()
-        agent3 = agents.ReplicatorAgent()
+        agent1 = nodes.ReplicatorAgent()
+        agent2 = nodes.ReplicatorAgent()
+        agent3 = nodes.ReplicatorAgent()
         self.db.add_all([agent1, agent2, agent3])
         net.add([agent1, agent2, agent3])
         self.db.commit()
@@ -69,8 +70,8 @@ class TestProcesses(object):
         agent3.connect_to(agent1)
         agent3.connect_to(agent2)
 
-        # Add a global source and broadcast to all the agents.
-        source = sources.RandomBinaryStringSource()
+        # Add a global source and broadcast to all the nodes.
+        source = nodes.RandomBinaryStringSource()
         self.db.add(source)
         net.add(source)
         for agent in net.nodes(type=Agent):
@@ -95,9 +96,9 @@ class TestProcesses(object):
         net = networks.Network()
         self.db.add(net)
 
-        agent1 = agents.ReplicatorAgent()
-        agent2 = agents.ReplicatorAgent()
-        agent3 = agents.ReplicatorAgent()
+        agent1 = nodes.ReplicatorAgent()
+        agent2 = nodes.ReplicatorAgent()
+        agent3 = nodes.ReplicatorAgent()
         self.db.add_all([agent1, agent2, agent3])
         self.db.commit()
 
@@ -110,8 +111,8 @@ class TestProcesses(object):
         agent3.connect_to(agent1)
         agent3.connect_to(agent2)
 
-        # Add a global source and broadcast to all the agents.
-        source = sources.RandomBinaryStringSource()
+        # Add a global source and broadcast to all the nodes.
+        source = nodes.RandomBinaryStringSource()
         self.db.add(source)
 
         net.add(source)
@@ -126,7 +127,7 @@ class TestProcesses(object):
 
         # Run a Moran process for 100 steps.
         for i in range(100):
-            newcomer = agents.ReplicatorAgent()
+            newcomer = nodes.ReplicatorAgent()
             net.add(newcomer)
             self.db.add(newcomer)
             processes.moran_sexual(net)

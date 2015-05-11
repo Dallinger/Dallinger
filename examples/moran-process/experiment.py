@@ -1,7 +1,8 @@
 import wallace
 from wallace.experiments import Experiment
 from wallace.recruiters import SimulatedRecruiter
-from wallace.models import Transformation, Info, Agent, Source
+from wallace.models import Transformation, Info
+from wallace.nodes import Agent, Source
 from collections import OrderedDict
 
 
