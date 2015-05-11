@@ -87,13 +87,15 @@ class Node(Base):
         """
         Get vectors that connect at this node.
 
-        Direction can be "incoming", "outgoing" or "all" (default). Status can
-        be "all", "alive" (default), "dead", "failed".
+        Direction can be "incoming", "outgoing" or "all" (default).
+        Status can be "all", "alive" (default), "dead", "failed".
         """
         if direction not in ["all", "incoming", "outgoing"]:
             raise ValueError(
                 "{} is not a valid vector direction. "
                 "Must be all, incoming or outgoing.".format(direction))
+        if status not in ["all", "alive", "dead", "failed"]:
+            raise ValueError("{} is not a valid vector status".format(status))
 
         if direction == "all":
 
@@ -135,9 +137,9 @@ class Node(Base):
         """
         Get a node's neighbors.
 
-        Type must be a subclass of Node, but defaults to Node.
-        Status can be "alive", "dead", "failed" or anything else, but defaults to alive.
-        Connection can be "to" "from" or "all", but defaults to "all".
+        Type must be a subclass of Node (default is Node).
+        Status can be "alive" (default), "dead", "failed" or "all".
+        Connection can be "to" (default), "from", "either", or "both".
         """
         if type is None:
             type = Node
@@ -145,8 +147,8 @@ class Node(Base):
         if not issubclass(type, Node):
             raise ValueError("{} is not a valid neighbor type, needs to be a subclass of Node.".format(type))
 
-        if status not in ["alive", "dead", "failed"]:
-            raise Warning("Warning, possible typo: {} is not a standard neighbor status".format(status))
+        if status not in ["alive", "dead", "failed", "all"]:
+            raise ValueError("{} is not a valid neighbor status".format(status))
 
         if connection not in ["all", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
