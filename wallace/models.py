@@ -289,10 +289,9 @@ class Node(Base):
         """
         Fail a node, setting its status to "failed".
 
-        Does the same to:
-            (1) all vectors that connect to for from the node.
-            (2) all infos that originated from the nodes_of_participant.
-            (3) all transmissions sent by or to the node.
+        Also fails all vectors that connect to or from the node.
+        You cannot fail a node that has already failed, but you
+        can fail a dead node.
         """
         if self.status == "failed":
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))
@@ -301,10 +300,8 @@ class Node(Base):
             self.status = "failed"
             self.time_of_death = timenow()
 
-            for v in self.vectors(status="alive"):
-                v.fail()
-
-            for v in self.vectors(status="dead"):
+            for v in (self.vectors(status="dead") +
+                      self.vectors(status="alive")):
                 v.fail()
 
     def connect_to(self, other_node):
