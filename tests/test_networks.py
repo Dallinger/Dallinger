@@ -207,7 +207,7 @@ class TestNetworks(object):
         #assert node1.neighbors(connection="to, status="alive") == [node2]
         #assert node1.neighbors(connection="to, status="all") == [node2, agent1, agent2]
 
-        assert_raises(Warning, node1.neighbors, connection="to", status="blagjrg")
+        assert_raises(ValueError, node1.neighbors, connection="to", status="blagjrg")
 
     def test_network_repr(self):
         net = networks.Network()
