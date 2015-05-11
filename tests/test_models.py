@@ -277,8 +277,8 @@ class TestModels(object):
         assert info1.origin_uuid == info2.origin_uuid
         assert info1.creation_time != info2.creation_time
         assert info1.contents != info2.contents
-        assert len(info1.transmissions) == 0
-        assert len(info2.transmissions) == 0
+        assert len(info1.transmissions()) == 0
+        assert len(info2.transmissions()) == 0
 
         assert len(node.information) == 2
         assert info1 in node.information
