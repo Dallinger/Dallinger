@@ -26,6 +26,279 @@ def timenow():
     return time.strftime(DATETIME_FMT)
 
 
+class Network(Base):
+
+    """
+    A Network is a collection of Nodes and Vectors.
+    Vectors can only link Nodes if they are in the same network
+    """
+
+    __tablename__ = "network"
+
+    # the unique network id
+    uuid = Column(String(32), primary_key=True, default=new_uuid)
+
+    # the network type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'base'
+    }
+
+    # the time when the node was created
+    creation_time = Column(String(26), nullable=False, default=timenow)
+
+    # how big the network can get, this number is used by the full()
+    # method to decide whether the network is full
+    max_size = Column(Integer, nullable=False, default=1e6)
+
+    # the role of the network, by default wallace initializes all
+    # networks as either "practice" or "experiment"
+    role = Column(String(26), nullable=False, default="default")
+
+    # unused by default, these columns store additional properties used
+    # by other types of network
+    property1 = Column(String(26), nullable=True, default=None)
+    property2 = Column(String(26), nullable=True, default=None)
+    property3 = Column(String(26), nullable=True, default=None)
+    property4 = Column(String(26), nullable=True, default=None)
+    property5 = Column(String(26), nullable=True, default=None)
+
+    def __len__(self):
+        raise SyntaxError(
+            "len is not defined for networks. " +
+            "Use len(net.nodes()) instead.")
+
+    def __repr__(self):
+        return "<Network-{}-{} with {} nodes, {} vectors, {} infos, {} transmissions and {} transformations>".format(
+            self.uuid[:6],
+            self.type,
+            len(self.nodes()),
+            len(self.vectors()),
+            len(self.infos()),
+            len(self.transmissions()),
+            len(self.transformations()))
+
+    """ ###################################
+    Methods that get things about a Network
+    ################################### """
+
+    def nodes(self, type=None, status="alive", participant_uuid=None):
+        """
+        Get nodes in the network.
+
+        type specifies the type of Node.
+        Status can be "all", "alive" (default), "dead" or "failed".
+        If a participant_uuid is passed only nodes with that participant_uuid will be returned.
+        """
+        if type is None:
+            type = Node
+
+        if not issubclass(type, Node):
+            raise(TypeError("Cannot get nodes of type {} as it is not a valid type.".format(type)))
+
+        if status not in ["all", "alive", "dead", "failed"]:
+            raise ValueError("{} is not a valid node status".format(status))
+
+        if participant_uuid is not None:
+            if status == "all":
+                return type\
+                    .query\
+                    .filter_by(network=self)\
+                    .filter_by(participant_uuid=participant_uuid)\
+                    .all()
+            else:
+                return type\
+                    .query\
+                    .filter_by(network=self)\
+                    .filter_by(participant_uuid=participant_uuid)\
+                    .filter_by(status=status)\
+                    .all()
+        else:
+            if status == "all":
+                return type\
+                    .query\
+                    .order_by(type.creation_time)\
+                    .filter(type.network == self)\
+                    .all()
+            else:
+                return type\
+                    .query\
+                    .order_by(type.creation_time)\
+                    .filter(type.status == status)\
+                    .filter(type.network == self)\
+                    .all()
+
+    def infos(self, type=None, origin_status="alive"):
+        """
+        Get infos in the network.
+
+        type specifies the type of info (defaults to Info).
+        only infos created by nodes with a status of origin_status will be returned.
+        origin_status can be "all", "alive" (default), "dead" or "failed".
+        To get infos from a specific node see the infos() method in class Node.
+        """
+        if type is None:
+            type = Info
+        if origin_status not in ["all", "alive", "dead", "failed"]:
+            raise ValueError("{} is not a valid origin status".format(origin_status))
+
+        all_infos = type.query.filter_by(network=self).all()
+
+        if origin_status == "all":
+            return all_infos
+        else:
+            return [i for i in all_infos if i.origin.status == origin_status]
+
+    def transmissions(self, state="all", vector_status="alive"):
+        """
+        Get transmissions in the network.
+
+        only transmissions along vectors with a status of vector_status will be returned.
+        vector_status "all", "alive" (default), "dead" or "failed".
+        To get transmissions from a specific vector see the transmissions() method in class Vector.
+        """
+        if state not in ["all", "pending", "received"]:
+            raise(ValueError("You cannot get transmission of state {}.".format(state) +
+                  "State can only be pending, received or all"))
+        if vector_status not in ["all", "alive", "dead", "failed"]:
+            raise ValueError("{} is not a valid vector status".format(vector_status))
+
+        if state == "all":
+            all_transmissions = Transmission\
+                .query\
+                .filter_by(network_uuid=self.uuid)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+
+        elif state == "received":
+            all_transmissions = Transmission\
+                .query\
+                .filter_by(network_uuid=self.uuid)\
+                .filter(Transmission.receive_time != None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+
+        elif state == "pending":
+            all_transmissions = Transmission\
+                .query\
+                .filter_by(network_uuid=self.uuid)\
+                .filter_by(receive_time=None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+
+        if vector_status == "all":
+            return all_transmissions
+        else:
+            return [t for t in all_transmissions if t.vector.status == vector_status]
+
+    def transformations(self, type=None, node_status="alive"):
+        """
+        Get transformations in the network.
+
+        type specifies the type of transformation (defaults to Transformation).
+        only transformations at nodes with a status of node_status will be returned.
+        node_status can be "all", "alive" (default), "dead" or "failed".
+        To get transformations from a specific node see the transformations() method in class Node.
+        """
+        if type is None:
+            type = Transformation
+        if node_status not in ["all", "alive", "dead", "failed"]:
+            raise ValueError("{} is not a valid origin status".format(node_status))
+
+        all_transformations = type.query.filter_by(network=self).all()
+
+        if node_status == "all":
+            return all_transformations
+        else:
+            return [t for t in all_transformations if t.node.status == node_status]
+
+    def latest_transmission_recipient(self, status="alive"):
+        """
+        Get the node of the given status that most recently received a transmission.
+
+        status can be "all", "alive" (default), "dead" or "failed".
+        """
+        received_transmissions = reversed(self.transmissions(state="received"))
+        return next(
+            (t.destination for t in received_transmissions
+                if (t.destination.status == status)),
+            None)
+
+    def vectors(self, status="alive"):
+        """
+        Get vectors in the network.
+
+        Status can be "all", "alive" (default), "dead" or "failed".
+        To get vectors attached to a specific node see the vectors() method in class Node.
+        """
+
+        if status not in ["all", "alive", "dead", "failed"]:
+            raise ValueError("{} is not a valid vector status".format(status))
+
+        if status == "all":
+            return Vector.query\
+                .filter_by(network=self)\
+                .all()
+        else:
+            return Vector.query\
+                .filter_by(network=self)\
+                .filter_by(status=status)\
+                .all()
+
+    def full(self):
+        """
+        Is the network full? If yes returns True, else returns False
+        """
+        return (len(self.nodes(status="alive")) + len(self.nodes(status="dead"))) >= self.max_size
+
+    """ ###################################
+    Methods that make Networks do things
+    ################################### """
+
+    def add(self, base):
+        """
+        Add a node to the network.
+
+        Only Nodes can be added to a network.
+        """
+        if isinstance(base, list):
+            for b in base:
+                self.add(b)
+        elif isinstance(base, Node):
+            base.network = self
+        else:
+            raise(TypeError("Cannot add {} to the network as it is a {}. " +
+                            "Only Nodes can be added to networks.").format(base, type(base)))
+
+    def print_verbose(self):
+        """Print a verbose representation of a network."""
+        print "Nodes: "
+        for a in (self.nodes(status="dead") +
+                  self.nodes(status="alive")):
+            print a
+
+        print "\nVectors: "
+        for v in (self.vectors(status="dead") +
+                  self.vectors(status="alive")):
+            print v
+
+        print "\nInfos: "
+        for i in (self.infos(origin_status="dead") +
+                  self.infos(origin_status="alive")):
+            print i
+
+        print "\nTransmissions: "
+        for t in (self.transmissions(vector_status="dead") +
+                  self.transmissions(vector_status="alive")):
+            print t
+
+        print "\nTransformations: "
+        for t in (self.transformations(node_status="dead") +
+                  self.transformations(node_status="dead")):
+            print t
+
+
 class Node(Base):
 
     """
@@ -650,277 +923,6 @@ class Vector(Base):
         else:
             self.status = "failed"
             self.time_of_death = timenow()
-
-
-class Network(Base):
-
-    """
-    A Network is a collection of Nodes and Vectors.
-    Vectors can only link Nodes if they are in the same network
-    """
-
-    __tablename__ = "network"
-
-    # the unique network id
-    uuid = Column(String(32), primary_key=True, default=new_uuid)
-
-    # the network type -- this allows for inheritance
-    type = Column(String(50))
-    __mapper_args__ = {
-        'polymorphic_on': type,
-        'polymorphic_identity': 'base'
-    }
-
-    # the time when the node was created
-    creation_time = Column(String(26), nullable=False, default=timenow)
-
-    # how big the network can get, this number is used by the full()
-    # method to decide whether the network is full
-    max_size = Column(Integer, nullable=False, default=1e6)
-
-    # the role of the network, by default wallace initializes all
-    # networks as either "practice" or "experiment"
-    role = Column(String(26), nullable=False, default="default")
-
-    # unused by default, these columns store additional properties used
-    # by other types of network
-    property1 = Column(String(26), nullable=True, default=None)
-    property2 = Column(String(26), nullable=True, default=None)
-    property3 = Column(String(26), nullable=True, default=None)
-    property4 = Column(String(26), nullable=True, default=None)
-    property5 = Column(String(26), nullable=True, default=None)
-
-    def __len__(self):
-        raise SyntaxError(
-            "len is not defined for networks. " +
-            "Use len(net.nodes()) instead.")
-
-    def __repr__(self):
-        return "<Network-{}-{} with {} nodes, {} vectors, {} infos, {} transmissions and {} transformations>".format(
-            self.uuid[:6],
-            self.type,
-            len(self.nodes()),
-            len(self.vectors()),
-            len(self.infos()),
-            len(self.transmissions()),
-            len(self.transformations()))
-
-    """ ###################################
-    Methods that get things about a Network
-    ################################### """
-
-    def nodes(self, type=Node, status="alive", participant_uuid=None):
-        """
-        Get nodes in the network.
-
-        type specifies the type of Node.
-        Status can be "all", "alive" (default), "dead" or "failed".
-        If a participant_uuid is passed only nodes with that participant_uuid will be returned.
-        """
-
-        if not issubclass(type, Node):
-            raise(TypeError("Cannot get nodes of type {} as it is not a valid type.".format(type)))
-
-        if status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid node status".format(status))
-
-        if participant_uuid is not None:
-            if status == "all":
-                return type\
-                    .query\
-                    .filter_by(network=self)\
-                    .filter_by(participant_uuid=participant_uuid)\
-                    .all()
-            else:
-                return type\
-                    .query\
-                    .filter_by(network=self)\
-                    .filter_by(participant_uuid=participant_uuid)\
-                    .filter_by(status=status)\
-                    .all()
-        else:
-            if status == "all":
-                return type\
-                    .query\
-                    .order_by(type.creation_time)\
-                    .filter(type.network == self)\
-                    .all()
-            else:
-                return type\
-                    .query\
-                    .order_by(type.creation_time)\
-                    .filter(type.status == status)\
-                    .filter(type.network == self)\
-                    .all()
-
-    def infos(self, type=None, origin_status="alive"):
-        """
-        Get infos in the network.
-
-        type specifies the type of info (defaults to Info).
-        only infos created by nodes with a status of origin_status will be returned.
-        origin_status can be "all", "alive" (default), "dead" or "failed".
-        To get infos from a specific node see the infos() method in class Node.
-        """
-        if type is None:
-            type = Info
-        if origin_status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid origin status".format(origin_status))
-
-        all_infos = type.query.filter_by(network=self).all()
-
-        if origin_status == "all":
-            return all_infos
-        else:
-            return [i for i in all_infos if i.origin.status == origin_status]
-
-    def transmissions(self, state="all", vector_status="alive"):
-        """
-        Get transmissions in the network.
-
-        only transmissions along vectors with a status of vector_status will be returned.
-        vector_status "all", "alive" (default), "dead" or "failed".
-        To get transmissions from a specific vector see the transmissions() method in class Vector.
-        """
-        if state not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of state {}.".format(state) +
-                  "State can only be pending, received or all"))
-        if vector_status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid vector status".format(vector_status))
-
-        if state == "all":
-            all_transmissions = Transmission\
-                .query\
-                .filter_by(network_uuid=self.uuid)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-
-        elif state == "received":
-            all_transmissions = Transmission\
-                .query\
-                .filter_by(network_uuid=self.uuid)\
-                .filter(Transmission.receive_time != None)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-
-        elif state == "pending":
-            all_transmissions = Transmission\
-                .query\
-                .filter_by(network_uuid=self.uuid)\
-                .filter_by(receive_time=None)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-
-        if vector_status == "all":
-            return all_transmissions
-        else:
-            return [t for t in all_transmissions if t.vector.status == vector_status]
-
-    def transformations(self, type=None, node_status="alive"):
-        """
-        Get transformations in the network.
-
-        type specifies the type of transformation (defaults to Transformation).
-        only transformations at nodes with a status of node_status will be returned.
-        node_status can be "all", "alive" (default), "dead" or "failed".
-        To get transformations from a specific node see the transformations() method in class Node.
-        """
-        if type is None:
-            type = Transformation
-        if node_status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid origin status".format(node_status))
-
-        all_transformations = type.query.filter_by(network=self).all()
-
-        if node_status == "all":
-            return all_transformations
-        else:
-            return [t for t in all_transformations if t.node.status == node_status]
-
-    def latest_transmission_recipient(self, status="alive"):
-        """
-        Get the node of the given status that most recently received a transmission.
-
-        status can be "all", "alive" (default), "dead" or "failed".
-        """
-        received_transmissions = reversed(self.transmissions(state="received"))
-        return next(
-            (t.destination for t in received_transmissions
-                if (t.destination.status == status)),
-            None)
-
-    def vectors(self, status="alive"):
-        """
-        Get vectors in the network.
-
-        Status can be "all", "alive" (default), "dead" or "failed".
-        To get vectors attached to a specific node see the vectors() method in class Node.
-        """
-
-        if status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid vector status".format(status))
-
-        if status == "all":
-            return Vector.query\
-                .filter_by(network=self)\
-                .all()
-        else:
-            return Vector.query\
-                .filter_by(network=self)\
-                .filter_by(status=status)\
-                .all()
-
-    def full(self):
-        """
-        Is the network full? If yes returns True, else returns False
-        """
-        return (len(self.nodes(status="alive")) + len(self.nodes(status="dead"))) >= self.max_size
-
-    """ ###################################
-    Methods that make Networks do things
-    ################################### """
-
-    def add(self, base):
-        """
-        Add a node to the network.
-
-        Only Nodes can be added to a network.
-        """
-        if isinstance(base, list):
-            for b in base:
-                self.add(b)
-        elif isinstance(base, Node):
-            base.network = self
-        else:
-            raise(TypeError("Cannot add {} to the network as it is a {}. " +
-                            "Only Nodes can be added to networks.").format(base, type(base)))
-
-    def print_verbose(self):
-        """Print a verbose representation of a network."""
-        print "Nodes: "
-        for a in (self.nodes(status="dead") +
-                  self.nodes(status="alive")):
-            print a
-
-        print "\nVectors: "
-        for v in (self.vectors(status="dead") +
-                  self.vectors(status="alive")):
-            print v
-
-        print "\nInfos: "
-        for i in (self.infos(origin_status="dead") +
-                  self.infos(origin_status="alive")):
-            print i
-
-        print "\nTransmissions: "
-        for t in (self.transmissions(vector_status="dead") +
-                  self.transmissions(vector_status="alive")):
-            print t
-
-        print "\nTransformations: "
-        for t in (self.transformations(node_status="dead") +
-                  self.transformations(node_status="dead")):
-            print t
 
 
 class Info(Base):
