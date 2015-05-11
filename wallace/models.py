@@ -133,7 +133,7 @@ class Node(Base):
                     .filter_by(status=status)\
                     .all()
 
-    def neighbors(self, type=None, status="alive", connection="all"):
+    def neighbors(self, type=None, status="alive", connection="to"):
         """
         Get a node's neighbors.
 
