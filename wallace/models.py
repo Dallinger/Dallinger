@@ -250,6 +250,11 @@ class Node(Base):
         return transmissions
 
     def transformations(self, type=None):
+        """
+        Get Transformations done by this Node
+
+        type must be a type of Transformation (defaults to Transformation)
+        """
         if type is None:
             type = Transformation
         return type\
