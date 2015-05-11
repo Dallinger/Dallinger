@@ -786,6 +786,26 @@ class Network(Base):
                 .all()
 
     def latest_transmission_recipient(self):
+    def transformations(self, type=None, node_status="alive"):
+        """
+        Get transformations in the network.
+
+        type specifies the type of transformation (defaults to Transformation).
+        only transformations at nodes with a status of node_status will be returned.
+        node_status can be "all", "alive" (default), "dead" or "failed".
+        To get transformations from a specific node see the transformations() method in class Node.
+        """
+        if type is None:
+            type = Transformation
+        if node_status not in ["all", "alive", "dead", "failed"]:
+            raise ValueError("{} is not a valid origin status".format(node_status))
+
+        all_transformations = type.query.filter_by(network=self).all()
+
+        if node_status == "all":
+            return all_transformations
+        else:
+            return [t for t in all_transformations if t.node.status == node_status]
         received_transmissions = reversed(self.transmissions(state="received"))
         return next(
             (t.destination for t in received_transmissions
