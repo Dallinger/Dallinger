@@ -840,7 +840,10 @@ class Network(Base):
                 .all()
 
     def full(self):
-        return len(self.nodes(type=Agent)) >= self.max_size
+        """
+        Is the network full? If yes returns True, else returns False
+        """
+        return (len(self.nodes(status="alive")) + len(self.nodes(status="dead"))) >= self.max_size
 
     """ ###################################
     Methods that make Networks do things
