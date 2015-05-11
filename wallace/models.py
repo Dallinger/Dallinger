@@ -758,19 +758,21 @@ class Network(Base):
             return all_infos
         else:
             return [i for i in all_infos if i.origin.status == origin_status]
+
+    def transmissions(self, state="all", vector_status="alive"):
         if state not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of state {}.".format(state) +
                   "State can only be pending, received or all"))
 
-        elif state == "all":
-            return Transmission\
+        if state == "all":
+            all_transmissions = Transmission\
                 .query\
                 .filter_by(network_uuid=self.uuid)\
                 .order_by(Transmission.transmit_time)\
                 .all()
 
         elif state == "received":
-            return Transmission\
+            all_transmissions = Transmission\
                 .query\
                 .filter_by(network_uuid=self.uuid)\
                 .filter(Transmission.receive_time != None)\
@@ -778,7 +780,7 @@ class Network(Base):
                 .all()
 
         elif state == "pending":
-            return Transmission\
+            all_transmissions = Transmission\
                 .query\
                 .filter_by(network_uuid=self.uuid)\
                 .filter_by(receive_time=None)\
