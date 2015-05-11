@@ -973,6 +973,54 @@ class Info(Base):
     def __repr__(self):
         return "Info-{}-{}".format(self.uuid[:6], self.type)
 
+    def transmissions(self, state="all"):
+        if state not in ["all", "pending", "received"]:
+            raise(ValueError("You cannot get transmission of state {}.".format(state) +
+                             "State can only be pending, received or all"))
+        if state == "all":
+            return Transmission\
+                .query\
+                .filter_by(info=self)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        if state == "pending":
+            return Transmission\
+                .query\
+                .filter_by(info=self)\
+                .filter(Transmission.receive_time == None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+        if state == "received":
+            return Transmission\
+                .query\
+                .filter_by(info=self)\
+                .filter(Transmission.receive_time != None)\
+                .order_by(Transmission.transmit_time)\
+                .all()
+
+    def transformations(self, relationship="all"):
+        if relationship not in ["all", "parent", "child"]:
+            raise(ValueError("You cannot get transformations of relationship {}".format(relationship) +
+                  "Relationship can only be parent, child or all."))
+
+        if relationship == "all":
+            return Transformation\
+                .query\
+                .filter(or_(Transformation.info_in == self, Transformation.info_out == self))\
+                .all()
+
+        if relationship == "parent":
+            return Transformation\
+                .query\
+                .filter_by(info_in=self)\
+                .all()
+
+        if relationship == "child":
+            return Transformation\
+                .query\
+                .filter_by(info_out=self)\
+                .all()
+
 
 class Transmission(Base):
     """
