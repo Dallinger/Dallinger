@@ -718,7 +718,7 @@ class Network(Base):
             raise(TypeError("Cannot get nodes of type {} as it is not a valid type.".format(type)))
 
         if status not in ["all", "alive", "dead", "failed"]:
-            raise Warning("Warning, possible typo: {} is not a standard node status".format(status))
+            raise ValueError("{} is not a valid node status".format(status))
 
         if participant_uuid is not None:
             if status == "all":
@@ -854,7 +854,7 @@ class Network(Base):
         """
 
         if status not in ["all", "alive", "dead", "failed"]:
-            raise Warning("Warning, possible typo: {} is not a standard node status".format(status))
+            raise ValueError("{} is not a valid vector status".format(status))
 
         if status == "all":
             return Vector.query\
