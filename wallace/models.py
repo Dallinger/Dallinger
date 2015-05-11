@@ -150,20 +150,30 @@ class Node(Base):
         if status not in ["alive", "dead", "failed", "all"]:
             raise ValueError("{} is not a valid neighbor status".format(status))
 
-        if connection not in ["all", "from", "to"]:
+        if connection not in ["both", "either", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
-
-        if connection == "all":
-            neighbors = list(set(
-                    [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.origin.status == status] +
-                    [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]))
-            return neighbors.sort(key=lambda node: node.creation_time)
 
         elif connection == "to":
             return [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.origin.status == status]
 
         elif connection == "from":
             return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]
+
+        if connection == "either":
+            neighbors = list(set(
+                [v.destination for v in self.vectors(direction="outgoing", status=status)
+                    if isinstance(v.destination, type) and v.origin.status == status] +
+                [v.origin for v in self.vectors(direction="incoming", status=status)
+                    if isinstance(v.origin, type) and v.origin.status == status]))
+            return neighbors.sort(key=lambda node: node.creation_time)
+
+        if connection == "both":
+            [node for node in
+                [v.destination for v in self.vectors(direction="outgoing", status=status)
+                 if isinstance(v.destination, type) and v.origin.status == status]
+                if node in
+                [v.origin for v in self.vectors(direction="incoming", status=status)
+                 if isinstance(v.origin, type) and v.origin.status == status]]
 
     def is_connected(self, other_node, direction="either", status="alive"):
         """Check whether this node is connected to the other_node.
