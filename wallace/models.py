@@ -227,13 +227,12 @@ class Node(Base):
             .filter(type.origin == self)\
             .all()
 
-    def transmissions(self, direction="all", state="all"):
+    def transmissions(self, direction="outgoing", state="all"):
         """
         Get transmissions sent to or from this node.
-        Direction can be "all", "incoming" or "outgoing", but defaults to "all".
-        State can be "all" (the default), "pending", or "received".
-        Status can be anything, but standard values are "alive" (the default),
-        "dead" and "failed".
+
+        Direction can be "all", "incoming" or "outgoing" (default).
+        State can be "all" (default), "pending", or "received".
         """
         if direction not in ["incoming", "outgoing", "all"]:
             raise(ValueError("You cannot get transmissions of direction {}.".format(direction) +
