@@ -757,6 +757,16 @@ class Node(Base):
         """
         pass
 
+    def replicate(self, info_in):
+        from transformations import Replication
+        info_out = type(info_in)(origin=self, contents=info_in.contents)
+        Replication(info_in=info_in, info_out=info_out)
+
+    def mutate(self, info_in):
+        from transformations import Mutation
+        info_out = type(info_in)(origin=self, contents=info_in._mutated_contents())
+        Mutation(info_in=info_in, info_out=info_out)
+
 
 class Vector(Base):
 
@@ -967,6 +977,9 @@ class Info(Base):
                 .filter_by(info_out=self)\
                 .all()
 
+    def _mutated_contents(self):
+        raise NotImplementedError("_mutated_contents needs to be overwritten in class {}".format(type(self)))
+
 
 class Transmission(Base):
     """
@@ -1072,7 +1085,7 @@ class Transformation(Base):
     def __repr__(self):
         return "Transformation-{}".format(self.uuid[:6])
 
-    def __init__(self, info_in, info_out):
+    def __init__(self, info_in, info_out=None):
         self.check_for_transformation(info_in, info_out)
         self.info_in = info_in
         self.info_out = info_out

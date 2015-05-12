@@ -37,7 +37,7 @@ class ReplicatorAgent(Agent):
     def update(self, infos):
         """Replicate the incoming information."""
         for info_in in infos:
-            replicate(node=self, info_in=info_in)
+            self.replicate(info_in=info_in)
 
 
 ###################################
