@@ -106,7 +106,8 @@ def api_agent_create():
             data = {'agents': {'uuid': newcomer.uuid}}
             js = dumps(data)
             return Response(js, status=200, mimetype='application/json')
-        except:
+        except Exception, e:
+            print str(e)
             return Response(status=403)
 
 
