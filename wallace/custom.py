@@ -17,6 +17,7 @@ import imp
 import inspect
 import urllib
 import hashlib
+import traceback
 
 # load the configuration options
 config = PsiturkConfig()
@@ -108,6 +109,7 @@ def api_agent_create():
             return Response(js, status=200, mimetype='application/json')
         except Exception, e:
             print str(e)
+            print(traceback.format_exc())
             return Response(status=403)
 
 
