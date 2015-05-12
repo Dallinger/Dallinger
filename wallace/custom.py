@@ -11,7 +11,7 @@ from psiturk.db import db_session as session_psiturk
 from psiturk.models import Participant
 from json import dumps
 
-from wallace import db, agents, models, information
+from wallace import db, nodes, models, information
 
 import imp
 import inspect
@@ -172,7 +172,7 @@ def api_transmission(transmission_uuid):
             .filter_by(uuid=request.values['info_uuid'])\
             .one()
 
-        destination = agents.Agent\
+        destination = nodes.Agent\
             .query\
             .filter_by(uuid=request.values['destination_uuid'])\
             .one()

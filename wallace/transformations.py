@@ -7,7 +7,8 @@ default. Note that they don't necessarily tell you anything about the nature
 in which two Info's relate to each other, but if used sensibly they will do so.
 """
 
-from models import Transformation
+from models import Transformation, Info
+import random
 
 
 class Replication(Transformation):
@@ -22,10 +23,3 @@ class Mutation(Transformation):
     """The mutation transformation."""
 
     __mapper_args__ = {"polymorphic_identity": "mutation"}
-
-
-class Observation(Transformation):
-
-    """The observation transformation."""
-
-    __mapper_args__ = {"polymorphic_identity": "observation"}

@@ -24,42 +24,45 @@ class TestTransformations(object):
         self.db.add(info_in)
         self.db.commit()
 
-        # Create a new info based on the old one.
-        info_out = models.Info(origin=node, contents=info_in.contents)
+        node.replicate(info_in)
 
-        # Register the transformation.
-        transformation = transformations.Replication(
-            info_out=info_out,
-            info_in=info_in,
-            node=node)
+        # # Create a new info based on the old one.
+        # info_out = models.Info(origin=node, contents=info_in.contents)
+        # self.db.add(info_in)
+        # self.db.commit()
 
-        self.db.add(transformation)
-        self.db.commit()
+        # # Register the transformation.
+        # transformation = transformations.Replication(
+        #     info_out=info_out,
+        #     info_in=info_in)
 
-        assert info_out.contents == "foo"
+        # self.db.add(transformation)
+        # self.db.commit()
 
-    def test_shuffle_transformation(self):
-        node = models.Node()
-        self.db.add(node)
-        self.db.commit()
+        assert node.infos()[-1].contents == "foo"
+        assert len(node.infos()) == 2
 
-        info_in = models.Info(origin=node, contents="foo")
-        self.db.add(info_in)
-        self.db.commit()
+    # def test_shuffle_transformation(self):
+    #     node = models.Node()
+    #     self.db.add(node)
+    #     self.db.commit()
 
-        # Create a new info based on the old one.
-        shuffled_string = ''.join(
-            random.sample(info_in.contents, len(info_in.contents)))
+    #     info_in = models.Info(origin=node, contents="foo")
+    #     self.db.add(info_in)
+    #     self.db.commit()
 
-        info_out = models.Info(origin=node, contents=shuffled_string)
+    #     # Create a new info based on the old one.
+    #     shuffled_string = ''.join(
+    #         random.sample(info_in.contents, len(info_in.contents)))
 
-        # Register the transformation.
-        transformation = transformations.Transformation(
-            info_out=info_out,
-            info_in=info_in,
-            node=node)
+    #     info_out = models.Info(origin=node, contents=shuffled_string)
 
-        self.db.add(transformation)
-        self.db.commit()
+    #     # Register the transformation.
+    #     transformation = transformations.Transformation(
+    #         info_out=info_out,
+    #         info_in=info_in)
 
-        assert info_out.contents in ["foo", "ofo", "oof"]
+    #     self.db.add(transformation)
+    #     self.db.commit()
+
+    #     assert info_out.contents in ["foo", "ofo", "oof"]

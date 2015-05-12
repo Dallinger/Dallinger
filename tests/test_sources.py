@@ -1,4 +1,4 @@
-from wallace import sources, agents, db
+from wallace import nodes, db
 
 
 class TestSources(object):
@@ -15,14 +15,14 @@ class TestSources(object):
         self.db.commit()
 
     def test_create_random_binary_string_source(self):
-        source = sources.RandomBinaryStringSource()
+        source = nodes.RandomBinaryStringSource()
         self.add(source)
 
         assert source
 
     def test_transmit_random_binary_string_source(self):
-        source = sources.RandomBinaryStringSource()
-        agent = agents.ReplicatorAgent()
+        source = nodes.RandomBinaryStringSource()
+        agent = nodes.ReplicatorAgent()
         self.db.add(source)
         self.db.add(agent)
         self.db.commit()
@@ -39,9 +39,9 @@ class TestSources(object):
         assert agent.infos()[0].contents in ["00", "01", "10", "11"]
 
     def test_broadcast_random_binary_string_source(self):
-        source = sources.RandomBinaryStringSource()
-        agent1 = agents.ReplicatorAgent()
-        agent2 = agents.ReplicatorAgent()
+        source = nodes.RandomBinaryStringSource()
+        agent1 = nodes.ReplicatorAgent()
+        agent2 = nodes.ReplicatorAgent()
         self.db.add(agent1)
         self.db.add(agent2)
         self.db.commit()
