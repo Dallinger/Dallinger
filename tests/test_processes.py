@@ -32,9 +32,10 @@ class TestProcesses(object):
         agent2.connect_to(agent3)
 
         source = nodes.RandomBinaryStringSource()
-        self.db.add(source)
-
         net.add(source)
+        self.db.add(source)
+        self.db.commit()
+
         source.connect_to(net.nodes(type=Agent)[0])
         source.create_information()
 
@@ -45,9 +46,11 @@ class TestProcesses(object):
 
         processes.random_walk(net)
         agent2.receive()
+        msg2 = agent2.infos()[0].contents
 
         processes.random_walk(net)
         agent3.receive()
+        msg3 = agent3.infos()[0].contents
 
         assert msg == agent3.infos()[0].contents
 

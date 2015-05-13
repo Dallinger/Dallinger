@@ -26,6 +26,7 @@ class TestNetworks(object):
         source = nodes.Source()
         self.db.add(source)
         net.add(source)
+        self.db.commit()
 
         assert len(net.nodes(type=nodes.Agent)) == 5
 
@@ -46,6 +47,8 @@ class TestNetworks(object):
 
         net.add(agent)
 
+        self.db.commit()
+
         assert net.nodes(type=nodes.Agent) == [agent]
         assert isinstance(net, models.Network)
 
@@ -57,6 +60,7 @@ class TestNetworks(object):
         source = nodes.Source()
         net.add(source)
         self.db.add(source)
+        self.db.commit()
 
         assert net.nodes(type=nodes.Source) == [source]
 
@@ -71,6 +75,7 @@ class TestNetworks(object):
 
         net.add([node1, node2, agent1, agent2, agent3])
         self.db.add_all([node1, node2, agent1, agent2, agent3])
+        self.db.commit()
 
         assert net.nodes() == [node1, node2, agent1, agent2, agent3]
         assert net.nodes(type=nodes.Agent) == [agent1, agent2, agent3]
@@ -112,6 +117,8 @@ class TestNetworks(object):
         net.add(agent1)
         net.add(agent2)
 
+        self.db.commit()
+
         assert [len(n.vectors(direction="outgoing")) for n in net.nodes()] == [0, 0]
 
         agent1.connect_to(agent2)
@@ -123,11 +130,13 @@ class TestNetworks(object):
 
         agent1 = nodes.Agent()
         agent2 = nodes.Agent()
-        self.db.add_all([agent1, agent2])
 
         # Add agents to network.
         net.add(agent1)
         net.add(agent2)
+
+        self.db.add_all([agent1, agent2])
+        self.db.commit()
 
         source = nodes.RandomBinaryStringSource()
         self.db.add(source)
@@ -145,11 +154,13 @@ class TestNetworks(object):
 
         agent1 = nodes.Agent()
         agent2 = nodes.Agent()
-        self.db.add_all([agent1, agent2])
 
         # Add agents to network.
         net.add(agent1)
         net.add(agent2)
+
+        self.db.add_all([agent1, agent2])
+        self.db.commit()
 
         source = nodes.RandomBinaryStringSource()
         self.db.add(source)
@@ -167,10 +178,13 @@ class TestNetworks(object):
         agent2 = nodes.Agent()
         agent3 = nodes.Agent()
         self.db.add_all([agent1, agent2, agent3])
+        self.db.commit()
 
         net.add(agent1)
         net.add(agent2)
         net.add(agent3)
+
+        self.db.commit()
 
         assert len(net.nodes(type=nodes.Agent)) == 3
         assert len(net.vectors()) == 0
@@ -218,6 +232,8 @@ class TestNetworks(object):
 
         net.add(agent1)
         net.add(agent2)
+
+        self.db.commit()
 
         source = nodes.RandomBinaryStringSource()
         self.db.add(source)
