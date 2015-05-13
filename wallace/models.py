@@ -5,7 +5,7 @@ from datetime import datetime
 
 from .db import Base
 
-from sqlalchemy import ForeignKey, desc, or_
+from sqlalchemy import ForeignKey, desc, or_, and_
 from sqlalchemy import Column, String, Text, Enum, Float, Integer
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.associationproxy import association_proxy
@@ -104,29 +104,23 @@ class Network(Base):
             if status == "all":
                 return type\
                     .query\
-                    .filter_by(network=self)\
-                    .filter_by(participant_uuid=participant_uuid)\
+                    .filter(and_(type.network_uuid == self.uuid, type.participant_uuid == participant_uuid))\
                     .all()
             else:
                 return type\
                     .query\
-                    .filter_by(network=self)\
-                    .filter_by(participant_uuid=participant_uuid)\
-                    .filter_by(status=status)\
+                    .filter(and_(type.network_uuid == self.uuid, type.participant_uuid == participant_uuid, type.status == status))\
                     .all()
         else:
             if status == "all":
                 return type\
                     .query\
-                    .order_by(type.creation_time)\
-                    .filter(type.network == self)\
+                    .filter_by(network_uuid=self.uuid)\
                     .all()
             else:
                 return type\
                     .query\
-                    .order_by(type.creation_time)\
-                    .filter(type.status == status)\
-                    .filter(type.network == self)\
+                    .filter(and_(type.status == status, type.network_uuid == self.uuid))\
                     .all()
 
     def infos(self, type=None, origin_status="alive"):
@@ -143,14 +137,12 @@ class Network(Base):
         if origin_status not in ["all", "alive", "dead", "failed"]:
             raise ValueError("{} is not a valid origin status".format(origin_status))
 
-        all_infos = type.query.filter_by(network=self).all()
+        all_infos = []
+        for node in self.nodes(status=origin_status):
+            all_infos += node.infos(type=type)
+        return sorted(all_infos, key=lambda info: info.creation_time)
 
-        if origin_status == "all":
-            return all_infos
-        else:
-            return [i for i in all_infos if i.origin.status == origin_status]
-
-    def transmissions(self, state="all", vector_status="alive"):
+    def transmissions(self, status="all", vector_status="alive"):
         """
         Get transmissions in the network.
 
@@ -158,39 +150,16 @@ class Network(Base):
         vector_status "all", "alive" (default), "dead" or "failed".
         To get transmissions from a specific vector see the transmissions() method in class Vector.
         """
-        if state not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of state {}.".format(state) +
-                  "State can only be pending, received or all"))
+        if status not in ["all", "pending", "received"]:
+            raise(ValueError("You cannot get transmission of status {}.".format(status) +
+                  "Status can only be pending, received or all"))
         if vector_status not in ["all", "alive", "dead", "failed"]:
             raise ValueError("{} is not a valid vector status".format(vector_status))
 
-        if state == "all":
-            all_transmissions = Transmission\
-                .query\
-                .filter_by(network_uuid=self.uuid)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-
-        elif state == "received":
-            all_transmissions = Transmission\
-                .query\
-                .filter_by(network_uuid=self.uuid)\
-                .filter(Transmission.receive_time != None)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-
-        elif state == "pending":
-            all_transmissions = Transmission\
-                .query\
-                .filter_by(network_uuid=self.uuid)\
-                .filter_by(receive_time=None)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-
-        if vector_status == "all":
-            return all_transmissions
-        else:
-            return [t for t in all_transmissions if t.vector.status == vector_status]
+        all_transmissions = []
+        for vector in self.vectors(status=vector_status):
+            all_transmissions += vector.transmissions(status=status)
+        return sorted(all_transmissions, key=lambda transmission: transmission.transmit_time)
 
     def transformations(self, type=None, node_status="alive"):
         """
@@ -206,12 +175,10 @@ class Network(Base):
         if node_status not in ["all", "alive", "dead", "failed"]:
             raise ValueError("{} is not a valid origin status".format(node_status))
 
-        all_transformations = type.query.filter_by(network=self).all()
-
-        if node_status == "all":
-            return all_transformations
-        else:
-            return [t for t in all_transformations if t.node.status == node_status]
+        all_transformations = []
+        for node in self.nodes(status=node_status):
+            all_transformations += node.transformations(type=type)
+        return sorted(all_transformations, key=lambda transform: transform.transform_time)
 
     def latest_transmission_recipient(self, status="alive"):
         """
@@ -219,7 +186,7 @@ class Network(Base):
 
         status can be "all", "alive" (default), "dead" or "failed".
         """
-        received_transmissions = reversed(self.transmissions(state="received"))
+        received_transmissions = reversed(self.transmissions(status="received"))
         return next(
             (t.destination for t in received_transmissions
                 if (t.destination.status == status)),
@@ -238,11 +205,11 @@ class Network(Base):
 
         if status == "all":
             return Vector.query\
-                .filter_by(network=self)\
+                .filter_by(network_uuid=self.uuid)\
                 .all()
         else:
             return Vector.query\
-                .filter_by(network=self)\
+                .filter_by(network_uuid=self.uuid)\
                 .filter_by(status=status)\
                 .all()
 
@@ -370,36 +337,33 @@ class Node(Base):
 
             if status == "all":
                 return Vector.query\
-                    .filter(or_(Vector.destination == self, Vector.origin == self))\
+                    .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid))\
                     .all()
             else:
                 return Vector.query\
-                    .filter(or_(Vector.destination == self, Vector.origin == self))\
-                    .filter_by(status=status)\
+                    .filter(and_(Vector.status == status, or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)))\
                     .all()
 
         if direction == "incoming":
 
             if status == "all":
                 return Vector.query\
-                    .filter_by(destination=self)\
+                    .filter_by(destination_uuid=self.uuid)\
                     .all()
             else:
                 return Vector.query\
-                    .filter_by(destination=self)\
-                    .filter_by(status=status)\
+                    .filter(and_(Vector.destination_uuid == self.uuid, Vector.status == status))\
                     .all()
 
         if direction == "outgoing":
 
             if status == "all":
                 return Vector.query\
-                    .filter_by(origin=self)\
+                    .filter_by(origin_uuid=self.uuid)\
                     .all()
             else:
                 return Vector.query\
-                    .filter_by(origin=self)\
-                    .filter_by(status=status)\
+                    .filter(and_(Vector.origin_uuid == self.uuid, Vector.status == status))\
                     .all()
 
     def neighbors(self, type=None, status="alive", connection="to"):
@@ -468,16 +432,17 @@ class Node(Base):
         if isinstance(other_node, Node):
 
             if direction == "to":
-                return other_node in self.neighbors(connection="to", status=status)
+                return any([v.destination_uuid == other_node.uuid for v in self.vectors(direction="outgoing", status=status)])
 
             if direction == "from":
-                return other_node in self.neighbors(connection="from", status=status)
+                return any([v.origin_uuid == other_node.uuid for v in self.vectors(direction="incoming", status=status)])
 
             if direction == "either":
-                return other_node in self.neighbors(connection="either", status=status)
+                return any([v.origin_uuid == self.uuid or v.destination_uuid == self.uuid for v in self.vectors(direction="all", status=status)])
 
             if direction == "both":
-                return other_node in self.neighbors(connection="both", status=status)
+                return ((any([v.destination_uuid == other_node.uuid for v in self.vectors(direction="outgoing", status=status)]))
+                    and (any([v.origin_uuid == other_node.uuid for v in self.vectors(direction="incoming", status=status)])))
 
     def infos(self, type=None):
         """
@@ -492,31 +457,39 @@ class Node(Base):
 
         return type\
             .query\
-            .order_by(type.creation_time)\
-            .filter(type.origin == self)\
+            .filter_by(origin_uuid=self.uuid)\
             .all()
 
-    def transmissions(self, direction="outgoing", state="all"):
+    def transmissions(self, direction="outgoing", status="all"):
         """
         Get transmissions sent to or from this node.
 
         Direction can be "all", "incoming" or "outgoing" (default).
-        State can be "all" (default), "pending", or "received".
+        Status can be "all" (default), "pending", or "received".
         """
         if direction not in ["incoming", "outgoing", "all"]:
             raise(ValueError("You cannot get transmissions of direction {}.".format(direction) +
                   "Type can only be incoming, outgoing or all."))
 
-        if state not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of state {}.".format(state) +
-                  "State can only be pending, received or all"))
+        if status not in ["all", "pending", "received"]:
+            raise(ValueError("You cannot get transmission of status {}.".format(status) +
+                  "Status can only be pending, received or all"))
 
-        vectors = self.vectors(direction=direction, status="all")
-
-        transmissions = []
-        for v in vectors:
-            transmissions += [t for t in v.transmissions(state=state)]
-        return transmissions
+        if direction == "all":
+            if status == "all":
+                return Transmission.query.filter(or_(Transmission.destination_uuid == self.uuid, Transmission.origin_uuid == self.uuid)).all()
+            else:
+                return Transmission.query.filter(and_(Transmission.status == status, or_(Transmission.destination_uuid == self.uuid, Transmission.origin_uuid == self.uuid))).all()
+        if direction == "incoming":
+            if status == "all":
+                return Transmission.query.filter_by(destination_uuid=self.uuid).all()
+            else:
+                return Transmission.query.filter(and_(Transmission.destination_uuid == self.uuid, Transmission.status == status)).all()
+        if direction == "outgoing":
+            if status == "all":
+                return Transmission.query.filter_by(origin_uuid=self.uuid).all()
+            else:
+                return Transmission.query.filter(and_(Transmission.origin_uuid == self.uuid, Transmission.status == status)).all()
 
     def transformations(self, type=None):
         """
@@ -528,8 +501,7 @@ class Node(Base):
             type = Transformation
         return type\
             .query\
-            .order_by(type.transform_time)\
-            .filter(type.node == self)\
+            .filter(type.node_uuid == self.uuid)\
             .all()
 
     """ ###################################
@@ -714,28 +686,23 @@ class Node(Base):
         "what" can be:
             (1) "all" (the default) in which case all pending transmissions are received
             (2) a specific transmission.
-            (3) a subclass of Transmission, in which case all pending transmissions of that type are received.
         Will raise an error if the node is told to receive a transmission it has not been sent.
         """
         received_transmissions = []
         if what == "all":
-            pending_transmissions = self.transmissions(direction="incoming", state="pending")
+            pending_transmissions = self.transmissions(direction="incoming", status="pending")
             for transmission in pending_transmissions:
+                transmission.status = "received"
                 transmission.receive_time = timenow()
                 received_transmissions.append(transmission)
 
         elif isinstance(what, Transmission):
-            if what in self.transmissions(direction="incoming", state="pending"):
+            if what in self.transmissions(direction="incoming", status="pending"):
+                transmission.status = "received"
                 what.receive_time = timenow()
                 received_transmissions.append(what)
             else:
                 raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, what)))
-
-        elif issubclass(what, Transmission):
-            pending_transmissions = [t for t in self.transmissions(direction="incoming", state="pending") if isinstance(t, what)]
-            for transmission in pending_transmissions:
-                transmission.receive_time = timenow()
-                received_transmissions.append(transmission)
         else:
             raise ValueError("Nodes cannot receive {}".format(what))
 
@@ -818,37 +785,25 @@ class Vector(Base):
     # Methods that get things about a Vector
     ###################################
 
-    def transmissions(self, state="all"):
+    def transmissions(self, status="all"):
         """
         Get transmissions sent along this Vector.
-        State can be "all" (the default), "pending", or "received".
+        Status can be "all" (the default), "pending", or "received".
         """
 
-        if state not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get {} transmissions.".format(state) +
-                  "State can only be pending, received or all"))
+        if status not in ["all", "pending", "received"]:
+            raise(ValueError("You cannot get {} transmissions.".format(status) +
+                  "Status can only be pending, received or all"))
 
-        if state == "all":
+        if status == "all":
             return Transmission\
                 .query\
-                .filter_by(vector=self)\
-                .order_by(Transmission.transmit_time)\
+                .filter_by(vector_uuid=self.uuid)\
                 .all()
-
-        if state == "pending":
+        else:
             return Transmission\
                 .query\
-                .filter_by(vector=self)\
-                .filter(Transmission.receive_time == None)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-
-        if state == "received":
-            return Transmission\
-                .query\
-                .filter_by(vector=self)\
-                .filter(Transmission.receive_time != None)\
-                .order_by(Transmission.transmit_time)\
+                .filter(and_(Transmission.vector_uuid == self.uuid, Transmission.status == status))\
                 .all()
 
     ###################################
@@ -920,29 +875,19 @@ class Info(Base):
     def __repr__(self):
         return "Info-{}-{}".format(self.uuid[:6], self.type)
 
-    def transmissions(self, state="all"):
-        if state not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of state {}.".format(state) +
-                             "State can only be pending, received or all"))
-        if state == "all":
+    def transmissions(self, status="all"):
+        if status not in ["all", "pending", "received"]:
+            raise(ValueError("You cannot get transmission of status {}.".format(status) +
+                             "Status can only be pending, received or all"))
+        if status == "all":
             return Transmission\
                 .query\
-                .filter_by(info=self)\
-                .order_by(Transmission.transmit_time)\
+                .filter_by(info_uuid=self.uuid)\
                 .all()
-        if state == "pending":
+        else:
             return Transmission\
                 .query\
-                .filter_by(info=self)\
-                .filter(Transmission.receive_time == None)\
-                .order_by(Transmission.transmit_time)\
-                .all()
-        if state == "received":
-            return Transmission\
-                .query\
-                .filter_by(info=self)\
-                .filter(Transmission.receive_time != None)\
-                .order_by(Transmission.transmit_time)\
+                .filter(and_(Transmission.info_uuid == self.uuid, Transmission.status == status))\
                 .all()
 
     def transformations(self, relationship="all"):
@@ -1007,6 +952,10 @@ class Transmission(Base):
 
     # the time at which the transmission was received
     receive_time = Column(String(26), nullable=True, default=None)
+
+    # the status of the transmission, can be pending or received
+    status = Column(Enum("pending", "received", name="transmission_status"),
+                    nullable=False, default="pending")
 
     # unused by default, these columns store additional properties used
     # by other types of transmission
@@ -1090,5 +1039,5 @@ class Transformation(Base):
 
         node = info_out.origin
         # check the info_in is from the node or has been sent to the node
-        if not ((info_in.origin != node) or (info_in not in [t.info for t in node.transmissions(direction="incoming", state="received")])):
+        if not ((info_in.origin != node) or (info_in not in [t.info for t in node.transmissions(direction="incoming", status="received")])):
             raise ValueError("{} cannot transform {} as it has not been sent it or made it.".format(node, info_in))
