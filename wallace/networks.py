@@ -126,8 +126,9 @@ class DiscreteGenerational(Network):
 
     def add_agent(self, newcomer):
         num_agents = len(self.nodes(type=Agent))
-        if num_agents <= self.generation_size and self.initial_source:
-            newcomer.connect_from(self.nodes(type=Source)[0])
+        if num_agents <= self.generation_size:
+            if self.initial_source:
+                newcomer.connect_from(self.nodes(type=Source)[0])
         else:
             current_generation = int((num_agents-1)/float(self.generation_size))
             newcomer.connect_from(self.agents_of_generation(current_generation-1))
@@ -138,7 +139,7 @@ class DiscreteGenerational(Network):
         return self.nodes(type=Agent)[first_index:last_index]
 
     def full(self):
-        return (len(self.nodes(type=Agent, status="alive")) + len(self.nodes(type=Agent, status="dead"))) >= self.max_size
+        return len(self.nodes(type=Agent)) >= self.max_size
 
 
 class ScaleFree(Network):
