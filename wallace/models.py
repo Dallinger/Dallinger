@@ -614,7 +614,7 @@ class Node(Base):
             if self.is_connected(direction="to", other_node=other_node):
                 raise Warning("Warning! {} is already connected to {}, cannot make another vector without killing the old one.".format(self, other_node))
             else:
-                Vector(origin=self, destination=other_node, network=self.network)
+                Vector(origin=self, destination=other_node)
 
     def connect_from(self, other_node):
         """Create a vector from other_node to self.
