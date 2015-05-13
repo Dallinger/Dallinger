@@ -3,6 +3,7 @@
 from wallace.models import Network, Node
 from wallace.nodes import Agent
 import random
+import inspect
 
 
 class Experiment(object):
@@ -62,38 +63,31 @@ class Experiment(object):
 
     def assign_agent_to_participant(self, participant_uuid):
 
-        legal_practice_networks = [
-            net for net in self.networks(role="practice") if
-            (len(net.nodes(participant_uuid=participant_uuid)) == 0) and
-            (not net.full())
-        ]
+        networks = set(self.networks())
+        participant_nodes = set(Node.query.filter_by(participant_uuid=participant_uuid).all())
+        participated_networks = set([node.network for node in participant_nodes])
+        available_networks = networks - participated_networks
+        legal_networks = [net for net in available_networks if not net.full()]
 
-        if legal_practice_networks:
-            chosen_network = legal_practice_networks[0]
+        if not legal_networks:
+            raise Exception
+
+        if len(participated_networks) < self.practice_repeats:
+            chosen_network = next((net for net in legal_networks if net.role == "practice"))
         else:
-            legal_experiment_networks = [
-                net for net in self.networks() if
-                (len(net.nodes(participant_uuid=participant_uuid)) == 0) and
-                (net.role != "practice") and
-                (not net.full())
-            ]
-            if legal_experiment_networks:
-                plenitude = [
-                    len(net.nodes(type=Agent)) for net in legal_experiment_networks]
-                idxs = [i for i, x in enumerate(plenitude) if x == min(plenitude)]
-                chosen_network = legal_experiment_networks[random.choice(idxs)]
-            else:
-                raise Exception
+            plenitude = [len(net.nodes()) for net in legal_networks]
+            min_p = min(plenitude)
+            chosen_network = random.choice([net for net, p in zip(legal_networks, plenitude) if p == min_p])
 
         # Generate the right kind of newcomer.
-        try:
-            assert(issubclass(self.agent, Node))
-            atg = lambda network=chosen_network: self.agent
-        except:
-            atg = self.agent
+        if inspect.isclass(self.agent):
+            if issubclass(self.agent, Node):
+                newcomer = self.agent(participant_uuid=participant_uuid)
+            else:
+                raise ValueError("{} is not a subclass of Node".format(self.agent))
+        else:
+            newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid)
 
-        newcomer_type = atg(network=chosen_network)
-        newcomer = newcomer_type(participant_uuid=participant_uuid)
         self.save(newcomer)
 
         # Add the newcomer to the network.
