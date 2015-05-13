@@ -577,7 +577,7 @@ class Node(Base):
         from wallace.nodes import Source
         """Create a vector from self to other_node.
 
-        other_node may be a list of nodes.
+        other_node may be a (nested) list of nodes.
         Will raise an error if:
             (1) other_node is not a node or list of nodes
             (2) other_node is a source
@@ -587,30 +587,30 @@ class Node(Base):
         If self is already connected to other_node a Warning
         is raised and nothing happens.
         """
-        if not isinstance(other_node, Node):
 
-            if isinstance(other_node, list):
-                for node in other_node:
-                    self.connect_to(node)
-            else:
-                raise(TypeError('{} cannot connect to {} as it is a {}'.format(self, other_node, type(other_node))))
-
-        elif isinstance(other_node, Source):
-            raise(TypeError("{} cannot connect_to {} as it is a Source.".format(self, other_node)))
-
-        elif other_node.status != "alive":
-            raise(ValueError("{} cannot connect to {} as it is {}".format(self, other_node, other_node.status)))
-
-        elif self == other_node:
-            raise(ValueError("{} cannot connect to itself.".format(self)))
-
-        elif self.network_uuid != other_node.network_uuid:
-            raise(ValueError(("{} cannot connect to {} as they are not " +
-                              "in the same network. {} is in network {}, " +
-                              "but {} is in network {}.")
-                             .format(self, other_node, self, self.network_uuid,
-                                     other_node, other_node.network_uuid)))
+        if isinstance(other_node, list):
+            for node in other_node:
+                self.connect_to(node)
         else:
+            if not isinstance(other_node, Node):
+                raise(TypeError("{} cannot connect_to {} as it is not a Node.".format(self, other_node)))
+
+            if isinstance(other_node, Source):
+                raise(TypeError("{} cannot connect_to {} as it is a Source.".format(self, other_node)))
+
+            if other_node.status != "alive":
+                raise(ValueError("{} cannot connect to {} as it is {}".format(self, other_node, other_node.status)))
+
+            if self == other_node:
+                raise(ValueError("{} cannot connect to itself.".format(self)))
+
+            if self.network_uuid != other_node.network_uuid:
+                raise(ValueError(("{} cannot connect to {} as they are not " +
+                                  "in the same network. {} is in network {}, " +
+                                  "but {} is in network {}.")
+                                 .format(self, other_node, self, self.network_uuid,
+                                         other_node, other_node.network_uuid)))
+
             if self.is_connected(direction="to", other_node=other_node):
                 raise Warning("Warning! {} is already connected to {}, cannot make another vector without killing the old one.".format(self, other_node))
             else:
