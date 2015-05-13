@@ -628,6 +628,13 @@ class Node(Base):
         else:
             other_node.connect_to(self)
 
+    def flatten(self, l):
+        if l == []:
+            return l
+        if isinstance(l[0], list):
+            return self.flatten(l[0]) + self.flatten(l[1:])
+        return l[:1] + self.flatten(l[1:])
+
     def transmit(self, what=None, to_whom=None):
         """
         Transmit one or more infos from one node to another.
@@ -646,69 +653,53 @@ class Node(Base):
             (1) _what() or _to_whom() returns None or a list containing None.
             (2) what is/contains an info that does not originate from the transmitting node
             (3) to_whom is/contains a node that the transmitting node does have have a live connection with.
-        Note that if _what() or _to_whom() return a list containing a list that
-        contains None (or an even more deeply buried None) no error will be raised
-        but an infinite loop will occur.
         """
         if what is None:
             what = self._what()
-            if what is None or (isinstance(what, list) and None in what):
-                raise ValueError("The _what() of {} is returning None."
-                                 .format(self))
-            else:
-                self.transmit(what=what, to_whom=to_whom)
+            if what is None:
+                raise ValueError("The _what() of {} is returning None.".format(self))
+            if isinstance(what, list):
+                if None in self.flatten(what):
+                    raise ValueError("The _what() of {} is returning a list containing None.".format(self))
 
+        if not (isinstance(what, Info) or (inspect.isclass(what) and issubclass(what, Info)) or isinstance(what, list)):
+            raise ValueError("what must be an Info, a class of Info or a list - but it's a {}".format(type(what)))
+
+        if to_whom is None:
+            to_whom = self._to_whom()
+            if to_whom is None:
+                raise ValueError("the _to_whom() of {} is returning None.".format(self))
+            if isinstance(to_whom, list):
+                if None in self.flatten(to_whom):
+                    raise ValueError("The _to_whom() of {} is returning a list containing None.".format(self))
+
+        if not (isinstance(to_whom, Node) or (inspect.isclass(to_whom) and issubclass(to_whom, Node)) or isinstance(to_whom, list)):
+            raise ValueError("to_whom must be a Node, a class of Node or a list - but it's a {}".format(type(to_whom)))
+
+        if isinstance(what, list) and isinstance(to_whom, list):
+            for w in what:
+                for t in to_whom:
+                    self.transmit(what=w, to_whom=t)
         elif isinstance(what, list):
             for w in what:
                 self.transmit(what=w, to_whom=to_whom)
-
-        elif inspect.isclass(what) and issubclass(what, Info):
-            infos = what\
-                .query\
-                .filter_by(origin_uuid=self.uuid)\
-                .order_by(desc(Info.creation_time))\
-                .all()
-            self.transmit(what=infos, to_whom=to_whom)
-
-        elif isinstance(what, Info):
-
-            # Check if sender owns the info.
-            if what.origin_uuid != self.uuid:
-                raise ValueError(
-                    "{} cannot transmit {} because it is not its origin"
-                    .format(self, what))
-
-            if to_whom is None:
-                to_whom = self._to_whom()
-                if to_whom is None or (
-                   isinstance(to_whom, list) and None in to_whom):
-                    raise ValueError("the _to_whom() of {} is returning None."
-                                     .format(self))
-                else:
-                    self.transmit(what=what, to_whom=to_whom)
-
-            elif isinstance(to_whom, list):
-                for w in to_whom:
-                    self.transmit(what=what, to_whom=w)
-
-            elif inspect.isclass(to_whom) and issubclass(to_whom, Node):
-                to_whom = [w for w in self.neighbors(connection="to", type=to_whom)]
-                self.transmit(what=what, to_whom=to_whom)
-
-            elif isinstance(to_whom, Node):
-                if not self.is_connected(direction="to", other_node=to_whom):
-                    raise ValueError(
-                        "Cannot transmit from {} to {}: " +
-                        "they are not connected".format(self, to_whom))
-                else:
-                    vector = [v for v in self.vectors(direction="outgoing") if v.destination == to_whom][0]
-                    Transmission(info=what, vector=vector)
-            else:
-                raise TypeError("Cannot transmit to '{}': ",
-                                "it is not a Node".format(to_whom))
+        elif isinstance(to_whom, list):
+            for t in to_whom:
+                self.transmit(what=what, to_whom=t)
         else:
-            raise TypeError("Cannot transmit '{}': it is not an Info"
-                            .format(what))
+            if (inspect.isclass(what) and issubclass(what, Info)) and (inspect.isclass(to_whom) and issubclass(what, Node)):
+                self.transmit(what=self.infos(type=what), to_whom=self.neighbors(connection="to", type=to_whom))
+            elif (inspect.isclass(what) and issubclass(what, Info)):
+                self.transmit(what=self.infos(type=what), to_whom=to_whom)
+            elif (inspect.isclass(to_whom) and issubclass(to_whom, Node)):
+                self.transmit(what=what, to_whom=self.neighbors(connection="to", type=to_whom))
+            else:
+                if what not in self.infos():
+                    raise ValueError("{} cannot transmit {} as it is not it's origin".format(self, what))
+                if not self.is_connected(other_node=to_whom):
+                    raise ValueError("{} cannot transmit to {} as it does not have a connection to them".format(self, to_whom))
+                vector = [v for v in self.vectors(direction="outgoing") if v.destination == to_whom][0]
+                Transmission(info=what, vector=vector)
 
     def _what(self):
         return Info
