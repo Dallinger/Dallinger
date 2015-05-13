@@ -5,8 +5,8 @@ from datetime import datetime
 
 from .db import Base
 
-from sqlalchemy import ForeignKey, desc, or_, and_
-from sqlalchemy import Column, String, Text, Enum, Float, Integer
+from sqlalchemy import ForeignKey, or_, and_
+from sqlalchemy import Column, String, Text, Enum, Integer
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.associationproxy import association_proxy
 

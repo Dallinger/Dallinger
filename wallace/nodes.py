@@ -107,9 +107,7 @@ class Environment(Node):
         else:
             return State\
                 .query\
-                .filter_by(origin_uuid=self.uuid)\
-                .filter(State.creation_time < time)\
-                .order_by(desc(State.creation_time))\
+                .filter(and_(State.origin_uuid == self.uuid, State.creation_time < time))\
                 .first()
 
     def _what(self):
