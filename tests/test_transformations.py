@@ -1,5 +1,4 @@
-from wallace import db, models, transformations
-import random
+from wallace import db, models
 
 
 class TestTransformations(object):
