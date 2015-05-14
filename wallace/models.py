@@ -405,10 +405,10 @@ class Node(Base):
         if connection not in ["both", "either", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
 
-        elif connection == "to":
+        if connection == "to":
             return [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.origin.status == status]
 
-        elif connection == "from":
+        if connection == "from":
             return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]
 
         if connection == "either":
@@ -604,8 +604,6 @@ class Node(Base):
         if any([node for node in other_node if not isinstance(node, Node)]):
             raise(TypeError("connect_to cannot parse a list containing objects of type {}.".
                   format([type(node) for node in other_node if not isinstance(node, Node)][0])))
-
-        # ^^ by this point other_node is guaranteed to be a list of Nodes
 
         to_nodes = other_node
         from_nodes = other_node
