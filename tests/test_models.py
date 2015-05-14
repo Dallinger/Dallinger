@@ -137,10 +137,13 @@ class TestModels(object):
     def test_node_indegree(self):
         node1 = models.Node()
         self.db.add(node1)
+        self.db.commit()
 
         for i in xrange(5):
             assert len(node1.vectors(direction="incoming")) == i
             new_node = models.Node()
+            self.db.add(new_node)
+            self.db.commit()
             node1.connect_from(new_node)
             self.add(new_node)
 

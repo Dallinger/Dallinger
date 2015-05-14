@@ -594,16 +594,15 @@ class Node(Base):
         if direction not in ["to", "from", "both"]:
             raise ValueError("{} is not a valid direction for connect()".format(direction))
 
-        if isinstance(other_node, Node):
-            other_node = [other_node]
+        other_node = self.flatten([other_node])
 
-        if not isinstance(other_node, list):
-            raise(TypeError("cannot connect_to objects of type {}.".
-                  format(type(other_node))))
+        if self in other_node:
+            raise ValueError("A node cannot connect to itself.")
 
-        if any([node for node in other_node if not isinstance(node, Node)]):
-            raise(TypeError("connect_to cannot parse a list containing objects of type {}.".
-                  format([type(node) for node in other_node if not isinstance(node, Node)][0])))
+        for node in other_node:
+            if not isinstance(node, Node):
+                raise(TypeError("connect_to cannot parse a list containing objects of type {}.".
+                                format([type(node) for node in other_node if not isinstance(node, Node)][0])))
 
         to_nodes = other_node
         from_nodes = other_node
@@ -613,9 +612,7 @@ class Node(Base):
             to_nodes = []
 
         if to_nodes:
-            already_connected_to = self.is_connected(direction="to", other_node=to_nodes)
-            if (not isinstance(already_connected_to, list)):
-                already_connected_to = [already_connected_to]
+            already_connected_to = self.flatten([self.is_connected(direction="to", other_node=list(to_nodes))])
             if any(already_connected_to):
                 raise Warning("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
                 to_nodes = [node for node, connected in zip(to_nodes, already_connected_to) if not connected]
@@ -700,9 +697,15 @@ class Node(Base):
                 what[i] = self.infos(type=what[i])
             else:
                 raise ValueError("Cannot transmit {}".format(what[i]))
+        what = self.flatten(what)
+        for i in range(len(what)):
+            if isinstance(what[i], Info):
+                pass
+            elif what[i] is None:
+                raise ValueError("The _what() of {} is returning None: {}.".format(self, self._what()))
+            elif inspect.isclass(what[i]) and issubclass(what[i], Info):
+                what[i] = self.infos(type=what[i])
         what = set(self.flatten(what))
-        if None in what:
-            raise ValueError("The _what() of {} is returning None: {}.".format(self, self._what()))
 
         # make the list of to_whom
         to_whom = self.flatten([to_whom])
@@ -715,9 +718,15 @@ class Node(Base):
                 to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
             else:
                 raise ValueError("Cannot transmit to {}".format(to_whom[i]))
+        to_whom = self.flatten(to_whom)
+        for i in range(len(to_whom)):
+            if isinstance(to_whom[i], Node):
+                pass
+            elif to_whom[i] is None:
+                raise ValueError("The _to_whom() of {} is returning None: {}.".format(self, self._to_whom()))
+            elif inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
+                to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
         to_whom = set(self.flatten(to_whom))
-        if None in to_whom:
-            raise ValueError("The _to_whom() of {} is returning None: {}.".format(self, self._to_whom()))
 
         for w in what:
             if not isinstance(w, Info):
