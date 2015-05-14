@@ -105,26 +105,28 @@ class Network(Base):
 
         if participant_uuid is not None:
             if status == "all":
-                return type\
+                nodes = type\
                     .query\
                     .filter(and_(type.network_uuid == self.uuid, type.participant_uuid == participant_uuid))\
                     .all()
             else:
-                return type\
+                nodes = type\
                     .query\
                     .filter(and_(type.network_uuid == self.uuid, type.participant_uuid == participant_uuid, type.status == status))\
                     .all()
         else:
             if status == "all":
-                return type\
+                nodes = type\
                     .query\
                     .filter_by(network_uuid=self.uuid)\
                     .all()
             else:
-                return type\
+                nodes = type\
                     .query\
                     .filter(and_(type.status == status, type.network_uuid == self.uuid))\
                     .all()
+
+        return sorted(nodes, key=lambda node: node.creation_time)
 
     def infos(self, type=None, origin_status="alive"):
         """
