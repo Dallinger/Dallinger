@@ -406,7 +406,7 @@ class Node(Base):
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
 
         if connection == "to":
-            return [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.origin.status == status]
+            return [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.destination.status == status]
 
         if connection == "from":
             return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]
@@ -414,18 +414,18 @@ class Node(Base):
         if connection == "either":
             neighbors = list(set(
                 [v.destination for v in self.vectors(direction="outgoing", status=status)
-                    if isinstance(v.destination, type) and v.origin.status == status] +
+                    if isinstance(v.destination, type) and v.destination.status == status] +
                 [v.origin for v in self.vectors(direction="incoming", status=status)
                     if isinstance(v.origin, type) and v.origin.status == status]))
             return neighbors.sort(key=lambda node: node.creation_time)
 
         if connection == "both":
-            [node for node in
-                [v.destination for v in self.vectors(direction="outgoing", status=status)
-                 if isinstance(v.destination, type) and v.origin.status == status]
-                if node in
-                [v.origin for v in self.vectors(direction="incoming", status=status)
-                 if isinstance(v.origin, type) and v.origin.status == status]]
+            return [node for node in
+                    [v.destination for v in self.vectors(direction="outgoing", status=status)
+                        if isinstance(v.destination, type) and v.destination.status == status]
+                    if node in
+                    [v.origin for v in self.vectors(direction="incoming", status=status)
+                        if isinstance(v.origin, type) and v.origin.status == status]]
 
     def is_connected(self, other_node, direction="to", status="alive"):
         """
