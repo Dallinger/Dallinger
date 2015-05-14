@@ -19,7 +19,7 @@ setup_args = dict(
     }
 )
 
-# read in requirements.txt for dependencies
+# Read in requirements.txt for dependencies.
 setup_args['install_requires'] = install_requires = []
 setup_args['dependency_links'] = dependency_links = []
 with open('requirements.txt') as f:

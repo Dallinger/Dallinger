@@ -72,7 +72,7 @@ class Network(Base):
             "Use len(net.nodes()) instead.")
 
     def __repr__(self):
-        """When printed, a network gives its uuid and contents."""
+        """The string representation of a network."""
         return "<Network-{}-{} with {} nodes, {} vectors, {} infos, {} transmissions and {} transformations>".format(
             self.uuid[:6],
             self.type,
@@ -90,15 +90,15 @@ class Network(Base):
         """
         Get nodes in the network.
 
-        type specifies the type of Node.
-        Status can be "all", "alive" (default), "dead" or "failed".
-        If a participant_uuid is passed only nodes with that participant_uuid will be returned.
+        type specifies the type of Node. Status can be "all", "alive"
+        (default), "dead" or "failed". If a participant_uuid is passed only
+        nodes with that participant_uuid will be returned.
         """
         if type is None:
             type = Node
 
         if not issubclass(type, Node):
-            raise(TypeError("Cannot get nodes of type {} as it is not a valid type.".format(type)))
+            raise(TypeError("{} is not a valid node type.".format(type)))
 
         if status not in ["all", "alive", "dead", "failed"]:
             raise ValueError("{} is not a valid node status".format(status))
@@ -107,12 +107,17 @@ class Network(Base):
             if status == "all":
                 nodes = type\
                     .query\
-                    .filter(and_(type.network_uuid == self.uuid, type.participant_uuid == participant_uuid))\
+                    .filter(and_(
+                        type.network_uuid == self.uuid,
+                        type.participant_uuid == participant_uuid))\
                     .all()
             else:
                 nodes = type\
                     .query\
-                    .filter(and_(type.network_uuid == self.uuid, type.participant_uuid == participant_uuid, type.status == status))\
+                    .filter(and_(
+                        type.network_uuid == self.uuid,
+                        type.participant_uuid == participant_uuid,
+                        type.status == status))\
                     .all()
         else:
             if status == "all":
@@ -123,7 +128,9 @@ class Network(Base):
             else:
                 nodes = type\
                     .query\
-                    .filter(and_(type.status == status, type.network_uuid == self.uuid))\
+                    .filter(and_(
+                        type.status == status,
+                        type.network_uuid == self.uuid))\
                     .all()
 
         return sorted(nodes, key=lambda node: node.creation_time)
@@ -132,10 +139,10 @@ class Network(Base):
         """
         Get infos in the network.
 
-        type specifies the type of info (defaults to Info).
-        only infos created by nodes with a status of origin_status will be returned.
-        origin_status can be "all", "alive" (default), "dead" or "failed".
-        To get infos from a specific node see the infos() method in class Node.
+        type specifies the type of info (defaults to Info). only infos created
+        by nodes with a status of origin_status will be returned. origin_status
+        can be "all", "alive" (default), "dead" or "failed". To get infos from
+        a specific node, see the infos() method in class Node.
         """
         if type is None:
             type = Info
@@ -151,9 +158,10 @@ class Network(Base):
         """
         Get transmissions in the network.
 
-        only transmissions along vectors with a status of vector_status will be returned.
-        vector_status "all", "alive" (default), "dead" or "failed".
-        To get transmissions from a specific vector see the transmissions() method in class Vector.
+        Only transmissions along vectors with a status of vector_status will
+        be returned. vector_status "all", "alive" (default), "dead", or
+        "failed". To get transmissions from a specific vector, see the
+        transmissions() method in class Vector.
         """
         if status not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of status {}.".format(status) +
@@ -177,13 +185,17 @@ class Network(Base):
         """
         if type is None:
             type = Transformation
+
         if node_status not in ["all", "alive", "dead", "failed"]:
             raise ValueError("{} is not a valid origin status".format(node_status))
 
         all_transformations = []
         for node in self.nodes(status=node_status):
             all_transformations += node.transformations(type=type)
-        return sorted(all_transformations, key=lambda transform: transform.transform_time)
+
+        return sorted(
+            all_transformations,
+            key=lambda transform: transform.transform_time)
 
     def latest_transmission_recipient(self, status="alive"):
         """
@@ -192,6 +204,7 @@ class Network(Base):
         Status can be "all", "alive" (default), "dead" or "failed".
         """
         received_transmissions = reversed(self.transmissions(status="received"))
+
         return next(
             (t.destination for t in received_transmissions
                 if (t.destination.status == status)),
@@ -218,8 +231,10 @@ class Network(Base):
                 .all()
 
     def full(self):
-        """Is the network full?"""
-        return (len(self.nodes(status="alive")) + len(self.nodes(status="dead"))) >= self.max_size
+        """Test if the network is full."""
+        num_alive = len(self.nodes(status="alive"))
+        num_dead = len(self.nodes(status="dead"))
+        return (num_alive + num_dead) >= self.max_size
 
     """ ###################################
     Methods that make Networks do things
@@ -264,15 +279,13 @@ class Network(Base):
 
         print "\nTransformations: "
         for t in (self.transformations(node_status="dead") +
-                  self.transformations(node_status="dead")):
+                  self.transformations(node_status="alive")):
             print t
 
 
 class Node(Base):
 
-    """
-    A Node is a point in a Network
-    """
+    """A point in a network."""
 
     __tablename__ = "node"
 
@@ -314,7 +327,7 @@ class Node(Base):
     property5 = Column(String(26), nullable=True, default=None)
 
     def __repr__(self):
-        """Representation of a node when printed."""
+        """The string representation of a node."""
         return "Node-{}-{}".format(self.uuid[:6], self.type)
 
     """ ###################################
@@ -495,7 +508,7 @@ class Node(Base):
 
     def transformations(self, type=None):
         """
-        Get Transformations done by this Node
+        Get Transformations done by this Node.
 
         type must be a type of Transformation (defaults to Transformation)
         """
@@ -513,12 +526,11 @@ class Node(Base):
     def die(self):
         """
         Kill a node.
-        Sets the node's status to "dead".
-        Also kills all vectors that connect to or from the node.
 
-        You cannot kill a node that is already dead or failed.
+        Set the node's status to "dead". Also kills all vectors that connect
+        to or from the node. You cannot kill a node that is already dead or
+        failed.
         """
-
         if self.status != "alive":
             raise AttributeError("You cannot kill {} - it is already {}.".format(self, self.status))
 
@@ -780,6 +792,7 @@ class Vector(Base):
     property5 = Column(String(26), nullable=True, default=None)
 
     def __repr__(self):
+        """The string representation of a vector."""
         return "Vector-{}-{}".format(
             self.origin_uuid[:6], self.destination_uuid[:6])
 
@@ -828,10 +841,8 @@ class Vector(Base):
 
 
 class Info(Base):
-    """
-    An Info is a unit of information.
-    Infos can be sent along Vectors with Transmissions.
-    """
+
+    """A unit of information sent along a vector via a transmission."""
 
     __tablename__ = "info"
 
@@ -875,6 +886,7 @@ class Info(Base):
         return value
 
     def __repr__(self):
+        """The string representation of an info."""
         return "Info-{}-{}".format(self.uuid[:6], self.type)
 
     def transmissions(self, status="all"):
@@ -971,6 +983,7 @@ class Transmission(Base):
         self.receive_time = timenow()
 
     def __repr__(self):
+        """The string representation of a transmission."""
         return "Transmission-{}".format(self.uuid[:6])
 
 
@@ -1025,6 +1038,7 @@ class Transformation(Base):
     property5 = Column(String(26), nullable=True, default=None)
 
     def __repr__(self):
+        """The string representation of a transformation."""
         return "Transformation-{}".format(self.uuid[:6])
 
     def __init__(self, info_in, info_out=None):

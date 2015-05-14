@@ -10,7 +10,7 @@ def random_walk(network):
     Start at a node randomly selected from those that receive input from a
     source. At each step, transmit to a randomly-selected downstream node.
     """
-    if ((not network.transmissions()) or (network.latest_transmission_recipient() is None)):
+    if (not network.transmissions() or network.latest_transmission_recipient() is None):
         sender = random.choice(network.nodes(type=Source))
     else:
         sender = network.latest_transmission_recipient()
@@ -33,6 +33,7 @@ def moran_cultural(network):
         replacer = random.choice(network.nodes(type=Agent))
         replaced = random.choice(replacer.neighbors(connection="to", type=Agent))
         replacer.transmit(what=replacer.infos()[-1], to_whom=replaced)
+
 
 def moran_sexual(network):
     """The generalized sexual Moran process.

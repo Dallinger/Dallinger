@@ -68,6 +68,8 @@ class PsiTurkRecruiter(Recruiter):
 
     def __init__(self):
 
+        """Set up the connection to MTurk and psiTurk web services."""
+
         # load the configuration options
         self.config = PsiturkConfig()
         self.config.load_config()
