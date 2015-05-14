@@ -156,3 +156,7 @@ class PsiTurkRecruiter(Recruiter):
     def reward_bonus(self, assignment_id, amount, reason):
         """Reward the Turker with a bonus."""
         return self.amt_services.bonus_worker(assignment_id, amount, reason)
+
+    def close_recruitment(self):
+        """Close recruitment."""
+        pass
