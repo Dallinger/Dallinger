@@ -436,15 +436,10 @@ class Node(Base):
         status can be "alive" (default), "dead", "failed" and "all".
         """
 
-        if isinstance(other_node, Node):
-            other_node = [other_node]
-
-        if not isinstance(other_node, list):
-            raise(TypeError("is_connected is not a valid method for objects of type {}.".
-                  format(type(other_node))))
+        other_node = self.flatten([other_node])
 
         if any([node for node in other_node if not isinstance(node, Node)]):
-            raise(TypeError("is_connected cannot parse a list containing objects of type {}.".
+            raise(TypeError("is_connected cannot parse objects of type {}.".
                   format([type(node) for node in other_node if not isinstance(node, Node)][0])))
 
         if status not in ["alive", "dead", "failed", "all"]:
