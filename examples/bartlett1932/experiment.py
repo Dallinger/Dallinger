@@ -10,8 +10,10 @@ import random
 
 class Bartlett1932(Experiment):
 
-    def __init__(self, session):
+    """Defines the experiment."""
 
+    def __init__(self, session):
+        """Set up the initial networks."""
         super(Bartlett1932, self).__init__(session)
 
         self.practice_repeats = 0
@@ -29,24 +31,27 @@ class Bartlett1932(Experiment):
                 self.save()
 
     def create_agent_trigger(self, agent, network):
+        """When an agent is created, add it to the network and take a step."""
         network.add_agent(agent)
         processes.random_walk(network)
 
     def bonus(self, participant_uuid=None):
         """Compute the bonus for the given participant.
+
         This is called automatically when a participant finishes,
-        it is called immediately prior to the participant_completion_trigger"""
+        it is called immediately prior to the participant_completion_trigger
+        """
         return 1
 
 
 class WarOfTheGhostsSource(Source):
 
-    """Transmit the War of Ghosts story from Bartlett (1932)."""
+    """Transmit a story from Bartlett (1932)."""
 
     __mapper_args__ = {"polymorphic_identity": "war_of_the_ghosts_source"}
 
     def _contents(self):
-        """Return the text of a story from Bartlett (1932)."""
+        """Read the markdown source of the story from a file."""
         stories = [
             "ghosts.md",
             "cricket.md",

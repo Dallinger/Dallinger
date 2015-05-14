@@ -28,10 +28,7 @@ def timenow():
 
 class Network(Base):
 
-    """
-    A Network is a collection of Nodes and Vectors.
-    Vectors can only link Nodes if they are in the same network
-    """
+    """A collection of Nodes and Vectors."""
 
     __tablename__ = "network"
 
@@ -65,11 +62,17 @@ class Network(Base):
     property5 = Column(String(26), nullable=True, default=None)
 
     def __len__(self):
+        """The size of a network is undefined.
+
+        The length of a network is confusing because it might refer either
+        to the number of agents, sources, or nodes. Better to be explicit.
+        """
         raise SyntaxError(
             "len is not defined for networks. " +
             "Use len(net.nodes()) instead.")
 
     def __repr__(self):
+        """When printed, a network gives its uuid and contents."""
         return "<Network-{}-{} with {} nodes, {} vectors, {} infos, {} transmissions and {} transformations>".format(
             self.uuid[:6],
             self.type,
@@ -184,7 +187,7 @@ class Network(Base):
         """
         Get the node of the given status that most recently received a transmission.
 
-        status can be "all", "alive" (default), "dead" or "failed".
+        Status can be "all", "alive" (default), "dead" or "failed".
         """
         received_transmissions = reversed(self.transmissions(status="received"))
         return next(
@@ -196,10 +199,9 @@ class Network(Base):
         """
         Get vectors in the network.
 
-        Status can be "all", "alive" (default), "dead" or "failed".
-        To get vectors attached to a specific node see the vectors() method in class Node.
+        Status can be "all", "alive" (default), "dead" or "failed". To get the
+        vectors attached to a specific node, see Node.vectors().
         """
-
         if status not in ["all", "alive", "dead", "failed"]:
             raise ValueError("{} is not a valid vector status".format(status))
 
@@ -214,9 +216,7 @@ class Network(Base):
                 .all()
 
     def full(self):
-        """
-        Is the network full? If yes returns True, else returns False
-        """
+        """Is the network full?"""
         return (len(self.nodes(status="alive")) + len(self.nodes(status="dead"))) >= self.max_size
 
     """ ###################################

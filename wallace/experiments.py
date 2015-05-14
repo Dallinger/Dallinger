@@ -17,7 +17,7 @@ class Experiment(object):
         self.recruiter = PsiTurkRecruiter
 
     def setup(self):
-        # Create the networks if they don't already exist.
+        """Create the networks if they don't already exist."""
         if not self.networks():
             for _ in range(self.practice_repeats):
                 network = self.network()
@@ -29,6 +29,7 @@ class Experiment(object):
                 self.save(network)
 
     def networks(self, role="all"):
+        """All the networks in the experiment."""
         if role == "all":
             return Network.query.all()
         else:
@@ -39,6 +40,7 @@ class Experiment(object):
                 .all()
 
     def save(self, *objects):
+        """Add all the objects to the session and commit them."""
         if len(objects) > 0:
             self.session.add_all(objects)
         self.session.commit()
