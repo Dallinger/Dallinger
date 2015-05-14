@@ -92,9 +92,10 @@ class Experiment(object):
         if len(participated_networks) < self.practice_repeats:
             chosen_network = next((net for net in legal_networks if net.role == "practice"))
         else:
-            plenitude = [len(net.nodes(type=Agent)) for net in legal_networks]
-            min_p = min(plenitude)
-            chosen_network = random.choice([net for net, p in zip(legal_networks, plenitude) if p == min_p])
+            chosen_network = random.choice(list(legal_networks))
+            # plenitude = [len(net.nodes(type=Agent)) for net in legal_networks]
+            # min_p = min(plenitude)
+            # chosen_network = random.choice([net for net, p in zip(legal_networks, plenitude) if p == min_p])
 
         # Generate the right kind of newcomer.
         if inspect.isclass(self.agent):
