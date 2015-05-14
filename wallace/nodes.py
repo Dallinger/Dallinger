@@ -1,7 +1,7 @@
-from wallace.models import *
-from wallace.transformations import *
-from wallace.information import *
+from wallace.models import Node, Info
+from wallace.information import State
 import random
+from sqlalchemy import and_
 
 
 class Agent(Node):
