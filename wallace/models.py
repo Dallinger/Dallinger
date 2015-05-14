@@ -435,33 +435,46 @@ class Node(Base):
         direction can be "to" (default), "from", "both" or "either".
         status can be "alive" (default), "dead", "failed" and "all".
         """
+
+        if isinstance(other_node, Node):
+            other_node = [other_node]
+
+        if not isinstance(other_node, list):
+            raise(TypeError("is_connected is not a valid method for objects of type {}.".
+                  format(type(other_node))))
+
+        if any([node for node in other_node if not isinstance(node, Node)]):
+            raise(TypeError("is_connected cannot parse a list containing objects of type {}.".
+                  format([type(node) for node in other_node if not isinstance(node, Node)][0])))
+
         if status not in ["alive", "dead", "failed", "all"]:
             raise ValueError("{} is not a valid connection status".format(status))
 
         if direction not in ["to", "from", "either", "both"]:
             raise ValueError("{} is not a valid direction for is_connected".format(direction))
 
-        if not (isinstance(other_node, list) or isinstance(other_node, Node)):
-            raise(TypeError("Cannot perform is_connected over obvjects of type {}.".
-                  format(type(other_node))))
+        incoming_vectors = self.vectors(direction="incoming", status=status)
+        outgoing_vectors = self.vectors(direction="outgoing", status=status)
 
-        if isinstance(other_node, list):
-            return [self.is_connected(other_node=n, status=status, direction=direction) for n in other_node]
-
-        if isinstance(other_node, Node):
-
-            if direction == "to":
-                return any([v.destination_uuid == other_node.uuid for v in self.vectors(direction="outgoing", status=status)])
-
-            if direction == "from":
-                return any([v.origin_uuid == other_node.uuid for v in self.vectors(direction="incoming", status=status)])
-
-            if direction == "either":
-                return any([v.origin_uuid == self.uuid or v.destination_uuid == self.uuid for v in self.vectors(direction="all", status=status)])
-
-            if direction == "both":
-                return ((any([v.destination_uuid == other_node.uuid for v in self.vectors(direction="outgoing", status=status)]))
-                        and (any([v.origin_uuid == other_node.uuid for v in self.vectors(direction="incoming", status=status)])))
+        connections = []
+        if direction == "to":
+            for node in other_node:
+                connections.append(any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
+        if direction == "from":
+            for node in other_node:
+                connections.append(any([v for v in incoming_vectors if v.origin_uuid == node.uuid]))
+        if direction == "either":
+            for node in other_node:
+                connections.append(any([v for v in incoming_vectors if v.origin_uuid == node.uuid]) or
+                                   any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
+        if direction == "both":
+            for node in other_node:
+                connections.append(any([v for v in incoming_vectors if v.origin_uuid == node.uuid]) and
+                                   any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
+        if len(connections) == 1:
+            return connections[0]
+        else:
+            return connections
 
     def infos(self, type=None):
         """
@@ -563,7 +576,7 @@ class Node(Base):
                       self.vectors(status="alive")):
                 v.fail()
 
-    def connect_to(self, other_node):
+    def connect(self, other_node, direction="to"):
         from wallace.nodes import Source
         """Create a vector from self to other_node.
 
@@ -578,33 +591,68 @@ class Node(Base):
         is raised and nothing happens.
         """
 
-        if isinstance(other_node, list):
-            for node in other_node:
-                self.connect_to(node)
-        else:
-            if not isinstance(other_node, Node):
-                raise(TypeError("{} cannot connect_to {} as it is not a Node.".format(self, other_node)))
+        if direction not in ["to", "from", "both"]:
+            raise ValueError("{} is not a valid direction for connect()".format(direction))
 
-            if isinstance(other_node, Source):
-                raise(TypeError("{} cannot connect_to {} as it is a Source.".format(self, other_node)))
+        if isinstance(other_node, Node):
+            other_node = [other_node]
 
-            if other_node.status != "alive":
-                raise(ValueError("{} cannot connect to {} as it is {}".format(self, other_node, other_node.status)))
+        if not isinstance(other_node, list):
+            raise(TypeError("cannot connect_to objects of type {}.".
+                  format(type(other_node))))
 
-            if self == other_node:
-                raise(ValueError("{} cannot connect to itself.".format(self)))
+        if any([node for node in other_node if not isinstance(node, Node)]):
+            raise(TypeError("connect_to cannot parse a list containing objects of type {}.".
+                  format([type(node) for node in other_node if not isinstance(node, Node)][0])))
 
-            if self.network_uuid != other_node.network_uuid:
+        # ^^ by this point other_node is guaranteed to be a list of Nodes
+
+        to_nodes = other_node
+        from_nodes = other_node
+        if direction == "to":
+            from_nodes = []
+        if direction == "from":
+            to_nodes = []
+
+        if to_nodes:
+            already_connected_to = self.is_connected(direction="to", other_node=to_nodes)
+            if (not isinstance(already_connected_to, list)):
+                already_connected_to = [already_connected_to]
+            if any(already_connected_to):
+                raise Warning("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
+                to_nodes = [node for node, connected in zip(to_nodes, already_connected_to) if not connected]
+
+        if from_nodes:
+            already_connected_from = self.is_connected(direction="from", other_node=from_nodes)
+            if (not isinstance(already_connected_from, list)):
+                already_connected_from = [already_connected_from]
+            if any(already_connected_from):
+                raise Warning("Warning! {} instructed to connect from nodes it already has a connection from, instruction will be ignored.".format(self))
+                from_nodes = [node for node, connected in zip(from_nodes, already_connected_from) if not connected]
+
+        for node in to_nodes:
+            if isinstance(node, Source):
+                raise(TypeError("{} cannot connect_to {} as it is a Source.".format(self, node)))
+            if node.status != "alive":
+                raise(ValueError("{} cannot connect to {} as it is {}".format(self, node, node.status)))
+            if self.network_uuid != node.network_uuid:
                 raise(ValueError(("{} cannot connect to {} as they are not " +
                                   "in the same network. {} is in network {}, " +
                                   "but {} is in network {}.")
-                                 .format(self, other_node, self, self.network_uuid,
-                                         other_node, other_node.network_uuid)))
+                                 .format(self, node, self, self.network_uuid,
+                                         node, node.network_uuid)))
+            Vector(origin=self, destination=node)
 
-            if self.is_connected(direction="to", other_node=other_node):
-                raise Warning("Warning! {} is already connected to {}, cannot make another vector without killing the old one.".format(self, other_node))
-            else:
-                Vector(origin=self, destination=other_node)
+        for node in from_nodes:
+            if node.status != "alive":
+                raise(ValueError("{} cannot connect from {} as it is {}".format(self, node, node.status)))
+            if self.network_uuid != node.network_uuid:
+                raise(ValueError(("{} cannot connect from {} as they are not " +
+                                  "in the same network. {} is in network {}, " +
+                                  "but {} is in network {}.")
+                                 .format(self, node, self, self.network_uuid,
+                                         node, node.network_uuid)))
+            Vector(origin=node, destination=self)
 
     def connect_from(self, other_node):
         """Create a vector from other_node to self.
@@ -612,11 +660,10 @@ class Node(Base):
         other_node may be a list of nodes
         see Node.connect_to()
         """
-        if isinstance(other_node, list):
-            for node in other_node:
-                node.connect_to(self)
-        else:
-            other_node.connect_to(self)
+        self.connect(other_node=other_node, direction="from")
+
+    def connect_to(self, other_node):
+        self.connect(other_node=other_node, direction="to")
 
     def flatten(self, l):
         if l == []:
