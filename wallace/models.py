@@ -438,9 +438,10 @@ class Node(Base):
 
         other_node = self.flatten([other_node])
 
-        if any([node for node in other_node if not isinstance(node, Node)]):
-            raise(TypeError("is_connected cannot parse objects of type {}.".
-                  format([type(node) for node in other_node if not isinstance(node, Node)][0])))
+        for node in other_node:
+            if not isinstance(node, Node):
+                raise(TypeError("is_connected cannot parse objects of type {}.".
+                      format([type(node) for node in other_node if not isinstance(node, Node)][0])))
 
         if status not in ["alive", "dead", "failed", "all"]:
             raise ValueError("{} is not a valid connection status".format(status))
@@ -451,21 +452,21 @@ class Node(Base):
         incoming_vectors = self.vectors(direction="incoming", status=status)
         outgoing_vectors = self.vectors(direction="outgoing", status=status)
 
-        connections = []
+        connections = [False]*len(other_node)
         if direction == "to":
-            for node in other_node:
-                connections.append(any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
+            for i, node in enumerate(other_node):
+                connections[i] = any([v for v in outgoing_vectors if v.destination_uuid == node.uuid])
         if direction == "from":
-            for node in other_node:
-                connections.append(any([v for v in incoming_vectors if v.origin_uuid == node.uuid]))
+            for i, node in enumerate(other_node):
+                connections[i] = any([v for v in incoming_vectors if v.origin_uuid == node.uuid])
         if direction == "either":
-            for node in other_node:
-                connections.append(any([v for v in incoming_vectors if v.origin_uuid == node.uuid]) or
-                                   any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
+            for i, node in enumerate(other_node):
+                connections[i] = (any([v for v in incoming_vectors if v.origin_uuid == node.uuid]) or
+                                  any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
         if direction == "both":
-            for node in other_node:
-                connections.append(any([v for v in incoming_vectors if v.origin_uuid == node.uuid]) and
-                                   any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
+            for i, node in enumerate(other_node):
+                connections[i] = (any([v for v in incoming_vectors if v.origin_uuid == node.uuid]) and
+                                  any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
         if len(connections) == 1:
             return connections[0]
         else:
