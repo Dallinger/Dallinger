@@ -2,8 +2,6 @@
 
 from .models import Network
 from .nodes import Agent, Source
-from sqlalchemy import Column, Integer, Boolean, String
-from sqlalchemy import ForeignKey
 import random
 
 

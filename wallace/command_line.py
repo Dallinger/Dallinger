@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+"""The Wallace command-line utility."""
+
 import click
 import time
 import uuid
@@ -19,6 +21,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
 def print_header():
+    """Print a fancy-looking header."""
     log("""
      _    _    __    __    __      __    ___  ____
     ( \/\/ )  /__\  (  )  (  )    /__\  / __)( ___)
@@ -31,6 +34,7 @@ def print_header():
 
 
 def log(msg, delay=0.5, chevrons=True, verbose=True):
+    """Log a message to stdout."""
     if verbose:
         if chevrons:
             click.echo("\n❯❯ " + msg)
@@ -40,6 +44,7 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
 
 
 def ensure_heroku_logged_in():
+    """Ensure that the user is logged in to Heroku."""
     p = pexpect.spawn("heroku auth:whoami")
     p.interact()
     print ""
@@ -47,11 +52,12 @@ def ensure_heroku_logged_in():
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 def wallace():
+    """Set up Wallace as a name space."""
     pass
 
 
 def setup(debug=True, verbose=False):
-
+    """Check the app and, if it's compatible with Wallace, freeze its state."""
     print_header()
 
     # Verify that the package is usable.
@@ -194,7 +200,7 @@ def debug(verbose):
 
 
 def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
-
+    """Set up Git, push to Heroku, and launch the app."""
     if verbose:
         OUT = None
     else:
@@ -304,8 +310,7 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--web', default=1, help='Web processes')
 def sandbox(verbose, web):
-    """Deploy app using Heroku to the MTurk Sandbox"""
-
+    """Deploy app using Heroku to the MTurk Sandbox."""
     # Load psiTurk configuration.
     config = PsiturkConfig()
     config.load_config()
@@ -327,7 +332,6 @@ def sandbox(verbose, web):
 @click.option('--web', default=1, help='Web processes')
 def deploy(verbose, web):
     """Deploy app using Heroku to MTurk."""
-
     # Load psiTurk configuration.
     config = PsiturkConfig()
     config.load_config()
@@ -455,7 +459,7 @@ def verify():
 
 
 def verify_package(verbose=True):
-
+    """Ensure the package has a config file and a valid experiment file."""
     is_passing = True
 
     # Check the config file.
