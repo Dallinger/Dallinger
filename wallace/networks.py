@@ -31,7 +31,7 @@ class Chain(Network):
             if len(self.nodes(type=Agent)) > 0:
                 source.connect_to(self.nodes(type=Agent)[0])
 
-    def full(self):
+    def calculate_full(self):
         return (len(self.nodes(type=Agent, status="alive")) + len(self.nodes(type=Agent, status="dead"))) >= self.max_size
 
 
