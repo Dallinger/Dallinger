@@ -83,7 +83,7 @@ class Experiment(object):
 
         networks = set(self.networks(full=False))
         participant_node_uuids = [node.network_uuid for node in Node.query.filter_by(participant_uuid=participant_uuid).all()]
-        participated_networks = set(Network.query.filter(Network.uuid in participant_node_uuids).all())
+        participated_networks = set([net for net in networks if net.uuid in participant_node_uuids])
         legal_networks = networks - participated_networks
 
         if not legal_networks:
