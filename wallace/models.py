@@ -457,7 +457,7 @@ class Node(Base):
 
             if direction == "both":
                 return ((any([v.destination_uuid == other_node.uuid for v in self.vectors(direction="outgoing", status=status)]))
-                    and (any([v.origin_uuid == other_node.uuid for v in self.vectors(direction="incoming", status=status)])))
+                        and (any([v.origin_uuid == other_node.uuid for v in self.vectors(direction="incoming", status=status)])))
 
     def infos(self, type=None):
         """

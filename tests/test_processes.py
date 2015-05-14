@@ -1,5 +1,4 @@
 from wallace import processes, networks, nodes, db, models
-from wallace.models import Network
 from wallace.nodes import Agent
 
 
@@ -46,11 +45,11 @@ class TestProcesses(object):
 
         processes.random_walk(net)
         agent2.receive()
-        msg2 = agent2.infos()[0].contents
+        agent2.infos()[0].contents
 
         processes.random_walk(net)
         agent3.receive()
-        msg3 = agent3.infos()[0].contents
+        agent3.infos()[0].contents
 
         assert msg == agent3.infos()[0].contents
 

@@ -19,18 +19,18 @@ import urllib
 import hashlib
 import traceback
 
-# load the configuration options
+# Load the configuration options.
 config = PsiturkConfig()
 config.load_config()
 myauth = PsiTurkAuthorization(config)
 
-# explore the Blueprint
+# Explore the Blueprint.
 custom_code = Blueprint(
     'custom_code', __name__,
     template_folder='templates',
     static_folder='static')
 
-# Initialize the Wallace db
+# Initialize the Wallace database.
 session = db.init_db(drop_all=False)
 
 # Specify the experiment.
@@ -50,20 +50,10 @@ exp = experiment(session)
 exp.recruiter().open_recruitment()
 
 
-###########################################################
-#  serving warm, fresh, & sweet custom, user-provided routes
-#  add them here
-###########################################################
-
-# ----------------------------------------------
-# example computing bonus
-# ----------------------------------------------
 @custom_code.route('/compute_bonus', methods=['GET'])
 def compute_bonus():
+    """Compute the bonus."""
     exp = experiment(session)
-    # check that user provided the correct keys
-    # errors will not be that graceful here if being
-    # accessed by the Javascript client
     if 'uniqueId' not in request.args:
         raise ExperimentError('improper_inputs')
     uniqueId = request.args['uniqueId']
@@ -92,13 +82,12 @@ def compute_bonus():
 
 @custom_code.route("/agents", methods=["POST"])
 def api_agent_create():
-
+    """Create an agent."""
     exp = experiment(session)
 
     if request.method == 'POST':
-
         # Figure out whether this MTurk participant is allowed to create
-        # another agent in this experiment.
+        # another agent in the experiment.
         participant_uuid = hashlib.sha512(
             request.values["unique_id"]).hexdigest()
 
@@ -118,7 +107,7 @@ def api_agent_create():
                    methods=["POST", "GET"])
 @custom_code.route("/transmissions/<transmission_uuid>", methods=["GET"])
 def api_transmission(transmission_uuid):
-
+    """Create a transmission."""
     exp = experiment(session)
     session.commit()
 
@@ -196,7 +185,7 @@ def api_transmission(transmission_uuid):
                    methods=["POST", "GET"])
 @custom_code.route("/information/<info_uuid>", methods=["GET"])
 def api_info(info_uuid):
-
+    """Create and access informaiton."""
     exp = experiment(session)
 
     if request.method == 'GET':
@@ -287,7 +276,7 @@ def api_info(info_uuid):
 
 @custom_code.route("/notifications", methods=["POST", "GET"])
 def api_notifications():
-
+    """Receive notifications from MTurk REST notifications."""
     exp = experiment(session)
 
     # Get the assignment id.
