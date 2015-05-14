@@ -83,6 +83,9 @@ class TestNetworks(object):
         node1.die()
         agent1.fail()
 
+        self.db.add_all([node1, node2, agent1, agent2, agent3])
+        self.db.commit()
+
         assert net.nodes() == [node2, agent2, agent3]
         assert net.nodes(status="all") == [node1, node2, agent1, agent2, agent3]
         assert net.nodes(status="dead") == [node1]
