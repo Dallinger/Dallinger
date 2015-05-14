@@ -10,7 +10,6 @@ def random_walk(network):
     Start at a node randomly selected from those that receive input from a
     source. At each step, transmit to a randomly-selected downstream node.
     """
-    # work out who is going to transmit
     if ((not network.transmissions()) or (network.latest_transmission_recipient() is None)):
         sender = random.choice(network.nodes(type=Source))
     else:
@@ -22,10 +21,11 @@ def random_walk(network):
 
 
 def moran_cultural(network):
-    """The generalized cultural Moran process plays out over a network. At each
-    time step, an individual is chosen to receive information from another
-    individual. Nobody dies, but perhaps their ideas do."""
+    """Generalized cultural Moran process.
 
+    At eachtime step, an individual is chosen to receive information from
+    another individual. Nobody dies, but perhaps their ideas do.
+    """
     if not network.transmissions():  # first step, replacer is a source
         replacer = random.choice(network.nodes(type=Source))
         replacer.transmit()
@@ -34,15 +34,13 @@ def moran_cultural(network):
         replaced = random.choice(replacer.neighbors(connection="to", type=Agent))
         replacer.transmit(what=replacer.infos()[-1], to_whom=replaced)
 
-
 def moran_sexual(network):
-    """The generalized sexual Moran process also plays out over a network. At
-    each time step, and individual is chosen for replication and another
-    individual is chosen to die. The replication replaces the one who dies.
+    """The generalized sexual Moran process.
 
+    Ateach time step, and individual is chosen for replication and another
+    individual is chosen to die. The replication replaces the one who dies.
     For this process to work you need to add a new agent before calling step.
     """
-
     if not network.transmissions():
         replacer = random.choice(network.nodes(type=Source))
         replacer.transmit()

@@ -1,9 +1,10 @@
+"""Create a connection to the database."""
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 import os
 
-# create the connection to the database
 db_url = os.environ.get("DATABASE_URL", "sqlite:///wallace.db")
 engine = create_engine(db_url)
 Session = scoped_session(sessionmaker(autoflush=True, bind=engine))

@@ -4,11 +4,6 @@ from wallace.information import *
 import random
 
 
-###################################
-# The Agent class and subclasses
-###################################
-
-
 class Agent(Node):
 
     """An Agent is a Node with a fitness."""
@@ -27,22 +22,15 @@ class Agent(Node):
 
 
 class ReplicatorAgent(Agent):
-    """
-    The ReplicatorAgent is a simple extension of the base Agent.
-    The only difference is that its update function copies
-    any incoming transmissions.
-    """
+
+    """An agent that copies incoming transmissions."""
+
     __mapper_args__ = {"polymorphic_identity": "replicator_agent"}
 
     def update(self, infos):
         """Replicate the incoming information."""
         for info_in in infos:
             self.replicate(info_in=info_in)
-
-
-###################################
-# The Source class and subclasses
-###################################
 
 
 class Source(Node):
@@ -85,29 +73,26 @@ class RandomBinaryStringSource(Source):
         return "".join([str(random.randint(0, 1)) for i in range(2)])
 
 
-###################################
-# The Environment class and subclasses
-###################################
-
 class Environment(Node):
 
-    """
-    Environments are Nodes with the following features:
-    1 - by default they transmit the most recent info of type State
-    2 - the state() method can be passed a time to get the state at that time
-    """
+    """Environments are nodes with a state."""
 
     __mapper_args__ = {"polymorphic_identity": "environment"}
 
     def state(self, time=None):
-        """The most recently created info of type State. If you specify a time,
-        it will return the most recent state at that point in time."""
+        """The most recently-created info of type State.
+
+        If given a timestamp, it will return the most recent state at that
+        point in time.
+        """
         if time is None:
             return self.infos(type=State)[-1]
         else:
             return State\
                 .query\
-                .filter(and_(State.origin_uuid == self.uuid, State.creation_time < time))\
+                .filter(and_(
+                    State.origin_uuid == self.uuid,
+                    State.creation_time < time))\
                 .first()
 
     def _what(self):

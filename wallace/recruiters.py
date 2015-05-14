@@ -45,6 +45,8 @@ class HotAirRecruiter(object):
 
 class SimulatedRecruiter(object):
 
+    """Recruit simulated agents."""
+
     def __init__(self):
         super(SimulatedRecruiter, self).__init__()
 
@@ -97,7 +99,6 @@ class PsiTurkRecruiter(Recruiter):
             "psiturk_secret_access_id",
             self.config.get("psiTurk Access", "psiturk_secret_access_id"))
 
-        # Set up MTurk and psiTurk services.
         self.amt_services = MTurkServices(
             aws_access_key_id,
             aws_secret_access_key,
@@ -131,13 +132,12 @@ class PsiTurkRecruiter(Recruiter):
                 self.config.get('HIT Configuration', 'base_payment'),
                 self.config.get('HIT Configuration', 'duration'))
 
-            # print "##HITTypeId: ".format(self.shell.amt_services.hit_type_id)
-
         else:
             # HIT was already created, no need to recreate it.
             print "Reject recruitment reopening: experiment has started."
 
     def recruit_new_participants(self, n=1):
+        """Extend the HIT to recruit more people."""
         previous_participant = Participant.query\
             .order_by(desc(Participant.endhit))\
             .first()
@@ -148,7 +148,9 @@ class PsiTurkRecruiter(Recruiter):
             self.config.get('HIT Configuration', 'duration'))
 
     def approve_hit(self, assignment_id):
+        """Approve the HIT."""
         return self.amt_services.approve_worker(assignment_id)
 
     def reward_bonus(self, assignment_id, amount, reason):
+        """Reward the Turker with a bonus."""
         return self.amt_services.bonus_worker(assignment_id, amount, reason)
