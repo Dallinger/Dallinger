@@ -67,9 +67,8 @@ def moran_sexual(network):
         replacer.transmit(to_whom=baby)
 
 
-def transmit_by_fitness(to_whom=None, what=None, from_whom=Agent):
-
-    parents = to_whom.neighbors(connection="from", type=from_whom)
+def transmit_by_fitness(from_whom, to_whom=None, what=None):
+    parents = from_whom
     parent_fitnesses = [p.fitness for p in parents]
     parent_probs = [(f/(1.0*sum(parent_fitnesses))) for f in parent_fitnesses]
 

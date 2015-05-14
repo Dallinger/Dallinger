@@ -130,9 +130,7 @@ class DiscreteGenerational(Network):
         else:
             current_generation = int((num_agents-1)/float(self.generation_size))
             agents = self.agents_of_generation(current_generation-1)
-            # for agent in agents:
-            #     agent.connect_to(newcomer)
-            newcomer.connect_from(agents)
+            newcomer.connect(direction="from", other_node=agents)
 
     def agents_of_generation(self, generation):
         first_index = generation*self.generation_size
