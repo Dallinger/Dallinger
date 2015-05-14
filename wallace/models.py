@@ -6,7 +6,7 @@ from datetime import datetime
 from .db import Base
 
 from sqlalchemy import ForeignKey, or_, and_
-from sqlalchemy import Column, String, Text, Enum, Integer
+from sqlalchemy import Column, String, Text, Enum, Integer, Boolean
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.associationproxy import association_proxy
 
@@ -48,6 +48,9 @@ class Network(Base):
     # how big the network can get, this number is used by the full()
     # method to decide whether the network is full
     max_size = Column(Integer, nullable=False, default=1e6)
+
+    # whether the network is currently full
+    full = Column(Boolean, nullable=False, default=False)
 
     # the role of the network, by default wallace initializes all
     # networks as either "practice" or "experiment"
@@ -230,8 +233,8 @@ class Network(Base):
                 .filter_by(status=status)\
                 .all()
 
-    def full(self):
-        """Test if the network is full."""
+    def calculate_full(self):
+        """Set whether the network is full."""
         num_alive = len(self.nodes(status="alive"))
         num_dead = len(self.nodes(status="dead"))
         return (num_alive + num_dead) >= self.max_size
@@ -251,6 +254,7 @@ class Network(Base):
                 self.add(b)
         elif isinstance(base, Node):
             base.network = self
+            self.full = self.calculate_full()
         else:
             raise(TypeError("Cannot add {} to the network as it is a {}. " +
                             "Only Nodes can be added to networks.").format(base, type(base)))

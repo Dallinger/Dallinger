@@ -52,7 +52,7 @@ class FullyConnected(Network):
             agent.connect_to(newcomer)
             newcomer.connect_to(agent)
 
-    def full(self):
+    def calculate_full(self):
         return (len(self.nodes(type=Agent, status="alive")) + len(self.nodes(type=Agent, status="dead"))) >= self.max_size
 
 
@@ -136,7 +136,7 @@ class DiscreteGenerational(Network):
         last_index = first_index+(self.generation_size)
         return self.nodes(type=Agent)[first_index:last_index]
 
-    def full(self):
+    def calculate_full(self):
         return len(self.nodes(type=Agent)) >= self.max_size
 
 

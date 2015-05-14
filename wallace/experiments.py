@@ -2,8 +2,11 @@
 
 from wallace.models import Network, Node
 from wallace.nodes import Agent
+from sqlalchemy import and_
 import random
 import inspect
+
+from datetime import datetime
 
 
 class Experiment(object):
@@ -28,16 +31,29 @@ class Experiment(object):
                 network.role = "experiment"
                 self.save(network)
 
-    def networks(self, role="all"):
+    def networks(self, role="all", full="all"):
         """All the networks in the experiment."""
-        if role == "all":
-            return Network.query.all()
+        if full not in ["all", True, False]:
+            raise ValueError("full must be boolean or all, it cannot be {}".format(full))
+
+        if full == "all":
+            if role == "all":
+                return Network.query.all()
+            else:
+                return Network\
+                    .query\
+                    .filter_by(role=role)\
+                    .order_by(Network.creation_time)\
+                    .all()
         else:
-            return Network\
-                .query\
-                .filter_by(role=role)\
-                .order_by(Network.creation_time)\
-                .all()
+            if role == "all":
+                return Network.query.filter_by(full=full).all()
+            else:
+                return Network\
+                    .query\
+                    .filter_by(and_(role=role, full=full))\
+                    .order_by(Network.creation_time)\
+                    .all()
 
     def save(self, *objects):
         """Add all the objects to the session and commit them."""
@@ -65,11 +81,10 @@ class Experiment(object):
 
     def assign_agent_to_participant(self, participant_uuid):
 
-        networks = set(self.networks())
-        participant_nodes = set(Node.query.filter_by(participant_uuid=participant_uuid).all())
-        participated_networks = set([node.network for node in participant_nodes])
-        available_networks = networks - participated_networks
-        legal_networks = [net for net in available_networks if not net.full()]
+        networks = set(self.networks(full=False))
+        participant_node_uuids = [node.network_uuid for node in Node.query.filter_by(participant_uuid=participant_uuid).all()]
+        participated_networks = set(Network.query.filter(Network.uuid in participant_node_uuids).all())
+        legal_networks = networks - participated_networks
 
         if not legal_networks:
             raise Exception
@@ -98,7 +113,10 @@ class Experiment(object):
         return newcomer
 
     def is_experiment_over(self):
-        return all([net.full() for net in self.networks()])
+        if self.networks(full=False):
+            return False
+        else:
+            return True
 
     def participant_completion_trigger(self, participant_uuid=None):
 
