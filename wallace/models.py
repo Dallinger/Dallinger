@@ -689,14 +689,10 @@ class Node(Base):
         # make the list of what
         what = self.flatten([what])
         for i in range(len(what)):
-            if isinstance(what[i], Info):
-                pass
-            elif what[i] is None:
+            if what[i] is None:
                 what[i] = self._what()
             elif inspect.isclass(what[i]) and issubclass(what[i], Info):
                 what[i] = self.infos(type=what[i])
-            else:
-                raise ValueError("Cannot transmit {}".format(what[i]))
         what = self.flatten(what)
         for i in range(len(what)):
             if isinstance(what[i], Info):
@@ -705,19 +701,17 @@ class Node(Base):
                 raise ValueError("The _what() of {} is returning None: {}.".format(self, self._what()))
             elif inspect.isclass(what[i]) and issubclass(what[i], Info):
                 what[i] = self.infos(type=what[i])
+            else:
+                raise ValueError("Cannot transmit {}".format(what[i]))
         what = set(self.flatten(what))
 
         # make the list of to_whom
         to_whom = self.flatten([to_whom])
         for i in range(len(to_whom)):
-            if isinstance(to_whom[i], Node):
-                pass
-            elif to_whom[i] is None:
+            if to_whom[i] is None:
                 to_whom[i] = self._to_whom()
             elif inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
                 to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
-            else:
-                raise ValueError("Cannot transmit to {}".format(to_whom[i]))
         to_whom = self.flatten(to_whom)
         for i in range(len(to_whom)):
             if isinstance(to_whom[i], Node):
@@ -726,16 +720,14 @@ class Node(Base):
                 raise ValueError("The _to_whom() of {} is returning None: {}.".format(self, self._to_whom()))
             elif inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
                 to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
+            else:
+                raise ValueError("Cannot transmit to {}".format(to_whom[i]))
         to_whom = set(self.flatten(to_whom))
 
         for w in what:
-            if not isinstance(w, Info):
-                raise TypeError("Cannot transmit things of type {}".format(type(w)))
             if w.origin_uuid != self.uuid:
                 raise ValueError("{} cannot transmit {} as it is not its origin".format(self, w))
             for tw in to_whom:
-                if not isinstance(tw, Node):
-                    raise TypeError("Cannot transmit to things of type {}".format(type(tw)))
                 if not self.is_connected(other_node=tw):
                     raise ValueError("{} cannot transmit to {} as it does not have a connection to them".format(self, to_whom))
                 vector = [v for v in self.vectors(direction="outgoing") if v.destination_uuid == tw.uuid][0]
