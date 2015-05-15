@@ -304,9 +304,8 @@ class Node(Base):
     }
 
     # the network that this node is a part of
-    network_uuid = Column(
-        String(32), ForeignKey('network.uuid'), nullable=True)
-    network = relationship("Network", foreign_keys=[network_uuid])
+    network_uuid = Column(String(32), ForeignKey('network.uuid'))
+    network = relationship(Network, backref="all_nodes")
 
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
@@ -316,19 +315,19 @@ class Node(Base):
                     nullable=False, default="alive")
 
     # the time when the node changed from alive->dead or alive->failed
-    time_of_death = Column(String(26), nullable=True, default=None)
+    time_of_death = Column(String(26), default=None)
 
     # the participant uuid is the sha512 hash of the psiTurk uniqueId of the
     # participant who was this node.
-    participant_uuid = Column(String(128), nullable=True)
+    participant_uuid = Column(String(128), default=None)
 
     # unused by default, these columns store additional properties used
     # by other types of node
-    property1 = Column(String(26), nullable=True, default=None)
-    property2 = Column(String(26), nullable=True, default=None)
-    property3 = Column(String(26), nullable=True, default=None)
-    property4 = Column(String(26), nullable=True, default=None)
-    property5 = Column(String(26), nullable=True, default=None)
+    property1 = Column(String(26), default=None)
+    property2 = Column(String(26), default=None)
+    property3 = Column(String(26), default=None)
+    property4 = Column(String(26), default=None)
+    property5 = Column(String(26), default=None)
 
     def __repr__(self):
         """The string representation of a node."""
@@ -803,15 +802,13 @@ class Vector(Base):
 
     # the origin node
     origin_uuid = Column(String(32), ForeignKey('node.uuid'))
-    origin = relationship(
-        Node, foreign_keys=[origin_uuid],
-        backref="all_outgoing_vectors")
+    origin = relationship(Node, foreign_keys=[origin_uuid],
+                          backref="all_outgoing_vectors")
 
     # the destination node
     destination_uuid = Column(String(32), ForeignKey('node.uuid'))
-    destination = relationship(
-        Node, foreign_keys=[destination_uuid],
-        backref="all_incoming_vectors")
+    destination = relationship(Node, foreign_keys=[destination_uuid],
+                               backref="all_incoming_vectors")
 
     # the network the vector is in, proxied from the origin
     network_uuid = association_proxy('origin', 'network_uuid')
@@ -825,16 +822,15 @@ class Vector(Base):
                     nullable=False, default="alive")
 
     # the time when the vector changed from alive->dead
-    time_of_death = Column(
-        String(26), nullable=True, default=None)
+    time_of_death = Column(String(26), default=None)
 
     # unused by default, these columns store additional properties used
     # by other types of vector
-    property1 = Column(String(26), nullable=True, default=None)
-    property2 = Column(String(26), nullable=True, default=None)
-    property3 = Column(String(26), nullable=True, default=None)
-    property4 = Column(String(26), nullable=True, default=None)
-    property5 = Column(String(26), nullable=True, default=None)
+    property1 = Column(String(26), default=None)
+    property2 = Column(String(26), default=None)
+    property3 = Column(String(26), default=None)
+    property4 = Column(String(26), default=None)
+    property5 = Column(String(26), default=None)
 
     def __repr__(self):
         """The string representation of a vector."""
@@ -902,7 +898,7 @@ class Info(Base):
     }
 
     # the node that created this info
-    origin_uuid = Column(String(32), ForeignKey('node.uuid'), nullable=False)
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'))
     origin = relationship(Node, backref='all_infos')
 
     # the network the info is in, proxied from the origin node
@@ -913,15 +909,15 @@ class Info(Base):
     creation_time = Column(String(26), nullable=False, default=timenow)
 
     # the contents of the info
-    contents = Column(Text())
+    contents = Column(Text(), default=None)
 
     # unused by default, these columns store additional properties used
     # by other types of info
-    property1 = Column(String(26), nullable=True, default=None)
-    property2 = Column(String(26), nullable=True, default=None)
-    property3 = Column(String(26), nullable=True, default=None)
-    property4 = Column(String(26), nullable=True, default=None)
-    property5 = Column(String(26), nullable=True, default=None)
+    property1 = Column(String(26), default=None)
+    property2 = Column(String(26), default=None)
+    property3 = Column(String(26), default=None)
+    property4 = Column(String(26), default=None)
+    property5 = Column(String(26), default=None)
 
     @validates("contents")
     def _write_once(self, key, value):
@@ -987,11 +983,11 @@ class Transmission(Base):
     uuid = Column(String(32), primary_key=True, default=new_uuid)
 
     # the vector the transmission passed along
-    vector_uuid = Column(String(32), ForeignKey('vector.uuid'), nullable=False)
+    vector_uuid = Column(String(32), ForeignKey('vector.uuid'))
     vector = relationship(Vector, backref='all_transmissions')
 
     # the info that was transmitted
-    info_uuid = Column(String(32), ForeignKey('info.uuid'), nullable=False)
+    info_uuid = Column(String(32), ForeignKey('info.uuid'))
     info = relationship(Info, backref='all_transmissions')
 
     # the origin of the transmission, provxied from the vector
@@ -1010,7 +1006,7 @@ class Transmission(Base):
     transmit_time = Column(String(26), nullable=False, default=timenow)
 
     # the time at which the transmission was received
-    receive_time = Column(String(26), nullable=True, default=None)
+    receive_time = Column(String(26), default=None)
 
     # the status of the transmission, can be pending or received
     status = Column(Enum("pending", "received", name="transmission_status"),
@@ -1018,11 +1014,11 @@ class Transmission(Base):
 
     # unused by default, these columns store additional properties used
     # by other types of transmission
-    property1 = Column(String(26), nullable=True, default=None)
-    property2 = Column(String(26), nullable=True, default=None)
-    property3 = Column(String(26), nullable=True, default=None)
-    property4 = Column(String(26), nullable=True, default=None)
-    property5 = Column(String(26), nullable=True, default=None)
+    property1 = Column(String(26), default=None)
+    property2 = Column(String(26), default=None)
+    property3 = Column(String(26), default=None)
+    property4 = Column(String(26), default=None)
+    property5 = Column(String(26), default=None)
 
     def mark_received(self):
         self.receive_time = timenow()
@@ -1050,18 +1046,14 @@ class Transformation(Base):
     uuid = Column(String(32), primary_key=True, default=new_uuid)
 
     # the info before it was transformed
-    info_in_uuid = Column(String(32), ForeignKey('info.uuid'), nullable=False)
-    info_in = relationship(
-        Info,
-        foreign_keys=[info_in_uuid],
-        backref="transformation_applied_to")
+    info_in_uuid = Column(String(32), ForeignKey('info.uuid'))
+    info_in = relationship(Info, foreign_keys=[info_in_uuid],
+                           backref="transformation_applied_to")
 
     # the info produced as a result of the transformation
-    info_out_uuid = Column(String(32), ForeignKey('info.uuid'), nullable=False)
-    info_out = relationship(
-        Info,
-        foreign_keys=[info_out_uuid],
-        backref="transformation_whence")
+    info_out_uuid = Column(String(32), ForeignKey('info.uuid'))
+    info_out = relationship(Info, foreign_keys=[info_out_uuid],
+                            backref="transformation_whence")
 
     # the node that applied this transformation, proxied from the info_out
     node_uuid = association_proxy('info_out', 'origin_uuid')
@@ -1076,11 +1068,11 @@ class Transformation(Base):
 
     # unused by default, these columns store additional properties used
     # by other types of transformation
-    property1 = Column(String(26), nullable=True, default=None)
-    property2 = Column(String(26), nullable=True, default=None)
-    property3 = Column(String(26), nullable=True, default=None)
-    property4 = Column(String(26), nullable=True, default=None)
-    property5 = Column(String(26), nullable=True, default=None)
+    property1 = Column(String(26), default=None)
+    property2 = Column(String(26), default=None)
+    property3 = Column(String(26), default=None)
+    property4 = Column(String(26), default=None)
+    property5 = Column(String(26), default=None)
 
     def __repr__(self):
         """The string representation of a transformation."""

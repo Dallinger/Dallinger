@@ -25,11 +25,11 @@ class Experiment(object):
         for _ in range(self.practice_repeats):
             network = self.network()
             network.role = "practice"
-            self.save(network)
+            self.session.add(network)
         for _ in range(self.experiment_repeats):
             network = self.network()
             network.role = "experiment"
-            self.save(network)
+            self.session.add(network)
 
     def networks(self, role="all", full="all"):
         """All the networks in the experiment."""
@@ -59,7 +59,6 @@ class Experiment(object):
         """Add all the objects to the session and commit them."""
         if len(objects) > 0:
             self.session.add_all(objects)
-        self.session.commit()
 
     def newcomer_arrival_trigger(self, newcomer):
         pass
@@ -70,7 +69,7 @@ class Experiment(object):
             t.mark_received()
 
     def information_creation_trigger(self, info):
-        self.save(info.origin)
+        pass
 
     def step(self):
         pass
@@ -92,23 +91,17 @@ class Experiment(object):
             chosen_network = next(net for net in legal_networks if net.role == "practice")
         else:
             chosen_network = random.choice(legal_networks)
-            # plenitude = [len(net.nodes(type=Agent)) for net in legal_networks]
-            # min_p = min(plenitude)
-            # chosen_network = random.choice([net for net, p in zip(legal_networks, plenitude) if p == min_p])
 
         # Generate the right kind of newcomer and assign them to the network.
         if inspect.isclass(self.agent):
             if issubclass(self.agent, Node):
-                newcomer = self.agent(participant_uuid=participant_uuid, network_uuid=chosen_network.uuid)
+                newcomer = self.agent(participant_uuid=participant_uuid, network=chosen_network)
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid, network_uuid=chosen_network.uuid)
+            newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid, network=chosen_network)
 
-        self.save(newcomer)
         chosen_network.calculate_full()
-
-        # run any further code.
         self.create_agent_trigger(agent=newcomer, network=chosen_network)
         return newcomer
 
