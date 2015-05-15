@@ -82,15 +82,14 @@ class Experiment(object):
     def assign_agent_to_participant(self, participant_uuid):
 
         networks = self.networks(full=False)
-        participant_node_uuids = [node.network_uuid for node in Node.query.filter_by(participant_uuid=participant_uuid).all()]
-        participated_networks = [net for net in networks if net.uuid in participant_node_uuids]
-        legal_networks = [net for net in networks if net not in participated_networks]
+        participant_node_uuids = set([node.network_uuid for node in Node.query.filter_by(participant_uuid=participant_uuid).all()])
+        legal_networks = [net for net in networks if net.uuid not in participant_node_uuids]
 
         if not legal_networks:
             raise Exception
 
-        if len(participated_networks) < self.practice_repeats:
-            chosen_network = next((net for net in legal_networks if net.role == "practice"))
+        if len(participant_node_uuids) < self.practice_repeats:
+            chosen_network = next(net for net in legal_networks if net.role == "practice")
         else:
             chosen_network = random.choice(list(legal_networks))
             # plenitude = [len(net.nodes(type=Agent)) for net in legal_networks]
