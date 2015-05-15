@@ -51,7 +51,7 @@ class Experiment(object):
             else:
                 return Network\
                     .query\
-                    .filter_by(and_(role=role, full=full))\
+                    .filter(and_(Network.role == role, Network.full == full))\
                     .order_by(Network.creation_time)\
                     .all()
 
@@ -91,7 +91,7 @@ class Experiment(object):
         if len(participant_node_uuids) < self.practice_repeats:
             chosen_network = next(net for net in legal_networks if net.role == "practice")
         else:
-            chosen_network = random.choice(list(legal_networks))
+            chosen_network = random.choice(legal_networks)
             # plenitude = [len(net.nodes(type=Agent)) for net in legal_networks]
             # min_p = min(plenitude)
             # chosen_network = random.choice([net for net, p in zip(legal_networks, plenitude) if p == min_p])
