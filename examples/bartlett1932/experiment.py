@@ -34,6 +34,10 @@ class Bartlett1932(Experiment):
         network.add_agent(agent)
         processes.random_walk(network)
 
+    def recruit(self):
+        """Recruit participants to the experiment if needed."""
+        self.recruiter().recruit_participants(n=1)
+
     def bonus(self, participant_uuid=None):
         """Compute the bonus for the given participant.
 

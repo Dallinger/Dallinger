@@ -330,16 +330,8 @@ def api_notifications():
 
             # Recruit new participants.
             exp.participant_completion_trigger(
-                participant_uuid=participant_uuid)
-
-            # Accept the HIT.
-            exp.recruiter().approve_hit(assignment_id)
-
-            # Reward the bonus.
-            exp.recruiter().reward_bonus(
-                assignment_id,
-                exp.bonus(participant_uuid=participant_uuid),
-                exp.bonus_reason())
+                participant_uuid=participant_uuid,
+                assignment_id=assignment_id)
 
             # Assign participant status 4.
             participant.status = 5

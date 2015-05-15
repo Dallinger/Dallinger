@@ -43,18 +43,7 @@ class SubstitutionCiphersExperiment(Experiment):
 
         # Run the next step of the process.
         self.process.step()
-
         newcomer.receive()
-
-        if self.is_experiment_over():
-            # If the experiment is over, stop recruiting and export the data.
-            self.recruiter().close_recruitment(exp=self)
-        else:
-            # Otherwise recruit a new participant.
-            self.recruiter().recruit_participants(exp=self, n=1)
-
-    def is_experiment_over(self):
-        return len(self.network.vectors) == self.num_agents
 
 
 class SimulatedAgent(Agent):

@@ -29,15 +29,6 @@ class FunctionLearning(wallace.experiments.Experiment):
                 print source
                 print "Added initial source: " + str(source)
 
-    def participant_completion_trigger(self, info):
-
-        if self.is_experiment_over():
-            # If the experiment is over, stop recruiting and export the data.
-            self.recruiter().close_recruitment()
-        else:
-            # Otherwise recruit a new participant.
-            self.recruiter().recruit_participants(n=1)
-
     def create_agent_trigger(self, agent, network):
         network.add_agent(agent)
         processes.random_walk(network)

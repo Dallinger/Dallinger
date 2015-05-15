@@ -18,6 +18,7 @@ class Experiment(object):
         self.practice_repeats = 0
         self.experiment_repeats = 0
         self.recruiter = PsiTurkRecruiter
+        self.num_to_recruit = 1
 
     def setup(self):
         """Create the networks if they don't already exist."""
@@ -111,36 +112,39 @@ class Experiment(object):
         self.create_agent_trigger(agent=newcomer, network=chosen_network)
         return newcomer
 
-    def is_experiment_over(self):
-        if self.networks(full=False):
-            return False
-        else:
-            return True
-
-    def participant_completion_trigger(self, participant_uuid=None):
-
+    def participant_completion_trigger(
+            self, participant_uuid=None, assignment_id=None):
+        """Check performance and recruit new participants as needed."""
+        # Check that the particpant's performance was acceptable.
         self.participant_attention_check(participant_uuid=participant_uuid)
 
-        if self.is_experiment_over():
-            # If the experiment is over, stop recruiting and export the data.
-            self.recruiter().close_recruitment()
+        # Accept the HIT.
+        self.recruiter().approve_hit(assignment_id)
+
+        # Reward the bonus.
+        self.recruiter().reward_bonus(
+            assignment_id,
+            self.bonus(participant_uuid=participant_uuid),
+            self.bonus_reason())
+
+        # Recruit new participants as needed.
+        if self.networks(full=False):
+            self.recruit()
         else:
-            # Otherwise recruit a new participant.
-            self.recruiter().recruit_participants(n=1)
+            self.recruiter().close_recruitment()
+
+    def recruit(self):
+        """Recruit participants to the experiment as needed."""
+        self.recruiter().recruit_participants(n=1)
 
     def bonus(self, participant_uuid=None):
-        """Compute the bonus for the given participant.
-        This is called automatically when a participant finishes,
-        it is called immediately prior to the participant_completion_trigger"""
+        """The bonus to be awarded to the given participant."""
         return 0
 
     def bonus_reason(self):
+        """The reason offered to the participant for giving the bonus."""
         return "Thank for participating! Here is your bonus."
 
     def participant_attention_check(self, participant_uuid=None):
-        """
-        Perform a check on a participant to see if they have passed
-        some sort of attention check. If they fail the check, you
-        may wish to fail their nodes.
-        """
+        """Check if participant performed adequately."""
         pass

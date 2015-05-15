@@ -51,7 +51,7 @@ class SimulatedRecruiter(object):
         super(SimulatedRecruiter, self).__init__()
 
     def open_recruitment(self, exp=None):
-        self.recruit_participants(exp, 1)
+        self.recruit_participants(exp, n=1)
 
     def recruit_participants(self, n=1, exp=None):
         for i in xrange(n):
