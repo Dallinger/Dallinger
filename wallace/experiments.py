@@ -21,15 +21,14 @@ class Experiment(object):
 
     def setup(self):
         """Create the networks if they don't already exist."""
-        if not self.networks():
-            for _ in range(self.practice_repeats):
-                network = self.network()
-                network.role = "practice"
-                self.save(network)
-            for _ in range(self.experiment_repeats):
-                network = self.network()
-                network.role = "experiment"
-                self.save(network)
+        for _ in range(self.practice_repeats):
+            network = self.network()
+            network.role = "practice"
+            self.save(network)
+        for _ in range(self.experiment_repeats):
+            network = self.network()
+            network.role = "experiment"
+            self.save(network)
 
     def networks(self, role="all", full="all"):
         """All the networks in the experiment."""
