@@ -13,7 +13,7 @@ class Agent(Node):
     __mapper_args__ = {"polymorphic_identity": "agent"}
 
     def set_fitness(self, fitness):
-        self.property1 = str(fitness)
+        self.property1 = repr(fitness)
 
     @property
     def fitness(self):
