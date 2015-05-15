@@ -86,7 +86,7 @@ class Experiment(object):
         legal_networks = [net for net in networks if net.uuid not in participant_node_uuids]
 
         if not legal_networks:
-            raise Exception
+            return None
 
         if len(participant_node_uuids) < self.practice_repeats:
             chosen_network = next(net for net in legal_networks if net.role == "practice")

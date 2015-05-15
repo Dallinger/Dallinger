@@ -91,14 +91,12 @@ def api_agent_create():
         participant_uuid = hashlib.sha512(
             request.values["unique_id"]).hexdigest()
 
-        try:
-            newcomer = exp.assign_agent_to_participant(participant_uuid)
+        newcomer = exp.assign_agent_to_participant(participant_uuid)
+        if newcomer is not None:
             data = {'agents': {'uuid': newcomer.uuid}}
             js = dumps(data)
             return Response(js, status=200, mimetype='application/json')
-        except Exception, e:
-            print str(e)
-            print(traceback.format_exc())
+        else:
             return Response(status=403)
 
 
