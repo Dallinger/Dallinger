@@ -96,19 +96,19 @@ class Experiment(object):
             # min_p = min(plenitude)
             # chosen_network = random.choice([net for net, p in zip(legal_networks, plenitude) if p == min_p])
 
-        # Generate the right kind of newcomer.
+        # Generate the right kind of newcomer and assign them to the network.
         if inspect.isclass(self.agent):
             if issubclass(self.agent, Node):
-                newcomer = self.agent(participant_uuid=participant_uuid)
+                newcomer = self.agent(participant_uuid=participant_uuid, network=chosen_network)
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid)
+            newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid, network=chosen_network)
 
         self.save(newcomer)
+        chosen_network.calculate_full()
 
-        # Add the newcomer to the network.
-        chosen_network.add(newcomer)
+        # run any further code.
         self.create_agent_trigger(agent=newcomer, network=chosen_network)
         return newcomer
 
