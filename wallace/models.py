@@ -449,21 +449,24 @@ class Node(Base):
         if direction not in ["to", "from", "either", "both"]:
             raise ValueError("{} is not a valid direction for is_connected".format(direction))
 
-        incoming_vectors = self.vectors(direction="incoming", status=status)
-        outgoing_vectors = self.vectors(direction="outgoing", status=status)
-
         connections = [False]*len(other_node)
         if direction == "to":
+            outgoing_vectors = self.vectors(direction="outgoing", status=status)
             for i, node in enumerate(other_node):
                 connections[i] = any([v for v in outgoing_vectors if v.destination_uuid == node.uuid])
         if direction == "from":
+            incoming_vectors = self.vectors(direction="incoming", status=status)
             for i, node in enumerate(other_node):
                 connections[i] = any([v for v in incoming_vectors if v.origin_uuid == node.uuid])
         if direction == "either":
+            incoming_vectors = self.vectors(direction="incoming", status=status)
+            outgoing_vectors = self.vectors(direction="outgoing", status=status)
             for i, node in enumerate(other_node):
                 connections[i] = (any([v for v in incoming_vectors if v.origin_uuid == node.uuid]) or
                                   any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
         if direction == "both":
+            incoming_vectors = self.vectors(direction="incoming", status=status)
+            outgoing_vectors = self.vectors(direction="outgoing", status=status)
             for i, node in enumerate(other_node):
                 connections[i] = (any([v for v in incoming_vectors if v.origin_uuid == node.uuid]) and
                                   any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
