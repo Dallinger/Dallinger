@@ -738,7 +738,7 @@ class Node(Base):
     def _to_whom(self):
         return Node
 
-    def receive(self, what="all"):
+    def receive(self, what=None):
         """
         Mark transmissions as received, then pass their infos to update().
 
@@ -748,7 +748,7 @@ class Node(Base):
         Will raise an error if the node is told to receive a transmission it has not been sent.
         """
         received_transmissions = []
-        if what == "all":
+        if what is None:
             pending_transmissions = self.transmissions(direction="incoming", status="pending")
             for transmission in pending_transmissions:
                 transmission.status = "received"
