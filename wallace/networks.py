@@ -123,13 +123,16 @@ class DiscreteGenerational(Network):
         return bool(self.property3)
 
     def add_agent(self, newcomer):
-        num_agents = len(self.nodes(type=Agent))
+        agents = self.nodes(type=Agent)
+        num_agents = len(agents)
         if num_agents <= self.generation_size:
             if self.initial_source:
                 newcomer.connect_from(self.nodes(type=Source)[0])
         else:
             current_generation = int((num_agents-1)/float(self.generation_size))
-            agents = self.agents_of_generation(current_generation-1)
+            first_index = (current_generation-1)*self.generation_size
+            last_index = first_index+(self.generation_size)
+            agents = agents[first_index:last_index]
             newcomer.connect(direction="from", other_node=agents)
 
     def agents_of_generation(self, generation):
