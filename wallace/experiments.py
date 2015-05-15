@@ -81,10 +81,10 @@ class Experiment(object):
 
     def assign_agent_to_participant(self, participant_uuid):
 
-        networks = set(self.networks(full=False))
+        networks = self.networks(full=False)
         participant_node_uuids = [node.network_uuid for node in Node.query.filter_by(participant_uuid=participant_uuid).all()]
-        participated_networks = set([net for net in networks if net.uuid in participant_node_uuids])
-        legal_networks = networks - participated_networks
+        participated_networks = [net for net in networks if net.uuid in participant_node_uuids]
+        legal_networks = [net for net in networks if net not in participated_networks]
 
         if not legal_networks:
             raise Exception
