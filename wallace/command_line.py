@@ -403,11 +403,11 @@ def export(app, local):
     os.makedirs(os.path.join(id, data_directory))
 
     all_tables = ["node",
+                  "network",
                   "vector",
                   "info",
+                  "transformation",
                   "transmission",
-                  "agent",
-                  "source",
                   "psiturk"]
 
     for table in all_tables:
