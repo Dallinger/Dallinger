@@ -141,7 +141,7 @@ class DiscreteGenerational(Network):
         return self.nodes(type=Agent)[first_index:last_index]
 
     def calculate_full(self):
-        return len(self.nodes(type=Agent)) >= self.max_size
+        self.full = len(self.nodes(type=Agent)) >= self.max_size
 
 
 class ScaleFree(Network):

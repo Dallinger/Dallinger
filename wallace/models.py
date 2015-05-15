@@ -233,12 +233,6 @@ class Network(Base):
                 .filter_by(status=status)\
                 .all()
 
-    def calculate_full(self):
-        """Set whether the network is full."""
-        num_alive = len(self.nodes(status="alive"))
-        num_dead = len(self.nodes(status="dead"))
-        return (num_alive + num_dead) >= self.max_size
-
     """ ###################################
     Methods that make Networks do things
     ################################### """
@@ -254,10 +248,16 @@ class Network(Base):
                 self.add(b)
         elif isinstance(base, Node):
             base.network = self
-            self.full = self.calculate_full()
+            self.calculate_full()
         else:
             raise(TypeError("Cannot add {} to the network as it is a {}. " +
                             "Only Nodes can be added to networks.").format(base, type(base)))
+
+    def calculate_full(self):
+        """Set whether the network is full."""
+        num_alive = len(self.nodes(status="alive"))
+        num_dead = len(self.nodes(status="dead"))
+        self.full = (num_alive + num_dead) >= self.max_size
 
     def print_verbose(self):
         """Print a verbose representation of a network."""
