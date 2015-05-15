@@ -36,7 +36,7 @@ class FunctionLearning(wallace.experiments.Experiment):
             self.recruiter().close_recruitment()
         else:
             # Otherwise recruit a new participant.
-            self.recruiter().recruit_new_participants(n=1)
+            self.recruiter().recruit_participants(n=1)
 
     def create_agent_trigger(self, agent, network):
         network.add_agent(agent)

@@ -51,7 +51,7 @@ class SubstitutionCiphersExperiment(Experiment):
             self.recruiter().close_recruitment(exp=self)
         else:
             # Otherwise recruit a new participant.
-            self.recruiter().recruit_new_participants(exp=self, n=1)
+            self.recruiter().recruit_participants(exp=self, n=1)
 
     def is_experiment_over(self):
         return len(self.network.vectors) == self.num_agents

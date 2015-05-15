@@ -19,7 +19,7 @@ class Recruiter(object):
     def open_recruitment(self):
         raise NotImplementedError
 
-    def recruit_new_participants(self, n=1):
+    def recruit_participants(self, n=1):
         raise NotImplementedError
 
     def close_recruitment(self):
@@ -36,7 +36,7 @@ class HotAirRecruiter(object):
     def open_recruitment(self):
         print "Opening recruitment."
 
-    def recruit_new_participants(self, n=1):
+    def recruit_participants(self, n=1):
         print "Recruiting a new participant."
 
     def close_recruitment(self):
@@ -51,9 +51,9 @@ class SimulatedRecruiter(object):
         super(SimulatedRecruiter, self).__init__()
 
     def open_recruitment(self, exp=None):
-        self.recruit_new_participants(exp, 1)
+        self.recruit_participants(exp, 1)
 
-    def recruit_new_participants(self, n=1, exp=None):
+    def recruit_participants(self, n=1, exp=None):
         for i in xrange(n):
             newcomer = exp.agent_type()
             exp.newcomer_arrival_trigger(newcomer)
@@ -138,7 +138,7 @@ class PsiTurkRecruiter(Recruiter):
             # HIT was already created, no need to recreate it.
             print "Reject recruitment reopening: experiment has started."
 
-    def recruit_new_participants(self, n=1):
+    def recruit_participants(self, n=1):
         """Extend the HIT to recruit more people."""
         previous_participant = Participant.query\
             .order_by(desc(Participant.endhit))\
@@ -156,3 +156,7 @@ class PsiTurkRecruiter(Recruiter):
     def reward_bonus(self, assignment_id, amount, reason):
         """Reward the Turker with a bonus."""
         return self.amt_services.bonus_worker(assignment_id, amount, reason)
+
+    def close_recruitment(self):
+        """Close recruitment."""
+        pass
