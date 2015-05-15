@@ -99,11 +99,11 @@ class Experiment(object):
         # Generate the right kind of newcomer and assign them to the network.
         if inspect.isclass(self.agent):
             if issubclass(self.agent, Node):
-                newcomer = self.agent(participant_uuid=participant_uuid, network=chosen_network)
+                newcomer = self.agent(participant_uuid=participant_uuid, network_uuid=chosen_network.uuid)
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid, network=chosen_network)
+            newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid, network_uuid=chosen_network.uuid)
 
         self.save(newcomer)
         chosen_network.calculate_full()
