@@ -4,6 +4,7 @@ from wallace.models import Node, Info
 from wallace.information import State
 import random
 from sqlalchemy import and_
+from sqlalchemy.ext.hybrid import hybrid_property
 
 
 class Agent(Node):
@@ -12,15 +13,20 @@ class Agent(Node):
 
     __mapper_args__ = {"polymorphic_identity": "agent"}
 
-    def set_fitness(self, fitness):
-        self.property1 = repr(fitness)
-
-    @property
+    @hybrid_property
     def fitness(self):
         if self.property1 is None:
             return None
         else:
             return float(self.property1)
+
+    @fitness.setter
+    def fitness(self, fitness):
+        self.property1 = repr(fitness)
+
+    @fitness.expression
+    def generation(self):
+        return self.property1.label('fitness')
 
 
 class ReplicatorAgent(Agent):
