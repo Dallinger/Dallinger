@@ -80,7 +80,7 @@ class Experiment(object):
 
     def assign_agent_to_participant(self, participant_uuid):
 
-        networks = self.networks(full=False)
+        networks = Network.query.with_entities(Network.full, Network.uuid, Network.role).filter_by(full=False).all()
         participant_node_uuids = set([node.network_uuid for node in Node.query.filter_by(participant_uuid=participant_uuid).all()])
         legal_networks = [net for net in networks if net.uuid not in participant_node_uuids]
 
@@ -88,9 +88,11 @@ class Experiment(object):
             return None
 
         if len(participant_node_uuids) < self.practice_repeats:
-            chosen_network = next(net for net in legal_networks if net.role == "practice")
+            chosen_network = next(net.uuid for net in legal_networks if net.role == "practice")
         else:
-            chosen_network = random.choice(legal_networks)
+            chosen_network = random.choice(legal_networks).uuid
+
+        chosen_network = Network.query.filter_by(uuid=chosen_network).first()
 
         # Generate the right kind of newcomer and assign them to the network.
         if inspect.isclass(self.agent):
