@@ -2,6 +2,7 @@
 
 from .models import Network
 from .nodes import Agent, Source
+from sqlalchemy import and_
 import random
 
 
@@ -123,17 +124,14 @@ class DiscreteGenerational(Network):
         return bool(self.property3)
 
     def add_agent(self, newcomer):
-        agents = self.nodes(type=Agent)
-        num_agents = len(agents)
-        if num_agents <= self.generation_size:
+        current_generation = newcomer.generation
+        if current_generation == 0:
             if self.initial_source:
                 newcomer.connect_from(self.nodes(type=Source)[0])
         else:
-            current_generation = int((num_agents-1)/float(self.generation_size))
-            first_index = (current_generation-1)*self.generation_size
-            last_index = first_index+(self.generation_size)
-            agents = agents[first_index:last_index]
-            newcomer.connect(direction="from", other_node=agents)
+            prev_agents = type(newcomer).query.filter(and_(type(newcomer).network_uuid == self.uuid, type(newcomer).generation == current_generation-1)).all()
+            # prev_agents = [a for a in agents if a.generation == current_generation-1]
+            newcomer.connect(direction="from", other_node=prev_agents)
 
     def agents_of_generation(self, generation):
         first_index = generation*self.generation_size
