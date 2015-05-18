@@ -110,17 +110,12 @@ class Network(Base):
             if status == "all":
                 nodes = type\
                     .query\
-                    .filter(and_(
-                        type.network_uuid == self.uuid,
-                        type.participant_uuid == participant_uuid))\
+                    .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid)\
                     .all()
             else:
                 nodes = type\
                     .query\
-                    .filter(and_(
-                        type.network_uuid == self.uuid,
-                        type.participant_uuid == participant_uuid,
-                        type.status == status))\
+                    .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid, status=status)\
                     .all()
         else:
             if status == "all":
@@ -131,9 +126,7 @@ class Network(Base):
             else:
                 nodes = type\
                     .query\
-                    .filter(and_(
-                        type.status == status,
-                        type.network_uuid == self.uuid))\
+                    .filter_by(status=status, network_uuid=self.uuid)\
                     .all()
 
         return sorted(nodes, key=lambda node: node.creation_time)
@@ -355,11 +348,11 @@ class Node(Base):
 
             if status == "all":
                 return Vector.query\
-                    .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid))\
+                    .filter(Vector.destination_uuid == self.uuid or Vector.origin_uuid == self.uuid)\
                     .all()
             else:
                 return Vector.query\
-                    .filter(and_(Vector.status == status, or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)))\
+                    .filter(Vector.status == status and (Vector.destination_uuid == self.uuid or Vector.origin_uuid == self.uuid))\
                     .all()
 
         if direction == "incoming":
@@ -370,7 +363,7 @@ class Node(Base):
                     .all()
             else:
                 return Vector.query\
-                    .filter(and_(Vector.destination_uuid == self.uuid, Vector.status == status))\
+                    .filter_by(destination_uuid=self.uuid, status=status)\
                     .all()
 
         if direction == "outgoing":
@@ -381,7 +374,7 @@ class Node(Base):
                     .all()
             else:
                 return Vector.query\
-                    .filter(and_(Vector.origin_uuid == self.uuid, Vector.status == status))\
+                    .filter_by(origin_uuid=self.uuid, status=status)\
                     .all()
 
     def neighbors(self, type=None, status="alive", connection="to"):
@@ -448,31 +441,32 @@ class Node(Base):
         if direction not in ["to", "from", "either", "both"]:
             raise ValueError("{} is not a valid direction for is_connected".format(direction))
 
-        connections = [False]*len(other_node)
         if direction == "to":
-            outgoing_vectors = self.vectors(direction="outgoing", status=status)
-            for i, node in enumerate(other_node):
-                connections[i] = any([v for v in outgoing_vectors if v.destination_uuid == node.uuid])
-        if direction == "from":
-            incoming_vectors = self.vectors(direction="incoming", status=status)
-            for i, node in enumerate(other_node):
-                connections[i] = any([v for v in incoming_vectors if v.origin_uuid == node.uuid])
-        if direction == "either":
-            incoming_vectors = self.vectors(direction="incoming", status=status)
-            outgoing_vectors = self.vectors(direction="outgoing", status=status)
-            for i, node in enumerate(other_node):
-                connections[i] = (any([v for v in incoming_vectors if v.origin_uuid == node.uuid]) or
-                                  any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
-        if direction == "both":
-            incoming_vectors = self.vectors(direction="incoming", status=status)
-            outgoing_vectors = self.vectors(direction="outgoing", status=status)
-            for i, node in enumerate(other_node):
-                connections[i] = (any([v for v in incoming_vectors if v.origin_uuid == node.uuid]) and
-                                  any([v for v in outgoing_vectors if v.destination_uuid == node.uuid]))
-        if len(connections) == 1:
-            return connections[0]
+            all_relevant_vectors = Vector.query.with_entities(Vector.destination_uuid)\
+                .filter_by(origin_uuid=self.uuid).all()
+            for i, n in enumerate(other_node):
+                other_node[i] = any([v for v in all_relevant_vectors if v.destination_uuid == n.uuid])
+        elif direction == "from":
+            all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid)\
+                .filter_by(destination_uuid=self.uuid).all()
+            for i, n in enumerate(other_node):
+                other_node[i] = any([v for v in all_relevant_vectors if v.origin_uuid == n.uuid])
+        elif direction == "either":
+            all_relevant_vectors = Vector.query.with_entities(Vector.destination_uuid, Vector.origin_uuid)\
+                .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)).all()
+            for i, n in enumerate(other_node):
+                other_node[i] = (any([v for v in all_relevant_vectors if v.origin_uuid == n.uuid]) or
+                                 any([v for v in all_relevant_vectors if v.origin_uuid == n.uuid]))
+        elif direction == "both":
+            all_relevant_vectors = Vector.query.with_entities(Vector.destination_uuid, Vector.origin_uuid)\
+                .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)).all()
+            for i, n in enumerate(other_node):
+                other_node[i] = (any([v for v in all_relevant_vectors if v.origin_uuid == n.uuid]) and
+                                 any([v for v in all_relevant_vectors if v.origin_uuid == n.uuid]))
+        if len(other_node) == 1:
+            return other_node[0]
         else:
-            return connections
+            return other_node
 
     def infos(self, type=None):
         """
@@ -531,7 +525,7 @@ class Node(Base):
             type = Transformation
         return type\
             .query\
-            .filter(type.node_uuid == self.uuid)\
+            .filter_by(node_uuid=self.uuid)\
             .all()
 
     """ ###################################
@@ -859,7 +853,7 @@ class Vector(Base):
         else:
             return Transmission\
                 .query\
-                .filter(and_(Transmission.vector_uuid == self.uuid, Transmission.status == status))\
+                .filter_by(vector_uuid=self.uuid, status=status)\
                 .all()
 
     ###################################
