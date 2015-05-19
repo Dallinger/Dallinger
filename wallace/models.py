@@ -608,7 +608,8 @@ class Node(Base):
             if (not isinstance(already_connected_to, list)):
                 already_connected_to = [already_connected_to]
             if any(already_connected_to):
-                raise Warning("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
+                #raise Warning("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
+                print("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
                 to_nodes = [node for node, connected in zip(to_nodes, already_connected_to) if not connected]
 
         if from_nodes:
