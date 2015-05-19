@@ -130,7 +130,19 @@ class DiscreteGenerational(Network):
                 newcomer.connect_from(self.nodes(type=Source)[0])
         else:
             prev_agents = type(newcomer).query.filter(and_(type(newcomer).network_uuid == self.uuid, type(newcomer).generation == current_generation-1)).all()
-            newcomer.connect(direction="from", other_node=prev_agents)
+            prev_fitnesses = [p.fitness for p in prev_agents]
+            prev_probs = [(f/(1.0*sum(prev_fitnesses))) for f in prev_fitnesses]
+
+            rnd = random.random()
+            temp = 0.0
+            for i, probability in enumerate(prev_probs):
+                temp += probability
+                if temp > rnd:
+                    parent = prev_agents[i]
+                    break
+
+            parent.connect(direction="to", other_node=newcomer)
+            parent.transmit(to_whom=newcomer)
 
     def agents_of_generation(self, generation):
         first_index = generation*self.generation_size
