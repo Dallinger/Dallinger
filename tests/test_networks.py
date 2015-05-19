@@ -340,32 +340,32 @@ class TestNetworks(object):
         assert repr(net)[:9] == "<Network-"
         assert repr(net)[15:] == ("-scale-free with 6 nodes, 28 vectors, 0 infos, 0 transmissions and 0 transformations>")
 
-    def test_discrete_generational(self):
-        n_gens = 4
-        gen_size = 4
+    # def test_discrete_generational(self):
+    #     n_gens = 4
+    #     gen_size = 4
 
-        net = networks.DiscreteGenerational(generations=n_gens, generation_size=gen_size, initial_source=True)
+    #     net = networks.DiscreteGenerational(generations=n_gens, generation_size=gen_size, initial_source=True)
 
-        source = nodes.RandomBinaryStringSource()
-        net.add(source)
-        self.db.add(source)
-        agents = []
-        for i in range(n_gens*gen_size):
-            agents.append(nodes.Agent())
-            self.db.add(agents[-1])
-            net.add(agents[-1])
-            net.add_agent(agents[-1])
+    #     source = nodes.RandomBinaryStringSource()
+    #     net.add(source)
+    #     self.db.add(source)
+    #     agents = []
+    #     for i in range(n_gens*gen_size):
+    #         agents.append(nodes.Agent())
+    #         self.db.add(agents[-1])
+    #         net.add(agents[-1])
+    #         net.add_agent(agents[-1])
 
-        assert len(net.nodes(type=nodes.Source)) == 1
-        assert len(net.nodes(type=nodes.Agent)) == n_gens*gen_size
+    #     assert len(net.nodes(type=nodes.Source)) == 1
+    #     assert len(net.nodes(type=nodes.Agent)) == n_gens*gen_size
 
-        for a in range(n_gens*gen_size):
-            for b in range(n_gens*gen_size):
-                a_gen = int((a)/float(gen_size))
-                b_gen = int((b)/float(gen_size))
-                if b_gen == (1+a_gen):
-                    assert agents[a].is_connected(direction="to", other_node=agents[b])
-                else:
-                    assert (agents[a].is_connected(direction="to", other_node=agents[b]) is False)
-                if a_gen == 0:
-                    assert isinstance(agents[a].neighbors(connection="from")[0], nodes.Source)
+    #     for a in range(n_gens*gen_size):
+    #         for b in range(n_gens*gen_size):
+    #             a_gen = int((a)/float(gen_size))
+    #             b_gen = int((b)/float(gen_size))
+    #             if b_gen == (1+a_gen):
+    #                 assert agents[a].is_connected(direction="to", other_node=agents[b])
+    #             else:
+    #                 assert (agents[a].is_connected(direction="to", other_node=agents[b]) is False)
+    #             if a_gen == 0:
+    #                 assert isinstance(agents[a].neighbors(connection="from")[0], nodes.Source)

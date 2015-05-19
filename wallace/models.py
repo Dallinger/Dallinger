@@ -348,11 +348,11 @@ class Node(Base):
 
             if status == "all":
                 return Vector.query\
-                    .filter(Vector.destination_uuid == self.uuid or Vector.origin_uuid == self.uuid)\
+                    .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid))\
                     .all()
             else:
                 return Vector.query\
-                    .filter(Vector.status == status and (Vector.destination_uuid == self.uuid or Vector.origin_uuid == self.uuid))\
+                    .filter(and_(Vector.status == status, or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)))\
                     .all()
 
         if direction == "incoming":

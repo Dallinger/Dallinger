@@ -98,30 +98,18 @@ class TestProcesses(object):
         net = networks.Network()
         self.db.add(net)
 
-        agent1 = nodes.ReplicatorAgent()
-        agent2 = nodes.ReplicatorAgent()
-        agent3 = nodes.ReplicatorAgent()
-        self.db.add_all([agent1, agent2, agent3])
-        self.db.commit()
+        agent1 = nodes.ReplicatorAgent(network=net)
+        agent2 = nodes.ReplicatorAgent(network=net)
+        agent3 = nodes.ReplicatorAgent(network=net)
 
-        net.add([agent1, agent2, agent3])
-
-        agent1.connect_to(agent2)
-        agent1.connect_to(agent3)
-        agent2.connect_to(agent1)
-        agent2.connect_to(agent3)
-        agent3.connect_to(agent1)
-        agent3.connect_to(agent2)
+        agent1.connect(direction="both", other_node=[agent2, agent3])
+        agent2.connect(direction="both", other_node=agent3)
 
         # Add a global source and broadcast to all the nodes.
-        source = nodes.RandomBinaryStringSource()
-        self.db.add(source)
+        source = nodes.RandomBinaryStringSource(network=net)
+        source.connect(direction="to", other_node=net.nodes(type=Agent))
 
-        net.add(source)
-        source.connect_to(net.nodes(type=Agent))
-
-        info = source.create_information()
-        self.db.add(info)
+        source.create_information()
 
         for agent in net.nodes(type=Agent):
             source.transmit(to_whom=agent)
@@ -129,9 +117,7 @@ class TestProcesses(object):
 
         # Run a Moran process for 100 steps.
         for i in range(100):
-            newcomer = nodes.ReplicatorAgent()
-            net.add(newcomer)
-            self.db.add(newcomer)
+            nodes.ReplicatorAgent(network=net)
             processes.moran_sexual(net)
             for agent in net.nodes(type=Agent):
                 agent.receive()
