@@ -130,7 +130,6 @@ class DiscreteGenerational(Network):
                 newcomer.connect_from(self.nodes(type=Source)[0])
         else:
             prev_agents = type(newcomer).query.filter(and_(type(newcomer).network_uuid == self.uuid, type(newcomer).generation == current_generation-1)).all()
-            # prev_agents = [a for a in agents if a.generation == current_generation-1]
             newcomer.connect(direction="from", other_node=prev_agents)
 
     def agents_of_generation(self, generation):
@@ -139,7 +138,8 @@ class DiscreteGenerational(Network):
         return self.nodes(type=Agent)[first_index:last_index]
 
     def calculate_full(self):
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
+        #self.full = len(self.nodes(type=Agent)) >= self.max_size
+        self.full = len(Agent.query.with_entities(Agent.uuid).filter_by(status="alive", network_uuid=self.uuid).all()) >= self.max_size
 
 
 class ScaleFree(Network):
