@@ -604,7 +604,9 @@ class Node(Base):
             to_nodes = []
 
         if to_nodes:
-            already_connected_to = self.flatten([self.is_connected(direction="to", other_node=list(to_nodes))])
+            already_connected_to = self.is_connected(direction="to", other_node=to_nodes)
+            if (not isinstance(already_connected_to, list)):
+                already_connected_to = [already_connected_to]
             if any(already_connected_to):
                 raise Warning("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
                 to_nodes = [node for node, connected in zip(to_nodes, already_connected_to) if not connected]
