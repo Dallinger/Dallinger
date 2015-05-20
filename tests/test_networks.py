@@ -249,14 +249,13 @@ class TestNetworks(object):
 
     def test_create_chain(self):
         net = networks.Chain()
+        self.db.add(net)
 
         for i in range(4):
-            agent = nodes.Agent()
-            self.db.add(agent)
+            agent = nodes.Agent(network=net)
             net.add_agent(agent)
 
-        source = nodes.RandomBinaryStringSource()
-        self.db.add(source)
+        source = nodes.RandomBinaryStringSource(network=net)
         net.add_source(source)
 
         assert len(net.nodes(type=nodes.Agent)) == 4
@@ -267,14 +266,13 @@ class TestNetworks(object):
 
     def test_chain_repr(self):
         net = networks.Chain()
+        self.db.add(net)
 
         for i in range(4):
-            agent = nodes.Agent()
-            self.db.add(agent)
+            agent = nodes.Agent(network=net)
             net.add_agent(agent)
 
-        source = nodes.RandomBinaryStringSource()
-        self.db.add(source)
+        source = nodes.RandomBinaryStringSource(network=net)
         net.add_source(source)
 
         assert repr(net)[:9] == "<Network-"
