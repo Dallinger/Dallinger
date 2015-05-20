@@ -1038,6 +1038,7 @@ class Transmission(Base):
 
     def mark_received(self):
         self.receive_time = timenow()
+        self.status = "received"
 
     def __repr__(self):
         """The string representation of a transmission."""
