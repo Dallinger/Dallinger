@@ -203,13 +203,14 @@ class Network(Base):
         if node_status not in ["all", "alive", "dead", "failed"]:
             raise ValueError("{} is not a valid origin status".format(node_status))
 
-        all_transformations = []
-        for node in self.nodes(status=node_status):
-            all_transformations += node.transformations(type=type)
-
-        return sorted(
-            all_transformations,
-            key=lambda transform: transform.transform_time)
+        if node_status == "all":
+            return Transformation.query.join(Transformation.info_out).join(Info.origin)\
+                .filter_by(network_uuid=self.uuid)\
+                .order_by(Transformation.transform_time).all()
+        else:
+            return Transformation.query.join(Transformation.info_out).join(Info.origin)\
+                .filter(and_(Transformation.network_uuid == self.uuid, Node.status == node_status))\
+                .order_by(Transformation.transform_time).all()
 
     def latest_transmission_recipient(self, status="alive"):
         """
