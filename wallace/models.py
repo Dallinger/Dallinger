@@ -169,10 +169,24 @@ class Network(Base):
         if vector_status not in ["all", "alive", "dead", "failed"]:
             raise ValueError("{} is not a valid vector status".format(vector_status))
 
-        all_transmissions = []
-        for vector in self.vectors(status=vector_status):
-            all_transmissions += vector.transmissions(status=status)
-        return sorted(all_transmissions, key=lambda transmission: transmission.transmit_time)
+        if status == "all":
+            if vector_status == "all":
+                return Transmission.query.join(Transmission.vector)\
+                    .filter_by(network_uuid=self.uuid)\
+                    .order_by(Transmission.transmit_time).all()
+            else:
+                return Transmission.query.join(Transmission.vector)\
+                    .filter(and_(Transmission.network_uuid == self.uuid, Vector.status == vector_status))\
+                    .order_by(Transmission.transmit_time).all()
+        else:
+            if vector_status == "all":
+                return Transmission.query.join(Transmission.vector)\
+                    .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status))\
+                    .order_by(Transmission.transmit_time).all()
+            else:
+                return Transmission.query.join(Transmission.vector)\
+                    .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status, Vector.status == vector_status))\
+                    .order_by(Transmission.transmit_time).all()
 
     def transformations(self, type=None, node_status="alive"):
         """
