@@ -25,10 +25,9 @@ class Chain(Network):
             self.nodes(type=Source)[0].connect_to(newcomer)
 
     def add_source(self, source):
-        if len(self.nodes(type=Source)) > 0:
+        if len(self.nodes(type=Source)) > 1:
             raise(Exception("Cannot add another source to Chain network as it already has a source"))
         else:
-            self.add(source)
             if len(self.nodes(type=Agent)) > 0:
                 source.connect_to(self.nodes(type=Agent)[0])
 

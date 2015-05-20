@@ -30,6 +30,7 @@ class Experiment(object):
             network = self.network()
             network.role = "experiment"
             self.session.add(network)
+        self.save()
 
     def networks(self, role="all", full="all"):
         """All the networks in the experiment."""
@@ -59,6 +60,7 @@ class Experiment(object):
         """Add all the objects to the session and commit them."""
         if len(objects) > 0:
             self.session.add_all(objects)
+        self.session.commit()
 
     def newcomer_arrival_trigger(self, newcomer):
         pass
