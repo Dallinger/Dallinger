@@ -56,7 +56,6 @@ class Source(Node):
         """Create a new info with contents defined by the source."""
         info = Info(
             origin=self,
-            origin_uuid=self.uuid,
             contents=self._contents())
         return info
 

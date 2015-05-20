@@ -828,9 +828,9 @@ class Vector(Base):
     destination = relationship(Node, foreign_keys=[destination_uuid],
                                backref="all_incoming_vectors")
 
-    # the network the vector is in, proxied from the origin
-    network_uuid = association_proxy('origin', 'network_uuid')
-    network = association_proxy('origin', 'network')
+    # the network that this vector is in
+    network_uuid = Column(String(32), ForeignKey('network.uuid'))
+    network = relationship(Network, backref="all_vectors")
 
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
@@ -849,6 +849,15 @@ class Vector(Base):
     property3 = Column(String(26), default=None)
     property4 = Column(String(26), default=None)
     property5 = Column(String(26), default=None)
+
+    def __init__(self, origin, destination):
+        #super(Vector, self).__init__()
+        self.origin = origin
+        self.origin_uuid = origin.uuid
+        self.destination = destination
+        self.destination_uuid = destination.uuid
+        self.network = origin.network
+        self.network_uuid = origin.network_uuid
 
     def __repr__(self):
         """The string representation of a vector."""
@@ -919,9 +928,9 @@ class Info(Base):
     origin_uuid = Column(String(32), ForeignKey('node.uuid'))
     origin = relationship(Node, backref='all_infos')
 
-    # the network the info is in, proxied from the origin node
-    network_uuid = association_proxy('origin', 'network_uuid')
-    network = association_proxy('origin', 'network')
+    # the network the info is in
+    network_uuid = Column(String(32), ForeignKey('network.uuid'))
+    network = relationship(Network, backref="all_infos")
 
     # the time when the info was created
     creation_time = Column(String(26), nullable=False, default=timenow)
@@ -936,6 +945,13 @@ class Info(Base):
     property3 = Column(String(26), default=None)
     property4 = Column(String(26), default=None)
     property5 = Column(String(26), default=None)
+
+    def __init__(self, origin, contents=None):
+        self.origin = origin
+        self.origin_uuid = origin.uuid
+        self.contents = contents
+        self.network_uuid = origin.network_uuid
+        self.network = origin.network
 
     @validates("contents")
     def _write_once(self, key, value):
@@ -1008,17 +1024,19 @@ class Transmission(Base):
     info_uuid = Column(String(32), ForeignKey('info.uuid'))
     info = relationship(Info, backref='all_transmissions')
 
-    # the origin of the transmission, provxied from the vector
-    origin_uuid = association_proxy('info', 'origin_uuid')
-    origin = association_proxy('info', 'origin')
+    # the origin node
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'))
+    origin = relationship(Node, foreign_keys=[origin_uuid],
+                          backref="all_outgoing_transmissions")
 
-    # the destination of the transmission, proxied from the vector
-    destination_uuid = association_proxy('vector', 'destination_uuid')
-    destination = association_proxy('vector', 'destination')
+    # the destination node
+    destination_uuid = Column(String(32), ForeignKey('node.uuid'))
+    destination = relationship(Node, foreign_keys=[destination_uuid],
+                               backref="all_incoming_transmissions")
 
-    # the network of the transformation, proxied from the vector
-    network_uuid = association_proxy('info', 'network_uuid')
-    network = association_proxy('info', 'network')
+    # the network of the transformation
+    network_uuid = Column(String(32), ForeignKey('network.uuid'))
+    network = relationship(Network, backref="networks_transmissions")
 
     # the time at which the transmission occurred
     transmit_time = Column(String(26), nullable=False, default=timenow)
@@ -1037,6 +1055,19 @@ class Transmission(Base):
     property3 = Column(String(26), default=None)
     property4 = Column(String(26), default=None)
     property5 = Column(String(26), default=None)
+
+    def __init__(self, vector, info):
+        #super(Transmission, self).__init__()
+        self.vector_uuid = vector.uuid
+        self.vector = vector
+        self.info_uuid = info
+        self.info = info
+        self.origin_uuid = vector.origin_uuid
+        self.origin = vector.origin
+        self.destination_uuid = vector.destination_uuid
+        self.destination = vector.destination
+        self.network_uuid = vector.network_uuid
+        self.network = vector.network
 
     def mark_received(self):
         self.receive_time = timenow()
@@ -1074,13 +1105,12 @@ class Transformation(Base):
     info_out = relationship(Info, foreign_keys=[info_out_uuid],
                             backref="transformation_whence")
 
-    # the node that applied this transformation, proxied from the info_out
-    node_uuid = association_proxy('info_out', 'origin_uuid')
-    node = association_proxy('info_out', 'origin')
+    node_uuid = Column(String(32), ForeignKey('node.uuid'))
+    node = relationship(Node, backref='transformations_here')
 
-    # the network the transformation is in, proxied from the node
-    network_uuid = association_proxy('info_out', 'network_uuid')
-    network = association_proxy('info_out', 'network')
+    # the network of the transformation
+    network_uuid = Column(String(32), ForeignKey('network.uuid'))
+    network = relationship(Network, backref="networks_transformations")
 
     # the time at which the transformation occurred
     transform_time = Column(String(26), nullable=False, default=timenow)
@@ -1101,6 +1131,12 @@ class Transformation(Base):
         self.check_for_transformation(info_in, info_out)
         self.info_in = info_in
         self.info_out = info_out
+        self.node = info_out.origin
+        self.network = info_out.network
+        self.info_in_uuid = info_in.uuid
+        self.info_out_uuid = info_out.uuid
+        self.node_uuid = info_out.origin_uuid
+        self.network_uuid = info_out.network_uuid
 
     def check_for_transformation(self, info_in, info_out):
         # check the infos are Infos.

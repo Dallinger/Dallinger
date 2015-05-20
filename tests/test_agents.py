@@ -70,13 +70,14 @@ class TestAgents(object):
         assert agent.infos()[0] == info
 
     def test_agent_transmit(self):
-        agent1 = nodes.ReplicatorAgent()
-        agent2 = nodes.ReplicatorAgent()
-        self.add(agent1)
-        self.add(agent2)
-        self.db.commit()
+        net = models.Network()
+        self.db.add(net)
+
+        agent1 = nodes.ReplicatorAgent(network=net)
+        agent2 = nodes.ReplicatorAgent(network=net)
 
         agent1.connect_to(agent2)
+
         info = models.Info(origin=agent1, contents="foo")
 
         agent1.transmit(what=agent1.infos()[0], to_whom=agent2)
