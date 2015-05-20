@@ -145,10 +145,14 @@ class Network(Base):
         if origin_status not in ["all", "alive", "dead", "failed"]:
             raise ValueError("{} is not a valid origin status".format(origin_status))
 
-        all_infos = []
-        for node in self.nodes(status=origin_status):
-            all_infos += node.infos(type=type)
-        return sorted(all_infos, key=lambda info: info.creation_time)
+        if origin_status == "all":
+            return Info.query.join(Info.origin)\
+                .filter(network_uuid=self.uuid)\
+                .order_by(Info.creation_time).all()
+        else:
+            return Info.query.join(Info.origin)\
+                .filter(and_(Info.network_uuid == self.uuid, Node.status == origin_status))\
+                .order_by(Info.creation_time).all()
 
     def transmissions(self, status="all", vector_status="alive"):
         """
