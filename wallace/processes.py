@@ -61,7 +61,7 @@ def moran_sexual(network):
             node.connect(direction="to", other_node=baby)
 
         # Kill the replaced agent.
-        replaced.die()
+        replaced.fail()
 
         # Endow the baby with the ome of the replacer.
         replacer.transmit(to_whom=baby)

@@ -89,12 +89,12 @@ class Network(Base):
     Methods that get things about a Network
     ################################### """
 
-    def nodes(self, type=None, status="alive", participant_uuid=None):
+    def nodes(self, type=None, failed=False, participant_uuid=None):
         """
         Get nodes in the network.
 
-        type specifies the type of Node. Status can be "all", "alive"
-        (default), "dead" or "failed". If a participant_uuid is passed only
+        type specifies the type of Node. Failed can be "all", False
+        (default) or True. If a participant_uuid is passed only
         nodes with that participant_uuid will be returned.
         """
         if type is None:
@@ -103,11 +103,11 @@ class Network(Base):
         if not issubclass(type, Node):
             raise(TypeError("{} is not a valid node type.".format(type)))
 
-        if status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid node status".format(status))
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid node failed".format(failed))
 
         if participant_uuid is not None:
-            if status == "all":
+            if failed == "all":
                 return type\
                     .query\
                     .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid)\
@@ -116,11 +116,11 @@ class Network(Base):
             else:
                 return type\
                     .query\
-                    .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid, status=status)\
+                    .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid, failed=failed)\
                     .order_by(type.creation_time)\
                     .all()
         else:
-            if status == "all":
+            if failed == "all":
                 return type\
                     .query\
                     .filter_by(network_uuid=self.uuid)\
@@ -129,122 +129,124 @@ class Network(Base):
             else:
                 return type\
                     .query\
-                    .filter_by(status=status, network_uuid=self.uuid)\
+                    .filter_by(failed=failed, network_uuid=self.uuid)\
                     .order_by(type.creation_time)\
                     .all()
 
-    def infos(self, type=None, origin_status="alive"):
+    def infos(self, type=None, origin_failed=False):
         """
         Get infos in the network.
 
         type specifies the type of info (defaults to Info). only infos created
-        by nodes with a status of origin_status will be returned. origin_status
-        can be "all", "alive" (default), "dead" or "failed". To get infos from
+        by nodes with a failed of origin_failed will be returned. origin_failed
+        can be "all", False (default) or True "failed". To get infos from
         a specific node, see the infos() method in class Node.
         """
         if type is None:
             type = Info
-        if origin_status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid origin status".format(origin_status))
+        if origin_failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid origin failed".format(origin_failed))
 
-        if origin_status == "all":
+        if origin_failed == "all":
             return Info.query\
                 .filter(network_uuid=self.uuid)\
                 .order_by(Info.creation_time).all()
         else:
             return Info.query.join(Info.origin)\
-                .filter(and_(Info.network_uuid == self.uuid, Node.status == origin_status))\
+                .filter(and_(Info.network_uuid == self.uuid, Node.failed == origin_failed))\
                 .order_by(Info.creation_time).all()
 
-    def transmissions(self, status="all", vector_status="alive"):
+    def transmissions(self, status="all", vector_failed=False):
         """
         Get transmissions in the network.
 
-        Only transmissions along vectors with a status of vector_status will
-        be returned. vector_status "all", "alive" (default), "dead", or
-        "failed". To get transmissions from a specific vector, see the
+        Only transmissions along vectors with a failed of vector_failed will
+        be returned. vector_failed "all", False (default) or True.
+        To get transmissions from a specific vector, see the
         transmissions() method in class Vector.
         """
         if status not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of status {}.".format(status) +
                   "Status can only be pending, received or all"))
-        if vector_status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid vector status".format(vector_status))
+        if vector_failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid vector failed".format(vector_failed))
 
         if status == "all":
-            if vector_status == "all":
+            if vector_failed == "all":
                 return Transmission.query\
                     .filter_by(network_uuid=self.uuid)\
                     .order_by(Transmission.transmit_time).all()
             else:
                 return Transmission.query.join(Transmission.vector)\
-                    .filter(and_(Transmission.network_uuid == self.uuid, Vector.status == vector_status))\
+                    .filter(and_(Transmission.network_uuid == self.uuid, Vector.failed == vector_failed))\
                     .order_by(Transmission.transmit_time).all()
         else:
-            if vector_status == "all":
+            if vector_failed == "all":
                 return Transmission.query\
                     .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status))\
                     .order_by(Transmission.transmit_time).all()
             else:
                 return Transmission.query.join(Transmission.vector)\
-                    .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status, Vector.status == vector_status))\
+                    .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status, Vector.failed == vector_failed))\
                     .order_by(Transmission.transmit_time).all()
 
-    def transformations(self, type=None, node_status="alive"):
+    def transformations(self, type=None, node_failed=False):
         """
         Get transformations in the network.
 
         type specifies the type of transformation (defaults to Transformation).
-        only transformations at nodes with a status of node_status will be returned.
-        node_status can be "all", "alive" (default), "dead" or "failed".
+        only transformations at nodes with a failed of node_failed will be returned.
+        node_failed can be "all", False (default) or True.
         To get transformations from a specific node see the transformations() method in class Node.
         """
         if type is None:
             type = Transformation
 
-        if node_status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid origin status".format(node_status))
+        if node_failed not in ["all", True, False]:
+            raise ValueError("{} is not a valid origin failed".format(node_failed))
 
-        if node_status == "all":
+        if node_failed == "all":
             return Transformation.query\
                 .filter_by(network_uuid=self.uuid)\
                 .order_by(Transformation.transform_time).all()
         else:
             return Transformation.query.join(Transformation.node)\
-                .filter(and_(Transformation.network_uuid == self.uuid, Node.status == node_status))\
+                .filter(and_(Transformation.network_uuid == self.uuid, Node.failed == node_failed))\
                 .order_by(Transformation.transform_time).all()
 
-    def latest_transmission_recipient(self, status="alive"):
+    def latest_transmission_recipient(self, failed=False):
         """
-        Get the node of the given status that most recently received a transmission.
+        Get the node of the given failed that most recently received a transmission.
 
-        Status can be "all", "alive" (default), "dead" or "failed".
+        Failed can be "all", False (default) or True.
         """
-        received_transmissions = reversed(self.transmissions(status="received"))
 
-        return next(
-            (t.destination for t in received_transmissions
-                if (t.destination.status == status)),
-            None)
+        if failed == "all":
+            t = Transmission.query.with_entities(Transmission.destination)\
+                .filter_by(status="received").all()[-1]
+        else:
+            t = Transmission.query\
+                .join(Transmission.destination)\
+                .filter(and_(Transmission.status == "received", Node.failed == failed)).all()[-1]
+        return t.destination
 
-    def vectors(self, status="alive"):
+    def vectors(self, failed=False):
         """
         Get vectors in the network.
 
-        Status can be "all", "alive" (default), "dead" or "failed". To get the
+        Failed can be "all", False (default) or True. To get the
         vectors attached to a specific node, see Node.vectors().
         """
-        if status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid vector status".format(status))
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid vector failed".format(failed))
 
-        if status == "all":
+        if failed == "all":
             return Vector.query\
                 .filter_by(network_uuid=self.uuid)\
                 .all()
         else:
             return Vector.query\
-                .filter_by(network_uuid=self.uuid)\
-                .filter_by(status=status)\
+                .filter(and_(Vector.network_uuid == self.uuid, Vector.failed == failed))\
                 .all()
 
     """ ###################################
@@ -269,35 +271,28 @@ class Network(Base):
 
     def calculate_full(self):
         """Set whether the network is full."""
-        num_alive = len(self.nodes(status="alive"))
-        num_dead = len(self.nodes(status="dead"))
-        self.full = (num_alive + num_dead) >= self.max_size
+        self.full = len(self.nodes()) >= self.max_size
 
     def print_verbose(self):
         """Print a verbose representation of a network."""
         print "Nodes: "
-        for a in (self.nodes(status="dead") +
-                  self.nodes(status="alive")):
+        for a in (self.nodes(failed="all")):
             print a
 
         print "\nVectors: "
-        for v in (self.vectors(status="dead") +
-                  self.vectors(status="alive")):
+        for v in (self.vectors(failed="all")):
             print v
 
         print "\nInfos: "
-        for i in (self.infos(origin_status="dead") +
-                  self.infos(origin_status="alive")):
+        for i in (self.infos(origin_failed="all")):
             print i
 
         print "\nTransmissions: "
-        for t in (self.transmissions(vector_status="dead") +
-                  self.transmissions(vector_status="alive")):
+        for t in (self.transmissions(vector_failed="all")):
             print t
 
         print "\nTransformations: "
-        for t in (self.transformations(node_status="dead") +
-                  self.transformations(node_status="alive")):
+        for t in (self.transformations(node_failed="all")):
             print t
 
 
@@ -324,9 +319,8 @@ class Node(Base):
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
-    # the status of the node
-    status = Column(Enum("alive", "dead", "failed", name="node_status"),
-                    nullable=False, default="alive")
+    # whether the node has failed
+    failed = Column(Boolean, nullable=False, default=False)
 
     # the time when the node changed from alive->dead or alive->failed
     time_of_death = Column(String(26), default=None)
@@ -351,59 +345,59 @@ class Node(Base):
     Methods that get things about a node
     ################################### """
 
-    def vectors(self, direction="all", status="alive"):
+    def vectors(self, direction="all", failed=False):
         """
         Get vectors that connect at this node.
 
         Direction can be "incoming", "outgoing" or "all" (default).
-        Status can be "all", "alive" (default), "dead", "failed".
+        Failed can be "all", False (default) or True.
         """
         if direction not in ["all", "incoming", "outgoing"]:
             raise ValueError(
                 "{} is not a valid vector direction. "
                 "Must be all, incoming or outgoing.".format(direction))
-        if status not in ["all", "alive", "dead", "failed"]:
-            raise ValueError("{} is not a valid vector status".format(status))
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid vector failed".format(failed))
 
         if direction == "all":
 
-            if status == "all":
+            if failed == "all":
                 return Vector.query\
                     .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid))\
                     .all()
             else:
                 return Vector.query\
-                    .filter(and_(Vector.status == status, or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)))\
+                    .filter(and_(Vector.failed == failed, or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)))\
                     .all()
 
         if direction == "incoming":
 
-            if status == "all":
+            if failed == "all":
                 return Vector.query\
                     .filter_by(destination_uuid=self.uuid)\
                     .all()
             else:
                 return Vector.query\
-                    .filter_by(destination_uuid=self.uuid, status=status)\
+                    .filter_by(destination_uuid=self.uuid, failed=failed)\
                     .all()
 
         if direction == "outgoing":
 
-            if status == "all":
+            if failed == "all":
                 return Vector.query\
                     .filter_by(origin_uuid=self.uuid)\
                     .all()
             else:
                 return Vector.query\
-                    .filter_by(origin_uuid=self.uuid, status=status)\
+                    .filter_by(origin_uuid=self.uuid, failed=failed)\
                     .all()
 
-    def neighbors(self, type=None, status="alive", connection="to"):
+    def neighbors(self, type=None, failed=False, connection="to"):
         """
         Get a node's neighbors.
 
         Type must be a subclass of Node (default is Node).
-        Status can be "alive" (default), "dead", "failed" or "all".
+        Failed can be "all", False (default) or True.
         Connection can be "to" (default), "from", "either", or "both".
         """
         if type is None:
@@ -412,41 +406,41 @@ class Node(Base):
         if not issubclass(type, Node):
             raise ValueError("{} is not a valid neighbor type, needs to be a subclass of Node.".format(type))
 
-        if status not in ["alive", "dead", "failed", "all"]:
-            raise ValueError("{} is not a valid neighbor status".format(status))
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid neighbor failed".format(failed))
 
         if connection not in ["both", "either", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
 
         if connection == "to":
-            return [v.destination for v in self.vectors(direction="outgoing", status=status) if isinstance(v.destination, type) and v.destination.status == status]
+            return [v.destination for v in self.vectors(direction="outgoing", failed=failed) if isinstance(v.destination, type) and v.destination.failed == failed]
 
         if connection == "from":
-            return [v.origin for v in self.vectors(direction="incoming", status=status) if isinstance(v.origin, type) and v.origin.status == status]
+            return [v.origin for v in self.vectors(direction="incoming", failed=failed) if isinstance(v.origin, type) and v.origin.failed == failed]
 
         if connection == "either":
             neighbors = list(set(
-                [v.destination for v in self.vectors(direction="outgoing", status=status)
-                    if isinstance(v.destination, type) and v.destination.status == status] +
-                [v.origin for v in self.vectors(direction="incoming", status=status)
-                    if isinstance(v.origin, type) and v.origin.status == status]))
+                [v.destination for v in self.vectors(direction="outgoing", failed=failed)
+                    if isinstance(v.destination, type) and v.destination.failed == failed] +
+                [v.origin for v in self.vectors(direction="incoming", failed=failed)
+                    if isinstance(v.origin, type) and v.origin.failed == failed]))
             return neighbors.sort(key=lambda node: node.creation_time)
 
         if connection == "both":
             return [node for node in
-                    [v.destination for v in self.vectors(direction="outgoing", status=status)
-                        if isinstance(v.destination, type) and v.destination.status == status]
+                    [v.destination for v in self.vectors(direction="outgoing", failed=failed)
+                        if isinstance(v.destination, type) and v.destination.failed == failed]
                     if node in
-                    [v.origin for v in self.vectors(direction="incoming", status=status)
-                        if isinstance(v.origin, type) and v.origin.status == status]]
+                    [v.origin for v in self.vectors(direction="incoming", failed=failed)
+                        if isinstance(v.origin, type) and v.origin.failed == failed]]
 
-    def is_connected(self, other_node, direction="to", status="alive"):
+    def is_connected(self, other_node, direction="to", failed=False):
         """
         Check whether this node is connected to the other_node.
 
         other_node can be a list of nodes or a single node.
         direction can be "to" (default), "from", "both" or "either".
-        status can be "alive" (default), "dead", "failed" and "all".
+        failed can be "all", False (default) or True.
         """
 
         other_node = self.flatten([other_node])
@@ -456,8 +450,8 @@ class Node(Base):
                 raise(TypeError("is_connected cannot parse objects of type {}.".
                       format([type(node) for node in other_node if not isinstance(node, Node)][0])))
 
-        if status not in ["alive", "dead", "failed", "all"]:
-            raise ValueError("{} is not a valid connection status".format(status))
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid connection failed".format(failed))
 
         if direction not in ["to", "from", "either", "both"]:
             raise ValueError("{} is not a valid direction for is_connected".format(direction))
@@ -553,24 +547,7 @@ class Node(Base):
     Methods that make nodes do things
     ################################### """
 
-    def die(self):
-        """
-        Kill a node.
-
-        Set the node's status to "dead". Also kills all vectors that connect
-        to or from the node. You cannot kill a node that is already dead or
-        failed.
-        """
-        if self.status != "alive":
-            raise AttributeError("You cannot kill {} - it is already {}.".format(self, self.status))
-
-        else:
-            self.status = "dead"
-            self.time_of_death = timenow()
-            for v in self.vectors(status="alive"):
-                v.die()
-
-    def fail(self):
+    def fail(self, vectors=True, infos=False, transmissions=False, transformations=False):
         """
         Fail a node, setting its status to "failed".
 
@@ -578,16 +555,24 @@ class Node(Base):
         You cannot fail a node that has already failed, but you
         can fail a dead node.
         """
-        if self.status == "failed":
+        if self.failed is True:
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))
-
         else:
-            self.status = "failed"
+            self.failed = True
             self.time_of_death = timenow()
 
-            for v in (self.vectors(status="dead") +
-                      self.vectors(status="alive")):
-                v.fail()
+            if vectors:
+                for v in self.vectors():
+                    v.fail()
+            if infos:
+                for i in self.infos():
+                    i.fail()
+            if transmissions:
+                for t in self.transmissions():
+                    t.fail()
+            if transformations:
+                for t in self.transformations():
+                    t.fail()
 
     def connect(self, other_node, direction="to"):
         from wallace.nodes import Source
@@ -644,8 +629,8 @@ class Node(Base):
         for node in to_nodes:
             if isinstance(node, Source):
                 raise(TypeError("{} cannot connect_to {} as it is a Source.".format(self, node)))
-            if node.status != "alive":
-                raise(ValueError("{} cannot connect to {} as it is {}".format(self, node, node.status)))
+            if node.failed is True:
+                raise(ValueError("{} cannot connect to {} as {} has failed {}".format(self, node, node)))
             if self.network_uuid != node.network_uuid:
                 raise(ValueError(("{} cannot connect to {} as they are not " +
                                   "in the same network. {} is in network {}, " +
@@ -655,7 +640,7 @@ class Node(Base):
             Vector(origin=self, destination=node)
 
         for node in from_nodes:
-            if node.status != "alive":
+            if node.failed is True:
                 raise(ValueError("{} cannot connect from {} as it is {}".format(self, node, node.status)))
             if self.network_uuid != node.network_uuid:
                 raise(ValueError(("{} cannot connect from {} as they are not " +
@@ -835,9 +820,8 @@ class Vector(Base):
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
-    # the status of the vector
-    status = Column(Enum("alive", "dead", "failed", name="vector_status"),
-                    nullable=False, default="alive")
+    # whether the vector has failed
+    failed = Column(Boolean, nullable=False, default=False)
 
     # the time when the vector changed from alive->dead
     time_of_death = Column(String(26), default=None)
@@ -893,18 +877,11 @@ class Vector(Base):
     # Methods that make Vectors do things
     ###################################
 
-    def die(self):
-        if self.status != "alive":
-            raise AttributeError("You cannot kill {}, it is {}.".format(self, self.status))
-        else:
-            self.status = "dead"
-            self.time_of_death = timenow()
-
     def fail(self):
-        if self.status == "failed":
+        if self.failed is True:
             raise AttributeError("You cannot fail {}, it has already failed".format(self))
         else:
-            self.status = "failed"
+            self.failed = True
             self.time_of_death = timenow()
 
 

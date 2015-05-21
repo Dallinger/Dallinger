@@ -123,9 +123,9 @@ class TestProcesses(object):
                 agent.receive()
 
         # Ensure that the process had reached fixation.
-        assert agent1.status == "dead"
-        assert agent2.status == "dead"
-        assert agent3.status == "dead"
+        assert agent1.failed is True
+        assert agent2.failed is True
+        assert agent3.failed is True
 
         for a in net.nodes(type=Agent):
             for a2 in net.nodes(type=Agent):

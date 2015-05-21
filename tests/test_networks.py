@@ -33,10 +33,10 @@ class TestNetworks(object):
         random.choice(net.nodes(type=nodes.Agent)).fail()
 
         assert len(net.nodes(type=nodes.Agent)) == 4
-        assert len(net.nodes(type=nodes.Agent, status="all")) == 5
+        assert len(net.nodes(type=nodes.Agent, failed="all")) == 5
         assert len(net.nodes()) == 5
-        assert len(net.nodes(status="all")) == 6
-        assert len(net.nodes(status="failed")) == 1
+        assert len(net.nodes(failed="all")) == 6
+        assert len(net.nodes(failed=True)) == 1
 
     def test_network_agents(self):
         net = networks.Network()
@@ -80,16 +80,16 @@ class TestNetworks(object):
         assert net.nodes() == [node1, node2, agent1, agent2, agent3]
         assert net.nodes(type=nodes.Agent) == [agent1, agent2, agent3]
 
-        node1.die()
+        node1.fail()
         agent1.fail()
 
         self.db.add_all([node1, node2, agent1, agent2, agent3])
         self.db.commit()
 
         assert net.nodes() == [node2, agent2, agent3]
-        assert net.nodes(status="all") == [node1, node2, agent1, agent2, agent3]
-        assert net.nodes(status="dead") == [node1]
-        assert net.nodes(type=nodes.Agent, status="all") == [agent1, agent2, agent3]
+        assert net.nodes(failed="all") == [node1, node2, agent1, agent2, agent3]
+        assert net.nodes(failed=True) == [node1, agent1]
+        assert net.nodes(type=nodes.Agent, failed="all") == [agent1, agent2, agent3]
 
     def test_network_vectors(self):
         net = networks.Network()
@@ -215,7 +215,7 @@ class TestNetworks(object):
         assert len(node1.vectors(direction="outgoing")) == 3
         assert node1.neighbors(connection="to", type=nodes.Agent) == [agent1, agent2]
 
-        agent1.die()
+        agent1.fail()
         agent2.fail()
 
         # these assertions removed pending resolution of issue #164
@@ -224,7 +224,7 @@ class TestNetworks(object):
         #assert node1.neighbors(connection="to, status="alive") == [node2]
         #assert node1.neighbors(connection="to, status="all") == [node2, agent1, agent2]
 
-        assert_raises(ValueError, node1.neighbors, connection="to", status="blagjrg")
+        assert_raises(ValueError, node1.neighbors, connection="to", failed="blagjrg")
 
     def test_network_repr(self):
         net = networks.Network()

@@ -201,10 +201,10 @@ class TestModels(object):
         vector = models.Vector(origin=node1, destination=node2)
         self.add(node1, node2, vector)
 
-        assert vector.status == "alive"
+        assert vector.failed is False
 
-        vector.die()
-        assert vector.status == "dead"
+        vector.fail()
+        assert vector.failed is True
 
     def test_create_bidirectional_vectors(self):
         """Test creating a bidirectional connection between nodes"""

@@ -37,24 +37,15 @@ class TestAgents(object):
         self.add(agent1, agent2, agent3)
         agent1.transmit(to_whom=models.Node)
 
-    def test_kill_agent(self):
-        agent = nodes.Agent()
-        self.add(agent)
-
-        assert agent.status == "alive"
-
-        agent.die()
-        assert agent.status == "dead"
-
     def test_fail_agent(self):
         agent = nodes.Agent()
         self.add(agent)
 
-        assert agent.status == "alive"
+        assert agent.failed is False
         assert agent.time_of_death is None
 
         agent.fail()
-        assert agent.status == "failed"
+        assert agent.failed is True
         assert agent.time_of_death is not None
 
     def test_create_replicator_agent(self):

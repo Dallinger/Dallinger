@@ -32,7 +32,7 @@ class Chain(Network):
                 source.connect_to(self.nodes(type=Agent)[0])
 
     def calculate_full(self):
-        return (len(self.nodes(type=Agent, status="alive")) + len(self.nodes(type=Agent, status="dead"))) >= self.max_size
+        return (len(self.nodes(type=Agent))) >= self.max_size
 
 
 class FullyConnected(Network):
@@ -53,7 +53,7 @@ class FullyConnected(Network):
             newcomer.connect_to(agent)
 
     def calculate_full(self):
-        return (len(self.nodes(type=Agent, status="alive")) + len(self.nodes(type=Agent, status="dead"))) >= self.max_size
+        return len(self.nodes(type=Agent)) >= self.max_size
 
 
 class Star(Network):
@@ -149,8 +149,7 @@ class DiscreteGenerational(Network):
         return self.nodes(type=Agent)[first_index:last_index]
 
     def calculate_full(self):
-        #self.full = len(self.nodes(type=Agent)) >= self.max_size
-        self.full = len(Agent.query.with_entities(Agent.uuid).filter_by(status="alive", network_uuid=self.uuid).all()) >= self.max_size
+        self.full = len(self.nodes(type=Agent)) >= self.max_size
 
 
 class ScaleFree(Network):
