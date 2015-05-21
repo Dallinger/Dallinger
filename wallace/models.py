@@ -457,7 +457,7 @@ class Node(Base):
                     [v.origin for v in self.vectors(direction="incoming", failed=failed)
                         if isinstance(v.origin, type) and v.origin.failed == failed]]
 
-    def is_connected(self, other_node, direction="to", failed=False):
+    def is_connected(self, other_node, direction="to", vector_failed=False):
         """
         Check whether this node is connected to the other_node.
 
@@ -467,44 +467,76 @@ class Node(Base):
         """
 
         other_node = self.flatten([other_node])
+        other_node_uuids = [n.uuid for n in other_node]
+        connected = []
 
         for node in other_node:
             if not isinstance(node, Node):
-                raise(TypeError("is_connected cannot parse objects of type {}.".
-                      format([type(node) for node in other_node if not isinstance(node, Node)][0])))
+                raise TypeError("is_connected cannot parse objects of type {}."
+                                .format(type(node)))
 
-        if failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid connection failed".format(failed))
+        if vector_failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid connection failed".format(vector_failed))
 
         if direction not in ["to", "from", "either", "both"]:
             raise ValueError("{} is not a valid direction for is_connected".format(direction))
 
         if direction == "to":
-            all_relevant_vectors = Vector.query.with_entities(Vector.destination_uuid)\
-                .filter_by(origin_uuid=self.uuid).all()
-            for i, n in enumerate(other_node):
-                other_node[i] = any([v for v in all_relevant_vectors if v.destination_uuid == n.uuid])
+            if vector_failed == "all":
+                all_relevant_vectors = Vector.query.with_entities(Vector.destination_uuid)\
+                    .filter_by(origin_uuid=self.uuid).all()
+                for i in range(len(other_node_uuids)):
+                    connected.append(any([v for v in all_relevant_vectors if v.destination_uuid == other_node_uuids[i]]))
+            else:
+                all_relevant_vectors = Vector.query.with_entities(Vector.destination_uuid)\
+                    .filter_by(origin_uuid=self.uuid, failed=vector_failed).all()
+                for i in range(len(other_node_uuids)):
+                    connected.append(any([v for v in all_relevant_vectors if v.destination_uuid == other_node_uuids[i]]))
         elif direction == "from":
-            all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid)\
-                .filter_by(destination_uuid=self.uuid).all()
-            for i, n in enumerate(other_node):
-                other_node[i] = any([v for v in all_relevant_vectors if v.origin_uuid == n.uuid])
+            if vector_failed == "all":
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid)\
+                    .filter_by(destination_uuid=self.uuid).all()
+                for i in range(len(other_node_uuids)):
+                    connected.append(any([v for v in all_relevant_vectors if v.origin_uuid == other_node_uuids[i]]))
+            else:
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid)\
+                    .filter_by(destination_uuid=self.uuid, failed=vector_failed).all()
+                for i in range(len(other_node_uuids)):
+                    connected.append(any([v for v in all_relevant_vectors if v.origin_uuid == other_node_uuids[i]]))
         elif direction == "either":
-            all_relevant_vectors = Vector.query.with_entities(Vector.destination_uuid, Vector.origin_uuid)\
-                .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)).all()
-            for i, n in enumerate(other_node):
-                other_node[i] = (any([v for v in all_relevant_vectors if v.origin_uuid == n.uuid]) or
-                                 any([v for v in all_relevant_vectors if v.origin_uuid == n.uuid]))
+            if vector_failed == "all":
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid, Vector.destination_uuid)\
+                    .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)).all()
+                for i in range(len(other_node_uuids)):
+                    connected.append(any([v for v in all_relevant_vectors
+                                          if v.origin_uuid == other_node_uuids[i]
+                                          or v.destination_uuid == other_node_uuids[i]]))
+            else:
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid, Vector.destination_uuid)\
+                    .filter(and_(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid), Vector.failed == vector_failed)).all()
+                for i in range(len(other_node_uuids)):
+                    connected.append(any([v for v in all_relevant_vectors
+                                          if v.origin_uuid == other_node_uuids[i]
+                                          or v.destination_uuid == other_node_uuids[i]]))
         elif direction == "both":
-            all_relevant_vectors = Vector.query.with_entities(Vector.destination_uuid, Vector.origin_uuid)\
-                .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)).all()
-            for i, n in enumerate(other_node):
-                other_node[i] = (any([v for v in all_relevant_vectors if v.origin_uuid == n.uuid]) and
-                                 any([v for v in all_relevant_vectors if v.origin_uuid == n.uuid]))
-        if len(other_node) == 1:
-            return other_node[0]
+            if vector_failed == "all":
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid, Vector.destination_uuid)\
+                    .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)).all()
+                for i in range(len(other_node_uuids)):
+                    connected.append(any([v for v in all_relevant_vectors
+                                          if v.origin_uuid == other_node_uuids[i]
+                                          and v.destination_uuid == other_node_uuids[i]]))
+            else:
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid, Vector.destination_uuid)\
+                    .filter(and_(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid), Vector.failed == vector_failed)).all()
+                for i in range(len(other_node_uuids)):
+                    connected.append(any([v for v in all_relevant_vectors
+                                          if v.origin_uuid == other_node_uuids[i]
+                                          and v.destination_uuid == other_node_uuids[i]]))
+        if len(connected) == 1:
+            return connected[0]
         else:
-            return other_node
+            return connected
 
     def infos(self, type=None):
         """
