@@ -54,11 +54,11 @@ def moran_sexual(network):
 
         # Give the baby the same outgoing connections as the replaced.
         for node in replaced.neighbors(connection="to"):
-            baby.connect(direction="to", other_node=node)
+            baby.connect(direction="to", whom=node)
 
         # Give the baby the same incoming connections as the replaced.
         for node in replaced.neighbors(connection="from"):
-            node.connect(direction="to", other_node=baby)
+            node.connect(direction="to", whom=baby)
 
         # Kill the replaced agent.
         replaced.fail()

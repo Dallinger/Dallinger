@@ -20,16 +20,16 @@ class Chain(Network):
         self.add(newcomer)
 
         if len(self.nodes(type=Agent)) > 1:
-            self.nodes(type=Agent)[-2].connect_to(newcomer)
+            self.nodes(type=Agent)[-2].connect(whom=newcomer)
         elif len(self.nodes(type=Source)) > 0:
-            self.nodes(type=Source)[0].connect_to(newcomer)
+            self.nodes(type=Source)[0].connect(whom=newcomer)
 
     def add_source(self, source):
         if len(self.nodes(type=Source)) > 1:
             raise(Exception("Cannot add another source to Chain network as it already has a source"))
         else:
             if len(self.nodes(type=Agent)) > 0:
-                source.connect_to(self.nodes(type=Agent)[0])
+                source.connect(whom=self.nodes(type=Agent)[0])
 
     def calculate_full(self):
         return (len(self.nodes(type=Agent))) >= self.max_size
@@ -49,8 +49,7 @@ class FullyConnected(Network):
         self.add(newcomer)
 
         for agent in self.nodes(type=Agent)[:-1]:
-            agent.connect_to(newcomer)
-            newcomer.connect_to(agent)
+            agent.connect(direction="both", whom=newcomer)
 
     def calculate_full(self):
         return len(self.nodes(type=Agent)) >= self.max_size
@@ -71,8 +70,7 @@ class Star(Network):
 
         if len(self.nodes(type=Agent)) > 1:
             center = self.nodes(type=Agent)[0]
-            center.connect_to(newcomer)
-            newcomer.connect_to(center)
+            center.connect(direction="both", whom=newcomer)
 
 
 class Burst(Network):
@@ -89,7 +87,7 @@ class Burst(Network):
         self.add(newcomer)
 
         if len(self.nodes(type=Agent)) > 1:
-            self.nodes(type=Agent)[0].connect_to(newcomer)
+            self.nodes(type=Agent)[0].connect(whom=newcomer)
 
 
 class DiscreteGenerational(Network):
@@ -126,7 +124,7 @@ class DiscreteGenerational(Network):
         current_generation = newcomer.generation
         if current_generation == 0:
             if self.initial_source:
-                newcomer.connect_from(self.nodes(type=Source)[0])
+                newcomer.connect(direction="from", whom=self.nodes(type=Source)[0])
         else:
             prev_agents = type(newcomer).query.filter(and_(type(newcomer).network_uuid == self.uuid, type(newcomer).generation == current_generation-1)).all()
             prev_fitnesses = [p.fitness for p in prev_agents]
@@ -140,7 +138,7 @@ class DiscreteGenerational(Network):
                     parent = prev_agents[i]
                     break
 
-            parent.connect(direction="to", other_node=newcomer)
+            parent.connect(direction="to", whom=newcomer)
             parent.transmit(to_whom=newcomer)
 
     def agents_of_generation(self, generation):
@@ -185,8 +183,7 @@ class ScaleFree(Network):
         # Start with a core of m0 fully-connected agents...
         if len(self.nodes(type=Agent)) <= self.m0:
             for agent in self.nodes(type=Agent)[:-1]:
-                newcomer.connect_to(agent)
-                agent.connect_to(newcomer)
+                newcomer.connect(direction="both", whom=agent)
 
         # ...then add newcomers one by one with preferential attachment.
         else:
@@ -194,8 +191,8 @@ class ScaleFree(Network):
                 these_agents = []
                 for agent in self.nodes(type=Agent):
                     if (agent == newcomer or
-                            agent.is_connected(direction="from", other_node=newcomer) or
-                            agent.is_connected(direction="to", other_node=newcomer)):
+                            agent.is_connected(direction="from", whom=newcomer) or
+                            agent.is_connected(direction="to", whom=newcomer)):
                         continue
                     else:
                         these_agents.append(agent)
@@ -211,5 +208,4 @@ class ScaleFree(Network):
                         vector_to = these_agents[i]
 
                 # Create vector from newcomer to selected member and back
-                newcomer.connect_to(vector_to)
-                newcomer.connect_from(vector_to)
+                newcomer.connect(direction="both", whom=vector_to)

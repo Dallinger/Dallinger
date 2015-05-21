@@ -104,7 +104,7 @@ class TestNetworks(object):
         net.add(agent2)
         self.db.commit()
 
-        agent1.connect_to(agent2)
+        agent1.connect(whom=agent2)
         self.db.commit()
 
         assert len(net.vectors()) == 1
@@ -124,7 +124,7 @@ class TestNetworks(object):
 
         assert [len(n.vectors(direction="outgoing")) for n in net.nodes()] == [0, 0]
 
-        agent1.connect_to(agent2)
+        agent1.connect(whom=agent2)
 
         assert [len(n.vectors(direction="outgoing")) for n in net.nodes()] == [1, 0]
 
@@ -144,7 +144,7 @@ class TestNetworks(object):
         source = nodes.RandomBinaryStringSource()
         self.db.add(source)
         net.add(source)
-        source.connect_to(net.nodes(type=nodes.Agent))
+        source.connect(whom=net.nodes(type=nodes.Agent))
 
         assert len(net.vectors()) == 2
         assert source.network == net
@@ -168,7 +168,7 @@ class TestNetworks(object):
         source = nodes.RandomBinaryStringSource()
         self.db.add(source)
         net.add(source)
-        source.connect_to(net.nodes(type=nodes.Agent)[0])
+        source.connect(whom=net.nodes(type=nodes.Agent)[0])
 
         assert len(net.vectors()) == 1
         assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=nodes.Agent)] == [0, 0]
@@ -209,9 +209,9 @@ class TestNetworks(object):
         # net.add([node1, node2, agent1, agent2, source1, source2])
         # self.db.commit()
 
-        node1.connect_to([node2, agent1, agent2])
+        node1.connect(whom=[node2, agent1, agent2])
 
-        assert_raises(TypeError, node1.connect_to, source1)
+        assert_raises(TypeError, node1.connect, whom=source1)
 
         assert node1.neighbors(connection="to") == [node2, agent1, agent2]
         assert len(node1.vectors(direction="outgoing")) == 3
@@ -244,7 +244,7 @@ class TestNetworks(object):
         self.db.add(source)
 
         net.add(source)
-        source.connect_to(net.nodes(type=nodes.Agent))
+        source.connect(whom=net.nodes(type=nodes.Agent))
 
         assert repr(net)[:8] == "<Network"
         assert repr(net)[15:] == "-base with 3 nodes, 2 vectors, 0 infos, 0 transmissions and 0 transformations>"
@@ -364,8 +364,8 @@ class TestNetworks(object):
     #             a_gen = int((a)/float(gen_size))
     #             b_gen = int((b)/float(gen_size))
     #             if b_gen == (1+a_gen):
-    #                 assert agents[a].is_connected(direction="to", other_node=agents[b])
+    #                 assert agents[a].is_connected(direction="to", whom=agents[b])
     #             else:
-    #                 assert (agents[a].is_connected(direction="to", other_node=agents[b]) is False)
+    #                 assert (agents[a].is_connected(direction="to", whom=agents[b]) is False)
     #             if a_gen == 0:
     #                 assert isinstance(agents[a].neighbors(connection="from")[0], nodes.Source)

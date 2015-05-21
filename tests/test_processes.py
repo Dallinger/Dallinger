@@ -27,15 +27,15 @@ class TestProcesses(object):
         self.db.add(agent3)
         self.db.commit()
 
-        agent1.connect_to(agent2)
-        agent2.connect_to(agent3)
+        agent1.connect(whom=agent2)
+        agent2.connect(whom=agent3)
 
         source = nodes.RandomBinaryStringSource()
         net.add(source)
         self.db.add(source)
         self.db.commit()
 
-        source.connect_to(net.nodes(type=Agent)[0])
+        source.connect(whom=net.nodes(type=Agent)[0])
         source.create_information()
 
         processes.random_walk(net)
@@ -65,19 +65,19 @@ class TestProcesses(object):
         net.add([agent1, agent2, agent3])
         self.db.commit()
 
-        agent1.connect_to(agent2)
-        agent1.connect_to(agent3)
-        agent2.connect_to(agent1)
-        agent2.connect_to(agent3)
-        agent3.connect_to(agent1)
-        agent3.connect_to(agent2)
+        agent1.connect(whom=agent2)
+        agent1.connect(whom=agent3)
+        agent2.connect(whom=agent1)
+        agent2.connect(whom=agent3)
+        agent3.connect(whom=agent1)
+        agent3.connect(whom=agent2)
 
         # Add a global source and broadcast to all the nodes.
         source = nodes.RandomBinaryStringSource()
         self.db.add(source)
         net.add(source)
         for agent in net.nodes(type=Agent):
-            source.connect_to(agent)
+            source.connect(whom=agent)
             source.transmit(to_whom=agent)
             agent.receive()
 
@@ -102,12 +102,12 @@ class TestProcesses(object):
         agent2 = nodes.ReplicatorAgent(network=net)
         agent3 = nodes.ReplicatorAgent(network=net)
 
-        agent1.connect(direction="both", other_node=[agent2, agent3])
-        agent2.connect(direction="both", other_node=agent3)
+        agent1.connect(direction="both", whom=[agent2, agent3])
+        agent2.connect(direction="both", whom=agent3)
 
         # Add a global source and broadcast to all the nodes.
         source = nodes.RandomBinaryStringSource(network=net)
-        source.connect(direction="to", other_node=net.nodes(type=Agent))
+        source.connect(direction="to", whom=net.nodes(type=Agent))
 
         source.create_information()
 

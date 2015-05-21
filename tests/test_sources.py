@@ -27,7 +27,7 @@ class TestSources(object):
         self.db.add(agent)
         self.db.commit()
 
-        source.connect_to(agent)
+        source.connect(whom=agent)
         self.add(source, agent)
 
         source.transmit(to_whom=agent)
@@ -45,8 +45,8 @@ class TestSources(object):
         self.db.add(agent1)
         self.db.add(agent2)
         self.db.commit()
-        source.connect_to(agent1)
-        source.connect_to(agent2)
+        source.connect(whom=agent1)
+        source.connect(whom=agent2)
         self.add(source, agent1, agent2)
 
         source.transmit(what=source.create_information())

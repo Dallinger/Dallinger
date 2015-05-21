@@ -34,12 +34,10 @@ Node-92792f-base
 
 ### Functions
 
-* `connect_to(other_node)` -- creates a vector from this node to another node
-* `connect_from(other_node)` -- creates a vector from another node to this node
-* `transmit(meme, other_node)` -- creates a transmission of the given meme from this node to another node
+* `connect(direction, whom)` -- creates vector(s) between this node and whom in the given direction
+* `transmit(what, whom)` -- creates transmission(s) of what from this node to whom
 * `broadcast(meme)` -- creates transmission of the given meme to all connected nodes
-* `has_connection_to(other_node)` -- whether this node has a vector to another node
-* `has_connection_from(other_node)` -- whether this node has a vector from another node
+* `is_connected(direction, whom)` -- whether this node has a vector to/from another node
 
 ## Vector
 
@@ -91,7 +89,7 @@ Meme-f8c9be-base
 ```python
 >>> node1 = models.Node()
 >>> node2 = models.Node()
->>> node1.connect_to(node2)
+>>> node1.connect(whom=node2)
 >>> meme = models.Meme(origin=node1)
 >>> session.add_all([node1, node2, meme])
 >>> session.commit()

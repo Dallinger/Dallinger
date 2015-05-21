@@ -32,8 +32,8 @@ class TestAgents(object):
         self.add(agent3)
         self.db.commit()
 
-        agent1.connect_to(agent2)
-        agent1.connect_to(agent3)
+        agent1.connect(direction="to", whom=agent2)
+        agent1.connect(direction="to", whom=agent3)
         self.add(agent1, agent2, agent3)
         agent1.transmit(to_whom=models.Node)
 
@@ -67,7 +67,7 @@ class TestAgents(object):
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
 
-        agent1.connect_to(agent2)
+        agent1.connect(direction="to", whom=agent2)
 
         info = models.Info(origin=agent1, contents="foo")
 
@@ -99,7 +99,7 @@ class TestAgents(object):
         self.add(agent2)
         self.db.commit()
 
-        agent1.connect_to(agent2)
+        agent1.connect(direction="to", whom=agent2)
         info = models.Info(origin=agent2, contents="foo")
         self.add(agent1, agent2, info)
 
@@ -120,8 +120,8 @@ class TestAgents(object):
         # self.add(agent3)
         # self.db.commit()
 
-        agent1.connect_to(agent2)
-        agent1.connect_to(agent3)
+        agent1.connect(direction="to", whom=agent2)
+        agent1.connect(direction="to", whom=agent3)
         info = models.Info(origin=agent1, contents="foo")
         #self.add(agent1, agent2, agent3, info)
         #self.db.commit()
@@ -150,7 +150,7 @@ class TestAgents(object):
         self.add(agent2)
         self.db.commit()
 
-        agent1.connect_to(agent2)
+        agent1.connect(direction="to", whom=agent2)
 
         self.add(agent1)
         self.add(agent2)
@@ -188,7 +188,7 @@ class TestAgents(object):
         self.add(agent2)
         self.db.commit()
 
-        agent1.connect_to(agent2)
+        agent1.connect(direction="to", whom=agent2)
 
         self.add(agent1)
         self.add(agent2)
@@ -226,7 +226,7 @@ class TestAgents(object):
         self.add(agent2)
         self.db.commit()
 
-        agent1.connect_to(agent2)
+        agent1.connect(direction="to", whom=agent2)
 
         self.add(agent1)
         self.add(agent2)

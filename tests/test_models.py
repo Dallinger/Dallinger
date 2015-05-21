@@ -50,10 +50,10 @@ class TestModels(object):
 
     def _check_single_connection(self, node1, node2):
 
-        assert node1.is_connected(direction="to", other_node=node2)
-        assert not node1.is_connected(direction="from", other_node=node2)
-        assert node2.is_connected(direction="from", other_node=node1)
-        assert not node2.is_connected(direction="to", other_node=node2)
+        assert node1.is_connected(direction="to", whom=node2)
+        assert not node1.is_connected(direction="from", whom=node2)
+        assert node2.is_connected(direction="from", whom=node1)
+        assert not node2.is_connected(direction="to", whom=node2)
 
         vector = node1.vectors(direction="outgoing")[0]
         assert vector.origin_uuid == node1.uuid
@@ -74,7 +74,7 @@ class TestModels(object):
         assert node2.neighbors(connection="from") == [node1]
         assert len(node2.neighbors(connection="to")) == 0
 
-    def test_node_connect_to(self):
+    def test_node_connect(self):
         """Test connecting one node to another"""
         net = models.Network()
         self.db.add(net)
@@ -87,37 +87,23 @@ class TestModels(object):
         # self.add(node1, node2, node3, node4)
         # self.db.commit()
 
-        node1.connect_to(node2)
+        node1.connect(whom=node2)
 
         assert node1.neighbors(connection="to") == [node2]
 
         assert node2.neighbors(connection="from") == [node1]
 
-        node2.connect_to([node3, node4])
+        node2.connect(whom=[node3, node4])
 
         assert node2.neighbors(connection="to") == [node3, node4]
         assert node3.neighbors(connection="from") == [node2]
 
-        assert_raises(ValueError, node1.connect_to, other_node=node1)
+        assert_raises(ValueError, node1.connect, whom=node1)
 
         net = models.Network()
         self.add(net)
 
-        assert_raises(TypeError, node1.connect_to, other_node=net)
-
-    def test_node_connect_from(self):
-        """Test connecting one node from another"""
-        node1 = models.Node()
-        node2 = models.Node()
-
-        self.add(node1)
-        self.add(node2)
-        self.db.commit()
-
-        node1.connect_from(node2)
-        self.add(node1, node2)
-
-        self._check_single_connection(node2, node1)
+        assert_raises(TypeError, node1.connect, whom=net)
 
     def test_node_outdegree(self):
         node1 = models.Node()
@@ -128,7 +114,7 @@ class TestModels(object):
             new_node = models.Node()
             self.add(new_node)
             self.db.commit()
-            node1.connect_to(new_node)
+            node1.connect(whom=new_node)
             self.add(new_node)
 
         assert len(node1.vectors(direction="outgoing")) == 5
@@ -148,7 +134,7 @@ class TestModels(object):
             new_node = models.Node()
             self.db.add(new_node)
             self.db.commit()
-            node1.connect_from(new_node)
+            node1.connect(direction="from", whom=new_node)
             self.add(new_node)
 
         assert len(node1.vectors(direction="incoming")) == 5
@@ -163,11 +149,11 @@ class TestModels(object):
         self.add(node1, node2)
         self.db.commit()
 
-        node1.connect_to(node2)
+        node1.connect(whom=node2)
         self.add(node1, node2)
 
-        assert node1.is_connected(direction="to", other_node=node2)
-        assert not node2.is_connected(direction="to", other_node=node1)
+        assert node1.is_connected(direction="to", whom=node2)
+        assert not node2.is_connected(direction="to", whom=node1)
 
     def test_node_has_connection_from(self):
         node1 = models.Node()
@@ -175,11 +161,11 @@ class TestModels(object):
         self.add(node1, node2)
         self.db.commit()
 
-        node1.connect_to(node2)
+        node1.connect(whom=node2)
         self.add(node1, node2)
 
-        assert not node1.is_connected(direction="from", other_node=node2)
-        assert node2.is_connected(direction="from", other_node=node1)
+        assert not node1.is_connected(direction="from", whom=node2)
+        assert node2.is_connected(direction="from", whom=node1)
 
     ##################################################################
     # Vector
@@ -194,7 +180,7 @@ class TestModels(object):
         self.add(node1, node2)
         self.db.commit()
 
-        node1.connect_to(node2)
+        node1.connect(whom=node2)
 
         self._check_single_connection(node1, node2)
         #assert len(vector.transmissions) == 0
@@ -228,10 +214,10 @@ class TestModels(object):
         assert node2.vectors(direction="incoming") == [vector1]
         assert node2.vectors(direction="outgoing") == [vector2]
 
-        assert node1.is_connected(direction="to", other_node=node2)
-        assert node1.is_connected(direction="from", other_node=node2)
-        assert node2.is_connected(direction="to", other_node=node1)
-        assert node2.is_connected(direction="from", other_node=node1)
+        assert node1.is_connected(direction="to", whom=node2)
+        assert node1.is_connected(direction="from", whom=node2)
+        assert node2.is_connected(direction="to", whom=node1)
+        assert node2.is_connected(direction="from", whom=node1)
 
         assert len(node1.vectors(direction="incoming")) == 1
         assert len(node2.vectors(direction="incoming")) == 1
@@ -320,7 +306,7 @@ class TestModels(object):
         node2 = models.Node()
         self.add(node1, node2)
         self.db.commit()
-        node1.connect_to(node2)
+        node1.connect(whom=node2)
 
         info = models.Info(origin=node1)
         node1.transmit(what=node1.infos()[0], to_whom=node2)
@@ -343,7 +329,7 @@ class TestModels(object):
         node2 = models.Node()
         self.add(node1, node2)
 
-        node1.connect_to(node2)
+        node1.connect(whom=node2)
         models.Info(origin=node1)
 
         node1.transmit(what=node1.infos()[0], to_whom=node2)
@@ -360,8 +346,7 @@ class TestModels(object):
         self.add(agent1, agent2, agent3)
         self.db.commit()
 
-        agent1.connect_from(agent2)
-        agent1.connect_from(agent3)
+        agent1.connect(direction="from", whom=[agent2, agent3])
         self.add(agent1, agent2, agent3)
 
         info1 = models.Info(origin=agent2, contents="foo")
@@ -383,8 +368,8 @@ class TestModels(object):
         self.add(agent1, agent2, agent3)
         self.db.commit()
 
-        agent1.connect_to(agent2)
-        agent1.connect_to(agent3)
+        agent1.connect(whom=agent2)
+        agent1.connect(whom=agent3)
         self.add(agent1, agent2, agent3)
 
         info1 = models.Info(origin=agent1, contents="foo")

@@ -33,7 +33,7 @@ class TestEnvironments(object):
         agent = nodes.ReplicatorAgent()
         self.add(agent)
 
-        environment.connect_to(agent)
+        environment.connect(direction="to", whom=agent)
         environment.transmit(to_whom=agent)
         agent.receive()
 

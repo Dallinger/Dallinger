@@ -28,7 +28,7 @@ class Translations(Experiment):
             source = WarOfTheGhostsSource()
             self.save(source)
             self.network.add(source)
-            source.connect_to(self.network.nodes(type=Agent))
+            source.connect(direction="to", whom=self.network.nodes(type=Agent))
             self.save()
             print "Added initial source: " + str(source)
 
@@ -45,7 +45,7 @@ class Translations(Experiment):
         # If this is the first participant, link them to the source.
         if len(self.network.nodes(type=Agent)) == 0:
             source = self.network.nodes(type=Source)[0]
-            source.connect_to(newcomer)
+            source.connect(direction="to", whom=newcomer)
             self.save()
 
         # Run the next step of the process.

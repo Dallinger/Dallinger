@@ -31,11 +31,8 @@ Fix!
 #### get_infos()
 FIX!
 
-#### connect_to(other_node)
-Links the Node to the other_node by creating a new Vector between them. Can be passed either a single Node or a list of Nodes. If a Vector already exists from the Node to the other_node a warning is printed to the console but no Vector is created.
-
-#### connect_from(other_node)
-This is the reverse of connect_to().
+#### connect(direction, whom)
+Creates vectors(s) between this node and whom. Direction can be "to" (the default), "from" or "both". Whom can be a single node or a list of nodes.If a duplicate Vector already exists a warning is printed to the console but no Vector is created.
 
 #### transmit(what, to_whom)
 Sends the Info(s) specified by what from this Node to the other node(s) specified by to_whom. The transmission of a particular Info to another Node creates a new Transmission. Nodes can only transmit Infos they are the origin of and can only transmit to other nodes that they are connected to. The argument what can be an Info, a list of Infos, a subclass of Info (in which case all Infos belonging to that subclass are transmitted), a list of subclasses of Info or a mixed list of Infos and subclasses of Info. If no value of what is specified the Nodes _what() method is called to generate a value.
