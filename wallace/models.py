@@ -133,6 +133,29 @@ class Network(Base):
                     .order_by(type.creation_time)\
                     .all()
 
+    def size(self, type=None, failed=False):
+        if type is None:
+            type = Node
+
+        if not issubclass(type, Node):
+            raise(TypeError("{} is not a valid node type.".format(type)))
+
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid node failed".format(failed))
+
+        if failed == "all":
+            return len(type
+                       .query
+                       .with_entities(type.uuid)
+                       .filter_by(network_uuid=self.uuid)
+                       .all())
+        else:
+            return len(type
+                       .query
+                       .with_entities(type.uuid)
+                       .filter_by(network_uuid=self.uuid, failed=failed)
+                       .all())
+
     def infos(self, type=None, origin_failed=False):
         """
         Get infos in the network.
