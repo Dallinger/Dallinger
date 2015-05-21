@@ -22,7 +22,7 @@ class Bartlett1932(Experiment):
 
         if not self.networks():
             self.setup()
-            self.save()
+        self.save()
 
     def setup(self):
         super(Bartlett1932, self).setup()
