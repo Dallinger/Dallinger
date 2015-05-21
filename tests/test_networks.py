@@ -195,17 +195,19 @@ class TestNetworks(object):
 
     def test_network_downstream_nodes(self):
         net = networks.Network()
-
-        node1 = models.Node()
-        node2 = models.Node()
-        agent1 = nodes.Agent()
-        agent2 = nodes.ReplicatorAgent()
-        source1 = nodes.Source()
-        source2 = nodes.Source()
-
-        self.db.add_all([node1, node2, agent1, agent2, source1, source2])
-        net.add([node1, node2, agent1, agent2, source1, source2])
+        self.db.add(net)
         self.db.commit()
+
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
+        agent1 = nodes.Agent(network=net)
+        agent2 = nodes.ReplicatorAgent(network=net)
+        source1 = nodes.Source(network=net)
+        source2 = nodes.Source(network=net)
+
+        # self.db.add_all([node1, node2, agent1, agent2, source1, source2])
+        # net.add([node1, node2, agent1, agent2, source1, source2])
+        # self.db.commit()
 
         node1.connect_to([node2, agent1, agent2])
 

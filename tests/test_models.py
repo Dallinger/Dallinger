@@ -76,12 +76,16 @@ class TestModels(object):
 
     def test_node_connect_to(self):
         """Test connecting one node to another"""
-        node1 = models.Node()
-        node2 = models.Node()
-        node3 = models.Node()
-        node4 = models.Node()
-        self.add(node1, node2, node3, node4)
+        net = models.Network()
+        self.db.add(net)
         self.db.commit()
+
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
+        node3 = models.Node(network=net)
+        node4 = models.Node(network=net)
+        # self.add(node1, node2, node3, node4)
+        # self.db.commit()
 
         node1.connect_to(node2)
 
