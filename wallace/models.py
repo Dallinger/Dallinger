@@ -148,7 +148,7 @@ class Network(Base):
             raise ValueError("{} is not a valid origin status".format(origin_status))
 
         if origin_status == "all":
-            return Info.query.join(Info.origin)\
+            return Info.query\
                 .filter(network_uuid=self.uuid)\
                 .order_by(Info.creation_time).all()
         else:
@@ -173,7 +173,7 @@ class Network(Base):
 
         if status == "all":
             if vector_status == "all":
-                return Transmission.query.join(Transmission.vector)\
+                return Transmission.query\
                     .filter_by(network_uuid=self.uuid)\
                     .order_by(Transmission.transmit_time).all()
             else:
@@ -182,7 +182,7 @@ class Network(Base):
                     .order_by(Transmission.transmit_time).all()
         else:
             if vector_status == "all":
-                return Transmission.query.join(Transmission.vector)\
+                return Transmission.query\
                     .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status))\
                     .order_by(Transmission.transmit_time).all()
             else:
@@ -206,11 +206,11 @@ class Network(Base):
             raise ValueError("{} is not a valid origin status".format(node_status))
 
         if node_status == "all":
-            return Transformation.query.join(Transformation.info_out).join(Info.origin)\
+            return Transformation.query\
                 .filter_by(network_uuid=self.uuid)\
                 .order_by(Transformation.transform_time).all()
         else:
-            return Transformation.query.join(Transformation.info_out).join(Info.origin)\
+            return Transformation.query.join(Transformation.node)\
                 .filter(and_(Transformation.network_uuid == self.uuid, Node.status == node_status))\
                 .order_by(Transformation.transform_time).all()
 
