@@ -769,7 +769,7 @@ class Node(Base):
                 raise ValueError("{} cannot transmit {} as it is not its origin".format(self, w))
             for tw in to_whom:
                 if not self.is_connected(whom=tw):
-                    raise ValueError("{} cannot transmit to {} as it does not have a connection to them".format(self, to_whom))
+                    raise ValueError("{} cannot transmit to {} as it does not have a connection to them".format(self, tw))
                 vector = [v for v in self.vectors(direction="outgoing") if v.destination_uuid == tw.uuid][0]
                 Transmission(info=w, vector=vector)
 
