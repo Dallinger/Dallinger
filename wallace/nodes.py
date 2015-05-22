@@ -100,7 +100,7 @@ class Environment(Node):
                 .filter(and_(
                     State.origin_uuid == self.uuid,
                     State.creation_time < time))\
-                .first()
+                .all()[-1]
 
     def _what(self):
         return self.state()
