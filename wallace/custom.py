@@ -152,7 +152,10 @@ def api_transmission(transmission_uuid):
                 request.values['destination_uuid']) + \
                 "but there were no transmissions to get."
 
-        js = dumps(data)
+        def date_handler(obj):
+            return obj.isoformat() if hasattr(obj, 'isoformat') else obj
+
+        js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
 
     if request.method == "POST":
@@ -186,6 +189,9 @@ def api_info(info_uuid):
     """Create and access informaiton."""
     exp = experiment(session)
 
+    def date_handler(obj):
+        return obj.isoformat() if hasattr(obj, 'isoformat') else obj
+
     if request.method == 'GET':
 
         if info_uuid is not None:
@@ -199,7 +205,8 @@ def api_info(info_uuid):
                 'creation_time': info.creation_time,
                 'type': info.type
             }
-            js = dumps(data)
+
+            js = dumps(data, default=date_handler)
 
             return Response(js, status=200, mimetype='application/json')
 
@@ -223,7 +230,7 @@ def api_info(info_uuid):
                     "contents": info.contents
                 })
 
-            js = dumps({"information": data_information})
+            js = dumps({"information": data_information}, default=date_handler)
             return Response(js, status=200, mimetype='application/json')
 
     if request.method == "POST":
@@ -267,7 +274,11 @@ def api_info(info_uuid):
             exp.information_creation_trigger(info)
 
             data = {'uuid': info.uuid}
-            js = dumps(data)
+
+            def date_handler(obj):
+                return obj.isoformat() if hasattr(obj, 'isoformat') else obj
+
+            js = dumps(data, default=date_handler)
 
             return Response(js, status=200, mimetype='application/json')
 
