@@ -23,7 +23,6 @@ def new_uuid():
 def timenow():
     """A string representing the current date and time."""
     return datetime.now()
-    #return time.strftime(DATETIME_FMT)
 
 
 class Network(Base):
