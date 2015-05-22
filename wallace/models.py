@@ -615,7 +615,8 @@ class Node(Base):
         else:
             self.failed = True
             self.time_of_death = timenow()
-            self.network.calculate_full()
+            if self.network is not None:
+                self.network.calculate_full()
 
             if vectors:
                 for v in self.vectors():
