@@ -110,26 +110,22 @@ class Network(Base):
                 return type\
                     .query\
                     .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid)\
-                    .order_by(type.creation_time)\
                     .all()
             else:
                 return type\
                     .query\
                     .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid, failed=failed)\
-                    .order_by(type.creation_time)\
                     .all()
         else:
             if failed == "all":
                 return type\
                     .query\
                     .filter_by(network_uuid=self.uuid)\
-                    .order_by(type.creation_time)\
                     .all()
             else:
                 return type\
                     .query\
                     .filter_by(failed=failed, network_uuid=self.uuid)\
-                    .order_by(type.creation_time)\
                     .all()
 
     def size(self, type=None, failed=False):
@@ -172,11 +168,11 @@ class Network(Base):
         if origin_failed == "all":
             return Info.query\
                 .filter(network_uuid=self.uuid)\
-                .order_by(Info.creation_time).all()
+                .all()
         else:
             return Info.query.join(Info.origin)\
                 .filter(and_(Info.network_uuid == self.uuid, Node.failed == origin_failed))\
-                .order_by(Info.creation_time).all()
+                .all()
 
     def transmissions(self, status="all", vector_failed=False):
         """
@@ -197,20 +193,20 @@ class Network(Base):
             if vector_failed == "all":
                 return Transmission.query\
                     .filter_by(network_uuid=self.uuid)\
-                    .order_by(Transmission.transmit_time).all()
+                    .all()
             else:
                 return Transmission.query.join(Transmission.vector)\
                     .filter(and_(Transmission.network_uuid == self.uuid, Vector.failed == vector_failed))\
-                    .order_by(Transmission.transmit_time).all()
+                    .all()
         else:
             if vector_failed == "all":
                 return Transmission.query\
                     .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status))\
-                    .order_by(Transmission.transmit_time).all()
+                    .all()
             else:
                 return Transmission.query.join(Transmission.vector)\
                     .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status, Vector.failed == vector_failed))\
-                    .order_by(Transmission.transmit_time).all()
+                    .all()
 
     def transformations(self, type=None, node_failed=False):
         """
@@ -230,11 +226,11 @@ class Network(Base):
         if node_failed == "all":
             return Transformation.query\
                 .filter_by(network_uuid=self.uuid)\
-                .order_by(Transformation.transform_time).all()
+                .all()
         else:
             return Transformation.query.join(Transformation.node)\
                 .filter(and_(Transformation.network_uuid == self.uuid, Node.failed == node_failed))\
-                .order_by(Transformation.transform_time).all()
+                .all()
 
     def latest_transmission_recipient(self, failed=False):
         """
