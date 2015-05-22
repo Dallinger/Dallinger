@@ -33,7 +33,7 @@ class Network(Base):
     __tablename__ = "network"
 
     # the unique network id
-    uuid = Column(String(32), primary_key=True, default=new_uuid, index=True)
+    uuid = Column(Integer, primary_key=True, index=True)
 
     # the network type -- this allows for inheritance
     type = Column(String(50))
@@ -50,7 +50,7 @@ class Network(Base):
     max_size = Column(Integer, nullable=False, default=1e6)
 
     # whether the network is currently full
-    full = Column(Boolean, nullable=False, default=False)
+    full = Column(Boolean, nullable=False, default=False, index=True)
 
     # the role of the network, by default wallace initializes all
     # networks as either "practice" or "experiment"
@@ -77,7 +77,7 @@ class Network(Base):
     def __repr__(self):
         """The string representation of a network."""
         return "<Network-{}-{} with {} nodes, {} vectors, {} infos, {} transmissions and {} transformations>".format(
-            self.uuid[:6],
+            self.uuid,
             self.type,
             len(self.nodes()),
             len(self.vectors()),
@@ -326,7 +326,7 @@ class Node(Base):
     __tablename__ = "node"
 
     # the unique node id
-    uuid = Column(String(32), primary_key=True, default=new_uuid, index=True)
+    uuid = Column(Integer, primary_key=True, index=True)
 
     # the node type -- this allows for inheritance
     type = Column(String(50))
@@ -336,7 +336,7 @@ class Node(Base):
     }
 
     # the network that this node is a part of
-    network_uuid = Column(String(32), ForeignKey('network.uuid'), index=True)
+    network_uuid = Column(Integer, ForeignKey('network.uuid'), index=True)
     network = relationship(Network, backref="all_nodes")
 
     # the time when the node was created
@@ -350,7 +350,7 @@ class Node(Base):
 
     # the participant uuid is the sha512 hash of the psiTurk uniqueId of the
     # participant who was this node.
-    participant_uuid = Column(String(128), default=None)
+    participant_uuid = Column(String(128), default=None, index=True)
 
     # unused by default, these columns store additional properties used
     # by other types of node
@@ -362,7 +362,7 @@ class Node(Base):
 
     def __repr__(self):
         """The string representation of a node."""
-        return "Node-{}-{}".format(self.uuid[:6], self.type)
+        return "Node-{}-{}".format(self.uuid, self.type)
 
     """ ###################################
     Methods that get things about a node
@@ -743,7 +743,7 @@ class Node(Base):
                 what[i] = self.infos(type=what[i])
             else:
                 raise ValueError("Cannot transmit {}".format(what[i]))
-        what = set(self.flatten(what))
+        what = list(set(self.flatten(what)))
 
         # make the list of to_whom
         to_whom = self.flatten([to_whom])
@@ -762,7 +762,7 @@ class Node(Base):
                 to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
             else:
                 raise ValueError("Cannot transmit to {}".format(to_whom[i]))
-        to_whom = set(self.flatten(to_whom))
+        to_whom = list(set(self.flatten(to_whom)))
 
         for w in what:
             if w.origin_uuid != self.uuid:
@@ -840,27 +840,27 @@ class Vector(Base):
     __tablename__ = "vector"
 
     # the unique vector id
-    uuid = Column(String(32), primary_key=True, default=new_uuid, index=True)
+    uuid = Column(Integer, primary_key=True, index=True)
 
     # the origin node
-    origin_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
+    origin_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
     origin = relationship(Node, foreign_keys=[origin_uuid],
                           backref="all_outgoing_vectors")
 
     # the destination node
-    destination_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
+    destination_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
     destination = relationship(Node, foreign_keys=[destination_uuid],
                                backref="all_incoming_vectors")
 
     # the network that this vector is in
-    network_uuid = Column(String(32), ForeignKey('network.uuid'), index=True)
+    network_uuid = Column(Integer, ForeignKey('network.uuid'), index=True)
     network = relationship(Network, backref="all_vectors")
 
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
     # whether the vector has failed
-    failed = Column(Boolean, nullable=False, default=False)
+    failed = Column(Boolean, nullable=False, default=False, index=True)
 
     # the time when the vector changed from alive->dead
     time_of_death = Column(String(26), default=None)
@@ -885,7 +885,7 @@ class Vector(Base):
     def __repr__(self):
         """The string representation of a vector."""
         return "Vector-{}-{}".format(
-            self.origin_uuid[:6], self.destination_uuid[:6])
+            self.origin_uuid, self.destination_uuid)
 
     ###################################
     # Methods that get things about a Vector
@@ -931,7 +931,7 @@ class Info(Base):
     __tablename__ = "info"
 
     # the unique info id
-    uuid = Column(String(32), primary_key=True, default=new_uuid, info=True)
+    uuid = Column(Integer, primary_key=True, info=True)
 
     # the info type -- this allows for inheritance
     type = Column(String(50))
@@ -941,11 +941,11 @@ class Info(Base):
     }
 
     # the node that created this info
-    origin_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
+    origin_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
     origin = relationship(Node, backref='all_infos')
 
     # the network the info is in
-    network_uuid = Column(String(32), ForeignKey('network.uuid'))
+    network_uuid = Column(Integer, ForeignKey('network.uuid'), index=True)
     network = relationship(Network, backref="all_infos")
 
     # the time when the info was created
@@ -978,7 +978,7 @@ class Info(Base):
 
     def __repr__(self):
         """The string representation of an info."""
-        return "Info-{}-{}".format(self.uuid[:6], self.type)
+        return "Info-{}-{}".format(self.uuid, self.type)
 
     def transmissions(self, status="all"):
         if status not in ["all", "pending", "received"]:
@@ -1030,28 +1030,28 @@ class Transmission(Base):
     __tablename__ = "transmission"
 
     # the unique transmission id
-    uuid = Column(String(32), primary_key=True, default=new_uuid, index=True)
+    uuid = Column(Integer, primary_key=True, index=True)
 
     # the vector the transmission passed along
-    vector_uuid = Column(String(32), ForeignKey('vector.uuid'), index=True)
+    vector_uuid = Column(Integer, ForeignKey('vector.uuid'), index=True)
     vector = relationship(Vector, backref='all_transmissions')
 
     # the info that was transmitted
-    info_uuid = Column(String(32), ForeignKey('info.uuid'), index=True)
+    info_uuid = Column(Integer, ForeignKey('info.uuid'), index=True)
     info = relationship(Info, backref='all_transmissions')
 
     # the origin node
-    origin_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
+    origin_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
     origin = relationship(Node, foreign_keys=[origin_uuid],
                           backref="all_outgoing_transmissions")
 
     # the destination node
-    destination_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
+    destination_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
     destination = relationship(Node, foreign_keys=[destination_uuid],
                                backref="all_incoming_transmissions")
 
     # the network of the transformation
-    network_uuid = Column(String(32), ForeignKey('network.uuid'))
+    network_uuid = Column(Integer, ForeignKey('network.uuid'), index=True)
     network = relationship(Network, backref="networks_transmissions")
 
     # the time at which the transmission occurred
@@ -1062,7 +1062,7 @@ class Transmission(Base):
 
     # the status of the transmission, can be pending or received
     status = Column(Enum("pending", "received", name="transmission_status"),
-                    nullable=False, default="pending")
+                    nullable=False, default="pending", index=True)
 
     # unused by default, these columns store additional properties used
     # by other types of transmission
@@ -1091,7 +1091,7 @@ class Transmission(Base):
 
     def __repr__(self):
         """The string representation of a transmission."""
-        return "Transmission-{}".format(self.uuid[:6])
+        return "Transmission-{}".format(self.uuid)
 
 
 class Transformation(Base):
@@ -1109,23 +1109,23 @@ class Transformation(Base):
     }
 
     # the unique transformation id
-    uuid = Column(String(32), primary_key=True, default=new_uuid, index=True)
+    uuid = Column(Integer, primary_key=True, index=True)
 
     # the info before it was transformed
-    info_in_uuid = Column(String(32), ForeignKey('info.uuid'), index=True)
+    info_in_uuid = Column(Integer, ForeignKey('info.uuid'), index=True)
     info_in = relationship(Info, foreign_keys=[info_in_uuid],
                            backref="transformation_applied_to")
 
     # the info produced as a result of the transformation
-    info_out_uuid = Column(String(32), ForeignKey('info.uuid'), index=True)
+    info_out_uuid = Column(Integer, ForeignKey('info.uuid'), index=True)
     info_out = relationship(Info, foreign_keys=[info_out_uuid],
                             backref="transformation_whence")
 
-    node_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
+    node_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
     node = relationship(Node, backref='transformations_here')
 
     # the network of the transformation
-    network_uuid = Column(String(32), ForeignKey('network.uuid'))
+    network_uuid = Column(Integer, ForeignKey('network.uuid'), index=True)
     network = relationship(Network, backref="networks_transformations")
 
     # the time at which the transformation occurred
@@ -1141,7 +1141,7 @@ class Transformation(Base):
 
     def __repr__(self):
         """The string representation of a transformation."""
-        return "Transformation-{}".format(self.uuid[:6])
+        return "Transformation-{}".format(self.uuid)
 
     def __init__(self, info_in, info_out=None):
         self.check_for_transformation(info_in, info_out)

@@ -205,10 +205,6 @@ class TestNetworks(object):
         source1 = nodes.Source(network=net)
         source2 = nodes.Source(network=net)
 
-        # self.db.add_all([node1, node2, agent1, agent2, source1, source2])
-        # net.add([node1, node2, agent1, agent2, source1, source2])
-        # self.db.commit()
-
         node1.connect(whom=[node2, agent1, agent2])
 
         assert_raises(TypeError, node1.connect, whom=source1)
@@ -246,8 +242,7 @@ class TestNetworks(object):
         net.add(source)
         source.connect(whom=net.nodes(type=nodes.Agent))
 
-        assert repr(net)[:8] == "<Network"
-        assert repr(net)[15:] == "-base with 3 nodes, 2 vectors, 0 infos, 0 transmissions and 0 transformations>"
+        assert repr(net) == "<Network-" + str(net.uuid) + "-base with 3 nodes, 2 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
     def test_create_chain(self):
         net = networks.Chain()
@@ -277,8 +272,7 @@ class TestNetworks(object):
         source = nodes.RandomBinaryStringSource(network=net)
         net.add_source(source)
 
-        assert repr(net)[:9] == "<Network-"
-        assert repr(net)[15:] == "-chain with 5 nodes, 4 vectors, 0 infos, 0 transmissions and 0 transformations>"
+        assert repr(net) == "<Network-" + str(net.uuid) + "-chain with 5 nodes, 4 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
     def test_create_fully_connected(self):
         net = networks.FullyConnected()
@@ -298,8 +292,7 @@ class TestNetworks(object):
             self.db.add(agent)
             net.add_agent(agent)
 
-        assert repr(net)[:9] == "<Network-"
-        assert repr(net)[15:] == ("-fully-connected with 4 nodes, 12 vectors, 0 infos, 0 transmissions and 0 transformations>")
+        assert repr(net) == "<Network-" + str(net.uuid) + "-fully-connected with 4 nodes, 12 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
     def test_create_scale_free(self):
         m0 = 4
@@ -337,8 +330,7 @@ class TestNetworks(object):
             self.db.add(agent)
             net.add_agent(agent)
 
-        assert repr(net)[:9] == "<Network-"
-        assert repr(net)[15:] == ("-scale-free with 6 nodes, 28 vectors, 0 infos, 0 transmissions and 0 transformations>")
+        assert repr(net) == "<Network-" + str(net.uuid) + "-scale-free with 6 nodes, 28 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
     # def test_discrete_generational(self):
     #     n_gens = 4

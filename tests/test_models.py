@@ -24,7 +24,7 @@ class TestModels(object):
         node = models.Node()
         self.add(node)
 
-        assert len(node.uuid) == 32
+        assert isinstance(node.uuid, int)
         assert node.type == "base"
         assert node.creation_time
         assert len(node.infos()) == 0
@@ -46,7 +46,7 @@ class TestModels(object):
         node = models.Node()
         self.add(node)
 
-        assert repr(node).split("-") == ["Node", node.uuid[:6], "base"]
+        assert repr(node).split("-") == ["Node", str(node.uuid), "base"]
 
     def _check_single_connection(self, node1, node2):
 
@@ -236,9 +236,9 @@ class TestModels(object):
         self.add(node1, node2, vector1, vector2)
 
         assert (repr(vector1).split("-") ==
-                ["Vector", node1.uuid[:6], node2.uuid[:6]])
+                ["Vector", str(node1.uuid), str(node2.uuid)])
         assert (repr(vector2).split("-") ==
-                ["Vector", node2.uuid[:6], node1.uuid[:6]])
+                ["Vector", str(node2.uuid), str(node1.uuid)])
 
     ##################################################################
     # Info
@@ -250,7 +250,7 @@ class TestModels(object):
         info = models.Info(origin=node, contents="foo")
         self.add(node, info)
 
-        assert len(info.uuid) == 32
+        assert isinstance(info.uuid, int)
         assert info.type == "base"
         assert info.origin_uuid == node.uuid
         assert info.creation_time
@@ -283,7 +283,7 @@ class TestModels(object):
         info = models.Info(origin=node)
         self.add(info)
 
-        assert repr(info).split("-") == ["Info", info.uuid[:6], "base"]
+        assert repr(info).split("-") == ["Info", str(info.uuid), "base"]
 
     @raises(ValueError)
     def test_info_write_twice(self):
@@ -316,7 +316,7 @@ class TestModels(object):
         transmission = node1.transmissions()[0]
         vector = node1.vectors()[0]
 
-        assert len(transmission.uuid) == 32
+        assert isinstance(transmission.uuid, int)
         assert transmission.info_uuid == info.uuid
         assert transmission.origin_uuid == vector.origin_uuid
         assert transmission.destination_uuid == vector.destination_uuid
@@ -337,7 +337,7 @@ class TestModels(object):
         node1.vectors()[0]
 
         assert (repr(transmission).split("-") ==
-                ["Transmission", transmission.uuid[:6]])
+                ["Transmission", str(transmission.uuid)])
 
     def test_node_incoming_transmissions(self):
         agent1 = nodes.ReplicatorAgent()
