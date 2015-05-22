@@ -33,7 +33,7 @@ class Network(Base):
     __tablename__ = "network"
 
     # the unique network id
-    uuid = Column(String(32), primary_key=True, default=new_uuid)
+    uuid = Column(String(32), primary_key=True, default=new_uuid, index=True)
 
     # the network type -- this allows for inheritance
     type = Column(String(50))
@@ -54,7 +54,7 @@ class Network(Base):
 
     # the role of the network, by default wallace initializes all
     # networks as either "practice" or "experiment"
-    role = Column(String(26), nullable=False, default="default")
+    role = Column(String(26), nullable=False, default="default", index=True)
 
     # unused by default, these columns store additional properties used
     # by other types of network
@@ -326,7 +326,7 @@ class Node(Base):
     __tablename__ = "node"
 
     # the unique node id
-    uuid = Column(String(32), primary_key=True, default=new_uuid)
+    uuid = Column(String(32), primary_key=True, default=new_uuid, index=True)
 
     # the node type -- this allows for inheritance
     type = Column(String(50))
@@ -336,14 +336,14 @@ class Node(Base):
     }
 
     # the network that this node is a part of
-    network_uuid = Column(String(32), ForeignKey('network.uuid'))
+    network_uuid = Column(String(32), ForeignKey('network.uuid'), index=True)
     network = relationship(Network, backref="all_nodes")
 
     # the time when the node was created
     creation_time = Column(String(26), nullable=False, default=timenow)
 
     # whether the node has failed
-    failed = Column(Boolean, nullable=False, default=False)
+    failed = Column(Boolean, nullable=False, default=False, index=True)
 
     # the time when the node changed from alive->dead or alive->failed
     time_of_death = Column(String(26), default=None)
@@ -840,20 +840,20 @@ class Vector(Base):
     __tablename__ = "vector"
 
     # the unique vector id
-    uuid = Column(String(32), primary_key=True, default=new_uuid)
+    uuid = Column(String(32), primary_key=True, default=new_uuid, index=True)
 
     # the origin node
-    origin_uuid = Column(String(32), ForeignKey('node.uuid'))
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
     origin = relationship(Node, foreign_keys=[origin_uuid],
                           backref="all_outgoing_vectors")
 
     # the destination node
-    destination_uuid = Column(String(32), ForeignKey('node.uuid'))
+    destination_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
     destination = relationship(Node, foreign_keys=[destination_uuid],
                                backref="all_incoming_vectors")
 
     # the network that this vector is in
-    network_uuid = Column(String(32), ForeignKey('network.uuid'))
+    network_uuid = Column(String(32), ForeignKey('network.uuid'), index=True)
     network = relationship(Network, backref="all_vectors")
 
     # the time when the node was created
@@ -931,7 +931,7 @@ class Info(Base):
     __tablename__ = "info"
 
     # the unique info id
-    uuid = Column(String(32), primary_key=True, default=new_uuid)
+    uuid = Column(String(32), primary_key=True, default=new_uuid, info=True)
 
     # the info type -- this allows for inheritance
     type = Column(String(50))
@@ -941,7 +941,7 @@ class Info(Base):
     }
 
     # the node that created this info
-    origin_uuid = Column(String(32), ForeignKey('node.uuid'))
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
     origin = relationship(Node, backref='all_infos')
 
     # the network the info is in
@@ -1030,23 +1030,23 @@ class Transmission(Base):
     __tablename__ = "transmission"
 
     # the unique transmission id
-    uuid = Column(String(32), primary_key=True, default=new_uuid)
+    uuid = Column(String(32), primary_key=True, default=new_uuid, index=True)
 
     # the vector the transmission passed along
-    vector_uuid = Column(String(32), ForeignKey('vector.uuid'))
+    vector_uuid = Column(String(32), ForeignKey('vector.uuid'), index=True)
     vector = relationship(Vector, backref='all_transmissions')
 
     # the info that was transmitted
-    info_uuid = Column(String(32), ForeignKey('info.uuid'))
+    info_uuid = Column(String(32), ForeignKey('info.uuid'), index=True)
     info = relationship(Info, backref='all_transmissions')
 
     # the origin node
-    origin_uuid = Column(String(32), ForeignKey('node.uuid'))
+    origin_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
     origin = relationship(Node, foreign_keys=[origin_uuid],
                           backref="all_outgoing_transmissions")
 
     # the destination node
-    destination_uuid = Column(String(32), ForeignKey('node.uuid'))
+    destination_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
     destination = relationship(Node, foreign_keys=[destination_uuid],
                                backref="all_incoming_transmissions")
 
@@ -1109,19 +1109,19 @@ class Transformation(Base):
     }
 
     # the unique transformation id
-    uuid = Column(String(32), primary_key=True, default=new_uuid)
+    uuid = Column(String(32), primary_key=True, default=new_uuid, index=True)
 
     # the info before it was transformed
-    info_in_uuid = Column(String(32), ForeignKey('info.uuid'))
+    info_in_uuid = Column(String(32), ForeignKey('info.uuid'), index=True)
     info_in = relationship(Info, foreign_keys=[info_in_uuid],
                            backref="transformation_applied_to")
 
     # the info produced as a result of the transformation
-    info_out_uuid = Column(String(32), ForeignKey('info.uuid'))
+    info_out_uuid = Column(String(32), ForeignKey('info.uuid'), index=True)
     info_out = relationship(Info, foreign_keys=[info_out_uuid],
                             backref="transformation_whence")
 
-    node_uuid = Column(String(32), ForeignKey('node.uuid'))
+    node_uuid = Column(String(32), ForeignKey('node.uuid'), index=True)
     node = relationship(Node, backref='transformations_here')
 
     # the network of the transformation
