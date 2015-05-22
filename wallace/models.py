@@ -6,7 +6,7 @@ from datetime import datetime
 from .db import Base
 
 from sqlalchemy import ForeignKey, or_, and_
-from sqlalchemy import Column, String, Text, Enum, Integer, Boolean
+from sqlalchemy import Column, String, Text, Enum, Integer, Boolean, DateTime
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.associationproxy import association_proxy
 
@@ -22,8 +22,8 @@ def new_uuid():
 
 def timenow():
     """A string representing the current date and time."""
-    time = datetime.now()
-    return time.strftime(DATETIME_FMT)
+    return datetime.now()
+    #return time.strftime(DATETIME_FMT)
 
 
 class Network(Base):
@@ -43,7 +43,7 @@ class Network(Base):
     }
 
     # the time when the node was created
-    creation_time = Column(String(26), nullable=False, default=timenow)
+    creation_time = Column(DateTime, nullable=False, default=timenow)
 
     # how big the network can get, this number is used by the full()
     # method to decide whether the network is full
@@ -340,13 +340,13 @@ class Node(Base):
     network = relationship(Network, backref="all_nodes")
 
     # the time when the node was created
-    creation_time = Column(String(26), nullable=False, default=timenow)
+    creation_time = Column(DateTime, nullable=False, default=timenow)
 
     # whether the node has failed
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
     # the time when the node changed from alive->dead or alive->failed
-    time_of_death = Column(String(26), default=None)
+    time_of_death = Column(DateTime, default=None)
 
     # the participant uuid is the sha512 hash of the psiTurk uniqueId of the
     # participant who was this node.
@@ -857,13 +857,13 @@ class Vector(Base):
     network = relationship(Network, backref="all_vectors")
 
     # the time when the node was created
-    creation_time = Column(String(26), nullable=False, default=timenow)
+    creation_time = Column(DateTime, nullable=False, default=timenow)
 
     # whether the vector has failed
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
     # the time when the vector changed from alive->dead
-    time_of_death = Column(String(26), default=None)
+    time_of_death = Column(DateTime, default=None)
 
     # unused by default, these columns store additional properties used
     # by other types of vector
@@ -949,7 +949,7 @@ class Info(Base):
     network = relationship(Network, backref="all_infos")
 
     # the time when the info was created
-    creation_time = Column(String(26), nullable=False, default=timenow)
+    creation_time = Column(DateTime, nullable=False, default=timenow)
 
     # the contents of the info
     contents = Column(Text(), default=None)
@@ -1055,10 +1055,10 @@ class Transmission(Base):
     network = relationship(Network, backref="networks_transmissions")
 
     # the time at which the transmission occurred
-    transmit_time = Column(String(26), nullable=False, default=timenow)
+    transmit_time = Column(DateTime, nullable=False, default=timenow)
 
     # the time at which the transmission was received
-    receive_time = Column(String(26), default=None)
+    receive_time = Column(DateTime, default=None)
 
     # the status of the transmission, can be pending or received
     status = Column(Enum("pending", "received", name="transmission_status"),
@@ -1129,7 +1129,7 @@ class Transformation(Base):
     network = relationship(Network, backref="networks_transformations")
 
     # the time at which the transformation occurred
-    transform_time = Column(String(26), nullable=False, default=timenow)
+    transform_time = Column(DateTime, nullable=False, default=timenow)
 
     # unused by default, these columns store additional properties used
     # by other types of transformation
