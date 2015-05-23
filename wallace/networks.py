@@ -126,7 +126,7 @@ class DiscreteGenerational(Network):
             if self.initial_source:
                 newcomer.connect(direction="from", whom=self.nodes(type=Source)[0])
         else:
-            prev_agents = type(newcomer).query.filter(and_(type(newcomer).network_uuid == self.uuid, type(newcomer).generation == current_generation-1)).all()
+            prev_agents = type(newcomer).query.filter(and_(type(newcomer).failed == False, type(newcomer).network_uuid == self.uuid, type(newcomer).generation == current_generation-1)).all()
             prev_fitnesses = [p.fitness for p in prev_agents]
             prev_probs = [(f/(1.0*sum(prev_fitnesses))) for f in prev_fitnesses]
 
