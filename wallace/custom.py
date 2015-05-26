@@ -31,7 +31,7 @@ custom_code = Blueprint(
     static_folder='static')
 
 # Initialize the Wallace database.
-session = db.init_db(drop_all=False)
+session = db.init_db(drop_all=True)
 
 # Specify the experiment.
 try:
