@@ -179,11 +179,6 @@ def debug(verbose):
     if "HOST" not in os.environ:
         os.environ["HOST"] = config.get('Server Parameters', 'host')
 
-    # Clear the database if using Postgres.
-    if "postgresql" in config.get('Database Parameters', 'database_url'):
-        subprocess.call("dropdb wallace", shell=True)
-        subprocess.call("createdb wallace", shell=True)
-
     # Start up the local server
     log("Starting up the server...")
 
