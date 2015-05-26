@@ -95,7 +95,8 @@ class TestModels(object):
 
         node2.connect(whom=[node3, node4])
 
-        assert node2.neighbors(connection="to") == [node3, node4]
+        for n in node2.neighbors(connection="to"):
+            assert n in [node3, node4]
         assert node3.neighbors(connection="from") == [node2]
 
         assert_raises(ValueError, node1.connect, whom=node1)
