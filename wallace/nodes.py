@@ -3,8 +3,9 @@
 from wallace.models import Node, Info
 from wallace.information import State
 import random
-from sqlalchemy import and_
+from sqlalchemy import and_, Integer
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.sql.expression import cast
 
 
 class Agent(Node):
@@ -25,8 +26,8 @@ class Agent(Node):
         self.property1 = repr(fitness)
 
     @fitness.expression
-    def generation(self):
-        return self.property1.label('fitness')
+    def fitness(self):
+        return cast(self.property1, Integer)
 
 
 class ReplicatorAgent(Agent):
