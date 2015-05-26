@@ -17,8 +17,7 @@ class Chain(Network):
 
     def add_agent(self, newcomer):
         """Add an agent, connecting it to the previous node."""
-        self.add(newcomer)
-
+        #self.add(newcomer)
         if len(self.nodes(type=Agent)) > 1:
             self.nodes(type=Agent)[-2].connect(whom=newcomer)
         elif len(self.nodes(type=Source)) > 0:
@@ -32,7 +31,7 @@ class Chain(Network):
                 source.connect(whom=self.nodes(type=Agent)[0])
 
     def calculate_full(self):
-        return (len(self.nodes(type=Agent))) >= self.max_size
+        self.full = len(self.nodes(type=Agent)) >= self.max_size
 
 
 class FullyConnected(Network):
@@ -52,7 +51,7 @@ class FullyConnected(Network):
             agent.connect(direction="both", whom=newcomer)
 
     def calculate_full(self):
-        return len(self.nodes(type=Agent)) >= self.max_size
+        self.full = len(self.nodes(type=Agent)) >= self.max_size
 
 
 class Star(Network):
@@ -126,7 +125,11 @@ class DiscreteGenerational(Network):
             if self.initial_source:
                 newcomer.connect(direction="from", whom=self.nodes(type=Source)[0])
         else:
-            prev_agents = type(newcomer).query.filter(and_(type(newcomer).failed == False, type(newcomer).network_uuid == self.uuid, type(newcomer).generation == current_generation-1)).all()
+            agent_type = type(newcomer)
+            prev_agents = agent_type.query.filter(and_(agent_type.failed == False,
+                                                       agent_type.network_uuid == self.uuid,
+                                                       agent_type.generation == current_generation-1))\
+                .all()
             prev_fitnesses = [p.fitness for p in prev_agents]
             prev_probs = [(f/(1.0*sum(prev_fitnesses))) for f in prev_fitnesses]
 
