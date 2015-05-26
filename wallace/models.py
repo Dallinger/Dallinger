@@ -110,22 +110,26 @@ class Network(Base):
                 return type\
                     .query\
                     .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid)\
+                    .order_by(type.creation_time)\
                     .all()
             else:
                 return type\
                     .query\
                     .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid, failed=failed)\
+                    .order_by(type.creation_time)\
                     .all()
         else:
             if failed == "all":
                 return type\
                     .query\
                     .filter_by(network_uuid=self.uuid)\
+                    .order_by(type.creation_time)\
                     .all()
             else:
                 return type\
                     .query\
                     .filter_by(failed=failed, network_uuid=self.uuid)\
+                    .order_by(type.creation_time)\
                     .all()
 
     def size(self, type=None, failed=False):
@@ -143,12 +147,14 @@ class Network(Base):
                        .query
                        .with_entities(type.uuid)
                        .filter_by(network_uuid=self.uuid)
+                       .order_by(type.creation_time)
                        .all())
         else:
             return len(type
                        .query
                        .with_entities(type.uuid)
                        .filter_by(network_uuid=self.uuid, failed=failed)
+                       .order_by(type.creation_time)
                        .all())
 
     def infos(self, type=None, origin_failed=False):
@@ -166,12 +172,14 @@ class Network(Base):
             raise ValueError("{} is not a valid origin failed".format(origin_failed))
 
         if origin_failed == "all":
-            return Info.query\
+            return type.query\
                 .filter(network_uuid=self.uuid)\
+                .order_by(type.creation_time)\
                 .all()
         else:
-            return Info.query.join(Info.origin)\
-                .filter(and_(Info.network_uuid == self.uuid, Node.failed == origin_failed))\
+            return type.query.join(Info.origin)\
+                .filter(and_(type.network_uuid == self.uuid, Node.failed == origin_failed))\
+                .order_by(type.creation_time)\
                 .all()
 
     def transmissions(self, status="all", vector_failed=False):
@@ -193,19 +201,23 @@ class Network(Base):
             if vector_failed == "all":
                 return Transmission.query\
                     .filter_by(network_uuid=self.uuid)\
+                    .order_by(Transmission.transmit_time)\
                     .all()
             else:
                 return Transmission.query.join(Transmission.vector)\
                     .filter(and_(Transmission.network_uuid == self.uuid, Vector.failed == vector_failed))\
+                    .order_by(Transmission.transmit_time)\
                     .all()
         else:
             if vector_failed == "all":
                 return Transmission.query\
                     .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status))\
+                    .order_by(Transmission.transmit_time)\
                     .all()
             else:
                 return Transmission.query.join(Transmission.vector)\
                     .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status, Vector.failed == vector_failed))\
+                    .order_by(Transmission.transmit_time)\
                     .all()
 
     def transformations(self, type=None, node_failed=False):
@@ -224,12 +236,14 @@ class Network(Base):
             raise ValueError("{} is not a valid origin failed".format(node_failed))
 
         if node_failed == "all":
-            return Transformation.query\
+            return type.query\
                 .filter_by(network_uuid=self.uuid)\
+                .order_by(type.transform_time)\
                 .all()
         else:
-            return Transformation.query.join(Transformation.node)\
-                .filter(and_(Transformation.network_uuid == self.uuid, Node.failed == node_failed))\
+            return type.query.join(type.node)\
+                .filter(and_(type.network_uuid == self.uuid, Node.failed == node_failed))\
+                .order_by(type.transform_time)\
                 .all()
 
     def latest_transmission_recipient(self, failed=False):
@@ -241,11 +255,15 @@ class Network(Base):
 
         if failed == "all":
             t = Transmission.query.with_entities(Transmission.destination)\
-                .filter_by(status="received").all()[-1]
+                .filter_by(status="received")\
+                .order_by(Transmission.transmit_time)\
+                .all()[-1]
         else:
             t = Transmission.query\
                 .join(Transmission.destination)\
-                .filter(and_(Transmission.status == "received", Node.failed == failed)).all()[-1]
+                .filter(and_(Transmission.status == "received", Node.failed == failed))\
+                .order_by(Transmission.transmit_time)\
+                .all()[-1]
         return t.destination
 
     def vectors(self, failed=False):
@@ -261,10 +279,12 @@ class Network(Base):
         if failed == "all":
             return Vector.query\
                 .filter_by(network_uuid=self.uuid)\
+                .order_by(Vector.creation_time)\
                 .all()
         else:
             return Vector.query\
                 .filter(and_(Vector.network_uuid == self.uuid, Vector.failed == failed))\
+                .order_by(Vector.creation_time)\
                 .all()
 
     """ ###################################
@@ -382,10 +402,12 @@ class Node(Base):
             if failed == "all":
                 return Vector.query\
                     .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid))\
+                    .order_by(Vector.creation_time)\
                     .all()
             else:
                 return Vector.query\
                     .filter(and_(Vector.failed == failed, or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)))\
+                    .order_by(Vector.creation_time)\
                     .all()
 
         if direction == "incoming":
@@ -393,10 +415,12 @@ class Node(Base):
             if failed == "all":
                 return Vector.query\
                     .filter_by(destination_uuid=self.uuid)\
+                    .order_by(Vector.creation_time)\
                     .all()
             else:
                 return Vector.query\
                     .filter_by(destination_uuid=self.uuid, failed=failed)\
+                    .order_by(Vector.creation_time)\
                     .all()
 
         if direction == "outgoing":
@@ -404,10 +428,12 @@ class Node(Base):
             if failed == "all":
                 return Vector.query\
                     .filter_by(origin_uuid=self.uuid)\
+                    .order_by(Vector.creation_time)\
                     .all()
             else:
                 return Vector.query\
                     .filter_by(origin_uuid=self.uuid, failed=failed)\
+                    .order_by(Vector.creation_time)\
                     .all()
 
     def neighbors(self, type=None, failed=False, connection="to"):
@@ -431,26 +457,26 @@ class Node(Base):
             raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
 
         if connection == "to":
-            return [v.destination for v in self.vectors(direction="outgoing", failed=failed)
-                    if isinstance(v.destination, type) and v.destination.failed == failed]
+            neighbors = [v.destination for v in self.vectors(direction="outgoing", failed=failed)
+                         if isinstance(v.destination, type) and v.destination.failed == failed]
 
         if connection == "from":
-            return [v.origin for v in self.vectors(direction="incoming", failed=failed)
-                    if isinstance(v.origin, type) and v.origin.failed == failed]
+            neighbors = [v.origin for v in self.vectors(direction="incoming", failed=failed)
+                         if isinstance(v.origin, type) and v.origin.failed == failed]
 
         if connection == "either":
             neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=failed)
                                   if isinstance(v.destination, type) and v.destination.failed == failed] +
                                  [v.origin for v in self.vectors(direction="incoming", failed=failed)
                                   if isinstance(v.origin, type) and v.origin.failed == failed]))
-            return neighbors.sort(key=lambda node: node.creation_time)
 
         if connection == "both":
             neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=failed)
                                   if isinstance(v.desintation, type) and v.destination.failed == failed])
                              & set([v.origin for v in self.vectors(direction="incoming", failed=failed)
                                     if isinstance(v.origin, type) and v.origin.failed == failed]))
-        #     return neighbors.sort(key=lambda node: node.creation_time)
+        neighbors.sort(key=lambda node: node.creation_time)
+        return neighbors
 
     def is_connected(self, whom, direction="to", vector_failed=False):
         """
@@ -547,6 +573,7 @@ class Node(Base):
         return type\
             .query\
             .filter_by(origin_uuid=self.uuid)\
+            .order_by(Info.creation_time)\
             .all()
 
     def transmissions(self, direction="outgoing", status="all"):
@@ -566,19 +593,36 @@ class Node(Base):
 
         if direction == "all":
             if status == "all":
-                return Transmission.query.filter(or_(Transmission.destination_uuid == self.uuid, Transmission.origin_uuid == self.uuid)).all()
+                return Transmission.query\
+                    .filter(or_(Transmission.destination_uuid == self.uuid, Transmission.origin_uuid == self.uuid))\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
             else:
-                return Transmission.query.filter(and_(Transmission.status == status, or_(Transmission.destination_uuid == self.uuid, Transmission.origin_uuid == self.uuid))).all()
+                return Transmission.query\
+                    .filter(and_(Transmission.status == status, or_(Transmission.destination_uuid == self.uuid, Transmission.origin_uuid == self.uuid)))\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
         if direction == "incoming":
             if status == "all":
-                return Transmission.query.filter_by(destination_uuid=self.uuid).all()
+                return Transmission.query.filter_by(destination_uuid=self.uuid)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
             else:
-                return Transmission.query.filter(and_(Transmission.destination_uuid == self.uuid, Transmission.status == status)).all()
+                return Transmission.query\
+                    .filter(and_(Transmission.destination_uuid == self.uuid, Transmission.status == status))\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
         if direction == "outgoing":
             if status == "all":
-                return Transmission.query.filter_by(origin_uuid=self.uuid).all()
+                return Transmission.query\
+                    .filter_by(origin_uuid=self.uuid)\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
             else:
-                return Transmission.query.filter(and_(Transmission.origin_uuid == self.uuid, Transmission.status == status)).all()
+                return Transmission.query\
+                    .filter(and_(Transmission.origin_uuid == self.uuid, Transmission.status == status))\
+                    .order_by(Transmission.transmit_time)\
+                    .all()
 
     def transformations(self, type=None):
         """
@@ -591,6 +635,7 @@ class Node(Base):
         return type\
             .query\
             .filter_by(node_uuid=self.uuid)\
+            .order_by(Transformation.transform_time)\
             .all()
 
     """ ###################################
@@ -902,11 +947,13 @@ class Vector(Base):
             return Transmission\
                 .query\
                 .filter_by(vector_uuid=self.uuid)\
+                .order_by(Transmission.transmit_time)\
                 .all()
         else:
             return Transmission\
                 .query\
                 .filter_by(vector_uuid=self.uuid, status=status)\
+                .order_by(Transmission.transmit_time)\
                 .all()
 
     ###################################
@@ -985,11 +1032,13 @@ class Info(Base):
             return Transmission\
                 .query\
                 .filter_by(info_uuid=self.uuid)\
+                .order_by(Transmission.transmit_time)\
                 .all()
         else:
             return Transmission\
                 .query\
                 .filter(and_(Transmission.info_uuid == self.uuid, Transmission.status == status))\
+                .order_by(Transmission.transmit_time)\
                 .all()
 
     def transformations(self, relationship="all"):
@@ -1001,18 +1050,21 @@ class Info(Base):
             return Transformation\
                 .query\
                 .filter(or_(Transformation.info_in == self, Transformation.info_out == self))\
+                .order_by(Transformation.transform_time)\
                 .all()
 
         if relationship == "parent":
             return Transformation\
                 .query\
-                .filter_by(info_in=self)\
+                .filter_by(info_in_uuid=self.uuid)\
+                .order_by(Transformation.transform_time)\
                 .all()
 
         if relationship == "child":
             return Transformation\
                 .query\
-                .filter_by(info_out=self)\
+                .filter_by(info_out_uuid=self.uuid)\
+                .order_by(Transformation.transform_time)\
                 .all()
 
     def _mutated_contents(self):
