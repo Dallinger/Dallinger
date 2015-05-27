@@ -122,7 +122,7 @@ class PsiTurkRecruiter(Recruiter):
             self.config.getboolean(
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
-    def open_recruitment(self):
+    def open_recruitment(self, n=1):
         """Open recruitment for the first HIT, unless it's already open."""
         try:
             Participant.query.all()
@@ -130,7 +130,7 @@ class PsiTurkRecruiter(Recruiter):
         except Exception:
             # Create the first HIT.
             self.shell.hit_create(
-                1,
+                n,
                 self.config.get('HIT Configuration', 'base_payment'),
                 self.config.get('HIT Configuration', 'duration'))
 
