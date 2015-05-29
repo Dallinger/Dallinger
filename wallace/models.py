@@ -167,7 +167,7 @@ class Network(Base):
 
         if origin_failed == "all":
             return type.query\
-                .filter(network_uuid=self.uuid)\
+                .filter_by(network_uuid=self.uuid)\
                 .all()
         else:
             return type.query.join(Info.origin)\
