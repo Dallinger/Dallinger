@@ -1,3 +1,6 @@
+from __future__ import print_function
+import sys
+from datetime import datetime
 from wallace import models, db, nodes
 from nose.tools import raises, assert_raises
 
@@ -14,6 +17,173 @@ class TestModels(object):
     def add(self, *args):
         self.db.add_all(args)
         self.db.commit()
+
+    def test_models(self):
+
+        """
+        Test Networks
+        """
+        print("")
+        print("Testing models: Network...", end="\r")
+        sys.stdout.flush()
+
+        # create test network:
+
+        net = models.Network()
+        self.db.add(net)
+        self.db.commit()
+
+        net = models.Network.query.one()
+
+        assert repr(net) == "<Network-1-base with 0 nodes, 0 vectors, 0 infos, 0 transmissions and 0 transformations>"
+
+        from wallace.nodes import Agent, Source
+
+        for i in range(5):
+            # nodes
+            node = models.Node(network=net)
+            agent = Agent(network=net, participant_uuid=i)
+            source = Source(network=net)
+
+            # vectors
+            source.connect(direction="to", whom=agent)
+            agent.connect(direction="both", whom=node)
+
+            # infos
+            info = models.Info(origin=agent, contents=str(i))
+            from wallace.information import Gene
+            gene = Gene(origin=source, contents=str(i))
+
+            if i in [0, 1]:
+                source.transmit(what=models.Info)
+                agent.receive()
+                agent.transmit(what=Gene)
+
+                models.Transformation(info_in=gene, info_out=info)
+            else:
+                agent.transmit(to_whom=node)
+
+        assert repr(net) == "<Network-1-base with 15 nodes, 15 vectors, 10 infos, 5 transmissions and 2 transformations>"
+
+        # Test Network sql columns
+
+        assert isinstance(net.uuid, int)
+        assert net.uuid == 1
+        assert isinstance(net.creation_time, datetime)
+        assert isinstance(net.max_size, int)
+        assert isinstance(net.full, bool)
+        assert net.full is False
+        assert isinstance(net.role, unicode)
+        assert net.role == "default"
+        assert net.property1 is None
+        assert net.property2 is None
+        assert net.property3 is None
+        assert net.property4 is None
+        assert net.property5 is None
+
+        try:
+            len(net)
+            ran = True
+        except:
+            ran = False
+        assert ran is False
+
+        # test Network.nodes()
+
+        net.calculate_full()
+
+        assert net.full is False
+        assert len(net.nodes()) == 15
+        assert len(net.nodes(type=Agent)) == 5
+        assert len(net.nodes(type=Source)) == 5
+        assert len(net.nodes(type=models.Node)) == 15
+        for a in net.nodes(type=Agent):
+            assert type(a) == Agent
+
+        assert len(net.nodes(failed="all")) == 15
+        assert net.nodes(failed=True) == []
+
+        import random
+        for node in random.sample(net.nodes(), 5):
+            node.fail()
+
+        assert len(net.nodes()) == 10
+        assert len(net.nodes(failed=True)) == 5
+        assert len(net.nodes(failed="all")) == 15
+        for i in range(5):
+            assert len(net.nodes(failed="all", participant_uuid=str(i)))
+            assert type(net.nodes(failed="all", participant_uuid=str(i))[0]) == Agent
+
+        # test Network.size()
+
+        assert net.size() == 10
+        assert net.size(type=Agent) in [0, 1, 2, 3, 4, 5]
+        assert net.size(type=Source) in [0, 1, 2, 3, 4, 5]
+        assert net.size(type=models.Node) == 10
+
+        assert net.size(failed="all") == 15
+        assert net.size(type=Agent, failed="all") == 5
+        assert net.size(type=Source, failed="all") == 5
+        assert net.size(type=models.Node, failed="all") == 15
+        assert net.size(failed=True) == 5
+
+        # test Network.vectors()
+
+        assert len(net.vectors(failed="all")) == 15
+        assert len(net.vectors(failed=False)) in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        assert len(net.vectors(failed=True)) in [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        for v in net.vectors(failed="all"):
+            assert type(v) == models.Vector
+
+        # test Network.infos()
+
+        from wallace.information import Gene
+        assert len(net.infos(origin_failed="all")) == 10
+        assert len(net.infos(type=models.Info, origin_failed="all")) == 10
+        assert len(net.infos(type=Gene, origin_failed="all")) == 5
+
+        assert len(net.infos()) in [5, 6, 7, 8, 9, 10]
+        assert len(net.infos(origin_failed=False)) in [5, 6, 7, 8, 9, 10]
+        assert len(net.infos(type=Gene)) in [5, 4, 3, 2, 1, 0]
+        assert len(net.infos(origin_failed=True)) in [0, 1, 2, 3, 4, 5]
+
+        # test Network.transmissions()
+
+        assert len(net.transmissions(vector_failed="all")) == 5
+        assert len(net.transmissions(status="pending", vector_failed="all")) == 3
+        assert len(net.transmissions(status="received", vector_failed="all")) == 2
+        assert len(net.transmissions(vector_failed=True)) in [0, 1, 2, 3, 4, 5]
+        assert len(net.transmissions(vector_failed=False)) in [0, 1, 2, 3, 4, 5]
+        assert len(net.transmissions(vector_failed=True)) + len(net.transmissions(vector_failed=False)) == 5
+
+        # test Network.transformations()
+
+        assert len(net.transformations(node_failed="all")) == 2
+        from wallace import transformations
+        assert len(net.transformations(node_failed="all", type=transformations.Mutation)) == 0
+        assert len(net.transformations(node_failed="all", type=models.Transformation)) == 2
+
+        for t in net.transformations(node_failed="all"):
+            assert type(t.node) == Agent
+
+        # test Network.latest_transmission_recipient()
+
+        agents = net.nodes(type=Agent, failed="all")
+        from operator import attrgetter
+        oldest_agent = min(agents, key=attrgetter('creation_time'))
+        other_agents = [a for a in agents if a != oldest_agent]
+        second_oldest_agent = min(other_agents, key=attrgetter('creation_time'))
+
+        assert net.latest_transmission_recipient(failed="all") == second_oldest_agent
+
+        if second_oldest_agent.failed:
+            if net.latest_transmission_recipient() is not None:
+                assert net.latest_transmission_recipient() != second_oldest_agent
+        else:
+            assert net.latest_transmission_recipient() == second_oldest_agent
+
+        print("Testing models: Network... done!")
+        sys.stdout.flush()
 
     ##################################################################
     # Node
