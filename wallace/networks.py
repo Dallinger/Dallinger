@@ -18,8 +18,13 @@ class Chain(Network):
     def add_agent(self, newcomer):
         """Add an agent, connecting it to the previous node."""
         #self.add(newcomer)
-        if len(self.nodes(type=Agent)) > 1:
-            self.nodes(type=Agent)[-2].connect(whom=newcomer)
+
+        agents = self.nodes(type=Agent)
+        other_agents = [a for a in agents if a.uuid != newcomer.uuid]
+
+        if len(agents) > 1:
+            from operator import attrgetter
+            max(other_agents, key=attrgetter('creation_time')).connect(whom=newcomer)
         elif len(self.nodes(type=Source)) > 0:
             self.nodes(type=Source)[0].connect(whom=newcomer)
 
@@ -28,7 +33,8 @@ class Chain(Network):
             raise(Exception("Cannot add another source to Chain network as it already has a source"))
         else:
             if len(self.nodes(type=Agent)) > 0:
-                source.connect(whom=self.nodes(type=Agent)[0])
+                from operator import attrgetter
+                source.connect(whom=min(self.nodes(type=Agent), key=attrgetter('creation_time')))
 
     def calculate_full(self):
         self.full = len(self.nodes(type=Agent)) >= self.max_size
@@ -45,10 +51,12 @@ class FullyConnected(Network):
 
     def add_agent(self, newcomer):
         """Add an agent, connecting it to everyone and back."""
-        self.add(newcomer)
+        agents = self.nodes(type=Agent)
 
-        for agent in self.nodes(type=Agent)[:-1]:
-            agent.connect(direction="both", whom=newcomer)
+        if len(agents) > 1:
+            other_agents = [a for a in agents if a.uuid != newcomer.uuid]
+            for agent in other_agents:
+                agent.connect(direction="both", whom=newcomer)
 
     def calculate_full(self):
         self.full = len(self.nodes(type=Agent)) >= self.max_size
@@ -65,11 +73,13 @@ class Star(Network):
 
     def add_agent(self, newcomer):
         """Add an agent and connect it to the center."""
-        self.add(newcomer)
 
-        if len(self.nodes(type=Agent)) > 1:
-            center = self.nodes(type=Agent)[0]
-            center.connect(direction="both", whom=newcomer)
+        agents = self.nodes(type=Agent)
+
+        if len(agents) > 1:
+            from operator import attrgetter
+            first_agent = min(agents, key=attrgetter('creation_time'))
+            first_agent.connect(direction="both", whom=newcomer)
 
 
 class Burst(Network):
@@ -83,10 +93,13 @@ class Burst(Network):
 
     def add_agent(self, newcomer):
         """Add an agent and connect it to the center."""
-        self.add(newcomer)
 
-        if len(self.nodes(type=Agent)) > 1:
-            self.nodes(type=Agent)[0].connect(whom=newcomer)
+        agents = self.nodes(type=Agent)
+
+        if len(agents) > 1:
+            from operator import attrgetter
+            first_agent = min(agents, key=attrgetter('creation_time'))
+            first_agent.connect(whom=newcomer)
 
 
 class DiscreteGenerational(Network):
@@ -145,11 +158,6 @@ class DiscreteGenerational(Network):
             parent.connect(direction="to", whom=newcomer)
             parent.transmit(to_whom=newcomer)
 
-    def agents_of_generation(self, generation):
-        first_index = generation*self.generation_size
-        last_index = first_index+(self.generation_size)
-        return self.nodes(type=Agent)[first_index:last_index]
-
     def calculate_full(self):
         self.full = len(self.nodes(type=Agent)) >= self.max_size
 
@@ -182,24 +190,27 @@ class ScaleFree(Network):
 
     def add_agent(self, newcomer):
         """Add newcomers one by one, using linear preferential attachment."""
-        self.add(newcomer)
+
+        agents = self.nodes(type=Agent)
 
         # Start with a core of m0 fully-connected agents...
-        if len(self.nodes(type=Agent)) <= self.m0:
-            for agent in self.nodes(type=Agent)[:-1]:
+        if len(agents) <= self.m0:
+            other_agents = [a for a in agents if a.uuid != newcomer.uuid]
+            for agent in other_agents:
                 newcomer.connect(direction="both", whom=agent)
 
         # ...then add newcomers one by one with preferential attachment.
         else:
             for idx_newvector in xrange(self.m):
-                these_agents = []
-                for agent in self.nodes(type=Agent):
-                    if (agent == newcomer or
-                            agent.is_connected(direction="from", whom=newcomer) or
-                            agent.is_connected(direction="to", whom=newcomer)):
-                        continue
-                    else:
-                        these_agents.append(agent)
+                these_agents = [a for a in agents if a.uuid != newcomer.uuid and not a.is_connected(direction="either", whom=newcomer)]
+                # these_agents = []
+                # for agent in agents:
+                #     if (agent == newcomer or
+                #             agent.is_connected(direction="from", whom=newcomer) or
+                #             agent.is_connected(direction="to", whom=newcomer)):
+                #         continue
+                #     else:
+                #         these_agents.append(agent)
                 outdegrees = [len(a.vectors(direction="outgoing")) for a in these_agents]
 
                 # Select a member using preferential attachment

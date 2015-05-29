@@ -118,7 +118,6 @@ def api_transmission(transmission_uuid):
                 .query\
                 .filter_by(destination_uuid=request.values['destination_uuid'])\
                 .filter_by(receive_time=None)\
-                .order_by(models.Transmission.transmit_time)\
                 .all()
 
         # Or given a uuid, get the transmission with the given id
@@ -215,7 +214,6 @@ def api_info(info_uuid):
             infos = models.Info\
                 .query\
                 .filter_by(origin_uuid=request.values['origin_uuid'])\
-                .order_by(models.Info.creation_time)\
                 .all()
 
             data_information = []

@@ -66,30 +66,25 @@ class TestNetworks(object):
 
     def test_network_nodes(self):
         net = models.Network()
-
-        node1 = models.Node()
-        node2 = models.Node()
-        agent1 = nodes.Agent()
-        agent2 = nodes.Agent()
-        agent3 = nodes.Agent()
-
-        net.add([node1, node2, agent1, agent2, agent3])
-        self.db.add_all([node1, node2, agent1, agent2, agent3])
+        self.db.add(net)
         self.db.commit()
 
-        assert net.nodes() == [node1, node2, agent1, agent2, agent3]
-        assert net.nodes(type=nodes.Agent) == [agent1, agent2, agent3]
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
+        agent1 = nodes.Agent(network=net)
+        agent2 = nodes.Agent(network=net)
+        agent3 = nodes.Agent(network=net)
+
+        assert set([node1, node2, agent1, agent2, agent3]) == set(net.nodes())
+        assert set([agent1, agent2, agent3]) == set(net.nodes(type=nodes.Agent))
 
         node1.fail()
         agent1.fail()
 
-        self.db.add_all([node1, node2, agent1, agent2, agent3])
-        self.db.commit()
-
-        assert net.nodes() == [node2, agent2, agent3]
-        assert net.nodes(failed="all") == [node1, node2, agent1, agent2, agent3]
-        assert net.nodes(failed=True) == [node1, agent1]
-        assert net.nodes(type=nodes.Agent, failed="all") == [agent1, agent2, agent3]
+        assert set(net.nodes()) == set([node2, agent2, agent3])
+        assert set(net.nodes(failed="all")) == set([node1, node2, agent1, agent2, agent3])
+        assert set(net.nodes(failed=True)) == set([node1, agent1])
+        assert set(net.nodes(type=nodes.Agent, failed="all")) == set([agent1, agent2, agent3])
 
     def test_network_vectors(self):
         net = networks.Network()
@@ -113,20 +108,18 @@ class TestNetworks(object):
 
     def test_network_degrees(self):
         net = networks.Network()
-
-        agent1 = nodes.Agent()
-        agent2 = nodes.Agent()
-        self.db.add_all([agent1, agent2])
-        net.add(agent1)
-        net.add(agent2)
-
+        self.db.add(net)
         self.db.commit()
+
+        agent1 = nodes.Agent(network=net)
+        agent2 = nodes.Agent(network=net)
 
         assert [len(n.vectors(direction="outgoing")) for n in net.nodes()] == [0, 0]
 
         agent1.connect(whom=agent2)
 
-        assert [len(n.vectors(direction="outgoing")) for n in net.nodes()] == [1, 0]
+        assert 1 in [len(n.vectors(direction="outgoing")) for n in net.nodes()]
+        assert 0 in [len(n.vectors(direction="outgoing")) for n in net.nodes()]
 
     def test_network_add_source_global(self):
         net = networks.Network()

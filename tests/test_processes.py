@@ -14,28 +14,20 @@ class TestProcesses(object):
     def test_random_walk_from_source(self):
 
         net = models.Network()
-
-        agent1 = nodes.ReplicatorAgent()
-        agent2 = nodes.ReplicatorAgent()
-        agent3 = nodes.ReplicatorAgent()
-
-        net.add(agent1)
-        net.add(agent2)
-        net.add(agent3)
-        self.db.add(agent1)
-        self.db.add(agent2)
-        self.db.add(agent3)
+        self.db.add(net)
         self.db.commit()
+
+        agent1 = nodes.ReplicatorAgent(network=net)
+        agent2 = nodes.ReplicatorAgent(network=net)
+        agent3 = nodes.ReplicatorAgent(network=net)
 
         agent1.connect(whom=agent2)
         agent2.connect(whom=agent3)
 
-        source = nodes.RandomBinaryStringSource()
-        net.add(source)
-        self.db.add(source)
-        self.db.commit()
+        source = nodes.RandomBinaryStringSource(network=net)
 
-        source.connect(whom=net.nodes(type=Agent)[0])
+        from operator import attrgetter
+        source.connect(whom=min(net.nodes(type=Agent), key=attrgetter('creation_time')))
         source.create_information()
 
         processes.random_walk(net)
@@ -88,9 +80,10 @@ class TestProcesses(object):
                 agent.receive()
 
         # Ensure that the process had reached fixation.
-        assert agent1.infos()[-1].contents == agent2.infos()[-1].contents
-        assert agent2.infos()[-1].contents == agent3.infos()[-1].contents
-        assert agent3.infos()[-1].contents == agent1.infos()[-1].contents
+        from operator import attrgetter
+        assert max(agent1.infos(), key=attrgetter('creation_time')).contents == max(agent2.infos(), key=attrgetter('creation_time')).contents
+        assert max(agent2.infos(), key=attrgetter('creation_time')).contents == max(agent3.infos(), key=attrgetter('creation_time')).contents
+        assert max(agent3.infos(), key=attrgetter('creation_time')).contents == max(agent1.infos(), key=attrgetter('creation_time')).contents
 
     def test_moran_process_sexual(self):
 

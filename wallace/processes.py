@@ -32,7 +32,10 @@ def moran_cultural(network):
     else:
         replacer = random.choice(network.nodes(type=Agent))
         replaced = random.choice(replacer.neighbors(connection="to", type=Agent))
-        replacer.transmit(what=replacer.infos()[-1], to_whom=replaced)
+
+        from operator import attrgetter
+
+        replacer.transmit(what=max(replacer.infos(), key=attrgetter('creation_time')), to_whom=replaced)
 
 
 def moran_sexual(network):
@@ -46,11 +49,12 @@ def moran_sexual(network):
         replacer = random.choice(network.nodes(type=Source))
         replacer.transmit()
     else:
-        replacer = random.choice(network.nodes(type=Agent)[:-1])
+        from operator import attrgetter
+        agents = network.nodes(type=Agent)
+        baby = max(agents, key=attrgetter('creation_time'))
+        agents = [a for a in agents if a.uuid != baby.uuid]
+        replacer = random.choice(agents)
         replaced = random.choice(replacer.neighbors(connection="to", type=Agent))
-
-        # Find the baby just added
-        baby = network.nodes(type=Agent)[-1]
 
         # Give the baby the same outgoing connections as the replaced.
         for node in replaced.neighbors(connection="to"):
