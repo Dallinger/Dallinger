@@ -242,14 +242,15 @@ class Network(Base):
         from operator import attrgetter
 
         if failed == "all":
-            t = max(Transmission.query.with_entities(Transmission.destination)
-                    .filter_by(status="received")
-                    .all(), key=attrgetter('receive_time'))
+            ts = Transmission.query\
+                .filter(Transmission.status == "received")\
+                .all()
         else:
-            t = max(Transmission.query
-                    .join(Transmission.destination)
-                    .filter(and_(Transmission.status == "received", Node.failed == failed))
-                    .all(), key=attrgetter('receive_time'))
+            ts = Transmission.query\
+                .join(Transmission.destination)\
+                .filter(and_(Transmission.status == "received", Node.failed == failed))\
+                .all()
+        t = max(ts, key=attrgetter('receive_time'))
         return t.destination
 
     def vectors(self, failed=False):
