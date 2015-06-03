@@ -38,8 +38,11 @@ class Bartlett1932(Experiment):
         processes.random_walk(network)
 
     def recruit(self):
-        """Recruit participants to the experiment if needed."""
-        self.recruiter().recruit_participants(n=1)
+        """Recruit participants to the experiment as needed."""
+        if self.networks(full=False):
+            self.recruiter().recruit_participants(n=1)
+        else:
+            self.recruiter().close_recruitment()
 
     def bonus(self, participant_uuid=None):
         """Compute the bonus for the given participant.
