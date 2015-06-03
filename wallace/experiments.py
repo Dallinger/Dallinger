@@ -113,7 +113,8 @@ class Experiment(object):
             self, participant_uuid=None, assignment_id=None):
         """Check performance and recruit new participants as needed."""
         # Check that the particpant's performance was acceptable.
-        self.participant_attention_check(participant_uuid=participant_uuid)
+        attended = self.participant_attention_check(
+            participant_uuid=participant_uuid)
 
         # Accept the HIT.
         self.recruiter().approve_hit(assignment_id)
@@ -125,7 +126,8 @@ class Experiment(object):
             self.bonus_reason())
 
         # Recruit new participants as needed.
-        self.recruit()
+        if attended:
+            self.recruit()
 
     def recruit(self):
         """Recruit participants to the experiment as needed."""
@@ -144,4 +146,4 @@ class Experiment(object):
 
     def participant_attention_check(self, participant_uuid=None):
         """Check if participant performed adequately."""
-        pass
+        return True
