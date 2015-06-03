@@ -18,7 +18,6 @@ class Experiment(object):
         self.practice_repeats = 0
         self.experiment_repeats = 0
         self.recruiter = PsiTurkRecruiter
-        self.num_to_recruit = 1
 
     def setup(self):
         """Create the networks if they don't already exist."""
@@ -126,14 +125,14 @@ class Experiment(object):
             self.bonus_reason())
 
         # Recruit new participants as needed.
-        if self.networks(full=False):
-            self.recruit()
-        else:
-            self.recruiter().close_recruitment()
+        self.recruit()
 
     def recruit(self):
         """Recruit participants to the experiment as needed."""
-        self.recruiter().recruit_participants(n=1)
+        if self.networks(full=False):
+            self.recruiter().recruit_participants(n=1)
+        else:
+            self.recruiter().close_recruitment()
 
     def bonus(self, participant_uuid=None):
         """The bonus to be awarded to the given participant."""
