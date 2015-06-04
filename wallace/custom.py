@@ -47,7 +47,7 @@ except ImportError:
 
 # Launch the experiment.
 exp = experiment(session)
-exp.recruiter().open_recruitment()
+exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
 
 
 @custom_code.route('/compute_bonus', methods=['GET'])

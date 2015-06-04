@@ -18,6 +18,7 @@ class Experiment(object):
         self.practice_repeats = 0
         self.experiment_repeats = 0
         self.recruiter = PsiTurkRecruiter
+        self.initial_recruitment_size = 1
 
     def setup(self):
         """Create the networks if they don't already exist."""
