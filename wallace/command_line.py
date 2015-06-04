@@ -238,7 +238,7 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
     # Set up postgres database and AWS/psiTurk environment variables.
     cmds = [
-        "heroku addons:create heroku-postgresql:hobby-dev",
+        "heroku addons:create heroku-postgresql:hobby-basic",
 
         "heroku pg:wait",
 
