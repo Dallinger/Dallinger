@@ -250,8 +250,11 @@ class Network(Base):
                 .join(Transmission.destination)\
                 .filter(and_(Transmission.status == "received", Node.failed == failed))\
                 .all()
-        t = max(ts, key=attrgetter('receive_time'))
-        return t.destination
+        if ts:
+            t = max(ts, key=attrgetter('receive_time'))
+            return t.destination
+        else:
+            return None
 
     def vectors(self, failed=False):
         """
