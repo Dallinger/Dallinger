@@ -20,6 +20,7 @@ browser_exclude_rule = MSIE, mobile, tablet
 [Database Parameters]
 database_url = postgresql://postgres@localhost/wallace
 table_name = psiturk
+anonymize_data = true
 
 [Server Parameters]
 host = 0.0.0.0

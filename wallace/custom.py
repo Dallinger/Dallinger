@@ -58,7 +58,11 @@ def compute_bonus():
         raise ExperimentError('improper_inputs')
     uniqueId = request.args['uniqueId']
 
-    p_uuid = hashlib.sha512(uniqueId).hexdigest()
+    # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
+    if config.get('Database Parameters', 'anonymize_data'):
+        p_uuid = hashlib.sha512(uniqueId).hexdigest()
+    else:
+        p_uuid = uniqueId
 
     try:
         # Compute the bonus using experiment-specific logic.
