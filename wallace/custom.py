@@ -339,6 +339,8 @@ def api_notifications():
             print "Failing node {}.".format(node)
             node.fail()
 
+        session.commit()
+
     elif event_type == 'AssignmentSubmitted':
 
         print "Assignment became reviewable."
