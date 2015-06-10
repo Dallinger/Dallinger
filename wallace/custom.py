@@ -92,8 +92,12 @@ def api_agent_create():
     if request.method == 'POST':
         # Figure out whether this MTurk participant is allowed to create
         # another agent in the experiment.
-        participant_uuid = hashlib.sha512(
-            request.values["unique_id"]).hexdigest()
+        # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
+        if config.get('Database Parameters', 'anonymize_data'):
+            participant_uuid = hashlib.sha512(
+                request.values["unique_id"]).hexdigest()
+        else:
+            participant_uuid = request.values["unique_id"]
 
         newcomer = exp.assign_agent_to_participant(participant_uuid)
         if newcomer is not None:
@@ -300,7 +304,11 @@ def api_notifications():
             filter(Participant.assignmentid == assignment_id).\
             one()
 
-        participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
+        # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
+        if config.get('Database Parameters', 'anonymize_data'):
+            participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
+        else:
+            participant_uuid = participant.uniqueid
 
     except:
         return Response(
