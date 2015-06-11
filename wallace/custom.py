@@ -100,7 +100,7 @@ def api_agent_create():
             one()
         if participant.status not in [1, 2]:
             print "Participant {} has a status of {} - no new nodes will be made for them".\
-                format(participant.unique_id, participant.status)
+                format(participant.uniqueid, participant.status)
             return Response(status=403)
 
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
