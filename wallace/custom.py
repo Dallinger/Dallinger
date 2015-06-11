@@ -96,7 +96,7 @@ def api_agent_create():
 
         # make sure the participant has not abadonned or returned the assignment
         participant = Participant.query.\
-            filter(Participant.unique_id == unique_id).\
+            filter(Participant.uniqueid == unique_id).\
             one()
         if participant.status not in [1, 2]:
             print "Participant {} has a status of {} - no new nodes will be made for them".\
