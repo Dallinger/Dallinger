@@ -339,6 +339,13 @@ def api_notifications():
 
         print "Participant stopped working."
 
+        if event_type == 'AssignmentAbandoned':
+            participant.status = 8
+        else:
+            participant.status = 6
+
+        session_psiturk.commit()
+
         # Get the all nodes associated with the participant.
         nodes = models.Node\
             .query\
