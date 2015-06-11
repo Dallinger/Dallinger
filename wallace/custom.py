@@ -90,14 +90,24 @@ def api_agent_create():
     exp = experiment(session)
 
     if request.method == 'POST':
+        unique_id = request.values["unique_id"]
         # Figure out whether this MTurk participant is allowed to create
         # another agent in the experiment.
+
+        # make sure the participant has not abadonned or returned the assignment
+        participant = Participant.query.\
+            filter(Participant.unique_id == unique_id).\
+            one()
+        if participant.status not in [1, 2]:
+            print "Participant {} has a status of {} - no new nodes will be made for them".\
+                format(participant.unique_id, participant.status)
+            return Response(status=403)
+
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
         if config.get('Database Parameters', 'anonymize_data'):
-            participant_uuid = hashlib.sha512(
-                request.values["unique_id"]).hexdigest()
+            participant_uuid = hashlib.sha512(unique_id).hexdigest()
         else:
-            participant_uuid = request.values["unique_id"]
+            participant_uuid = unique_id
 
         newcomer = exp.assign_agent_to_participant(participant_uuid)
         if newcomer is not None:
