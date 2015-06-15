@@ -243,12 +243,12 @@ class Network(Base):
 
         if failed == "all":
             ts = Transmission.query\
-                .filter(Transmission.status == "received")\
+                .filter(and_(Transmission.status == "received", Transmission.network_uuid == self.uuid))\
                 .all()
         else:
             ts = Transmission.query\
                 .join(Transmission.destination)\
-                .filter(and_(Transmission.status == "received", Node.failed == failed))\
+                .filter(and_(Transmission.status == "received", Transmission.network_uuid == self.uuid, Node.failed == failed))\
                 .all()
         if ts:
             t = max(ts, key=attrgetter('receive_time'))
