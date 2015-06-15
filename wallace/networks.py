@@ -22,11 +22,13 @@ class Chain(Network):
         agents = self.nodes(type=Agent)
         other_agents = [a for a in agents if a.uuid != newcomer.uuid]
 
-        if len(agents) > 1:
-            from operator import attrgetter
+        sources = self.nodes(type=Source)
+
+        from operator import attrgetter
+        if other_agents:
             max(other_agents, key=attrgetter('creation_time')).connect(whom=newcomer)
-        elif len(self.nodes(type=Source)) > 0:
-            self.nodes(type=Source)[0].connect(whom=newcomer)
+        elif sources:
+            min(sources, key=attrgetter('creation_time')).connect(whom=newcomer)
 
     def add_source(self, source):
         if len(self.nodes(type=Source)) > 1:
