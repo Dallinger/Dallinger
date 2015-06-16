@@ -18,12 +18,6 @@ Features
 - Coordinates participant recruitment using Mechanical Turk
 - Demos of common experimental paradigms
 
-Installation
-------------
-Install Wallace by running:
-
-    pip install wallace
-
 Contribute
 ----------
 - Issue Tracker: http://github.com/suchow/Wallace/issues
