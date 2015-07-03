@@ -10,3 +10,4 @@
 *.db-journal
 *.zip
 .env
+/snapshots/

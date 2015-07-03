@@ -98,7 +98,8 @@ def setup(debug=True, verbose=False):
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
         log("Freezing the experiment package...")
-        shutil.make_archive(id + "-code", "zip", dst)
+        shutil.make_archive(
+            os.path.join("snapshots", id + "-code"), "zip", dst)
 
     # Change directory to the temporary folder.
     cwd = os.getcwd()
