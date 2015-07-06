@@ -299,6 +299,41 @@ def api_info(info_uuid):
             return Response(js, status=200, mimetype='application/json')
 
 
+@custom_code.route("/nudge", methods=["POST"])
+def nudge():
+    """Call the participant completion trigger for everyone who finished."""
+    exp = experiment(session)
+
+    print "Nudging the experiment along."
+
+    participants = Participant.query.filter_by(status=4).all()
+
+    for participant in participants:
+
+        print "Nudging participant {}".format(participant)
+
+        # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
+        if config.get('Database Parameters', 'anonymize_data'):
+            participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
+        else:
+            participant_uuid = participant.uniqueid
+
+        # Recruit new participants.
+        exp.participant_completion_trigger(
+            participant_uuid=participant_uuid,
+            assignment_id=participant.assignmentid)
+
+        # Assign participant status 4.
+        participant.status = 5
+        session_psiturk.add(participant)
+        session_psiturk.commit()
+
+    return Response(
+        dumps({"status": "success"}),
+        status=200,
+        mimetype='application/json')
+
+
 @custom_code.route("/notifications", methods=["POST", "GET"])
 def api_notifications():
     """Receive notifications from MTurk REST notifications."""
