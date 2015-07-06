@@ -421,7 +421,8 @@ def export(app, local):
         os.remove(os.path.join(id, dump_filename))
 
     log("Zipping up the package...")
-    shutil.make_archive(id + '-data', "zip", id)
+    shutil.make_archive(os.path.join("data", id + "-data"), "zip", id)
+
     shutil.rmtree(id)
 
     log("Done. Data available in " + str(id) + ".zip")
