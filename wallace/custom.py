@@ -17,7 +17,7 @@ import imp
 import inspect
 import urllib
 import hashlib
-import traceback
+from operator import attrgetter
 
 # Load the configuration options.
 config = PsiturkConfig()
@@ -345,9 +345,11 @@ def api_notifications():
     # Transform the assignment id to the SHA512 hash of the unique id from the
     # psiTurk table.
     try:
-        participant = Participant.query.\
+        participants = Participant.query.\
             filter(Participant.assignmentid == assignment_id).\
-            one()
+            all()
+
+        participant = max(participants, key=attrgetter('beginhit'))
 
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
         if config.get('Database Parameters', 'anonymize_data'):
@@ -400,18 +402,18 @@ def api_notifications():
         print "Participant status is {}.".format(participant.status)
         print "Participant status type is {}".format(type(participant.status))
 
-        # # Skip if the participant's status is 5 or greater (credited).
-        # if participant.status < 5:
+        # Skip if the participant's status is 5 or greater (credited).
+        if participant.status < 5:
 
-        #     # Recruit new participants.
-        #     exp.participant_completion_trigger(
-        #         participant_uuid=participant_uuid,
-        #         assignment_id=assignment_id)
+            # Recruit new participants.
+            exp.participant_completion_trigger(
+                participant_uuid=participant_uuid,
+                assignment_id=assignment_id)
 
-        #     # Assign participant status 4.
-        #     participant.status = 5
-        #     session_psiturk.add(participant)
-        #     session_psiturk.commit()
+            # Assign participant status 4.
+            participant.status = 5
+            session_psiturk.add(participant)
+            session_psiturk.commit()
 
     return Response(
         dumps({"status": "success"}),
