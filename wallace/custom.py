@@ -318,15 +318,15 @@ def nudge():
         else:
             participant_uuid = participant.uniqueid
 
-        # Recruit new participants.
-        exp.participant_completion_trigger(
-            participant_uuid=participant_uuid,
-            assignment_id=participant.assignmentid)
-
         # Assign participant status 4.
         participant.status = 5
         session_psiturk.add(participant)
         session_psiturk.commit()
+
+        # Recruit new participants.
+        exp.participant_completion_trigger(
+            participant_uuid=participant_uuid,
+            assignment_id=participant.assignmentid)
 
     return Response(
         dumps({"status": "success"}),
@@ -405,15 +405,15 @@ def api_notifications():
         # Skip if the participant's status is 5 or greater (credited).
         if participant.status < 5:
 
-            # Recruit new participants.
-            exp.participant_completion_trigger(
-                participant_uuid=participant_uuid,
-                assignment_id=assignment_id)
-
             # Assign participant status 4.
             participant.status = 5
             session_psiturk.add(participant)
             session_psiturk.commit()
+
+            # Recruit new participants.
+            exp.participant_completion_trigger(
+                participant_uuid=participant_uuid,
+                assignment_id=assignment_id)
 
     return Response(
         dumps({"status": "success"}),
