@@ -140,12 +140,9 @@ class PsiTurkRecruiter(Recruiter):
 
     def recruit_participants(self, n=1):
         """Extend the HIT to recruit more people."""
-        previous_participant = Participant.query\
-            .order_by(desc(Participant.endhit))\
-            .first()
-        last_hit_id = str(previous_participant.hitid)
+        hit_id = str(Participant.query.with_entities(Participant.hitid).first().hitid)
         self.shell.hit_extend(
-            [last_hit_id],
+            [hit_id],
             n,
             self.config.get('HIT Configuration', 'duration'))
 
