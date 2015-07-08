@@ -140,7 +140,13 @@ class PsiTurkRecruiter(Recruiter):
 
     def recruit_participants(self, n=1):
         """Extend the HIT to recruit more people."""
+
+        print "Starting Wallace's recruit_participants."
+
         hit_id = str(Participant.query.with_entities(Participant.hitid).first().hitid)
+
+        print "hit_id is {}.".format(hit_id)
+
         self.shell.hit_extend(
             [hit_id],
             n,
