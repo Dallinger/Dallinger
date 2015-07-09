@@ -131,7 +131,7 @@ class Experiment(object):
         """Check performance and recruit new participants as needed."""
         # Check that the particpant's performance was acceptable.
 
-        print "Running completion trigger for participant {}."
+        print "Running completion trigger for participant {}.".format(participant_uuid)
 
         attended = self.participant_attention_check(
             participant_uuid=participant_uuid)
