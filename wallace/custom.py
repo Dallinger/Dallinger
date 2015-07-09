@@ -141,7 +141,6 @@ def api_transmission(transmission_uuid):
 
         # Given a receiving agent, get its pending transmissions
         if transmission_uuid is None:
-            print "no transmission uuid specified"
             pending_transmissions = models.Transmission\
                 .query\
                 .filter_by(destination_uuid=request.values['destination_uuid'])\
