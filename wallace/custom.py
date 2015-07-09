@@ -91,7 +91,8 @@ def api_agent_create():
 
     if request.method == 'POST':
         unique_id = request.values["unique_id"]
-        print ">>>> Received request to make new agent for participant {}".format(unique_id)
+        if exp.verbose:
+            print ">>>> Received request to make new agent for participant {}".format(unique_id)
         # Figure out whether this MTurk participant is allowed to create
         # another agent in the experiment.
 
@@ -100,8 +101,9 @@ def api_agent_create():
             filter(Participant.uniqueid == unique_id).\
             one()
         if participant.status not in [1, 2]:
-            print ">>>> Participant {} has a status of {} - no new nodes will be made for them".\
-                format(participant.uniqueid, participant.status)
+            if exp.verbose:
+                print ">>>> Participant {} has a status of {} - no new nodes will be made for them".\
+                    format(participant.uniqueid, participant.status)
             return Response(status=403)
 
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
@@ -110,16 +112,19 @@ def api_agent_create():
         else:
             participant_uuid = unique_id
 
-        print ">>>> Participant status is {}, assigning them a new node".format(participant.status)
+        if exp.verbose:
+            print ">>>> Participant status is {}, assigning them a new node".format(participant.status)
         newcomer = exp.assign_agent_to_participant(participant_uuid)
 
         if newcomer is not None:
-            print ">>>> New node successfully assigned to participant {}".format(participant.uniqueid)
+            if exp.verbose:
+                print ">>>> New node successfully assigned to participant {}".format(participant.uniqueid)
             data = {'agents': {'uuid': newcomer.uuid}}
             js = dumps(data)
             return Response(js, status=200, mimetype='application/json')
         else:
-            print ">>>> New node failed to be made for participant {}".format(participant.uniqueid)
+            if exp.verbose:
+                print ">>>> New node failed to be made for participant {}".format(participant.uniqueid)
             return Response(status=403)
 
 
