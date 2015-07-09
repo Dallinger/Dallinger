@@ -59,7 +59,7 @@ def compute_bonus():
     uniqueId = request.args['uniqueId']
 
     # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
-    if config.get('Database Parameters', 'anonymize_data'):
+    if config.getboolean('Database Parameters', 'anonymize_data'):
         p_uuid = hashlib.sha512(uniqueId).hexdigest()
     else:
         p_uuid = uniqueId
@@ -107,7 +107,7 @@ def api_agent_create():
             return Response(status=403)
 
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
-        if config.get('Database Parameters', 'anonymize_data') == "true":
+        if config.getboolean('Database Parameters', 'anonymize_data'):
             participant_uuid = hashlib.sha512(unique_id).hexdigest()
         else:
             participant_uuid = unique_id
@@ -322,7 +322,7 @@ def nudge():
         print "Nudging participant {}".format(participant)
 
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
-        if config.get('Database Parameters', 'anonymize_data'):
+        if config.getboolean('Database Parameters', 'anonymize_data'):
             participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
         else:
             participant_uuid = participant.uniqueid
@@ -361,7 +361,7 @@ def api_notifications():
         participant = max(participants, key=attrgetter('beginhit'))
 
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
-        if config.get('Database Parameters', 'anonymize_data'):
+        if config.getboolean('Database Parameters', 'anonymize_data'):
             participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
         else:
             participant_uuid = participant.uniqueid
