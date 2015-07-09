@@ -85,16 +85,24 @@ class Experiment(object):
         networks_participated_in = [node.network_uuid for node in Node.query.with_entities(Node.network_uuid).filter_by(participant_uuid=participant_uuid).all()]
         legal_networks = [net for net in networks_with_space if net.uuid not in networks_participated_in]
 
+        print ">>>>     {} networks out of {} remain available to participant {}"\
+            .format(len(legal_networks),
+                    (self.practice_repeats + self.experiment_repeats),
+                    participant_uuid)
+
         if not legal_networks:
             return None
 
         legal_practice_networks = [net for net in legal_networks if net.role == "practice"]
         if legal_practice_networks:
             chosen_network = legal_practice_networks[0]
+            print ">>>>     practice networks available. Assigning participant to practice network {}.".format(chosen_network.uuid)
         else:
             chosen_network = random.choice(legal_networks)
+            print ">>>>     no practice networks available. Assigning participant to experiment network {}".format(chosen_network.uuid)
 
         # Generate the right kind of newcomer and assign them to the network.
+        print ">>>>     generating node"
         if inspect.isclass(self.agent):
             if issubclass(self.agent, Node):
                 newcomer = self.agent(participant_uuid=participant_uuid, network=chosen_network)
@@ -102,9 +110,12 @@ class Experiment(object):
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
             newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid, network=chosen_network)
+        print ">>>>     participant {} has been assigned node {}".format(participant_uuid, newcomer.uuid)
 
         chosen_network.calculate_full()
+        print ">>>>     running create_agent_trigger"
         self.create_agent_trigger(agent=newcomer, network=chosen_network)
+        print ">>>>     create_agent_trigger completed"
         return newcomer
 
     def participant_completion_trigger(
