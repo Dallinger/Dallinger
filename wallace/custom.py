@@ -104,7 +104,7 @@ def api_agent_create():
             return Response(status=403)
 
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
-        if config.get('Database Parameters', 'anonymize_data'):
+        if config.get('Database Parameters', 'anonymize_data') == "true":
             participant_uuid = hashlib.sha512(unique_id).hexdigest()
         else:
             participant_uuid = unique_id
