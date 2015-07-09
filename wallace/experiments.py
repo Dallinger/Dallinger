@@ -39,23 +39,20 @@ class Experiment(object):
 
         if full == "all":
             if role == "all":
-                return Network.query.order_by(Network.creation_time).all()
+                return Network.query.all()
             else:
                 return Network\
                     .query\
                     .filter_by(role=role)\
-                    .order_by(Network.creation_time)\
                     .all()
         else:
             if role == "all":
                 return Network.query.filter_by(full=full)\
-                    .order_by(Network.creation_time)\
                     .all()
             else:
                 return Network\
                     .query\
                     .filter(and_(Network.role == role, Network.full == full))\
-                    .order_by(Network.creation_time)\
                     .all()
 
     def save(self, *objects):
