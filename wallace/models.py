@@ -1071,7 +1071,7 @@ class Transmission(Base):
     network = relationship(Network, backref="networks_transmissions")
 
     # the time at which the transmission occurred
-    transmit_time = Column(DateTime, nullable=False, default=timenow)
+    creation_time = Column(DateTime, nullable=False, default=timenow)
 
     # the time at which the transmission was received
     receive_time = Column(DateTime, default=None)
@@ -1145,7 +1145,7 @@ class Transformation(Base):
     network = relationship(Network, backref="networks_transformations")
 
     # the time at which the transformation occurred
-    transform_time = Column(DateTime, nullable=False, default=timenow)
+    creation_time = Column(DateTime, nullable=False, default=timenow)
 
     # unused by default, these columns store additional properties used
     # by other types of transformation

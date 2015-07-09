@@ -159,7 +159,7 @@ def api_transmission(transmission_uuid):
                 "info_uuid": t.info_uuid,
                 "origin_uuid": t.origin_uuid,
                 "destination_uuid": t.destination_uuid,
-                "transmit_time": t.transmit_time,
+                "creation_time": t.creation_time,
                 "receive_time": t.receive_time
             })
             data = {"transmissions": data_transmissions}

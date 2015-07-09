@@ -109,5 +109,5 @@ Transmission-8c4a33
 * `origin` -- the node that the transmission originated from
 * `destination_uuid` -- the UUID of the transmission's destination node
 * `destination` -- the transmission's destination node
-* `transmit_time` -- the time the transmission occurred. Set automatically upon creation.
+* `creation_time` -- the time the transmission occurred. Set automatically upon creation.
 * `vector` -- the vector that this transmission occurred along

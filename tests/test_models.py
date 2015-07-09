@@ -491,7 +491,7 @@ class TestModels(object):
         assert transmission.info_uuid == info.uuid
         assert transmission.origin_uuid == vector.origin_uuid
         assert transmission.destination_uuid == vector.destination_uuid
-        assert transmission.transmit_time
+        assert transmission.creation_time
         assert transmission.vector == vector
         assert vector.transmissions() == [transmission]
 
