@@ -86,45 +86,53 @@ def compute_bonus():
 
 @custom_code.route("/agents", methods=["POST"])
 def api_agent_create():
-    """Create an agent."""
+    """Sending a POST request to /agents triggers the creation of a new agent"""
+
     exp = experiment(session)
+    verbose = exp.verbose
 
     if request.method == 'POST':
         unique_id = request.values["unique_id"]
-        if exp.verbose:
-            print ">>>> Received request to make new agent for participant {}".format(unique_id)
-        # Figure out whether this MTurk participant is allowed to create
-        # another agent in the experiment.
+        key = unique_id[0:5]
 
-        # make sure the participant has not abadonned or returned the assignment
+        if verbose:
+            print ">>>>{} Received POST request to /agents for participant {}".format(key, unique_id)
+
         participant = Participant.query.\
             filter(Participant.uniqueid == unique_id).\
             one()
+        if verbose:
+            print ">>>>{} Successfully located participant".format(key)
+
         if participant.status not in [1, 2]:
-            if exp.verbose:
-                print ">>>> Participant {} has a status of {} - no new nodes will be made for them".\
-                    format(participant.uniqueid, participant.status)
+            if verbose:
+                print ">>>>{} Participant status is {} - no new nodes will be made for them".\
+                    format(key, participant.status)
             return Response(status=403)
 
-        # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
         if config.getboolean('Database Parameters', 'anonymize_data'):
+            if verbose:
+                print ">>>>{} hashing participant id".format(key)
             participant_uuid = hashlib.sha512(unique_id).hexdigest()
         else:
             participant_uuid = unique_id
 
-        if exp.verbose:
-            print ">>>> Participant status is {}, assigning them a new node".format(participant.status)
+        if verbose:
+            print ">>>>{} Participant status is {}, assigning them a new node".format(key, participant.status)
         newcomer = exp.assign_agent_to_participant(participant_uuid)
 
         if newcomer is not None:
-            if exp.verbose:
-                print ">>>> New node successfully assigned to participant {}".format(participant.uniqueid)
+            if verbose:
+                print ">>>>{} Node successfully assigned to participant".format(key)
             data = {'agents': {'uuid': newcomer.uuid}}
             js = dumps(data)
+            if verbose:
+                print ">>>>{} Returning status 200".format(key)
             return Response(js, status=200, mimetype='application/json')
         else:
             if exp.verbose:
-                print ">>>> New node failed to be made for participant {}".format(participant.uniqueid)
+                print ">>>>{} Node failed to be made for participant".format(key)
+                print ">>>>{} Returning status 403"
             return Response(status=403)
 
 
