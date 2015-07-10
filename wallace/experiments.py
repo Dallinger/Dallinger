@@ -135,15 +135,22 @@ class Experiment(object):
         """Check performance and recruit new participants as needed."""
         # Check that the particpant's performance was acceptable.
 
-        print "Running completion trigger for participant {}.".format(participant_uuid)
+        key = participant_uuid[0:5]
+
+        if self.verbose:
+            print ">>>>{}   Running participant attention check".format(key)
 
         attended = self.participant_attention_check(
             participant_uuid=participant_uuid)
 
         # Accept the HIT.
+        if self.verbose:
+            print ">>>>{}   Approving the assignment".format(key)
         self.recruiter().approve_hit(assignment_id)
 
         # Reward the bonus.
+        if self.verbose:
+            print ">>>>{}   Awarding bonus".format(key)
         self.recruiter().reward_bonus(
             assignment_id,
             self.bonus(participant_uuid=participant_uuid),
@@ -151,7 +158,12 @@ class Experiment(object):
 
         # Recruit new participants as needed.
         if attended:
+            if self.verbose:
+                print ">>>>{}   Running recruit()".format(key)
             self.recruit()
+        else:
+            if self.verbose:
+                print ">>>>{}   Participant failed attention check so not recruiting".format(key)
 
     def recruit(self):
         """Recruit participants to the experiment as needed."""
