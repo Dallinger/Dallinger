@@ -19,6 +19,8 @@ import urllib
 import hashlib
 from operator import attrgetter
 
+from sqlalchemy import and_
+
 # Load the configuration options.
 config = PsiturkConfig()
 config.load_config()
@@ -323,6 +325,9 @@ def nudge():
 
     print "Nudging the experiment along."
 
+    # If a participant is hung at status 4, we must have missed the
+    # notification saying they had submited, so we bump them to status 5
+    # and run the completion trigger.
     participants = Participant.query.filter_by(status=4).all()
 
     for participant in participants:
@@ -344,6 +349,21 @@ def nudge():
         exp.participant_completion_trigger(
             participant_uuid=participant_uuid,
             assignment_id=participant.assignmentid)
+
+    # If a participant has status 3, but has an endhit time, something must
+    # have gone awry, so we bump the status to 5 and call it a day.
+    participants = Participant.query.filter(
+        and_(
+            Participant.status == 3,
+            Participant.endhit != None)).all()
+
+    for participant in participants:
+
+        print "Bumping {} from status 3 (with endhit time) to 5."
+
+        participant.status = 5
+        session_psiturk.add(participant)
+        session_psiturk.commit()
 
     return Response(
         dumps({"status": "success"}),
