@@ -1,12 +1,9 @@
 """Recruiters manage the flow of participants to the experiment."""
 
 import os
-from psiturk.amt_services import MTurkServices, RDSServices
 from psiturk.psiturk_config import PsiturkConfig
-from psiturk.psiturk_org_services import PsiturkOrgServices
-from psiturk.psiturk_shell import PsiturkNetworkShell
 from psiturk.models import Participant
-from sqlalchemy import desc
+from boto.mturk.connection import MTurkConnection
 
 
 class Recruiter(object):
@@ -78,20 +75,26 @@ class PsiTurkRecruiter(Recruiter):
             def is_server_running(self):
                 return 'yes'
 
-        server = FakeExperimentServerController()
+        self.server = FakeExperimentServerController()
 
         # Get keys from environment variables or config file.
-        aws_access_key_id = os.getenv(
+        self.aws_access_key_id = os.getenv(
             "aws_access_key_id",
             self.config.get("AWS Access", "aws_access_key_id"))
 
-        aws_secret_access_key = os.getenv(
+        self.aws_secret_access_key = os.getenv(
             "aws_secret_access_key",
             self.config.get("AWS Access", "aws_secret_access_key"))
 
-        aws_region = os.getenv(
+        self.aws_region = os.getenv(
             "aws_region",
             self.config.get("AWS Access", "aws_region"))
+
+    def open_recruitment(self, n=1):
+        """Open recruitment for the first HIT, unless it's already open."""
+        from psiturk.amt_services import MTurkServices, RDSServices
+        from psiturk.psiturk_shell import PsiturkNetworkShell
+        from psiturk.psiturk_org_services import PsiturkOrgServices
 
         psiturk_access_key_id = os.getenv(
             "psiturk_access_key_id",
@@ -101,29 +104,27 @@ class PsiTurkRecruiter(Recruiter):
             "psiturk_secret_access_id",
             self.config.get("psiTurk Access", "psiturk_secret_access_id"))
 
-        self.amt_services = MTurkServices(
-            aws_access_key_id,
-            aws_secret_access_key,
-            self.config.getboolean(
-                'Shell Parameters', 'launch_in_sandbox_mode'))
-
-        aws_rds_services = RDSServices(
-            aws_access_key_id,
-            aws_secret_access_key,
-            aws_region)
-
         web_services = PsiturkOrgServices(
             psiturk_access_key_id,
             psiturk_secret_access_id)
 
-        self.shell = PsiturkNetworkShell(
-            self.config, self.amt_services, aws_rds_services, web_services,
-            server,
+        aws_rds_services = RDSServices(
+            self.aws_access_key_id,
+            self.aws_secret_access_key,
+            self.aws_region)
+
+        self.amt_services = MTurkServices(
+            self.aws_access_key_id,
+            self.aws_secret_access_key,
             self.config.getboolean(
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
-    def open_recruitment(self, n=1):
-        """Open recruitment for the first HIT, unless it's already open."""
+        self.shell = PsiturkNetworkShell(
+            self.config, self.amt_services, aws_rds_services, web_services,
+            self.server,
+            self.config.getboolean(
+                'Shell Parameters', 'launch_in_sandbox_mode'))
+
         try:
             Participant.query.all()
 
@@ -147,17 +148,51 @@ class PsiTurkRecruiter(Recruiter):
 
         print "hit_id is {}.".format(hit_id)
 
-        self.shell.hit_extend(
-            [hit_id],
-            n,
-            self.config.get('HIT Configuration', 'duration'))
+        is_sandbox = self.config.getboolean(
+            'Shell Parameters', 'launch_in_sandbox_mode')
+
+        if is_sandbox:
+            host = 'mechanicalturk.sandbox.amazonaws.com'
+        else:
+            host = 'mechanicalturk.amazonaws.com'
+
+        mturkparams = dict(
+            aws_access_key_id=self.aws_access_key_id,
+            aws_secret_access_key=self.aws_secret_access_key,
+            host=host)
+
+        self.mtc = MTurkConnection(**mturkparams)
+
+        self.mtc.extend_hit(
+            hit_id,
+            assignments_increment=int(n or 0))
+
+        expiration_increment = self.config.get('HIT Configuration', 'duration')
+
+        self.mtc.extend_hit(
+            hit_id,
+            expiration_increment=int(float(expiration_increment or 0)*3600))
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
+        from psiturk.amt_services import MTurkServices
+
+        self.amt_services = MTurkServices(
+            self.aws_access_key_id,
+            self.aws_secret_access_key,
+            self.config.getboolean(
+                'Shell Parameters', 'launch_in_sandbox_mode'))
         return self.amt_services.approve_worker(assignment_id)
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Reward the Turker with a bonus."""
+        from psiturk.amt_services import MTurkServices
+
+        self.amt_services = MTurkServices(
+            self.aws_access_key_id,
+            self.aws_secret_access_key,
+            self.config.getboolean(
+                'Shell Parameters', 'launch_in_sandbox_mode'))
         return self.amt_services.bonus_worker(assignment_id, amount, reason)
 
     def close_recruitment(self):
