@@ -82,32 +82,35 @@ class Experiment(object):
 
     def assign_agent_to_participant(self, participant_uuid):
 
+        key = participant_uuid[0:5]
+
         networks_with_space = Network.query.filter_by(full=False).all()
         networks_participated_in = [node.network_uuid for node in Node.query.with_entities(Node.network_uuid).filter_by(participant_uuid=participant_uuid).all()]
         legal_networks = [net for net in networks_with_space if net.uuid not in networks_participated_in]
 
-        if self.verbose:
-            print ">>>>     {} networks out of {} remain available to participant {}"\
-                .format(len(legal_networks),
-                        (self.practice_repeats + self.experiment_repeats),
-                        participant_uuid)
-
         if not legal_networks:
+            if self.verbose:
+                print ">>>>{}   No networks available, returning None".format(key)
             return None
+
+        if self.verbose:
+            print ">>>>{}   {} networks out of {} available to participant"\
+                .format(key, len(legal_networks),
+                        (self.practice_repeats + self.experiment_repeats))
 
         legal_practice_networks = [net for net in legal_networks if net.role == "practice"]
         if legal_practice_networks:
             chosen_network = legal_practice_networks[0]
             if self.verbose:
-                print ">>>>     practice networks available. Assigning participant to practice network {}.".format(chosen_network.uuid)
+                print ">>>>{}   Practice networks available. Assigning participant to practice network {}.".format(key, chosen_network.uuid)
         else:
             chosen_network = random.choice(legal_networks)
             if self.verbose:
-                print ">>>>     no practice networks available. Assigning participant to experiment network {}".format(chosen_network.uuid)
+                print ">>>>{}   No practice networks available. Assigning participant to experiment network {}".format(key, chosen_network.uuid)
 
         # Generate the right kind of newcomer and assign them to the network.
         if self.verbose:
-            print ">>>>     generating node"
+            print ">>>>{}   Generating node".format(key)
         if inspect.isclass(self.agent):
             if issubclass(self.agent, Node):
                 newcomer = self.agent(participant_uuid=participant_uuid, network=chosen_network)
@@ -116,14 +119,15 @@ class Experiment(object):
         else:
             newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid, network=chosen_network)
         if self.verbose:
-            print ">>>>     participant {} has been assigned node {}".format(participant_uuid, newcomer.uuid)
+            print ">>>>{}   Node successfully generated".format(key, newcomer.uuid)
+            print ">>>>{}   Re-calculcating if network is full".format(key)
 
         chosen_network.calculate_full()
         if self.verbose:
-            print ">>>>     running create_agent_trigger"
+            print ">>>>{}   running exp.create_agent_trigger".format(key)
         self.create_agent_trigger(agent=newcomer, network=chosen_network)
         if self.verbose:
-            print ">>>>     create_agent_trigger completed"
+            print ">>>>{}   exp.create_agent_trigger completed".format(key)
         return newcomer
 
     def participant_completion_trigger(
