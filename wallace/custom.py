@@ -123,7 +123,7 @@ def api_agent_create():
 
         if newcomer is not None:
             if verbose:
-                print ">>>>{} Node successfully assigned to participant".format(key)
+                print ">>>>{} Participant has been assigned Node {}".format(key, newcomer.uuid)
             data = {'agents': {'uuid': newcomer.uuid}}
             js = dumps(data)
             if verbose:
