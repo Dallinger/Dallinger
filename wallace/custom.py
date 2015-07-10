@@ -354,7 +354,14 @@ def nudge():
 @custom_code.route("/notifications", methods=["POST", "GET"])
 def api_notifications():
     """Receive notifications from MTurk REST notifications."""
+
     exp = experiment(session)
+    verbose = exp.verbose
+
+    event_type = request.values['Event.1.EventType']
+
+    if verbose:
+        print ">>>>????? Received an {} notification, identifying participant...".format(event_type)
 
     # Get the assignment id.
     assignment_id = request.values['Event.1.AssignmentId']
@@ -368,6 +375,10 @@ def api_notifications():
 
         participant = max(participants, key=attrgetter('beginhit'))
 
+        key = participant.uniqueid[0:5]
+        if verbose:
+            print ">>>>{} Participant identified as {}".format(key, participant.uniqueid)
+
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
         if config.getboolean('Database Parameters', 'anonymize_data'):
             participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
@@ -375,30 +386,35 @@ def api_notifications():
             participant_uuid = participant.uniqueid
 
     except:
+        if verbose:
+            print ">>>>????? unable to identify participant."
+            print ">>>>????? returning error, status 200"
         return Response(
             dumps({"status": "error"}),
             status=200,
             mimetype='application/json')
 
-    event_type = request.values['Event.1.EventType']
-
     print "Triggered event of type {} for assignment {}".format(
         event_type, assignment_id)
 
     if event_type == 'AssignmentAccepted':
-
-        print "Participant accepted assignment."
+        pass
 
     elif event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
 
-        print "Participant stopped working."
-
         if event_type == 'AssignmentAbandoned':
+            if verbose:
+                print ">>>>{} status set to 8".format(key)
             participant.status = 8
         else:
+            if verbose:
+                print ">>>>{} status set to 6".format(key)
             participant.status = 6
 
         session_psiturk.commit()
+
+        if verbose:
+            print ">>>>{} Failing all participant's nodes".format(key)
 
         # Get the all nodes associated with the participant.
         nodes = models.Node\
@@ -407,20 +423,18 @@ def api_notifications():
             .all()
 
         for node in nodes:
-            print "Failing node {}.".format(node)
+            print ">>>>{} Failing node {}.".format(key, node)
             node.fail()
 
         session.commit()
 
     elif event_type == 'AssignmentSubmitted':
 
-        print "Assignment became reviewable."
-
-        print "Participant status is {}.".format(participant.status)
-        print "Participant status type is {}".format(type(participant.status))
-
         # Skip if the participant's status is 5 or greater (credited).
         if participant.status < 5:
+
+            if verbose:
+                print ">>>>{} status is {}, setting status to 5, running participant_completion_trigger".format(key, participant.status)
 
             # Assign participant status 4.
             participant.status = 5
@@ -431,7 +445,12 @@ def api_notifications():
             exp.participant_completion_trigger(
                 participant_uuid=participant_uuid,
                 assignment_id=assignment_id)
+        else:
+            if verbose:
+                print ">>>>{} Participant status is {}, doing nothing.".format(key, participant.status)
 
+    if verbose:
+        print ">>>>{} Returning success, status 200".format(key)
     return Response(
         dumps({"status": "success"}),
         status=200,
