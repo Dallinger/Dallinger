@@ -54,6 +54,11 @@ def launch():
     exp = experiment(session)
     exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
 
+    # Return a response.
+    data = {"status": "launched"}
+    js = dumps(data)
+    return Response(js, status=200, mimetype='application/json')
+
 
 @custom_code.route('/compute_bonus', methods=['GET'])
 def compute_bonus():
