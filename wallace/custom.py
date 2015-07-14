@@ -56,6 +56,9 @@ def launch():
     init_db()  # Initialize psiTurk tables.
     exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
 
+    session_psiturk.commit()
+    session.commit()
+
     print "Received the launch signal."
 
     # Return a response.
@@ -82,6 +85,8 @@ def compute_bonus():
         # Compute the bonus using experiment-specific logic.
         bonus = exp.bonus(
             participant_uuid=p_uuid)
+
+        session.commit()
 
         # lookup user in database
         user = Participant.query.\
@@ -135,6 +140,8 @@ def api_agent_create():
             print ">>>>{} Participant status is {}, assigning them a new node".format(key, participant.status)
         newcomer = exp.assign_agent_to_participant(participant_uuid)
 
+        session.commit()
+
         if newcomer is not None:
             if verbose:
                 print ">>>>{} Participant has been assigned Node {}".format(key, newcomer.uuid)
@@ -178,6 +185,8 @@ def api_transmission(transmission_uuid):
             pending_transmissions = [transmission]
 
         exp.transmission_reception_trigger(pending_transmissions)
+
+        session.commit()
 
         # Build a dict with info about the transmissions
         data_transmissions = []
@@ -319,6 +328,7 @@ def api_info(info_uuid):
 
             # Trigger experiment-specific behavior that happens on creationg
             exp.information_creation_trigger(info)
+            session.commit()
 
             data = {'uuid': info.uuid}
 
