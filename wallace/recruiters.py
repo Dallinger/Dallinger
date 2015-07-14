@@ -126,7 +126,8 @@ class PsiTurkRecruiter(Recruiter):
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
         try:
-            Participant.query.all()
+            participants = Participant.query.all()
+            assert(not participants)
 
         except Exception:
             # Create the first HIT.
