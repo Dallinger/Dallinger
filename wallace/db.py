@@ -17,5 +17,8 @@ def init_db(drop_all=False):
     """Initialize the database, optionally dropping existing tables."""
     if drop_all:
         Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    if os.environ["wallace_init"] is not "true":
+        os.environ["wallace_init"] = "true"
+        Base.metadata.create_all(bind=engine)
+
     return Session
