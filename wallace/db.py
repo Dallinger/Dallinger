@@ -12,6 +12,8 @@ Session = scoped_session(sessionmaker(autoflush=True, bind=engine))
 Base = declarative_base()
 Base.query = Session.query_property()
 
+def get_session():
+    return Session
 
 def init_db(drop_all=False):
     """Initialize the database, optionally dropping existing tables."""

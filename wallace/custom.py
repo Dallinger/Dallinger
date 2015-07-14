@@ -33,7 +33,7 @@ custom_code = Blueprint(
     static_folder='static')
 
 # Initialize the Wallace database.
-session = db.init_db(drop_all=False)
+session = db.get_session()
 
 # Specify the experiment.
 try:
@@ -51,8 +51,10 @@ except ImportError:
 @custom_code.route('/launch', methods=['POST'])
 def launch():
     """Launch the experiment."""
-    exp = experiment(session)
+    exp = experiment(db.init_db(drop_all=False))
     exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+
+    print "Received the launch signal."
 
     # Return a response.
     data = {"status": "launched"}
