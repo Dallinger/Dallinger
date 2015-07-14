@@ -15,7 +15,7 @@ class TestBartlett(object):
     subprocess.call("cd examples/bartlett1932; wallace logs --app " + exp_id, shell=True)
 
     args = {'hitId': 'bartlett-test-hit', 'assignmentId': 1, 'workerId': 1, 'mode': 'sandbox'}
-    participant = requests.get(exp_address + '/exp', data=args)
+    participant = requests.get(exp_address + '/exp', params=args)
     print participant.status_code
     #print participant.text
 
