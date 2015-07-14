@@ -16,6 +16,7 @@ import inspect
 import imp
 import pkg_resources
 import re
+import requests
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -295,13 +296,19 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
                     " --app " + id, stdout=OUT, shell=True)
     time.sleep(8)
 
+    # Launch the experiment.
+    log("Launching the experiment on MTurk...")
+    requests.post("http://{}.herokuapp.com/launch")
+
+    time.sleep(8)
+
     url = subprocess.check_output("heroku logs --app " + id + " | sort | " +
                                   "sed -n 's|.*URL:||p'", shell=True)
 
     log("URLs:")
     print url
 
-    # Return to the branch we came from.
+    # Return to the branch whence we came.
     os.chdir(cwd)
 
     log("Completed deployment of experiment " + id + ".")

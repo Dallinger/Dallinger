@@ -47,9 +47,12 @@ try:
 except ImportError:
     print "Error: Could not import experiment."
 
-# Launch the experiment.
-exp = experiment(session)
-exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+
+@custom_code.route('/launch', methods=['POST'])
+def launch():
+    """Launch the experiment."""
+    exp = experiment(session)
+    exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
 
 
 @custom_code.route('/compute_bonus', methods=['GET'])
