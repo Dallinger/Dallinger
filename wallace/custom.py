@@ -5,6 +5,7 @@ from flask import Blueprint, request, jsonify, Response, abort
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.experiment_errors import ExperimentError
 from psiturk.user_utils import PsiTurkAuthorization
+from psiturk.db import init_db
 
 # Database setup
 from psiturk.db import db_session as session_psiturk
@@ -52,6 +53,7 @@ except ImportError:
 def launch():
     """Launch the experiment."""
     exp = experiment(db.init_db(drop_all=False))
+    init_db()  # Initialize psiTurk tables.
     exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
 
     print "Received the launch signal."
