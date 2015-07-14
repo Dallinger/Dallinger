@@ -16,7 +16,6 @@ import inspect
 import imp
 import pkg_resources
 import re
-import requests
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -298,7 +297,9 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
     # Launch the experiment.
     log("Launching the experiment on MTurk...")
-    requests.post("http://{}.herokuapp.com/launch")
+    subprocess.call(
+        'curl --data "" http://{}.herokuapp.com/launch'.format(id),
+        shell=True)
 
     time.sleep(8)
 
