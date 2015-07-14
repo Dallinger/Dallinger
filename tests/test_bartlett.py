@@ -1,0 +1,34 @@
+from wallace import nodes, information, db, models
+from wallace.information import Meme, Gene
+from nose.tools import raises
+import subprocess
+import re
+import requests
+
+
+class TestBartlett(object):
+
+    sandbox_output = subprocess.check_output("cd examples/bartlett1932; wallace sandbox", shell=True)
+    exp_id = re.search('Running as experiment (.*)...', sandbox_output).group(1)
+    exp_address = "http://" + exp_id + ".herokuapp.com"
+
+    subprocess.call("cd examples/bartlett1932; wallace logs --app " + exp_id, shell=True)
+
+    args = {'hitId': 1, 'assignmentId': 1, 'workerId': 1, 'mode': 'sandbox'}
+    participant = requests.get(exp_address + '/exp', data=args)
+    print participant.status_code
+    #print participant.text
+
+    args = {'Event.1.EventType': 'AssignmentAccepted', 'Event.1.AssignmentId': 1}
+    notification = requests.post(exp_address + '/notifications', data=args)
+    notification = requests.post(exp_address + '/notifications', data=args)
+    notification = requests.post(exp_address + '/notifications', data=args)
+    notification = requests.post(exp_address + '/notifications', data=args)
+    notification = requests.post(exp_address + '/notifications', data=args)
+    notification = requests.post(exp_address + '/notifications', data=args)
+    notification = requests.post(exp_address + '/notifications', data=args)
+    print notification.status_code
+    #print notification.text
+
+    #subprocess.call("heroku apps:destroy --app " + exp_id + " --confirm " + exp_id, shell=True)
+    # for app in $(heroku apps | sed '/[pt]/ d'); do heroku apps:destroy --app $app --confirm $app; done

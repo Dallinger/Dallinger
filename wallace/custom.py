@@ -388,6 +388,7 @@ def api_notifications():
 
     # Get the assignment id.
     assignment_id = request.values['Event.1.AssignmentId']
+    print "Assignmet id is {}, available ids are: {}".format(assignment_id, [a.assignmentid for a in Participant.query.all()])
 
     # Transform the assignment id to the SHA512 hash of the unique id from the
     # psiTurk table.
