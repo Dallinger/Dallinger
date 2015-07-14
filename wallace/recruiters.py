@@ -127,7 +127,7 @@ class PsiTurkRecruiter(Recruiter):
 
         try:
             participants = Participant.query.all()
-            assert(not participants)
+            assert(participants)
 
         except Exception:
             # Create the first HIT.
