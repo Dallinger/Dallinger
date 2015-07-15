@@ -25,15 +25,12 @@ class TestBartlett(object):
     while working is True:
         args = {'unique_id': '1:1'}
         agent = requests.post(exp_address + '/agents', data=args)
-        print agent
-        print agent.contents
-        print agent.text
-        working = agent.status == 200
+        working = agent.status_code == 200
         if working is True:
-            agent_uuid = agent.contents.agents.uuid
+            agent_uuid = agent.json()['agents']['uuid']
             args = {'destination_uuid': agent_uuid}
             transmission = requests.get(exp_address + '/transmissions', data=args)
-            info = requests.get(exp_address + '/info/' + transmission.contents.transmissions[0].info_uuid, data=args)
+            info = requests.get(exp_address + '/information/' + str(transmission.json()['transmissions'][0]['info_uuid']), data=args)
             args = {'origin_uuid': agent_uuid, 'contents': 'test test test', 'info_type': 'base'}
             requests.post(exp_address + '/information', data=args)
 
