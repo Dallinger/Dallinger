@@ -164,7 +164,6 @@ def api_agent_create():
 def api_transmission(transmission_uuid):
     """Create a transmission."""
     exp = experiment(session)
-    session.commit()
 
     if request.method == 'GET':
 
@@ -172,8 +171,8 @@ def api_transmission(transmission_uuid):
         if transmission_uuid is None:
             pending_transmissions = models.Transmission\
                 .query\
-                .filter_by(destination_uuid=request.values['destination_uuid'])\
-                .filter_by(receive_time=None)\
+                .filter_by(destination_uuid=request.values['destination_uuid'],
+                           receive_time=None)\
                 .all()
 
         # Or given a uuid, get the transmission with the given id
@@ -222,14 +221,16 @@ def api_transmission(transmission_uuid):
             .filter_by(uuid=request.values['info_uuid'])\
             .one()
 
-        destination = nodes.Agent\
-            .query\
-            .filter_by(uuid=request.values['destination_uuid'])\
+        origin = models.Node\
+            .query.filter_by(uuid=request.values['origin_uuid'])\
             .one()
 
-        transmission = models.Transmission(info=info, destination=destination)
+        destination = nodes.Agent\
+            .query.filter_by(uuid=request.values['destination_uuid'])\
+            .one()
 
-        session.add(transmission)
+        transmission = origin.transmit(what=info, to_whom=destination)
+
         session.commit()
 
         data = {'uuid': transmission.uuid}
@@ -322,9 +323,6 @@ def api_info(info_uuid):
             info = cls(
                 origin=node,
                 contents=cnts)
-
-            session.add(info)
-            session.commit()
 
             # Trigger experiment-specific behavior that happens on creationg
             exp.information_creation_trigger(info)
@@ -481,7 +479,6 @@ def api_notifications():
 
             # Assign participant status 4.
             participant.status = 5
-            session_psiturk.add(participant)
             session_psiturk.commit()
 
             # Recruit new participants.
