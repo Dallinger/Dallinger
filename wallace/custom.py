@@ -36,6 +36,13 @@ custom_code = Blueprint(
 # Initialize the Wallace database.
 session = db.get_session()
 
+verbose = True
+
+
+def log(text):
+    if verbose:
+        print ">>>>{}".format(text)
+
 # Specify the experiment.
 try:
     exp = imp.load_source('experiment', "wallace_experiment.py")
@@ -114,46 +121,38 @@ def api_agent_create():
         unique_id = request.values["unique_id"]
         key = unique_id[0:5]
 
-        if verbose:
-            print ">>>>{} Received POST request to /agents for participant {}".format(key, unique_id)
+        log("{} Received POST request to /agents for participant {}".format(key, unique_id))
 
         participant = Participant.query.\
             filter(Participant.uniqueid == unique_id).\
             one()
-        if verbose:
-            print ">>>>{} Successfully located participant".format(key)
+        log("{} Successfully located participant".format(key))
 
         if participant.status not in [1, 2]:
-            if verbose:
-                print ">>>>{} Participant status is {} - no new nodes will be made for them".\
-                    format(key, participant.status)
+            log("{} Participant status is {} - no new nodes will be made for them".
+                format(key, participant.status))
             return Response(status=403)
 
         if config.getboolean('Database Parameters', 'anonymize_data'):
-            if verbose:
-                print ">>>>{} hashing participant id".format(key)
+            log("{} hashing participant id".format(key))
             participant_uuid = hashlib.sha512(unique_id).hexdigest()
         else:
             participant_uuid = unique_id
 
-        if verbose:
-            print ">>>>{} Participant status is {}, assigning them a new node".format(key, participant.status)
+        log("{} Participant status is {}, assigning them a new node".format(key, participant.status))
         newcomer = exp.assign_agent_to_participant(participant_uuid)
 
         session.commit()
 
         if newcomer is not None:
-            if verbose:
-                print ">>>>{} Participant has been assigned Node {}".format(key, newcomer.uuid)
+            log("{} Participant has been assigned Node {}".format(key, newcomer.uuid))
             data = {'agents': {'uuid': newcomer.uuid}}
             js = dumps(data)
-            if verbose:
-                print ">>>>{} Returning status 200".format(key)
+            log("{} Returning status 200".format(key))
             return Response(js, status=200, mimetype='application/json')
         else:
-            if exp.verbose:
-                print ">>>>{} Node failed to be made for participant".format(key)
-                print ">>>>{} Returning status 403"
+            log("{} Node failed to be made for participant".format(key))
+            log("{} Returning status 403")
             return Response(status=403)
 
 
@@ -167,8 +166,11 @@ def api_transmission(transmission_uuid):
 
     if request.method == 'GET':
 
+        log("       Recevied a Transmission GET request")
+
         # Given a receiving agent, get its pending transmissions
         if transmission_uuid is None:
+            log("       Getting all pending transmissions")
             pending_transmissions = models.Transmission\
                 .query\
                 .filter_by(destination_uuid=request.values['destination_uuid'],
@@ -177,22 +179,26 @@ def api_transmission(transmission_uuid):
 
         # Or given a uuid, get the transmission with the given id
         else:
-            transmission = models.Transmission\
-                .query\
-                .filter_by(uuid=transmission_uuid)\
-                .one()
+            log("       Getting transmission {}".format(transmission_uuid))
+            try:
+                transmission = models.Transmission\
+                    .query\
+                    .filter_by(uuid=transmission_uuid)\
+                    .one()
+            except:
+                log("       Transmission does not exist, critical error")
+                return Response(status=403)
             pending_transmissions = [transmission]
 
+        log("       {}".format(pending_transmissions))
+        log("       Running transmission_reception_trigger")
         exp.transmission_reception_trigger(pending_transmissions)
 
         session.commit()
 
         # Build a dict with info about the transmissions
         data_transmissions = []
-        data = []
-        for i in xrange(len(pending_transmissions)):
-            t = pending_transmissions[i]
-
+        for t in pending_transmissions:
             data_transmissions.append({
                 "uuid": t.uuid,
                 "info_uuid": t.info_uuid,
@@ -201,12 +207,9 @@ def api_transmission(transmission_uuid):
                 "creation_time": t.creation_time,
                 "receive_time": t.receive_time
             })
-            data = {"transmissions": data_transmissions}
+        data = {"transmissions": data_transmissions}
 
-        if not data:
-            print "{} made a GET request for transmissions, ".format(
-                request.values['destination_uuid']) + \
-                "but there were no transmissions to get."
+        log("       returning transmissions, status 200")
 
         def date_handler(obj):
             return obj.isoformat() if hasattr(obj, 'isoformat') else obj
@@ -216,19 +219,34 @@ def api_transmission(transmission_uuid):
 
     if request.method == "POST":
 
-        info = models.Info\
-            .query\
-            .filter_by(uuid=request.values['info_uuid'])\
-            .one()
+        log("       Received a transmission post Request")
 
-        origin = models.Node\
-            .query.filter_by(uuid=request.values['origin_uuid'])\
-            .one()
+        try:
+            info = models.Info\
+                .query\
+                .filter_by(uuid=request.values['info_uuid'])\
+                .one()
+        except:
+            log("       Info does not exist, critical error, returning status 403")
+            return Response(status=403)
 
-        destination = nodes.Agent\
-            .query.filter_by(uuid=request.values['destination_uuid'])\
-            .one()
+        try:
+            origin = models.Node\
+                .query.filter_by(uuid=request.values['origin_uuid'])\
+                .one()
+        except:
+            log("       Origin does not exist, critical error, returning status 403")
+            return Response(status=403)
 
+        try:
+            destination = nodes.Agent\
+                .query.filter_by(uuid=request.values['destination_uuid'])\
+                .one()
+        except:
+            log("       Desintation does not exist, critical error, returning status 403")
+            return Response(status=403)
+
+        log("       Transmitting...")
         transmission = origin.transmit(what=info, to_whom=destination)
 
         session.commit()
@@ -236,6 +254,7 @@ def api_transmission(transmission_uuid):
         data = {'uuid': transmission.uuid}
         js = dumps(data)
 
+        log("       Returning transmission uuid, status = 200")
         return Response(js, status=200, mimetype='application/json')
 
 
@@ -252,9 +271,17 @@ def api_info(info_uuid):
 
     if request.method == 'GET':
 
+        log("       Recevied an information GET request")
+
         if info_uuid is not None:
 
-            info = models.Info.query.filter_by(uuid=info_uuid).one()
+            log("       Getting requested info")
+
+            try:
+                info = models.Info.query.filter_by(uuid=info_uuid).one()
+            except:
+                log("       Info does not exist, critical error, returning status = 403")
+                return Response(status=403)
 
             data = {
                 'info_uuid': info_uuid,
@@ -266,9 +293,13 @@ def api_info(info_uuid):
 
             js = dumps(data, default=date_handler)
 
+            log("       returning info, status = 200")
+
             return Response(js, status=200, mimetype='application/json')
 
         else:
+
+            log("       Getting all infos")
 
             infos = models.Info\
                 .query\
@@ -276,66 +307,86 @@ def api_info(info_uuid):
                 .all()
 
             data_information = []
-            for i in xrange(len(infos)):
-                info = infos[i]
-
+            for i in infos:
                 data_information.append({
-                    "info_uuid": info.uuid,
-                    "type": info.type,
-                    "origin_uuid": info.origin_uuid,
-                    "creation_time": info.creation_time,
-                    "contents": info.contents
+                    "info_uuid": i.uuid,
+                    "type": i.type,
+                    "origin_uuid": i.origin_uuid,
+                    "creation_time": i.creation_time,
+                    "contents": i.contents
                 })
 
             js = dumps({"information": data_information}, default=date_handler)
+
+            log("       returning infos, status = 200")
             return Response(js, status=200, mimetype='application/json')
 
     if request.method == "POST":
 
-        if 'origin_uuid' in request.values:
+        log("       Received an information POST request")
 
-            # models
+        try:
+            origin_uuid = request.values['origin_uuid']
+        except:
+            log("       origin uuid not specified, critical error, returning status = 403")
+            return Response(status=403)
+
+        # models
+        try:
             node = models.Node\
                 .query\
-                .filter_by(uuid=request.values['origin_uuid'])\
+                .filter_by(uuid=origin_uuid)\
                 .one()
+        except:
+            log("       Origin node does not exist, critical error, returning status = 403")
+            return Response(status=403)
 
+        try:
             cnts = urllib.unquote(request.values['contents']).decode('utf8')
+        except:
+            log("       Contents do not exist or cannot be decoded, critical error, returning status = 403")
+            return Response(status=403)
 
-            # Create an Info of the requested type.
+        # Create an Info of the requested type.
+        try:
             info_type = request.values['info_type']
+        except:
+            log("       info_type not specified, critical error, returning status = 403")
+            return Response(status=403)
 
-            if (info_type is None) or (info_type == "base"):
-                cls = models.Info
+        if (info_type is None) or (info_type == "base"):
+            cls = models.Info
 
-            elif info_type == "meme":
-                cls = information.Meme
+        elif info_type == "meme":
+            cls = information.Meme
 
-            elif info_type == "gene":
-                cls = information.Gene
+        elif info_type == "gene":
+            cls = information.Gene
 
-            elif info_type == "state":
-                cls = information.State
+        elif info_type == "state":
+            cls = information.State
 
-            else:
-                raise ValueError("Requested info_type does not exist.")
+        else:
+            log("Requested info_type does not exist., returning status = 403")
+            return Response(status=403)
 
-            info = cls(
-                origin=node,
-                contents=cnts)
+        log("       making info")
+        info = cls(
+            origin=node,
+            contents=cnts)
 
-            # Trigger experiment-specific behavior that happens on creationg
-            exp.information_creation_trigger(info)
-            session.commit()
+        # Trigger experiment-specific behavior that happens on creationg
+        log("       running information creation trigger")
+        exp.information_creation_trigger(info)
+        session.commit()
 
-            data = {'uuid': info.uuid}
+        data = {'uuid': info.uuid}
 
-            def date_handler(obj):
-                return obj.isoformat() if hasattr(obj, 'isoformat') else obj
+        js = dumps(data)
 
-            js = dumps(data, default=date_handler)
+        log("       returning info uuid, status = 200")
 
-            return Response(js, status=200, mimetype='application/json')
+        return Response(js, status=200, mimetype='application/json')
 
 
 @custom_code.route("/nudge", methods=["POST"])
@@ -400,8 +451,7 @@ def api_notifications():
 
     event_type = request.values['Event.1.EventType']
 
-    if verbose:
-        print ">>>>????? Received an {} notification, identifying participant...".format(event_type)
+    log("????? Received an {} notification, identifying participant...".format(event_type))
 
     # Get the assignment id.
     assignment_id = request.values['Event.1.AssignmentId']
@@ -417,8 +467,7 @@ def api_notifications():
         participant = max(participants, key=attrgetter('beginhit'))
 
         key = participant.uniqueid[0:5]
-        if verbose:
-            print ">>>>{} Participant identified as {}".format(key, participant.uniqueid)
+        log("{} Participant identified as {}".format(key, participant.uniqueid))
 
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
         if config.getboolean('Database Parameters', 'anonymize_data'):
@@ -427,9 +476,8 @@ def api_notifications():
             participant_uuid = participant.uniqueid
 
     except:
-        if verbose:
-            print ">>>>????? unable to identify participant."
-            print ">>>>????? returning error, status 200"
+        log("????? unable to identify participant.")
+        log("????? returning error, status 200")
         return Response(
             dumps({"status": "error"}),
             status=200,
@@ -444,18 +492,15 @@ def api_notifications():
     elif event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
 
         if event_type == 'AssignmentAbandoned':
-            if verbose:
-                print ">>>>{} status set to 8".format(key)
+            log("{} status set to 8".format(key))
             participant.status = 8
         else:
-            if verbose:
-                print ">>>>{} status set to 6".format(key)
+            log("{} status set to 6".format(key))
             participant.status = 6
 
         session_psiturk.commit()
 
-        if verbose:
-            print ">>>>{} Failing all participant's nodes".format(key)
+        log("{} Failing all participant's nodes".format(key))
 
         # Get the all nodes associated with the participant.
         nodes = models.Node\
@@ -474,8 +519,7 @@ def api_notifications():
         # Skip if the participant's status is 5 or greater (credited).
         if participant.status < 5:
 
-            if verbose:
-                print ">>>>{} status is {}, setting status to 5, running participant_completion_trigger".format(key, participant.status)
+            log("{} status is {}, setting status to 5, running participant_completion_trigger".format(key, participant.status))
 
             # Assign participant status 4.
             participant.status = 5
@@ -486,11 +530,9 @@ def api_notifications():
                 participant_uuid=participant_uuid,
                 assignment_id=assignment_id)
         else:
-            if verbose:
-                print ">>>>{} Participant status is {}, doing nothing.".format(key, participant.status)
+            log("{} Participant status is {}, doing nothing.".format(key, participant.status))
 
-    if verbose:
-        print ">>>>{} Returning success, status 200".format(key)
+    log("{} Returning success, status 200".format(key))
     return Response(
         dumps({"status": "success"}),
         status=200,
