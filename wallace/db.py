@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 import os
 
 db_url = os.environ.get("DATABASE_URL", "postgresql://postgres@localhost/wallace")
-engine = create_engine(db_url)
+engine = create_engine(db_url, pool_size=100)
 Session = scoped_session(sessionmaker(autoflush=True, bind=engine))
 
 Base = declarative_base()
