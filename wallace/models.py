@@ -787,7 +787,7 @@ class Node(Base):
                 if not self.is_connected(whom=tw):
                     raise ValueError("{} cannot transmit to {} as it does not have a connection to them".format(self, tw))
                 vector = [v for v in self.vectors(direction="outgoing") if v.destination_uuid == tw.uuid][0]
-                return Transmission(info=w, vector=vector)
+                Transmission(info=w, vector=vector)
 
     def _what(self):
         return Info
