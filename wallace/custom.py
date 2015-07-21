@@ -276,7 +276,11 @@ def api_info(info_uuid):
         if info_uuid is not None:
 
             log("       Getting requested info")
-
+            try:
+                info_uuid = int(info_uuid)
+            except:
+                log("       info_uuid {} is not an int, critical error, returning status 403".format(info_uuid))
+                return Response(status=403)
             try:
                 info = models.Info.query.filter_by(uuid=info_uuid).one()
             except:
@@ -306,20 +310,24 @@ def api_info(info_uuid):
                 .filter_by(origin_uuid=request.values['origin_uuid'])\
                 .all()
 
-            data_information = []
-            for i in infos:
-                data_information.append({
-                    "info_uuid": i.uuid,
-                    "type": i.type,
-                    "origin_uuid": i.origin_uuid,
-                    "creation_time": i.creation_time,
-                    "contents": i.contents
-                })
+            if infos:
+                data_information = []
+                for i in infos:
+                    data_information.append({
+                        "info_uuid": i.uuid,
+                        "type": i.type,
+                        "origin_uuid": i.origin_uuid,
+                        "creation_time": i.creation_time,
+                        "contents": i.contents
+                    })
 
-            js = dumps({"information": data_information}, default=date_handler)
+                js = dumps({"information": data_information}, default=date_handler)
 
-            log("       returning infos, status = 200")
-            return Response(js, status=200, mimetype='application/json')
+                log("       returning infos, status = 200")
+                return Response(js, status=200, mimetype='application/json')
+            else:
+                log("       there were no infos to get! Returning status 200")
+                return Response(status=200)
 
     if request.method == "POST":
 
@@ -329,6 +337,11 @@ def api_info(info_uuid):
             origin_uuid = request.values['origin_uuid']
         except:
             log("       origin uuid not specified, critical error, returning status = 403")
+            return Response(status=403)
+        try:
+            origin_uuid = int(origin_uuid)
+        except:
+            log("       origin uuid {} is not an int, ciritical error, returning status 403".format(origin_uuid))
             return Response(status=403)
 
         # models
