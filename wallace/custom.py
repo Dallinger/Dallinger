@@ -447,15 +447,12 @@ def api_notifications():
     """Receive notifications from MTurk REST notifications."""
 
     exp = experiment(session)
-    verbose = exp.verbose
 
     event_type = request.values['Event.1.EventType']
 
     log("????? Received an {} notification, identifying participant...".format(event_type))
 
-    # Get the assignment id.
     assignment_id = request.values['Event.1.AssignmentId']
-    print "Assignmet id is {}, available ids are: {}".format(assignment_id, [a.assignmentid for a in Participant.query.all()])
 
     # Transform the assignment id to the SHA512 hash of the unique id from the
     # psiTurk table.
@@ -478,40 +475,31 @@ def api_notifications():
     except:
         log("????? unable to identify participant.")
         log("????? returning error, status 200")
-        return Response(
-            dumps({"status": "error"}),
-            status=200,
-            mimetype='application/json')
+        return Response(status=200)
 
-    print "Triggered event of type {} for assignment {}".format(
-        event_type, assignment_id)
+    log("{} {} notification received".format(key, event_type))
 
     if event_type == 'AssignmentAccepted':
         pass
 
-    elif event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
-
+    elif event_type in ['AssignmentAbandoned', 'AssigmentReturned']:
         if event_type == 'AssignmentAbandoned':
             log("{} status set to 8".format(key))
             participant.status = 8
-        else:
+
+        elif event_type == 'AssignmentReturned':
             log("{} status set to 6".format(key))
             participant.status = 6
 
         session_psiturk.commit()
 
         log("{} Failing all participant's nodes".format(key))
-
-        # Get the all nodes associated with the participant.
         nodes = models.Node\
             .query\
             .filter_by(participant_uuid=participant_uuid, failed=False)\
             .all()
-
         for node in nodes:
-            print ">>>>{} Failing node {}.".format(key, node)
             node.fail()
-
         session.commit()
 
     elif event_type == 'AssignmentSubmitted':
@@ -521,22 +509,19 @@ def api_notifications():
 
             log("{} status is {}, setting status to 5, running participant_completion_trigger".format(key, participant.status))
 
-            # Assign participant status 4.
             participant.status = 5
             session_psiturk.commit()
 
-            # Recruit new participants.
             exp.participant_completion_trigger(
                 participant_uuid=participant_uuid,
                 assignment_id=assignment_id)
         else:
             log("{} Participant status is {}, doing nothing.".format(key, participant.status))
 
-    log("{} Returning success, status 200".format(key))
-    return Response(
-        dumps({"status": "success"}),
-        status=200,
-        mimetype='application/json')
+    else:
+        log("{} Warning: no response for event_type {}".format(key, event_type))
+
+    return Response(status=200)
 
     # all_event_types = [
     #     "AssignmentAccepted",
