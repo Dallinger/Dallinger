@@ -780,6 +780,7 @@ class Node(Base):
                 raise ValueError("Cannot transmit to {}".format(to_whom[i]))
         to_whom = list(set(self.flatten(to_whom)))
 
+        transmissions = []
         for w in what:
             if w.origin_uuid != self.uuid:
                 raise ValueError("{} cannot transmit {} as it is not its origin".format(self, w))
@@ -787,7 +788,12 @@ class Node(Base):
                 if not self.is_connected(whom=tw):
                     raise ValueError("{} cannot transmit to {} as it does not have a connection to them".format(self, tw))
                 vector = [v for v in self.vectors(direction="outgoing") if v.destination_uuid == tw.uuid][0]
-                return Transmission(info=w, vector=vector)
+                t = Transmission(info=w, vector=vector)
+                transmissions.append(t)
+        if len(transmissions) == 1:
+            return transmissions[0]
+        else:
+            return transmissions
 
     def _what(self):
         return Info

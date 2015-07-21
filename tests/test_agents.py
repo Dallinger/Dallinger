@@ -115,23 +115,14 @@ class TestAgents(object):
         agent2 = nodes.ReplicatorAgent(network=net)
         agent3 = nodes.ReplicatorAgent(network=net)
 
-        # self.add(agent1)
-        # self.add(agent2)
-        # self.add(agent3)
-        # self.db.commit()
-
         agent1.connect(direction="to", whom=agent2)
         agent1.connect(direction="to", whom=agent3)
         info = models.Info(origin=agent1, contents="foo")
-        #self.add(agent1, agent2, agent3, info)
-        #self.db.commit()
 
         agent1.transmit(what=models.Info, to_whom=nodes.Agent)
-        #self.db.commit()
 
         agent2.receive()
         agent3.receive()
-        #self.db.commit()
 
         assert agent1.infos()[0].contents == agent2.infos()[0].contents
         assert agent1.infos()[0].contents == agent3.infos()[0].contents
