@@ -482,7 +482,7 @@ def api_notifications():
     if event_type == 'AssignmentAccepted':
         pass
 
-    elif event_type in ['AssignmentAbandoned', 'AssigmentReturned']:
+    elif event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
         if event_type == 'AssignmentAbandoned':
             log("{} status set to 8".format(key))
             participant.status = 8
