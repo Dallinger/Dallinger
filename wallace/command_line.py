@@ -243,9 +243,11 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
         stdout=OUT,
         shell=True)
 
+    database_size = config.get('Database Parameters', 'database_size')
+
     # Set up postgres database and AWS/psiTurk environment variables.
     cmds = [
-        "heroku addons:create heroku-postgresql:standard-2",
+        "heroku addons:create heroku-postgresql:{}".format(database_size),
 
         "heroku pg:wait",
 
@@ -296,9 +298,12 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
     subprocess.call("git push heroku master", stdout=OUT,
                     stderr=OUT, shell=True)
 
+    dyno_type = config.get('Server Parameters', 'dyno_type')
+    num_dynos = config.get('Server Parameters', 'num_dynos')
+
     log("Starting up the web server...")
-    subprocess.call("heroku ps:scale web=" + str(web_procs) +
-                    " --app " + id, stdout=OUT, shell=True)
+    subprocess.call("heroku ps:scale web=" + str(num_dynos) + ":" +
+                    str(dyno_type) + " --app " + id, stdout=OUT, shell=True)
     time.sleep(8)
 
     # Launch the experiment.
@@ -323,8 +328,7 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
 @wallace.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-@click.option('--web', default=1, help='Web processes')
-def sandbox(verbose, web):
+def sandbox(verbose):
     """Deploy app using Heroku to the MTurk Sandbox."""
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -338,14 +342,12 @@ def sandbox(verbose, web):
     config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(
-        verbose=verbose, web_procs=web)
+    deploy_sandbox_shared_setup(verbose=verbose)
 
 
 @wallace.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-@click.option('--web', default=1, help='Web processes')
-def deploy(verbose, web):
+def deploy(verbose):
     """Deploy app using Heroku to MTurk."""
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -359,8 +361,7 @@ def deploy(verbose, web):
     config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(
-        verbose=verbose, web_procs=web)
+    deploy_sandbox_shared_setup(verbose=verbose)
 
 
 @wallace.command()
