@@ -196,6 +196,12 @@ def debug(verbose):
         p.sendline("server on")
         p.expect_exact("Experiment server launching...")
 
+        # Launche the experiment.
+        time.sleep(4)
+        subprocess.call(
+            'curl --data "" http://0.0.0.0:5000/launch'.format(id),
+            shell=True)
+
         log("Here's the psiTurk shell...")
         p.interact()
 
