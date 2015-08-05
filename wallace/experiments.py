@@ -146,23 +146,23 @@ class Experiment(object):
         participant_uuid = participant.uniqueid
 
         # Accept the HIT.
-        log("{} Approving the assignment on mturk".format(key))
+        self.log("{} Approving the assignment on mturk".format(key))
         self.recruiter().approve_hit(assignment_id)
 
         # Reward the bonus.
-        log("{} Awarding bonus".format(key))
+        self.log("{} Awarding bonus".format(key))
         self.recruiter().reward_bonus(
             assignment_id,
             self.bonus(participant=participant),
             self.bonus_reason())
 
         # check participant's performance
-        log("{}   Running participant attention check".format(key))
+        self.log("{}   Running participant attention check".format(key))
         attended = self.participant_attention_check(
             participant=participant)
 
         if not attended:
-            log("{} Attention check failed: failing nodes, setting status to 102, and re-recruiting participant".format(key))
+            self.log("{} Attention check failed: failing nodes, setting status to 102, and re-recruiting participant".format(key))
 
             for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
                 node.fail()
@@ -170,7 +170,7 @@ class Experiment(object):
             participant.status = 102
             self.recruiter().recruit_participants(n=1)
         else:
-            log("{} Attention check passed: setting status to 101 and running recruit()".format(key))
+            self.log("{} Attention check passed: setting status to 101 and running recruit()".format(key))
             participant.status = 101
             self.recruit()
 
