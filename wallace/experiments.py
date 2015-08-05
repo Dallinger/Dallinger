@@ -1,7 +1,6 @@
 """The base experiment class."""
 
 from wallace.models import Network, Node
-from psiturk.models import Participant
 from wallace.nodes import Agent
 from sqlalchemy import and_
 import random
