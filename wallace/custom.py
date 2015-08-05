@@ -557,3 +557,7 @@ def api_notifications():
 def quitter():
     """Overide the psiTurk quitter route."""
     log("Quitter route was hit.")
+    return Response(
+        dumps({"status": "success"}),
+        status=200,
+        mimetype='application/json')
