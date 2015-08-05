@@ -138,11 +138,13 @@ class Experiment(object):
         return newcomer
 
     def participant_submission_trigger(
-            self, participant_uuid=None, assignment_id=None):
+            self, participant=None):
         """Check performance and recruit new participants as needed."""
         # Check that the particpant's performance was acceptable.
 
-        key = participant_uuid[0:5]
+        key = participant.uniqueid[0:5]
+        assignment_id = participant.assignmentid
+        participant_uuid = participant.uniqueid
 
         # Accept the HIT.
         log("{} Approving the assignment on mturk".format(key))
@@ -152,15 +154,14 @@ class Experiment(object):
         log("{} Awarding bonus".format(key))
         self.recruiter().reward_bonus(
             assignment_id,
-            self.bonus(participant_uuid=participant_uuid),
+            self.bonus(participant=participant),
             self.bonus_reason())
 
         # check participant's performance
         log("{}   Running participant attention check".format(key))
         attended = self.participant_attention_check(
-            participant_uuid=participant_uuid)
+            participant=participant)
 
-        participant = Participant.query.filter_by(uniqueid=participant_uuid).one()
         if not attended:
             log("{} Attention check failed: failing nodes, setting status to 102, and re-recruiting participant".format(key))
 
@@ -181,7 +182,7 @@ class Experiment(object):
         else:
             self.recruiter().close_recruitment()
 
-    def bonus(self, participant_uuid=None):
+    def bonus(self, participant=None):
         """The bonus to be awarded to the given participant."""
         return 0
 
@@ -189,6 +190,6 @@ class Experiment(object):
         """The reason offered to the participant for giving the bonus."""
         return "Thank for participating! Here is your bonus."
 
-    def participant_attention_check(self, participant_uuid=None):
+    def participant_attention_check(self, participant=None):
         """Check if participant performed adequately."""
         return True

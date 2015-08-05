@@ -532,8 +532,7 @@ def api_notifications():
             session_psiturk.commit()
 
             exp.participant_submission_trigger(
-                participant_uuid=participant_uuid,
-                assignment_id=assignment_id)
+                participant=participant)
             session_psiturk.commit()
 
         else:
