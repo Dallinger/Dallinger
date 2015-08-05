@@ -544,3 +544,9 @@ def api_notifications():
     #     "HITReviewable",
     #     "HITExpired",
     # ]
+
+
+@custom_code.route('/quitter', methods=['POST'])
+def quitter():
+    """Overide the psiTurk quitter route."""
+    log("Quitter route was hit.")
