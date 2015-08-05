@@ -139,38 +139,35 @@ class Experiment(object):
 
         key = participant_uuid[0:5]
 
-        if self.verbose:
-            print ">>>>{}   Running participant attention check".format(key)
-
-        attended = self.participant_attention_check(
-            participant_uuid=participant_uuid)
-
-        if not attended:
-            log("{} Participant failed attention check, setting status to failed".format(key))
-            participant = Participant.query.filter_by(uniqueid=participant_uuid).one()
-            participant.status = "failed"
-
         # Accept the HIT.
-        if self.verbose:
-            print ">>>>{}   Approving the assignment".format(key)
+        log("{} Approving the assignment on mturk".format(key))
         self.recruiter().approve_hit(assignment_id)
 
         # Reward the bonus.
-        if self.verbose:
-            print ">>>>{}   Awarding bonus".format(key)
+        log("{} Awarding bonus".format(key))
         self.recruiter().reward_bonus(
             assignment_id,
             self.bonus(participant_uuid=participant_uuid),
             self.bonus_reason())
 
-        # Recruit new participants as needed.
-        if attended:
-            if self.verbose:
-                print ">>>>{}   Running recruit()".format(key)
-            self.recruit()
+        # check participant's performance
+        log("{}   Running participant attention check".format(key))
+        attended = self.participant_attention_check(
+            participant_uuid=participant_uuid)
+
+        if not attended:
+            log("{} Attention check failed: failing nodes, setting status to failed, and re-recruiting participant".format(key))
+
+            for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
+                node.fail()
+
+            participant = Participant.query.filter_by(uniqueid=participant_uuid).one()
+            participant.status = "failed"
+
+            self.recruiter().recruit_participants(n=1)
         else:
-            if self.verbose:
-                print ">>>>{}   Participant failed attention check so not recruiting".format(key)
+            log("{} Attention check passed: running recruit()".format(key))
+            self.recruit()
 
     def recruit(self):
         """Recruit participants to the experiment as needed."""
