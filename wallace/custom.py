@@ -498,39 +498,45 @@ def api_notifications():
     if event_type == 'AssignmentAccepted':
         pass
 
-    elif event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
-        if event_type == 'AssignmentAbandoned':
-            log("{} status set to 8".format(key))
-            participant.status = 8
+    elif event_type == 'AssignmentAbandoned':
+        if participant.status != 'abandoned':
+            participant.status = 'abandoned'
+            session_psiturk.commit()
+            log("{} Failing all participant's nodes".format(key))
+            nodes = models.Node\
+                .query\
+                .filter_by(participant_uuid=participant_uuid, failed=False)\
+                .all()
+            for node in nodes:
+                node.fail()
+            session.commit()
 
-        elif event_type == 'AssignmentReturned':
-            log("{} status set to 6".format(key))
-            participant.status = 6
-
-        session_psiturk.commit()
-
-        log("{} Failing all participant's nodes".format(key))
-        nodes = models.Node\
-            .query\
-            .filter_by(participant_uuid=participant_uuid, failed=False)\
-            .all()
-        for node in nodes:
-            node.fail()
-        session.commit()
+    elif event_type == 'AssignmentReturned':
+        if participant.status != 'returned':
+            participant.status = 'returned'
+            session_psiturk.commit()
+            log("{} Failing all participant's nodes".format(key))
+            nodes = models.Node\
+                .query\
+                .filter_by(participant_uuid=participant_uuid, failed=False)\
+                .all()
+            for node in nodes:
+                node.fail()
+            session.commit()
 
     elif event_type == 'AssignmentSubmitted':
 
-        # Skip if the participant's status is 5 or greater (credited).
-        if participant.status < 5:
+        # Skip if the participant has already submitted.
+        if participant.status != 'submitted':
 
-            log("{} status is {}, setting status to 5, running participant_completion_trigger".format(key, participant.status))
-
-            participant.status = 5
+            log("{} status is {}, setting status to submitted, running participant_completion_trigger".format(key, participant.status))
+            participant.status = 'submitted'
             session_psiturk.commit()
 
             exp.participant_completion_trigger(
                 participant_uuid=participant_uuid,
                 assignment_id=assignment_id)
+
         else:
             log("{} Participant status is {}, doing nothing.".format(key, participant.status))
 
