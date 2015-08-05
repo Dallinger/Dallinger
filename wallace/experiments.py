@@ -1,6 +1,8 @@
 """The base experiment class."""
 
 from wallace.models import Network, Node
+from psiturk.models import Participant
+from wallace.custom import log
 from wallace.nodes import Agent
 from sqlalchemy import and_
 import random
@@ -142,6 +144,11 @@ class Experiment(object):
 
         attended = self.participant_attention_check(
             participant_uuid=participant_uuid)
+
+        if not attended:
+            log("{} Participant failed attention check, setting status to failed".format(key))
+            participant = Participant.query.filter_by(uniqueid=participant_uuid).one()
+            participant.status = "failed"
 
         # Accept the HIT.
         if self.verbose:
