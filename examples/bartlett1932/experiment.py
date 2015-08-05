@@ -48,7 +48,7 @@ class Bartlett1932(Experiment):
         """Compute the bonus for the given participant.
 
         This is called automatically when a participant finishes,
-        it is called immediately prior to the participant_completion_trigger
+        it is called immediately prior to the participant_submission_trigger
         """
         return 1
 
