@@ -413,8 +413,8 @@ def nudge():
     print "Nudging the experiment along."
 
     # If a participant is hung at status 4, we must have missed the
-    # notification saying they had submited, so we bump them to status 5
     # and run the completion trigger.
+    # notification saying they had submitted, so we bump them to status 'submitted'
     participants = Participant.query.filter_by(status=4).all()
 
     for participant in participants:
@@ -428,8 +428,7 @@ def nudge():
             participant_uuid = participant.uniqueid
 
         # Assign participant status 4.
-        participant.status = 5
-        session_psiturk.add(participant)
+        participant.status = 'submitted'
         session_psiturk.commit()
 
         # Recruit new participants.
@@ -438,7 +437,7 @@ def nudge():
             assignment_id=participant.assignmentid)
 
     # If a participant has status 3, but has an endhit time, something must
-    # have gone awry, so we bump the status to 5 and call it a day.
+    # have gone awry, so we bump the status to submitted and call it a day.
     participants = Participant.query.filter(
         and_(
             Participant.status == 3,
@@ -446,10 +445,9 @@ def nudge():
 
     for participant in participants:
 
-        print "Bumping {} from status 3 (with endhit time) to 5."
+        print "Bumping {} from status 3 (with endhit time) to submitted."
 
-        participant.status = 5
-        session_psiturk.add(participant)
+        participant.status = 'submitted'
         session_psiturk.commit()
 
     return Response(
