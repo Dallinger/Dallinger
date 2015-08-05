@@ -2,16 +2,21 @@
 
 from wallace.models import Network, Node
 from psiturk.models import Participant
-from wallace.custom import log
 from wallace.nodes import Agent
 from sqlalchemy import and_
 import random
 import inspect
+import sys
 
 from datetime import datetime
 
 
 class Experiment(object):
+
+    def log(self, text):
+        if self.verbose:
+            print ">>>> {}".format(text)
+            sys.stdout.flush()
 
     def __init__(self, session):
         from recruiters import PsiTurkRecruiter
