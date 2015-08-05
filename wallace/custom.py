@@ -470,7 +470,7 @@ def api_notifications():
 
     if event_type == 'AssignmentAccepted':
         log("AssignmentAccepted notification received")
-        pass
+        return Response(status=200)
 
     # Transform the assignment id to the SHA512 hash of the unique id from the
     # psiTurk table.
