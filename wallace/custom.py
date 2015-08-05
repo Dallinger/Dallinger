@@ -22,6 +22,8 @@ from operator import attrgetter
 
 from sqlalchemy import and_
 
+import sys
+
 # Load the configuration options.
 config = PsiturkConfig()
 config.load_config()
@@ -42,6 +44,7 @@ verbose = True
 def log(text):
     if verbose:
         print ">>>> {}".format(text)
+        sys.stdout.flush()
 
 # Specify the experiment.
 try:
