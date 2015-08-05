@@ -44,7 +44,7 @@ class Bartlett1932(Experiment):
         else:
             self.recruiter().close_recruitment()
 
-    def bonus(self, participant_uuid=None):
+    def bonus(self, participant=None):
         """Compute the bonus for the given participant.
 
         This is called automatically when a participant finishes,
