@@ -413,7 +413,7 @@ def nudge():
     print "Nudging the experiment along."
 
     # If a participant is hung at status 4, we must have missed the
-    # notification saying they had submitted, so we bump them to status 'submitted'
+    # notification saying they had submitted, so we bump them to status 100
     # and run the submission trigger.
     participants = Participant.query.filter_by(status=4).all()
 
@@ -428,7 +428,7 @@ def nudge():
             participant_uuid = participant.uniqueid
 
         # Assign participant status 4.
-        participant.status = 'submitted'
+        participant.status = 100
         session_psiturk.commit()
 
         # Recruit new participants.
@@ -437,7 +437,7 @@ def nudge():
             assignment_id=participant.assignmentid)
 
     # If a participant has status 3, but has an endhit time, something must
-    # have gone awry, so we bump the status to submitted and call it a day.
+    # have gone awry, so we bump the status to 100 and call it a day.
     participants = Participant.query.filter(
         and_(
             Participant.status == 3,
@@ -445,9 +445,9 @@ def nudge():
 
     for participant in participants:
 
-        print "Bumping {} from status 3 (with endhit time) to submitted."
+        print "Bumping {} from status 3 (with endhit time) to 100."
 
-        participant.status = 'submitted'
+        participant.status = 100
         session_psiturk.commit()
 
     return Response(
@@ -497,8 +497,8 @@ def api_notifications():
         pass
 
     elif event_type == 'AssignmentAbandoned':
-        if participant.status != 'abandoned':
-            participant.status = 'abandoned'
+        if participant.status != 104:
+            participant.status = 104
             session_psiturk.commit()
             log("{} Failing all participant's nodes".format(key))
             nodes = models.Node\
@@ -510,8 +510,8 @@ def api_notifications():
             session.commit()
 
     elif event_type == 'AssignmentReturned':
-        if participant.status != 'returned':
-            participant.status = 'returned'
+        if participant.status != 103:
+            participant.status = 103
             session_psiturk.commit()
             log("{} Failing all participant's nodes".format(key))
             nodes = models.Node\
@@ -525,15 +525,16 @@ def api_notifications():
     elif event_type == 'AssignmentSubmitted':
 
         # Skip if the participant has already submitted.
-        if participant.status != 'submitted':
+        if participant.status < 100:
 
-            log("{} status is {}, setting status to submitted, running participant_completion_trigger".format(key, participant.status))
-            participant.status = 'submitted'
+            log("{} status is {}, setting status to 100, running participant_completion_trigger".format(key, participant.status))
+            participant.status = 100
             session_psiturk.commit()
 
             exp.participant_submission_trigger(
                 participant_uuid=participant_uuid,
                 assignment_id=assignment_id)
+            session_psiturk.commit()
 
         else:
             log("{} Participant status is {}, doing nothing.".format(key, participant.status))

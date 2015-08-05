@@ -155,18 +155,18 @@ class Experiment(object):
         attended = self.participant_attention_check(
             participant_uuid=participant_uuid)
 
+        participant = Participant.query.filter_by(uniqueid=participant_uuid).one()
         if not attended:
-            log("{} Attention check failed: failing nodes, setting status to failed, and re-recruiting participant".format(key))
+            log("{} Attention check failed: failing nodes, setting status to 102, and re-recruiting participant".format(key))
 
             for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
                 node.fail()
 
-            participant = Participant.query.filter_by(uniqueid=participant_uuid).one()
-            participant.status = "failed"
-
+            participant.status = 102
             self.recruiter().recruit_participants(n=1)
         else:
-            log("{} Attention check passed: running recruit()".format(key))
+            log("{} Attention check passed: setting status to 101 and running recruit()".format(key))
+            participant.status = 101
             self.recruit()
 
     def recruit(self):
