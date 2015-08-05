@@ -198,8 +198,12 @@ def debug(verbose):
 
         # Launche the experiment.
         time.sleep(4)
+
+        host = config.get("Server Parameters", "host")
+        port = config.get("Server Parameters", "port")
+
         subprocess.call(
-            'curl --data "" http://0.0.0.0:5000/launch'.format(id),
+            'curl --data "" http://{}:{}/launch'.format(host, port),
             shell=True)
 
         log("Here's the psiTurk shell...")
