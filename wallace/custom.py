@@ -407,14 +407,14 @@ def api_info(info_uuid):
 
 @custom_code.route("/nudge", methods=["POST"])
 def nudge():
-    """Call the participant completion trigger for everyone who finished."""
+    """Call the participant submission trigger for everyone who finished."""
     exp = experiment(session)
 
     print "Nudging the experiment along."
 
     # If a participant is hung at status 4, we must have missed the
-    # and run the completion trigger.
     # notification saying they had submitted, so we bump them to status 'submitted'
+    # and run the submission trigger.
     participants = Participant.query.filter_by(status=4).all()
 
     for participant in participants:
@@ -432,7 +432,7 @@ def nudge():
         session_psiturk.commit()
 
         # Recruit new participants.
-        exp.participant_completion_trigger(
+        exp.participant_submission_trigger(
             participant_uuid=participant_uuid,
             assignment_id=participant.assignmentid)
 
@@ -531,7 +531,7 @@ def api_notifications():
             participant.status = 'submitted'
             session_psiturk.commit()
 
-            exp.participant_completion_trigger(
+            exp.participant_submission_trigger(
                 participant_uuid=participant_uuid,
                 assignment_id=assignment_id)
 

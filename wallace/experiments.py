@@ -132,7 +132,7 @@ class Experiment(object):
             print ">>>>{}   exp.create_agent_trigger completed".format(key)
         return newcomer
 
-    def participant_completion_trigger(
+    def participant_submission_trigger(
             self, participant_uuid=None, assignment_id=None):
         """Check performance and recruit new participants as needed."""
         # Check that the particpant's performance was acceptable.
