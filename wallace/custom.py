@@ -468,6 +468,10 @@ def api_notifications():
 
     assignment_id = request.values['Event.1.AssignmentId']
 
+    if event_type == 'AssignmentAccepted':
+        log("AssignmentAccepted notification received")
+        pass
+
     # Transform the assignment id to the SHA512 hash of the unique id from the
     # psiTurk table.
     try:
@@ -493,10 +497,7 @@ def api_notifications():
 
     log("{} {} notification received".format(key, event_type))
 
-    if event_type == 'AssignmentAccepted':
-        pass
-
-    elif event_type == 'AssignmentAbandoned':
+    if event_type == 'AssignmentAbandoned':
         if participant.status != 104:
             participant.status = 104
             session_psiturk.commit()
