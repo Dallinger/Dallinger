@@ -41,7 +41,7 @@ verbose = True
 
 def log(text):
     if verbose:
-        print ">>>>{}".format(text)
+        print ">>>> {}".format(text)
 
 # Specify the experiment.
 try:
