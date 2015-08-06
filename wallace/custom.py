@@ -73,43 +73,9 @@ def launch():
 
 @custom_code.route('/compute_bonus', methods=['GET'])
 def compute_bonus():
-    """Compute the bonus."""
-    exp = experiment(session)
-    if 'uniqueId' not in request.args:
-        raise ExperimentError('improper_inputs')
-    uniqueId = request.args['uniqueId']
-    key = uniqueId[0:5]
-
-    exp.log("compute_bonus route hit", key)
-
-    # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
-    if config.getboolean('Database Parameters', 'anonymize_data'):
-        p_uuid = hashlib.sha512(uniqueId).hexdigest()
-    else:
-        p_uuid = uniqueId
-
-    try:
-        # Compute the bonus using experiment-specific logic.
-        exp.log("computing bonus", key)
-        bonus = exp.bonus(
-            participant_uuid=p_uuid)
-
-        session.commit()
-
-        # lookup user in database
-        exp.log("assigning bonus to participant", key)
-        user = Participant.query.\
-            filter(Participant.uniqueid == uniqueId).\
-            one()
-        user.bonus = bonus
-        session_psiturk.commit()
-
-        exp.log("bonus successfully assigned, returning status 200", key)
-        resp = {"bonusComputed": "success"}
-        return jsonify(**resp)
-    except Exception, e:
-        print e
-        abort(404)  # again, bad to display HTML, but...
+    """Overide the psiTurk compute_bonus route."""
+    raise RuntimeError(">>>>> ----- Error: Do not use the compute_bonus route, this is handled by assignment submitted notifications")
+    return Response(status=200)
 
 
 @custom_code.route("/agents", methods=["POST"])
