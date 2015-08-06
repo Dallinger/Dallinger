@@ -165,6 +165,7 @@ class Experiment(object):
 
             for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
                 node.fail()
+            self.save()
 
             participant.status = 105
             session_psiturk.commit()
@@ -180,6 +181,7 @@ class Experiment(object):
 
                 for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
                     node.fail()
+                self.save()
 
                 participant.status = 102
                 session_psiturk.commit()
