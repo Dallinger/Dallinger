@@ -131,6 +131,9 @@ def api_agent_create():
             one()
         log("{} Successfully located participant".format(key))
 
+        # I think we can remove this check, it is not helpful
+        # it shouldn't be possible for someone to turn up here with a status > 2
+        # as this implies they have already finished...
         if participant.status not in [1, 2]:
             log("{} Participant status is {} - no new nodes will be made for them".
                 format(key, participant.status))
@@ -533,7 +536,8 @@ def api_notifications():
             session_psiturk.commit()
 
             exp.participant_submission_trigger(
-                participant=participant)
+                participant_uuid=participant.uniqueid)
+            session_psiturk.commit()
 
         else:
             log("{} Participant status is {}, doing nothing.".format(key, participant.status))
