@@ -38,14 +38,6 @@ custom_code = Blueprint(
 # Initialize the Wallace database.
 session = db.get_session()
 
-verbose = True
-
-
-def log(text):
-    if verbose:
-        print ">>>> {}".format(text)
-        sys.stdout.flush()
-
 # Specify the experiment.
 try:
     exp = imp.load_source('experiment', "wallace_experiment.py")
@@ -63,14 +55,16 @@ except ImportError:
 def launch():
     """Launch the experiment."""
     exp = experiment(db.init_db(drop_all=False))
+    exp.log("Launch route hit, laucnhing experiment", "-----")
+    exp.log("Experiment launching, initiailizing tables", "-----")
     init_db()  # Initialize psiTurk tables.
+    exp.log("Experiment launching, opening recruitment", "-----")
     exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
 
     session_psiturk.commit()
     session.commit()
 
-    print "Received the launch signal."
-
+    exp.log("Experiment successfully launched, retuning status 200", "-----")
     # Return a response.
     data = {"status": "launched"}
     js = dumps(data)
@@ -84,6 +78,9 @@ def compute_bonus():
     if 'uniqueId' not in request.args:
         raise ExperimentError('improper_inputs')
     uniqueId = request.args['uniqueId']
+    key = uniqueId[0:5]
+
+    exp.log("compute_bonus route hit", key)
 
     # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
     if config.getboolean('Database Parameters', 'anonymize_data'):
@@ -93,19 +90,21 @@ def compute_bonus():
 
     try:
         # Compute the bonus using experiment-specific logic.
+        exp.log("computing bonus", key)
         bonus = exp.bonus(
             participant_uuid=p_uuid)
 
         session.commit()
 
         # lookup user in database
+        exp.log("assigning bonus to participant", key)
         user = Participant.query.\
             filter(Participant.uniqueid == uniqueId).\
             one()
         user.bonus = bonus
-        session_psiturk.add(user)
         session_psiturk.commit()
 
+        exp.log("bonus successfully assigned, returning status 200", key)
         resp = {"bonusComputed": "success"}
         return jsonify(**resp)
     except Exception, e:
@@ -118,44 +117,43 @@ def api_agent_create():
     """Sending a POST request to /agents triggers the creation of a new agent"""
 
     exp = experiment(session)
-    verbose = exp.verbose
 
     if request.method == 'POST':
         unique_id = request.values["unique_id"]
         key = unique_id[0:5]
 
-        log("{} Received POST request to /agents for participant {}".format(key, unique_id))
+        exp.log("Received POST request to /agents for participant {}".format(unique_id), key)
 
         participant = Participant.query.\
             filter(Participant.uniqueid == unique_id).\
             one()
-        log("{} Successfully located participant".format(key))
+        exp.log("Successfully located participant", key)
 
         if participant.status not in [1, 2]:
-            log("{} Participant status is {} - no new nodes will be made for them".
-                format(key, participant.status))
+            exp.log("Participant status is {} - no new nodes will be made for them".
+                    format(participant.status), key)
             return Response(status=403)
 
         if config.getboolean('Database Parameters', 'anonymize_data'):
-            log("{} hashing participant id".format(key))
+            exp.log("hashing participant id", key)
             participant_uuid = hashlib.sha512(unique_id).hexdigest()
         else:
             participant_uuid = unique_id
 
-        log("{} Participant status is {}, assigning them a new node".format(key, participant.status))
+        exp.log("Participant status is {}, assigning them a new node".format(participant.status), key)
         newcomer = exp.assign_agent_to_participant(participant_uuid)
 
         session.commit()
 
         if newcomer is not None:
-            log("{} Participant has been assigned Node {}".format(key, newcomer.uuid))
+            exp.log("Participant has been assigned Node {}".format(newcomer.uuid), key)
             data = {'agents': {'uuid': newcomer.uuid}}
             js = dumps(data)
-            log("{} Returning status 200".format(key))
+            exp.log("Returning status 200", key)
             return Response(js, status=200, mimetype='application/json')
         else:
-            log("{} Node failed to be made for participant".format(key))
-            log("{} Returning status 403")
+            exp.log("Node failed to be made for participant", key)
+            exp.log("Returning status 403", key)
             return Response(status=403)
 
 
@@ -169,11 +167,11 @@ def api_transmission(transmission_uuid):
 
     if request.method == 'GET':
 
-        log("       Recevied a Transmission GET request")
+        exp.log("Recevied a Transmission GET request")
 
         # Given a receiving agent, get its pending transmissions
         if transmission_uuid is None:
-            log("       Getting all pending transmissions")
+            exp.log("       Getting all pending transmissions")
             pending_transmissions = models.Transmission\
                 .query\
                 .filter_by(destination_uuid=request.values['destination_uuid'],
@@ -182,19 +180,19 @@ def api_transmission(transmission_uuid):
 
         # Or given a uuid, get the transmission with the given id
         else:
-            log("       Getting transmission {}".format(transmission_uuid))
+            exp.log("       Getting transmission {}".format(transmission_uuid))
             try:
                 transmission = models.Transmission\
                     .query\
                     .filter_by(uuid=transmission_uuid)\
                     .one()
             except:
-                log("       Transmission does not exist, critical error")
+                exp.log("       Transmission does not exist, critical error")
                 return Response(status=403)
             pending_transmissions = [transmission]
 
-        log("       {}".format(pending_transmissions))
-        log("       Running transmission_reception_trigger")
+        exp.log("       {}".format(pending_transmissions))
+        exp.log("       Running transmission_reception_trigger")
         exp.transmission_reception_trigger(pending_transmissions)
 
         session.commit()
@@ -212,7 +210,7 @@ def api_transmission(transmission_uuid):
             })
         data = {"transmissions": data_transmissions}
 
-        log("       returning transmissions, status 200")
+        exp.log("       returning transmissions, status 200")
 
         def date_handler(obj):
             return obj.isoformat() if hasattr(obj, 'isoformat') else obj
@@ -222,7 +220,7 @@ def api_transmission(transmission_uuid):
 
     if request.method == "POST":
 
-        log("       Received a transmission post Request")
+        exp.log("       Received a transmission post Request")
 
         try:
             info = models.Info\
@@ -230,7 +228,7 @@ def api_transmission(transmission_uuid):
                 .filter_by(uuid=request.values['info_uuid'])\
                 .one()
         except:
-            log("       Info does not exist, critical error, returning status 403")
+            exp.log("       Info does not exist, critical error, returning status 403")
             return Response(status=403)
 
         try:
@@ -238,7 +236,7 @@ def api_transmission(transmission_uuid):
                 .query.filter_by(uuid=request.values['origin_uuid'])\
                 .one()
         except:
-            log("       Origin does not exist, critical error, returning status 403")
+            exp.log("       Origin does not exist, critical error, returning status 403")
             return Response(status=403)
 
         try:
@@ -246,10 +244,10 @@ def api_transmission(transmission_uuid):
                 .query.filter_by(uuid=request.values['destination_uuid'])\
                 .one()
         except:
-            log("       Desintation does not exist, critical error, returning status 403")
+            exp.log("       Desintation does not exist, critical error, returning status 403")
             return Response(status=403)
 
-        log("       Transmitting...")
+        exp.log("       Transmitting...")
         transmission = origin.transmit(what=info, to_whom=destination)
 
         session.commit()
@@ -257,7 +255,7 @@ def api_transmission(transmission_uuid):
         data = {'uuid': transmission.uuid}
         js = dumps(data)
 
-        log("       Returning transmission uuid, status = 200")
+        exp.log("       Returning transmission uuid, status = 200")
         return Response(js, status=200, mimetype='application/json')
 
 
@@ -274,20 +272,20 @@ def api_info(info_uuid):
 
     if request.method == 'GET':
 
-        log("       Recevied an information GET request")
+        exp.log("       Recevied an information GET request")
 
         if info_uuid is not None:
 
-            log("       Getting requested info")
+            exp.log("       Getting requested info")
             try:
                 info_uuid = int(info_uuid)
             except:
-                log("       info_uuid {} is not an int, critical error, returning status 403".format(info_uuid))
+                exp.log("       info_uuid {} is not an int, critical error, returning status 403".format(info_uuid))
                 return Response(status=403)
             try:
                 info = models.Info.query.filter_by(uuid=info_uuid).one()
             except:
-                log("       Info does not exist, critical error, returning status = 403")
+                exp.log("       Info does not exist, critical error, returning status = 403")
                 return Response(status=403)
 
             data = {
@@ -300,13 +298,13 @@ def api_info(info_uuid):
 
             js = dumps(data, default=date_handler)
 
-            log("       returning info, status = 200")
+            exp.log("       returning info, status = 200")
 
             return Response(js, status=200, mimetype='application/json')
 
         else:
 
-            log("       Getting all infos")
+            exp.log("       Getting all infos")
 
             infos = models.Info\
                 .query\
@@ -326,25 +324,25 @@ def api_info(info_uuid):
 
                 js = dumps({"information": data_information}, default=date_handler)
 
-                log("       returning infos, status = 200")
+                exp.log("       returning infos, status = 200")
                 return Response(js, status=200, mimetype='application/json')
             else:
-                log("       there were no infos to get! Returning status 200")
+                exp.log("       there were no infos to get! Returning status 200")
                 return Response(status=200)
 
     if request.method == "POST":
 
-        log("       Received an information POST request")
+        exp.log("       Received an information POST request")
 
         try:
             origin_uuid = request.values['origin_uuid']
         except:
-            log("       origin uuid not specified, critical error, returning status = 403")
+            exp.log("       origin uuid not specified, critical error, returning status = 403")
             return Response(status=403)
         try:
             origin_uuid = int(origin_uuid)
         except:
-            log("       origin uuid {} is not an int, ciritical error, returning status 403".format(origin_uuid))
+            exp.log("       origin uuid {} is not an int, ciritical error, returning status 403".format(origin_uuid))
             return Response(status=403)
 
         # models
@@ -354,20 +352,20 @@ def api_info(info_uuid):
                 .filter_by(uuid=origin_uuid)\
                 .one()
         except:
-            log("       Origin node does not exist, critical error, returning status = 403")
+            exp.log("       Origin node does not exist, critical error, returning status = 403")
             return Response(status=403)
 
         try:
             cnts = urllib.unquote(request.values['contents']).decode('utf8')
         except:
-            log("       Contents do not exist or cannot be decoded, critical error, returning status = 403")
+            exp.log("       Contents do not exist or cannot be decoded, critical error, returning status = 403")
             return Response(status=403)
 
         # Create an Info of the requested type.
         try:
             info_type = request.values['info_type']
         except:
-            log("       info_type not specified, critical error, returning status = 403")
+            exp.log("       info_type not specified, critical error, returning status = 403")
             return Response(status=403)
 
         if (info_type is None) or (info_type == "base"):
@@ -383,16 +381,16 @@ def api_info(info_uuid):
             cls = information.State
 
         else:
-            log("Requested info_type does not exist., returning status = 403")
+            exp.log("Requested info_type does not exist., returning status = 403")
             return Response(status=403)
 
-        log("       making info")
+        exp.log("       making info")
         info = cls(
             origin=node,
             contents=cnts)
 
         # Trigger experiment-specific behavior that happens on creationg
-        log("       running information creation trigger")
+        exp.log("       running information creation trigger")
         exp.information_creation_trigger(info)
         session.commit()
 
@@ -400,7 +398,7 @@ def api_info(info_uuid):
 
         js = dumps(data)
 
-        log("       returning info uuid, status = 200")
+        exp.log("       returning info uuid, status = 200")
 
         return Response(js, status=200, mimetype='application/json')
 
@@ -410,7 +408,7 @@ def nudge():
     """Call the participant submission trigger for everyone who finished."""
     exp = experiment(session)
 
-    print "Nudging the experiment along."
+    exp.log("Nudging the experiment along.")
 
     # If a participant is hung at status 4, we must have missed the
     # notification saying they had submitted, so we bump them to status 100
@@ -419,7 +417,7 @@ def nudge():
 
     for participant in participants:
 
-        print "Nudging participant {}".format(participant)
+        exp.log("Nudging participant {}".format(participant))
 
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
         if config.getboolean('Database Parameters', 'anonymize_data'):
@@ -427,7 +425,7 @@ def nudge():
         else:
             participant_uuid = participant.uniqueid
 
-        # Assign participant status 4.
+        # Assign participant status 100.
         participant.status = 100
         session_psiturk.commit()
 
@@ -445,7 +443,7 @@ def nudge():
 
     for participant in participants:
 
-        print "Bumping {} from status 3 (with endhit time) to 100."
+        exp.log("Bumping {} from status 3 (with endhit time) to 100.")
 
         participant.status = 100
         session_psiturk.commit()
@@ -464,12 +462,12 @@ def api_notifications():
 
     event_type = request.values['Event.1.EventType']
 
-    log("????? Received an {} notification, identifying participant...".format(event_type))
+    exp.log("Received an {} notification, identifying participant...".format(event_type))
 
     assignment_id = request.values['Event.1.AssignmentId']
 
     if event_type == 'AssignmentAccepted':
-        log("AssignmentAccepted notification received")
+        exp.log("AssignmentAccepted notification received")
         return Response(status=200)
 
     # Transform the assignment id to the SHA512 hash of the unique id from the
@@ -482,7 +480,7 @@ def api_notifications():
         participant = max(participants, key=attrgetter('beginhit'))
 
         key = participant.uniqueid[0:5]
-        log("{} Participant identified as {}".format(key, participant.uniqueid))
+        exp.log("Participant identified as {}".format(participant.uniqueid), key)
 
         # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
         if config.getboolean('Database Parameters', 'anonymize_data'):
@@ -491,17 +489,17 @@ def api_notifications():
             participant_uuid = participant.uniqueid
 
     except:
-        log("????? unable to identify participant.")
-        log("????? returning error, status 200")
+        exp.log("unable to identify participant.")
+        exp.log("returning error, status 200")
         return Response(status=200)
 
-    log("{} {} notification received".format(key, event_type))
+    exp.log("{} notification received".format(event_type), key)
 
     if event_type == 'AssignmentAbandoned':
         if participant.status != 104:
             participant.status = 104
             session_psiturk.commit()
-            log("{} Failing all participant's nodes".format(key))
+            exp.log("Failing all participant's nodes", key)
             nodes = models.Node\
                 .query\
                 .filter_by(participant_uuid=participant_uuid, failed=False)\
@@ -514,7 +512,7 @@ def api_notifications():
         if participant.status != 103:
             participant.status = 103
             session_psiturk.commit()
-            log("{} Failing all participant's nodes".format(key))
+            exp.log("Failing all participant's nodes", key)
             nodes = models.Node\
                 .query\
                 .filter_by(participant_uuid=participant_uuid, failed=False)\
@@ -528,7 +526,7 @@ def api_notifications():
         # Skip if the participant has already submitted.
         if participant.status < 100:
 
-            log("{} status is {}, setting status to 100, running participant_completion_trigger".format(key, participant.status))
+            exp.log("status is {}, setting status to 100, running participant_completion_trigger".format(participant.status), key)
             participant.status = 100
             session_psiturk.commit()
 
@@ -536,10 +534,10 @@ def api_notifications():
                 participant=participant)
 
         else:
-            log("{} Participant status is {}, doing nothing.".format(key, participant.status))
+            exp.log("Participant status is {}, doing nothing.".format(participant.status), key)
 
     else:
-        log("{} Warning: no response for event_type {}".format(key, event_type))
+        exp.log("Warning: no response for event_type {}".format(event_type), key)
 
     return Response(status=200)
 
@@ -556,7 +554,8 @@ def api_notifications():
 @custom_code.route('/quitter', methods=['POST'])
 def quitter():
     """Overide the psiTurk quitter route."""
-    log("Quitter route was hit.")
+    exp = experiment(session)
+    exp.log("Quitter route was hit.")
     return Response(
         dumps({"status": "success"}),
         status=200,

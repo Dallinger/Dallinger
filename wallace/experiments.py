@@ -13,9 +13,9 @@ from datetime import datetime
 
 class Experiment(object):
 
-    def log(self, text):
+    def log(self, text, key="?????"):
         if self.verbose:
-            print ">>>> {}".format(text)
+            print ">>>> {} {}".format(key[0:5], text)
             sys.stdout.flush()
 
     def __init__(self, session):
@@ -147,21 +147,21 @@ class Experiment(object):
         participant_uuid = participant.uniqueid
 
         # Accept the HIT.
-        self.log("{} Approving the assignment on mturk".format(key))
+        self.log("Approving the assignment on mturk", key)
         self.recruiter().approve_hit(assignment_id)
 
         # Reward the bonus.
-        self.log("{} Awarding bonus".format(key))
+        self.log("Awarding bonus", key)
         self.recruiter().reward_bonus(
             assignment_id,
             self.bonus(participant=participant),
             self.bonus_reason())
 
-        self.log("{} Checking participant data".format(key))
+        self.log("Checking participant data", key)
         worked = self.check_participant_data(participant=participant)
 
         if not worked:
-            self.log("{} Participant data check failed: failing nodes, setting status to 105, and re-recruiting participant".format(key))
+            self.log("Participant data check failed: failing nodes, setting status to 105, and re-recruiting participant", key)
 
             for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
                 node.fail()
@@ -171,12 +171,12 @@ class Experiment(object):
             self.recruiter().recruit_participants(n=1)
         else:
             # check participant's performance
-            self.log("{}   Running participant attention check".format(key))
+            self.log("Running participant attention check", key)
             attended = self.participant_attention_check(
                 participant=participant)
 
             if not attended:
-                self.log("{} Attention check failed: failing nodes, setting status to 102, and re-recruiting participant".format(key))
+                self.log("Attention check failed: failing nodes, setting status to 102, and re-recruiting participant", key)
 
                 for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
                     node.fail()
@@ -185,7 +185,7 @@ class Experiment(object):
                 session_psiturk.commit()
                 self.recruiter().recruit_participants(n=1)
             else:
-                self.log("{} Attention check passed: setting status to 101 and running recruit()".format(key))
+                self.log("Attention check passed: setting status to 101 and running recruit()", key)
                 participant.status = 101
                 session_psiturk.commit()
                 self.recruit()
