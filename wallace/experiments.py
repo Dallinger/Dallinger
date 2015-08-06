@@ -1,10 +1,14 @@
 """The base experiment class."""
 
 from wallace.models import Network, Node
+from psiturk.db import db_session as session_psiturk
+from wallace.nodes import Agent
 from sqlalchemy import and_
 import random
 import inspect
 import sys
+
+from datetime import datetime
 
 
 class Experiment(object):
@@ -134,15 +138,13 @@ class Experiment(object):
         return newcomer
 
     def participant_submission_trigger(
-            self, participant_uuid=None):
+            self, participant=None):
         """Check performance and recruit new participants as needed."""
         # Check that the particpant's performance was acceptable.
 
-        from psiturk.models import Participant
-
-        key = participant_uuid[0:5]
-        worker_id, assignment_id = participant_uuid.split(':')
-        participant = Participant.query.filter_by(uniqueid=participant_uuid).one()
+        key = participant.uniqueid[0:5]
+        assignment_id = participant.assignmentid
+        participant_uuid = participant.uniqueid
 
         # Accept the HIT.
         self.log("{} Approving the assignment on mturk".format(key))
@@ -152,13 +154,13 @@ class Experiment(object):
         self.log("{} Awarding bonus".format(key))
         self.recruiter().reward_bonus(
             assignment_id,
-            self.bonus(participant_uuid=participant_uuid),
+            self.bonus(participant=participant),
             self.bonus_reason())
 
         # check participant's performance
         self.log("{}   Running participant attention check".format(key))
         attended = self.participant_attention_check(
-            participant_uuid=participant_uuid)
+            participant=participant)
 
         if not attended:
             self.log("{} Attention check failed: failing nodes, setting status to 102, and re-recruiting participant".format(key))
@@ -167,10 +169,12 @@ class Experiment(object):
                 node.fail()
 
             participant.status = 102
+            session_psiturk.commit()
             self.recruiter().recruit_participants(n=1)
         else:
             self.log("{} Attention check passed: setting status to 101 and running recruit()".format(key))
             participant.status = 101
+            session_psiturk.commit()
             self.recruit()
 
     def recruit(self):
@@ -180,7 +184,7 @@ class Experiment(object):
         else:
             self.recruiter().close_recruitment()
 
-    def bonus(self, participant_uuid=None):
+    def bonus(self, participant=None):
         """The bonus to be awarded to the given participant."""
         return 0
 
@@ -188,6 +192,6 @@ class Experiment(object):
         """The reason offered to the participant for giving the bonus."""
         return "Thank for participating! Here is your bonus."
 
-    def participant_attention_check(self, participant_uuid=None):
+    def participant_attention_check(self, participant=None):
         """Check if participant performed adequately."""
         return True
