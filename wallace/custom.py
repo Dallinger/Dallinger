@@ -85,13 +85,13 @@ def api_agent_create():
     exp = experiment(session)
 
     if request.method == 'POST':
-        unique_id = request.values["unique_id"]
-        key = unique_id[0:5]
+        participant_uuid = request.values["unique_id"]
+        key = participant_uuid[0:5]
 
-        exp.log("Received POST request to /agents for participant {}".format(unique_id), key)
+        exp.log("Received POST request to /agents for participant {}".format(participant_uuid), key)
 
         participant = Participant.query.\
-            filter(Participant.uniqueid == unique_id).\
+            filter(Participant.uniqueid == participant_uuid).\
             one()
         exp.log("Successfully located participant", key)
 
@@ -99,12 +99,6 @@ def api_agent_create():
             exp.log("Participant status is {} - no new nodes will be made for them".
                     format(participant.status), key)
             return Response(status=403)
-
-        if config.getboolean('Database Parameters', 'anonymize_data'):
-            exp.log("hashing participant id", key)
-            participant_uuid = hashlib.sha512(unique_id).hexdigest()
-        else:
-            participant_uuid = unique_id
 
         exp.log("Participant status is {}, assigning them a new node".format(participant.status), key)
         newcomer = exp.assign_agent_to_participant(participant_uuid)
@@ -384,12 +378,7 @@ def nudge():
     for participant in participants:
 
         exp.log("Nudging participant {}".format(participant))
-
-        # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
-        if config.getboolean('Database Parameters', 'anonymize_data'):
-            participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
-        else:
-            participant_uuid = participant.uniqueid
+        participant_uuid = participant.uniqueid
 
         # Assign participant status 100.
         participant.status = 100
@@ -408,9 +397,7 @@ def nudge():
             Participant.endhit != None)).all()
 
     for participant in participants:
-
         exp.log("Bumping {} from status 3 (with endhit time) to 100.")
-
         participant.status = 100
         session_psiturk.commit()
 
@@ -444,15 +431,10 @@ def api_notifications():
             all()
 
         participant = max(participants, key=attrgetter('beginhit'))
+        participant_uuid = participant.uniqueid
 
-        key = participant.uniqueid[0:5]
-        exp.log("Participant identified as {}".format(participant.uniqueid), key)
-
-        # Anonymize the data by storing a SHA512 hash of the psiturk uniqueid.
-        if config.getboolean('Database Parameters', 'anonymize_data'):
-            participant_uuid = hashlib.sha512(participant.uniqueid).hexdigest()
-        else:
-            participant_uuid = participant.uniqueid
+        key = participant_uuid[0:5]
+        exp.log("Participant identified as {}".format(participant_uuid), key)
 
     except:
         exp.log("unable to identify participant.")
