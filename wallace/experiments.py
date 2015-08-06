@@ -157,25 +157,38 @@ class Experiment(object):
             self.bonus(participant=participant),
             self.bonus_reason())
 
-        # check participant's performance
-        self.log("{}   Running participant attention check".format(key))
-        attended = self.participant_attention_check(
-            participant=participant)
+        self.log("{} Checking participant data".format(key))
+        worked = self.check_participant_data(participant=participant)
 
-        if not attended:
-            self.log("{} Attention check failed: failing nodes, setting status to 102, and re-recruiting participant".format(key))
+        if not worked:
+            self.log("{} Participant data check failed: failing nodes, setting status to 105, and re-recruiting participant".format(key))
 
             for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
                 node.fail()
 
-            participant.status = 102
+            participant.status = 105
             session_psiturk.commit()
             self.recruiter().recruit_participants(n=1)
         else:
-            self.log("{} Attention check passed: setting status to 101 and running recruit()".format(key))
-            participant.status = 101
-            session_psiturk.commit()
-            self.recruit()
+            # check participant's performance
+            self.log("{}   Running participant attention check".format(key))
+            attended = self.participant_attention_check(
+                participant=participant)
+
+            if not attended:
+                self.log("{} Attention check failed: failing nodes, setting status to 102, and re-recruiting participant".format(key))
+
+                for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
+                    node.fail()
+
+                participant.status = 102
+                session_psiturk.commit()
+                self.recruiter().recruit_participants(n=1)
+            else:
+                self.log("{} Attention check passed: setting status to 101 and running recruit()".format(key))
+                participant.status = 101
+                session_psiturk.commit()
+                self.recruit()
 
     def recruit(self):
         """Recruit participants to the experiment as needed."""
@@ -194,4 +207,8 @@ class Experiment(object):
 
     def participant_attention_check(self, participant=None):
         """Check if participant performed adequately."""
+        return True
+
+    def check_participant_data(self, particpant=None):
+        """Check the data is as it should be"""
         return True
