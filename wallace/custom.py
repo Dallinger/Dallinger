@@ -534,7 +534,6 @@ def api_notifications():
 
             exp.participant_submission_trigger(
                 participant=participant)
-            session_psiturk.commit()
 
         else:
             log("{} Participant status is {}, doing nothing.".format(key, participant.status))

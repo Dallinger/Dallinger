@@ -1,6 +1,7 @@
 """The base experiment class."""
 
 from wallace.models import Network, Node
+from psiturk.db import db_session as session_psiturk
 from wallace.nodes import Agent
 from sqlalchemy import and_
 import random
@@ -168,10 +169,12 @@ class Experiment(object):
                 node.fail()
 
             participant.status = 102
+            session_psiturk.commit()
             self.recruiter().recruit_participants(n=1)
         else:
             self.log("{} Attention check passed: setting status to 101 and running recruit()".format(key))
             participant.status = 101
+            session_psiturk.commit()
             self.recruit()
 
     def recruit(self):
