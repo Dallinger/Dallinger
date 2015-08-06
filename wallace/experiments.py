@@ -142,7 +142,7 @@ class Experiment(object):
 
         key = participant_uuid[0:5]
         worker_id, assignment_id = participant_uuid.split(':')
-        participant = Participant.query.filter_by(unqiueid=participant_uuid).one()
+        participant = Participant.query.filter_by(uniqueid=participant_uuid).one()
 
         # Accept the HIT.
         self.log("{} Approving the assignment on mturk".format(key))
