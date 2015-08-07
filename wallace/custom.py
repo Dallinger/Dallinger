@@ -396,34 +396,24 @@ def api_notifications():
     """Receive notifications from MTurk REST notifications."""
 
     exp = experiment(session)
-
     event_type = request.values['Event.1.EventType']
-
-    exp.log("Received an {} notification, identifying participant...".format(event_type))
-
     assignment_id = request.values['Event.1.AssignmentId']
 
     if event_type == 'AssignmentAccepted':
         exp.log("AssignmentAccepted notification received")
         return Response(status=200)
 
-    # Transform the assignment id to the SHA512 hash of the unique id from the
-    # psiTurk table.
-    try:
-        participants = Participant.query.\
-            filter(Participant.assignmentid == assignment_id).\
-            all()
-
+    participants = Participant.query.\
+        filter(Participant.assignmentid == assignment_id).\
+        all()
+    if len(participants) > 1:
         participant = max(participants, key=attrgetter('beginhit'))
-        participant_uuid = participant.uniqueid
-
-        key = participant_uuid[0:5]
-        exp.log("Participant identified as {}".format(participant_uuid), key)
-
-    except:
-        exp.log("unable to identify participant.")
-        exp.log("returning error, status 200")
+    elif len(participants) == 0:
+        exp.log("Error: Received an {} notification, but unable to identify participant. Returning status 200".format(event_type))
         return Response(status=200)
+    else:
+        participant = participants[0]
+    key = participant.uniqueid[0:5]
 
     exp.log("{} notification received".format(event_type), key)
 
