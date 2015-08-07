@@ -236,20 +236,13 @@ def api_info(info_uuid):
 
     if request.method == 'GET':
 
-        exp.log("       Recevied an information GET request")
-
         if info_uuid is not None:
 
-            exp.log("       Getting requested info")
-            try:
-                info_uuid = int(info_uuid)
-            except:
-                exp.log("       info_uuid {} is not an int, critical error, returning status 403".format(info_uuid))
-                return Response(status=403)
+            exp.log("Received an /information get request for info {}".format(info_uuid), info_uuid)
             try:
                 info = models.Info.query.filter_by(uuid=info_uuid).one()
             except:
-                exp.log("       Info does not exist, critical error, returning status = 403")
+                exp.log("Error: Info {} does not exist, returning status = 403")
                 return Response(status=403)
 
             data = {
@@ -262,13 +255,18 @@ def api_info(info_uuid):
 
             js = dumps(data, default=date_handler)
 
-            exp.log("       returning info, status = 200")
-
+            exp.log("Info successfully located, returning info, status = 200", info_uuid)
             return Response(js, status=200, mimetype='application/json')
 
         else:
 
-            exp.log("       Getting all infos")
+            try:
+                origin_uuid = request.values['origin_uuid']
+            except:
+                exp.log("Error: Received an information get request but neither info_uuid or origin_uuid specified. Returning status 403")
+                return Response(status=403)
+
+            exp.log("Received an /information GET request from node {}".format(origin_uuid), origin_uuid)
 
             infos = models.Info\
                 .query\
@@ -288,50 +286,41 @@ def api_info(info_uuid):
 
                 js = dumps({"information": data_information}, default=date_handler)
 
-                exp.log("       returning infos, status = 200")
+                exp.log("eturning infos, status = 200", origin_uuid)
                 return Response(js, status=200, mimetype='application/json')
             else:
-                exp.log("       there were no infos to get! Returning status 200")
+                exp.log("Warning: There were no infos to get. Returning status 200", origin_uuid)
                 return Response(status=200)
 
     if request.method == "POST":
 
-        exp.log("       Received an information POST request")
-
         try:
             origin_uuid = request.values['origin_uuid']
         except:
-            exp.log("       origin uuid not specified, critical error, returning status = 403")
+            exp.log("Error: received information POST request, but origin_uuid not specified. Returning status 403")
             return Response(status=403)
         try:
-            origin_uuid = int(origin_uuid)
+            cnts = urllib.unquote(request.values['contents']).decode('utf8')
         except:
-            exp.log("       origin uuid {} is not an int, ciritical error, returning status 403".format(origin_uuid))
+            exp.log("Error: received information POST request from Node {}, but contents not specified. Returning status 403".format(origin_uuid), origin_uuid)
             return Response(status=403)
+        try:
+            info_type = request.values['info_type']
+        except:
+            exp.log("Error: received information POST request from Node {}, but info_type not specified. Returning status 403".format(origin_uuid), origin_uuid)
+            return Response(status=403)
+        exp.log("Received an information post request from node {}".format(origin_uuid), origin_uuid)
 
-        # models
         try:
             node = models.Node\
                 .query\
                 .filter_by(uuid=origin_uuid)\
                 .one()
         except:
-            exp.log("       Origin node does not exist, critical error, returning status = 403")
-            return Response(status=403)
-
-        try:
-            cnts = urllib.unquote(request.values['contents']).decode('utf8')
-        except:
-            exp.log("       Contents do not exist or cannot be decoded, critical error, returning status = 403")
+            exp.log("Error: Node {} does not exist, returning status = 403".format(origin_uuid), origin_uuid)
             return Response(status=403)
 
         # Create an Info of the requested type.
-        try:
-            info_type = request.values['info_type']
-        except:
-            exp.log("       info_type not specified, critical error, returning status = 403")
-            return Response(status=403)
-
         if (info_type is None) or (info_type == "base"):
             cls = models.Info
 
@@ -345,25 +334,21 @@ def api_info(info_uuid):
             cls = information.State
 
         else:
-            exp.log("Requested info_type does not exist., returning status = 403")
+            exp.log("Error: Requested info_type does not exist, returning status = 403", format(origin_uuid))
             return Response(status=403)
 
-        exp.log("       making info")
         info = cls(
             origin=node,
             contents=cnts)
 
         # Trigger experiment-specific behavior that happens on creationg
-        exp.log("       running information creation trigger")
+        exp.log("Info successfully made, running information creation trigger", origin_uuid)
         exp.information_creation_trigger(info)
         session.commit()
 
         data = {'uuid': info.uuid}
-
         js = dumps(data)
-
-        exp.log("       returning info uuid, status = 200")
-
+        exp.log("Success, returning info uuid, status = 200", origin_uuid)
         return Response(js, status=200, mimetype='application/json')
 
 
