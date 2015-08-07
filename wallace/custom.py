@@ -84,13 +84,12 @@ def api_agent_create():
     exp = experiment(session)
 
     if request.method == 'POST':
-        unique_id = request.values["unique_id"]
-        key = unique_id[0:5]
+        participant_uuid = request.values["unique_id"]
+        key = participant_uuid[0:5]
 
-        exp.log("Received POST request to /agents for participant {}".format(unique_id), key)
-        exp.log("Getting participant...", key)
+        exp.log("Received POST request to /agents for participant {}".format(participant_uuid), key)
         participant = Participant.query.\
-            filter(Participant.uniqueid == unique_id).all()
+            filter(Participant.uniqueid == participant_uuid).all()
         if len(participant) == 0:
             exp.log("Error: there are not participants with that id. Returning status 403", key)
             return Response(status=403)
@@ -130,7 +129,6 @@ def api_transmission(transmission_uuid):
     if request.method == 'GET':
 
         destination_uuid = request.values['destination_uuid']
-
         exp.log("Recevied a Transmission GET request", destination_uuid)
 
         # Given a receiving agent, get its pending transmissions
@@ -182,9 +180,13 @@ def api_transmission(transmission_uuid):
 
     if request.method == "POST":
 
-        origin_uuid = request.values['origin_uuid']
-        info_uuid = request.values['info_uuid']
-        destination_uuid = request.values['destination_uuid']
+        try:
+            origin_uuid = request.values['origin_uuid']
+            info_uuid = request.values['info_uuid']
+            destination_uuid = request.values['destination_uuid']
+        except:
+            exp.log("Error: Recevied a transmission POST request, but origin_uuid, destination_uuid or info_uuid not specified. Returning status 403")
+            return Response(status=403)
 
         exp.log("Received a transmission post request to send info {} from node {} to node {}".format(info_uuid, origin_uuid, destination_uuid), origin_uuid)
 
@@ -202,7 +204,7 @@ def api_transmission(transmission_uuid):
                 .query.filter_by(uuid=origin_uuid)\
                 .one()
         except:
-            exp.log("Error: Node {} does not exist, critical error, returning status 403".format(origin_uuid), origin_uuid)
+            exp.log("Error: Node {} does not exist, returning status 403".format(origin_uuid), origin_uuid)
             return Response(status=403)
 
         try:
@@ -238,7 +240,7 @@ def api_info(info_uuid):
 
         if info_uuid is not None:
 
-            exp.log("Received an /information get request for info {}".format(info_uuid), info_uuid)
+            exp.log("Received an /information GET request for info {}".format(info_uuid), info_uuid)
             try:
                 info = models.Info.query.filter_by(uuid=info_uuid).one()
             except:
@@ -255,7 +257,7 @@ def api_info(info_uuid):
 
             js = dumps(data, default=date_handler)
 
-            exp.log("Info successfully located, returning info, status = 200", info_uuid)
+            exp.log("Success: returning info, status = 200", info_uuid)
             return Response(js, status=200, mimetype='application/json')
 
         else:
@@ -270,7 +272,7 @@ def api_info(info_uuid):
 
             infos = models.Info\
                 .query\
-                .filter_by(origin_uuid=request.values['origin_uuid'])\
+                .filter_by(origin_uuid=origin_uuid)\
                 .all()
 
             if infos:
@@ -286,10 +288,10 @@ def api_info(info_uuid):
 
                 js = dumps({"information": data_information}, default=date_handler)
 
-                exp.log("eturning infos, status = 200", origin_uuid)
+                exp.log("Success: Returning infos, status = 200", origin_uuid)
                 return Response(js, status=200, mimetype='application/json')
             else:
-                exp.log("Warning: There were no infos to get. Returning status 200", origin_uuid)
+                exp.log("Warning: Node {} has no infos. Returning status 200".format(origin_uuid), origin_uuid)
                 return Response(status=200)
 
     if request.method == "POST":
@@ -304,11 +306,7 @@ def api_info(info_uuid):
         except:
             exp.log("Error: received information POST request from Node {}, but contents not specified. Returning status 403".format(origin_uuid), origin_uuid)
             return Response(status=403)
-        try:
-            info_type = request.values['info_type']
-        except:
-            exp.log("Error: received information POST request from Node {}, but info_type not specified. Returning status 403".format(origin_uuid), origin_uuid)
-            return Response(status=403)
+        info_type = request.values['info_type']
         exp.log("Received an information post request from node {}".format(origin_uuid), origin_uuid)
 
         try:
@@ -323,20 +321,17 @@ def api_info(info_uuid):
         # Create an Info of the requested type.
         if (info_type is None) or (info_type == "base"):
             cls = models.Info
-
         elif info_type == "meme":
             cls = information.Meme
-
         elif info_type == "gene":
             cls = information.Gene
-
         elif info_type == "state":
             cls = information.State
-
         else:
-            exp.log("Error: Requested info_type does not exist, returning status = 403", format(origin_uuid))
+            exp.log("Error: Requested info_type does not exist, returning status = 403", origin_uuid)
             return Response(status=403)
 
+        exp.log("Making info", origin_uuid)
         info = cls(
             origin=node,
             contents=cnts)
