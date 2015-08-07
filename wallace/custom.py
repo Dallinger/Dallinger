@@ -84,35 +84,38 @@ def api_agent_create():
     exp = experiment(session)
 
     if request.method == 'POST':
-        participant_uuid = request.values["unique_id"]
-        key = participant_uuid[0:5]
+        unique_id = request.values["unique_id"]
+        key = unique_id[0:5]
 
-        exp.log("Received POST request to /agents for participant {}".format(participant_uuid), key)
-
+        exp.log("Received POST request to /agents for participant {}".format(unique_id), key)
+        exp.log("Getting participant...", key)
         participant = Participant.query.\
-            filter(Participant.uniqueid == participant_uuid).\
-            one()
-        exp.log("Successfully located participant", key)
+            filter(Participant.uniqueid == unique_id).all()
+        if len(participant) == 0:
+            exp.log("Error: there are not participants with that id. Returning status 403", key)
+            return Response(status=403)
+        if len(participant) > 1:
+            exp.log("Error: there are multiple participants with that id. Returning status 403", key)
+            return Response(status=403)
+        participant = participant[0]
 
+        exp.log("Checking participant status", key)
         if participant.status not in [1, 2]:
-            exp.log("Participant status is {} - no new nodes will be made for them".
+            exp.log("Error: Participant status is {} they should not have been able to contact this route. Returning status 403.".
                     format(participant.status), key)
             return Response(status=403)
 
-        exp.log("Participant status is {}, assigning them a new node".format(participant.status), key)
+        exp.log("Assigning participant a new node".format(participant.status), key)
         newcomer = exp.assign_agent_to_participant(participant_uuid)
-
         session.commit()
 
         if newcomer is not None:
-            exp.log("Participant has been assigned Node {}".format(newcomer.uuid), key)
+            exp.log("Participant has been assigned Node {}, returning status 200".format(newcomer.uuid), key)
             data = {'agents': {'uuid': newcomer.uuid}}
             js = dumps(data)
-            exp.log("Returning status 200", key)
             return Response(js, status=200, mimetype='application/json')
         else:
-            exp.log("Node failed to be made for participant", key)
-            exp.log("Returning status 403", key)
+            exp.log("Node not made for participant, hopefully because they are finished, returning status 403", key)
             return Response(status=403)
 
 
