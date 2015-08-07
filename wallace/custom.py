@@ -129,34 +129,34 @@ def api_transmission(transmission_uuid):
 
     if request.method == 'GET':
 
-        exp.log("Recevied a Transmission GET request")
+        destination_uuid = request.values['destination_uuid']
+
+        exp.log("Recevied a Transmission GET request", destination_uuid)
 
         # Given a receiving agent, get its pending transmissions
         if transmission_uuid is None:
-            exp.log("       Getting all pending transmissions")
+            exp.log("Getting all pending transmissions", destination_uuid)
             pending_transmissions = models.Transmission\
                 .query\
-                .filter_by(destination_uuid=request.values['destination_uuid'],
+                .filter_by(destination_uuid=destination_uuid,
                            receive_time=None)\
                 .all()
 
         # Or given a uuid, get the transmission with the given id
         else:
-            exp.log("       Getting transmission {}".format(transmission_uuid))
+            exp.log("Getting transmission {}".format(transmission_uuid), destination_uuid)
             try:
                 transmission = models.Transmission\
                     .query\
                     .filter_by(uuid=transmission_uuid)\
                     .one()
             except:
-                exp.log("       Transmission does not exist, critical error")
+                exp.log("Error: Transmission {} does not exist. Returning status 403".format(transmission_uuid), destination_uuid)
                 return Response(status=403)
             pending_transmissions = [transmission]
 
-        exp.log("       {}".format(pending_transmissions))
-        exp.log("       Running transmission_reception_trigger")
+        exp.log("Running transmission_reception_trigger", destination_uuid)
         exp.transmission_reception_trigger(pending_transmissions)
-
         session.commit()
 
         # Build a dict with info about the transmissions
@@ -172,7 +172,7 @@ def api_transmission(transmission_uuid):
             })
         data = {"transmissions": data_transmissions}
 
-        exp.log("       returning transmissions, status 200")
+        exp.log("Returning transmissions, status 200", destination_uuid)
 
         def date_handler(obj):
             return obj.isoformat() if hasattr(obj, 'isoformat') else obj
@@ -182,42 +182,44 @@ def api_transmission(transmission_uuid):
 
     if request.method == "POST":
 
-        exp.log("       Received a transmission post Request")
+        origin_uuid = request.values['origin_uuid']
+        info_uuid = request.values['info_uuid']
+        destination_uuid = request.values['destination_uuid']
+
+        exp.log("Received a transmission post request to send info {} from node {} to node {}".format(info_uuid, origin_uuid, destination_uuid), origin_uuid)
 
         try:
             info = models.Info\
                 .query\
-                .filter_by(uuid=request.values['info_uuid'])\
+                .filter_by(uuid=info_uuid)\
                 .one()
         except:
-            exp.log("       Info does not exist, critical error, returning status 403")
+            exp.log("Error: Info {} does not exist, returning status 403".format(info_uuid), origin_uuid)
             return Response(status=403)
 
         try:
             origin = models.Node\
-                .query.filter_by(uuid=request.values['origin_uuid'])\
+                .query.filter_by(uuid=origin_uuid)\
                 .one()
         except:
-            exp.log("       Origin does not exist, critical error, returning status 403")
+            exp.log("Error: Node {} does not exist, critical error, returning status 403".format(origin_uuid), origin_uuid)
             return Response(status=403)
 
         try:
             destination = nodes.Agent\
-                .query.filter_by(uuid=request.values['destination_uuid'])\
+                .query.filter_by(uuid=destination_uuid)\
                 .one()
         except:
-            exp.log("       Desintation does not exist, critical error, returning status 403")
+            exp.log("Error: Node {} does not exist, returning status 403".format(destination_uuid), origin_uuid)
             return Response(status=403)
 
-        exp.log("       Transmitting...")
+        exp.log("Transmitting...", origin_uuid)
         transmission = origin.transmit(what=info, to_whom=destination)
-
         session.commit()
 
         data = {'uuid': transmission.uuid}
         js = dumps(data)
-
-        exp.log("       Returning transmission uuid, status = 200")
+        exp.log("Transmission successful, returning transmission uuid and status = 200")
         return Response(js, status=200, mimetype='application/json')
 
 
