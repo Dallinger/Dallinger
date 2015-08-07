@@ -100,7 +100,7 @@ class Experiment(object):
             return None
 
         self.log("{} networks out of {} available"
-                 .format(key, len(legal_networks),
+                 .format(len(legal_networks),
                         (self.practice_repeats + self.experiment_repeats)),
                  key)
 
