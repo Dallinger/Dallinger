@@ -96,28 +96,24 @@ class Experiment(object):
         legal_networks = [net for net in networks_with_space if net.uuid not in networks_participated_in]
 
         if not legal_networks:
-            if self.verbose:
-                print ">>>>{}   No networks available, returning None".format(key)
+            self.log("No networks available, returning None", key)
             return None
 
-        if self.verbose:
-            print ">>>>{}   {} networks out of {} available to participant"\
-                .format(key, len(legal_networks),
-                        (self.practice_repeats + self.experiment_repeats))
+        self.log("{} networks out of {} available"
+                 .format(key, len(legal_networks),
+                        (self.practice_repeats + self.experiment_repeats)),
+                 key)
 
         legal_practice_networks = [net for net in legal_networks if net.role == "practice"]
         if legal_practice_networks:
             chosen_network = legal_practice_networks[0]
-            if self.verbose:
-                print ">>>>{}   Practice networks available. Assigning participant to practice network {}.".format(key, chosen_network.uuid)
+            self.log("Practice networks available. Assigning participant to practice network {}.".format(chosen_network.uuid), key)
         else:
             chosen_network = random.choice(legal_networks)
-            if self.verbose:
-                print ">>>>{}   No practice networks available. Assigning participant to experiment network {}".format(key, chosen_network.uuid)
+            self.log("No practice networks available. Assigning participant to experiment network {}".format(chosen_network.uuid), key)
 
         # Generate the right kind of newcomer and assign them to the network.
-        if self.verbose:
-            print ">>>>{}   Generating node".format(key)
+        self.log("Generating node", key)
         if inspect.isclass(self.agent):
             if issubclass(self.agent, Node):
                 newcomer = self.agent(participant_uuid=participant_uuid, network=chosen_network)
@@ -125,16 +121,14 @@ class Experiment(object):
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
             newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid, network=chosen_network)
-        if self.verbose:
-            print ">>>>{}   Node successfully generated".format(key, newcomer.uuid)
-            print ">>>>{}   Re-calculcating if network is full".format(key)
 
+        self.log("Node {} successfully generated, recalculating if network is full".format(newcomer.uuid), key)
         chosen_network.calculate_full()
-        if self.verbose:
-            print ">>>>{}   running exp.create_agent_trigger".format(key)
+
+        self.log("running exp.create_agent_trigger", key)
         self.create_agent_trigger(agent=newcomer, network=chosen_network)
-        if self.verbose:
-            print ">>>>{}   exp.create_agent_trigger completed".format(key)
+
+        self.log("exp.create_agent_trigger completed, returning node", key)
         return newcomer
 
     def participant_submission_trigger(
@@ -161,7 +155,7 @@ class Experiment(object):
         worked = self.check_participant_data(participant=participant)
 
         if not worked:
-            self.log("Participant data check failed: failing nodes, setting status to 105, and re-recruiting participant", key)
+            self.log("Participant data check failed: failing nodes, setting status to 105, and recruiting replacement participant", key)
 
             for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
                 node.fail()
@@ -177,7 +171,7 @@ class Experiment(object):
                 participant=participant)
 
             if not attended:
-                self.log("Attention check failed: failing nodes, setting status to 102, and re-recruiting participant", key)
+                self.log("Attention check failed: failing nodes, setting status to 102, and recruiting replacement participant", key)
 
                 for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
                     node.fail()
@@ -187,7 +181,7 @@ class Experiment(object):
                 session_psiturk.commit()
                 self.recruiter().recruit_participants(n=1)
             else:
-                self.log("Attention check passed: setting status to 101 and running recruit()", key)
+                self.log("All checks passed: setting status to 101 and running recruit()", key)
                 participant.status = 101
                 session_psiturk.commit()
                 self.recruit()
@@ -195,8 +189,10 @@ class Experiment(object):
     def recruit(self):
         """Recruit participants to the experiment as needed."""
         if self.networks(full=False):
+            self.log("Network space available: recruiting 1 more participant", "-----")
             self.recruiter().recruit_participants(n=1)
         else:
+            self.log("All networks full: closing recruitment", "-----")
             self.recruiter().close_recruitment()
 
     def bonus(self, participant=None):
