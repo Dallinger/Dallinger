@@ -413,7 +413,8 @@ def api_notifications():
         return Response(status=200)
     else:
         participant = participants[0]
-    key = participant.uniqueid[0:5]
+    participant_uuid = participant.uniqueid
+    key = participant_uuid[0:5]
 
     exp.log("{} notification received".format(event_type), key)
 
