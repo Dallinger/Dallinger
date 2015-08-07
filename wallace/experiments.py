@@ -145,11 +145,16 @@ class Experiment(object):
         self.recruiter().approve_hit(assignment_id)
 
         # Reward the bonus.
-        self.log("Awarding bonus", key)
-        self.recruiter().reward_bonus(
-            assignment_id,
-            self.bonus(participant=participant),
-            self.bonus_reason())
+        self.log("Calculating bonus", key)
+        bonus = self.bonus(participant=participant)
+        if bonus >= 0.01:
+            self.log("Bonus > 0.01: paying bonus", key)
+            self.recruiter().reward_bonus(
+                assignment_id,
+                self.bonus(participant=participant),
+                self.bonus_reason())
+        else:
+            self.log("bonus < 0.01: not paying bonus", key)
 
         self.log("Checking participant data", key)
         worked = self.check_participant_data(participant=participant)
