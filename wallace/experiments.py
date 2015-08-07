@@ -2,6 +2,7 @@
 
 from wallace.models import Network, Node
 from psiturk.db import db_session as session_psiturk
+from psiturk.models import Participant
 from wallace.nodes import Agent
 from sqlalchemy import and_
 import random
@@ -190,6 +191,15 @@ class Experiment(object):
                 participant.status = 101
                 session_psiturk.commit()
                 self.recruit()
+
+        participants = Participant.query.with_entities(Participant.status).all()
+        statuses = [p.status for p in participants]
+        status_set = set(statuses)
+        key = "Summary:"
+        self.log("printing status summary", key)
+        for status in status_set:
+            self.log("{} participants with status {}".format(len([s for s in statuses if s == status]), status), key)
+        self.log("end of status summary", key)
 
     def recruit(self):
         """Recruit participants to the experiment as needed."""
