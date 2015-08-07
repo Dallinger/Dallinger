@@ -57,7 +57,7 @@ def launch():
     exp = experiment(db.init_db(drop_all=False))
     exp.log("Launch route hit, laucnhing experiment", "-----")
     exp.log("Experiment launching, initiailizing tables", "-----")
-    init_db()  # Initialize psiTurk tables.
+    init_db()
     exp.log("Experiment launching, opening recruitment", "-----")
     exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
 
@@ -65,7 +65,6 @@ def launch():
     session.commit()
 
     exp.log("Experiment successfully launched, retuning status 200", "-----")
-    # Return a response.
     data = {"status": "launched"}
     js = dumps(data)
     return Response(js, status=200, mimetype='application/json')
