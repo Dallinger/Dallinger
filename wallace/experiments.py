@@ -149,7 +149,7 @@ class Experiment(object):
         self.log("Calculating bonus", key)
         bonus = self.bonus(participant=participant)
         if bonus >= 0.01:
-            self.log("Bonus > 0.01: paying bonus", key)
+            self.log("Bonus >= 0.01: paying bonus", key)
             self.recruiter().reward_bonus(
                 assignment_id,
                 bonus,
