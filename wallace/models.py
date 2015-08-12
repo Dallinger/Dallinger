@@ -8,7 +8,6 @@ from .db import Base
 from sqlalchemy import ForeignKey, or_, and_
 from sqlalchemy import Column, String, Text, Enum, Integer, Boolean, DateTime
 from sqlalchemy.orm import relationship, validates
-from sqlalchemy.ext.associationproxy import association_proxy
 
 import inspect
 

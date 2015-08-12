@@ -3,13 +3,10 @@
 from wallace.models import Network, Node
 from psiturk.db import db_session as session_psiturk
 from psiturk.models import Participant
-from wallace.nodes import Agent
 from sqlalchemy import and_
 import random
 import inspect
 import sys
-
-from datetime import datetime
 
 
 class Experiment(object):
