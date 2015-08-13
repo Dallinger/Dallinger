@@ -5,7 +5,8 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 import os
 
-db_url = os.environ.get("DATABASE_URL", "postgresql://postgres@localhost/wallace")
+db_url_default = "postgresql://postgres@localhost/wallace"
+db_url = os.environ.get("DATABASE_URL", db_url_default)
 engine = create_engine(db_url, pool_size=1000)
 Session = scoped_session(sessionmaker(autoflush=True, bind=engine))
 

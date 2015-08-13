@@ -35,7 +35,9 @@ def moran_cultural(network):
 
         from operator import attrgetter
 
-        replacer.transmit(what=max(replacer.infos(), key=attrgetter('creation_time')), to_whom=replaced)
+        replacer.transmit(
+            what=max(replacer.infos(), key=attrgetter('creation_time')),
+            to_whom=replaced)
 
 
 def moran_sexual(network):
