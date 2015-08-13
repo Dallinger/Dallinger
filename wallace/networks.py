@@ -10,6 +10,7 @@ class Chain(Network):
 
     """
     Source -> Agent -> Agent -> Agent -> ...
+
     The source is optional and can be added at any time
     """
 
@@ -17,8 +18,6 @@ class Chain(Network):
 
     def add_agent(self, newcomer):
         """Add an agent, connecting it to the previous node."""
-        #self.add(newcomer)
-
         agents = self.nodes(type=Agent)
         other_agents = [a for a in agents if a.uuid != newcomer.uuid]
 
@@ -44,10 +43,7 @@ class Chain(Network):
 
 class FullyConnected(Network):
 
-    """
-    A fully-connected network (complete graph) with all possible vectors.
-    i.e., everyone connects to everyone else
-    """
+    """A fully-connected network (complete graph) with all possible vectors."""
 
     __mapper_args__ = {"polymorphic_identity": "fully-connected"}
 
@@ -66,8 +62,9 @@ class FullyConnected(Network):
 
 class Star(Network):
 
-    """
-    A star network has a central node, with a pair of vectors, incoming and
+    """A star network.
+
+    A star newtork has a central node with a pair of vectors, incoming and
     outgoing, with all other nodes.
     """
 
@@ -86,16 +83,16 @@ class Star(Network):
 
 class Burst(Network):
 
-    """
-    A burst network has a central node with an outgoing connection to all the
-    other nodes.
+    """A burst network.
+
+    A burst network has a central node with an outgoing connection to each of
+    the other nodes.
     """
 
     __mapper_args__ = {"polymorphic_identity": "burst"}
 
     def add_agent(self, newcomer):
         """Add an agent and connect it to the center."""
-
         agents = self.nodes(type=Agent)
 
         if len(agents) > 1:
@@ -106,12 +103,14 @@ class Burst(Network):
 
 class DiscreteGenerational(Network):
 
-    """
-    A discrete generational network arranges agents into none-overlapping generations.
-    Each agent is connected to all agents in the previous generation.
-    If initial_source is true agents in the first generation will connect to the first source.
-    generation_size dictates how many agents are in each generation, generations sets
-    how many generations the networks involves.
+    """A discrete generational network.
+
+    A discrete generational network arranges agents into none-overlapping
+    generations. Each agent is connected to all agents in the previous
+    generation. If initial_source is true agents in the first generation will
+    connect to the first source. generation_size dictates how many agents are
+    in each generation, generations sets how many generations the networks
+    involves.
     """
 
     __mapper_args__ = {"polymorphic_identity": "discrete-generational"}
@@ -166,8 +165,7 @@ class DiscreteGenerational(Network):
 
 class ScaleFree(Network):
 
-    """
-    Barabasi-Albert (1999) model for constructing a scale-free network.
+    """Barabasi-Albert (1999) model of a scale-free network.
 
     The construction process begins with a fully-connected network with m0
     individuals. After that point, every newcomer makes m connections with

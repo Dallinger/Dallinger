@@ -1,3 +1,5 @@
+"""Tests for creating and manipulating agents."""
+
 from wallace import nodes, information, db, models
 from wallace.information import Meme, Gene
 from nose.tools import raises
@@ -5,7 +7,10 @@ from nose.tools import raises
 
 class TestAgents(object):
 
+    """The agent test class."""
+
     def setup(self):
+        """Set up the environment by resetting the tables."""
         self.db = db.init_db(drop_all=True)
 
     def teardown(self):

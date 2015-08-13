@@ -75,8 +75,7 @@ def compute_bonus():
 
 @custom_code.route("/agents", methods=["POST"])
 def api_agent_create():
-    """Sending a POST request to /agents triggers the creation of a new agent"""
-
+    """A route that triggers creation of a new agent."""
     exp = experiment(session)
 
     if request.method == 'POST':
@@ -87,7 +86,7 @@ def api_agent_create():
         participant = Participant.query.\
             filter(Participant.uniqueid == participant_uuid).all()
         if len(participant) == 0:
-            exp.log("Error: there are not participants with that id. Returning status 403", key)
+            exp.log("Error: there are no participants with that id. Returning status 403", key)
             return Response(status=403)
         if len(participant) > 1:
             exp.log("Error: there are multiple participants with that id. Returning status 403", key)
@@ -389,8 +388,7 @@ def nudge():
 
 @custom_code.route("/notifications", methods=["POST", "GET"])
 def api_notifications():
-    """Receive notifications from MTurk REST notifications."""
-
+    """Receive MTurk REST notifications."""
     exp = experiment(session)
     event_type = request.values['Event.1.EventType']
     assignment_id = request.values['Event.1.AssignmentId']
@@ -459,15 +457,6 @@ def api_notifications():
         exp.log("Warning: no response for event_type {}".format(event_type), key)
 
     return Response(status=200)
-
-    # all_event_types = [
-    #     "AssignmentAccepted",
-    #     "AssignmentAbandoned",
-    #     "AssignmentReturned",
-    #     "AssignmentSubmitted",
-    #     "HITReviewable",
-    #     "HITExpired",
-    # ]
 
 
 @custom_code.route('/quitter', methods=['POST'])

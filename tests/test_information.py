@@ -4,6 +4,7 @@ from wallace import models, information, db
 class TestInformation(object):
 
     def setup(self):
+        """Set up the environment by resetting the tables."""
         self.db = db.init_db(drop_all=True)
 
     def teardown(self):

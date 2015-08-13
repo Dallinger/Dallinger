@@ -7,6 +7,7 @@ import subprocess
 class TestExamples(object):
 
     def setup(self):
+        """Set up the environment by resetting the tables."""
         os.chdir("examples")
 
     def teardown(self):
