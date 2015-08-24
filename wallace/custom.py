@@ -394,7 +394,19 @@ def api_notifications():
     assignment_id = request.values['Event.1.AssignmentId']
 
     if event_type == 'AssignmentAccepted':
-        exp.log("AssignmentAccepted notification received")
+        exp.log("AssignmentAccepted notification received for assignment {}".format(assignment_id))
+        participants = Participant.query.filter_by(assignmentid=assignment_id).all()
+        if len(participants) > 1:
+            exp.log("Warning: There are {} participants associated with this assignment,\
+                     failing all but most recent".format(len(participants)))
+            newest = max(participants, key=attrgetter('beginhit'))
+            for participant in participants:
+                if participant != newest and participant.status < 100:
+                    participant.status = 106
+                    for node in Nodes.query.filter_by(participant_uuid=participant.uuid, failed=False).all():
+                        node.fail()
+            session.commit()
+            session_psiturk.commit()
         return Response(status=200)
 
     participants = Participant.query.\
