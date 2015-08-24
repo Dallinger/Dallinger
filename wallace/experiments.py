@@ -120,7 +120,7 @@ class Experiment(object):
         else:
             newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid, network=chosen_network)
 
-        self.log("Node {} successfully generated, recalculating if network is full".format(newcomer.uuid), key)
+        self.log("Node successfully generated, recalculating if network is full", key)
         chosen_network.calculate_full()
 
         self.log("running exp.create_agent_trigger", key)
