@@ -160,7 +160,7 @@ class Experiment(object):
         if not worked:
             self.log("Participant data check failed: failing nodes, setting status to 105, and recruiting replacement participant", key)
 
-            for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
+            for node in Node.query.filter_by(participant_uuid=participant_uuid, failed=False).all():
                 node.fail()
             self.save()
 
@@ -176,7 +176,7 @@ class Experiment(object):
             if not attended:
                 self.log("Attention check failed: failing nodes, setting status to 102, and recruiting replacement participant", key)
 
-                for node in Node.query.filter_by(participant_uuid=participant_uuid).all():
+                for node in Node.query.filter_by(participant_uuid=participant_uuid, failed=False).all():
                     node.fail()
                 self.save()
 
