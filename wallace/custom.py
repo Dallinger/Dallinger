@@ -404,7 +404,7 @@ def api_notifications():
                 if participant != newest and participant.status < 100:
                     exp.log("Failing nodes of participant {}".format(participant.uniqueid))
                     participant.status = 106
-                    for node in Nodes.query.filter_by(participant_uuid=participant.uuid, failed=False).all():
+                    for node in models.Node.query.filter_by(participant_uuid=participant.uuid, failed=False).all():
                         node.fail()
             session.commit()
             session_psiturk.commit()
