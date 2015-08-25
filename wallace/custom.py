@@ -397,12 +397,11 @@ def api_notifications():
         exp.log("AssignmentAccepted notification received for assignment {}".format(assignment_id))
         participants = Participant.query.filter_by(assignmentid=assignment_id).all()
         if len(participants) > 1:
-            exp.log("Warning: There are {} participants associated with this assignment,\
-                     failing all but most recent".format(len(participants)))
+            exp.log("Warning: There are {} participants associated with this assignment, failing all but most recent".format(len(participants)))
             newest = max(participants, key=attrgetter('beginhit'))
             for participant in participants:
                 if participant != newest and participant.status < 100:
-                    exp.log("Failing nodes of participant {}".format(participant.uniqueid))
+                    exp.log("Failing nodes of participant {} and setting their status to 106".format(participant.uniqueid))
                     participant.status = 106
                     for node in models.Node.query.filter_by(participant_uuid=participant.uuid, failed=False).all():
                         node.fail()
