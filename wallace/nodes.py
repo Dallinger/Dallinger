@@ -6,6 +6,7 @@ import random
 from sqlalchemy import and_, Integer
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast
+from operator import attrgetter
 
 
 class Agent(Node):
@@ -94,14 +95,10 @@ class Environment(Node):
         point in time.
         """
         if time is None:
-            return self.infos(type=State)[-1]
+            return max(self.infos(type=State), key=attrgetter('creation_time'))
         else:
-            return State\
-                .query\
-                .filter(and_(
-                    State.origin_uuid == self.uuid,
-                    State.creation_time < time))\
-                .all()[-1]
+            states = [s for s in self.infos(type=State) if s.creation_time < time]
+            return max(states, key=attrgetter('creation_time'))
 
     def _what(self):
         return self.state()
