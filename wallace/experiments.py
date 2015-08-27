@@ -188,6 +188,7 @@ class Experiment(object):
                 participant.status = 101
                 session_psiturk.commit()
                 self.participant_submission_success_trigger(participant=participant)
+                self.save()
                 self.recruit()
 
         participants = Participant.query.with_entities(Participant.status).all()
