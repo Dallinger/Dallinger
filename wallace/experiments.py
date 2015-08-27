@@ -187,6 +187,7 @@ class Experiment(object):
                 self.log("All checks passed: setting status to 101 and running recruit()", key)
                 participant.status = 101
                 session_psiturk.commit()
+                self.participant_submission_success_trigger(participant=participant)
                 self.recruit()
 
         participants = Participant.query.with_entities(Participant.status).all()
@@ -197,6 +198,9 @@ class Experiment(object):
         for status in status_set:
             self.log("{} participants with status {}".format(len([s for s in statuses if s == status]), status), key)
         self.log("end of status summary", key)
+
+    def participant_submission_success_trigger(self, participant=None):
+        pass
 
     def recruit(self):
         """Recruit participants to the experiment as needed."""
