@@ -1,5 +1,5 @@
 [Experiment Configuration]
-wallace_version = 0.2
+wallace_version = 0.3
 
 [HIT Configuration]
 title = Moran Process
