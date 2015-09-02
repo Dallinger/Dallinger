@@ -131,32 +131,24 @@ class Experiment(object):
 
     def participant_submission_trigger(
             self, participant=None):
-        """Check performance and recruit new participants as needed."""
-        # Check that the particpant's performance was acceptable.
+        """Run all post-processing code when an Assignment Submitted notification arrives"""
 
         key = participant.uniqueid[0:5]
         assignment_id = participant.assignmentid
         participant_uuid = participant.uniqueid
 
-        # Accept the HIT.
+        # Approve the assignment.
         self.log("Approving the assignment on mturk", key)
         self.recruiter().approve_hit(assignment_id)
 
-        # Reward the bonus.
-        self.log("Calculating bonus", key)
-        bonus = self.bonus(participant=participant)
-        if bonus >= 0.01:
-            self.log("Bonus >= 0.01: paying bonus", key)
-            self.recruiter().reward_bonus(
-                assignment_id,
-                bonus,
-                self.bonus_reason())
-        else:
-            self.log("bonus < 0.01: not paying bonus", key)
-
+        # check that their data is ok
+        # the actual check is handled by the experiment file
         self.log("Checking participant data", key)
         worked = self.check_participant_data(participant=participant)
 
+        # if their data is not ok, fail their nodes
+        # this is not the attention check, rather it checks
+        # that the data is in the correct form
         if not worked:
             self.log("Participant data check failed: failing nodes, setting status to 105, and recruiting replacement participant", key)
 
@@ -168,11 +160,25 @@ class Experiment(object):
             session_psiturk.commit()
             self.recruiter().recruit_participants(n=1)
         else:
-            # check participant's performance
+            # if their data is ok, pay them a bonus
+            # note that the bonus is paid before the attention check
+            self.log("Calculating bonus", key)
+            bonus = self.bonus(participant=participant)
+            if bonus >= 0.01:
+                self.log("Bonus >= 0.01: paying bonus", key)
+                self.recruiter().reward_bonus(
+                    assignment_id,
+                    bonus,
+                    self.bonus_reason())
+            else:
+                self.log("bonus < 0.01: not paying bonus", key)
+
+            # now perform an attention check
             self.log("Running participant attention check", key)
             attended = self.participant_attention_check(
                 participant=participant)
 
+            # if they fail the attention check fail their nodes and replace them
             if not attended:
                 self.log("Attention check failed: failing nodes, setting status to 102, and recruiting replacement participant", key)
 
@@ -184,6 +190,8 @@ class Experiment(object):
                 session_psiturk.commit()
                 self.recruiter().recruit_participants(n=1)
             else:
+                # otherwise everything is good
+                # recruit is run to see if it is time to recruit more participants
                 self.log("All checks passed: setting status to 101 and running recruit()", key)
                 participant.status = 101
                 session_psiturk.commit()
@@ -191,6 +199,7 @@ class Experiment(object):
                 self.save()
                 self.recruit()
 
+        # print a summary of participant statuses to the logs
         participants = Participant.query.with_entities(Participant.status).all()
         statuses = [p.status for p in participants]
         status_set = set(statuses)
