@@ -1,5 +1,5 @@
 [Experiment Configuration]
-wallace_version = 0.3
+wallace_version = 0.4
 
 [HIT Configuration]
 title = Lost In Translation
