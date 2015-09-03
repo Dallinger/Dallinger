@@ -1,6 +1,6 @@
 """Import custom routes into the experiment server."""
 
-from flask import Blueprint, request, Response, send_from_directory
+from flask import Blueprint, request, Response, send_from_directory, jsonify
 
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
@@ -17,8 +17,9 @@ import imp
 import inspect
 import urllib
 from operator import attrgetter
+import datetime
 
-from sqlalchemy import and_
+from sqlalchemy import and_, exc
 
 # Load the configuration options.
 config = PsiturkConfig()
@@ -86,6 +87,35 @@ def summary():
     data = {"status": exp.log_summary()}
     js = dumps(data)
     return Response(js, status=200, mimetype='application/json')
+
+
+@custom_code.route('/worker_complete', methods=['GET'])
+def worker_complete():
+    """Overide the psiTurk worker_complete route.
+
+    This skirts around an issue where the participant's status reverts to 3
+    because of rogue calls to this route. It does this by changing the status
+    only if it's not already >= 100.
+    """
+    if 'uniqueId' not in request.args:
+        resp = {"status": "bad request"}
+        return jsonify(**resp)
+    else:
+        unique_id = request.args['uniqueId']
+        exp.log("Completed experiment %s" % unique_id)
+        try:
+            user = Participant.query.\
+                filter(Participant.uniqueid == unique_id).one()
+            if user.status < 100:
+                user.status = 3
+                user.endhit = datetime.datetime.now()
+                session_psiturk.add(user)
+                session_psiturk.commit()
+            status = "success"
+        except exc.SQLAlchemyError:
+            status = "database error"
+        resp = {"status": status}
+        return jsonify(**resp)
 
 
 @custom_code.route("/agents", methods=["POST"])
