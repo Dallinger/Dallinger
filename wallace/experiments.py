@@ -7,6 +7,8 @@ from sqlalchemy import and_
 import random
 import inspect
 import sys
+from collections import Counter
+from operator import itemgetter
 
 
 class Experiment(object):
@@ -15,6 +17,14 @@ class Experiment(object):
         if self.verbose:
             print ">>>> {} {}".format(key[0:5], text)
             sys.stdout.flush()
+
+    def log_summary(self):
+        """Log a summary of all the participants' status codes."""
+        participants = Participant.query.with_entities(Participant.status).all()
+        counts = Counter([p.status for p in participants])
+        sorted_counts = sorted(counts.items(), key=itemgetter(0))
+        self.log("Status summary: {}".format(str(sorted_counts)))
+        return sorted_counts
 
     def __init__(self, session):
         from recruiters import PsiTurkRecruiter
@@ -199,15 +209,7 @@ class Experiment(object):
                 self.save()
                 self.recruit()
 
-        # print a summary of participant statuses to the logs
-        participants = Participant.query.with_entities(Participant.status).all()
-        statuses = [p.status for p in participants]
-        status_set = set(statuses)
-        key = "Summary:"
-        self.log("printing status summary", key)
-        for status in status_set:
-            self.log("{} participants with status {}".format(len([s for s in statuses if s == status]), status), key)
-        self.log("end of status summary", key)
+        self.log_summary()
 
     def participant_submission_success_trigger(self, participant=None):
         pass

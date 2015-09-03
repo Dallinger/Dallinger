@@ -73,6 +73,15 @@ def compute_bonus():
     return Response(status=200)
 
 
+@custom_code.route('/summary', methods=['GET'])
+def summary():
+    """Summarize the participants' status codes."""
+    exp = experiment(session)
+    data = {"status": exp.log_summary()}
+    js = dumps(data)
+    return Response(js, status=200, mimetype='application/json')
+
+
 @custom_code.route("/agents", methods=["POST"])
 def api_agent_create():
     """A route that triggers creation of a new agent."""
