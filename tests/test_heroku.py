@@ -29,3 +29,9 @@ class TestHeroku(object):
         app_id = os.environ['app_id']
         r = requests.get("http://{}.herokuapp.com/summary".format(app_id))
         assert r.json()['status'] == []
+
+    def test_robots(self):
+        """Ensure that robots.txt can be accessed."""
+        app_id = os.environ['app_id']
+        r = requests.get("http://{}.herokuapp.com/robots.txt".format(app_id))
+        assert r.status_code == 200
