@@ -1,6 +1,6 @@
 """Import custom routes into the experiment server."""
 
-from flask import Blueprint, request, Response
+from flask import Blueprint, request, Response, send_from_directory
 
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
@@ -45,6 +45,12 @@ try:
     experiment = getattr(mod, this_experiment)
 except ImportError:
     print "Error: Could not import experiment."
+
+
+@custom_code.route('/robots.txt')
+def static_from_root():
+    """"Serve robots.txt from static file."""
+    return send_from_directory('static', request.path[1:])
 
 
 @custom_code.route('/launch', methods=['POST'])
