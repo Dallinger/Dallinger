@@ -35,3 +35,9 @@ class TestHeroku(object):
         app_id = os.environ['app_id']
         r = requests.get("http://{}.herokuapp.com/robots.txt".format(app_id))
         assert r.status_code == 200
+
+    def test_nonexistent_route(self):
+        """Ensure that a nonexistent route returns a 500 error."""
+        app_id = os.environ['app_id']
+        r = requests.get("http://{}.herokuapp.com/nope".format(app_id))
+        assert r.status_code == 500
