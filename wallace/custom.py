@@ -76,8 +76,7 @@ def launch():
 @custom_code.route('/compute_bonus', methods=['GET'])
 def compute_bonus():
     """Overide the psiTurk compute_bonus route."""
-    raise RuntimeError(">>>>> ----- Error: Do not use the compute_bonus route, this is handled by assignment submitted notifications")
-    return Response(status=200)
+    return Response(dumps({"bonusComputed": "success"}), status=200)
 
 
 @custom_code.route('/summary', methods=['GET'])
