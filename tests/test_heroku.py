@@ -20,3 +20,7 @@ class TestHeroku(object):
         r = requests.get("http://{}.herokuapp.com/summary".format(id))
 
         assert r.json()['status'] == []
+
+        subprocess.call(
+            "heroku apps:destroy --app {} --confirm {}".format(id),
+            shell=True)
