@@ -92,8 +92,10 @@ class Experiment(object):
         pass
 
     def create_agent_trigger(self, agent, network):
+        """A customizable method that adds the new agent to the network and
+        deals with any side effects of this --- for example, by sending some
+        information to the newcomer."""
         network.add_agent(agent)
-        self.process(network).step()
 
     def assign_agent_to_participant(self, participant_uuid):
 
