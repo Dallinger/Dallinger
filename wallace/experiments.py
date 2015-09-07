@@ -36,16 +36,17 @@ class Experiment(object):
         self.initial_recruitment_size = 1
 
     def setup(self):
-        """Create the networks if they don't already exist."""
-        for _ in range(self.practice_repeats):
-            network = self.network()
-            network.role = "practice"
-            self.session.add(network)
-        for _ in range(self.experiment_repeats):
-            network = self.network()
-            network.role = "experiment"
-            self.session.add(network)
-        self.save()
+        """Create the networks iff they don't already exist."""
+        if not self.networks():
+            for _ in range(self.practice_repeats):
+                network = self.network()
+                network.role = "practice"
+                self.session.add(network)
+            for _ in range(self.experiment_repeats):
+                network = self.network()
+                network.role = "experiment"
+                self.session.add(network)
+            self.save()
 
     def networks(self, role="all", full="all"):
         """All the networks in the experiment."""

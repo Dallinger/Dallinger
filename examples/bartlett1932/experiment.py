@@ -20,17 +20,17 @@ class Bartlett1932(Experiment):
         self.agent = ReplicatorAgent
         self.network = lambda: Chain(max_size=3)
 
-        if not self.networks():
-            self.setup()
-        self.save()
+        self.setup()
 
     def setup(self):
-        super(Bartlett1932, self).setup()
-        # Setup for first time experiment is accessed
-        for net in self.networks():
-            if not net.nodes(type=Source):
-                source = WarOfTheGhostsSource(network=net)
-                net.add_source(source)
+        """Setup for first time experiment is accessed."""
+        if not self.networks():
+            super(Bartlett1932, self).setup()
+            for net in self.networks():
+                if not net.nodes(type=Source):
+                    source = WarOfTheGhostsSource(network=net)
+                    net.add_source(source)
+            self.save()
 
     def create_agent_trigger(self, agent, network):
         """When an agent is created, add it to the network and take a step."""
