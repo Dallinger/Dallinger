@@ -1,8 +1,6 @@
 """The base experiment class."""
 
 from wallace.models import Network, Node
-from psiturk.db import db_session as session_psiturk
-from psiturk.models import Participant
 from sqlalchemy import and_
 import random
 import inspect
@@ -20,6 +18,7 @@ class Experiment(object):
 
     def log_summary(self):
         """Log a summary of all the participants' status codes."""
+        from psiturk.models import Participant
         participants = Participant.query.with_entities(Participant.status).all()
         counts = Counter([p.status for p in participants])
         sorted_counts = sorted(counts.items(), key=itemgetter(0))
@@ -144,6 +143,7 @@ class Experiment(object):
     def participant_submission_trigger(
             self, participant=None):
         """Run all post-processing code when an Assignment Submitted notification arrives"""
+        from psiturk.db import db_session as session_psiturk
 
         key = participant.uniqueid[0:5]
         assignment_id = participant.assignmentid
