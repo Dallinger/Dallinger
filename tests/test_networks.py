@@ -278,6 +278,31 @@ class TestNetworks(object):
         assert len(net.vectors()) == 12
         assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=nodes.Agent)] == [3, 3, 3, 3]
 
+    def test_create_empty(self):
+        """Empty networks should have nodes, but no edges."""
+        net = networks.Empty()
+        for i in range(10):
+            agent = nodes.Agent()
+            self.db.add(agent)
+            net.add_agent(agent)
+
+        assert len(net.nodes(type=nodes.Agent)) == 10
+        assert len(net.vectors()) == 0
+
+    def test_create_empty_with_source(self):
+        """A sourced empty network should have nodes and an edge for each."""
+        net = networks.Empty()
+        for i in range(10):
+            agent = nodes.Agent()
+            self.db.add(agent)
+            net.add_agent(agent)
+
+        source = nodes.Source()
+        net.add_source(source)
+
+        assert len(net.nodes(type=nodes.Agent)) == 10
+        assert len(net.vectors()) == 10
+
     def test_fully_connected_repr(self):
         net = networks.FullyConnected()
         for i in range(4):

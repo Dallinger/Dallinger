@@ -60,6 +60,27 @@ class FullyConnected(Network):
         self.full = len(self.nodes(type=Agent)) >= self.max_size
 
 
+class Empty(Network):
+
+    """An empty network with no vectors."""
+
+    __mapper_args__ = {"polymorphic_identity": "empty"}
+
+    def add_agent(self, newcomer):
+        """Add an agent, connecting it to everyone and back."""
+        pass
+
+    def calculate_full(self):
+        """Determine whether the network is full by counting the agents."""
+        self.full = len(self.nodes(type=Agent)) >= self.max_size
+
+    def add_source(self, source):
+        """Connect the source to all existing agents."""
+        agents = self.nodes(type=Agent)
+        for agent in agents:
+            source.connect(whom=agent)
+
+
 class Star(Network):
 
     """A star network.
