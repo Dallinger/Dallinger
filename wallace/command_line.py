@@ -16,6 +16,7 @@ import inspect
 import imp
 import pkg_resources
 import re
+import psycopg2
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -66,6 +67,13 @@ def setup(debug=True, verbose=False):
         raise AssertionError(
             "This is not a valid Wallace app. " +
             "Fix the errors and then try running 'wallace verify'.")
+
+    # Verify that the Postgres server is running.
+    try:
+        psycopg2.connect(database="x", user="postgres", password="nada")
+    except psycopg2.OperationalError, e:
+        if "could not connect to server" in str(e):
+            raise RuntimeError("The Postgres server isn't running.")
 
     # Load psiTurk configuration.
     config = PsiturkConfig()
