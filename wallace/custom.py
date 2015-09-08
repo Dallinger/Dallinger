@@ -96,6 +96,8 @@ def worker_complete():
     because of rogue calls to this route. It does this by changing the status
     only if it's not already >= 100.
     """
+    exp = experiment(session)
+
     if 'uniqueId' not in request.args:
         resp = {"status": "bad request"}
         return jsonify(**resp)
