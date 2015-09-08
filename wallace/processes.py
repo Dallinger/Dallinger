@@ -10,10 +10,12 @@ def random_walk(network):
     Start at a node randomly selected from those that receive input from a
     source. At each step, transmit to a randomly-selected downstream node.
     """
-    if (not network.transmissions() or network.latest_transmission_recipient() is None):
+    latest = network.latest_transmission_recipient()
+
+    if (not network.transmissions() or latest is None):
         sender = random.choice(network.nodes(type=Source))
     else:
-        sender = network.latest_transmission_recipient()
+        sender = latest
 
     receiver = random.choice(sender.neighbors(connection="to", type=Agent))
 
@@ -31,7 +33,8 @@ def moran_cultural(network):
         replacer.transmit()
     else:
         replacer = random.choice(network.nodes(type=Agent))
-        replaced = random.choice(replacer.neighbors(connection="to", type=Agent))
+        replaced = random.choice(
+            replacer.neighbors(connection="to", type=Agent))
 
         from operator import attrgetter
 
@@ -56,7 +59,8 @@ def moran_sexual(network):
         baby = max(agents, key=attrgetter('creation_time'))
         agents = [a for a in agents if a.uuid != baby.uuid]
         replacer = random.choice(agents)
-        replaced = random.choice(replacer.neighbors(connection="to", type=Agent))
+        replaced = random.choice(
+            replacer.neighbors(connection="to", type=Agent))
 
         # Give the baby the same outgoing connections as the replaced.
         for node in replaced.neighbors(connection="to"):
@@ -74,6 +78,7 @@ def moran_sexual(network):
 
 
 def transmit_by_fitness(from_whom, to_whom=None, what=None):
+    """Choose a parent with probability proportional to their fitness."""
     parents = from_whom
     parent_fitnesses = [p.fitness for p in parents]
     parent_probs = [(f/(1.0*sum(parent_fitnesses))) for f in parent_fitnesses]

@@ -24,20 +24,28 @@ class Chain(Network):
         sources = self.nodes(type=Source)
 
         from operator import attrgetter
+
         if other_agents:
-            max(other_agents, key=attrgetter('creation_time')).connect(whom=newcomer)
+            max(other_agents,
+                key=attrgetter('creation_time')).connect(whom=newcomer)
+
         elif sources:
-            min(sources, key=attrgetter('creation_time')).connect(whom=newcomer)
+            min(sources,
+                key=attrgetter('creation_time')).connect(whom=newcomer)
 
     def add_source(self, source):
+        """Add the source to the beginning of the chain."""
         if len(self.nodes(type=Source)) > 1:
-            raise(Exception("Cannot add another source to Chain network as it already has a source"))
+            raise(Exception("Chain network already has a source"))
+
         else:
             if len(self.nodes(type=Agent)) > 0:
                 from operator import attrgetter
-                source.connect(whom=min(self.nodes(type=Agent), key=attrgetter('creation_time')))
+                source.connect(whom=min(self.nodes(type=Agent),
+                                        key=attrgetter('creation_time')))
 
     def calculate_full(self):
+        """Determine whether the network is full by counting the agents."""
         self.full = len(self.nodes(type=Agent)) >= self.max_size
 
 
@@ -57,6 +65,7 @@ class FullyConnected(Network):
                 agent.connect(direction="both", whom=newcomer)
 
     def calculate_full(self):
+        """Determine whether the network is full by counting the agents."""
         self.full = len(self.nodes(type=Agent)) >= self.max_size
 
 
@@ -70,15 +79,15 @@ class Empty(Network):
         """Add an agent, connecting it to everyone and back."""
         pass
 
-    def calculate_full(self):
-        """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
-
     def add_source(self, source):
         """Connect the source to all existing agents."""
         agents = self.nodes(type=Agent)
         for agent in agents:
             source.connect(whom=agent)
+
+    def calculate_full(self):
+        """Determine whether the network is full by counting the agents."""
+        self.full = len(self.nodes(type=Agent)) >= self.max_size
 
 
 class Star(Network):
@@ -93,7 +102,6 @@ class Star(Network):
 
     def add_agent(self, newcomer):
         """Add an agent and connect it to the center."""
-
         agents = self.nodes(type=Agent)
 
         if len(agents) > 1:
@@ -137,6 +145,7 @@ class DiscreteGenerational(Network):
     __mapper_args__ = {"polymorphic_identity": "discrete-generational"}
 
     def __init__(self, generations, generation_size, initial_source):
+        """Endow the network with some persistent properties."""
         self.property1 = repr(generations)
         self.property2 = repr(generation_size)
         self.property3 = repr(initial_source)
@@ -144,21 +153,27 @@ class DiscreteGenerational(Network):
 
     @property
     def generations(self):
+        """The length of the network: the number of generations."""
         return int(self.property1)
 
     @property
     def generation_size(self):
+        """The width of the network: the size of a single generation."""
         return int(self.property2)
 
     @property
     def initial_source(self):
+        """The source that seeds the first generation."""
         return bool(self.property3)
 
     def add_agent(self, newcomer):
+        """Link the agent to a random member of the previous generation."""
         current_generation = newcomer.generation
         if current_generation == 0:
             if self.initial_source:
-                newcomer.connect(direction="from", whom=self.nodes(type=Source)[0])
+                newcomer.connect(
+                    direction="from",
+                    whom=self.nodes(type=Source)[0])
         else:
             agent_type = type(newcomer)
             prev_agents = agent_type.query\
@@ -166,8 +181,8 @@ class DiscreteGenerational(Network):
                              agent_type.network_uuid == self.uuid,
                              agent_type.generation == current_generation-1))\
                 .all()
-            prev_fitnesses = [p.fitness for p in prev_agents]
-            prev_probs = [(f/(1.0*sum(prev_fitnesses))) for f in prev_fitnesses]
+            prev_fits = [p.fitness for p in prev_agents]
+            prev_probs = [(f/(1.0*sum(prev_fits))) for f in prev_fits]
 
             rnd = random.random()
             temp = 0.0
@@ -181,6 +196,7 @@ class DiscreteGenerational(Network):
             parent.transmit(to_whom=newcomer)
 
     def calculate_full(self):
+        """Determine whether the network is full by counting the agents."""
         self.full = len(self.nodes(type=Agent)) >= self.max_size
 
 

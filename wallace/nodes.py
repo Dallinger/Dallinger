@@ -2,11 +2,11 @@
 
 from wallace.models import Node, Info
 from wallace.information import State
-import random
-from sqlalchemy import and_, Integer
+from sqlalchemy import Integer
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast
 from operator import attrgetter
+import random
 
 
 class Agent(Node):
@@ -17,6 +17,7 @@ class Agent(Node):
 
     @hybrid_property
     def fitness(self):
+        """Endow agents with a numerical fitness."""
         if self.property1 is None:
             return None
         else:
@@ -24,10 +25,12 @@ class Agent(Node):
 
     @fitness.setter
     def fitness(self, fitness):
+        """Assign fitness to property1."""
         self.property1 = repr(fitness)
 
     @fitness.expression
     def fitness(self):
+        """Retrieve fitness via property1."""
         return cast(self.property1, Integer)
 
 
@@ -69,6 +72,7 @@ class Source(Node):
             "{}.contents() needs to be defined.".format(type(self)))
 
     def receive(self, what):
+        """Throw an exception if a source tries to receive information."""
         raise Exception("Sources cannot receive transmissions.")
 
 
@@ -97,7 +101,8 @@ class Environment(Node):
         if time is None:
             return max(self.infos(type=State), key=attrgetter('creation_time'))
         else:
-            states = [s for s in self.infos(type=State) if s.creation_time < time]
+            states = [
+                s for s in self.infos(type=State) if s.creation_time < time]
             return max(states, key=attrgetter('creation_time'))
 
     def _what(self):

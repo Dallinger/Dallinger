@@ -132,10 +132,10 @@ def api_agent_create():
         participant = Participant.query.\
             filter(Participant.uniqueid == participant_uuid).all()
         if len(participant) == 0:
-            exp.log("Error: there are no participants with that id. Returning status 403", key)
+            exp.log("Error: No participants with that id. Returning status 403", key)
             return Response(status=403)
         if len(participant) > 1:
-            exp.log("Error: there are multiple participants with that id. Returning status 403", key)
+            exp.log("Error: Multiple participants with that id. Returning status 403", key)
             return Response(status=403)
         participant = participant[0]
 
