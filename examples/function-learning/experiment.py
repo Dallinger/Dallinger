@@ -1,40 +1,50 @@
-import wallace
+"""A function-learning experiment."""
+
+from wallace.experiments import Experiment
 from wallace.nodes import ReplicatorAgent, Source
 from wallace.networks import Chain
 from wallace import processes
-from wallace.recruiters import PsiTurkRecruiter
 import random
 import json
 from sqlalchemy.ext.declarative import declared_attr
 import math
 
 
-class FunctionLearning(wallace.experiments.Experiment):
+class FunctionLearning(Experiment):
+
+    """Defines the experiment."""
+
     def __init__(self, session):
+        """Set up the initial networks."""
         super(FunctionLearning, self).__init__(session)
 
-        self.num_repeats_experiment = 4
+        self.practice_repeats = 0
+        self.experiment_repeats = 1
         self.agent = ReplicatorAgent
-        self.network = lambda: Chain(max_size=2)
-        self.recruiter = PsiTurkRecruiter
+        self.network = lambda: Chain(max_size=3)
+
         self.setup()
 
-        # Setup for first time experiment is accessed
-        for net in self.networks:
-            if not net.nodes(type=Source):
-                source = SinusoidalFunctionSource()
-                self.save(source)
-                net.add_source(source)
-                self.save()
-                print source
-                print "Added initial source: " + str(source)
+    def setup(self):
+        """Setup for first time experiment is accessed."""
+        if not self.networks():
+            super(FunctionLearning, self).setup()
+            for net in self.networks():
+                if not net.nodes(type=Source):
+                    source = SinusoidalFunctionSource(network=net)
+                    net.add_source(source)
+            self.save()
 
     def create_agent_trigger(self, agent, network):
+        """When an agent is created, add it to the network and take a step."""
         network.add_agent(agent)
         processes.random_walk(network)
 
 
 class AbstractFnSource(Source):
+
+    """Abstract class for sources that send functions."""
+
     __abstract__ = True
 
     def _contents(self):
@@ -50,15 +60,23 @@ class AbstractFnSource(Source):
 
     @declared_attr
     def __mapper_args__(cls):
+        """The name of the source is derived from its class name."""
         return {"polymorphic_identity": cls.__name__.lower()}
 
 
 class IdentityFunctionSource(AbstractFnSource, Source):
+
+    """A source that transmits the identity function."""
+
     def func(self, x):
+        """f(x) = x."""
         return x
 
 
 class AdditiveInverseFunctionSource(AbstractFnSource, Source):
+
+    """A source that transmits the identity function."""
+
     def func(self, x):
         return 100 - x
 

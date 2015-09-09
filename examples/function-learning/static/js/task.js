@@ -40,8 +40,9 @@ var FunctionLearningExperiment = function() {
 		    type: 'json',
 		  	success: function (resp) {
 		  		agent_uuid = resp.agents.uuid;
-		     	getPendingTransmissions(agent_uuid);
-		    },
+                setTimeout(function() {
+                    getPendingTransmissions(agent_uuid);
+                }, 1000);		    },
 		    error: function (err) {
                 currentview = new Questionnaire();
 		    }
@@ -173,7 +174,8 @@ var FunctionLearningExperiment = function() {
                     method: 'post',
                     data: {
                         origin_uuid: agent_uuid,
-                        contents: response
+                        contents: response,
+                        info_type: "base"
                     }
                 });
 
