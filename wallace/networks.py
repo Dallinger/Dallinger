@@ -4,6 +4,7 @@ from .models import Network
 from .nodes import Agent, Source
 from sqlalchemy import and_
 import random
+from operator import attrgetter
 
 
 class Chain(Network):
@@ -23,8 +24,6 @@ class Chain(Network):
 
         sources = self.nodes(type=Source)
 
-        from operator import attrgetter
-
         if other_agents:
             max(other_agents,
                 key=attrgetter('creation_time')).connect(whom=newcomer)
@@ -40,7 +39,6 @@ class Chain(Network):
 
         else:
             if len(self.nodes(type=Agent)) > 0:
-                from operator import attrgetter
                 source.connect(whom=min(self.nodes(type=Agent),
                                         key=attrgetter('creation_time')))
 
@@ -105,7 +103,6 @@ class Star(Network):
         agents = self.nodes(type=Agent)
 
         if len(agents) > 1:
-            from operator import attrgetter
             first_agent = min(agents, key=attrgetter('creation_time'))
             first_agent.connect(direction="both", whom=newcomer)
 
@@ -125,7 +122,6 @@ class Burst(Network):
         agents = self.nodes(type=Agent)
 
         if len(agents) > 1:
-            from operator import attrgetter
             first_agent = min(agents, key=attrgetter('creation_time'))
             first_agent.connect(whom=newcomer)
 
