@@ -210,20 +210,22 @@ class ScaleFree(Network):
     __mapper_args__ = {"polymorphic_identity": "scale-free"}
 
     def __init__(self, m0, m):
+        """Store m0 in property1 and m in property2."""
         self.property1 = repr(m0)
         self.property2 = repr(m)
 
     @property
     def m0(self):
+        """Number of nodes in the fully-connected core."""
         return int(self.property1)
 
     @property
     def m(self):
+        """Number of connections that a newcomer makes."""
         return int(self.property2)
 
     def add_agent(self, newcomer):
         """Add newcomers one by one, using linear preferential attachment."""
-
         agents = self.nodes(type=Agent)
 
         # Start with a core of m0 fully-connected agents...
@@ -235,16 +237,14 @@ class ScaleFree(Network):
         # ...then add newcomers one by one with preferential attachment.
         else:
             for idx_newvector in xrange(self.m):
-                these_agents = [a for a in agents if a.uuid != newcomer.uuid and not a.is_connected(direction="either", whom=newcomer)]
-                # these_agents = []
-                # for agent in agents:
-                #     if (agent == newcomer or
-                #             agent.is_connected(direction="from", whom=newcomer) or
-                #             agent.is_connected(direction="to", whom=newcomer)):
-                #         continue
-                #     else:
-                #         these_agents.append(agent)
-                outdegrees = [len(a.vectors(direction="outgoing")) for a in these_agents]
+
+                these_agents = [
+                    a for a in agents if (
+                        a.uuid != newcomer.uuid and
+                        not a.is_connected(direction="either", whom=newcomer))]
+
+                outdegrees = [
+                    len(a.vectors(direction="outgoing")) for a in these_agents]
 
                 # Select a member using preferential attachment
                 ps = [(d / (1.0 * sum(outdegrees))) for d in outdegrees]
