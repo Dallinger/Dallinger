@@ -154,16 +154,13 @@ class Experiment(object):
         self.log("Approving the assignment on mturk", key)
         self.recruiter().approve_hit(assignment_id)
 
-        # check that their data is ok
-        # the actual check is handled by the experiment file
+        # Check that the participant's data is okay...
         self.log("Checking participant data", key)
         worked = self.check_participant_data(participant=participant)
 
-        # if their data is not ok, fail their nodes
-        # this is not the attention check, rather it checks
-        # that the data is in the correct form
+        # ... if not, fail their nodes.
         if not worked:
-            self.log("Participant data check failed: failing nodes, setting status to 105, and recruiting replacement participant", key)
+            self.log("Participant failed data check: failing nodes, setting status to 105, and recruiting replacement participant", key)
 
             for node in Node.query.filter_by(participant_uuid=participant_uuid, failed=False).all():
                 node.fail()
@@ -239,5 +236,5 @@ class Experiment(object):
         return True
 
     def check_participant_data(self, particpant=None):
-        """Check the data is as it should be"""
+        """Check that the data are acceptable."""
         return True
