@@ -17,6 +17,7 @@ import imp
 import pkg_resources
 import re
 import psycopg2
+from wallace import db
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -149,6 +150,9 @@ def setup(debug=True, verbose=False):
 def debug(verbose):
     """Run the experiment locally."""
     (id, tmp) = setup(debug=True, verbose=verbose)
+
+    # Drop all the tables from the database.
+    db.init_db(drop_all=True)
 
     # Switch to the temporary directory.
     cwd = os.getcwd()
