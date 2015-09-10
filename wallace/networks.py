@@ -257,3 +257,41 @@ class ScaleFree(Network):
 
                 # Create vector from newcomer to selected member and back
                 newcomer.connect(direction="both", whom=vector_to)
+
+
+class SequentialMicrosociety(Network):
+
+    """A microsociety."""
+
+    __mapper_args__ = {"polymorphic_identity": "microsociety"}
+
+    def __init__(self, n):
+        """Store n in property1."""
+        self.property1 = repr(n)
+
+    @property
+    def n(self):
+        """Number of people active at once."""
+        return int(self.property1)
+
+    def add_agent(self, newcomer):
+        """Add an agent, connecting it to all the active nodes."""
+        agents = sorted(
+            self.nodes(type=Agent),
+            key=attrgetter('creation_time'), reverse=True)
+
+        other_agents = [a for a in agents if a.uuid != newcomer.uuid]
+
+        # If the newcomer is one of the first agents, connect from source...
+        if len(self.nodes(type=Agent)) < self.n:
+            sources = self.nodes(type=Source)
+            sources[0].connect(direction="to", whom=newcomer)
+
+        # ... otherwise connect from the previous n - 1 agents.
+        else:
+            for agent in other_agents[0:(self.n-1)]:
+                agent.connect(direction="to", whom=newcomer)
+
+    def calculate_full(self):
+        """Determine whether the network is full by counting the agents."""
+        self.full = len(self.nodes(type=Agent)) >= self.max_size

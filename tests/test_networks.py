@@ -350,6 +350,44 @@ class TestNetworks(object):
 
         assert repr(net) == "<Network-" + str(net.uuid) + "-scale-free with 6 nodes, 28 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
+    def test_create_sequential_microsociety(self):
+        """Create a sequential microsociety."""
+        net = networks.SequentialMicrosociety(n=3)
+        self.db.add(net)
+
+        source = nodes.RandomBinaryStringSource(network=net)
+        net.add(source)
+
+        agent1 = nodes.Agent(network=net)
+        net.add_agent(agent1)
+
+        agent2 = nodes.Agent(network=net)
+        net.add_agent(agent2)
+
+        agent3 = nodes.Agent(network=net)
+        net.add_agent(agent3)
+
+        agent4 = nodes.Agent(network=net)
+        net.add_agent(agent4)
+
+        agent5 = nodes.Agent(network=net)
+        net.add_agent(agent5)
+
+        agent6 = nodes.Agent(network=net)
+        net.add_agent(agent6)
+
+        assert len(agent1.vectors(direction="outgoing")) == 1
+        assert len(agent2.vectors(direction="outgoing")) == 2
+        assert len(agent3.vectors(direction="outgoing")) == 2
+
+        assert agent2.is_connected(direction="to", whom=agent3)
+        assert agent2.is_connected(direction="to", whom=agent4)
+        assert not agent2.is_connected(direction="to", whom=agent5)
+
+        assert agent3.is_connected(direction="to", whom=agent4)
+        assert agent3.is_connected(direction="to", whom=agent5)
+        assert not agent3.is_connected(direction="to", whom=agent6)
+
     # def test_discrete_generational(self):
     #     n_gens = 4
     #     gen_size = 4
