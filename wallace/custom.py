@@ -473,13 +473,17 @@ def api_notifications():
     participants = Participant.query.\
         filter(Participant.assignmentid == assignment_id).\
         all()
+
     if len(participants) > 1:
         participant = max(participants, key=attrgetter('beginhit'))
+
     elif len(participants) == 0:
         exp.log("Error: Received an {} notification, but unable to identify participant. Returning status 200".format(event_type))
         return Response(status=200)
+
     else:
         participant = participants[0]
+
     participant_uuid = participant.uniqueid
     key = participant_uuid[0:5]
 
@@ -512,14 +516,10 @@ def api_notifications():
             session.commit()
 
     elif event_type == 'AssignmentSubmitted':
-
-        # Skip if the participant has already submitted.
-        if participant.status < 100:
-
+        if participant.status < 100:  # Skip if already submitted.
             exp.log("status is {}, setting status to 100, running participant_completion_trigger".format(participant.status), key)
             participant.status = 100
             session_psiturk.commit()
-
             exp.participant_submission_trigger(
                 participant=participant)
 
