@@ -170,6 +170,8 @@ def api_transmission(transmission_uuid):
     if request.method == 'GET':
 
         destination_uuid = request.values['destination_uuid']
+        assert_numeric(destination_uuid)
+
         exp.log("Recevied a Transmission GET request", destination_uuid)
 
         # Given a receiving agent, get its pending transmissions
@@ -223,8 +225,14 @@ def api_transmission(transmission_uuid):
 
         try:
             origin_uuid = request.values['origin_uuid']
+            assert_numeric(origin_uuid)
+
             info_uuid = request.values['info_uuid']
+            assert_numeric(info_uuid)
+
             destination_uuid = request.values['destination_uuid']
+            assert_numeric(destination_uuid)
+
         except:
             exp.log("Error: Recevied a transmission POST request, but origin_uuid, destination_uuid or info_uuid not specified. Returning status 403")
             return Response(status=403)
@@ -282,6 +290,9 @@ def api_info(info_uuid):
         if info_uuid is not None:
 
             exp.log("Received an /information GET request for info {}".format(info_uuid), info_uuid)
+
+            assert_numeric(info_uuid)
+
             try:
                 info = models.Info.query.filter_by(uuid=info_uuid).one()
             except:
@@ -305,6 +316,8 @@ def api_info(info_uuid):
 
             try:
                 origin_uuid = request.values['origin_uuid']
+                assert_numeric(origin_uuid)
+
             except:
                 exp.log("Error: Received an information get request but neither info_uuid or origin_uuid specified. Returning status 403")
                 return Response(status=403)
@@ -339,9 +352,11 @@ def api_info(info_uuid):
 
         try:
             origin_uuid = request.values['origin_uuid']
+            assert_numeric(origin_uuid)
         except:
             exp.log("Error: received information POST request, but origin_uuid not specified. Returning status 403")
             return Response(status=403)
+
         try:
             cnts = urllib.unquote(request.values['contents']).decode('utf8')
         except:
@@ -526,3 +541,12 @@ def quitter():
         dumps({"status": "success"}),
         status=200,
         mimetype='application/json')
+
+
+def assert_numeric(input):
+    """Ensure that uuids are numeric."""
+    if not input.isdigit():
+        exp.log(
+            "Warning: Received malformed uuid: {}"
+            .format(input), input)
+        return Response(status=403)
