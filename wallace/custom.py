@@ -170,7 +170,13 @@ def api_transmission(transmission_uuid):
     if request.method == 'GET':
 
         destination_uuid = request.values['destination_uuid']
-        assert_numeric(destination_uuid)
+
+        # Ensure that destination_uuid is a number.
+        if not destination_uuid.isdigit():
+            exp.log(
+                "Malformed uuid: {}".format(destination_uuid),
+                destination_uuid)
+            return Response(status=403)
 
         exp.log("Recevied a Transmission GET request", destination_uuid)
 
@@ -224,14 +230,29 @@ def api_transmission(transmission_uuid):
     if request.method == "POST":
 
         try:
-            origin_uuid = request.values['origin_uuid']
-            assert_numeric(origin_uuid)
-
-            info_uuid = request.values['info_uuid']
-            assert_numeric(info_uuid)
-
+            # Ensure that destination_uuid is a number.
             destination_uuid = request.values['destination_uuid']
-            assert_numeric(destination_uuid)
+            if not destination_uuid.isdigit():
+                exp.log(
+                    "Malformed uuid: {}".format(destination_uuid),
+                    destination_uuid)
+                return Response(status=403)
+
+            # Ensure that origin_uuid is a number.
+            origin_uuid = request.values['origin_uuid']
+            if not origin_uuid.isdigit():
+                exp.log(
+                    "Malformed uuid: {}".format(origin_uuid),
+                    destination_uuid)
+                return Response(status=403)
+
+            # Ensure that info_uuid is a number.
+            info_uuid = request.values['info_uuid']
+            if not info_uuid.isdigit():
+                exp.log(
+                    "Malformed uuid: {}".format(info_uuid),
+                    destination_uuid)
+                return Response(status=403)
 
         except:
             exp.log("Error: Recevied a transmission POST request, but origin_uuid, destination_uuid or info_uuid not specified. Returning status 403")
@@ -291,7 +312,11 @@ def api_info(info_uuid):
 
             exp.log("Received an /information GET request for info {}".format(info_uuid), info_uuid)
 
-            assert_numeric(info_uuid)
+            # Ensure that info_uuid is a number.
+            if not info_uuid.isdigit():
+                exp.log(
+                    "Malformed uuid: {}; from info GET.".format(info_uuid))
+                return Response(status=403)
 
             try:
                 info = models.Info.query.filter_by(uuid=info_uuid).one()
@@ -315,8 +340,12 @@ def api_info(info_uuid):
         else:
 
             try:
+                # Ensure that origin_uuid is a number.
                 origin_uuid = request.values['origin_uuid']
-                assert_numeric(origin_uuid)
+                if not origin_uuid.isdigit():
+                    exp.log(
+                        "Malformed uuid: {}; from info GET2.".format(origin_uuid))
+                    return Response(status=403)
 
             except:
                 exp.log("Error: Received an information get request but neither info_uuid or origin_uuid specified. Returning status 403")
@@ -351,8 +380,13 @@ def api_info(info_uuid):
     if request.method == "POST":
 
         try:
+            # Ensure that origin_uuid is a number.
             origin_uuid = request.values['origin_uuid']
-            assert_numeric(origin_uuid)
+            if not origin_uuid.isdigit():
+                exp.log(
+                    "Malformed uuid: {}; from info POST.".format(origin_uuid))
+                return Response(status=403)
+
         except:
             exp.log("Error: received information POST request, but origin_uuid not specified. Returning status 403")
             return Response(status=403)
@@ -541,12 +575,3 @@ def quitter():
         dumps({"status": "success"}),
         status=200,
         mimetype='application/json')
-
-
-def assert_numeric(input):
-    """Ensure that uuids are numeric."""
-    if not input.isdigit():
-        exp.log(
-            "Warning: Received malformed uuid: {}"
-            .format(input), input)
-        return Response(status=403)
