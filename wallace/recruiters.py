@@ -70,6 +70,7 @@ class PsiTurkRecruiter(Recruiter):
         # load the configuration options
         self.config = PsiturkConfig()
         self.config.load_config()
+        self.auto_recruit = self.config.get('Experiment Configuration', 'auto_recruit') == "true"
 
         class FakeExperimentServerController(object):
             def is_server_running(self):
@@ -142,37 +143,40 @@ class PsiTurkRecruiter(Recruiter):
 
     def recruit_participants(self, n=1):
         """Extend the HIT to recruit more people."""
-        print "Starting Wallace's recruit_participants."
+        if self.auto_recruit:
+            print "Starting Wallace's recruit_participants."
 
-        hit_id = str(
-            Participant.query.with_entities(Participant.hitid).first().hitid)
+            hit_id = str(
+                Participant.query.with_entities(Participant.hitid).first().hitid)
 
-        print "hit_id is {}.".format(hit_id)
+            print "hit_id is {}.".format(hit_id)
 
-        is_sandbox = self.config.getboolean(
-            'Shell Parameters', 'launch_in_sandbox_mode')
+            is_sandbox = self.config.getboolean(
+                'Shell Parameters', 'launch_in_sandbox_mode')
 
-        if is_sandbox:
-            host = 'mechanicalturk.sandbox.amazonaws.com'
+            if is_sandbox:
+                host = 'mechanicalturk.sandbox.amazonaws.com'
+            else:
+                host = 'mechanicalturk.amazonaws.com'
+
+            mturkparams = dict(
+                aws_access_key_id=self.aws_access_key_id,
+                aws_secret_access_key=self.aws_secret_access_key,
+                host=host)
+
+            self.mtc = MTurkConnection(**mturkparams)
+
+            self.mtc.extend_hit(
+                hit_id,
+                assignments_increment=int(n or 0))
+
+            expiration_increment = self.config.get('HIT Configuration', 'duration')
+
+            self.mtc.extend_hit(
+                hit_id,
+                expiration_increment=int(float(expiration_increment or 0)*3600))
         else:
-            host = 'mechanicalturk.amazonaws.com'
-
-        mturkparams = dict(
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
-            host=host)
-
-        self.mtc = MTurkConnection(**mturkparams)
-
-        self.mtc.extend_hit(
-            hit_id,
-            assignments_increment=int(n or 0))
-
-        expiration_increment = self.config.get('HIT Configuration', 'duration')
-
-        self.mtc.extend_hit(
-            hit_id,
-            expiration_increment=int(float(expiration_increment or 0)*3600))
+            print (">>>> auto_recruit set to {}: recruitment suppressed".format(self.auto_recruit))
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""

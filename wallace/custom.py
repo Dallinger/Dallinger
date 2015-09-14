@@ -88,6 +88,42 @@ def summary():
     return Response(js, status=200, mimetype='application/json')
 
 
+@custom_code.route('/auto_recruit', defaults={"value": None}, methods=['GET', 'POST'])
+def auto_recruit(value):
+    from psiturk.psiturk_config import PsiturkConfig
+    config = PsiturkConfig()
+    config.load_config()
+    auto_recruit = config.get('Experiment Configuration', 'auto_recruit')
+    exp = experiment(session)
+    if request.method == "GET":
+        exp.log("Received a GET request to /auto_recruit. Returning {}".format(auto_recruit))
+        data = {'auto_recruit': auto_recruit}
+        js = dumps(data)
+        return Response(js, status=200, mimetype='application/json')
+    if request.method == "POST":
+        value = request.values["value"]
+        exp.log("Received a POST request to /auto_recruit.")
+        if value is None:
+            if auto_recruit:
+                config.set("Experiment Configuration", "auto_Recruit", "false")
+            else:
+                config.set("Experiment Configuration", "auto_Recruit", "true")
+            exp.log("New value for auto_recruit not specified, so inverting to {}".format(not auto_recruit))
+            return Response(status=200)
+        elif value in ["True", "False"]:
+            value = value == "True"
+            if value:
+                config.set("Experiment Configuration", "auto_Recruit", "true")
+                exp.log("Auto_recruit set to True")
+            else:
+                config.set("Experiment Configuration", "auto_Recruit", "false")
+                exp.log("Auto_recruit set to False")
+            return Response(status=200)
+        else:
+            exp.log("{} is not a valid value for auto_recruit, doing nothing".format(value))
+            return Response(status=200)
+
+
 @custom_code.route('/worker_complete', methods=['GET'])
 def worker_complete():
     """Overide the psiTurk worker_complete route.
