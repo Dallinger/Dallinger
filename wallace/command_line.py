@@ -446,7 +446,8 @@ def export(app, local):
                   "info",
                   "transformation",
                   "transmission",
-                  "psiturk"]
+                  "psiturk",
+                  "notification"]
 
     for table in all_tables:
         subprocess.call(

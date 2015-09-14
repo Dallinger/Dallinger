@@ -488,6 +488,10 @@ def api_notifications():
     event_type = request.values['Event.1.EventType']
     assignment_id = request.values['Event.1.AssignmentId']
 
+    notif = models.Notification(assignment_id=assignment_id, event_type=event_type)
+    session.add(notif)
+    session.commit()
+
     if event_type == 'AssignmentAccepted':
         exp.log("AssignmentAccepted notification received for assignment {}".format(assignment_id))
         participants = Participant.query.filter_by(assignmentid=assignment_id).all()
