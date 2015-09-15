@@ -1192,14 +1192,14 @@ class Notification(Base):
 
     __tablename__ = "notification"
 
-    # the unique transformation id
-    ID = Column(Integer, primary_key=True)
+    # the unique notification id
+    uuid = Column(Integer, primary_key=True)
 
-    assignment_id = Column(String(26), default=None, nullable=False)
+    # the assignment is from AWS the notification pertains to
+    assignment_id = Column(String(26), nullable=False)
 
-    # the time at which the transformation occurred
+    # the time at which the notification arrived
     creation_time = Column(DateTime, nullable=False, default=timenow)
 
-    # unused by default, these columns store additional properties used
-    # by other types of transformation
-    event_type = Column(String(26), default=None)
+    # the type of notification
+    event_type = Column(String(26), nullable=False)
