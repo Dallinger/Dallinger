@@ -1,6 +1,7 @@
 """Import custom routes into the experiment server."""
 
-from flask import Blueprint, request, Response, send_from_directory, jsonify
+from flask import Blueprint, request, Response, send_from_directory, \
+    jsonify, render_template
 
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
@@ -141,9 +142,15 @@ def api_agent_create():
 
         exp.log("Checking participant status", key)
         if participant.status not in [1, 2]:
-            exp.log("Error: Participant status is {} they should not have been able to contact this route. Returning status 403.".
-                    format(participant.status), key)
-            return Response(status=403)
+            exp.log("Error: Participant status is {} they should not have been able to contact this route. Returning error_wallace.html.".format(participant.status), key)
+            if participant.status in [3, 4, 5, 100, 101, 102]:
+                return error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that you have already submitted the assignment.'")
+            elif participant.status == 103:
+                return error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that you have returned the assignment.'")
+            elif participant.status == 104:
+                return error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that your assignment has expired.")
+            else:
+                return error_page(participant=participant, error_text="Something has gone wrong with our server's database and unfortunately you cannot continue. Please return the assignment and contact us for compensation.")
 
         exp.log("Assigning participant a new node".format(participant.status), key)
         newcomer = exp.assign_agent_to_participant(participant_uuid)
@@ -579,3 +586,22 @@ def quitter():
         dumps({"status": "success"}),
         status=200,
         mimetype='application/json')
+
+
+def error_page(participant=None, error_text=None, compensate=True):
+    """Render HTML for error page."""
+    if participant is None:
+        raise ValueError("You must pass error_page a participant")
+
+    if error_text is None:
+        error_text = 'There has been an error and so you are unable to continue'
+
+    return render_template(
+        'error_wallace.html',
+        error_text=error_text,
+        compensate=compensate,
+        contact_address=config.get('HIT Configuration', 'contact_email_on_error'),
+        hit_id=participant.hitid,
+        assignment_id=participant.assignmentid,
+        worker_id=participant.workerid
+    )
