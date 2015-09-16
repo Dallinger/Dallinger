@@ -144,13 +144,15 @@ def api_agent_create():
         if participant.status not in [1, 2]:
             exp.log("Error: Participant status is {} they should not have been able to contact this route. Returning error_wallace.html.".format(participant.status), key)
             if participant.status in [3, 4, 5, 100, 101, 102]:
-                return error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that you have already submitted the assignment.'")
+                page = error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that you have already submitted the assignment.'")
             elif participant.status == 103:
-                return error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that you have returned the assignment.'")
+                page = error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that you have returned the assignment.'")
             elif participant.status == 104:
-                return error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that your assignment has expired.")
+                page = error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that your assignment has expired.")
             else:
-                return error_page(participant=participant, error_text="Something has gone wrong with our server's database and unfortunately you cannot continue. Please return the assignment and contact us for compensation.")
+                page = error_page(participant=participant, error_text="Something has gone wrong with our server's database and unfortunately you cannot continue. Please return the assignment and contact us for compensation.")
+            js = dumps({"html": page})
+            return Response(js, status=403, mimetype='application/json')
 
         exp.log("Assigning participant a new node".format(participant.status), key)
         newcomer = exp.assign_agent_to_participant(participant_uuid)
