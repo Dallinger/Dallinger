@@ -90,9 +90,6 @@ def summary():
 
 @custom_code.route('/auto_recruit', defaults={"value": None}, methods=['GET', 'POST'])
 def auto_recruit(value):
-    from psiturk.psiturk_config import PsiturkConfig
-    config = PsiturkConfig()
-    config.load_config()
     auto_recruit = config.get('Experiment Configuration', 'auto_recruit')
     exp = experiment(session)
     if request.method == "GET":
