@@ -70,7 +70,6 @@ class PsiTurkRecruiter(Recruiter):
         # load the configuration options
         self.config = PsiturkConfig()
         self.config.load_config()
-        self.auto_recruit = self.config.get('Experiment Configuration', 'auto_recruit') == "true"
 
         class FakeExperimentServerController(object):
             def is_server_running(self):
@@ -143,7 +142,10 @@ class PsiTurkRecruiter(Recruiter):
 
     def recruit_participants(self, n=1):
         """Extend the HIT to recruit more people."""
-        if self.auto_recruit:
+        auto_recruit = os.environ['auto_recruit']
+
+        if auto_recruit:
+
             print "Starting Wallace's recruit_participants."
 
             hit_id = str(
@@ -176,7 +178,8 @@ class PsiTurkRecruiter(Recruiter):
                 hit_id,
                 expiration_increment=int(float(expiration_increment or 0)*3600))
         else:
-            print (">>>> auto_recruit set to {}: recruitment suppressed".format(self.auto_recruit))
+            print (">>>> auto_recruit set to {}: recruitment suppressed"
+                   .format(auto_recruit))
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
