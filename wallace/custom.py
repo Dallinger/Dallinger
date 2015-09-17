@@ -167,12 +167,13 @@ def api_agent_create():
         exp.log("Assigning participant a new node".format(participant.status), key)
         try:
             newcomer = exp.assign_agent_to_participant(participant_uuid)
+            session.commit()
         except:
+            session.commit()
             exp.log("Error during exp.assign_agent_to_participant", participant_uuid)
             page = error_page(error_type="/agents POST, assign_agent_to_participant")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
-        session.commit()
 
         if newcomer is not None:
             exp.log("Participant has been assigned Node {}, returning status 200".format(newcomer.uuid), key)
@@ -239,12 +240,13 @@ def api_transmission(transmission_uuid):
         exp.log("Running transmission_reception_trigger", destination_uuid)
         try:
             exp.transmission_reception_trigger(pending_transmissions)
+            session.commit()
         except:
+            session.commit()
             exp.log("Error while running transmission_reception_trigger", destination_uuid)
             page = error_page(error_type="/transmissions GET, transmission_reception_trigger")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
-        session.commit()
 
         # Build a dict with info about the transmissions
         data_transmissions = []
@@ -332,12 +334,13 @@ def api_transmission(transmission_uuid):
         exp.log("Creating transmission", origin_uuid)
         try:
             transmission = origin.transmit(what=info, to_whom=destination)
+            session.commit()
         except:
+            session.commit()
             exp.log("Transmission failed", origin_uuid)
             page = error_page(error_type="/transmissions POST, transmission failed")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
-        session.commit()
 
         exp.log("Transmission successful, returning transmission uuid and status = 200")
         data = {'uuid': transmission.uuid}
@@ -498,11 +501,12 @@ def api_info(info_uuid):
         exp.log("Info successfully made, running information creation trigger", origin_uuid)
         try:
             exp.information_creation_trigger(info)
+            session.commit()
         except:
+            session.commit()
             page = error_page(error_type="/information POST, information_creation_trigger")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
-        session.commit()
 
         data = {'uuid': info.uuid}
         js = dumps(data)
