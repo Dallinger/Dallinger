@@ -162,12 +162,13 @@ class Experiment(object):
         if not worked:
             self.log("Participant failed data check: failing nodes, setting status to 105, and recruiting replacement participant", key)
 
+            participant.status = 105
+            session_psiturk.commit()
+
             for node in Node.query.filter_by(participant_uuid=participant_uuid, failed=False).all():
                 node.fail()
             self.save()
 
-            participant.status = 105
-            session_psiturk.commit()
             self.recruiter().recruit_participants(n=1)
         else:
             # if their data is ok, pay them a bonus
@@ -192,12 +193,13 @@ class Experiment(object):
             if not attended:
                 self.log("Attention check failed: failing nodes, setting status to 102, and recruiting replacement participant", key)
 
+                participant.status = 102
+                session_psiturk.commit()
+
                 for node in Node.query.filter_by(participant_uuid=participant_uuid, failed=False).all():
                     node.fail()
                 self.save()
 
-                participant.status = 102
-                session_psiturk.commit()
                 self.recruiter().recruit_participants(n=1)
             else:
                 # otherwise everything is good
