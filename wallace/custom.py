@@ -153,12 +153,14 @@ def api_agent_create():
         exp.log("Checking participant status", key)
         if participant.status not in [1, 2]:
             exp.log("Error: Participant status is {} they should not have been able to contact this route. Returning error_wallace.html.".format(participant.status), key)
-            if participant.status in [3, 4, 5, 100, 101, 102]:
+            if participant.status in [3, 4, 5, 100, 101, 102, 105]:
                 page = error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that you have already submitted the assignment.'", error_type="/agents POST, status = {}".format(participant.status))
             elif participant.status == 103:
                 page = error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that you have returned the assignment.'", error_type="/agents POST, status = {}".format(participant.status))
             elif participant.status == 104:
                 page = error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that your assignment has expired.", error_type="/agents POST, status = {}".format(participant.status))
+            elif participant.status == 106:
+                page = error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that your assignment has been assigned to someone else.", error_type="/agents POST, status = {}".format(participant.status))
             else:
                 page = error_page(participant=participant, error_type="/agents POST, status = {}".format(participant.status))
             js = dumps({"html": page})
