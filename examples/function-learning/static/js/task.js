@@ -39,9 +39,9 @@ var FunctionLearningExperiment = function() {
             data: { unique_id: uniqueId },
 		    type: 'json',
 		  	success: function (resp) {
-		  		agent_uuid = resp.agents.uuid;
+		  		agent_id = resp.agents.id;
                 setTimeout(function() {
-                    getPendingTransmissions(agent_uuid);
+                    getPendingTransmissions(agent_id);
                 }, 1000);		    },
 		    error: function (err) {
                 currentview = new Questionnaire();
@@ -49,14 +49,14 @@ var FunctionLearningExperiment = function() {
 		});
 	};
 
-	getPendingTransmissions = function(destination_uuid) {
+	getPendingTransmissions = function(destination_id) {
 		reqwest({
-		    url: "/transmissions?destination_uuid=" + destination_uuid,
+		    url: "/transmissions?destination_id=" + destination_id,
 		    method: 'get',
 		    type: 'json',
 		  	success: function (resp) {
-		  		info_uuid = resp.transmissions[0].info_uuid;
-		     	info = getInfo(info_uuid);
+		  		info_id = resp.transmissions[0].info_id;
+		     	info = getInfo(info_id);
 		    },
 		    error: function (err) {
 		    	console.log(err);
@@ -64,9 +64,9 @@ var FunctionLearningExperiment = function() {
 		});
 	};
 
-	getInfo = function(uuid) {
+	getInfo = function(id) {
 		reqwest({
-		    url: "/information/" + uuid,
+		    url: "/information/" + id,
 		    method: 'get',
 		    type: 'json',
 		  	success: function (resp) {
@@ -173,7 +173,7 @@ var FunctionLearningExperiment = function() {
                     url: "/information",
                     method: 'post',
                     data: {
-                        origin_uuid: agent_uuid,
+                        origin_id: agent_id,
                         contents: response,
                         info_type: "base"
                     }

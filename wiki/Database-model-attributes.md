@@ -19,7 +19,7 @@ Node-92792f-base
 
 ### Attributes
 
-* `uuid` -- the unique identifier of the node, which is generated automatically on creation.
+* `id` -- the unique identifier of the node, which is generated automatically on creation.
 * `type` -- the type of the node, which allows for custom models to inherit from the `Node` class. By default, the value is `'base'`.
 * `creation_time` -- the time the node was created. This is set automatically on creation.
 * `memes` -- the memes that were created by this node.
@@ -53,9 +53,9 @@ Vector-1d04da-052a13
 
 ### Attributes
 
-* `origin_uuid` -- the UUID of the origin node
+* `origin_id` -- the id of the origin node
 * `origin` -- the origin node
-* `destination_uuid` -- the UUID of the destination node
+* `destination_id` -- the id of the destination node
 * `destination` -- the destination node
 * `transmissions` -- all transmissions that have occurred along this vector
 
@@ -72,9 +72,9 @@ Meme-f8c9be-base
 
 ### Attributes
 
-* `uuid` -- the unique identifier for this meme. Automatically generated upon creation.
+* `id` -- the unique identifier for this meme. Automatically generated upon creation.
 * `type` -- the type of the meme, which allows custom models to inherit from `Meme`. By default, the value is `'base'`.
-* `origin_uuid` -- the UUID of the node that created the meme
+* `origin_id` -- the id of the node that created the meme
 * `origin` -- the node that created the meme
 * `creation_time` -- the time the node was created. Set automatically upon creation.
 * `contents` -- the actual contents of the meme.
@@ -102,12 +102,12 @@ Transmission-8c4a33
 
 ### Attributes
 
-* `uuid` -- the unique identifier of this transmission event. Automatically generated upon creation.
-* `meme_uuid` -- the UUID of the meme that was transmitted
+* `id` -- the unique identifier of this transmission event. Automatically generated upon creation.
+* `meme_id` -- the id of the meme that was transmitted
 * `meme` -- the meme that was transmitted
-* `origin_uuid` -- the UUID of the node the transmission originated from
+* `origin_id` -- the id of the node the transmission originated from
 * `origin` -- the node that the transmission originated from
-* `destination_uuid` -- the UUID of the transmission's destination node
+* `destination_id` -- the id of the transmission's destination node
 * `destination` -- the transmission's destination node
 * `creation_time` -- the time the transmission occurred. Set automatically upon creation.
 * `vector` -- the vector that this transmission occurred along
