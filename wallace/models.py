@@ -1,6 +1,5 @@
 """Define Wallace's core models."""
 
-from uuid import uuid4
 from datetime import datetime
 
 from .db import Base
@@ -12,11 +11,6 @@ from sqlalchemy.orm import relationship, validates
 import inspect
 
 DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
-
-
-def new_uuid():
-    """Generate a unique identifier."""
-    return uuid4().hex
 
 
 def timenow():
@@ -31,7 +25,7 @@ class Network(Base):
     __tablename__ = "network"
 
     # the unique network id
-    uuid = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
 
     # the network type -- this allows for inheritance
     type = Column(String(50))
@@ -75,7 +69,7 @@ class Network(Base):
     def __repr__(self):
         """The string representation of a network."""
         return "<Network-{}-{} with {} nodes, {} vectors, {} infos, {} transmissions and {} transformations>".format(
-            self.uuid,
+            self.id,
             self.type,
             len(self.nodes()),
             len(self.vectors()),
@@ -87,13 +81,13 @@ class Network(Base):
     Methods that get things about a Network
     ################################### """
 
-    def nodes(self, type=None, failed=False, participant_uuid=None):
+    def nodes(self, type=None, failed=False, participant_id=None):
         """
         Get nodes in the network.
 
         type specifies the type of Node. Failed can be "all", False
-        (default) or True. If a participant_uuid is passed only
-        nodes with that participant_uuid will be returned.
+        (default) or True. If a participant_id is passed only
+        nodes with that participant_id will be returned.
         """
         if type is None:
             type = Node
@@ -104,27 +98,27 @@ class Network(Base):
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid node failed".format(failed))
 
-        if participant_uuid is not None:
+        if participant_id is not None:
             if failed == "all":
                 return type\
                     .query\
-                    .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid)\
+                    .filter_by(network_id=self.id, participant_id=participant_id)\
                     .all()
             else:
                 return type\
                     .query\
-                    .filter_by(network_uuid=self.uuid, participant_uuid=participant_uuid, failed=failed)\
+                    .filter_by(network_id=self.id, participant_id=participant_id, failed=failed)\
                     .all()
         else:
             if failed == "all":
                 return type\
                     .query\
-                    .filter_by(network_uuid=self.uuid)\
+                    .filter_by(network_id=self.id)\
                     .all()
             else:
                 return type\
                     .query\
-                    .filter_by(failed=failed, network_uuid=self.uuid)\
+                    .filter_by(failed=failed, network_id=self.id)\
                     .all()
 
     def size(self, type=None, failed=False):
@@ -140,14 +134,14 @@ class Network(Base):
         if failed == "all":
             return len(type
                        .query
-                       .with_entities(type.uuid)
-                       .filter_by(network_uuid=self.uuid)
+                       .with_entities(type.id)
+                       .filter_by(network_id=self.id)
                        .all())
         else:
             return len(type
                        .query
-                       .with_entities(type.uuid)
-                       .filter_by(network_uuid=self.uuid, failed=failed)
+                       .with_entities(type.id)
+                       .filter_by(network_id=self.id, failed=failed)
                        .all())
 
     def infos(self, type=None, origin_failed=False):
@@ -166,11 +160,11 @@ class Network(Base):
 
         if origin_failed == "all":
             return type.query\
-                .filter_by(network_uuid=self.uuid)\
+                .filter_by(network_id=self.id)\
                 .all()
         else:
             return type.query.join(Info.origin)\
-                .filter(and_(type.network_uuid == self.uuid, Node.failed == origin_failed))\
+                .filter(and_(type.network_id == self.id, Node.failed == origin_failed))\
                 .all()
 
     def transmissions(self, status="all", vector_failed=False):
@@ -191,20 +185,20 @@ class Network(Base):
         if status == "all":
             if vector_failed == "all":
                 return Transmission.query\
-                    .filter_by(network_uuid=self.uuid)\
+                    .filter_by(network_id=self.id)\
                     .all()
             else:
                 return Transmission.query.join(Transmission.vector)\
-                    .filter(and_(Transmission.network_uuid == self.uuid, Vector.failed == vector_failed))\
+                    .filter(and_(Transmission.network_id == self.id, Vector.failed == vector_failed))\
                     .all()
         else:
             if vector_failed == "all":
                 return Transmission.query\
-                    .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status))\
+                    .filter(and_(Transmission.network_id == self.id, Transmission.status == status))\
                     .all()
             else:
                 return Transmission.query.join(Transmission.vector)\
-                    .filter(and_(Transmission.network_uuid == self.uuid, Transmission.status == status, Vector.failed == vector_failed))\
+                    .filter(and_(Transmission.network_id == self.id, Transmission.status == status, Vector.failed == vector_failed))\
                     .all()
 
     def transformations(self, type=None, node_failed=False):
@@ -224,11 +218,11 @@ class Network(Base):
 
         if node_failed == "all":
             return type.query\
-                .filter_by(network_uuid=self.uuid)\
+                .filter_by(network_id=self.id)\
                 .all()
         else:
             return type.query.join(type.node)\
-                .filter(and_(type.network_uuid == self.uuid, Node.failed == node_failed))\
+                .filter(and_(type.network_id == self.id, Node.failed == node_failed))\
                 .all()
 
     def latest_transmission_recipient(self, failed=False):
@@ -242,12 +236,12 @@ class Network(Base):
 
         if failed == "all":
             ts = Transmission.query\
-                .filter(and_(Transmission.status == "received", Transmission.network_uuid == self.uuid))\
+                .filter(and_(Transmission.status == "received", Transmission.network_id == self.id))\
                 .all()
         else:
             ts = Transmission.query\
                 .join(Transmission.destination)\
-                .filter(and_(Transmission.status == "received", Transmission.network_uuid == self.uuid, Node.failed == failed))\
+                .filter(and_(Transmission.status == "received", Transmission.network_id == self.id, Node.failed == failed))\
                 .all()
         if ts:
             t = max(ts, key=attrgetter('receive_time'))
@@ -267,11 +261,11 @@ class Network(Base):
 
         if failed == "all":
             return Vector.query\
-                .filter_by(network_uuid=self.uuid)\
+                .filter_by(network_id=self.id)\
                 .all()
         else:
             return Vector.query\
-                .filter(and_(Vector.network_uuid == self.uuid, Vector.failed == failed))\
+                .filter(and_(Vector.network_id == self.id, Vector.failed == failed))\
                 .all()
 
     """ ###################################
@@ -328,7 +322,7 @@ class Node(Base):
     __tablename__ = "node"
 
     # the unique node id
-    uuid = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
 
     # the node type -- this allows for inheritance
     type = Column(String(50))
@@ -338,7 +332,7 @@ class Node(Base):
     }
 
     # the network that this node is a part of
-    network_uuid = Column(Integer, ForeignKey('network.uuid'), index=True)
+    network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_nodes")
 
     # the time when the node was created
@@ -350,9 +344,9 @@ class Node(Base):
     # the time when the node changed from alive->dead or alive->failed
     time_of_death = Column(DateTime, default=None)
 
-    # the participant uuid is the sha512 hash of the psiTurk uniqueId of the
+    # the participant id is the sha512 hash of the psiTurk uniqueId of the
     # participant who was this node.
-    participant_uuid = Column(String(128), default=None, index=True)
+    participant_id = Column(String(128), default=None, index=True)
 
     # unused by default, these columns store additional properties used
     # by other types of node
@@ -364,7 +358,7 @@ class Node(Base):
 
     def __repr__(self):
         """The string representation of a node."""
-        return "Node-{}-{}".format(self.uuid, self.type)
+        return "Node-{}-{}".format(self.id, self.type)
 
     """ ###################################
     Methods that get things about a node
@@ -388,33 +382,33 @@ class Node(Base):
 
             if failed == "all":
                 return Vector.query\
-                    .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid))\
+                    .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id))\
                     .all()
             else:
                 return Vector.query\
-                    .filter(and_(Vector.failed == failed, or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)))\
+                    .filter(and_(Vector.failed == failed, or_(Vector.destination_id == self.id, Vector.origin_id == self.id)))\
                     .all()
 
         if direction == "incoming":
 
             if failed == "all":
                 return Vector.query\
-                    .filter_by(destination_uuid=self.uuid)\
+                    .filter_by(destination_id=self.id)\
                     .all()
             else:
                 return Vector.query\
-                    .filter_by(destination_uuid=self.uuid, failed=failed)\
+                    .filter_by(destination_id=self.id, failed=failed)\
                     .all()
 
         if direction == "outgoing":
 
             if failed == "all":
                 return Vector.query\
-                    .filter_by(origin_uuid=self.uuid)\
+                    .filter_by(origin_id=self.id)\
                     .all()
             else:
                 return Vector.query\
-                    .filter_by(origin_uuid=self.uuid, failed=failed)\
+                    .filter_by(origin_id=self.id, failed=failed)\
                     .all()
 
     def neighbors(self, type=None, failed=False, connection="to"):
@@ -469,7 +463,7 @@ class Node(Base):
         """
 
         whom = self.flatten([whom])
-        other_node_uuids = [n.uuid for n in whom]
+        other_node_ids = [n.id for n in whom]
         connected = []
 
         for node in whom:
@@ -485,56 +479,56 @@ class Node(Base):
 
         if direction == "to":
             if vector_failed == "all":
-                all_relevant_vectors = Vector.query.with_entities(Vector.destination_uuid)\
-                    .filter_by(origin_uuid=self.uuid).all()
-                for i in range(len(other_node_uuids)):
-                    connected.append(any([v for v in all_relevant_vectors if v.destination_uuid == other_node_uuids[i]]))
+                all_relevant_vectors = Vector.query.with_entities(Vector.destination_id)\
+                    .filter_by(origin_id=self.id).all()
+                for i in range(len(other_node_ids)):
+                    connected.append(any([v for v in all_relevant_vectors if v.destination_id == other_node_ids[i]]))
             else:
-                all_relevant_vectors = Vector.query.with_entities(Vector.destination_uuid)\
-                    .filter_by(origin_uuid=self.uuid, failed=vector_failed).all()
-                for i in range(len(other_node_uuids)):
-                    connected.append(any([v for v in all_relevant_vectors if v.destination_uuid == other_node_uuids[i]]))
+                all_relevant_vectors = Vector.query.with_entities(Vector.destination_id)\
+                    .filter_by(origin_id=self.id, failed=vector_failed).all()
+                for i in range(len(other_node_ids)):
+                    connected.append(any([v for v in all_relevant_vectors if v.destination_id == other_node_ids[i]]))
         elif direction == "from":
             if vector_failed == "all":
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid)\
-                    .filter_by(destination_uuid=self.uuid).all()
-                for i in range(len(other_node_uuids)):
-                    connected.append(any([v for v in all_relevant_vectors if v.origin_uuid == other_node_uuids[i]]))
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id)\
+                    .filter_by(destination_id=self.id).all()
+                for i in range(len(other_node_ids)):
+                    connected.append(any([v for v in all_relevant_vectors if v.origin_id == other_node_ids[i]]))
             else:
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid)\
-                    .filter_by(destination_uuid=self.uuid, failed=vector_failed).all()
-                for i in range(len(other_node_uuids)):
-                    connected.append(any([v for v in all_relevant_vectors if v.origin_uuid == other_node_uuids[i]]))
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id)\
+                    .filter_by(destination_id=self.id, failed=vector_failed).all()
+                for i in range(len(other_node_ids)):
+                    connected.append(any([v for v in all_relevant_vectors if v.origin_id == other_node_ids[i]]))
         elif direction == "either":
             if vector_failed == "all":
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid, Vector.destination_uuid)\
-                    .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)).all()
-                for i in range(len(other_node_uuids)):
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
+                    .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
+                for i in range(len(other_node_ids)):
                     connected.append(any([v for v in all_relevant_vectors
-                                          if v.origin_uuid == other_node_uuids[i]
-                                          or v.destination_uuid == other_node_uuids[i]]))
+                                          if v.origin_id == other_node_ids[i]
+                                          or v.destination_id == other_node_ids[i]]))
             else:
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid, Vector.destination_uuid)\
-                    .filter(and_(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid), Vector.failed == vector_failed)).all()
-                for i in range(len(other_node_uuids)):
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
+                    .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id), Vector.failed == vector_failed)).all()
+                for i in range(len(other_node_ids)):
                     connected.append(any([v for v in all_relevant_vectors
-                                          if v.origin_uuid == other_node_uuids[i]
-                                          or v.destination_uuid == other_node_uuids[i]]))
+                                          if v.origin_id == other_node_ids[i]
+                                          or v.destination_id == other_node_ids[i]]))
         elif direction == "both":
             if vector_failed == "all":
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid, Vector.destination_uuid)\
-                    .filter(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid)).all()
-                for i in range(len(other_node_uuids)):
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
+                    .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
+                for i in range(len(other_node_ids)):
                     connected.append(any([v for v in all_relevant_vectors
-                                          if v.origin_uuid == other_node_uuids[i]
-                                          and v.destination_uuid == other_node_uuids[i]]))
+                                          if v.origin_id == other_node_ids[i]
+                                          and v.destination_id == other_node_ids[i]]))
             else:
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_uuid, Vector.destination_uuid)\
-                    .filter(and_(or_(Vector.destination_uuid == self.uuid, Vector.origin_uuid == self.uuid), Vector.failed == vector_failed)).all()
-                for i in range(len(other_node_uuids)):
+                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
+                    .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id), Vector.failed == vector_failed)).all()
+                for i in range(len(other_node_ids)):
                     connected.append(any([v for v in all_relevant_vectors
-                                          if v.origin_uuid == other_node_uuids[i]
-                                          and v.destination_uuid == other_node_uuids[i]]))
+                                          if v.origin_id == other_node_ids[i]
+                                          and v.destination_id == other_node_ids[i]]))
         if len(connected) == 1:
             return connected[0]
         else:
@@ -553,7 +547,7 @@ class Node(Base):
 
         return type\
             .query\
-            .filter_by(origin_uuid=self.uuid)\
+            .filter_by(origin_id=self.id)\
             .all()
 
     def transmissions(self, direction="outgoing", status="all"):
@@ -574,28 +568,28 @@ class Node(Base):
         if direction == "all":
             if status == "all":
                 return Transmission.query\
-                    .filter(or_(Transmission.destination_uuid == self.uuid, Transmission.origin_uuid == self.uuid))\
+                    .filter(or_(Transmission.destination_id == self.id, Transmission.origin_id == self.id))\
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.status == status, or_(Transmission.destination_uuid == self.uuid, Transmission.origin_uuid == self.uuid)))\
+                    .filter(and_(Transmission.status == status, or_(Transmission.destination_id == self.id, Transmission.origin_id == self.id)))\
                     .all()
         if direction == "incoming":
             if status == "all":
-                return Transmission.query.filter_by(destination_uuid=self.uuid)\
+                return Transmission.query.filter_by(destination_id=self.id)\
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.destination_uuid == self.uuid, Transmission.status == status))\
+                    .filter(and_(Transmission.destination_id == self.id, Transmission.status == status))\
                     .all()
         if direction == "outgoing":
             if status == "all":
                 return Transmission.query\
-                    .filter_by(origin_uuid=self.uuid)\
+                    .filter_by(origin_id=self.id)\
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.origin_uuid == self.uuid, Transmission.status == status))\
+                    .filter(and_(Transmission.origin_id == self.id, Transmission.status == status))\
                     .all()
 
     def transformations(self, type=None):
@@ -608,7 +602,7 @@ class Node(Base):
             type = Transformation
         return type\
             .query\
-            .filter_by(node_uuid=self.uuid)\
+            .filter_by(node_id=self.id)\
             .all()
 
     """ ###################################
@@ -677,9 +671,9 @@ class Node(Base):
             if node.failed:
                 raise ValueError("Cannot connect to/from {} as it has failed".format(node))
 
-            if node.network_uuid != self.network_uuid:
+            if node.network_id != self.network_id:
                 raise ValueError("{}, in network {}, cannot connect with {} as it is in network {}"
-                                 .format(self, self.network_uuid, node, node.network_uuid))
+                                 .format(self, self.network_id, node, node.network_id))
 
         if direction == "to":
             to_nodes = whom
@@ -781,12 +775,12 @@ class Node(Base):
 
         transmissions = []
         for w in what:
-            if w.origin_uuid != self.uuid:
+            if w.origin_id != self.id:
                 raise ValueError("{} cannot transmit {} as it is not its origin".format(self, w))
             for tw in to_whom:
                 if not self.is_connected(whom=tw):
                     raise ValueError("{} cannot transmit to {} as it does not have a connection to them".format(self, tw))
-                vector = [v for v in self.vectors(direction="outgoing") if v.destination_uuid == tw.uuid][0]
+                vector = [v for v in self.vectors(direction="outgoing") if v.destination_id == tw.id][0]
                 t = Transmission(info=w, vector=vector)
                 transmissions.append(t)
         if len(transmissions) == 1:
@@ -861,20 +855,20 @@ class Vector(Base):
     __tablename__ = "vector"
 
     # the unique vector id
-    uuid = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
 
     # the origin node
-    origin_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
-    origin = relationship(Node, foreign_keys=[origin_uuid],
+    origin_id = Column(Integer, ForeignKey('node.id'), index=True)
+    origin = relationship(Node, foreign_keys=[origin_id],
                           backref="all_outgoing_vectors")
 
     # the destination node
-    destination_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
-    destination = relationship(Node, foreign_keys=[destination_uuid],
+    destination_id = Column(Integer, ForeignKey('node.id'), index=True)
+    destination = relationship(Node, foreign_keys=[destination_id],
                                backref="all_incoming_vectors")
 
     # the network that this vector is in
-    network_uuid = Column(Integer, ForeignKey('network.uuid'), index=True)
+    network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_vectors")
 
     # the time when the node was created
@@ -897,16 +891,16 @@ class Vector(Base):
     def __init__(self, origin, destination):
         #super(Vector, self).__init__()
         self.origin = origin
-        self.origin_uuid = origin.uuid
+        self.origin_id = origin.id
         self.destination = destination
-        self.destination_uuid = destination.uuid
+        self.destination_id = destination.id
         self.network = origin.network
-        self.network_uuid = origin.network_uuid
+        self.network_id = origin.network_id
 
     def __repr__(self):
         """The string representation of a vector."""
         return "Vector-{}-{}".format(
-            self.origin_uuid, self.destination_uuid)
+            self.origin_id, self.destination_id)
 
     ###################################
     # Methods that get things about a Vector
@@ -925,12 +919,12 @@ class Vector(Base):
         if status == "all":
             return Transmission\
                 .query\
-                .filter_by(vector_uuid=self.uuid)\
+                .filter_by(vector_id=self.id)\
                 .all()
         else:
             return Transmission\
                 .query\
-                .filter_by(vector_uuid=self.uuid, status=status)\
+                .filter_by(vector_id=self.id, status=status)\
                 .all()
 
     ###################################
@@ -952,7 +946,7 @@ class Info(Base):
     __tablename__ = "info"
 
     # the unique info id
-    uuid = Column(Integer, primary_key=True, info=True)
+    id = Column(Integer, primary_key=True, info=True)
 
     # the info type -- this allows for inheritance
     type = Column(String(50))
@@ -962,11 +956,11 @@ class Info(Base):
     }
 
     # the node that created this info
-    origin_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
+    origin_id = Column(Integer, ForeignKey('node.id'), index=True)
     origin = relationship(Node, backref='all_infos')
 
     # the network the info is in
-    network_uuid = Column(Integer, ForeignKey('network.uuid'), index=True)
+    network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_infos")
 
     # the time when the info was created
@@ -985,9 +979,9 @@ class Info(Base):
 
     def __init__(self, origin, contents=None):
         self.origin = origin
-        self.origin_uuid = origin.uuid
+        self.origin_id = origin.id
         self.contents = contents
-        self.network_uuid = origin.network_uuid
+        self.network_id = origin.network_id
         self.network = origin.network
 
     @validates("contents")
@@ -999,7 +993,7 @@ class Info(Base):
 
     def __repr__(self):
         """The string representation of an info."""
-        return "Info-{}-{}".format(self.uuid, self.type)
+        return "Info-{}-{}".format(self.id, self.type)
 
     def transmissions(self, status="all"):
         if status not in ["all", "pending", "received"]:
@@ -1008,12 +1002,12 @@ class Info(Base):
         if status == "all":
             return Transmission\
                 .query\
-                .filter_by(info_uuid=self.uuid)\
+                .filter_by(info_id=self.id)\
                 .all()
         else:
             return Transmission\
                 .query\
-                .filter(and_(Transmission.info_uuid == self.uuid, Transmission.status == status))\
+                .filter(and_(Transmission.info_id == self.id, Transmission.status == status))\
                 .all()
 
     def transformations(self, relationship="all"):
@@ -1030,13 +1024,13 @@ class Info(Base):
         if relationship == "parent":
             return Transformation\
                 .query\
-                .filter_by(info_in_uuid=self.uuid)\
+                .filter_by(info_in_id=self.id)\
                 .all()
 
         if relationship == "child":
             return Transformation\
                 .query\
-                .filter_by(info_out_uuid=self.uuid)\
+                .filter_by(info_out_id=self.id)\
                 .all()
 
     def _mutated_contents(self):
@@ -1051,28 +1045,28 @@ class Transmission(Base):
     __tablename__ = "transmission"
 
     # the unique transmission id
-    uuid = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
 
     # the vector the transmission passed along
-    vector_uuid = Column(Integer, ForeignKey('vector.uuid'), index=True)
+    vector_id = Column(Integer, ForeignKey('vector.id'), index=True)
     vector = relationship(Vector, backref='all_transmissions')
 
     # the info that was transmitted
-    info_uuid = Column(Integer, ForeignKey('info.uuid'), index=True)
+    info_id = Column(Integer, ForeignKey('info.id'), index=True)
     info = relationship(Info, backref='all_transmissions')
 
     # the origin node
-    origin_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
-    origin = relationship(Node, foreign_keys=[origin_uuid],
+    origin_id = Column(Integer, ForeignKey('node.id'), index=True)
+    origin = relationship(Node, foreign_keys=[origin_id],
                           backref="all_outgoing_transmissions")
 
     # the destination node
-    destination_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
-    destination = relationship(Node, foreign_keys=[destination_uuid],
+    destination_id = Column(Integer, ForeignKey('node.id'), index=True)
+    destination = relationship(Node, foreign_keys=[destination_id],
                                backref="all_incoming_transmissions")
 
     # the network of the transformation
-    network_uuid = Column(Integer, ForeignKey('network.uuid'), index=True)
+    network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="networks_transmissions")
 
     # the time at which the transmission occurred
@@ -1095,15 +1089,15 @@ class Transmission(Base):
 
     def __init__(self, vector, info):
         #super(Transmission, self).__init__()
-        self.vector_uuid = vector.uuid
+        self.vector_id = vector.id
         self.vector = vector
-        self.info_uuid = info
+        self.info_id = info
         self.info = info
-        self.origin_uuid = vector.origin_uuid
+        self.origin_id = vector.origin_id
         self.origin = vector.origin
-        self.destination_uuid = vector.destination_uuid
+        self.destination_id = vector.destination_id
         self.destination = vector.destination
-        self.network_uuid = vector.network_uuid
+        self.network_id = vector.network_id
         self.network = vector.network
 
     def mark_received(self):
@@ -1112,7 +1106,7 @@ class Transmission(Base):
 
     def __repr__(self):
         """The string representation of a transmission."""
-        return "Transmission-{}".format(self.uuid)
+        return "Transmission-{}".format(self.id)
 
 
 class Transformation(Base):
@@ -1130,23 +1124,23 @@ class Transformation(Base):
     }
 
     # the unique transformation id
-    uuid = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
 
     # the info before it was transformed
-    info_in_uuid = Column(Integer, ForeignKey('info.uuid'), index=True)
-    info_in = relationship(Info, foreign_keys=[info_in_uuid],
+    info_in_id = Column(Integer, ForeignKey('info.id'), index=True)
+    info_in = relationship(Info, foreign_keys=[info_in_id],
                            backref="transformation_applied_to")
 
     # the info produced as a result of the transformation
-    info_out_uuid = Column(Integer, ForeignKey('info.uuid'), index=True)
-    info_out = relationship(Info, foreign_keys=[info_out_uuid],
+    info_out_id = Column(Integer, ForeignKey('info.id'), index=True)
+    info_out = relationship(Info, foreign_keys=[info_out_id],
                             backref="transformation_whence")
 
-    node_uuid = Column(Integer, ForeignKey('node.uuid'), index=True)
+    node_id = Column(Integer, ForeignKey('node.id'), index=True)
     node = relationship(Node, backref='transformations_here')
 
     # the network of the transformation
-    network_uuid = Column(Integer, ForeignKey('network.uuid'), index=True)
+    network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="networks_transformations")
 
     # the time at which the transformation occurred
@@ -1162,7 +1156,7 @@ class Transformation(Base):
 
     def __repr__(self):
         """The string representation of a transformation."""
-        return "Transformation-{}".format(self.uuid)
+        return "Transformation-{}".format(self.id)
 
     def __init__(self, info_in, info_out=None):
         self.check_for_transformation(info_in, info_out)
@@ -1170,10 +1164,10 @@ class Transformation(Base):
         self.info_out = info_out
         self.node = info_out.origin
         self.network = info_out.network
-        self.info_in_uuid = info_in.uuid
-        self.info_out_uuid = info_out.uuid
-        self.node_uuid = info_out.origin_uuid
-        self.network_uuid = info_out.network_uuid
+        self.info_in_id = info_in.id
+        self.info_out_id = info_out.id
+        self.node_id = info_out.origin_id
+        self.network_id = info_out.network_id
 
     def check_for_transformation(self, info_in, info_out):
         # check the infos are Infos.
@@ -1193,7 +1187,7 @@ class Notification(Base):
     __tablename__ = "notification"
 
     # the unique notification id
-    uuid = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True)
 
     # the assignment is from AWS the notification pertains to
     assignment_id = Column(String, nullable=False)

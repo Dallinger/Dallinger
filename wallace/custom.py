@@ -127,17 +127,17 @@ def api_agent_create():
 
     if request.method == 'POST':
         try:
-            participant_uuid = request.values["unique_id"]
+            participant_id = request.values["unique_id"]
         except:
             exp.log("/agents POST request failed: unique_id not specified")
             page = error_page(error_type="/agents POST, unique_id not specified")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
 
-        key = participant_uuid[0:5]
-        exp.log("Received POST request to /agents for participant {}".format(participant_uuid), key)
+        key = participant_id[0:5]
+        exp.log("Received POST request to /agents for participant {}".format(participant_id), key)
         participant = Participant.query.\
-            filter(Participant.uniqueid == participant_uuid).all()
+            filter(Participant.uniqueid == participant_id).all()
         if len(participant) == 0:
             exp.log("Error: No participants with that id. Returning status 403", key)
             page = error_page(error_text="You cannot continue because your worker id does not match anyone in our records.", error_type="/agents no participant found")
@@ -168,18 +168,18 @@ def api_agent_create():
 
         exp.log("Assigning participant a new node".format(participant.status), key)
         try:
-            newcomer = exp.assign_agent_to_participant(participant_uuid)
+            newcomer = exp.assign_agent_to_participant(participant_id)
             session.commit()
         except:
             session.commit()
-            exp.log("Error during exp.assign_agent_to_participant", participant_uuid)
+            exp.log("Error during exp.assign_agent_to_participant", participant_id)
             page = error_page(error_type="/agents POST, assign_agent_to_participant")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
 
         if newcomer is not None:
-            exp.log("Participant has been assigned Node {}, returning status 200".format(newcomer.uuid), key)
-            data = {'agents': {'uuid': newcomer.uuid}}
+            exp.log("Participant has been assigned Node {}, returning status 200".format(newcomer.id), key)
+            data = {'agents': {'id': newcomer.id}}
             js = dumps(data)
             return Response(js, status=200, mimetype='application/json')
         else:
@@ -188,64 +188,64 @@ def api_agent_create():
 
 
 @custom_code.route("/transmissions",
-                   defaults={"transmission_uuid": None},
+                   defaults={"transmission_id": None},
                    methods=["POST", "GET"])
-@custom_code.route("/transmissions/<transmission_uuid>", methods=["GET"])
-def api_transmission(transmission_uuid):
+@custom_code.route("/transmissions/<transmission_id>", methods=["GET"])
+def api_transmission(transmission_id):
     """Receive or send/create transmissions."""
     exp = experiment(session)
 
     # check that a destination is specified
     try:
-        destination_uuid = request.values['destination_uuid']
+        destination_id = request.values['destination_id']
     except:
-        page = error_page(error_type="/transmissions GET/POST, no destination uuid")
+        page = error_page(error_type="/transmissions GET/POST, no destination id")
         js = dumps({"html": page})
         return Response(js, status=403, mimetype='application/json')
 
-    # Ensure that destination_uuid is a number.
-    if not destination_uuid.isdigit():
+    # Ensure that destination_id is a number.
+    if not destination_id.isdigit():
         exp.log(
-            "Malformed destination uuid: {}".format(destination_uuid),
-            destination_uuid)
-        page = error_page(error_type="/transmissions GET/POST, malformed destination uuid")
+            "Malformed destination id: {}".format(destination_id),
+            destination_id)
+        page = error_page(error_type="/transmissions GET/POST, malformed destination id")
         js = dumps({"html": page})
         return Response(js, status=403, mimetype='application/json')
 
     if request.method == 'GET':
-        exp.log("Recevied a Transmission GET request", destination_uuid)
+        exp.log("Recevied a Transmission GET request", destination_id)
 
         # Given a receiving agent, get its pending transmissions
-        if transmission_uuid is None:
-            exp.log("Getting all pending transmissions", destination_uuid)
+        if transmission_id is None:
+            exp.log("Getting all pending transmissions", destination_id)
             pending_transmissions = models.Transmission\
                 .query\
-                .filter_by(destination_uuid=destination_uuid,
+                .filter_by(destination_id=destination_id,
                            receive_time=None)\
                 .all()
 
-        # Or given a uuid, get the transmission with the given id
+        # Or given a id, get the transmission with the given id
         else:
-            exp.log("Getting transmission {}".format(transmission_uuid), destination_uuid)
+            exp.log("Getting transmission {}".format(transmission_id), destination_id)
             try:
                 transmission = models.Transmission\
                     .query\
-                    .filter_by(uuid=transmission_uuid)\
+                    .filter_by(id=transmission_id)\
                     .one()
             except:
-                exp.log("Error: Transmission {} does not exist. Returning status 403".format(transmission_uuid), destination_uuid)
+                exp.log("Error: Transmission {} does not exist. Returning status 403".format(transmission_id), destination_id)
                 page = error_page(error_type="/transmissions GET, transmission does not exist")
                 js = dumps({"html": page})
                 return Response(js, status=403, mimetype='application/json')
             pending_transmissions = [transmission]
 
-        exp.log("Running transmission_reception_trigger", destination_uuid)
+        exp.log("Running transmission_reception_trigger", destination_id)
         try:
             exp.transmission_reception_trigger(pending_transmissions)
             session.commit()
         except:
             session.commit()
-            exp.log("Error while running transmission_reception_trigger", destination_uuid)
+            exp.log("Error while running transmission_reception_trigger", destination_id)
             page = error_page(error_type="/transmissions GET, transmission_reception_trigger")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
@@ -254,16 +254,16 @@ def api_transmission(transmission_uuid):
         data_transmissions = []
         for t in pending_transmissions:
             data_transmissions.append({
-                "uuid": t.uuid,
-                "info_uuid": t.info_uuid,
-                "origin_uuid": t.origin_uuid,
-                "destination_uuid": t.destination_uuid,
+                "id": t.id,
+                "info_id": t.info_id,
+                "origin_id": t.origin_id,
+                "destination_id": t.destination_id,
                 "creation_time": t.creation_time,
                 "receive_time": t.receive_time
             })
         data = {"transmissions": data_transmissions}
 
-        exp.log("Returning transmissions, status 200", destination_uuid)
+        exp.log("Returning transmissions, status 200", destination_id)
 
         def date_handler(obj):
             return obj.isoformat() if hasattr(obj, 'isoformat') else obj
@@ -274,87 +274,87 @@ def api_transmission(transmission_uuid):
     if request.method == "POST":
 
         try:
-            # Ensure that origin_uuid is a number.
-            origin_uuid = request.values['origin_uuid']
-            if not origin_uuid.isdigit():
+            # Ensure that origin_id is a number.
+            origin_id = request.values['origin_id']
+            if not origin_id.isdigit():
                 exp.log(
-                    "Malformed uuid: {}".format(origin_uuid),
-                    destination_uuid)
-                page = error_page(error_type="/transmissions POST, malformed origin uuid")
+                    "Malformed id: {}".format(origin_id),
+                    destination_id)
+                page = error_page(error_type="/transmissions POST, malformed origin id")
                 js = dumps({"html": page})
                 return Response(js, status=403, mimetype='application/json')
 
-            # Ensure that info_uuid is a number.
-            info_uuid = request.values['info_uuid']
-            if not info_uuid.isdigit():
+            # Ensure that info_id is a number.
+            info_id = request.values['info_id']
+            if not info_id.isdigit():
                 exp.log(
-                    "Malformed uuid: {}".format(info_uuid),
-                    destination_uuid)
-                page = error_page(error_type="/transmissions POST, malformed info uuid")
+                    "Malformed id: {}".format(info_id),
+                    destination_id)
+                page = error_page(error_type="/transmissions POST, malformed info id")
                 js = dumps({"html": page})
                 return Response(js, status=403, mimetype='application/json')
 
         except:
-            exp.log("Error: Recevied a transmission POST request, but origin_uuid, destination_uuid or info_uuid not specified. Returning status 403")
-            page = error_page(error_type="/transmissions POST, missing request uuid")
+            exp.log("Error: Recevied a transmission POST request, but origin_id, destination_id or info_id not specified. Returning status 403")
+            page = error_page(error_type="/transmissions POST, missing request id")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
 
-        exp.log("Received a transmission post request to send info {} from node {} to node {}".format(info_uuid, origin_uuid, destination_uuid), origin_uuid)
+        exp.log("Received a transmission post request to send info {} from node {} to node {}".format(info_id, origin_id, destination_id), origin_id)
 
         try:
             info = models.Info\
                 .query\
-                .filter_by(uuid=info_uuid)\
+                .filter_by(id=info_id)\
                 .one()
         except:
-            exp.log("Error: Info {} does not exist, returning status 403".format(info_uuid), origin_uuid)
+            exp.log("Error: Info {} does not exist, returning status 403".format(info_id), origin_id)
             page = error_page(error_type="/transmissions POST, info does not exist")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
 
         try:
             origin = models.Node\
-                .query.filter_by(uuid=origin_uuid)\
+                .query.filter_by(id=origin_id)\
                 .one()
         except:
-            exp.log("Error: Node {} does not exist, returning status 403".format(origin_uuid), origin_uuid)
+            exp.log("Error: Node {} does not exist, returning status 403".format(origin_id), origin_id)
             page = error_page(error_type="/transmissions POST, origin does not exist")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
 
         try:
             destination = nodes.Agent\
-                .query.filter_by(uuid=destination_uuid)\
+                .query.filter_by(id=destination_id)\
                 .one()
         except:
-            exp.log("Error: Node {} does not exist, returning status 403".format(destination_uuid), origin_uuid)
+            exp.log("Error: Node {} does not exist, returning status 403".format(destination_id), origin_id)
             page = error_page(error_type="/transmissions POST, doestination does not exist")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
 
-        exp.log("Creating transmission", origin_uuid)
+        exp.log("Creating transmission", origin_id)
         try:
             transmission = origin.transmit(what=info, to_whom=destination)
             session.commit()
         except:
             session.commit()
-            exp.log("Transmission failed", origin_uuid)
+            exp.log("Transmission failed", origin_id)
             page = error_page(error_type="/transmissions POST, transmission failed")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
 
-        exp.log("Transmission successful, returning transmission uuid and status = 200")
-        data = {'uuid': transmission.uuid}
+        exp.log("Transmission successful, returning transmission id and status = 200")
+        data = {'id': transmission.id}
         js = dumps(data)
         return Response(js, status=200, mimetype='application/json')
 
 
 @custom_code.route("/information",
-                   defaults={"info_uuid": None},
+                   defaults={"info_id": None},
                    methods=["POST", "GET"])
-@custom_code.route("/information/<info_uuid>", methods=["GET"])
-def api_info(info_uuid):
+@custom_code.route("/information/<info_id>", methods=["GET"])
+def api_info(info_id):
     """Create and access informaiton."""
     exp = experiment(session)
 
@@ -363,20 +363,20 @@ def api_info(info_uuid):
 
     if request.method == 'GET':
 
-        if info_uuid is not None:
+        if info_id is not None:
 
-            exp.log("Received an /information GET request for info {}".format(info_uuid), info_uuid)
+            exp.log("Received an /information GET request for info {}".format(info_id), info_id)
 
-            # Ensure that info_uuid is a number.
-            if not info_uuid.isdigit():
+            # Ensure that info_id is a number.
+            if not info_id.isdigit():
                 exp.log(
-                    "Malformed uuid: {}; from info GET.".format(info_uuid))
-                page = error_page(error_type="/information GET, malformed info uuid")
+                    "Malformed id: {}; from info GET.".format(info_id))
+                page = error_page(error_type="/information GET, malformed info id")
                 js = dumps({"html": page})
                 return Response(js, status=403, mimetype='application/json')
 
             try:
-                info = models.Info.query.filter_by(uuid=info_uuid).one()
+                info = models.Info.query.filter_by(id=info_id).one()
             except:
                 exp.log("Error: Info {} does not exist, returning status = 403")
                 page = error_page(error_type="/information GET, info does not exist")
@@ -384,97 +384,97 @@ def api_info(info_uuid):
                 return Response(js, status=403, mimetype='application/json')
 
             data = {
-                'info_uuid': info_uuid,
+                'info_id': info_id,
                 'contents': info.contents,
-                'origin_uuid': info.origin_uuid,
+                'origin_id': info.origin_id,
                 'creation_time': info.creation_time,
                 'type': info.type
             }
 
             js = dumps(data, default=date_handler)
 
-            exp.log("Success: returning info, status = 200", info_uuid)
+            exp.log("Success: returning info, status = 200", info_id)
             return Response(js, status=200, mimetype='application/json')
 
         else:
 
             try:
-                # Ensure that origin_uuid is a number.
-                origin_uuid = request.values['origin_uuid']
-                if not origin_uuid.isdigit():
+                # Ensure that origin_id is a number.
+                origin_id = request.values['origin_id']
+                if not origin_id.isdigit():
                     exp.log(
-                        "Malformed uuid: {}; from info GET2.".format(origin_uuid))
-                    page = error_page(error_type="/information GET, malformed origin uuid")
+                        "Malformed id: {}; from info GET2.".format(origin_id))
+                    page = error_page(error_type="/information GET, malformed origin id")
                     js = dumps({"html": page})
                     return Response(js, status=403, mimetype='application/json')
 
             except:
-                exp.log("Error: Received an information get request but neither info_uuid or origin_uuid specified. Returning status 403")
-                page = error_page(error_type="/information GET, no info or origin uuid")
+                exp.log("Error: Received an information get request but neither info_id or origin_id specified. Returning status 403")
+                page = error_page(error_type="/information GET, no info or origin id")
                 js = dumps({"html": page})
                 return Response(js, status=403, mimetype='application/json')
 
-            exp.log("Received an /information GET request from node {}".format(origin_uuid), origin_uuid)
+            exp.log("Received an /information GET request from node {}".format(origin_id), origin_id)
 
             infos = models.Info\
                 .query\
-                .filter_by(origin_uuid=origin_uuid)\
+                .filter_by(origin_id=origin_id)\
                 .all()
 
             if infos:
                 data_information = []
                 for i in infos:
                     data_information.append({
-                        "info_uuid": i.uuid,
+                        "info_id": i.id,
                         "type": i.type,
-                        "origin_uuid": i.origin_uuid,
+                        "origin_id": i.origin_id,
                         "creation_time": i.creation_time,
                         "contents": i.contents
                     })
 
                 js = dumps({"information": data_information}, default=date_handler)
 
-                exp.log("Success: Returning infos, status = 200", origin_uuid)
+                exp.log("Success: Returning infos, status = 200", origin_id)
                 return Response(js, status=200, mimetype='application/json')
             else:
-                exp.log("Warning: Node {} has no infos. Returning status 200".format(origin_uuid), origin_uuid)
+                exp.log("Warning: Node {} has no infos. Returning status 200".format(origin_id), origin_id)
                 return Response(status=200)
 
     if request.method == "POST":
 
         try:
-            # Ensure that origin_uuid is a number.
-            origin_uuid = request.values['origin_uuid']
-            if not origin_uuid.isdigit():
+            # Ensure that origin_id is a number.
+            origin_id = request.values['origin_id']
+            if not origin_id.isdigit():
                 exp.log(
-                    "Malformed uuid: {}; from info POST.".format(origin_uuid))
-                page = error_page(error_type="/information POST, malformed origin uuid")
+                    "Malformed id: {}; from info POST.".format(origin_id))
+                page = error_page(error_type="/information POST, malformed origin id")
                 js = dumps({"html": page})
                 return Response(js, status=403, mimetype='application/json')
 
         except:
-            exp.log("Error: received information POST request, but origin_uuid not specified. Returning status 403")
-            page = error_page(error_type="/information POST, no origin uuid")
+            exp.log("Error: received information POST request, but origin_id not specified. Returning status 403")
+            page = error_page(error_type="/information POST, no origin id")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
 
         try:
             cnts = urllib.unquote(request.values['contents']).decode('utf8')
         except:
-            exp.log("Error: received information POST request from Node {}, but contents not specified. Returning status 403".format(origin_uuid), origin_uuid)
+            exp.log("Error: received information POST request from Node {}, but contents not specified. Returning status 403".format(origin_id), origin_id)
             page = error_page(error_type="/information POST, no contents")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
         info_type = request.values['info_type']
-        exp.log("Received an information post request from node {}".format(origin_uuid), origin_uuid)
+        exp.log("Received an information post request from node {}".format(origin_id), origin_id)
 
         try:
             node = models.Node\
                 .query\
-                .filter_by(uuid=origin_uuid)\
+                .filter_by(id=origin_id)\
                 .one()
         except:
-            exp.log("Error: Node {} does not exist, returning status = 403".format(origin_uuid), origin_uuid)
+            exp.log("Error: Node {} does not exist, returning status = 403".format(origin_id), origin_id)
             page = error_page(error_type="/information POST, origin does not exist")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
@@ -489,18 +489,18 @@ def api_info(info_uuid):
         elif info_type == "state":
             cls = information.State
         else:
-            exp.log("Error: Requested info_type does not exist, returning status = 403", origin_uuid)
+            exp.log("Error: Requested info_type does not exist, returning status = 403", origin_id)
             page = error_page(error_type="/information POST, bad info type")
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
 
-        exp.log("Making info", origin_uuid)
+        exp.log("Making info", origin_id)
         info = cls(
             origin=node,
             contents=cnts)
 
         # Trigger experiment-specific behavior that happens on creationg
-        exp.log("Info successfully made, running information creation trigger", origin_uuid)
+        exp.log("Info successfully made, running information creation trigger", origin_id)
         try:
             exp.information_creation_trigger(info)
             session.commit()
@@ -510,9 +510,9 @@ def api_info(info_uuid):
             js = dumps({"html": page})
             return Response(js, status=403, mimetype='application/json')
 
-        data = {'uuid': info.uuid}
+        data = {'id': info.id}
         js = dumps(data)
-        exp.log("Success, returning info uuid, status = 200", origin_uuid)
+        exp.log("Success, returning info id, status = 200", origin_id)
         return Response(js, status=200, mimetype='application/json')
 
 
@@ -531,7 +531,7 @@ def nudge():
     for participant in participants:
 
         exp.log("Nudging participant {}".format(participant))
-        participant_uuid = participant.uniqueid
+        participant_id = participant.uniqueid
 
         # Assign participant status 100.
         participant.status = 100
@@ -539,7 +539,7 @@ def nudge():
 
         # Recruit new participants.
         exp.participant_submission_trigger(
-            participant_uuid=participant_uuid,
+            participant_id=participant_id,
             assignment_id=participant.assignmentid)
 
     # If a participant has status 3, but has an endhit time, something must
@@ -582,7 +582,7 @@ def api_notifications():
                     exp.log("Failing nodes of participant {} and setting their status to 106".format(participant.uniqueid))
                     participant.status = 106
                     session_psiturk.commit()
-                    for node in models.Node.query.filter_by(participant_uuid=participant.uniqueid, failed=False).all():
+                    for node in models.Node.query.filter_by(participant_id=participant.uniqueid, failed=False).all():
                         node.fail()
             session.commit()
             session_psiturk.commit()
@@ -602,8 +602,8 @@ def api_notifications():
     else:
         participant = participants[0]
 
-    participant_uuid = participant.uniqueid
-    key = participant_uuid[0:5]
+    participant_id = participant.uniqueid
+    key = participant_id[0:5]
 
     exp.log("{} notification received".format(event_type), key)
 
@@ -614,7 +614,7 @@ def api_notifications():
             exp.log("Failing all participant's nodes", key)
             nodes = models.Node\
                 .query\
-                .filter_by(participant_uuid=participant_uuid, failed=False)\
+                .filter_by(participant_id=participant_id, failed=False)\
                 .all()
             for node in nodes:
                 node.fail()
@@ -627,7 +627,7 @@ def api_notifications():
             exp.log("Failing all participant's nodes", key)
             nodes = models.Node\
                 .query\
-                .filter_by(participant_uuid=participant_uuid, failed=False)\
+                .filter_by(participant_id=participant_id, failed=False)\
                 .all()
             for node in nodes:
                 node.fail()

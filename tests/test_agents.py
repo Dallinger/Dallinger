@@ -80,12 +80,12 @@ class TestAgents(object):
         agent2.receive()
 
         assert agent1.infos()[0].contents == agent2.infos()[0].contents
-        assert agent1.infos()[0].uuid != agent2.infos()[0].uuid
+        assert agent1.infos()[0].id != agent2.infos()[0].id
 
         transmission = info.transmissions()[0]
-        assert transmission.info_uuid == info.uuid
-        assert transmission.origin_uuid == agent1.uuid
-        assert transmission.destination_uuid == agent2.uuid
+        assert transmission.info_id == info.id
+        assert transmission.origin_id == agent1.id
+        assert transmission.destination_id == agent2.id
 
     @raises(ValueError)
     def test_agent_transmit_no_connection(self):
@@ -131,7 +131,7 @@ class TestAgents(object):
 
         assert agent1.infos()[0].contents == agent2.infos()[0].contents
         assert agent1.infos()[0].contents == agent3.infos()[0].contents
-        assert agent1.infos()[0].uuid != agent2.infos()[0].uuid != agent3.infos()[0].uuid
+        assert agent1.infos()[0].id != agent2.infos()[0].id != agent3.infos()[0].id
 
         transmissions = info.transmissions()
         assert len(transmissions) == 2
