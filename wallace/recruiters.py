@@ -142,7 +142,7 @@ class PsiTurkRecruiter(Recruiter):
 
     def recruit_participants(self, n=1):
         """Extend the HIT to recruit more people."""
-        auto_recruit = os.environ['auto_recruit']
+        auto_recruit = os.environ['auto_recruit'] == 'true'
 
         if auto_recruit:
 
