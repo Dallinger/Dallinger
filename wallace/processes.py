@@ -57,7 +57,7 @@ def moran_sexual(network):
         from operator import attrgetter
         agents = network.nodes(type=Agent)
         baby = max(agents, key=attrgetter('creation_time'))
-        agents = [a for a in agents if a.uuid != baby.uuid]
+        agents = [a for a in agents if a.id != baby.id]
         replacer = random.choice(agents)
         replaced = random.choice(
             replacer.neighbors(connection="to", type=Agent))

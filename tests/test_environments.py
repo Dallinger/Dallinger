@@ -21,7 +21,7 @@ class TestEnvironments(object):
         state = information.State(origin=environment, contents="foo")
         self.add(environment, state)
 
-        assert isinstance(environment.uuid, int)
+        assert isinstance(environment.id, int)
         assert environment.type == "environment"
         assert environment.creation_time
         assert environment.state().contents == "foo"

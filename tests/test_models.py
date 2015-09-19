@@ -42,7 +42,7 @@ class TestModels(object):
         for i in range(5):
             # nodes
             node = models.Node(network=net)
-            agent = Agent(network=net, participant_uuid=i)
+            agent = Agent(network=net, participant_id=i)
             source = Source(network=net)
 
             # vectors
@@ -67,8 +67,8 @@ class TestModels(object):
 
         # Test Network sql columns
 
-        assert isinstance(net.uuid, int)
-        assert net.uuid == 1
+        assert isinstance(net.id, int)
+        assert net.id == 1
         assert isinstance(net.creation_time, datetime)
         assert isinstance(net.max_size, int)
         assert isinstance(net.full, bool)
@@ -111,8 +111,8 @@ class TestModels(object):
         assert len(net.nodes(failed=True)) == 5
         assert len(net.nodes(failed="all")) == 15
         for i in range(5):
-            assert len(net.nodes(failed="all", participant_uuid=str(i)))
-            assert type(net.nodes(failed="all", participant_uuid=str(i))[0]) == Agent
+            assert len(net.nodes(failed="all", participant_id=str(i)))
+            assert type(net.nodes(failed="all", participant_id=str(i))[0]) == Agent
 
         # test Network.size()
 
@@ -194,7 +194,7 @@ class TestModels(object):
         node = models.Node()
         self.add(node)
 
-        assert isinstance(node.uuid, int)
+        assert isinstance(node.id, int)
         assert node.type == "base"
         assert node.creation_time
         assert len(node.infos()) == 0
@@ -203,20 +203,20 @@ class TestModels(object):
         assert len(node.vectors(direction="outgoing")) == 0
         assert len(node.vectors(direction="incoming")) == 0
 
-    def test_different_node_uuids(self):
-        """Test that two nodes have different uuids"""
+    def test_different_node_ids(self):
+        """Test that two nodes have different ids"""
         node1 = models.Node()
         node2 = models.Node()
         self.add(node1, node2)
 
-        assert node1.uuid != node2.uuid
+        assert node1.id != node2.id
 
     def test_node_repr(self):
         """Test the repr of a node"""
         node = models.Node()
         self.add(node)
 
-        assert repr(node).split("-") == ["Node", str(node.uuid), "base"]
+        assert repr(node).split("-") == ["Node", str(node.id), "base"]
 
     def _check_single_connection(self, node1, node2):
 
@@ -226,8 +226,8 @@ class TestModels(object):
         assert not node2.is_connected(direction="to", whom=node2)
 
         vector = node1.vectors(direction="outgoing")[0]
-        assert vector.origin_uuid == node1.uuid
-        assert vector.destination_uuid == node2.uuid
+        assert vector.origin_id == node1.id
+        assert vector.destination_id == node2.id
 
         assert node1.vectors(direction="outgoing") == [vector]
         assert len(node1.vectors(direction="incoming")) == 0
@@ -375,10 +375,10 @@ class TestModels(object):
         vector2 = models.Vector(origin=node2, destination=node1)
         self.add(node1, node2, vector1, vector2)
 
-        assert vector1.origin_uuid == node1.uuid
-        assert vector1.destination_uuid == node2.uuid
-        assert vector2.origin_uuid == node2.uuid
-        assert vector2.destination_uuid == node1.uuid
+        assert vector1.origin_id == node1.id
+        assert vector1.destination_id == node2.id
+        assert vector2.origin_id == node2.id
+        assert vector2.destination_id == node1.id
 
         assert node1.vectors(direction="incoming") == [vector2]
         assert node1.vectors(direction="outgoing") == [vector1]
@@ -407,9 +407,9 @@ class TestModels(object):
         self.add(node1, node2, vector1, vector2)
 
         assert (repr(vector1).split("-") ==
-                ["Vector", str(node1.uuid), str(node2.uuid)])
+                ["Vector", str(node1.id), str(node2.id)])
         assert (repr(vector2).split("-") ==
-                ["Vector", str(node2.uuid), str(node1.uuid)])
+                ["Vector", str(node2.id), str(node1.id)])
 
     ##################################################################
     # Info
@@ -421,9 +421,9 @@ class TestModels(object):
         info = models.Info(origin=node, contents="foo")
         self.add(node, info)
 
-        assert isinstance(info.uuid, int)
+        assert isinstance(info.id, int)
         assert info.type == "base"
-        assert info.origin_uuid == node.uuid
+        assert info.origin_id == node.id
         assert info.creation_time
         assert info.contents == "foo"
         assert len(info.transmissions()) == 0
@@ -437,8 +437,8 @@ class TestModels(object):
         info2 = models.Info(origin=node, contents="foo")
         self.add(node, info1, info2)
 
-        assert info1.uuid != info2.uuid
-        assert info1.origin_uuid == info2.origin_uuid
+        assert info1.id != info2.id
+        assert info1.origin_id == info2.origin_id
         assert info1.creation_time != info2.creation_time
         assert info1.contents != info2.contents
         assert len(info1.transmissions()) == 0
@@ -454,7 +454,7 @@ class TestModels(object):
         info = models.Info(origin=node)
         self.add(info)
 
-        assert repr(info).split("-") == ["Info", str(info.uuid), "base"]
+        assert repr(info).split("-") == ["Info", str(info.id), "base"]
 
     @raises(ValueError)
     def test_info_write_twice(self):
@@ -487,10 +487,10 @@ class TestModels(object):
         transmission = node1.transmissions()[0]
         vector = node1.vectors()[0]
 
-        assert isinstance(transmission.uuid, int)
-        assert transmission.info_uuid == info.uuid
-        assert transmission.origin_uuid == vector.origin_uuid
-        assert transmission.destination_uuid == vector.destination_uuid
+        assert isinstance(transmission.id, int)
+        assert transmission.info_id == info.id
+        assert transmission.origin_id == vector.origin_id
+        assert transmission.destination_id == vector.destination_id
         assert transmission.creation_time
         assert transmission.vector == vector
         assert vector.transmissions() == [transmission]
@@ -508,7 +508,7 @@ class TestModels(object):
         node1.vectors()[0]
 
         assert (repr(transmission).split("-") ==
-                ["Transmission", str(transmission.uuid)])
+                ["Transmission", str(transmission.id)])
 
     def test_node_incoming_transmissions(self):
         agent1 = nodes.ReplicatorAgent()

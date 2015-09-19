@@ -20,7 +20,7 @@ class Chain(Network):
     def add_agent(self, newcomer):
         """Add an agent, connecting it to the previous node."""
         agents = self.nodes(type=Agent)
-        other_agents = [a for a in agents if a.uuid != newcomer.uuid]
+        other_agents = [a for a in agents if a.id != newcomer.id]
 
         sources = self.nodes(type=Source)
 
@@ -58,7 +58,7 @@ class FullyConnected(Network):
         agents = self.nodes(type=Agent)
 
         if len(agents) > 1:
-            other_agents = [a for a in agents if a.uuid != newcomer.uuid]
+            other_agents = [a for a in agents if a.id != newcomer.id]
             for agent in other_agents:
                 agent.connect(direction="both", whom=newcomer)
 
@@ -174,7 +174,7 @@ class DiscreteGenerational(Network):
             agent_type = type(newcomer)
             prev_agents = agent_type.query\
                 .filter(and_(agent_type.failed == False,
-                             agent_type.network_uuid == self.uuid,
+                             agent_type.network_id == self.id,
                              agent_type.generation == current_generation-1))\
                 .all()
             prev_fits = [p.fitness for p in prev_agents]
@@ -230,7 +230,7 @@ class ScaleFree(Network):
 
         # Start with a core of m0 fully-connected agents...
         if len(agents) <= self.m0:
-            other_agents = [a for a in agents if a.uuid != newcomer.uuid]
+            other_agents = [a for a in agents if a.id != newcomer.id]
             for agent in other_agents:
                 newcomer.connect(direction="both", whom=agent)
 
@@ -240,7 +240,7 @@ class ScaleFree(Network):
 
                 these_agents = [
                     a for a in agents if (
-                        a.uuid != newcomer.uuid and
+                        a.id != newcomer.id and
                         not a.is_connected(direction="either", whom=newcomer))]
 
                 outdegrees = [
@@ -280,7 +280,7 @@ class SequentialMicrosociety(Network):
             self.nodes(type=Agent),
             key=attrgetter('creation_time'), reverse=True)
 
-        other_agents = [a for a in agents if a.uuid != newcomer.uuid]
+        other_agents = [a for a in agents if a.id != newcomer.id]
 
         # If the newcomer is one of the first agents, connect from source...
         if len(self.nodes(type=Agent)) < self.n:

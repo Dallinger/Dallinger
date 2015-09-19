@@ -97,13 +97,13 @@ class Experiment(object):
         information to the newcomer."""
         network.add_agent(agent)
 
-    def assign_agent_to_participant(self, participant_uuid):
+    def assign_agent_to_participant(self, participant_id):
 
-        key = participant_uuid[0:5]
+        key = participant_id[0:5]
 
         networks_with_space = Network.query.filter_by(full=False).all()
-        networks_participated_in = [node.network_uuid for node in Node.query.with_entities(Node.network_uuid).filter_by(participant_uuid=participant_uuid).all()]
-        legal_networks = [net for net in networks_with_space if net.uuid not in networks_participated_in]
+        networks_participated_in = [node.network_id for node in Node.query.with_entities(Node.network_id).filter_by(participant_id=participant_id).all()]
+        legal_networks = [net for net in networks_with_space if net.id not in networks_participated_in]
 
         if not legal_networks:
             self.log("No networks available, returning None", key)
@@ -117,20 +117,20 @@ class Experiment(object):
         legal_practice_networks = [net for net in legal_networks if net.role == "practice"]
         if legal_practice_networks:
             chosen_network = legal_practice_networks[0]
-            self.log("Practice networks available. Assigning participant to practice network {}.".format(chosen_network.uuid), key)
+            self.log("Practice networks available. Assigning participant to practice network {}.".format(chosen_network.id), key)
         else:
             chosen_network = random.choice(legal_networks)
-            self.log("No practice networks available. Assigning participant to experiment network {}".format(chosen_network.uuid), key)
+            self.log("No practice networks available. Assigning participant to experiment network {}".format(chosen_network.id), key)
 
         # Generate the right kind of newcomer and assign them to the network.
         self.log("Generating node", key)
         if inspect.isclass(self.agent):
             if issubclass(self.agent, Node):
-                newcomer = self.agent(participant_uuid=participant_uuid, network=chosen_network)
+                newcomer = self.agent(participant_id=participant_id, network=chosen_network)
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            newcomer = self.agent(network=chosen_network)(participant_uuid=participant_uuid, network=chosen_network)
+            newcomer = self.agent(network=chosen_network)(participant_id=participant_id, network=chosen_network)
 
         self.log("Node successfully generated, recalculating if network is full", key)
         chosen_network.calculate_full()
@@ -148,7 +148,7 @@ class Experiment(object):
 
         key = participant.uniqueid[0:5]
         assignment_id = participant.assignmentid
-        participant_uuid = participant.uniqueid
+        participant_id = participant.uniqueid
 
         # Approve the assignment.
         self.log("Approving the assignment on mturk", key)
@@ -165,7 +165,7 @@ class Experiment(object):
             participant.status = 105
             session_psiturk.commit()
 
-            for node in Node.query.filter_by(participant_uuid=participant_uuid, failed=False).all():
+            for node in Node.query.filter_by(participant_id=participant_id, failed=False).all():
                 node.fail()
             self.save()
 
@@ -196,7 +196,7 @@ class Experiment(object):
                 participant.status = 102
                 session_psiturk.commit()
 
-                for node in Node.query.filter_by(participant_uuid=participant_uuid, failed=False).all():
+                for node in Node.query.filter_by(participant_id=participant_id, failed=False).all():
                     node.fail()
                 self.save()
 
