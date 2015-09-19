@@ -1,6 +1,7 @@
 [Experiment Configuration]
 wallace_version = 0.4
 mode = sandbox
+auto_recruit = true
 
 [HIT Configuration]
 title = War of the Ghosts

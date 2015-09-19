@@ -142,37 +142,44 @@ class PsiTurkRecruiter(Recruiter):
 
     def recruit_participants(self, n=1):
         """Extend the HIT to recruit more people."""
-        print "Starting Wallace's recruit_participants."
+        auto_recruit = os.environ['auto_recruit'] == 'true'
 
-        hit_id = str(
-            Participant.query.with_entities(Participant.hitid).first().hitid)
+        if auto_recruit:
 
-        print "hit_id is {}.".format(hit_id)
+            print "Starting Wallace's recruit_participants."
 
-        is_sandbox = self.config.getboolean(
-            'Shell Parameters', 'launch_in_sandbox_mode')
+            hit_id = str(
+                Participant.query.with_entities(Participant.hitid).first().hitid)
 
-        if is_sandbox:
-            host = 'mechanicalturk.sandbox.amazonaws.com'
+            print "hit_id is {}.".format(hit_id)
+
+            is_sandbox = self.config.getboolean(
+                'Shell Parameters', 'launch_in_sandbox_mode')
+
+            if is_sandbox:
+                host = 'mechanicalturk.sandbox.amazonaws.com'
+            else:
+                host = 'mechanicalturk.amazonaws.com'
+
+            mturkparams = dict(
+                aws_access_key_id=self.aws_access_key_id,
+                aws_secret_access_key=self.aws_secret_access_key,
+                host=host)
+
+            self.mtc = MTurkConnection(**mturkparams)
+
+            self.mtc.extend_hit(
+                hit_id,
+                assignments_increment=int(n or 0))
+
+            expiration_increment = self.config.get('HIT Configuration', 'duration')
+
+            self.mtc.extend_hit(
+                hit_id,
+                expiration_increment=int(float(expiration_increment or 0)*3600))
         else:
-            host = 'mechanicalturk.amazonaws.com'
-
-        mturkparams = dict(
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
-            host=host)
-
-        self.mtc = MTurkConnection(**mturkparams)
-
-        self.mtc.extend_hit(
-            hit_id,
-            assignments_increment=int(n or 0))
-
-        expiration_increment = self.config.get('HIT Configuration', 'duration')
-
-        self.mtc.extend_hit(
-            hit_id,
-            expiration_increment=int(float(expiration_increment or 0)*3600))
+            print (">>>> auto_recruit set to {}: recruitment suppressed"
+                   .format(auto_recruit))
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""

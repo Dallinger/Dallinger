@@ -237,6 +237,6 @@ class Experiment(object):
         """Check if participant performed adequately."""
         return True
 
-    def check_participant_data(self, particpant=None):
+    def check_participant_data(self, participant=None):
         """Check that the data are acceptable."""
         return True

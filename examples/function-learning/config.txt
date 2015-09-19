@@ -1,5 +1,6 @@
 [Experiment Configuration]
 wallace_version = 0.4
+auto_recruit = true
 
 [HIT Configuration]
 title = Function learning

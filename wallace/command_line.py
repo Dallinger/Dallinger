@@ -292,6 +292,9 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
         "heroku config:set psiturk_secret_access_id=" +
         config.get('psiTurk Access', 'psiturk_secret_access_id'),
+
+        "heroku config:set auto_recruit=" +
+        config.get('Experiment Configuration', 'auto_recruit'),
     ]
     for cmd in cmds:
         subprocess.call(cmd + " --app " + id, stdout=OUT, shell=True)
