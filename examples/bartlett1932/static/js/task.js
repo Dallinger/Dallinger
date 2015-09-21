@@ -15,7 +15,8 @@ var mycounterbalance = counterbalance;  // they tell you which condition you hav
 var pages = [
     "instructions/instruct-ready.html",
     "stage.html",
-    "postquestionnaire.html"
+    "postquestionnaire.html",
+    "tampering.html"
 ];
 
 psiTurk.preloadPages(pages);
@@ -23,7 +24,6 @@ psiTurk.preloadPages(pages);
 var instructionPages = [ // add as a list as many pages as you like
     "instructions/instruct-ready.html"
 ];
-
 
 /********************
 * HTML manipulation
@@ -36,9 +36,23 @@ var instructionPages = [ // add as a list as many pages as you like
 ********************/
 
 /********************
-* STROOP TEST       *
+* BARTLETT1932  TEST*
 ********************/
-var StroopExperiment = function() {
+var Bartlett1932Experiment = function() {
+
+    // Kick people out if they change their workerId.
+    function ensureSameWorker() {
+        workerId = amplify.store("wallace_worker_id")
+        workerIdNew = getParameterByName('workerId')
+
+        if (typeof workerId === 'undefined') {
+            amplify.store("wallace_worker_id", workerIdNew)
+        } else {
+            if ((workerIdNew != workerId) && (workerIdNew.substring(0,5) != "debug")) {
+                currentview = psiTurk.showPage('tampering.html');
+            }
+        }
+    }
 
     // Load the stage.html snippet into the body of the page
     psiTurk.showPage('stage.html');
@@ -47,6 +61,9 @@ var StroopExperiment = function() {
 
     // Create the agent.
     createAgent = function() {
+
+        ensureSameWorker()
+
         reqwest({
             url: "/agents",
             method: 'post',
@@ -203,6 +220,6 @@ var currentview;
 $(window).load( function(){
     psiTurk.doInstructions(
         instructionPages, // a list of pages you want to display in sequence
-        function() { currentview = new StroopExperiment(); } // what you want to do when you are done with instructions
+        function() { currentview = new Bartlett1932Experiment(); } // what you want to do when you are done with instructions
     );
 });
