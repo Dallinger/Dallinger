@@ -43,10 +43,12 @@ var Bartlett1932Experiment = function() {
     // Kick people out if they change their workerId.
     function ensureSameWorker() {
         workerId = amplify.store("wallace_worker_id")
+        workerIdNew = getParameterByName('workerId')
+
         if (typeof workerId === 'undefined') {
-            amplify.store("wallace_worker_id", getParameterByName('workerId'))
+            amplify.store("wallace_worker_id", workerIdNew)
         } else {
-            if (workerId != getParameterByName('workerId')) {
+            if ((workerIdNew != workerId) && (workerIdNew.substring(0,5) != "debug")) {
                 currentview = psiTurk.showPage('tampering.html');
             }
         }
