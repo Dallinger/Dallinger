@@ -18,6 +18,7 @@ import pkg_resources
 import re
 import psycopg2
 from wallace import db
+import requests
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -143,6 +144,18 @@ def setup(debug=True, verbose=False):
     os.chdir(cwd)
 
     return (id, dst)
+
+
+@wallace.command()
+@click.option('--app', default=None, help='ID of the deployed experiment')
+def summary(app):
+    """Print a summary of a deployed app's status."""
+    r = requests.get('https://{}.herokuapp.com/summary'.format(app))
+    summary = r.json()['summary']
+    print "\nstatus \t| count"
+    print "----------------"
+    for s in summary:
+        print "{}\t| {}".format(s[0], s[1])
 
 
 @wallace.command()
