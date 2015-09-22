@@ -42,13 +42,13 @@ var Bartlett1932Experiment = function() {
 
     // Kick people out if they change their workerId.
     function ensureSameWorker() {
-        workerId = amplify.store("wallace_worker_id")
-        workerIdNew = getParameterByName('workerId')
+        workerId = amplify.store("wallace_worker_id");
+        workerIdNew = getParameterByName('workerId');
 
         if (typeof workerId === 'undefined') {
-            amplify.store("wallace_worker_id", workerIdNew)
+            amplify.store("wallace_worker_id", workerIdNew);
         } else {
-            if ((workerIdNew != workerId) && (workerIdNew.substring(0,5) != "debug")) {
+            if ((workerIdNew !== workerId) && (workerIdNew.substring(0,5) !== "debug")) {
                 currentview = psiTurk.showPage('tampering.html');
             }
         }
@@ -62,7 +62,7 @@ var Bartlett1932Experiment = function() {
     // Create the agent.
     createAgent = function() {
 
-        ensureSameWorker()
+        ensureSameWorker();
 
         reqwest({
             url: "/agents",
@@ -185,7 +185,7 @@ var Questionnaire = function() {
         psiTurk.saveData({
             success: function() {
                 clearInterval(reprompt);
-                psiTurk.computeBonus('compute_bonus', function(){finish()});
+                psiTurk.computeBonus('compute_bonus', function(){finish();});
             },
             error: prompt_resubmit
         });

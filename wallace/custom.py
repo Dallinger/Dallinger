@@ -163,6 +163,7 @@ def api_agent_create():
                 page = error_page(participant=participant, error_text="You cannot continue because we have received a notification from AWS that your assignment has been assigned to someone else.", error_type="/agents POST, status = {}".format(participant.status))
             else:
                 page = error_page(participant=participant, error_type="/agents POST, status = {}".format(participant.status))
+
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
 
@@ -663,9 +664,9 @@ def quitter():
         mimetype='application/json')
 
 
-def error_page(participant=None, error_text=None, compensate=True, error_type="default"):
+def error_page(participant=None, error_text=None, compensate=True,
+               error_type="default"):
     """Render HTML for error page."""
-
     if error_text is None:
         if compensate:
             error_text = 'There has been an error and so you are unable to continue, sorry! \
