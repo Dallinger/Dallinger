@@ -22,3 +22,17 @@ class Mutation(Transformation):
     """The mutation transformation."""
 
     __mapper_args__ = {"polymorphic_identity": "mutation"}
+
+
+class Compression(Transformation):
+
+    """The compression transformation."""
+
+    __mapper_args__ = {"polymorphic_identity": "compression"}
+
+
+class Response(Transformation):
+
+    """The response transformation."""
+
+    __mapper_args__ = {"polymorphic_identity": "response"}
