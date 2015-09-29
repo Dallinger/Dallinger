@@ -78,9 +78,6 @@ class Experiment(object):
             self.session.add_all(objects)
         self.session.commit()
 
-    def step(self):
-        pass
-
     def participant_submission_trigger(
             self, participant=None):
         """Run all post-processing code when an Assignment Submitted notification arrives"""
