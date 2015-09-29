@@ -265,3 +265,61 @@ class Experiment(object):
         info = type(origin=node, contents=contents)
         return info
 
+
+    ### SUPPORT METHODS CALLED BY METHODS CALLED BY REQUESTS ###
+
+    def get_network_for_participant(self, participant_id):
+        key = participant_id[0:5]
+        networks_with_space = Network.query.filter_by(full=False).all()
+        networks_participated_in = [
+            node.network_id for node in
+            Node.query.with_entities(Node.network_id).filter_by(participant_id=participant_id).all()
+        ]
+
+        legal_networks = [
+            net for net in networks_with_space if net.id not in networks_participated_in
+        ]
+
+        if not legal_networks:
+            self.log("No networks available, returning None", key)
+            return None
+
+        self.log("{} networks out of {} available"
+                 .format(len(legal_networks),
+                        (self.practice_repeats + self.experiment_repeats)),
+                 key)
+
+        legal_practice_networks = [net for net in legal_networks if net.role == "practice"]
+        if legal_practice_networks:
+            chosen_network = legal_practice_networks[0]
+            self.log("Practice networks available. Assigning participant to practice network {}.".format(chosen_network.id), key)
+        else:
+            chosen_network = random.choice(legal_networks)
+            self.log("No practice networks available. Assigning participant to experiment network {}".format(chosen_network.id), key)
+        return chosen_network
+
+    def make_node_for_participant(self, participant_id, network):
+        key = participant_id[0:5]
+        if inspect.isclass(self.agent):
+            if issubclass(self.agent, Node):
+                node = self.agent(participant_id=participant_id, network=network)
+            else:
+                raise ValueError("{} is not a subclass of Node".format(self.agent))
+        else:
+            node = self.agent(network=network)(participant_id=participant_id, network=network)
+
+        self.log("Node successfully generated, recalculating if network is full", key)
+        network.calculate_full()
+        return node
+
+    def add_node_to_network(self, participant_id, node, network):
+        network.add_node(node)
+
+    def receive_transmissions(self, transmissions):
+        for t in transmissions:
+            t.mark_received()
+
+    def evaluate(self, string):
+        if string in self.trusted_strings:
+            return eval(string)
+        else:
