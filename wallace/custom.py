@@ -585,7 +585,7 @@ def api_notifications():
         mimetype='application/json')
 
 
-def worker_function(request, event_type, assignment_id):
+def worker_function(event_type, assignment_id):
     """Process the notification."""
     exp = experiment(session)
 
