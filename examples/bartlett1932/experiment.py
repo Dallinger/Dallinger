@@ -1,7 +1,7 @@
 """Bartlett's trasmission chain experiment from Remembering (1932)."""
 
 from wallace.networks import Chain
-from wallace.nodes import Source, ReplicatorAgent
+from wallace.nodes import Source, Agent
 from wallace import processes
 from wallace.experiments import Experiment
 import random
@@ -17,7 +17,7 @@ class Bartlett1932(Experiment):
 
         self.practice_repeats = 0
         self.experiment_repeats = 1
-        self.agent = ReplicatorAgent
+        self.agent = Agent
         self.network = lambda: Chain(max_size=3)
 
         self.setup()
@@ -32,9 +32,9 @@ class Bartlett1932(Experiment):
                     net.add_source(source)
             self.save()
 
-    def create_agent_trigger(self, agent, network):
+    def add_node_to_network(self, participant_id, node, network):
         """When an agent is created, add it to the network and take a step."""
-        network.add_agent(agent)
+        network.add_node(node)
         processes.random_walk(network)
 
     def recruit(self):
