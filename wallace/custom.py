@@ -750,3 +750,7 @@ def error_page(participant=None, error_text=None, compensate=True,
             assignment_id='unknown',
             worker_id='unknown'
         )
+
+
+def date_handler(obj):
+    return obj.isoformat() if hasattr(obj, 'isoformat') else obj
