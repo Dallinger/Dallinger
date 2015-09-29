@@ -799,7 +799,7 @@ class Node(Base):
         Mark transmissions as received, then pass their infos to update().
 
         "what" can be:
-            (1) "all" (the default) in which case all pending transmissions are received
+            (1) None (the default) in which case all pending transmissions are received
             (2) a specific transmission.
         Will raise an error if the node is told to receive a transmission it has not been sent.
         """
