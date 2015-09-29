@@ -12,7 +12,7 @@ from psiturk.db import db_session as session_psiturk
 from psiturk.models import Participant
 from json import dumps
 
-from wallace import db, nodes, models, information
+from wallace import db, models
 
 import imp
 import inspect
