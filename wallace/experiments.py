@@ -323,3 +323,4 @@ class Experiment(object):
         if string in self.trusted_strings:
             return eval(string)
         else:
+            raise ValueError("Cannot evaluate {}: not a trusted string".format(string))
