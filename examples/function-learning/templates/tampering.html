@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Psychology Experiment - Error</title>
+        <link rel=stylesheet href="/static/css/bootstrap.min.css" type="text/css">
+        <link rel=stylesheet href="/static/css/style.css" type="text/css">
+    </head>
+    <body>
+        <div id="container-error">
+
+            <div id="error">
+                <h1>Error</h1>
+                <hr>
+
+                <div class="alert alert-danger">
+                    <p>
+                        Our server detected some kind of tampering, such as participation using a second worker ID.
+                        If you would like to receive partial compensation or feel you have reached this page in error, please email
+                        <a href="mailto:{{contact_address}}">{{contact_address}}</a>
+                        and send the following information, including the full URL of the current page:
+                    </p>
+                    <p>
+                        Error: #WIDTMP<br>
+                        {% if hitId %} HITID: #{{ hitId }}<br> {% endif %}
+                        {% if assignId %}AssignmentId: #{{ assignId }}<br> {% endif %}
+                        {% if workerId %} WorkerId: #{{ workerId }}<br> {% endif %}
+                    </p>
+
+                </div>
+
+                <hr>
+                <h3>Our sincere apologies!</h3>
+            </div>
+        </div>
+    </body>
+</html>
