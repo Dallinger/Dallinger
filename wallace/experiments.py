@@ -77,9 +77,6 @@ class Experiment(object):
             self.session.add_all(objects)
         self.session.commit()
 
-    def newcomer_arrival_trigger(self, newcomer):
-        pass
-
     def transmission_reception_trigger(self, transmissions):
         # Mark transmissions as received
         for t in transmissions:
@@ -90,56 +87,6 @@ class Experiment(object):
 
     def step(self):
         pass
-
-    def create_agent_trigger(self, agent, network):
-        """A customizable method that adds the new agent to the network and
-        deals with any side effects of this --- for example, by sending some
-        information to the newcomer."""
-        network.add_agent(agent)
-
-    def assign_agent_to_participant(self, participant_id):
-
-        key = participant_id[0:5]
-
-        networks_with_space = Network.query.filter_by(full=False).all()
-        networks_participated_in = [node.network_id for node in Node.query.with_entities(Node.network_id).filter_by(participant_id=participant_id).all()]
-        legal_networks = [net for net in networks_with_space if net.id not in networks_participated_in]
-
-        if not legal_networks:
-            self.log("No networks available, returning None", key)
-            return None
-
-        self.log("{} networks out of {} available"
-                 .format(len(legal_networks),
-                        (self.practice_repeats + self.experiment_repeats)),
-                 key)
-
-        legal_practice_networks = [net for net in legal_networks if net.role == "practice"]
-        if legal_practice_networks:
-            chosen_network = legal_practice_networks[0]
-            self.log("Practice networks available. Assigning participant to practice network {}.".format(chosen_network.id), key)
-        else:
-            chosen_network = random.choice(legal_networks)
-            self.log("No practice networks available. Assigning participant to experiment network {}".format(chosen_network.id), key)
-
-        # Generate the right kind of newcomer and assign them to the network.
-        self.log("Generating node", key)
-        if inspect.isclass(self.agent):
-            if issubclass(self.agent, Node):
-                newcomer = self.agent(participant_id=participant_id, network=chosen_network)
-            else:
-                raise ValueError("{} is not a subclass of Node".format(self.agent))
-        else:
-            newcomer = self.agent(network=chosen_network)(participant_id=participant_id, network=chosen_network)
-
-        self.log("Node successfully generated, recalculating if network is full", key)
-        chosen_network.calculate_full()
-
-        self.log("running exp.create_agent_trigger", key)
-        self.create_agent_trigger(agent=newcomer, network=chosen_network)
-
-        self.log("exp.create_agent_trigger completed, returning node", key)
-        return newcomer
 
     def participant_submission_trigger(
             self, participant=None):
@@ -240,3 +187,29 @@ class Experiment(object):
     def check_participant_data(self, participant=None):
         """Check that the data are acceptable."""
         return True
+
+    ### METHODS TRIGGERED BY REQUESTS TO ROUTES IN CUSTOM ###
+
+    def node_get_request(self, participant_id, node_id, type, failed, connection):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+        self.log("Getting neighbors of node {}, type = {}, failed = {}, connection = {}".format(node_id, type, failed, connection), key)
+        return node.neighbours(type=type, failed=failed, connection=connection)
+
+    def node_post_request(self, participant_id):
+        key = participant_id[0:5]
+
+        self.log("Getting network for participant", key)
+        network = self.get_network_for_participant(participant_id=participant_id)
+        if network is None:
+            return None
+
+        self.log("Creating node", key)
+        node = self.make_node_for_participant(participant_id=participant_id, network=network)
+
+        self.log("Adding node to network", key)
+        self.add_node_to_network(participant_id=participant_id, node=node, network=network)
+
+        self.log("Returning node", key)
+        return node
