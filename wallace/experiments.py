@@ -1,6 +1,6 @@
 """The base experiment class."""
 
-from wallace.models import Network, Node
+from wallace.models import Network, Node, Info
 from sqlalchemy import and_
 import random
 import inspect
