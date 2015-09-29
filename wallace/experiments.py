@@ -77,11 +77,6 @@ class Experiment(object):
             self.session.add_all(objects)
         self.session.commit()
 
-    def transmission_reception_trigger(self, transmissions):
-        # Mark transmissions as received
-        for t in transmissions:
-            t.mark_received()
-
     def information_creation_trigger(self, info):
         pass
 
@@ -213,3 +208,40 @@ class Experiment(object):
 
         self.log("Returning node", key)
         return node
+
+    def transmission_get_request(self, participant_id, node_id, direction, status):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+        self.log("Getting transmissions", key)
+        transmissions = node.transmissions(direction=direction, status=status)
+
+        if (direction == "incoming" or direction == "all") and (status == "pending" or status == "all"):
+            self.log("Marking new transmissions as received", key)
+            node.receive()
+
+        self.log("Returning transmissions", key)
+        return transmissions
+
+    def transmission_post_request(self, participant_id, node_id, info_id, destination_id):
+        key = participant_id[0:5]
+
+        origin = Node.query.get(node_id)
+
+        if info_id is None and destination_id is None:
+            self.log("Transmitting", key)
+            return origin.transmit()
+        elif info_id is None and destination_id is not None:
+            destination = Node.query.get(node_id)
+            self.log("Transmitting", key)
+            return origin.transmit(to_whom=destination)
+        elif info_id is not None and destination_id is None:
+            info = Info.query.get(info_id)
+            self.log("Transmitting", key)
+            return origin.transmit(what=info)
+        else:
+            destination = Node.query.get(node_id)
+            info = Info.query.get(info_id)
+            self.log("Transmitting", key)
+            return origin.transmit(what=info, to_whom=destination)
+
