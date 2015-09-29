@@ -275,166 +275,153 @@ def node():
         return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/transmissions",
-                   defaults={"transmission_id": None},
-                   methods=["POST", "GET"])
-@custom_code.route("/transmissions/<transmission_id>", methods=["GET"])
-def api_transmission(transmission_id):
-    """Receive or send/create transmissions."""
+@custom_code.route("/transmission", methods=["GET", "POST"])
+def transmission():
+    """ Send GET or POST requests to the transmission table.
+
+    POST requests call the transmission_post_request method
+    in Experiment, which, by deafult, prompts one node to
+    transmit to another. This request returns a description
+    of the new transmission.
+    Required arguments: participant_id, node_id
+    Optional arguments: destination_id, info_id.
+
+    GET requests call the transmission_get_request method
+    in Experiment, which, by default, calls the node's
+    transmissions method. This request returns a list of
+    descriptions of the transmissions (even if there is only one).
+    Required arguments: participant_id, node_id
+    Optional arguments: direction, status
+    """
     exp = experiment(session)
-
-    # check that a destination is specified
     try:
-        destination_id = request.values['destination_id']
+        participant_id = request.values["participant_id"]
+        key = participant_id[0:5]
     except:
-        page = error_page(error_type="/transmissions GET/POST, no destination id")
+        exp.log("/transmission request failed: participant_id not specified")
+        page = error_page(error_type="/transmission, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
-
-    # Ensure that destination_id is a number.
-    if not destination_id.isdigit():
-        exp.log(
-            "Malformed destination id: {}".format(destination_id),
-            destination_id)
-        page = error_page(error_type="/transmissions GET/POST, malformed destination id")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=403, mimetype='application/json')
-
-    if request.method == 'GET':
-        exp.log("Recevied a Transmission GET request", destination_id)
-
-        # Given a receiving agent, get its pending transmissions
-        if transmission_id is None:
-            exp.log("Getting all pending transmissions", destination_id)
-            pending_transmissions = models.Transmission\
-                .query\
-                .filter_by(destination_id=destination_id,
-                           receive_time=None)\
-                .all()
-
-        # Or given a id, get the transmission with the given id
-        else:
-            exp.log("Getting transmission {}".format(transmission_id), destination_id)
-            try:
-                transmission = models.Transmission\
-                    .query\
-                    .filter_by(id=transmission_id)\
-                    .one()
-            except:
-                exp.log("Error: Transmission {} does not exist. Returning status 403".format(transmission_id), destination_id)
-                page = error_page(error_type="/transmissions GET, transmission does not exist")
-                js = dumps({"status": "error", "html": page})
-                return Response(js, status=403, mimetype='application/json')
-            pending_transmissions = [transmission]
-
-        exp.log("Running transmission_reception_trigger", destination_id)
-        try:
-            exp.transmission_reception_trigger(pending_transmissions)
-            session.commit()
-        except:
-            session.commit()
-            exp.log("Error while running transmission_reception_trigger", destination_id)
-            page = error_page(error_type="/transmissions GET, transmission_reception_trigger")
+    try:
+        node_id = request.values["node_id"]
+        if not node_id.isdigit():
+            exp.log(
+                "/transmission request failed: non-numeric node_id: {}"
+                .format(node_id), key)
+            page = error_page(error_type="/transmission, malformed node_id")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
+    except:
+        exp.log("/transmission request failed: node_id not specified", key)
+        page = error_page(error_type="/transmission, node_id not specified")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
 
-        # Build a dict with info about the transmissions
-        data_transmissions = []
-        for t in pending_transmissions:
-            data_transmissions.append({
+    if request.method == "GET":
+        exp.log("Received a transmission GET request", key)
+        try:
+            direction = request.values["direction"]
+        except:
+            direction = "outgoing"
+        try:
+            status = request.values["status"]
+        except:
+            status = "all"
+
+        exp.log("Running transmission_get_request:\
+                 participant_id: {}, node_id: {}, direction: {}, status: {}."
+                .format(participant_id, node_id, direction, status), key)
+        transmissions = exp.transmission_get_request(
+            participant_id=participant_id,
+            node_id=node_id,
+            direction=direction,
+            status=status)
+        session.commit()
+
+        exp.log("Creating transmission data to return", key)
+        data = []
+        for t in transmissions:
+            data.append({
                 "id": t.id,
-                "info_id": t.info_id,
+                "vector_id": t.vector_id,
                 "origin_id": t.origin_id,
                 "destination_id": t.destination_id,
+                "info_id": t.info_id,
+                "network_id": t.network_id,
                 "creation_time": t.creation_time,
-                "receive_time": t.receive_time
+                "receive_time": t.receive_time,
+                "status": t.status,
+                "property1": t.property1,
+                "property2": t.property2,
+                "property3": t.property3,
+                "property4": t.property4,
+                "property5": t.property5
             })
-        data = {"status": "success", "transmissions": data_transmissions}
+        data = {"status": "success", "transmissions": data}
 
-        exp.log("Returning transmissions, status 200", destination_id)
-
-        def date_handler(obj):
-            return obj.isoformat() if hasattr(obj, 'isoformat') else obj
-
+        exp.log("Data successfully created, returning.", key)
         js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
 
-    if request.method == "POST":
-
+    elif request.method == "POST":
+        exp.log("Received a transmission POST request", key)
         try:
-            # Ensure that origin_id is a number.
-            origin_id = request.values['origin_id']
-            if not origin_id.isdigit():
-                exp.log(
-                    "Malformed id: {}".format(origin_id),
-                    destination_id)
-                page = error_page(error_type="/transmissions POST, malformed origin id")
-                js = dumps({"status": "error", "html": page})
-                return Response(js, status=403, mimetype='application/json')
-
-            # Ensure that info_id is a number.
-            info_id = request.values['info_id']
+            info_id = request.values["info_id"]
             if not info_id.isdigit():
                 exp.log(
-                    "Malformed id: {}".format(info_id),
-                    destination_id)
-                page = error_page(error_type="/transmissions POST, malformed info id")
+                    "/transmission POST request failed: non-numeric info_id: {}"
+                    .format(node_id), key)
+                page = error_page(error_type="/transmission POST, non-numeric info_id")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
-
         except:
-            exp.log("Error: Recevied a transmission POST request, but origin_id, destination_id or info_id not specified. Returning status 403")
-            page = error_page(error_type="/transmissions POST, missing request id")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
-
-        exp.log("Received a transmission post request to send info {} from node {} to node {}".format(info_id, origin_id, destination_id), origin_id)
-
+            info_id = None
         try:
-            info = models.Info\
-                .query\
-                .filter_by(id=info_id)\
-                .one()
+            destination_id = request.values["destination_id"]
+            if not destination_id.isdigit():
+                exp.log(
+                    "/transmission POST request failed: non-numeric destination_id: {}"
+                    .format(node_id), key)
+                page = error_page(error_type="/transmission POST, malformed destination_id")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=403, mimetype='application/json')
         except:
-            exp.log("Error: Info {} does not exist, returning status 403".format(info_id), origin_id)
-            page = error_page(error_type="/transmissions POST, info does not exist")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
+            destination_id = None
 
+        exp.log("Running transmission_post_request:\
+                 participant_id: {}, node_id: {}, info_id: {}, destination_id: {}"
+                .format(participant_id, node_id, info_id, destination_id), key)
         try:
-            origin = models.Node\
-                .query.filter_by(id=origin_id)\
-                .one()
-        except:
-            exp.log("Error: Node {} does not exist, returning status 403".format(origin_id), origin_id)
-            page = error_page(error_type="/transmissions POST, origin does not exist")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
-
-        try:
-            destination = nodes.Agent\
-                .query.filter_by(id=destination_id)\
-                .one()
-        except:
-            exp.log("Error: Node {} does not exist, returning status 403".format(destination_id), origin_id)
-            page = error_page(error_type="/transmissions POST, doestination does not exist")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
-
-        exp.log("Creating transmission", origin_id)
-        try:
-            transmission = origin.transmit(what=info, to_whom=destination)
-            session.commit()
+            transmission = exp.transmission_post_request(participant_id=participant_id, node_id=node_id, info_id=info_id, destination_id=destination_id)
         except:
             session.commit()
-            exp.log("Transmission failed", origin_id)
-            page = error_page(error_type="/transmissions POST, transmission failed")
+            exp.log("/transmission POST request, transmission_post_request failed.", key)
+            page = error_page(error_type="/transmissions POST, transmission_post_request failed")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
+        session.commit()
 
-        exp.log("Transmission successful, returning transmission id and status = 200")
-        data = {"status": "success", 'id': transmission.id}
-        js = dumps(data)
+        exp.log("Creating transmission data to return", key)
+        data = {
+            "id": transmission.id,
+            "vector_id": transmission.vector_id,
+            "origin_id": transmission.origin_id,
+            "destination_id": transmission.destination_id,
+            "info_id": transmission.info_id,
+            "network_id": transmission.network_id,
+            "creation_time": transmission.creation_time,
+            "receive_time": transmission.receive_time,
+            "status": transmission.status,
+            "property1": transmission.property1,
+            "property2": transmission.property2,
+            "property3": transmission.property3,
+            "property4": transmission.property4,
+            "property5": transmission.property5
+        }
+        data = {"status": "success", "transmission": data}
+
+        exp.log("Data successfully created, returning.", key)
+        js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
 
 
