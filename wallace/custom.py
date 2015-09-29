@@ -432,170 +432,128 @@ def transmission():
         return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/information",
-                   defaults={"info_id": None},
-                   methods=["POST", "GET"])
-@custom_code.route("/information/<info_id>", methods=["GET"])
-def api_info(info_id):
-    """Create and access informaiton."""
+@custom_code.route("/info", methods=["GET", "POST"])
+def info():
+    """ Send GET or POST requests to the info table.
+
+    POST requests call the info_post_request method
+    in Experiment, which, by deafult, creates a new
+    info of the specified type. This request returns
+    a description of the new info. To create infos
+    of custom classes you need to add the name of the
+    class to the trusted_strings variable in the
+    experiment file.
+    Required arguments: participant_id, node_id, contents.
+    Optional arguments: type.
+
+    GET requests call the info_get_request method
+    in Experiment, which, by default, calls the node's
+    infos method. This request returns a list of
+    descriptions of the infos (even if there is only one).
+    Required arguments: participant_id, node_id
+    Optional arguments: info_id, type.
+    """
     exp = experiment(session)
 
-    def date_handler(obj):
-        return obj.isoformat() if hasattr(obj, 'isoformat') else obj
+    try:
+        participant_id = request.values["participant_id"]
+        key = participant_id[0:5]
+    except:
+        exp.log("/info request failed: participant_id not specified")
+        page = error_page(error_type="/info, participant_id not specified")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
+    try:
+        node_id = request.values["node_id"]
+        if not node_id.isdigit():
+            exp.log(
+                "/info request failed: non-numeric node_id: {}".format(node_id),
+                key)
+            page = error_page(error_type="/info, non-numeric node_id")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+    except:
+        exp.log("/info request failed: node_id not specified", key)
+        page = error_page(error_type="/info, node_id not specified")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
+    try:
+        type = request.values["type"]
+    except:
+        type = None
+    if type is not None:
+        if type in exp.trusted_strings:
+            type = exp.evaluate(type)
+        else:
+            exp.log("/info request failed: bad type {}".format(type), key)
+            page = error_page(error_type="/info, bad type")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
 
-    if request.method == 'GET':
-
-        if info_id is not None:
-
-            exp.log("Received an /information GET request for info {}".format(info_id), info_id)
-
-            # Ensure that info_id is a number.
+    if request.method == "GET":
+        try:
+            info_id = request.values["info_id"]
             if not info_id.isdigit():
                 exp.log(
-                    "Malformed id: {}; from info GET.".format(info_id))
-                page = error_page(error_type="/information GET, malformed info id")
+                    "/info GET request failed: non-numeric info_id: {}".format(node_id),
+                    key)
+                page = error_page(error_type="/info GET, non-numeric info_id")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
-
-            try:
-                info = models.Info.query.filter_by(id=info_id).one()
-            except:
-                exp.log("Error: Info {} does not exist, returning status = 403")
-                page = error_page(error_type="/information GET, info does not exist")
-                js = dumps({"status": "error", "html": page})
-                return Response(js, status=403, mimetype='application/json')
-
-            data = {
-                "status": "success",
-                'info_id': info_id,
-                'contents': info.contents,
-                'origin_id': info.origin_id,
-                'creation_time': info.creation_time,
-                'type': info.type
-            }
-
-            js = dumps(data, default=date_handler)
-
-            exp.log("Success: returning info, status = 200", info_id)
-            return Response(js, status=200, mimetype='application/json')
-
-        else:
-
-            try:
-                # Ensure that origin_id is a number.
-                origin_id = request.values['origin_id']
-                if not origin_id.isdigit():
-                    exp.log(
-                        "Malformed id: {}; from info GET2.".format(origin_id))
-                    page = error_page(error_type="/information GET, malformed origin id")
-                    js = dumps({"status": "error", "html": page})
-                    return Response(js, status=403, mimetype='application/json')
-
-            except:
-                exp.log("Error: Received an information get request but neither info_id or origin_id specified. Returning status 403")
-                page = error_page(error_type="/information GET, no info or origin id")
-                js = dumps({"status": "error", "html": page})
-                return Response(js, status=403, mimetype='application/json')
-
-            exp.log("Received an /information GET request from node {}".format(origin_id), origin_id)
-
-            infos = models.Info\
-                .query\
-                .filter_by(origin_id=origin_id)\
-                .all()
-
-            if infos:
-                data_information = []
-                for i in infos:
-                    data_information.append({
-                        "info_id": i.id,
-                        "type": i.type,
-                        "origin_id": i.origin_id,
-                        "creation_time": i.creation_time,
-                        "contents": i.contents
-                    })
-
-                js = dumps({"status": "success", "information": data_information}, default=date_handler)
-
-                exp.log("Success: Returning infos, status = 200", origin_id)
-                return Response(js, status=200, mimetype='application/json')
-            else:
-                exp.log("Warning: Node {} has no infos. Returning status 200".format(origin_id), origin_id)
-                return Response(status=200)
-
-    if request.method == "POST":
-
-        try:
-            # Ensure that origin_id is a number.
-            origin_id = request.values['origin_id']
-            if not origin_id.isdigit():
-                exp.log(
-                    "Malformed id: {}; from info POST.".format(origin_id))
-                page = error_page(error_type="/information POST, malformed origin id")
-                js = dumps({"status": "error", "html": page})
-                return Response(js, status=403, mimetype='application/json')
-
         except:
-            exp.log("Error: received information POST request, but origin_id not specified. Returning status 403")
-            page = error_page(error_type="/information POST, no origin id")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
+            info_id = None
+        infos = exp.info_get_request(participant_id=participant_id, node_id=node_id, type=type, info_id=info_id)
 
+        exp.log("Creating info data to return", key)
+        data = []
+        for i in infos:
+            data.append({
+                "id": i.id,
+                "type": i.type,
+                "origin_id": i.origin_id,
+                "network_id": i.network_id,
+                "creation_time": i.creation_time,
+                "contents": i.contents,
+                "property1": i.property1,
+                "property2": i.property2,
+                "property3": i.property3,
+                "property4": i.property4,
+                "property5": i.property5
+            })
+        data = {"status": "success", "infos": data}
+
+        exp.log("Data successfully created, returning.", key)
+        js = dumps(data, default=date_handler)
+        return Response(js, status=200, mimetype='application/json')
+
+    elif request.method == "POST":
         try:
-            cnts = urllib.unquote(request.values['contents']).decode('utf8')
+            contents = request.values["contents"]
         except:
-            exp.log("Error: received information POST request from Node {}, but contents not specified. Returning status 403".format(origin_id), origin_id)
-            page = error_page(error_type="/information POST, no contents")
+            exp.log("/info POST request failed: contents not specified", key)
+            page = error_page(error_type="/info POST, contents not specified")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
-        info_type = request.values['info_type']
-        exp.log("Received an information post request from node {}".format(origin_id), origin_id)
+        info = exp.info_post_request(participant_id=participant_id, node_id=node_id, type=type, contents=contents)
 
-        try:
-            node = models.Node\
-                .query\
-                .filter_by(id=origin_id)\
-                .one()
-        except:
-            exp.log("Error: Node {} does not exist, returning status = 403".format(origin_id), origin_id)
-            page = error_page(error_type="/information POST, origin does not exist")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
+        exp.log("Creating info data to return", key)
+        data = {
+            "id": info.id,
+            "type": info.type,
+            "origin_id": info.origin_id,
+            "network_id": info.network_id,
+            "creation_time": info.creation_time,
+            "contents": info.contents,
+            "property1": info.property1,
+            "property2": info.property2,
+            "property3": info.property3,
+            "property4": info.property4,
+            "property5": info.property5
+        }
+        data = {"status": "success", "info": data}
 
-        # Create an Info of the requested type.
-        if (info_type is None) or (info_type == "base"):
-            cls = models.Info
-        elif info_type == "meme":
-            cls = information.Meme
-        elif info_type == "gene":
-            cls = information.Gene
-        elif info_type == "state":
-            cls = information.State
-        else:
-            exp.log("Error: Requested info_type does not exist, returning status = 403", origin_id)
-            page = error_page(error_type="/information POST, bad info type")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
-
-        exp.log("Making info", origin_id)
-        info = cls(
-            origin=node,
-            contents=cnts)
-
-        # Trigger experiment-specific behavior that happens on creationg
-        exp.log("Info successfully made, running information creation trigger", origin_id)
-        try:
-            exp.information_creation_trigger(info)
-            session.commit()
-        except:
-            session.commit()
-            page = error_page(error_type="/information POST, information_creation_trigger")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
-
-        data = {"status": "success", 'id': info.id}
-        js = dumps(data)
-        exp.log("Success, returning info id, status = 200", origin_id)
+        exp.log("Data successfully created, returning.", key)
+        js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
 
 
