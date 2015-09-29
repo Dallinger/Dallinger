@@ -167,9 +167,11 @@ class DiscreteGenerational(Network):
         current_generation = newcomer.generation
         if current_generation == 0:
             if self.initial_source:
-                newcomer.connect(
-                    direction="from",
-                    whom=min(self.nodes(type=Source), key=attrgetter('creation_time')))
+                source = min(self.nodes(type=Source), key=attrgetter('creation_time'))
+                source.connect(
+                    direction="to",
+                    whom=newcomer)
+                source.transmit(to_whom=newcomer)
         else:
             agent_type = type(newcomer)
             prev_agents = agent_type.query\
