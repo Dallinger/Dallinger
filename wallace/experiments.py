@@ -77,9 +77,6 @@ class Experiment(object):
             self.session.add_all(objects)
         self.session.commit()
 
-    def information_creation_trigger(self, info):
-        pass
-
     def step(self):
         pass
 
@@ -244,4 +241,29 @@ class Experiment(object):
             info = Info.query.get(info_id)
             self.log("Transmitting", key)
             return origin.transmit(what=info, to_whom=destination)
+
+    def info_get_request(self, participant_id, node_id, type, info_id):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+        self.log("Gettings infos", key)
+        if info_id is None:
+            return node.infos(type=type)
+        else:
+            info_id = int(info_id)
+            requested_info = Info.query.get(info_id)
+            if requested_info.origin_id == node_id:
+                return [requested_info]
+            elif info_id in [t.info_id for t in node.transmissions(direction="incoming", status="received")]:
+                return [requested_info]
+            else:
+                return []
+
+    def info_post_request(self, participant_id, node_id, type, contents):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+        self.log("Making info", key)
+        info = type(origin=node, contents=contents)
+        return info
 
