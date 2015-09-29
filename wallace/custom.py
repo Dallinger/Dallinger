@@ -127,22 +127,99 @@ def worker_complete():
         return jsonify(**resp)
 
 
-@custom_code.route("/agents", methods=["POST"])
-def api_agent_create():
-    """A route that triggers creation of a new agent."""
-    exp = experiment(session)
+@custom_code.route("/node", methods=["POST", "GET"])
+def node():
+    """ Send GET or POST requests to the node table.
 
-    if request.method == 'POST':
+    POST requests call the node_post_request method
+    in Experiment, which, by deafult, makes a new node
+    for the participant. This request returns a
+    description of the new node.
+    Required arguments: participant_id
+
+    GET requests call the node_get_request method
+    in Experiment, which, by default, call the
+    neighbours method of the node making the request.
+    This request returns a list of descriptions of
+    the nodes (even if there is only one).
+    Required arguments: participant_id, node_id
+    Optional arguments: type, failed, connection
+    """
+    exp = experiment(session)
+    try:
+        participant_id = request.values["participant_id"]
+        key = participant_id[0:5]
+    except:
+        exp.log("/node request failed: participant_id not specified")
+        page = error_page(error_type="/node, participant_id not specified")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
+
+    if request.method == "GET":
         try:
-            participant_id = request.values["unique_id"]
+            node_id = request.values["node_id"]
         except:
-            exp.log("/agents POST request failed: unique_id not specified")
-            page = error_page(error_type="/agents POST, unique_id not specified")
+            exp.log("/node GET request failed: node_id not specified", key)
+            page = error_page(error_type="/node GET, node_id not specified")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
+        if not node_id.isdigit():
+            exp.log(
+                "Malformed node_id: {}".format(node_id),
+                key)
+            page = error_page(error_type="/node GET, malformed node_id")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+        exp.log("Received a /node GET request from node {}".format(node_id), key)
+        try:
+            type = request.values["type"]
+            if type in exp.trusted_strings:
+                type = exp.evaluate(type)
+            else:
+                exp.log("/node GET request failed: bad type {}".format(type), key)
+                page = error_page(error_type="/node GET, bad type")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=403, mimetype='application/json')
+        except:
+            type = None
+        try:
+            failed = request.values["failed"]
+        except:
+            failed = False
+        try:
+            connection = request.values["connection"]
+        except:
+            connection = "to"
 
-        key = participant_id[0:5]
-        exp.log("Received POST request to /agents for participant {}".format(participant_id), key)
+        exp.log("Getting requested nodes", key)
+        nodes = exp.node_get_request(participant_id=participant_id, node_id=node_id, type=type, failed=failed, connection=connection)
+
+        exp.log("Creating data to return", key)
+        data = []
+        for n in nodes:
+            data.append({
+                "id": n.id,
+                "type": n.type,
+                "network_id": n.network_id,
+                "creation_time": n.creation_time,
+                "time_of_death": n.receive_time,
+                "failed": n.failed,
+                "participant_id": n.participant_id,
+                "property1": n.property1,
+                "property2": n.property2,
+                "property3": n.property3,
+                "property4": n.property4,
+                "property5": n.property5
+            })
+        data = {"status": "success", "nodes": data}
+
+        exp.log("Data successfully created, returning.", key)
+        js = dumps(data, default=date_handler)
+        return Response(js, status=200, mimetype='application/json')
+
+    elif request.method == "POST":
+        exp.log("Received a /node POST request from participant {}".format(participant_id), key)
+        exp.log("Checking participant exists", key)
         participant = Participant.query.\
             filter(Participant.uniqueid == participant_id).all()
         if len(participant) == 0:
@@ -174,26 +251,35 @@ def api_agent_create():
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
 
-        exp.log("Assigning participant a new node".format(participant.status), key)
-        try:
-            newcomer = exp.assign_agent_to_participant(participant_id)
-            session.commit()
-        except:
-            session.commit()
-            exp.log("Error during exp.assign_agent_to_participant", participant_id)
-            page = error_page(error_type="/agents POST, assign_agent_to_participant")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
+        exp.log("All checks passed: posting new node", key)
+        node = exp.node_post_request(participant_id=participant_id)
+        session.commit()
 
-        if newcomer is not None:
-            exp.log("Participant has been assigned Node {}, returning status 200".format(newcomer.id), key)
-            data = {"status": "success", 'agents': {'id': newcomer.id}}
-            js = dumps(data)
-            return Response(js, status=200, mimetype='application/json')
-        else:
+        if node is None:
             exp.log("Node not made for participant, hopefully because they are finished, returning status 403", key)
             js = dumps({"status": "error"})
             return Response(js, status=403)
+
+        exp.log("Node successfully posted, creating data to return", key)
+        data = {
+            "id": node.id,
+            "type": node.type,
+            "network_id": node.network_id,
+            "creation_time": node.creation_time,
+            "time_of_death": node.time_of_death,
+            "failed": node.failed,
+            "participant_id": node.participant_id,
+            "property1": node.property1,
+            "property2": node.property2,
+            "property3": node.property3,
+            "property4": node.property4,
+            "property5": node.property5
+        }
+        data = {"status": "success", "node": data}
+
+        exp.log("Data successfully created, returning.", key)
+        js = dumps(data, default=date_handler)
+        return Response(js, status=200, mimetype='application/json')
 
 
 @custom_code.route("/transmissions",
