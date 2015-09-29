@@ -36,7 +36,8 @@ login_pw = examplepassword
 threads = 1
 notification_url = None
 dyno_type = standard-1x
-num_dynos = 2
+num_dynos_web = 2
+num_dynos_worker = 1
 
 [Task Parameters]
 experiment_code_version = 1.0
