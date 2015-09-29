@@ -32,7 +32,7 @@ class SubstitutionCiphersExperiment(Experiment):
 
     def newcomer_arrival_trigger(self, newcomer):
 
-        self.network.add_agent(newcomer)
+        self.network.add_node(newcomer)
         self.save()
 
         # If this is the first participant, link them to the source.
