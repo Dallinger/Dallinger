@@ -347,7 +347,7 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
     dyno_type = config.get('Server Parameters', 'dyno_type')
     num_dynos_web = config.get('Server Parameters', 'num_dynos_web')
-    num_dynos_worker = config.get('Server Parameters', 'num_dynos_web')
+    num_dynos_worker = config.get('Server Parameters', 'num_dynos_worker')
 
     log("Starting up the web server...")
     subprocess.call("heroku ps:scale web=" + str(num_dynos_web) + ":" +
