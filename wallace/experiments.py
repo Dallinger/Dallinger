@@ -34,7 +34,11 @@ class Experiment(object):
         self.experiment_repeats = 0
         self.recruiter = PsiTurkRecruiter
         self.initial_recruitment_size = 1
-        self.trusted_strings = ["Info", "Gene", "Meme", "State", "Node", "Agent", "Source", "Environment"]
+        self.trusted_strings = [
+            "Info", "Gene", "Meme", "State",
+            "Node", "Agent", "Source", "Environment",
+            "Transformation", "Mutation", "Replication", "Compression", "Response"
+        ]
 
     def setup(self):
         """Create the networks iff they don't already exist."""
