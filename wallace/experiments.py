@@ -198,8 +198,9 @@ class Experiment(object):
         self.log("Creating node", key)
         node = self.make_node_for_participant(participant_id=participant_id, network=network)
 
-        self.log("Adding node to network", key)
-        self.add_node_to_network(participant_id=participant_id, node=node, network=network)
+        if node is not None:
+            self.log("Adding node to network", key)
+            self.add_node_to_network(participant_id=participant_id, node=node, network=network)
 
         self.log("Returning node", key)
         return node
@@ -306,7 +307,13 @@ class Experiment(object):
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            node = self.agent(network=network)(participant_id=participant_id, network=network)
+            from psiturk.models import Participant
+            participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
+            if participant.status in [1, 2]:
+                node = self.agent(network=network)(participant_id=participant_id, network=network)
+            else:
+                self.log("Participant status = {}, node creation aborted".format(participant.status), key)
+                return None
 
         self.log("Node successfully generated, recalculating if network is full", key)
         network.calculate_full()
