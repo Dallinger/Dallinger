@@ -221,8 +221,11 @@ class Experiment(object):
     def vector_post_request(self, participant_id, node_id, other_node_id, direction):
         key = participant_id[0:5]
 
+        self.log("Getting nodes to connect", key)
         node = Node.query.get(node_id)
         other_node = Node.query.get(other_node_id)
+
+        self.log("Connecting nodes", key)
         node.connect(whom=other_node, direction=direction)
 
     def transmission_get_request(self, participant_id, node_id, direction, status):
