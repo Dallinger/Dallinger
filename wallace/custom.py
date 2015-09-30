@@ -275,6 +275,207 @@ def node():
         return Response(js, status=200, mimetype='application/json')
 
 
+@custom_code.route("/vector", methods=["GET", "POST"])
+def vector():
+    """ Send GET or POST requests to the vector table.
+
+    POST requests call the vector_post_request method
+    in Experiment, which, by deafult, prompts one node to
+    connect to or fromanother. This request returns no data.
+    Required arguments: participant_id, node_id, other_node_id
+    Optional arguments: direction.
+
+    GET requests call the vector_get_request method
+    in Experiment, which, by default, calls the node's
+    vectors method if no other_node_id is specified,
+    or its is_connected method if the other_node_id is
+    specified. This request returns a list of
+    descriptions of the vectors (even if there is only one),
+    or a boolean, respectively.
+    Required arguments: participant_id, node_id
+    Optional arguments: other_node_id, failed, direction, vector_failed
+    """
+    # load the experiment
+    exp = experiment(session)
+
+    # get the participant_id
+    try:
+        participant_id = request.values["participant_id"]
+        key = participant_id[0:5]
+    except:
+        exp.log("/vector request failed: participant_id not specified")
+        page = error_page(error_type="/vector, participant_id not specified")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
+    exp.log("Received a vector request", key)
+
+    # get the node_id
+    try:
+        node_id = request.values["node_id"]
+        if not node_id.isdigit():
+            exp.log(
+                "/vector request failed: non-numeric node_id: {}"
+                .format(node_id), key)
+            page = error_page(error_type="/vector, non-numeric node_id")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+    except:
+        exp.log("/vector request failed: node_id not specified", key)
+        page = error_page(error_type="/vector, node_id not specified")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
+
+    if request.method == "GET":
+        exp.log("vector request is a GET request", key)
+
+        # get the other_node_id
+        try:
+            other_node_id = request.values["other_node_id"]
+            exp.log("other_node_id specified", key)
+            if not other_node_id.isdigit():
+                exp.log(
+                    "/vector GET request failed: non-numeric other_node_id: {}"
+                    .format(other_node_id), key)
+                page = error_page(error_type="/vector GET, non-numeric other_node_id")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=403, mimetype='application/json')
+        except:
+            other_node_id = None
+            exp.log("other_node_id not specified", key)
+
+        # if other_node_id is not None we return if the node
+        # is_connected to the other_node
+        if other_node_id is not None:
+            # get the direction
+            try:
+                direction = request.values["direction"]
+                exp.log("direction specified", key)
+            except:
+                exp.log("direction not specified, setting to 'to'", key)
+                direction = "to"
+
+            # get the vector_failed
+            try:
+                vector_failed = request.values["vector_failed"]
+                exp.log("vector_failed specified", key)
+            except:
+                vector_failed = False
+                exp.log("vector_failed not specified, setting to 'False'", key)
+
+            # execute the experiment method
+            exp.log("Running vector_get_request", key)
+            try:
+                is_connected = exp.vector_get_request(participant_id=participant_id, node_id=node_id, other_node_id=other_node_id, direction=direction, vector_failed=vector_failed)
+            except:
+                exp.log("vector_get_request failed")
+                page = error_page(error_type="/vector GET, vector_get_request error")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=403, mimetype='application/json')
+
+            # return the data
+            exp.log("vector_get_request successful", key)
+            data = {"status": "success", "is_connected": is_connected}
+            exp.log("vector data successfully created, returning.", key)
+            js = dumps(data, default=date_handler)
+            return Response(js, status=200, mimetype='application/json')
+
+        # if other_node_id is None, we return a list of vectors
+        else:
+
+            # get the direction
+            try:
+                direction = request.values["direction"]
+                exp.log("direction specified", key)
+            except:
+                direction = "all"
+                exp.log("direction not specified, setting to 'all'", key)
+
+            # get failed
+            try:
+                failed = request.values["failed"]
+                exp.log("failed specified", key)
+            except:
+                failed = False
+                exp.log("failed not specified, setting to 'False'", key)
+
+            # execute the experiment method
+            try:
+                vectors = exp.vector_get_request(participant_id=participant_id, node_id=node_id, other_node_id=other_node_id, direction=direction, failed=failed)
+            except:
+                exp.log("vector_get_request failed")
+                page = error_page(error_type="/vector GET, vector_get_request error")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=403, mimetype='application/json')
+            exp.log("vector_get_request successful", key)
+
+            # parse the data for returning
+            exp.log("Creating vector data to return", key)
+            data = []
+            for v in vectors:
+                data.append({
+                    "id": v.id,
+                    "origin_id": v.origin_id,
+                    "destination_id": v.destination_id,
+                    "info_id": v.info_id,
+                    "network_id": v.network_id,
+                    "creation_time": v.creation_time,
+                    "failed": v.failed,
+                    "time_of_death": v.time_of_death,
+                    "property1": v.property1,
+                    "property2": v.property2,
+                    "property3": v.property3,
+                    "property4": v.property4,
+                    "property5": v.property5
+                })
+            data = {"status": "success", "vectors": data}
+
+            # return the data
+            exp.log("Data successfully created, returning.", key)
+            js = dumps(data, default=date_handler)
+            return Response(js, status=200, mimetype='application/json')
+
+    elif request.method == "POST":
+        exp.log("vector request is a POST request", key)
+
+        # get the other_node_id
+        try:
+            other_node_id = request.values["other_node_id"]
+            if not other_node_id.isdigit():
+                exp.log(
+                    "/vector POST request failed: non-numeric other_node_id: {}"
+                    .format(node_id), key)
+                page = error_page(error_type="/vector POST, non-numeric other_node_id")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=403, mimetype='application/json')
+        except:
+            exp.log("/vector POST request failed: other_node_id not specified", key)
+            page = error_page(error_type="/vector, node_id not specified")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+
+        # get the direction
+        try:
+            direction = request.values["direction"]
+            exp.log("direction specified", key)
+        except:
+            direction = "to"
+            exp.log("direction not specified, setting to 'to'", key)
+
+        # execute the experiment method
+        try:
+            exp.vector_post_request(participant_id=participant_id, node_id=node_id, other_node_id=other_node_id, direction=direction)
+        except:
+            exp.log("vector_post_request failed")
+            page = error_page(error_type="/vector POST, vector_post_request error")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+
+        # return success (there is no data)
+        data = {"status": "success"}
+        js = dumps(data, default=date_handler)
+        return Response(js, status=200, mimetype='application/json')
+
+
 @custom_code.route("/transmission", methods=["GET", "POST"])
 def transmission():
     """ Send GET or POST requests to the transmission table.
