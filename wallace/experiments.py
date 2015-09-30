@@ -205,6 +205,26 @@ class Experiment(object):
         self.log("Returning node", key)
         return node
 
+    def vector_get_request(self, participant_id, node_id, other_node_id, direction, failed=None, vector_failed=None):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+
+        if other_node_id is None:
+            self.log("Getting vectors", key)
+            return node.vectors(direction=direction, failed=failed)
+        else:
+            self.log("Checking is node is connected", key)
+            other_node = Node.query.get(other_node_id)
+            return node.is_connected(whom=other_node, direction=direction, vector_failed=vector_failed)
+
+    def vector_post_request(self, participant_id, node_id, other_node_id, direction):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+        other_node = Node.query.get(other_node_id)
+        node.connect(whom=other_node, direction=direction)
+
     def transmission_get_request(self, participant_id, node_id, direction, status):
         key = participant_id[0:5]
 
