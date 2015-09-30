@@ -127,6 +127,11 @@ def worker_complete():
         return jsonify(**resp)
 
 
+"""
+Database accessing routes
+"""
+
+
 @custom_code.route("/node", methods=["POST", "GET"])
 def node():
     """ Send GET or POST requests to the node table.
@@ -145,7 +150,10 @@ def node():
     Required arguments: participant_id, node_id
     Optional arguments: type, failed, connection
     """
+    # load the experiment
     exp = experiment(session)
+
+    # get the participant_id
     try:
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
@@ -156,44 +164,67 @@ def node():
         return Response(js, status=403, mimetype='application/json')
 
     if request.method == "GET":
+
+        # get the node_id
         try:
             node_id = request.values["node_id"]
+            if not node_id.isdigit():
+                exp.log("/node GET request failed: non-numeric node_id: {}".format(node_id), key)
+                page = error_page(error_type="/node GET, non-numeric node_id")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=403, mimetype='application/json')
         except:
             exp.log("/node GET request failed: node_id not specified", key)
             page = error_page(error_type="/node GET, node_id not specified")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
-        if not node_id.isdigit():
-            exp.log(
-                "Malformed node_id: {}".format(node_id),
-                key)
-            page = error_page(error_type="/node GET, malformed node_id")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
+
         exp.log("Received a /node GET request from node {}".format(node_id), key)
+
+        # get type and check it is in trusted_strings
         try:
             type = request.values["type"]
+            exp.log("type specified", key)
             if type in exp.trusted_strings:
                 type = exp.evaluate(type)
+                exp.log("type in trusted_strings", key)
             else:
-                exp.log("/node GET request failed: bad type {}".format(type), key)
-                page = error_page(error_type="/node GET, bad type")
+                exp.log("/node GET request failed: untrusted type {}".format(type), key)
+                page = error_page(error_type="/node GET, unstrusted type")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
         except:
-            type = None
+            type = models.Node
+            exp.log("type not specified, defaulting to Node", key)
+
+        # get failed
         try:
             failed = request.values["failed"]
+            exp.log("failed specified", key)
         except:
             failed = False
+            exp.log("failed not specified, defaulting to False", key)
+
+        # get connection
         try:
             connection = request.values["connection"]
+            exp.log("connection specified", key)
         except:
             connection = "to"
+            exp.log("connection not specified, defaulting to 'to'", key)
 
+        # execute the experiment method
         exp.log("Getting requested nodes", key)
-        nodes = exp.node_get_request(participant_id=participant_id, node_id=node_id, type=type, failed=failed, connection=connection)
+        try:
+            nodes = exp.node_get_request(participant_id=participant_id, node_id=node_id, type=type, failed=failed, connection=connection)
+            exp.log("node_get_request successful", key)
+        except:
+            exp.log("/node GET request failed: error in node_get_request", key)
+            page = error_page(error_type="/node GET, node_get_request error")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
 
+        # parse the data to return
         exp.log("Creating data to return", key)
         data = []
         for n in nodes:
@@ -213,13 +244,14 @@ def node():
             })
         data = {"status": "success", "nodes": data}
 
+        # return the data
         exp.log("Data successfully created, returning.", key)
         js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
 
     elif request.method == "POST":
-        exp.log("Received a /node POST request from participant {}".format(participant_id), key)
-        exp.log("Checking participant exists", key)
+
+        # get the participant
         participant = Participant.query.\
             filter(Participant.uniqueid == participant_id).all()
         if len(participant) == 0:
@@ -234,6 +266,7 @@ def node():
             return Response(js, status=403, mimetype='application/json')
         participant = participant[0]
 
+        # make sure their status is 1 or 2, otherwise they must have come here by mistake
         exp.log("Checking participant status", key)
         if participant.status not in [1, 2]:
             exp.log("Error: Participant status is {} they should not have been able to contact this route. Returning error_wallace.html.".format(participant.status), key)
@@ -251,15 +284,25 @@ def node():
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
 
+        # execute the experiment method
         exp.log("All checks passed: posting new node", key)
-        node = exp.node_post_request(participant_id=participant_id)
-        session.commit()
+        try:
+            node = exp.node_post_request(participant_id=participant_id)
+            session.commit()
+        except:
+            session.commit()
+            exp.log("node_post_request failed")
+            page = error_page(error_type="/node POST, node_post_request error")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
 
+        # if it returns None return an error
         if node is None:
             exp.log("Node not made for participant, hopefully because they are finished, returning status 403", key)
             js = dumps({"status": "error"})
             return Response(js, status=403)
 
+        # parse the data for returning
         exp.log("Node successfully posted, creating data to return", key)
         data = {
             "id": node.id,
@@ -277,6 +320,7 @@ def node():
         }
         data = {"status": "success", "node": data}
 
+        # return the data
         exp.log("Data successfully created, returning.", key)
         js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
