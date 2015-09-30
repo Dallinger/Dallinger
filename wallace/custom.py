@@ -802,6 +802,183 @@ def transmission():
         return Response(js, status=200, mimetype='application/json')
 
 
+@custom_code.route("/transformation", methods=["GET", "POST"])
+def transformation():
+    """ Send GET or POST requests to the transmission table.
+
+    POST requests call the transformation_post_request method
+    in Experiment, which, by deafult, creates a new transformation.
+    This request returns a description of the new transformation.
+    Required arguments: participant_id, node_id, info_in_id, info_out_id
+    Optional arguments: type
+
+    GET requests call the transformation_get_request method
+    in Experiment, which, by default, calls the node's
+    transformations method. This request returns a list of
+    descriptions of the transformations (even if there is only one).
+    Required arguments: participant_id, node_id
+    Optional arguments: type
+    """
+
+    # load the experiment
+    exp = experiment(session)
+
+    # get the participant_id
+    try:
+        participant_id = request.values["participant_id"]
+        key = participant_id[0:5]
+    except:
+        exp.log("/transformation request failed: participant_id not specified")
+        page = error_page(error_type="/transformation, participant_id not specified")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
+    exp.log("Received a transformation request", key)
+
+    # get the node_id
+    try:
+        node_id = request.values["node_id"]
+        if not node_id.isdigit():
+            exp.log(
+                "/transformation request failed: non-numeric node_id: {}"
+                .format(node_id), key)
+            page = error_page(error_type="/transformation, non-numeric node_id")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+    except:
+        exp.log("/transformation request failed: node_id not specified", key)
+        page = error_page(error_type="/transformation, node_id not specified")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
+
+    # get the type
+    try:
+        type = request.values["type"]
+        exp.log("type specified", key)
+        if type in exp.trusted_strings:
+            type = exp.evaluate(type)
+            exp.log("type in trusted_strings", key)
+        else:
+            exp.log("/transformation request failed: untrusted type {}".format(type), key)
+            page = error_page(error_type="/transformation, unstrusted type")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+    except:
+        type = models.Transformation
+        exp.log("type not specified, defaulting to Transformation", key)
+
+    if request.method == "GET":
+
+        # execute the experiment method
+        try:
+            transformations = exp.transformation_get_request(participant_id=participant_id, node_id=node_id, type=type)
+            session.commit()
+        except:
+            session.commit()
+            exp.log("/transformation GET request, transformation_get_request failed.", key)
+            page = error_page(error_type="/transformation GET, transformation_get_request failed")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+
+        # parse the data to return
+        exp.log("Creating transformation data to return", key)
+        data = []
+        for t in transformations:
+            data.append({
+                "id": t.id,
+                "info_in_id": t.info_in_id,
+                "info_out_id": t.info_out_id,
+                "node_id": t.node_id,
+                "network_id": t.network_id,
+                "creation_time": t.creation_time,
+                "property1": t.property1,
+                "property2": t.property2,
+                "property3": t.property3,
+                "property4": t.property4,
+                "property5": t.property5
+            })
+        data = {"status": "success", "transformations": data}
+
+        # return the data
+        exp.log("Data successfully created, returning.", key)
+        js = dumps(data, default=date_handler)
+        return Response(js, status=200, mimetype='application/json')
+
+    if request.method == "POST":
+
+        # get the info_in_id
+        try:
+            info_in_id = request.values["info_in_id"]
+            if not info_in_id.isdigit():
+                exp.log(
+                    "/transformation request failed: non-numeric info_in_id: {}"
+                    .format(info_in_id), key)
+                page = error_page(error_type="/transformation, non-numeric info_in_id")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=403, mimetype='application/json')
+        except:
+            exp.log("/transformation POST request failed: info_in_id not specified", key)
+            page = error_page(error_type="/transformation POST, info_in_id not specified")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+
+        # get the info_out_id
+        try:
+            info_out_id = request.values["info_out_id"]
+            if not info_out_id.isdigit():
+                exp.log(
+                    "/transformation request failed: non-numeric info_out_id: {}"
+                    .format(info_out_id), key)
+                page = error_page(error_type="/transformation, non-numeric info_out_id")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=403, mimetype='application/json')
+        except:
+            exp.log("/transformation POST request failed: info_out_id not specified", key)
+            page = error_page(error_type="/transformation POST, info_out_id not specified")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+
+        # execute the experiment method
+        try:
+            transformation = exp.transformation_post_request(participant_id=participant_id, node_id=node_id, info_in_id=info_in_id, info_out_id=info_out_id, type=type)
+            session.commit()
+        except:
+            session.commit()
+            exp.log("/transformation POST request, transformation_post_request failed.", key)
+            page = error_page(error_type="/transformation POST, transformation_post_request failed")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+
+        # if it returned None return an error
+        if transformation is None:
+            exp.log("/transformation POST request, transformation_post_request returned None.", key)
+            page = error_page(error_type="/transformation POST, transformation_post_request returned None")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+
+        # parse the data for returning
+        exp.log("Transformation successfully posted, creating data to return", key)
+        data = {
+            "id": transformation.id,
+            "type": transformation.type,
+            "info_in_id": transformation.info_in_id,
+            "info_out_id": transformation.info_out_id,
+            "network_id": transformation.network_id,
+            "creation_time": transformation.creation_time,
+            "property1": transformation.property1,
+            "property2": transformation.property2,
+            "property3": transformation.property3,
+            "property4": transformation.property4,
+            "property5": transformation.property5
+        }
+        data = {"status": "success", "transformation": data}
+
+        # return success
+        exp.log("Returning data")
+        data = {"status": "success", "transformation": transformation}
+        js = dumps(data, default=date_handler)
+        return Response(js, status=200, mimetype='application/json')
+
+
 @custom_code.route("/nudge", methods=["POST"])
 def nudge():
     """Call the participant submission trigger for everyone who finished."""

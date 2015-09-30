@@ -261,6 +261,29 @@ class Experiment(object):
             self.log("Transmitting", key)
             return origin.transmit(what=info, to_whom=destination)
 
+    def transformation_get_request(self, participant_id, node_id, type):
+        key = participant_id[0:5]
+
+        self.log("getting requesting node", key)
+        node = Node.query.get(node_id)
+
+        self.log("returning transformations", key)
+        return node.transformations(type=type)
+
+    def transformation_post_request(self, participant_id, node_id, info_in_id, info_out_id, type):
+        key = participant_id[0:5]
+
+        self.log("gettings infos for transformation", key)
+        info_in = Info.query.get(info_in_id)
+        info_out = Info.query.get(info_out_id)
+
+        self.log("making transformation", key)
+        if info_out.origin_id == node_id:
+            return type(info_in=info_in, info_out=info_out)
+        else:
+            self.log("cannot make transformation as transforming node is not origin of info_out", key)
+            return None
+
     def info_get_request(self, participant_id, node_id, type, info_id):
         key = participant_id[0:5]
 
