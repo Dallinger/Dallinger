@@ -527,6 +527,131 @@ def vector():
         return Response(js, status=200, mimetype='application/json')
 
 
+@custom_code.route("/info", methods=["GET", "POST"])
+def info():
+    """ Send GET or POST requests to the info table.
+
+    POST requests call the info_post_request method
+    in Experiment, which, by deafult, creates a new
+    info of the specified type. This request returns
+    a description of the new info. To create infos
+    of custom classes you need to add the name of the
+    class to the trusted_strings variable in the
+    experiment file.
+    Required arguments: participant_id, node_id, contents.
+    Optional arguments: type.
+
+    GET requests call the info_get_request method
+    in Experiment, which, by default, calls the node's
+    infos method. This request returns a list of
+    descriptions of the infos (even if there is only one).
+    Required arguments: participant_id, node_id
+    Optional arguments: info_id, type.
+    """
+    exp = experiment(session)
+
+    try:
+        participant_id = request.values["participant_id"]
+        key = participant_id[0:5]
+    except:
+        exp.log("/info request failed: participant_id not specified")
+        page = error_page(error_type="/info, participant_id not specified")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
+    try:
+        node_id = request.values["node_id"]
+        if not node_id.isdigit():
+            exp.log(
+                "/info request failed: non-numeric node_id: {}".format(node_id),
+                key)
+            page = error_page(error_type="/info, non-numeric node_id")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+    except:
+        exp.log("/info request failed: node_id not specified", key)
+        page = error_page(error_type="/info, node_id not specified")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
+    try:
+        type = request.values["type"]
+    except:
+        type = None
+    if type is not None:
+        if type in exp.trusted_strings:
+            type = exp.evaluate(type)
+        else:
+            exp.log("/info request failed: bad type {}".format(type), key)
+            page = error_page(error_type="/info, bad type")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+
+    if request.method == "GET":
+        try:
+            info_id = request.values["info_id"]
+            if not info_id.isdigit():
+                exp.log(
+                    "/info GET request failed: non-numeric info_id: {}".format(node_id),
+                    key)
+                page = error_page(error_type="/info GET, non-numeric info_id")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=403, mimetype='application/json')
+        except:
+            info_id = None
+        infos = exp.info_get_request(participant_id=participant_id, node_id=node_id, type=type, info_id=info_id)
+
+        exp.log("Creating info data to return", key)
+        data = []
+        for i in infos:
+            data.append({
+                "id": i.id,
+                "type": i.type,
+                "origin_id": i.origin_id,
+                "network_id": i.network_id,
+                "creation_time": i.creation_time,
+                "contents": i.contents,
+                "property1": i.property1,
+                "property2": i.property2,
+                "property3": i.property3,
+                "property4": i.property4,
+                "property5": i.property5
+            })
+        data = {"status": "success", "infos": data}
+
+        exp.log("Data successfully created, returning.", key)
+        js = dumps(data, default=date_handler)
+        return Response(js, status=200, mimetype='application/json')
+
+    elif request.method == "POST":
+        try:
+            contents = request.values["contents"]
+        except:
+            exp.log("/info POST request failed: contents not specified", key)
+            page = error_page(error_type="/info POST, contents not specified")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+        info = exp.info_post_request(participant_id=participant_id, node_id=node_id, type=type, contents=contents)
+
+        exp.log("Creating info data to return", key)
+        data = {
+            "id": info.id,
+            "type": info.type,
+            "origin_id": info.origin_id,
+            "network_id": info.network_id,
+            "creation_time": info.creation_time,
+            "contents": info.contents,
+            "property1": info.property1,
+            "property2": info.property2,
+            "property3": info.property3,
+            "property4": info.property4,
+            "property5": info.property5
+        }
+        data = {"status": "success", "info": data}
+
+        exp.log("Data successfully created, returning.", key)
+        js = dumps(data, default=date_handler)
+        return Response(js, status=200, mimetype='application/json')
+
+
 @custom_code.route("/transmission", methods=["GET", "POST"])
 def transmission():
     """ Send GET or POST requests to the transmission table.
@@ -671,131 +796,6 @@ def transmission():
             "property5": transmission.property5
         }
         data = {"status": "success", "transmission": data}
-
-        exp.log("Data successfully created, returning.", key)
-        js = dumps(data, default=date_handler)
-        return Response(js, status=200, mimetype='application/json')
-
-
-@custom_code.route("/info", methods=["GET", "POST"])
-def info():
-    """ Send GET or POST requests to the info table.
-
-    POST requests call the info_post_request method
-    in Experiment, which, by deafult, creates a new
-    info of the specified type. This request returns
-    a description of the new info. To create infos
-    of custom classes you need to add the name of the
-    class to the trusted_strings variable in the
-    experiment file.
-    Required arguments: participant_id, node_id, contents.
-    Optional arguments: type.
-
-    GET requests call the info_get_request method
-    in Experiment, which, by default, calls the node's
-    infos method. This request returns a list of
-    descriptions of the infos (even if there is only one).
-    Required arguments: participant_id, node_id
-    Optional arguments: info_id, type.
-    """
-    exp = experiment(session)
-
-    try:
-        participant_id = request.values["participant_id"]
-        key = participant_id[0:5]
-    except:
-        exp.log("/info request failed: participant_id not specified")
-        page = error_page(error_type="/info, participant_id not specified")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=403, mimetype='application/json')
-    try:
-        node_id = request.values["node_id"]
-        if not node_id.isdigit():
-            exp.log(
-                "/info request failed: non-numeric node_id: {}".format(node_id),
-                key)
-            page = error_page(error_type="/info, non-numeric node_id")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
-    except:
-        exp.log("/info request failed: node_id not specified", key)
-        page = error_page(error_type="/info, node_id not specified")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=403, mimetype='application/json')
-    try:
-        type = request.values["type"]
-    except:
-        type = None
-    if type is not None:
-        if type in exp.trusted_strings:
-            type = exp.evaluate(type)
-        else:
-            exp.log("/info request failed: bad type {}".format(type), key)
-            page = error_page(error_type="/info, bad type")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
-
-    if request.method == "GET":
-        try:
-            info_id = request.values["info_id"]
-            if not info_id.isdigit():
-                exp.log(
-                    "/info GET request failed: non-numeric info_id: {}".format(node_id),
-                    key)
-                page = error_page(error_type="/info GET, non-numeric info_id")
-                js = dumps({"status": "error", "html": page})
-                return Response(js, status=403, mimetype='application/json')
-        except:
-            info_id = None
-        infos = exp.info_get_request(participant_id=participant_id, node_id=node_id, type=type, info_id=info_id)
-
-        exp.log("Creating info data to return", key)
-        data = []
-        for i in infos:
-            data.append({
-                "id": i.id,
-                "type": i.type,
-                "origin_id": i.origin_id,
-                "network_id": i.network_id,
-                "creation_time": i.creation_time,
-                "contents": i.contents,
-                "property1": i.property1,
-                "property2": i.property2,
-                "property3": i.property3,
-                "property4": i.property4,
-                "property5": i.property5
-            })
-        data = {"status": "success", "infos": data}
-
-        exp.log("Data successfully created, returning.", key)
-        js = dumps(data, default=date_handler)
-        return Response(js, status=200, mimetype='application/json')
-
-    elif request.method == "POST":
-        try:
-            contents = request.values["contents"]
-        except:
-            exp.log("/info POST request failed: contents not specified", key)
-            page = error_page(error_type="/info POST, contents not specified")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
-        info = exp.info_post_request(participant_id=participant_id, node_id=node_id, type=type, contents=contents)
-
-        exp.log("Creating info data to return", key)
-        data = {
-            "id": info.id,
-            "type": info.type,
-            "origin_id": info.origin_id,
-            "network_id": info.network_id,
-            "creation_time": info.creation_time,
-            "contents": info.contents,
-            "property1": info.property1,
-            "property2": info.property2,
-            "property3": info.property3,
-            "property4": info.property4,
-            "property5": info.property5
-        }
-        data = {"status": "success", "info": data}
 
         exp.log("Data successfully created, returning.", key)
         js = dumps(data, default=date_handler)
