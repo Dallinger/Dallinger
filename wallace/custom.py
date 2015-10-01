@@ -217,8 +217,10 @@ def node():
         exp.log("Getting requested nodes", key)
         try:
             nodes = exp.node_get_request(participant_id=participant_id, node_id=node_id, type=type, failed=failed, connection=connection)
+            session.commit()
             exp.log("node_get_request successful", key)
         except:
+            session.commit()
             exp.log("/node GET request failed: error in node_get_request", key)
             page = error_page(error_type="/node GET, node_get_request error")
             js = dumps({"status": "error", "html": page})
@@ -288,6 +290,7 @@ def node():
         exp.log("All checks passed: posting new node", key)
         try:
             node = exp.node_post_request(participant_id=participant_id)
+            exp.log("node_post_request finished without error")
             session.commit()
         except:
             session.commit()
@@ -332,7 +335,8 @@ def vector():
 
     POST requests call the vector_post_request method
     in Experiment, which, by deafult, prompts one node to
-    connect to or fromanother. This request returns no data.
+    connect to or from another. This request returns a list of
+    descriptions of the new vectors created.
     Required arguments: participant_id, node_id, other_node_id
     Optional arguments: direction.
 
@@ -417,7 +421,9 @@ def vector():
             exp.log("Running vector_get_request", key)
             try:
                 is_connected = exp.vector_get_request(participant_id=participant_id, node_id=node_id, other_node_id=other_node_id, direction=direction, vector_failed=vector_failed)
+                session.commit()
             except:
+                session.commit()
                 exp.log("vector_get_request failed")
                 page = error_page(error_type="/vector GET, vector_get_request error")
                 js = dumps({"status": "error", "html": page})
@@ -452,7 +458,9 @@ def vector():
             # execute the experiment method
             try:
                 vectors = exp.vector_get_request(participant_id=participant_id, node_id=node_id, other_node_id=other_node_id, direction=direction, failed=failed)
+                session.commit()
             except:
+                session.commit()
                 exp.log("vector_get_request failed")
                 page = error_page(error_type="/vector GET, vector_get_request error")
                 js = dumps({"status": "error", "html": page})
@@ -514,15 +522,38 @@ def vector():
 
         # execute the experiment method
         try:
-            exp.vector_post_request(participant_id=participant_id, node_id=node_id, other_node_id=other_node_id, direction=direction)
+            vectors = exp.vector_post_request(participant_id=participant_id, node_id=node_id, other_node_id=other_node_id, direction=direction)
+            session.commit()
         except:
+            session.commit()
             exp.log("vector_post_request failed")
             page = error_page(error_type="/vector POST, vector_post_request error")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
 
-        # return success (there is no data)
-        data = {"status": "success"}
+        # parse the data for returning
+        exp.log("Creating vector data to return", key)
+        data = []
+        for v in vectors:
+            data.append({
+                "id": v.id,
+                "origin_id": v.origin_id,
+                "destination_id": v.destination_id,
+                "info_id": v.info_id,
+                "network_id": v.network_id,
+                "creation_time": v.creation_time,
+                "failed": v.failed,
+                "time_of_death": v.time_of_death,
+                "property1": v.property1,
+                "property2": v.property2,
+                "property3": v.property3,
+                "property4": v.property4,
+                "property5": v.property5
+            })
+
+        # return data
+        exp.log("Returning the data", key)
+        data = {"status": "success", "vectors": data}
         js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
 
@@ -548,8 +579,10 @@ def info():
     Required arguments: participant_id, node_id
     Optional arguments: info_id, type.
     """
+    # load the experiment
     exp = experiment(session)
 
+    # get the participant_id
     try:
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
@@ -558,6 +591,8 @@ def info():
         page = error_page(error_type="/info, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
+
+    # get the node_id
     try:
         node_id = request.values["node_id"]
         if not node_id.isdigit():
@@ -572,6 +607,8 @@ def info():
         page = error_page(error_type="/info, node_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
+
+    # get type
     try:
         type = request.values["type"]
     except:
@@ -586,6 +623,8 @@ def info():
             return Response(js, status=403, mimetype='application/json')
 
     if request.method == "GET":
+
+        # get the info_id
         try:
             info_id = request.values["info_id"]
             if not info_id.isdigit():
@@ -597,8 +636,19 @@ def info():
                 return Response(js, status=403, mimetype='application/json')
         except:
             info_id = None
-        infos = exp.info_get_request(participant_id=participant_id, node_id=node_id, type=type, info_id=info_id)
 
+        # execute the experiment method:
+        try:
+            infos = exp.info_get_request(participant_id=participant_id, node_id=node_id, type=type, info_id=info_id)
+            session.commit()
+        except:
+            session.commit()
+            exp.log("info_get_request failed")
+            page = error_page(error_type="/info GET, info_get_request error")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+
+        # parse the data for returning
         exp.log("Creating info data to return", key)
         data = []
         for i in infos:
@@ -617,11 +667,14 @@ def info():
             })
         data = {"status": "success", "infos": data}
 
+        # return the data
         exp.log("Data successfully created, returning.", key)
         js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
 
     elif request.method == "POST":
+
+        # get the contents
         try:
             contents = request.values["contents"]
         except:
@@ -629,8 +682,19 @@ def info():
             page = error_page(error_type="/info POST, contents not specified")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
-        info = exp.info_post_request(participant_id=participant_id, node_id=node_id, type=type, contents=contents)
 
+        # execute the experiment method:
+        try:
+            info = exp.info_post_request(participant_id=participant_id, node_id=node_id, type=type, contents=contents)
+            session.commit()
+        except:
+            session.commit()
+            exp.log("info_post_request failed")
+            page = error_page(error_type="/info POST, info_post_request error")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
+
+        # parse the data for returning
         exp.log("Creating info data to return", key)
         data = {
             "id": info.id,
@@ -647,6 +711,7 @@ def info():
         }
         data = {"status": "success", "info": data}
 
+        # return the data
         exp.log("Data successfully created, returning.", key)
         js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
@@ -670,7 +735,11 @@ def transmission():
     Required arguments: participant_id, node_id
     Optional arguments: direction, status
     """
+
+    # get the experiment
     exp = experiment(session)
+
+    # get the participant_id
     try:
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
@@ -679,6 +748,8 @@ def transmission():
         page = error_page(error_type="/transmission, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
+
+    # get the node_id
     try:
         node_id = request.values["node_id"]
         if not node_id.isdigit():
@@ -696,25 +767,35 @@ def transmission():
 
     if request.method == "GET":
         exp.log("Received a transmission GET request", key)
+
+        # get direction
         try:
             direction = request.values["direction"]
         except:
             direction = "outgoing"
+
+        # get status
         try:
             status = request.values["status"]
         except:
             status = "all"
 
-        exp.log("Running transmission_get_request:\
-                 participant_id: {}, node_id: {}, direction: {}, status: {}."
-                .format(participant_id, node_id, direction, status), key)
-        transmissions = exp.transmission_get_request(
-            participant_id=participant_id,
-            node_id=node_id,
-            direction=direction,
-            status=status)
-        session.commit()
+        # execute the experiment method
+        try:
+            transmissions = exp.transmission_get_request(
+                participant_id=participant_id,
+                node_id=node_id,
+                direction=direction,
+                status=status)
+            session.commit()
+        except:
+            session.commit()
+            exp.log("transmission_get_request failed")
+            page = error_page(error_type="/info POST, info_post_request error")
+            js = dumps({"status": "error", "html": page})
+            return Response(js, status=403, mimetype='application/json')
 
+        # parse the data to return
         exp.log("Creating transmission data to return", key)
         data = []
         for t in transmissions:
@@ -736,12 +817,15 @@ def transmission():
             })
         data = {"status": "success", "transmissions": data}
 
+        # return the data
         exp.log("Data successfully created, returning.", key)
         js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
 
     elif request.method == "POST":
         exp.log("Received a transmission POST request", key)
+
+        # get the info_id
         try:
             info_id = request.values["info_id"]
             if not info_id.isdigit():
@@ -753,6 +837,8 @@ def transmission():
                 return Response(js, status=403, mimetype='application/json')
         except:
             info_id = None
+
+        # get the destination_id
         try:
             destination_id = request.values["destination_id"]
             if not destination_id.isdigit():
@@ -765,19 +851,18 @@ def transmission():
         except:
             destination_id = None
 
-        exp.log("Running transmission_post_request:\
-                 participant_id: {}, node_id: {}, info_id: {}, destination_id: {}"
-                .format(participant_id, node_id, info_id, destination_id), key)
+        # execute the experiment method
         try:
             transmission = exp.transmission_post_request(participant_id=participant_id, node_id=node_id, info_id=info_id, destination_id=destination_id)
+            session.commit()
         except:
             session.commit()
             exp.log("/transmission POST request, transmission_post_request failed.", key)
             page = error_page(error_type="/transmissions POST, transmission_post_request failed")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
-        session.commit()
 
+        # parse the data for returning
         exp.log("Creating transmission data to return", key)
         data = {
             "id": transmission.id,
@@ -797,6 +882,7 @@ def transmission():
         }
         data = {"status": "success", "transmission": data}
 
+        # return the data
         exp.log("Data successfully created, returning.", key)
         js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
