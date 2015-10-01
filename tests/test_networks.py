@@ -167,7 +167,7 @@ class TestNetworks(object):
         assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=nodes.Agent)] == [0, 0]
         assert len(net.nodes(type=nodes.Source)[0].vectors(direction="outgoing")) == 1
 
-    def test_network_add_agent(self):
+    def test_network_add_node(self):
         net = networks.Network()
 
         agent1 = nodes.Agent()
@@ -243,7 +243,7 @@ class TestNetworks(object):
 
         for i in range(4):
             agent = nodes.Agent(network=net)
-            net.add_agent(agent)
+            net.add_node(agent)
 
         source = nodes.RandomBinaryStringSource(network=net)
         net.add_source(source)
@@ -260,7 +260,7 @@ class TestNetworks(object):
 
         for i in range(4):
             agent = nodes.Agent(network=net)
-            net.add_agent(agent)
+            net.add_node(agent)
 
         source = nodes.RandomBinaryStringSource(network=net)
         net.add_source(source)
@@ -272,7 +272,7 @@ class TestNetworks(object):
         for i in range(4):
             agent = nodes.Agent()
             self.db.add(agent)
-            net.add_agent(agent)
+            net.add_node(agent)
 
         assert len(net.nodes(type=nodes.Agent)) == 4
         assert len(net.vectors()) == 12
@@ -284,7 +284,7 @@ class TestNetworks(object):
         for i in range(10):
             agent = nodes.Agent()
             self.db.add(agent)
-            net.add_agent(agent)
+            net.add_node(agent)
 
         assert len(net.nodes(type=nodes.Agent)) == 10
         assert len(net.vectors()) == 0
@@ -295,7 +295,7 @@ class TestNetworks(object):
         for i in range(10):
             agent = nodes.Agent()
             self.db.add(agent)
-            net.add_agent(agent)
+            net.add_node(agent)
 
         source = nodes.Source()
         net.add_source(source)
@@ -308,7 +308,7 @@ class TestNetworks(object):
         for i in range(4):
             agent = nodes.Agent()
             self.db.add(agent)
-            net.add_agent(agent)
+            net.add_node(agent)
 
         assert repr(net) == "<Network-" + str(net.id) + "-fully-connected with 4 nodes, 12 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
@@ -320,7 +320,7 @@ class TestNetworks(object):
         for i in range(m0):
             agent = nodes.Agent()
             self.db.add(agent)
-            net.add_agent(agent)
+            net.add_node(agent)
         self.db.commit()
 
         assert len(net.nodes(type=nodes.Agent)) == m0
@@ -328,14 +328,14 @@ class TestNetworks(object):
 
         agent1 = nodes.Agent()
         self.db.add(agent1)
-        net.add_agent(agent1)
+        net.add_node(agent1)
         self.db.commit()
         assert len(net.nodes(type=nodes.Agent)) == m0 + 1
         assert len(net.vectors()) == m0*(m0 - 1) + 2*m
 
         agent2 = nodes.Agent()
         self.db.add(agent2)
-        net.add_agent(agent2)
+        net.add_node(agent2)
         self.db.commit()
         assert len(net.nodes(type=nodes.Agent)) == m0 + 2
         assert len(net.vectors()) == m0*(m0 - 1) + 2*2*m
@@ -346,7 +346,7 @@ class TestNetworks(object):
         for i in range(6):
             agent = nodes.Agent()
             self.db.add(agent)
-            net.add_agent(agent)
+            net.add_node(agent)
 
         assert repr(net) == "<Network-" + str(net.id) + "-scale-free with 6 nodes, 28 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
@@ -359,22 +359,22 @@ class TestNetworks(object):
         net.add(source)
 
         agent1 = nodes.Agent(network=net)
-        net.add_agent(agent1)
+        net.add_node(agent1)
 
         agent2 = nodes.Agent(network=net)
-        net.add_agent(agent2)
+        net.add_node(agent2)
 
         agent3 = nodes.Agent(network=net)
-        net.add_agent(agent3)
+        net.add_node(agent3)
 
         agent4 = nodes.Agent(network=net)
-        net.add_agent(agent4)
+        net.add_node(agent4)
 
         agent5 = nodes.Agent(network=net)
-        net.add_agent(agent5)
+        net.add_node(agent5)
 
         agent6 = nodes.Agent(network=net)
-        net.add_agent(agent6)
+        net.add_node(agent6)
 
         assert len(agent1.vectors(direction="outgoing")) == 1
         assert len(agent2.vectors(direction="outgoing")) == 2
@@ -402,7 +402,7 @@ class TestNetworks(object):
     #         agents.append(nodes.Agent())
     #         self.db.add(agents[-1])
     #         net.add(agents[-1])
-    #         net.add_agent(agents[-1])
+    #         net.add_node(agents[-1])
 
     #     assert len(net.nodes(type=nodes.Source)) == 1
     #     assert len(net.nodes(type=nodes.Agent)) == n_gens*gen_size

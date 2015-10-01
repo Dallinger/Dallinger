@@ -1,6 +1,6 @@
 """The base experiment class."""
 
-from wallace.models import Network, Node
+from wallace.models import Network, Node, Info
 from sqlalchemy import and_
 import random
 import inspect
@@ -34,6 +34,11 @@ class Experiment(object):
         self.experiment_repeats = 0
         self.recruiter = PsiTurkRecruiter
         self.initial_recruitment_size = 1
+        self.trusted_strings = [
+            "Info", "Gene", "Meme", "State",
+            "Node", "Agent", "Source", "Environment",
+            "Transformation", "Mutation", "Replication", "Compression", "Response"
+        ]
 
     def setup(self):
         """Create the networks iff they don't already exist."""
@@ -76,70 +81,6 @@ class Experiment(object):
         if len(objects) > 0:
             self.session.add_all(objects)
         self.session.commit()
-
-    def newcomer_arrival_trigger(self, newcomer):
-        pass
-
-    def transmission_reception_trigger(self, transmissions):
-        # Mark transmissions as received
-        for t in transmissions:
-            t.mark_received()
-
-    def information_creation_trigger(self, info):
-        pass
-
-    def step(self):
-        pass
-
-    def create_agent_trigger(self, agent, network):
-        """A customizable method that adds the new agent to the network and
-        deals with any side effects of this --- for example, by sending some
-        information to the newcomer."""
-        network.add_agent(agent)
-
-    def assign_agent_to_participant(self, participant_id):
-
-        key = participant_id[0:5]
-
-        networks_with_space = Network.query.filter_by(full=False).all()
-        networks_participated_in = [node.network_id for node in Node.query.with_entities(Node.network_id).filter_by(participant_id=participant_id).all()]
-        legal_networks = [net for net in networks_with_space if net.id not in networks_participated_in]
-
-        if not legal_networks:
-            self.log("No networks available, returning None", key)
-            return None
-
-        self.log("{} networks out of {} available"
-                 .format(len(legal_networks),
-                        (self.practice_repeats + self.experiment_repeats)),
-                 key)
-
-        legal_practice_networks = [net for net in legal_networks if net.role == "practice"]
-        if legal_practice_networks:
-            chosen_network = legal_practice_networks[0]
-            self.log("Practice networks available. Assigning participant to practice network {}.".format(chosen_network.id), key)
-        else:
-            chosen_network = random.choice(legal_networks)
-            self.log("No practice networks available. Assigning participant to experiment network {}".format(chosen_network.id), key)
-
-        # Generate the right kind of newcomer and assign them to the network.
-        self.log("Generating node", key)
-        if inspect.isclass(self.agent):
-            if issubclass(self.agent, Node):
-                newcomer = self.agent(participant_id=participant_id, network=chosen_network)
-            else:
-                raise ValueError("{} is not a subclass of Node".format(self.agent))
-        else:
-            newcomer = self.agent(network=chosen_network)(participant_id=participant_id, network=chosen_network)
-
-        self.log("Node successfully generated, recalculating if network is full", key)
-        chosen_network.calculate_full()
-
-        self.log("running exp.create_agent_trigger", key)
-        self.create_agent_trigger(agent=newcomer, network=chosen_network)
-
-        self.log("exp.create_agent_trigger completed, returning node", key)
-        return newcomer
 
     def participant_submission_trigger(
             self, participant=None):
@@ -240,3 +181,203 @@ class Experiment(object):
     def check_participant_data(self, participant=None):
         """Check that the data are acceptable."""
         return True
+
+    ### METHODS TRIGGERED BY REQUESTS TO ROUTES IN CUSTOM ###
+
+    def node_get_request(self, participant_id, node_id, type, failed, connection):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+        self.log("Getting neighbors of node {}, type = {}, failed = {}, connection = {}".format(node_id, type, failed, connection), key)
+        return node.neighbours(type=type, failed=failed, connection=connection)
+
+    def node_post_request(self, participant_id):
+        key = participant_id[0:5]
+
+        self.log("Getting network for participant", key)
+        network = self.get_network_for_participant(participant_id=participant_id)
+        if network is None:
+            return None
+
+        self.log("Creating node", key)
+        node = self.make_node_for_participant(participant_id=participant_id, network=network)
+
+        if node is not None:
+            self.log("Adding node to network", key)
+            self.add_node_to_network(participant_id=participant_id, node=node, network=network)
+
+        self.log("Returning node", key)
+        return node
+
+    def vector_get_request(self, participant_id, node_id, other_node_id, direction, failed=None, vector_failed=None):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+
+        if other_node_id is None:
+            self.log("Getting vectors", key)
+            return node.vectors(direction=direction, failed=failed)
+        else:
+            self.log("Checking is node is connected", key)
+            other_node = Node.query.get(other_node_id)
+            return node.is_connected(whom=other_node, direction=direction, vector_failed=vector_failed)
+
+    def vector_post_request(self, participant_id, node_id, other_node_id, direction):
+        key = participant_id[0:5]
+
+        self.log("Getting nodes to connect", key)
+        node = Node.query.get(node_id)
+        other_node = Node.query.get(other_node_id)
+
+        self.log("Connecting nodes", key)
+        node.connect(whom=other_node, direction=direction)
+
+    def transmission_get_request(self, participant_id, node_id, direction, status):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+        self.log("Getting transmissions", key)
+        transmissions = node.transmissions(direction=direction, status=status)
+
+        if (direction == "incoming" or direction == "all") and (status == "pending" or status == "all"):
+            self.log("Marking new transmissions as received", key)
+            node.receive()
+
+        self.log("Returning transmissions", key)
+        return transmissions
+
+    def transmission_post_request(self, participant_id, node_id, info_id, destination_id):
+        key = participant_id[0:5]
+
+        origin = Node.query.get(node_id)
+
+        if info_id is None and destination_id is None:
+            self.log("Transmitting", key)
+            return origin.transmit()
+        elif info_id is None and destination_id is not None:
+            destination = Node.query.get(node_id)
+            self.log("Transmitting", key)
+            return origin.transmit(to_whom=destination)
+        elif info_id is not None and destination_id is None:
+            info = Info.query.get(info_id)
+            self.log("Transmitting", key)
+            return origin.transmit(what=info)
+        else:
+            destination = Node.query.get(node_id)
+            info = Info.query.get(info_id)
+            self.log("Transmitting", key)
+            return origin.transmit(what=info, to_whom=destination)
+
+    def transformation_get_request(self, participant_id, node_id, type):
+        key = participant_id[0:5]
+
+        self.log("getting requesting node", key)
+        node = Node.query.get(node_id)
+
+        self.log("returning transformations", key)
+        return node.transformations(type=type)
+
+    def transformation_post_request(self, participant_id, node_id, info_in_id, info_out_id, type):
+        key = participant_id[0:5]
+
+        self.log("gettings infos for transformation", key)
+        info_in = Info.query.get(info_in_id)
+        info_out = Info.query.get(info_out_id)
+
+        self.log("making transformation", key)
+        if info_out.origin_id == node_id:
+            return type(info_in=info_in, info_out=info_out)
+        else:
+            self.log("cannot make transformation as transforming node is not origin of info_out", key)
+            return None
+
+    def info_get_request(self, participant_id, node_id, type, info_id):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+        self.log("Gettings infos", key)
+        if info_id is None:
+            return node.infos(type=type)
+        else:
+            info_id = int(info_id)
+            requested_info = Info.query.get(info_id)
+            if requested_info.origin_id == node_id:
+                return [requested_info]
+            elif info_id in [t.info_id for t in node.transmissions(direction="incoming", status="received")]:
+                return [requested_info]
+            else:
+                return []
+
+    def info_post_request(self, participant_id, node_id, type, contents):
+        key = participant_id[0:5]
+
+        node = Node.query.get(node_id)
+        self.log("Making info", key)
+        info = type(origin=node, contents=contents)
+        return info
+
+
+    ### SUPPORT METHODS CALLED BY METHODS CALLED BY REQUESTS ###
+
+    def get_network_for_participant(self, participant_id):
+        key = participant_id[0:5]
+        networks_with_space = Network.query.filter_by(full=False).all()
+        networks_participated_in = [
+            node.network_id for node in
+            Node.query.with_entities(Node.network_id).filter_by(participant_id=participant_id).all()
+        ]
+
+        legal_networks = [
+            net for net in networks_with_space if net.id not in networks_participated_in
+        ]
+
+        if not legal_networks:
+            self.log("No networks available, returning None", key)
+            return None
+
+        self.log("{} networks out of {} available"
+                 .format(len(legal_networks),
+                        (self.practice_repeats + self.experiment_repeats)),
+                 key)
+
+        legal_practice_networks = [net for net in legal_networks if net.role == "practice"]
+        if legal_practice_networks:
+            chosen_network = legal_practice_networks[0]
+            self.log("Practice networks available. Assigning participant to practice network {}.".format(chosen_network.id), key)
+        else:
+            chosen_network = random.choice(legal_networks)
+            self.log("No practice networks available. Assigning participant to experiment network {}".format(chosen_network.id), key)
+        return chosen_network
+
+    def make_node_for_participant(self, participant_id, network):
+        key = participant_id[0:5]
+        if inspect.isclass(self.agent):
+            if issubclass(self.agent, Node):
+                node = self.agent(participant_id=participant_id, network=network)
+            else:
+                raise ValueError("{} is not a subclass of Node".format(self.agent))
+        else:
+            from psiturk.models import Participant
+            participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
+            if participant.status in [1, 2]:
+                node = self.agent(network=network)(participant_id=participant_id, network=network)
+            else:
+                self.log("Participant status = {}, node creation aborted".format(participant.status), key)
+                return None
+
+        self.log("Node successfully generated, recalculating if network is full", key)
+        network.calculate_full()
+        return node
+
+    def add_node_to_network(self, participant_id, node, network):
+        network.add_node(node)
+
+    def receive_transmissions(self, transmissions):
+        for t in transmissions:
+            t.mark_received()
+
+    def evaluate(self, string):
+        if string in self.trusted_strings:
+            return eval(string)
+        else:
+            raise ValueError("Cannot evaluate {}: not a trusted string".format(string))
