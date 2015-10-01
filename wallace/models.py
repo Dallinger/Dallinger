@@ -701,13 +701,16 @@ class Node(Base):
                 print("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
                 from_nodes = [node for node, connected in zip(from_nodes, already_connected_from) if not connected]
 
+        new_vectors = []
         for node in to_nodes:
             if isinstance(node, Source):
                 raise(TypeError("{} cannot connect to {} as it is a Source.".format(self, node)))
-            Vector(origin=self, destination=node)
+            new_vectors.append(Vector(origin=self, destination=node))
 
         for node in from_nodes:
-            Vector(origin=node, destination=self)
+            new_vectors.append(Vector(origin=node, destination=self))
+
+        return new_vectors
 
     def flatten(self, l):
         if l == []:
