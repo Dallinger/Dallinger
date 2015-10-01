@@ -20,7 +20,11 @@ import urllib
 from operator import attrgetter
 import datetime
 
+from rq import Queue
+from worker import conn
+
 from sqlalchemy import and_, exc
+
 
 # Load the configuration options.
 config = PsiturkConfig()
@@ -35,6 +39,9 @@ custom_code = Blueprint(
 
 # Initialize the Wallace database.
 session = db.get_session()
+
+# Connect to the Redis queue for notifications.
+q = Queue(connection=conn)
 
 # Specify the experiment.
 try:
@@ -566,11 +573,25 @@ def nudge():
 @custom_code.route("/notifications", methods=["POST", "GET"])
 def api_notifications():
     """Receive MTurk REST notifications."""
-    exp = experiment(session)
     event_type = request.values['Event.1.EventType']
     assignment_id = request.values['Event.1.AssignmentId']
 
-    notif = models.Notification(assignment_id=assignment_id, event_type=event_type)
+    # Add the notification to the queue.
+    q.enqueue(worker_function, event_type, assignment_id)
+
+    return Response(
+        dumps({"status": "success"}),
+        status=200,
+        mimetype='application/json')
+
+
+def worker_function(event_type, assignment_id):
+    """Process the notification."""
+    exp = experiment(session)
+
+    notif = models.Notification(
+        assignment_id=assignment_id,
+        event_type=event_type)
     session.add(notif)
     session.commit()
 
