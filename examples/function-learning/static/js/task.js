@@ -233,7 +233,7 @@ var FunctionLearningExperiment = function() {
                         participant_id: uniqueId,
                         node_id: my_node_id,
                         contents: response,
-                        type: "Info"
+                        info_type: "Info"
                     }
                 });
 

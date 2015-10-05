@@ -290,11 +290,11 @@ def node():
         exp.log("All checks passed: posting new node", key)
         try:
             node = exp.node_post_request(participant_id=participant_id)
-            exp.log("node_post_request finished without error")
+            exp.log("node_post_request finished without error", key)
             session.commit()
         except:
             session.commit()
-            exp.log("node_post_request failed")
+            exp.log("node_post_request failed", key)
             page = error_page(error_type="/node POST, node_post_request error")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
@@ -610,14 +610,14 @@ def info():
 
     # get type
     try:
-        type = request.values["type"]
+        info_type = request.values["info_type"]
     except:
-        type = None
-    if type is not None:
-        if type in exp.trusted_strings:
-            type = exp.evaluate(type)
+        info_type = None
+    if info_type is not None:
+        if info_type in exp.trusted_strings:
+            info_type = exp.evaluate(info_type)
         else:
-            exp.log("/info request failed: bad type {}".format(type), key)
+            exp.log("/info request failed: bad type {}".format(info_type), key)
             page = error_page(error_type="/info, bad type")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
@@ -639,7 +639,7 @@ def info():
 
         # execute the experiment method:
         try:
-            infos = exp.info_get_request(participant_id=participant_id, node_id=node_id, type=type, info_id=info_id)
+            infos = exp.info_get_request(participant_id=participant_id, node_id=node_id, info_type=info_type, info_id=info_id)
             session.commit()
         except:
             session.commit()
@@ -685,7 +685,7 @@ def info():
 
         # execute the experiment method:
         try:
-            info = exp.info_post_request(participant_id=participant_id, node_id=node_id, type=type, contents=contents)
+            info = exp.info_post_request(participant_id=participant_id, node_id=node_id, info_type=info_type, contents=contents)
             session.commit()
         except:
             session.commit()
@@ -903,7 +903,7 @@ def transformation():
     transformations method. This request returns a list of
     descriptions of the transformations (even if there is only one).
     Required arguments: participant_id, node_id
-    Optional arguments: type
+    Optional arguments: transformation_type
     """
 
     # load the experiment
@@ -936,27 +936,27 @@ def transformation():
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
 
-    # get the type
+    # get the transformation_type
     try:
-        type = request.values["type"]
-        exp.log("type specified", key)
-        if type in exp.trusted_strings:
-            type = exp.evaluate(type)
-            exp.log("type in trusted_strings", key)
+        transformation_type = request.values["transformation_type"]
+        exp.log("transformation_type specified", key)
+        if transformation_type in exp.trusted_strings:
+            transformation_type = exp.evaluate(transformation_type)
+            exp.log("transformation_type in trusted_strings", key)
         else:
-            exp.log("/transformation request failed: untrusted type {}".format(type), key)
-            page = error_page(error_type="/transformation, unstrusted type")
+            exp.log("/transformation request failed: untrusted transformation_type {}".format(transformation_type), key)
+            page = error_page(error_type="/transformation, unstrusted transformation_type")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
     except:
-        type = models.Transformation
-        exp.log("type not specified, defaulting to Transformation", key)
+        transformation_type = models.Transformation
+        exp.log("transformation_type not specified, defaulting to Transformation", key)
 
     if request.method == "GET":
 
         # execute the experiment method
         try:
-            transformations = exp.transformation_get_request(participant_id=participant_id, node_id=node_id, type=type)
+            transformations = exp.transformation_get_request(participant_id=participant_id, node_id=node_id, transformation_type=transformation_type)
             session.commit()
         except:
             session.commit()
@@ -1025,7 +1025,7 @@ def transformation():
 
         # execute the experiment method
         try:
-            transformation = exp.transformation_post_request(participant_id=participant_id, node_id=node_id, info_in_id=info_in_id, info_out_id=info_out_id, type=type)
+            transformation = exp.transformation_post_request(participant_id=participant_id, node_id=node_id, info_in_id=info_in_id, info_out_id=info_out_id, transformation_type=transformation_type)
             session.commit()
         except:
             session.commit()
