@@ -268,16 +268,16 @@ class Experiment(object):
             self.log("Transmitting", key)
             return origin.transmit(what=info, to_whom=destination)
 
-    def transformation_get_request(self, participant_id, node_id, type):
+    def transformation_get_request(self, participant_id, node_id, transformation_type):
         key = participant_id[0:5]
 
         self.log("getting requesting node", key)
         node = Node.query.get(node_id)
 
         self.log("returning transformations", key)
-        return node.transformations(type=type)
+        return node.transformations(transformation_type=transformation_type)
 
-    def transformation_post_request(self, participant_id, node_id, info_in_id, info_out_id, type):
+    def transformation_post_request(self, participant_id, node_id, info_in_id, info_out_id, transformation_type):
         key = participant_id[0:5]
 
         self.log("gettings infos for transformation", key)
@@ -286,18 +286,18 @@ class Experiment(object):
 
         self.log("making transformation", key)
         if info_out.origin_id == node_id:
-            return type(info_in=info_in, info_out=info_out)
+            return transformation_type(info_in=info_in, info_out=info_out)
         else:
             self.log("cannot make transformation as transforming node is not origin of info_out", key)
             return None
 
-    def info_get_request(self, participant_id, node_id, type, info_id):
+    def info_get_request(self, participant_id, node_id, info_type, info_id):
         key = participant_id[0:5]
 
         node = Node.query.get(node_id)
         self.log("Gettings infos", key)
         if info_id is None:
-            return node.infos(type=type)
+            return node.infos(type=info_type)
         else:
             info_id = int(info_id)
             requested_info = Info.query.get(info_id)
@@ -308,14 +308,13 @@ class Experiment(object):
             else:
                 return []
 
-    def info_post_request(self, participant_id, node_id, type, contents):
+    def info_post_request(self, participant_id, node_id, info_type, contents):
         key = participant_id[0:5]
 
         node = Node.query.get(node_id)
         self.log("Making info", key)
-        info = type(origin=node, contents=contents)
+        info = info_type(origin=node, contents=contents)
         return info
-
 
     ### SUPPORT METHODS CALLED BY METHODS CALLED BY REQUESTS ###
 
@@ -357,13 +356,13 @@ class Experiment(object):
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            from psiturk.models import Participant
-            participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
-            if participant.status in [1, 2]:
+            # from psiturk.models import Participant
+            # participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
+            # if participant.status in [1, 2]:
                 node = self.agent(network=network)(participant_id=participant_id, network=network)
-            else:
-                self.log("Participant status = {}, node creation aborted".format(participant.status), key)
-                return None
+            # else:
+            #     self.log("Participant status = {}, node creation aborted".format(participant.status), key)
+            #     return None
 
         self.log("Node successfully generated, recalculating if network is full", key)
         network.calculate_full()
