@@ -424,6 +424,7 @@ def vector():
                 session.commit()
             except:
                 session.commit()
+                print(traceback.format_exc())
                 exp.log("vector_get_request failed")
                 page = error_page(error_type="/vector GET, vector_get_request error")
                 js = dumps({"status": "error", "html": page})
@@ -461,6 +462,7 @@ def vector():
                 session.commit()
             except:
                 session.commit()
+                print(traceback.format_exc())
                 exp.log("vector_get_request failed")
                 page = error_page(error_type="/vector GET, vector_get_request error")
                 js = dumps({"status": "error", "html": page})
@@ -526,6 +528,7 @@ def vector():
             session.commit()
         except:
             session.commit()
+            print(traceback.format_exc())
             exp.log("vector_post_request failed")
             page = error_page(error_type="/vector POST, vector_post_request error")
             js = dumps({"status": "error", "html": page})
@@ -643,6 +646,7 @@ def info():
             session.commit()
         except:
             session.commit()
+            print(traceback.format_exc())
             exp.log("info_get_request failed")
             page = error_page(error_type="/info GET, info_get_request error")
             js = dumps({"status": "error", "html": page})
@@ -689,6 +693,7 @@ def info():
             session.commit()
         except:
             session.commit()
+            print(traceback.format_exc())
             exp.log("info_post_request failed")
             page = error_page(error_type="/info POST, info_post_request error")
             js = dumps({"status": "error", "html": page})
@@ -790,6 +795,7 @@ def transmission():
             session.commit()
         except:
             session.commit()
+            print(traceback.format_exc())
             exp.log("transmission_get_request failed")
             page = error_page(error_type="/info POST, info_post_request error")
             js = dumps({"status": "error", "html": page})
@@ -857,6 +863,7 @@ def transmission():
             session.commit()
         except:
             session.commit()
+            print(traceback.format_exc())
             exp.log("/transmission POST request, transmission_post_request failed.", key)
             page = error_page(error_type="/transmissions POST, transmission_post_request failed")
             js = dumps({"status": "error", "html": page})
@@ -960,6 +967,7 @@ def transformation():
             session.commit()
         except:
             session.commit()
+            print(traceback.format_exc())
             exp.log("/transformation GET request, transformation_get_request failed.", key)
             page = error_page(error_type="/transformation GET, transformation_get_request failed")
             js = dumps({"status": "error", "html": page})
@@ -1029,6 +1037,7 @@ def transformation():
             session.commit()
         except:
             session.commit()
+            print(traceback.format_exc())
             exp.log("/transformation POST request, transformation_post_request failed.", key)
             page = error_page(error_type="/transformation POST, transformation_post_request failed")
             js = dumps({"status": "error", "html": page})
