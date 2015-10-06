@@ -25,6 +25,7 @@ from worker import conn
 
 from sqlalchemy import and_, exc
 
+import traceback
 
 # Load the configuration options.
 config = PsiturkConfig()
@@ -267,6 +268,8 @@ def node():
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
         participant = participant[0]
+
+        check_for_duplicate_assignments(participant)
 
         # make sure their status is 1 or 2, otherwise they must have come here by mistake
         exp.log("Checking participant status", key)
@@ -1125,7 +1128,7 @@ def api_notifications():
     assignment_id = request.values['Event.1.AssignmentId']
 
     # Add the notification to the queue.
-    q.enqueue(worker_function, event_type, assignment_id)
+    q.enqueue(worker_function, event_type, assignment_id, None)
 
     return Response(
         dumps({"status": "success"}),
@@ -1133,93 +1136,81 @@ def api_notifications():
         mimetype='application/json')
 
 
-def worker_function(event_type, assignment_id):
+def check_for_duplicate_assignments(participant):
+    participants = Participant.query.filter_by(assignmentid=participant.assignmentid).all()
+    duplicates = [p for p in participants if p.uniqueid != participant.uniqueid and p.status < 100]
+    for d in duplicates:
+        q.enqueue(worker_function, "AssignmentAbandoned", None, d.uniqueid)
+
+
+def worker_function(event_type, assignment_id, participant_id):
     """Process the notification."""
     exp = experiment(session)
+    key = "-----"
 
-    notif = models.Notification(
-        assignment_id=assignment_id,
-        event_type=event_type)
-    session.add(notif)
-    session.commit()
+    exp.log("Received an {} notification for assignment {}, participant {}".format(event_type, assignment_id, participant_id), key)
 
-    if event_type == 'AssignmentAccepted':
-        exp.log("AssignmentAccepted notification received for assignment {}".format(assignment_id))
-        participants = Participant.query.filter_by(assignmentid=assignment_id).all()
+    if assignment_id is not None:
+        # save the notification to the notification table
+        notif = models.Notification(
+            assignment_id=assignment_id,
+            event_type=event_type)
+        session.add(notif)
+        session.commit()
+
+        # try to identify the participant
+        participants = Participant.query.\
+            filter(Participant.assignmentid == assignment_id).\
+            all()
+
+        # if there are multiple participants (this is bad news) select the most recent
         if len(participants) > 1:
-            exp.log("Warning: There are {} participants associated with this assignment, failing all but most recent".format(len(participants)))
-            newest = max(participants, key=attrgetter('beginhit'))
-            for participant in participants:
-                if participant != newest and participant.status < 100:
-                    exp.log("Failing nodes of participant {} and setting their status to 106".format(participant.uniqueid))
-                    participant.status = 106
-                    session_psiturk.commit()
-                    for node in models.Node.query.filter_by(participant_id=participant.uniqueid, failed=False).all():
-                        node.fail()
-            session.commit()
-            session_psiturk.commit()
-        return Response(status=200)
+            participant = max(participants, key=attrgetter('beginhit'))
+            exp.log("Warning: Multiple participants associated with this assignment_id. Assuming it concerns the most recent.", key)
 
-    participants = Participant.query.\
-        filter(Participant.assignmentid == assignment_id).\
-        all()
+        # if there are none (this is also bad news) print an error
+        elif len(participants) == 0:
+            exp.log("Warning: No participants associated with this assignment_id. Notification will not be processed.", key)
+            participant = None
 
-    if len(participants) > 1:
-        participant = max(participants, key=attrgetter('beginhit'))
-
-    elif len(participants) == 0:
-        exp.log("Error: Received an {} notification, but unable to identify participant. Returning status 200".format(event_type))
-        return Response(status=200)
-
-    else:
-        participant = participants[0]
-
-    participant_id = participant.uniqueid
-    key = participant_id[0:5]
-
-    exp.log("{} notification received".format(event_type), key)
-
-    if event_type == 'AssignmentAbandoned':
-        if participant.status != 104:
-            participant.status = 104
-            session_psiturk.commit()
-            exp.log("Failing all participant's nodes", key)
-            nodes = models.Node\
-                .query\
-                .filter_by(participant_id=participant_id, failed=False)\
-                .all()
-            for node in nodes:
-                node.fail()
-            session.commit()
-
-    elif event_type == 'AssignmentReturned':
-        if participant.status != 103:
-            participant.status = 103
-            session_psiturk.commit()
-            exp.log("Failing all participant's nodes", key)
-            nodes = models.Node\
-                .query\
-                .filter_by(participant_id=participant_id, failed=False)\
-                .all()
-            for node in nodes:
-                node.fail()
-            session.commit()
-
-    elif event_type == 'AssignmentSubmitted':
-        if participant.status < 100:  # Skip if already submitted.
-            exp.log("status is {}, setting status to 100, running participant_completion_trigger".format(participant.status), key)
-            participant.status = 100
-            session_psiturk.commit()
-            exp.participant_submission_trigger(
-                participant=participant)
-
+        # if theres only one participant (this is good) select them
         else:
-            exp.log("Participant status is {}, doing nothing.".format(participant.status), key)
-
+            participant = participants[0]
+    elif participant_id is not None:
+        participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
     else:
-        exp.log("Warning: no response for event_type {}".format(event_type), key)
+        participant = None
 
-    return Response(status=200)
+    if participant is not None:
+        participant_id = participant.uniqueid
+        key = participant_id[0:5]
+        exp.log("Participant identified as {}.".format(participant_id), key)
+
+        if event_type == 'AssignmentAccepted':
+            exp.accepted_notification(participant)
+
+        if event_type == 'AssignmentAbandoned':
+            if participant.status < 100:
+                exp.log("Running abandoned_notification in experiment", key)
+                exp.abandoned_notification(participant)
+            else:
+                exp.log("Participant status > 100 ({}), doing nothing.".format(participant.status), key)
+
+        elif event_type == 'AssignmentReturned':
+            if participant.status < 100:
+                exp.log("Running returned_notification in experiment", key)
+                exp.returned_notification(participant)
+            else:
+                exp.log("Participant status > 100 ({}), doing nothing.".format(participant.status), key)
+
+        elif event_type == 'AssignmentSubmitted':
+            if participant.status < 100:
+                exp.log("Running submitted_notification in experiment", key)
+                exp.submitted_notification(participant)
+            else:
+                exp.log("Participant status > 100 ({}), doing nothing.".format(participant.status), key)
+        else:
+            exp.log("Warning: unknown event_type {}".format(event_type), key)
 
 
 @custom_code.route('/quitter', methods=['POST'])
