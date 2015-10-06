@@ -222,6 +222,7 @@ def node():
             exp.log("node_get_request successful", key)
         except:
             session.commit()
+            print(traceback.format_exc())
             exp.log("/node GET request failed: error in node_get_request", key)
             page = error_page(error_type="/node GET, node_get_request error")
             js = dumps({"status": "error", "html": page})
@@ -297,6 +298,7 @@ def node():
             session.commit()
         except:
             session.commit()
+            print(traceback.format_exc())
             exp.log("node_post_request failed", key)
             page = error_page(error_type="/node POST, node_post_request error")
             js = dumps({"status": "error", "html": page})
