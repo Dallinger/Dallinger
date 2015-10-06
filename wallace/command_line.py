@@ -344,7 +344,7 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
-    subprocess.call("git push heroku master", stdout=OUT,
+    subprocess.call("git push heroku HEAD:master", stdout=OUT,
                     stderr=OUT, shell=True)
 
     dyno_type = config.get('Server Parameters', 'dyno_type')
