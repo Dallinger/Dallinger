@@ -184,18 +184,18 @@ def node():
 
         # get type and check it is in trusted_strings
         try:
-            type = request.values["type"]
+            node_type = request.values["node_type"]
             exp.log("type specified", key)
-            if type in exp.trusted_strings:
-                type = exp.evaluate(type)
-                exp.log("type in trusted_strings", key)
+            if node_type in exp.trusted_strings:
+                node_type = exp.evaluate(node_type)
+                exp.log("node_type in trusted_strings", key)
             else:
-                exp.log("/node GET request failed: untrusted type {}".format(type), key)
-                page = error_page(error_type="/node GET, unstrusted type")
+                exp.log("/node GET request failed: untrusted node_type {}".format(node_type), key)
+                page = error_page(error_type="/node GET, unstrusted node_type")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
         except:
-            type = models.Node
+            node_type = models.Node
             exp.log("type not specified, defaulting to Node", key)
 
         # get failed
@@ -217,7 +217,7 @@ def node():
         # execute the experiment method
         exp.log("Getting requested nodes", key)
         try:
-            nodes = exp.node_get_request(participant_id=participant_id, node_id=node_id, type=type, failed=failed, connection=connection)
+            nodes = exp.node_get_request(participant_id=participant_id, node_id=node_id, node_type=node_type, failed=failed, connection=connection)
             session.commit()
             exp.log("node_get_request successful", key)
         except:

@@ -165,12 +165,12 @@ class Experiment(object):
 
     ### METHODS TRIGGERED BY REQUESTS TO ROUTES IN CUSTOM ###
 
-    def node_get_request(self, participant_id, node_id, type, failed, connection):
+    def node_get_request(self, participant_id, node_id, node_type, failed, connection):
         key = participant_id[0:5]
 
         node = Node.query.get(node_id)
-        self.log("Getting neighbors of node {}, type = {}, failed = {}, connection = {}".format(node_id, type, failed, connection), key)
-        return node.neighbours(type=type, failed=failed, connection=connection)
+        self.log("Getting neighbors of node {}, type = {}, failed = {}, connection = {}".format(node_id, node_type, failed, connection), key)
+        return node.neighbours(type=node_type, failed=failed, connection=connection)
 
     def node_post_request(self, participant_id):
         key = participant_id[0:5]
