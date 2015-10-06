@@ -11,20 +11,6 @@ from operator import itemgetter
 
 class Experiment(object):
 
-    def log(self, text, key="?????"):
-        if self.verbose:
-            print ">>>> {} {}".format(key[0:5], text)
-            sys.stdout.flush()
-
-    def log_summary(self):
-        """Log a summary of all the participants' status codes."""
-        from psiturk.models import Participant
-        participants = Participant.query.with_entities(Participant.status).all()
-        counts = Counter([p.status for p in participants])
-        sorted_counts = sorted(counts.items(), key=itemgetter(0))
-        self.log("Status summary: {}".format(str(sorted_counts)))
-        return sorted_counts
-
     def __init__(self, session):
         from recruiters import PsiTurkRecruiter
         self.verbose = True
@@ -76,35 +62,59 @@ class Experiment(object):
                     .filter(and_(Network.role == role, Network.full == full))\
                     .all()
 
-    def save(self, *objects):
-        """Add all the objects to the session and commit them."""
-        if len(objects) > 0:
-            self.session.add_all(objects)
-        self.session.commit()
+    ### METHODS TRIGGERED BY NOTIFICATIONS FROM AWS ###
 
-    def participant_submission_trigger(
-            self, participant=None):
-        """Run all post-processing code when an Assignment Submitted notification arrives"""
-        from psiturk.db import db_session as session_psiturk
+    def accepted_notification(self, participant):
+        pass
 
-        key = participant.uniqueid[0:5]
-        assignment_id = participant.assignmentid
+    def abandoned_notification(self, participant):
         participant_id = participant.uniqueid
+        key = participant_id[0:5]
+
+        self.log("Participant status = {}, setting status to 104 and failing all nodes.".format(participant.status, key))
+        participant.status = 104
+        self.save()
+        nodes = Node\
+            .query\
+            .filter_by(participant_id=participant_id, failed=False)\
+            .all()
+        for node in nodes:
+            node.fail()
+        self.save()
+
+    def returned_notification(self, participant):
+        participant_id = participant.uniqueid
+        key = participant_id[0:5]
+
+        self.log("Participant status = {}, setting status to 103 and failing all nodes.".format(participant.status, key))
+        participant.status = 103
+        self.save()
+        nodes = Node\
+            .query\
+            .filter_by(participant_id=participant_id, failed=False)\
+            .all()
+        for node in nodes:
+            node.fail()
+        self.save()
+
+    def submitted_notification(self, participant):
+        participant_id = participant.uniqueid
+        key = participant_id[0:5]
+        assignment_id = participant.assignmentid
 
         # Approve the assignment.
         self.log("Approving the assignment on mturk", key)
         self.recruiter().approve_hit(assignment_id)
 
-        # Check that the participant's data is okay...
+        # Check that the participant's data is okay.
         self.log("Checking participant data", key)
-        worked = self.check_participant_data(participant=participant)
+        worked = self.data_check(participant=participant)
 
-        # ... if not, fail their nodes.
+        # If it isn't, fail their nodes and recruit a replacement.
         if not worked:
             self.log("Participant failed data check: failing nodes, setting status to 105, and recruiting replacement participant", key)
-
             participant.status = 105
-            session_psiturk.commit()
+            self.save()
 
             for node in Node.query.filter_by(participant_id=participant_id, failed=False).all():
                 node.fail()
@@ -117,7 +127,7 @@ class Experiment(object):
             self.log("Calculating bonus", key)
             bonus = self.bonus(participant=participant)
             if bonus >= 0.01:
-                self.log("Bonus >= 0.01: paying bonus", key)
+                self.log("Bonus = {}: paying bonus".format(bonus), key)
                 self.recruiter().reward_bonus(
                     assignment_id,
                     bonus,
@@ -125,9 +135,9 @@ class Experiment(object):
             else:
                 self.log("bonus < 0.01: not paying bonus", key)
 
-            # now perform an attention check
+            # Perform an attention check
             self.log("Running participant attention check", key)
-            attended = self.participant_attention_check(
+            attended = self.attention_check(
                 participant=participant)
 
             # if they fail the attention check fail their nodes and replace them
@@ -135,7 +145,7 @@ class Experiment(object):
                 self.log("Attention check failed: failing nodes, setting status to 102, and recruiting replacement participant", key)
 
                 participant.status = 102
-                session_psiturk.commit()
+                self.save()
 
                 for node in Node.query.filter_by(participant_id=participant_id, failed=False).all():
                     node.fail()
@@ -147,40 +157,11 @@ class Experiment(object):
                 # recruit is run to see if it is time to recruit more participants
                 self.log("All checks passed: setting status to 101 and running recruit()", key)
                 participant.status = 101
-                session_psiturk.commit()
-                self.participant_submission_success_trigger(participant=participant)
+                self.submission_successful(participant=participant)
                 self.save()
                 self.recruit()
 
         self.log_summary()
-
-    def participant_submission_success_trigger(self, participant=None):
-        pass
-
-    def recruit(self):
-        """Recruit participants to the experiment as needed."""
-        if self.networks(full=False):
-            self.log("Network space available: recruiting 1 more participant", "-----")
-            self.recruiter().recruit_participants(n=1)
-        else:
-            self.log("All networks full: closing recruitment", "-----")
-            self.recruiter().close_recruitment()
-
-    def bonus(self, participant=None):
-        """The bonus to be awarded to the given participant."""
-        return 0
-
-    def bonus_reason(self):
-        """The reason offered to the participant for giving the bonus."""
-        return "Thank for participating! Here is your bonus."
-
-    def participant_attention_check(self, participant=None):
-        """Check if participant performed adequately."""
-        return True
-
-    def check_participant_data(self, participant=None):
-        """Check that the data are acceptable."""
-        return True
 
     ### METHODS TRIGGERED BY REQUESTS TO ROUTES IN CUSTOM ###
 
@@ -316,7 +297,7 @@ class Experiment(object):
         info = info_type(origin=node, contents=contents)
         return info
 
-    ### SUPPORT METHODS CALLED BY METHODS CALLED BY REQUESTS ###
+    ### SUPPORT METHODS CALLED BY THE ABOVE ###
 
     def get_network_for_participant(self, participant_id):
         key = participant_id[0:5]
@@ -356,13 +337,13 @@ class Experiment(object):
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            # from psiturk.models import Participant
-            # participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
-            # if participant.status in [1, 2]:
+            from psiturk.models import Participant
+            participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
+            if participant.status in [1, 2]:
                 node = self.agent(network=network)(participant_id=participant_id, network=network)
-            # else:
-            #     self.log("Participant status = {}, node creation aborted".format(participant.status), key)
-            #     return None
+            else:
+                self.log("Participant status = {}, node creation aborted".format(participant.status), key)
+                return None
 
         self.log("Node successfully generated, recalculating if network is full", key)
         network.calculate_full()
@@ -380,3 +361,53 @@ class Experiment(object):
             return eval(string)
         else:
             raise ValueError("Cannot evaluate {}: not a trusted string".format(string))
+
+    def data_check(self, participant=None):
+        """Check that the data are acceptable."""
+        return True
+
+    def bonus(self, participant=None):
+        """The bonus to be awarded to the given participant."""
+        return 0
+
+    def bonus_reason(self):
+        """The reason offered to the participant for giving the bonus."""
+        return "Thank for participating! Here is your bonus."
+
+    def attention_check(self, participant=None):
+        """Check if participant performed adequately."""
+        return True
+
+    def submission_successful(self, participant=None):
+        pass
+
+    def recruit(self):
+        """Recruit participants to the experiment as needed."""
+        if self.networks(full=False):
+            self.log("Network space available: recruiting 1 more participant", "-----")
+            self.recruiter().recruit_participants(n=1)
+        else:
+            self.log("All networks full: closing recruitment", "-----")
+            self.recruiter().close_recruitment()
+
+    def log(self, text, key="?????"):
+        if self.verbose:
+            print ">>>> {} {}".format(key[0:5], text)
+            sys.stdout.flush()
+
+    def log_summary(self):
+        """Log a summary of all the participants' status codes."""
+        from psiturk.models import Participant
+        participants = Participant.query.with_entities(Participant.status).all()
+        counts = Counter([p.status for p in participants])
+        sorted_counts = sorted(counts.items(), key=itemgetter(0))
+        self.log("Status summary: {}".format(str(sorted_counts)))
+        return sorted_counts
+
+    def save(self, *objects):
+        """Add all the objects to the session and commit them."""
+        from psiturk.db import db_session as session_psiturk
+        if len(objects) > 0:
+            self.session.add_all(objects)
+        self.session.commit()
+        session_psiturk.commit()
