@@ -214,6 +214,9 @@ def node():
         node = models.Node.query.get(node_id)
         nodes = node.neighbours(type=node_type, failed=failed, vector_failed=vector_failed, connection=connection)
 
+        exp.node_get_request(participant_id=participant_id, node=node, nodes=nodes)
+        session.commit()
+
         # parse the data to return
         data = []
         for n in nodes:
@@ -278,6 +281,9 @@ def node():
         else:
             node = exp.make_node_for_participant(participant_id=participant_id, network=network)
             exp.add_node_to_network(participant_id=participant_id, node=node, network=network)
+        session.commit()
+
+        exp.node_post_request(participant_id=participant_id, node=node)
         session.commit()
 
         # parse the data for returning
@@ -386,6 +392,9 @@ def vector():
         if other_node_id is not None:
             vectors = [v for v in vectors if v.origin_id == other_node_id or v.destination_id == other_node_id]
 
+        exp.vector_get_request(participant_id=participant_id, node=node, vectors=vectors)
+        session.commit()
+
         # parse the data for returning
         data = []
         for v in vectors:
@@ -442,6 +451,9 @@ def vector():
         node = models.Node.query.get(node_id)
         other_node = models.Node.query.get(other_node_id)
         vectors = node.connect(whom=other_node, direction=direction)
+
+        exp.vector_post_request(participant_id=participant_id, node=node, vectors=vectors)
+        session.commit()
 
         # parse the data for returning
         data = []
@@ -551,6 +563,9 @@ def info():
         if info_id is None:
             infos = node.infos(type=info_type)
 
+            exp.info_get_request(participant_id=participant_id, node=node, infos=infos)
+            session.commit()
+
             # parse the data for returning
             data = []
             for i in infos:
@@ -575,6 +590,10 @@ def info():
                 page = error_page(error_type="/info GET, info not available")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
+
+            exp.info_get_request(participant_id=participant_id, node=node, info=info)
+            session.commit()
+
             data = {
                 "id": info.id,
                 "type": info.type,
@@ -612,6 +631,9 @@ def info():
                 .format(participant_id, node_id, info_type, contents), key)
         node = models.Node.query.get(node_id)
         info = info_type(origin=node, contents=contents)
+        session.commit()
+
+        exp.info_post_request(participant_id=participant_id, node=node, info=info)
         session.commit()
 
         # parse the data for returning
@@ -709,6 +731,9 @@ def transmission():
             node.receive()
             session.commit()
 
+        exp.transmission_get_request(participant_id=participant_id, node=node, transmissions=transmissions)
+        session.commit()
+
         # parse the data to return
         data = []
         for t in transmissions:
@@ -781,6 +806,9 @@ def transmission():
             destination = models.Node.query.get(node_id)
             info = models.Info.query.get(info_id)
             transmissions = origin.transmit(what=info, to_whom=destination)
+        session.commit()
+
+        exp.transmission_post_request(participant_id=participant_id, node=node, transmissions=transmissions)
         session.commit()
 
         # parse the data for returning
@@ -878,6 +906,9 @@ def transformation():
         node = models.Node.query.get(node_id)
         transformations = node.transformations(transformation_type=transformation_type)
 
+        exp.transformation_get_request(participant_id=participant_id, node=node, transformations=transformations)
+        session.commit()
+
         # parse the data to return
         data = []
         for t in transformations:
@@ -949,6 +980,9 @@ def transformation():
             return Response(js, status=403, mimetype='application/json')
 
         transformation = transformation_type(info_in=info_in, info_out=info_out)
+        session.commit()
+
+        exp.transformation_post_request(participant_id=participant_id, node=node, transformation=transformation)
         session.commit()
 
         # parse the data for returning
