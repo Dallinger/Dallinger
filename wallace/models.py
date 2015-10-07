@@ -645,12 +645,16 @@ class Node(Base):
         whom may be a (nested) list of nodes.
         Will raise an error if:
             (1) whom is not a node or list of nodes
-            (2) whom is a source
-            (3) whom is not alive
-            (4) whom is yourself
-            (5) whom is in a different network
+            (2) whom is/contains a source given that
+                direction is to or both
+            (3) whom is/contains yourself
+            (4) whom is/contains a node in a different
+                network
         If self is already connected to/from whom a Warning
         is raised and nothing happens.
+
+        This method returns a list of the vectors created
+        (even if there is only one).
         """
 
         if self.failed:
@@ -666,8 +670,12 @@ class Node(Base):
 
         for node in whom:
             if not isinstance(node, Node):
-                raise(TypeError("connect cannot parse a list containing objects of type {}.".
-                                format([type(node) for node in whom if not isinstance(node, Node)][0])))
+                raise(TypeError("Cannot connect to objects not of type Node, whom contains a {}.".
+                                format(type(node))))
+
+            if direction in ["to", "both"] and isinstance(node, Source):
+                raise(TypeError("Cannot connect to {} as it is a Source.".format(node)))
+
             if node.failed:
                 raise ValueError("Cannot connect to/from {} as it has failed".format(node))
 
@@ -675,41 +683,21 @@ class Node(Base):
                 raise ValueError("{}, in network {}, cannot connect with {} as it is in network {}"
                                  .format(self, self.network_id, node, node.network_id))
 
-        if direction == "to":
-            to_nodes = whom
-            from_nodes = []
-        elif direction == "from":
-            to_nodes = []
-            from_nodes = whom
-        else:
-            to_nodes = whom
-            from_nodes = whom
-
-        if to_nodes:
-            already_connected_to = self.is_connected(direction="to", whom=to_nodes)
-            if (not isinstance(already_connected_to, list)):
-                already_connected_to = [already_connected_to]
-            if any(already_connected_to):
-                print("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
-                to_nodes = [node for node, connected in zip(to_nodes, already_connected_to) if not connected]
-
-        if from_nodes:
-            already_connected_from = self.is_connected(direction="from", whom=from_nodes)
-            if (not isinstance(already_connected_from, list)):
-                already_connected_from = [already_connected_from]
-            if any(already_connected_from):
-                print("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
-                from_nodes = [node for node, connected in zip(from_nodes, already_connected_from) if not connected]
-
         new_vectors = []
-        for node in to_nodes:
-            if isinstance(node, Source):
-                raise(TypeError("{} cannot connect to {} as it is a Source.".format(self, node)))
-            new_vectors.append(Vector(origin=self, destination=node))
-
-        for node in from_nodes:
-            new_vectors.append(Vector(origin=node, destination=self))
-
+        if direction in ["to", "both"]:
+            already_connected_to = self.flatten([self.is_connected(direction="to", whom=whom)])
+            for node, connected in zip(whom, already_connected_to):
+                if connected:
+                    print("Warning! {} already connected to {}, instruction to connect will be ignored.".format(self, node))
+                else:
+                    new_vectors.append(Vector(origin=self, destination=node))
+        if direction in ["from", "both"]:
+            already_connected_from = self.flatten([self.is_connected(direction="from", whom=whom)])
+            for node, connected in zip(whom, already_connected_from):
+                if connected:
+                    print("Warning! {} already connected from {}, instruction to connect will be ignored.".format(self, node))
+                else:
+                    new_vectors.append(Vector(origin=node, destination=self))
         return new_vectors
 
     def flatten(self, l):
