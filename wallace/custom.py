@@ -25,8 +25,6 @@ from worker import conn
 
 from sqlalchemy import and_, exc
 
-import traceback
-
 # Load the configuration options.
 config = PsiturkConfig()
 config.load_config()
