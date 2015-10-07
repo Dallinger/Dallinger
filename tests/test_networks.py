@@ -202,9 +202,9 @@ class TestNetworks(object):
 
         assert_raises(TypeError, node1.connect, whom=source1)
 
-        assert node1.neighbors(connection="to") == [node2, agent1, agent2]
+        assert set(node1.neighbors(connection="to")) == set([node2, agent1, agent2])
         assert len(node1.vectors(direction="outgoing")) == 3
-        assert node1.neighbors(connection="to", type=nodes.Agent) == [agent1, agent2]
+        assert set(node1.neighbors(connection="to", type=nodes.Agent)) == set([agent1, agent2])
 
         agent1.fail()
         agent2.fail()

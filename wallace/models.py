@@ -546,7 +546,7 @@ class Node(Base):
                 vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
                     .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id),
                                  Vector.failed == vector_failed)).all()
-            origins_or_destinations = (set([v.destination_id for v in vectors]) +
+            origins_or_destinations = (set([v.destination_id for v in vectors]) |
                                        set([v.origin_id for v in vectors]))
             for w in whom_ids:
                 connected.append(w in origins_or_destinations)
