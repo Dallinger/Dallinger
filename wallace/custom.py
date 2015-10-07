@@ -332,7 +332,7 @@ def vector():
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
     except:
-        exp.log("Error: /vector request, participant_id not specified")
+        exp.log("Error: /vector request, participant_id not specified", key)
         page = error_page(error_type="/vector, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
@@ -527,7 +527,7 @@ def info():
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
     except:
-        exp.log("Error: /info request, participant_id not specified")
+        exp.log("Error: /info request, participant_id not specified", key)
         page = error_page(error_type="/info, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
@@ -580,7 +580,7 @@ def info():
         # execute the experiment method:
         exp.log("/info GET request. Params: participant_id: {}, node_id: {}, info_type: {}, \
                  info_id: {}."
-                .format(participant_id, node_id, info_type, info_id))
+                .format(participant_id, node_id, info_type, info_id), key)
         node = models.Node.query.get(node_id)
         if info_id is None:
             infos = node.infos(type=info_type)
@@ -604,8 +604,9 @@ def info():
             data = {"status": "success", "infos": data}
         else:
             info = models.Info.query.get(info_id)
-            if info.origin_id != node_id:
-                exp.log("Error: /info GET request, node not origin of requested info")
+            if info.id not in ([i.id for i in node.infos()] +
+                               [t.info_id for t in node.transmissions(direction="incoming", status="received")]):
+                exp.log("Error: /info GET request, node not origin of requested info", key)
                 page = error_page(error_type="/info GET, node not origin of requested info")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
@@ -643,7 +644,7 @@ def info():
         # execute the experiment method:
         exp.log("/info POST request. Params: participant_id: {}, node_id: {}, info_type: {}, \
                  contents: {}"
-                .format(participant_id, node_id, info_type, contents))
+                .format(participant_id, node_id, info_type, contents), key)
         node = models.Node.query.get(node_id)
         info = info_type(origin=node, contents=contents)
         session.commit()
@@ -697,7 +698,7 @@ def transmission():
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
     except:
-        exp.log("Error: /transmission request, participant_id not specified")
+        exp.log("Error: /transmission request, participant_id not specified", key)
         page = error_page(error_type="/transmission, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
@@ -735,7 +736,7 @@ def transmission():
         # execute the experiment method
         exp.log("/transmission GET request. Params: participant_id: {}, node_id: {}, direction: {}, \
                  status: {}"
-                .format(participant_id, node_id, direction, status))
+                .format(participant_id, node_id, direction, status), key)
         node = models.Node.query.get(node_id)
         transmissions = node.transmissions(direction=direction, status=status)
 
@@ -799,7 +800,7 @@ def transmission():
         # execute the experiment method
         exp.log("/transmission POST request. Params: participant_id: {}, node_id: {}, info_id: {}, \
                  destination_id: {}"
-                .format(participant_id, node_id, info_id, destination_id))
+                .format(participant_id, node_id, info_id, destination_id), key)
         origin = models.Node.query.get(node_id)
 
         if info_id is None and destination_id is None:
@@ -869,7 +870,7 @@ def transformation():
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
     except:
-        exp.log("Error: /transformation request, participant_id not specified")
+        exp.log("Error: /transformation request, participant_id not specified", key)
         page = error_page(error_type="/transformation, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
@@ -907,7 +908,7 @@ def transformation():
 
         # execute the experiment method
         exp.log("/transformation GET request. Params: participant_id: {}, node_id: {}, transformation_type: {}"
-                .format(participant_id, node_id, transformation_type))
+                .format(participant_id, node_id, transformation_type), key)
         node = models.Node.query.get(node_id)
         transformations = node.transformations(transformation_type=transformation_type)
 
@@ -971,7 +972,7 @@ def transformation():
         # execute the experiment method
         exp.log("/transformation POST request. Params: participant_id: {}, node_id: {}, info_in_id: {}, \
                  info_out_id: {}"
-                .format(participant_id, node_id, info_in_id, info_out_id))
+                .format(participant_id, node_id, info_in_id, info_out_id), key)
         info_in = models.Info.query.get(info_in_id)
         info_out = models.Info.query.get(info_out_id)
 
@@ -1001,7 +1002,7 @@ def transformation():
         data = {"status": "success", "transformation": data}
 
         # return success
-        exp.log("/transformation POST request successful.")
+        exp.log("/transformation POST request successful.", key)
         js = dumps(data, default=date_handler)
         return Response(js, status=200, mimetype='application/json')
 
