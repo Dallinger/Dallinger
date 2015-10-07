@@ -604,10 +604,9 @@ def info():
             data = {"status": "success", "infos": data}
         else:
             info = models.Info.query.get(info_id)
-            if info.id not in ([i.id for i in node.infos()] +
-                               [t.info_id for t in node.transmissions(direction="incoming", status="received")]):
-                exp.log("Error: /info GET request, node not origin of requested info", key)
-                page = error_page(error_type="/info GET, node not origin of requested info")
+            if info.origin_id != node.id and info.id not in [t.info_id for t in node.transmissions(direction="incoming", status="received")]:
+                exp.log("Error: /info GET request, info not available to requesting node", key)
+                page = error_page(error_type="/info GET, info not available")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
             data = {
@@ -742,6 +741,7 @@ def transmission():
 
         if direction in ["incoming", "all"] and status in ["pending", "all"]:
             node.receive()
+            session.commit()
 
         # parse the data to return
         data = []
@@ -1100,7 +1100,7 @@ def worker_function(event_type, assignment_id, participant_id):
         # if there are none (this is also bad news) print an error
         elif len(participants) == 0:
             exp.log("Error: No participants associated with this assignment_id. Notification will not be processed.", key)
-            participant = None
+            return None
 
         # if theres only one participant (this is good) select them
         else:
@@ -1118,7 +1118,7 @@ def worker_function(event_type, assignment_id, participant_id):
     if event_type == 'AssignmentAccepted':
         pass
 
-    if event_type == 'AssignmentAbandoned':
+    elif event_type == 'AssignmentAbandoned':
         if participant.status < 100:
             exp.log("Participant status = {}, setting status to 104 and failing all nodes.".format(participant.status, key))
             participant.status = 104
