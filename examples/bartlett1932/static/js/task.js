@@ -110,7 +110,7 @@ var Bartlett1932Experiment = function() {
             data: { participant_id: uniqueId, node_id: my_node_id, info_id: info_id },
             type: 'json',
             success: function (resp) {
-                story = resp.infos[0].contents;
+                story = resp.info.contents;
                 storyHTML = markdown.toHTML(story);
                 $("#story").html(storyHTML);
                 $("#stimulus").show();
