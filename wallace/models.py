@@ -417,46 +417,66 @@ class Node(Base):
                     .filter_by(origin_id=self.id, failed=failed)\
                     .all()
 
-    def neighbors(self, type=None, failed=False, connection="to"):
+    def neighbors(self, type=None, failed=False, vector_failed=False, connection="to"):
         """
-        Get a node's neighbors.
+        Get a node's neighbors - nodes that are directly connected to it.
 
-        Type must be a subclass of Node (default is Node).
-        Failed can be "all", False (default) or True.
-        Connection can be "to" (default), "from", "either", or "both".
+        This is acheived by calling the node's vectors() method and then
+        getting all the nodes at the other end of the vectors.
+
+        Type specifies the class of neighbour and must be a subclass of
+        Node (default is Node).
+        Failed is the status of the neighbour nodes and can be "all",
+        False (default) or True.
+        Vector_failed is the status of the connecting vectors and can be
+        "all", False (default) or True.
+        Connection is the direction of the connections and can be "to"
+        (default), "from", "either", or "both".
         """
+        # get type
         if type is None:
             type = Node
-
         if not issubclass(type, Node):
             raise ValueError("{} is not a valid neighbor type, needs to be a subclass of Node.".format(type))
 
+        # get failed
         if failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid neighbor failed".format(failed))
+            raise ValueError("{} is not a valid failed".format(failed))
 
+        # get vector_failed
+        if vector_failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid vector_failed".format(failed))
+
+        # get connection
         if connection not in ["both", "either", "from", "to"]:
-            raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
+            raise ValueError("{} not a valid neighbor connection. Should be both, either, to or from.".format(connection))
 
+        # convert failed to a list, this makes the next bit easier
+        if failed == "all":
+            failed = [True, False]
+        else:
+            failed = [failed]
+
+        # get the neighbours
         if connection == "to":
-            neighbors = [v.destination for v in self.vectors(direction="outgoing", failed=failed)
-                         if isinstance(v.destination, type) and v.destination.failed == failed]
+            neighbors = [v.destination for v in self.vectors(direction="outgoing", failed=vector_failed)
+                         if isinstance(v.destination, type) and v.destination.failed in failed]
 
         if connection == "from":
-            neighbors = [v.origin for v in self.vectors(direction="incoming", failed=failed)
-                         if isinstance(v.origin, type) and v.origin.failed == failed]
+            neighbors = [v.origin for v in self.vectors(direction="incoming", failed=vector_failed)
+                         if isinstance(v.origin, type) and v.origin.failed in failed]
 
         if connection == "either":
-            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=failed)
+            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=vector_failed)
                                   if isinstance(v.destination, type) and v.destination.failed == failed] +
-                                 [v.origin for v in self.vectors(direction="incoming", failed=failed)
-                                  if isinstance(v.origin, type) and v.origin.failed == failed]))
+                                 [v.origin for v in self.vectors(direction="incoming", failed=vector_failed)
+                                  if isinstance(v.origin, type) and v.origin.failed in failed]))
 
         if connection == "both":
-            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=failed)
-                                  if isinstance(v.desintation, type) and v.destination.failed == failed])
-                             & set([v.origin for v in self.vectors(direction="incoming", failed=failed)
-                                    if isinstance(v.origin, type) and v.origin.failed == failed]))
-        neighbors.sort(key=lambda node: node.creation_time)
+            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=vector_failed)
+                                  if isinstance(v.desintation, type) and v.destination.failed in failed])
+                             & set([v.origin for v in self.vectors(direction="incoming", failed=vector_failed)
+                                    if isinstance(v.origin, type) and v.origin.failed in failed]))
         return neighbors
 
     def is_connected(self, whom, direction="to", vector_failed=False):
