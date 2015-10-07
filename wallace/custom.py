@@ -307,22 +307,19 @@ def node():
 def vector():
     """ Send GET or POST requests to the vector table.
 
-    POST requests call the vector_post_request method
-    in Experiment, which, by deafult, prompts one node to
+    POST requests prompt one node to
     connect to or from another. This request returns a list of
     descriptions of the new vectors created.
     Required arguments: participant_id, node_id, other_node_id
     Optional arguments: direction.
 
-    GET requests call the vector_get_request method
-    in Experiment, which, by default, calls the node's
-    vectors method if no other_node_id is specified,
-    or its is_connected method if the other_node_id is
-    specified. This request returns a list of
-    descriptions of the vectors (even if there is only one),
-    or a boolean, respectively.
+    GET requests return a list of vectors that connect at the
+    requesting node. If the other_node_id is specified it returns
+    only vectors that join the requesting node to the other node.
+    This request returns a list of descriptions of the vectors
+    (even if there is only one).
     Required arguments: participant_id, node_id
-    Optional arguments: other_node_id, failed, direction, vector_failed
+    Optional arguments: other_node_id, failed, direction
     """
     # load the experiment
     exp = experiment(session)
@@ -368,82 +365,51 @@ def vector():
         except:
             other_node_id = None
 
-        # if other_node_id is not None we return if the node
-        # is_connected to the other_node
+        # get the direction
+        try:
+            direction = request.values["direction"]
+        except:
+            direction = "all"
+
+        # get failed
+        try:
+            failed = request.values["failed"]
+        except:
+            failed = False
+
+        # execute the request
+        exp.log("/vector GET request. Params: participant_id: {}, node_id: {}, other_node_id: {}, \
+                 direction: {}, failed: {}"
+                .format(participant_id, node_id, other_node_id, direction, failed), key)
+        node = models.Node.query.get(node_id)
+        vectors = node.vectors(direction=direction, failed=failed)
         if other_node_id is not None:
+            vectors = [v for v in vectors if v.origin_id == other_node_id or v.destination_id == other_node_id]
 
-            # get the direction
-            try:
-                direction = request.values["direction"]
-            except:
-                direction = "to"
+        # parse the data for returning
+        data = []
+        for v in vectors:
+            data.append({
+                "id": v.id,
+                "origin_id": v.origin_id,
+                "destination_id": v.destination_id,
+                "info_id": v.info_id,
+                "network_id": v.network_id,
+                "creation_time": v.creation_time,
+                "failed": v.failed,
+                "time_of_death": v.time_of_death,
+                "property1": v.property1,
+                "property2": v.property2,
+                "property3": v.property3,
+                "property4": v.property4,
+                "property5": v.property5
+            })
+        data = {"status": "success", "vectors": data}
 
-            # get the vector_failed
-            try:
-                vector_failed = request.values["vector_failed"]
-            except:
-                vector_failed = False
-
-            # execute the experiment method
-            exp.log("/vector GET request. Params: participant_id: {}, node_id: {}, other_node_id: {}, \
-                     direction: {}, vector_failed: {}"
-                    .format(participant_id, node_id, other_node_id, direction, vector_failed), key)
-            node = models.Node.query.get(node_id)
-            other_node = models.Node.query.get(other_node_id)
-            is_connected = node.is_connected(whom=other_node, direction=direction, vector_failed=vector_failed)
-
-            # return the data
-            data = {"status": "success", "is_connected": is_connected}
-            exp.log("/vector GET request successful.", key)
-            js = dumps(data, default=date_handler)
-            return Response(js, status=200, mimetype='application/json')
-
-        # if other_node_id is None, we return a list of vectors
-        else:
-
-            # get the direction
-            try:
-                direction = request.values["direction"]
-            except:
-                direction = "all"
-
-            # get failed
-            try:
-                failed = request.values["failed"]
-            except:
-                failed = False
-
-            # execute the request
-            exp.log("/vector GET request. Params: participant_id: {}, node_id: {}, other_node_id: {}, \
-                     direction: {}, failed: {}"
-                    .format(participant_id, node_id, other_node_id, direction, failed), key)
-            node = models.Node.query.get(node_id)
-            vectors = node.vectors(direction=direction, failed=failed)
-
-            # parse the data for returning
-            data = []
-            for v in vectors:
-                data.append({
-                    "id": v.id,
-                    "origin_id": v.origin_id,
-                    "destination_id": v.destination_id,
-                    "info_id": v.info_id,
-                    "network_id": v.network_id,
-                    "creation_time": v.creation_time,
-                    "failed": v.failed,
-                    "time_of_death": v.time_of_death,
-                    "property1": v.property1,
-                    "property2": v.property2,
-                    "property3": v.property3,
-                    "property4": v.property4,
-                    "property5": v.property5
-                })
-            data = {"status": "success", "vectors": data}
-
-            # return the data
-            exp.log("/vector GET request successful.", key)
-            js = dumps(data, default=date_handler)
-            return Response(js, status=200, mimetype='application/json')
+        # return the data
+        exp.log("/vector GET request successful.", key)
+        js = dumps(data, default=date_handler)
+        return Response(js, status=200, mimetype='application/json')
 
     elif request.method == "POST":
 
