@@ -179,11 +179,11 @@ def node():
         # get type and check it is in trusted_strings
         try:
             node_type = request.values["node_type"]
-            if node_type in exp.trusted_strings:
-                node_type = exp.evaluate(node_type)
-            else:
-                exp.log("Error: /node GET request, untrusted node_type {}".format(node_type), key)
-                page = error_page(error_type="/node GET, unstrusted node_type")
+            try:
+                node_type = exp.known_classes[node_type]
+            except:
+                exp.log("Error: /node GET request, unknown node_type {}".format(node_type), key)
+                page = error_page(error_type="/node GET, unknown node_type")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
         except:
@@ -554,11 +554,11 @@ def info():
     except:
         info_type = None
     if info_type is not None:
-        if info_type in exp.trusted_strings:
-            info_type = exp.evaluate(info_type)
-        else:
-            exp.log("Error: /info request, untrusted info_type {}".format(info_type), key)
-            page = error_page(error_type="/info, untrusted type")
+        try:
+            info_type = exp.known_classes[info_type]
+        except:
+            exp.log("Error: /info request, unknown info_type {}".format(info_type), key)
+            page = error_page(error_type="/info, unknown type")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
 
@@ -894,11 +894,11 @@ def transformation():
     # get the transformation_type
     try:
         transformation_type = request.values["transformation_type"]
-        if transformation_type in exp.trusted_strings:
-            transformation_type = exp.evaluate(transformation_type)
-        else:
-            exp.log("Error: /transformation request, untrusted transformation_type {}".format(transformation_type), key)
-            page = error_page(error_type="/transformation, unstrusted transformation_type")
+        try:
+            transformation_type = exp.known_classes[transformation_type]
+        except:
+            exp.log("Error: /transformation request, unknown transformation_type {}".format(transformation_type), key)
+            page = error_page(error_type="/transformation, unknown transformation_type")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
     except:

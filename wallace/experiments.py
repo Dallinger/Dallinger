@@ -1,6 +1,9 @@
 """The base experiment class."""
 
-from wallace.models import Network, Node, Info
+from wallace.models import Network, Node, Info, Transformation
+from wallace.information import Gene, Meme, State
+from wallace.nodes import Agent, Source, Environment
+from wallace.transformations import Mutation, Replication, Compression, Response
 from sqlalchemy import and_
 import random
 import inspect
@@ -20,11 +23,12 @@ class Experiment(object):
         self.experiment_repeats = 0
         self.recruiter = PsiTurkRecruiter
         self.initial_recruitment_size = 1
-        self.trusted_strings = [
-            "Info", "Gene", "Meme", "State",
-            "Node", "Agent", "Source", "Environment",
-            "Transformation", "Mutation", "Replication", "Compression", "Response"
-        ]
+        self.known_classes = {
+            "Info": Info, "Gene": Gene, "Meme": Meme, "State": State,
+            "Node": Node, "Agent": Agent, "Source": Source, "Environment": Environment,
+            "Transformation": Transformation, "Mutation": Mutation,
+            "Replication": Replication, "Compression": Compression, "Response": Response
+        }
 
     def setup(self):
         """Create the networks iff they don't already exist."""
@@ -118,12 +122,6 @@ class Experiment(object):
     def receive_transmissions(self, transmissions):
         for t in transmissions:
             t.mark_received()
-
-    def evaluate(self, string):
-        if string in self.trusted_strings:
-            return eval(string)
-        else:
-            raise ValueError("Cannot evaluate {}: not a trusted string".format(string))
 
     def data_check(self, participant=None):
         """Check that the data are acceptable."""
