@@ -371,13 +371,18 @@ class Node(Base):
         Direction can be "incoming", "outgoing" or "all" (default).
         Failed can be "all", False (default) or True.
         """
+
+        # check direction
         if direction not in ["all", "incoming", "outgoing"]:
             raise ValueError(
                 "{} is not a valid vector direction. "
                 "Must be all, incoming or outgoing.".format(direction))
+
+        # check failed
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid vector failed".format(failed))
 
+        # get the vectors
         if direction == "all":
 
             if failed == "all":
@@ -386,7 +391,8 @@ class Node(Base):
                     .all()
             else:
                 return Vector.query\
-                    .filter(and_(Vector.failed == failed, or_(Vector.destination_id == self.id, Vector.origin_id == self.id)))\
+                    .filter(and_(Vector.failed == failed, or_(Vector.destination_id == self.id,
+                                 Vector.origin_id == self.id)))\
                     .all()
 
         if direction == "incoming":
