@@ -680,9 +680,9 @@ class Node(Base):
         whom may be a (nested) list of nodes.
         Will raise an error if:
             (1) whom is not a node or list of nodes
-            (2) whom is/contains a source given that
-                direction is to or both
-            (3) whom is/contains yourself
+            (2) whom is/contains a source if direction
+                is to or both
+            (3) whom is/contains self
             (4) whom is/contains a node in a different
                 network
         If self is already connected to/from whom a Warning
@@ -692,20 +692,25 @@ class Node(Base):
         (even if there is only one).
         """
 
+        # check self is not failed
         if self.failed:
             raise ValueError("{} cannot connect to other nodes as it has failed.".format(self))
 
+        # check direction
         if direction not in ["to", "from", "both"]:
             raise ValueError("{} is not a valid direction for connect()".format(direction))
 
+        # make whom a list
         whom = self.flatten([whom])
 
+        # ensure self not in whom
         if self in whom:
             raise ValueError("A node cannot connect to itself.")
 
+        # check whom
         for node in whom:
             if not isinstance(node, Node):
-                raise(TypeError("Cannot connect to objects not of type Node, whom contains a {}.".
+                raise(TypeError("Cannot connect to objects not of type {}.".
                                 format(type(node))))
 
             if direction in ["to", "both"] and isinstance(node, Source):
@@ -718,6 +723,7 @@ class Node(Base):
                 raise ValueError("{}, in network {}, cannot connect with {} as it is in network {}"
                                  .format(self, self.network_id, node, node.network_id))
 
+        # make the connections
         new_vectors = []
         if direction in ["to", "both"]:
             already_connected_to = self.flatten([self.is_connected(direction="to", whom=whom)])
