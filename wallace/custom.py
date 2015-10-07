@@ -1088,58 +1088,120 @@ def worker_function(event_type, assignment_id, participant_id):
         session.commit()
 
         # try to identify the participant
-        participants = Participant.query.\
-            filter(Participant.assignmentid == assignment_id).\
-            all()
+        participants = Participant.query\
+            .filter_by(assignmentid=assignment_id)\
+            .all()
 
-        # if there are multiple participants (this is bad news) select the most recent
+        # if there are multiple participants select the most recent
         if len(participants) > 1:
             participant = max(participants, key=attrgetter('beginhit'))
-            exp.log("Warning: Multiple participants associated with this assignment_id. Assuming it concerns the most recent.", key)
 
         # if there are none (this is also bad news) print an error
         elif len(participants) == 0:
-            exp.log("Warning: No participants associated with this assignment_id. Notification will not be processed.", key)
+            exp.log("Error: No participants associated with this assignment_id. Notification will not be processed.", key)
             participant = None
 
         # if theres only one participant (this is good) select them
         else:
             participant = participants[0]
+
     elif participant_id is not None:
         participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
     else:
-        participant = None
+        raise ValueError("Error: worker_function needs either an assignment_id or a \
+                          participant_id, they cannot both be None")
 
-    if participant is not None:
-        participant_id = participant.uniqueid
-        key = participant_id[0:5]
-        exp.log("Participant identified as {}.".format(participant_id), key)
+    participant_id = participant.uniqueid
+    key = participant_id[0:5]
 
-        if event_type == 'AssignmentAccepted':
-            exp.accepted_notification(participant)
+    if event_type == 'AssignmentAccepted':
+        pass
 
-        if event_type == 'AssignmentAbandoned':
-            if participant.status < 100:
-                exp.log("Running abandoned_notification in experiment", key)
-                exp.abandoned_notification(participant)
+    if event_type == 'AssignmentAbandoned':
+        if participant.status < 100:
+            exp.log("Participant status = {}, setting status to 104 and failing all nodes.".format(participant.status, key))
+            participant.status = 104
+            session_psiturk.commit()
+            nodes = models.Node.query\
+                .filter_by(participant_id=participant_id, failed=False)\
+                .all()
+            for node in nodes:
+                node.fail()
+            session.commit()
+
+    elif event_type == 'AssignmentReturned':
+        if participant.status < 100:
+            exp.log("Participant status = {}, setting status to 103 and failing all nodes.".format(participant.status, key))
+            participant.status = 103
+            session_psiturk.commit()
+            nodes = models.Node.query\
+                .filter_by(participant_id=participant_id, failed=False)\
+                .all()
+            for node in nodes:
+                node.fail()
+            session.commit()
+
+    elif event_type == 'AssignmentSubmitted':
+        if participant.status < 100:
+
+            # Approve the assignment.
+            exp.recruiter().approve_hit(assignment_id)
+
+            # Check that the participant's data is okay.
+            worked = exp.data_check(participant=participant)
+
+            # If it isn't, fail their nodes and recruit a replacement.
+            if not worked:
+                exp.log("Participant failed data check: failing nodes, setting status to 105, and recruiting replacement participant", key)
+                participant.status = 105
+                session_psiturk.commit()
+
+                for node in models.Node.query.filter_by(participant_id=participant_id, failed=False).all():
+                    node.fail()
+                session.commit()
+
+                exp.recruiter().recruit_participants(n=1)
             else:
-                exp.log("Participant status > 100 ({}), doing nothing.".format(participant.status), key)
+                # if their data is ok, pay them a bonus
+                # note that the bonus is paid before the attention check
+                bonus = exp.bonus(participant=participant)
+                if bonus >= 0.01:
+                    exp.log("Bonus = {}: paying bonus".format(bonus), key)
+                    exp.recruiter().reward_bonus(
+                        assignment_id,
+                        bonus,
+                        exp.bonus_reason())
+                else:
+                    exp.log("Bonus = {}: NOT paying bonus".format(bonus), key)
 
-        elif event_type == 'AssignmentReturned':
-            if participant.status < 100:
-                exp.log("Running returned_notification in experiment", key)
-                exp.returned_notification(participant)
-            else:
-                exp.log("Participant status > 100 ({}), doing nothing.".format(participant.status), key)
+                # Perform an attention check
+                attended = exp.attention_check(participant=participant)
 
-        elif event_type == 'AssignmentSubmitted':
-            if participant.status < 100:
-                exp.log("Running submitted_notification in experiment", key)
-                exp.submitted_notification(participant)
-            else:
-                exp.log("Participant status > 100 ({}), doing nothing.".format(participant.status), key)
-        else:
-            exp.log("Warning: unknown event_type {}".format(event_type), key)
+                # if they fail the attention check fail their nodes and replace them
+                if not attended:
+                    exp.log("Attention check failed: failing nodes, setting status to 102, and recruiting replacement participant", key)
+
+                    participant.status = 102
+                    session_psiturk.commit()
+
+                    for node in models.Node.query.filter_by(participant_id=participant_id, failed=False).all():
+                        node.fail()
+                    session.commit()
+
+                    exp.recruiter().recruit_participants(n=1)
+                else:
+                    # otherwise everything is good
+                    # recruit is run to see if it is time to recruit more participants
+                    exp.log("All checks passed: setting status to 101 and running recruit()", key)
+                    participant.status = 101
+                    session_psiturk.commit()
+                    exp.submission_successful(participant=participant)
+                    session.commit()
+                    exp.recruit()
+
+            exp.log_summary()
+    else:
+        exp.log("Error: unknown event_type {}".format(event_type), key)
 
 
 @custom_code.route('/quitter', methods=['POST'])
