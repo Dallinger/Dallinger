@@ -1,4 +1,4 @@
--e git+https://github.com/suchow/Wallace.git@v0.5.0#egg=wallace
+-e git+https://github.com/suchow/Wallace.git#egg=wallace
 click==3.3
 coverage==3.7.1
 coveralls==0.4.2
