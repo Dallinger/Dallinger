@@ -164,7 +164,8 @@ def summary(app):
         print "{}\t| {}".format(s[0], s[1])
     num_101s = sum([s[1] for s in summary if s[0] == 101])
     num_10Xs = sum([s[1] for s in summary if s[0] >= 100])
-    print "\nYield: {:.2%}".format(1.0*num_101s / num_10Xs)
+    if num_10Xs > 0:
+        print "\nYield: {:.2%}".format(1.0*num_101s / num_10Xs)
 
 
 @wallace.command()
