@@ -6,11 +6,8 @@ from flask import Blueprint, request, Response, send_from_directory, \
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
 from psiturk.db import init_db
-
-# Database setup
 from psiturk.db import db_session as session_psiturk
 from psiturk.models import Participant
-from json import dumps
 
 from wallace import db, models
 
@@ -18,6 +15,7 @@ import imp
 import inspect
 from operator import attrgetter
 import datetime
+from json import dumps
 
 from rq import Queue
 from worker import conn
