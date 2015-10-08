@@ -1099,7 +1099,7 @@ def worker_function(event_type, assignment_id, participant_id):
 
         # if there are none (this is also bad news) print an error
         elif len(participants) == 0:
-            exp.log("Error: No participants associated with this assignment_id. Notification will not be processed.", key)
+            exp.log("Warning: No participants associated with this assignment_id. Notification will not be processed.", key)
             return None
 
         # if theres only one participant (this is good) select them
