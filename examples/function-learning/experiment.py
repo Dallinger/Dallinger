@@ -1,7 +1,7 @@
 """A function-learning experiment."""
 
 from wallace.experiments import Experiment
-from wallace.nodes import ReplicatorAgent, Source
+from wallace.nodes import Agent, Source
 from wallace.networks import Chain
 from wallace import processes
 import random
@@ -20,7 +20,7 @@ class FunctionLearning(Experiment):
 
         self.practice_repeats = 0
         self.experiment_repeats = 1
-        self.agent = ReplicatorAgent
+        self.agent = Agent
         self.network = lambda: Chain(max_size=3)
 
         self.setup()
@@ -35,9 +35,9 @@ class FunctionLearning(Experiment):
                     net.add_source(source)
             self.save()
 
-    def create_agent_trigger(self, agent, network):
+    def add_node_to_network(self, participant_id, node, network):
         """When an agent is created, add it to the network and take a step."""
-        network.add_agent(agent)
+        network.add_node(node)
         processes.random_walk(network)
 
 

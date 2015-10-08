@@ -371,13 +371,18 @@ class Node(Base):
         Direction can be "incoming", "outgoing" or "all" (default).
         Failed can be "all", False (default) or True.
         """
+
+        # check direction
         if direction not in ["all", "incoming", "outgoing"]:
             raise ValueError(
                 "{} is not a valid vector direction. "
                 "Must be all, incoming or outgoing.".format(direction))
+
+        # check failed
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid vector failed".format(failed))
 
+        # get the vectors
         if direction == "all":
 
             if failed == "all":
@@ -386,7 +391,8 @@ class Node(Base):
                     .all()
             else:
                 return Vector.query\
-                    .filter(and_(Vector.failed == failed, or_(Vector.destination_id == self.id, Vector.origin_id == self.id)))\
+                    .filter(and_(Vector.failed == failed, or_(Vector.destination_id == self.id,
+                                 Vector.origin_id == self.id)))\
                     .all()
 
         if direction == "incoming":
@@ -411,128 +417,157 @@ class Node(Base):
                     .filter_by(origin_id=self.id, failed=failed)\
                     .all()
 
-    def neighbors(self, type=None, failed=False, connection="to"):
+    def neighbors(self, type=None, failed=False, vector_failed=False, connection="to"):
         """
-        Get a node's neighbors.
+        Get a node's neighbors - nodes that are directly connected to it.
 
-        Type must be a subclass of Node (default is Node).
-        Failed can be "all", False (default) or True.
-        Connection can be "to" (default), "from", "either", or "both".
+        This is acheived by calling the node's vectors() method and then
+        getting all the nodes at the other end of the vectors.
+
+        Type specifies the class of neighbour and must be a subclass of
+        Node (default is Node).
+        Failed is the status of the neighbour nodes and can be "all",
+        False (default) or True.
+        Vector_failed is the status of the connecting vectors and can be
+        "all", False (default) or True.
+        Connection is the direction of the connections and can be "to"
+        (default), "from", "either", or "both".
         """
+        # get type
         if type is None:
             type = Node
-
         if not issubclass(type, Node):
             raise ValueError("{} is not a valid neighbor type, needs to be a subclass of Node.".format(type))
 
+        # get failed
         if failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid neighbor failed".format(failed))
+            raise ValueError("{} is not a valid failed".format(failed))
 
+        # get vector_failed
+        if vector_failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid vector_failed".format(failed))
+
+        # get connection
         if connection not in ["both", "either", "from", "to"]:
-            raise ValueError("{} not a valid neighbor connection. Should be all, to or from.".format(connection))
+            raise ValueError("{} not a valid neighbor connection. Should be both, either, to or from.".format(connection))
 
+        # convert failed to a list, this makes the next bit easier
+        if failed == "all":
+            failed = [True, False]
+        else:
+            failed = [failed]
+
+        # get the neighbours
         if connection == "to":
-            neighbors = [v.destination for v in self.vectors(direction="outgoing", failed=failed)
-                         if isinstance(v.destination, type) and v.destination.failed == failed]
+            neighbors = [v.destination for v in self.vectors(direction="outgoing", failed=vector_failed)
+                         if isinstance(v.destination, type) and v.destination.failed in failed]
 
         if connection == "from":
-            neighbors = [v.origin for v in self.vectors(direction="incoming", failed=failed)
-                         if isinstance(v.origin, type) and v.origin.failed == failed]
+            neighbors = [v.origin for v in self.vectors(direction="incoming", failed=vector_failed)
+                         if isinstance(v.origin, type) and v.origin.failed in failed]
 
         if connection == "either":
-            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=failed)
+            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=vector_failed)
                                   if isinstance(v.destination, type) and v.destination.failed == failed] +
-                                 [v.origin for v in self.vectors(direction="incoming", failed=failed)
-                                  if isinstance(v.origin, type) and v.origin.failed == failed]))
+                                 [v.origin for v in self.vectors(direction="incoming", failed=vector_failed)
+                                  if isinstance(v.origin, type) and v.origin.failed in failed]))
 
         if connection == "both":
-            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=failed)
-                                  if isinstance(v.desintation, type) and v.destination.failed == failed])
-                             & set([v.origin for v in self.vectors(direction="incoming", failed=failed)
-                                    if isinstance(v.origin, type) and v.origin.failed == failed]))
-        neighbors.sort(key=lambda node: node.creation_time)
+            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=vector_failed)
+                                  if isinstance(v.desintation, type) and v.destination.failed in failed])
+                             & set([v.origin for v in self.vectors(direction="incoming", failed=vector_failed)
+                                    if isinstance(v.origin, type) and v.origin.failed in failed]))
         return neighbors
 
     def is_connected(self, whom, direction="to", vector_failed=False):
         """
-        Check whether this node is connected to/from whom.
+        Check whether this node is connected [to/from] whom.
 
         whom can be a list of nodes or a single node.
         direction can be "to" (default), "from", "both" or "either".
         failed can be "all", False (default) or True.
+
+        If whom is a single node this method returns a boolean,
+        otherwise it returns a list of booleans
         """
 
-        whom = self.flatten([whom])
-        other_node_ids = [n.id for n in whom]
-        connected = []
+        # make whom a list
+        if isinstance(whom, list):
+            is_list = True
+        else:
+            whom = [whom]
+            is_list = False
 
+        whom_ids = [n.id for n in whom]
+
+        # check whom contains only Nodes
         for node in whom:
             if not isinstance(node, Node):
                 raise TypeError("is_connected cannot parse objects of type {}."
                                 .format(type(node)))
 
+        # check vector_failed
         if vector_failed not in ["all", False, True]:
             raise ValueError("{} is not a valid connection failed".format(vector_failed))
 
+        # check direction
         if direction not in ["to", "from", "either", "both"]:
             raise ValueError("{} is not a valid direction for is_connected".format(direction))
 
+        # get is_connected
+        connected = []
         if direction == "to":
             if vector_failed == "all":
-                all_relevant_vectors = Vector.query.with_entities(Vector.destination_id)\
+                vectors = Vector.query.with_entities(Vector.destination_id)\
                     .filter_by(origin_id=self.id).all()
-                for i in range(len(other_node_ids)):
-                    connected.append(any([v for v in all_relevant_vectors if v.destination_id == other_node_ids[i]]))
             else:
-                all_relevant_vectors = Vector.query.with_entities(Vector.destination_id)\
+                vectors = Vector.query.with_entities(Vector.destination_id)\
                     .filter_by(origin_id=self.id, failed=vector_failed).all()
-                for i in range(len(other_node_ids)):
-                    connected.append(any([v for v in all_relevant_vectors if v.destination_id == other_node_ids[i]]))
+            destinations = set([v.destination_id for v in vectors])
+            for w in whom_ids:
+                connected.append(w in destinations)
+
         elif direction == "from":
             if vector_failed == "all":
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id)\
+                vectors = Vector.query.with_entities(Vector.origin_id)\
                     .filter_by(destination_id=self.id).all()
-                for i in range(len(other_node_ids)):
-                    connected.append(any([v for v in all_relevant_vectors if v.origin_id == other_node_ids[i]]))
             else:
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id)\
+                vectors = Vector.query.with_entities(Vector.origin_id)\
                     .filter_by(destination_id=self.id, failed=vector_failed).all()
-                for i in range(len(other_node_ids)):
-                    connected.append(any([v for v in all_relevant_vectors if v.origin_id == other_node_ids[i]]))
+            origins = set([v.origin_id for v in vectors])
+            for w in whom_ids:
+                connected.append(w in origins)
+
         elif direction == "either":
             if vector_failed == "all":
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
+                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
                     .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
-                for i in range(len(other_node_ids)):
-                    connected.append(any([v for v in all_relevant_vectors
-                                          if v.origin_id == other_node_ids[i]
-                                          or v.destination_id == other_node_ids[i]]))
             else:
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                    .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id), Vector.failed == vector_failed)).all()
-                for i in range(len(other_node_ids)):
-                    connected.append(any([v for v in all_relevant_vectors
-                                          if v.origin_id == other_node_ids[i]
-                                          or v.destination_id == other_node_ids[i]]))
+                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
+                    .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id),
+                                 Vector.failed == vector_failed)).all()
+            origins_or_destinations = (set([v.destination_id for v in vectors]) |
+                                       set([v.origin_id for v in vectors]))
+            for w in whom_ids:
+                connected.append(w in origins_or_destinations)
+
         elif direction == "both":
             if vector_failed == "all":
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
+                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
                     .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
-                for i in range(len(other_node_ids)):
-                    connected.append(any([v for v in all_relevant_vectors
-                                          if v.origin_id == other_node_ids[i]
-                                          and v.destination_id == other_node_ids[i]]))
             else:
-                all_relevant_vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                    .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id), Vector.failed == vector_failed)).all()
-                for i in range(len(other_node_ids)):
-                    connected.append(any([v for v in all_relevant_vectors
-                                          if v.origin_id == other_node_ids[i]
-                                          and v.destination_id == other_node_ids[i]]))
-        if len(connected) == 1:
-            return connected[0]
-        else:
+                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
+                    .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id),
+                                 Vector.failed == vector_failed)).all()
+            origins_and_destinations = (set([v.destination_id for v in vectors]) +
+                                        set([v.origin_id for v in vectors]))
+            for w in whom_ids:
+                connected.append(w in origins_and_destinations)
+
+        if is_list:
             return connected
+        else:
+            return connected[0]
 
     def infos(self, type=None):
         """
@@ -645,29 +680,42 @@ class Node(Base):
         whom may be a (nested) list of nodes.
         Will raise an error if:
             (1) whom is not a node or list of nodes
-            (2) whom is a source
-            (3) whom is not alive
-            (4) whom is yourself
-            (5) whom is in a different network
+            (2) whom is/contains a source if direction
+                is to or both
+            (3) whom is/contains self
+            (4) whom is/contains a node in a different
+                network
         If self is already connected to/from whom a Warning
         is raised and nothing happens.
+
+        This method returns a list of the vectors created
+        (even if there is only one).
         """
 
+        # check self is not failed
         if self.failed:
             raise ValueError("{} cannot connect to other nodes as it has failed.".format(self))
 
+        # check direction
         if direction not in ["to", "from", "both"]:
             raise ValueError("{} is not a valid direction for connect()".format(direction))
 
+        # make whom a list
         whom = self.flatten([whom])
 
+        # ensure self not in whom
         if self in whom:
             raise ValueError("A node cannot connect to itself.")
 
+        # check whom
         for node in whom:
             if not isinstance(node, Node):
-                raise(TypeError("connect cannot parse a list containing objects of type {}.".
-                                format([type(node) for node in whom if not isinstance(node, Node)][0])))
+                raise(TypeError("Cannot connect to objects not of type {}.".
+                                format(type(node))))
+
+            if direction in ["to", "both"] and isinstance(node, Source):
+                raise(TypeError("Cannot connect to {} as it is a Source.".format(node)))
+
             if node.failed:
                 raise ValueError("Cannot connect to/from {} as it has failed".format(node))
 
@@ -675,39 +723,23 @@ class Node(Base):
                 raise ValueError("{}, in network {}, cannot connect with {} as it is in network {}"
                                  .format(self, self.network_id, node, node.network_id))
 
-        if direction == "to":
-            to_nodes = whom
-            from_nodes = []
-        elif direction == "from":
-            to_nodes = []
-            from_nodes = whom
-        else:
-            to_nodes = whom
-            from_nodes = whom
-
-        if to_nodes:
-            already_connected_to = self.is_connected(direction="to", whom=to_nodes)
-            if (not isinstance(already_connected_to, list)):
-                already_connected_to = [already_connected_to]
-            if any(already_connected_to):
-                print("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
-                to_nodes = [node for node, connected in zip(to_nodes, already_connected_to) if not connected]
-
-        if from_nodes:
-            already_connected_from = self.is_connected(direction="from", whom=from_nodes)
-            if (not isinstance(already_connected_from, list)):
-                already_connected_from = [already_connected_from]
-            if any(already_connected_from):
-                print("Warning! {} instructed to connect to nodes it already has a connection to, instruction will be ignored.".format(self))
-                from_nodes = [node for node, connected in zip(from_nodes, already_connected_from) if not connected]
-
-        for node in to_nodes:
-            if isinstance(node, Source):
-                raise(TypeError("{} cannot connect to {} as it is a Source.".format(self, node)))
-            Vector(origin=self, destination=node)
-
-        for node in from_nodes:
-            Vector(origin=node, destination=self)
+        # make the connections
+        new_vectors = []
+        if direction in ["to", "both"]:
+            already_connected_to = self.flatten([self.is_connected(direction="to", whom=whom)])
+            for node, connected in zip(whom, already_connected_to):
+                if connected:
+                    print("Warning! {} already connected to {}, instruction to connect will be ignored.".format(self, node))
+                else:
+                    new_vectors.append(Vector(origin=self, destination=node))
+        if direction in ["from", "both"]:
+            already_connected_from = self.flatten([self.is_connected(direction="from", whom=whom)])
+            for node, connected in zip(whom, already_connected_from):
+                if connected:
+                    print("Warning! {} already connected from {}, instruction to connect will be ignored.".format(self, node))
+                else:
+                    new_vectors.append(Vector(origin=node, destination=self))
+        return new_vectors
 
     def flatten(self, l):
         if l == []:
@@ -799,7 +831,7 @@ class Node(Base):
         Mark transmissions as received, then pass their infos to update().
 
         "what" can be:
-            (1) "all" (the default) in which case all pending transmissions are received
+            (1) None (the default) in which case all pending transmissions are received
             (2) a specific transmission.
         Will raise an error if the node is told to receive a transmission it has not been sent.
         """

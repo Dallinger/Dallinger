@@ -40,7 +40,7 @@ class Translations(Experiment):
         # Set the newcomer to invisible.
         newcomer.is_visible = False
 
-        self.network.add_agent(newcomer)
+        self.network.add_node(newcomer)
 
         # If this is the first participant, link them to the source.
         if len(self.network.nodes(type=Agent)) == 0:

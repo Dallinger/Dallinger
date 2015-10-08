@@ -17,11 +17,10 @@ class Chain(Network):
 
     __mapper_args__ = {"polymorphic_identity": "chain"}
 
-    def add_agent(self, newcomer):
+    def add_node(self, newcomer):
         """Add an agent, connecting it to the previous node."""
         agents = self.nodes(type=Agent)
         other_agents = [a for a in agents if a.id != newcomer.id]
-
         sources = self.nodes(type=Source)
 
         if other_agents:
@@ -53,7 +52,7 @@ class FullyConnected(Network):
 
     __mapper_args__ = {"polymorphic_identity": "fully-connected"}
 
-    def add_agent(self, newcomer):
+    def add_node(self, newcomer):
         """Add an agent, connecting it to everyone and back."""
         agents = self.nodes(type=Agent)
 
@@ -73,7 +72,7 @@ class Empty(Network):
 
     __mapper_args__ = {"polymorphic_identity": "empty"}
 
-    def add_agent(self, newcomer):
+    def add_node(self, newcomer):
         """Add an agent, connecting it to everyone and back."""
         pass
 
@@ -98,7 +97,7 @@ class Star(Network):
 
     __mapper_args__ = {"polymorphic_identity": "star"}
 
-    def add_agent(self, newcomer):
+    def add_node(self, newcomer):
         """Add an agent and connect it to the center."""
         agents = self.nodes(type=Agent)
 
@@ -117,7 +116,7 @@ class Burst(Network):
 
     __mapper_args__ = {"polymorphic_identity": "burst"}
 
-    def add_agent(self, newcomer):
+    def add_node(self, newcomer):
         """Add an agent and connect it to the center."""
         agents = self.nodes(type=Agent)
 
@@ -162,14 +161,16 @@ class DiscreteGenerational(Network):
         """The source that seeds the first generation."""
         return bool(self.property3)
 
-    def add_agent(self, newcomer):
+    def add_node(self, newcomer):
         """Link the agent to a random member of the previous generation."""
         current_generation = newcomer.generation
         if current_generation == 0:
             if self.initial_source:
-                newcomer.connect(
-                    direction="from",
-                    whom=min(self.nodes(type=Source), key=attrgetter('creation_time')))
+                source = min(self.nodes(type=Source), key=attrgetter('creation_time'))
+                source.connect(
+                    direction="to",
+                    whom=newcomer)
+                source.transmit(to_whom=newcomer)
         else:
             agent_type = type(newcomer)
             prev_agents = agent_type.query\
@@ -224,7 +225,7 @@ class ScaleFree(Network):
         """Number of connections that a newcomer makes."""
         return int(self.property2)
 
-    def add_agent(self, newcomer):
+    def add_node(self, newcomer):
         """Add newcomers one by one, using linear preferential attachment."""
         agents = self.nodes(type=Agent)
 
@@ -274,7 +275,7 @@ class SequentialMicrosociety(Network):
         """Number of people active at once."""
         return int(self.property1)
 
-    def add_agent(self, newcomer):
+    def add_node(self, newcomer):
         """Add an agent, connecting it to all the active nodes."""
         agents = sorted(
             self.nodes(type=Agent),

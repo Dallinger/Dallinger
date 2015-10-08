@@ -132,7 +132,13 @@ def setup(debug=True, verbose=False):
         "custom.py")
     shutil.copy(src, os.path.join(dst, "custom.py"))
 
-    for filename in ["Procfile", "requirements.txt", "psiturkapp.py"]:
+    heroku_files = [
+        "Procfile",
+        "requirements.txt",
+        "psiturkapp.py",
+        "worker.py"
+    ]
+    for filename in heroku_files:
         src = os.path.join(
             os.path.dirname(os.path.realpath(__file__)),
             "heroku",
@@ -158,7 +164,8 @@ def summary(app):
         print "{}\t| {}".format(s[0], s[1])
     num_101s = sum([s[1] for s in summary if s[0] == 101])
     num_10Xs = sum([s[1] for s in summary if s[0] >= 100])
-    print "\nYield: {:.2%}".format(1.0*num_101s / num_10Xs)
+    if num_10Xs > 0:
+        print "\nYield: {:.2%}".format(1.0*num_101s / num_10Xs)
 
 
 @wallace.command()
@@ -289,6 +296,8 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
         "heroku pg:wait",
 
+        "heroku addons:create redistogo:small",
+
         "heroku addons:create papertrail",
 
         "heroku config:set HOST=" +
@@ -336,14 +345,17 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
-    subprocess.call("git push heroku master", stdout=OUT,
+    subprocess.call("git push heroku HEAD:master", stdout=OUT,
                     stderr=OUT, shell=True)
 
     dyno_type = config.get('Server Parameters', 'dyno_type')
-    num_dynos = config.get('Server Parameters', 'num_dynos')
+    num_dynos_web = config.get('Server Parameters', 'num_dynos_web')
+    num_dynos_worker = config.get('Server Parameters', 'num_dynos_worker')
 
     log("Starting up the web server...")
-    subprocess.call("heroku ps:scale web=" + str(num_dynos) + ":" +
+    subprocess.call("heroku ps:scale web=" + str(num_dynos_web) + ":" +
+                    str(dyno_type) + " --app " + id, stdout=OUT, shell=True)
+    subprocess.call("heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
                     str(dyno_type) + " --app " + id, stdout=OUT, shell=True)
     time.sleep(8)
 

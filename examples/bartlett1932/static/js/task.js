@@ -65,26 +65,31 @@ var Bartlett1932Experiment = function() {
         ensureSameWorker();
 
         reqwest({
-            url: "/agents",
+            url: "/node",
             method: 'post',
-            data: { unique_id: uniqueId },
+            data: { participant_id: uniqueId },
             type: 'json',
             success: function (resp) {
-                agent_id = resp.agents.id;
-                setTimeout(function() {
-                    getPendingTransmissions(agent_id);
-                }, 2000);
+                my_node_id = resp.node.id;
+                getPendingTransmissions(my_node_id);
             },
             error: function (err) {
-                currentview = new Questionnaire();
+                console.log(err);
+                err_response = JSON.parse(err.response);
+                if (err_response.hasOwnProperty('html')) {
+                    $('body').html(err_response.html);
+                } else {
+                    currentview = new Questionnaire();
+                }
             }
         });
     };
 
-    getPendingTransmissions = function(destination_id) {
+    getPendingTransmissions = function(my_node_id) {
         reqwest({
-            url: "/transmissions?destination_id=" + destination_id,
+            url: "/transmission",
             method: 'get',
+            data: { participant_id: uniqueId, node_id: my_node_id, status: "pending", direction: "incoming" },
             type: 'json',
             success: function (resp) {
                 info_id = resp.transmissions[0].info_id;
@@ -92,17 +97,20 @@ var Bartlett1932Experiment = function() {
             },
             error: function (err) {
                 console.log(err);
+                err_response = JSON.parse(err.response);
+                $('body').html(err_response.html);
             }
         });
     };
 
-    getInfo = function(id) {
+    getInfo = function(info_id) {
         reqwest({
-            url: "/information/" + id,
+            url: "/info",
             method: 'get',
+            data: { participant_id: uniqueId, node_id: my_node_id, info_id: info_id },
             type: 'json',
             success: function (resp) {
-                story = resp.contents;
+                story = resp.info.contents;
                 storyHTML = markdown.toHTML(story);
                 $("#story").html(storyHTML);
                 $("#stimulus").show();
@@ -111,6 +119,8 @@ var Bartlett1932Experiment = function() {
             },
             error: function (err) {
                 console.log(err);
+                err_response = JSON.parse(err.response);
+                $('body').html(err_response.html);
             }
         });
     };
@@ -129,17 +139,18 @@ var Bartlett1932Experiment = function() {
         $("#submit-response").addClass('disabled');
         $("#submit-response").html('Sending...');
 
-        response = encodeURIComponent($("#reproduction").val());
+        response = $("#reproduction").val();
 
         $("#reproduction").val("");
 
         reqwest({
-            url: "/information",
+            url: "/info",
             method: 'post',
             data: {
-                origin_id: agent_id,
+                participant_id: uniqueId,
+                node_id: my_node_id,
                 contents: response,
-                info_type: "base"
+                info_type: "Info"
             },
             success: function (resp) {
                 createAgent();

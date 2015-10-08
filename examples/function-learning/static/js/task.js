@@ -9,7 +9,8 @@ var pages = [
     "instructions/instruct-3.html",
 	"instructions/instruct-ready.html",
 	"stage.html",
-	"postquestionnaire.html"
+	"postquestionnaire.html",
+    "tampering.html"
 ];
 
 psiTurk.preloadPages(pages);
@@ -26,58 +27,112 @@ var instructionPages = [
 //
 var FunctionLearningExperiment = function() {
 
+    // Kick people out if they change their workerId.
+    function ensureSameWorker() {
+        workerId = amplify.store("wallace_worker_id");
+        workerIdNew = getParameterByName('workerId');
+
+        if (typeof workerId === 'undefined') {
+            amplify.store("wallace_worker_id", workerIdNew);
+        } else {
+            if ((workerIdNew !== workerId) && (workerIdNew.substring(0,5) !== "debug")) {
+                currentview = psiTurk.showPage('tampering.html');
+            }
+        }
+    }
+
 	// Settings
 	PPU = 3;      // Pixels per base unit.
 	xMax = 100;   // Maximum size of a bar in base units.
 
 
-	// Create the agent.
-	createAgent = function() {
+    // Create the agent.
+    createAgent = function() {
+
+        ensureSameWorker();
+
+        reqwest({
+            url: "/node",
+            method: 'post',
+            data: { participant_id: uniqueId },
+            type: 'json',
+            success: function (resp) {
+                my_node_id = resp.node.id;
+                getPendingTransmissions(my_node_id);
+            },
+            error: function (err) {
+                console.log(err);
+                err_response = JSON.parse(err.response);
+                if (err_response.hasOwnProperty('html')) {
+                    $('body').html(err_response.html);
+                } else {
+                    currentview = new Questionnaire();
+                }
+            }
+        });
+    };
+
+    getPendingTransmissions = function(my_node_id) {
+        reqwest({
+            url: "/transmission",
+            method: 'get',
+            data: { participant_id: uniqueId, node_id: my_node_id, status: "pending", direction: "incoming" },
+            type: 'json',
+            success: function (resp) {
+                info_id = resp.transmissions[0].info_id;
+                info = getInfo(info_id);
+            },
+            error: function (err) {
+                console.log(err);
+                err_response = JSON.parse(err.response);
+                $('body').html(err_response.html);
+            }
+        });
+    };
+
+    getInfo = function(info_id) {
+        reqwest({
+            url: "/info",
+            method: 'get',
+            data: { participant_id: uniqueId, node_id: my_node_id, info_id: info_id },
+            type: 'json',
+            success: function (resp) {
+                story = resp.infos[0].contents;
+                storyHTML = markdown.toHTML(story);
+                $("#story").html(storyHTML);
+                $("#stimulus").show();
+                $("#response-form").hide();
+                $("#finish-reading").show();
+            },
+            error: function (err) {
+                console.log(err);
+                err_response = JSON.parse(err.response);
+                $('body').html(err_response.html);
+            }
+        });
+    };
+
+	getInfo = function(info_id) {
 		reqwest({
-		    url: "/agents",
-		    method: 'post',
-            data: { unique_id: uniqueId },
-		    type: 'json',
-		  	success: function (resp) {
-		  		agent_id = resp.agents.id;
-                setTimeout(function() {
-                    getPendingTransmissions(agent_id);
-                }, 1000);		    },
-		    error: function (err) {
-                currentview = new Questionnaire();
-		    }
-		});
-	};
+            url: "/info",
+            method: 'get',
+            data: { participant_id: uniqueId, node_id: my_node_id, info_id: info_id },
+            type: 'json',
+            success: function (resp) {
 
-	getPendingTransmissions = function(destination_id) {
-		reqwest({
-		    url: "/transmissions?destination_id=" + destination_id,
-		    method: 'get',
-		    type: 'json',
-		  	success: function (resp) {
-		  		info_id = resp.transmissions[0].info_id;
-		     	info = getInfo(info_id);
-		    },
-		    error: function (err) {
-		    	console.log(err);
-		    }
-		});
-	};
+                r = resp.infos[0].contents;
 
-	getInfo = function(id) {
-		reqwest({
-		    url: "/information/" + id,
-		    method: 'get',
-		    type: 'json',
-		  	success: function (resp) {
+                console.log(r);
 
-                r = resp.contents;
+                data = JSON.parse(r);
 
-		     	data = JSON.parse(resp.contents);
+                console.log(data);
 
                 // Set training variables.
                 xTrain = data.x;
                 yTrain = data.y;
+                console.log(xTrain);
+                console.log(yTrain);
 
                 N = xTrain.length * 2;
                 $("#total-trials").html(N);
@@ -89,10 +144,12 @@ var FunctionLearningExperiment = function() {
                 xTestNew = randomSubset(allX.diff(xTrain), N/4);
                 xTest = shuffle(xTestFromTraining.concat(xTestNew));
                 yTest = [];
-		    },
-		    error: function (err) {
-		    	console.log(err);
-		    }
+            },
+            error: function (err) {
+                console.log(err);
+                err_response = JSON.parse(err.response);
+                $('body').html(err_response.html);
+            }
 		});
 	};
 
@@ -170,12 +227,13 @@ var FunctionLearningExperiment = function() {
                 response = encodeURIComponent(JSON.stringify({"x": xTest, "y": yTest}));
 
                 reqwest({
-                    url: "/information",
+                    url: "/info",
                     method: 'post',
                     data: {
-                        origin_id: agent_id,
+                        participant_id: uniqueId,
+                        node_id: my_node_id,
                         contents: response,
-                        info_type: "base"
+                        info_type: "Info"
                     }
                 });
 
