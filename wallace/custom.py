@@ -16,7 +16,6 @@ from wallace import db, models
 
 import imp
 import inspect
-import urllib
 from operator import attrgetter
 import datetime
 
