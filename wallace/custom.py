@@ -1226,36 +1226,35 @@ def error_page(participant=None, error_text=None, compensate=True,
                error_type="default"):
     """Render HTML for error page."""
     if error_text is None:
+
+        error_text = """There has been an error and so you are unable to
+        continue, sorry! If possible, please return the assignment so someone
+        else can work on it."""
+
         if compensate:
-            error_text = 'There has been an error and so you are unable to continue, sorry! \
-                If possible, please return the assignment so someone else can work on it. \
-                Please use the information below to contact us about compensation'
-        else:
-            error_text = 'There has been an error and so you are unable to continue, sorry! \
-                If possible, please return the assignment so someone else can work on it.'
+            error_text += """Please use the information below to contact us
+            about compensation"""
 
     if participant is not None:
-        return render_template(
-            'error_wallace.html',
-            error_text=error_text,
-            compensate=compensate,
-            contact_address=config.get('HIT Configuration', 'contact_email_on_error'),
-            error_type=error_type,
-            hit_id=participant.hitid,
-            assignment_id=participant.assignmentid,
-            worker_id=participant.workerid
-        )
+        hit_id = participant.hitid,
+        assignment_id = participant.assignmentid,
+        worker_id = participant.workerid
     else:
-        return render_template(
-            'error_wallace.html',
-            error_text=error_text,
-            compensate=compensate,
-            contact_address=config.get('HIT Configuration', 'contact_email_on_error'),
-            error_type=error_type,
-            hit_id='unknown',
-            assignment_id='unknown',
-            worker_id='unknown'
-        )
+        hit_id = 'unknown'
+        assignment_id = 'unknown'
+        worker_id = 'unknown'
+
+    return render_template(
+        'error_wallace.html',
+        error_text=error_text,
+        compensate=compensate,
+        contact_address=config.get(
+            'HIT Configuration', 'contact_email_on_error'),
+        error_type=error_type,
+        hit_id=hit_id,
+        assignment_id=assignment_id,
+        worker_id=worker_id
+    )
 
 
 def date_handler(obj):
