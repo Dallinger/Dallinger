@@ -1094,7 +1094,14 @@ def worker_function(event_type, assignment_id, participant_id):
 
         # if there are multiple participants select the most recent
         if len(participants) > 1:
-            participant = max(participants, key=attrgetter('beginhit'))
+            if event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
+                participants = [p for p in participants if p.status < 100]
+                if participants:
+                    participant = min(participants, key=attrgetter('beginhit'))
+                else:
+                    return None
+            else:
+                participant = max(participants, key=attrgetter('beginhit'))
 
         # if there are none (this is also bad news) print an error
         elif len(participants) == 0:
