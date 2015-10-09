@@ -1119,7 +1119,7 @@ def worker_function(event_type, assignment_id, participant_id):
 
     elif event_type == 'AssignmentAbandoned':
         if participant.status < 100:
-            exp.log("Participant status = {}, setting status to 104 and failing all nodes.".format(participant.status, key))
+            exp.log("Participant status = {}, setting status to 104 and failing all nodes.".format(participant.status), key)
             participant.status = 104
             session_psiturk.commit()
             nodes = models.Node.query\
@@ -1131,7 +1131,7 @@ def worker_function(event_type, assignment_id, participant_id):
 
     elif event_type == 'AssignmentReturned':
         if participant.status < 100:
-            exp.log("Participant status = {}, setting status to 103 and failing all nodes.".format(participant.status, key))
+            exp.log("Participant status = {}, setting status to 103 and failing all nodes.".format(participant.status), key)
             participant.status = 103
             session_psiturk.commit()
             nodes = models.Node.query\
