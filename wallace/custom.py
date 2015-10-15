@@ -334,7 +334,7 @@ def vector():
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
     except:
-        exp.log("Error: /vector request, participant_id not specified", key)
+        exp.log("Error: /vector request, participant_id not specified")
         page = error_page(error_type="/vector, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
@@ -504,7 +504,7 @@ def info():
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
     except:
-        exp.log("Error: /info request, participant_id not specified", key)
+        exp.log("Error: /info request, participant_id not specified")
         page = error_page(error_type="/info, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
@@ -684,7 +684,7 @@ def transmission():
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
     except:
-        exp.log("Error: /transmission request, participant_id not specified", key)
+        exp.log("Error: /transmission request, participant_id not specified")
         page = error_page(error_type="/transmission, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
@@ -863,7 +863,7 @@ def transformation():
         participant_id = request.values["participant_id"]
         key = participant_id[0:5]
     except:
-        exp.log("Error: /transformation request, participant_id not specified", key)
+        exp.log("Error: /transformation request, participant_id not specified")
         page = error_page(error_type="/transformation, participant_id not specified")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=403, mimetype='application/json')
