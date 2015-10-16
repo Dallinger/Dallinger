@@ -120,7 +120,7 @@ var FunctionLearningExperiment = function() {
             type: 'json',
             success: function (resp) {
 
-                r = resp.infos[0].contents;
+                r = resp.info.contents;
 
                 console.log(r);
 
