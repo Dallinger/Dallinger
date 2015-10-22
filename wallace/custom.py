@@ -1242,11 +1242,11 @@ def worker_function(event_type, assignment_id, participant_id):
 
     elif event_type == 'AssignmentAbandoned':
         if participant.status < 100:
-            fail_participant(participant, 104, msg="Assignment abandoned.")
+            fail_participant(exp, participant, 104, msg="Assignment abandoned.")
 
     elif event_type == 'AssignmentReturned':
         if participant.status < 100:
-            fail_participant(participant, 103, msg="Assignment returned.")
+            fail_participant(exp, participant, 103, msg="Assignment returned.")
 
     elif event_type == 'AssignmentSubmitted':
         if participant.status < 100:
@@ -1259,7 +1259,7 @@ def worker_function(event_type, assignment_id, participant_id):
 
             # If it isn't, fail their nodes and recruit a replacement.
             if not worked:
-                fail_participant(participant, 105, msg="Participant failed attention check.")
+                fail_participant(exp, participant, 105, msg="Participant failed attention check.")
                 exp.recruiter().recruit_participants(n=1)
             else:
                 # If their data is ok, pay them a bonus.
@@ -1280,6 +1280,7 @@ def worker_function(event_type, assignment_id, participant_id):
                 # If they fail the attention check, fail nodes and replace.
                 if not attended:
                     fail_participant(
+                        exp,
                         participant,
                         102,
                         msg="Attention check failed")
@@ -1301,7 +1302,7 @@ def worker_function(event_type, assignment_id, participant_id):
         exp.log("Error: unknown event_type {}".format(event_type), key)
 
 
-def fail_participant(participant, new_status, msg=""):
+def fail_participant(exp, participant, new_status, msg=""):
     """Fail the participants' nodes and set their status to >101."""
     participant_id = participant.uniqueid
     key = participant_id[0:5]
