@@ -11,14 +11,6 @@ import sys
 from collections import Counter
 from operator import itemgetter
 
-from flask import render_template
-
-from psiturk.psiturk_config import PsiturkConfig
-from psiturk.user_utils import PsiTurkAuthorization
-config = PsiturkConfig()
-config.load_config()
-myauth = PsiTurkAuthorization(config)
-
 
 class Experiment(object):
 
@@ -214,6 +206,13 @@ class Experiment(object):
     def error_page(participant=None, error_text=None, compensate=True,
                    error_type="default"):
         """Render HTML for error page."""
+        from flask import render_template
+        from psiturk.psiturk_config import PsiturkConfig
+        from psiturk.user_utils import PsiTurkAuthorization
+        config = PsiturkConfig()
+        config.load_config()
+        PsiTurkAuthorization(config)
+
         if error_text is None:
             if compensate:
                 error_text = 'There has been an error and so you are unable to continue, sorry! \
@@ -224,24 +223,22 @@ class Experiment(object):
                     If possible, please return the assignment so someone else can work on it.'
 
         if participant is not None:
-            return render_template(
-                'error_wallace.html',
-                error_text=error_text,
-                compensate=compensate,
-                contact_address=config.get('HIT Configuration', 'contact_email_on_error'),
-                error_type=error_type,
-                hit_id=participant.hitid,
-                assignment_id=participant.assignmentid,
-                worker_id=participant.workerid
-            )
+            hit_id = participant.hitid,
+            assignment_id = participant.assignmentid,
+            worker_id = participant.workerid
         else:
-            return render_template(
-                'error_wallace.html',
-                error_text=error_text,
-                compensate=compensate,
-                contact_address=config.get('HIT Configuration', 'contact_email_on_error'),
-                error_type=error_type,
-                hit_id='unknown',
-                assignment_id='unknown',
-                worker_id='unknown'
-            )
+            hit_id = 'unknown'
+            assignment_id = 'unknown'
+            worker_id = 'unknown'
+
+        return render_template(
+            'error_wallace.html',
+            error_text=error_text,
+            compensate=compensate,
+            contact_address=config.get(
+                'HIT Configuration', 'contact_email_on_error'),
+            error_type=error_type,
+            hit_id=hit_id,
+            assignment_id=assignment_id,
+            worker_id=worker_id
+        )
