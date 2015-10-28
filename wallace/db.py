@@ -8,15 +8,12 @@ import os
 db_url_default = "postgresql://postgres@localhost/wallace"
 db_url = os.environ.get("DATABASE_URL", db_url_default)
 engine = create_engine(db_url, pool_size=1000)
-Session = scoped_session(sessionmaker(autoflush=True, bind=engine))
+session = scoped_session(sessionmaker(autocommit=False,
+                                      autoflush=True,
+                                      bind=engine))
 
 Base = declarative_base()
-Base.query = Session.query_property()
-
-
-def get_session():
-    """Return the session."""
-    return Session
+Base.query = session.query_property()
 
 
 def init_db(drop_all=False):
@@ -25,4 +22,4 @@ def init_db(drop_all=False):
         Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
-    return Session
+    return session

@@ -34,7 +34,7 @@ custom_code = Blueprint(
     static_folder='static')
 
 # Initialize the Wallace database.
-session = db.get_session()
+session = db.session
 
 # Connect to the Redis queue for notifications.
 q = Queue(connection=conn)
@@ -51,6 +51,11 @@ try:
 except ImportError:
     print "Error: Could not import experiment."
 
+
+@custom_code.teardown_request
+def shutdown_session(_=None):
+    ''' Rollback and close session at request end '''
+    session.remove()
 
 @custom_code.route('/robots.txt')
 def static_from_root():
