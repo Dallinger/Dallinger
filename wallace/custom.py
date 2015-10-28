@@ -13,6 +13,7 @@ from wallace import db, models
 
 import imp
 import inspect
+import logging
 from operator import attrgetter
 import datetime
 from json import dumps
@@ -26,6 +27,20 @@ from sqlalchemy import and_, exc
 config = PsiturkConfig()
 config.load_config()
 myauth = PsiTurkAuthorization(config)
+
+LOG_LEVELS = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR,
+              logging.CRITICAL]
+LOG_LEVEL = LOG_LEVELS[config.getint('Server Parameters', 'loglevel')]
+db.logger.setLevel(LOG_LEVEL)
+if len(db.logger.handlers) == 0:
+    ch = logging.StreamHandler()
+    ch.setLevel(LOG_LEVEL)
+    ch.setFormatter(
+        logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+    )
+    db.logger.addHandler(ch)
 
 # Explore the Blueprint.
 custom_code = Blueprint(
@@ -56,6 +71,8 @@ except ImportError:
 def shutdown_session(_=None):
     ''' Rollback and close session at request end '''
     session.remove()
+    db.logger.debug('Closing Wallace DB session at flask request end')
+
 
 @custom_code.route('/robots.txt')
 def static_from_root():
@@ -1193,6 +1210,7 @@ def check_for_duplicate_assignments(participant):
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.uniqueid)
 
 
+@db.scoped_session_decorator
 def worker_function(event_type, assignment_id, participant_id):
     """Process the notification."""
     exp = experiment(session)
