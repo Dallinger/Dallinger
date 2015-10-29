@@ -389,7 +389,7 @@ def node(participant_id):
         return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/vector/<participant_id>/<node_id>", methods=["GET", "POST"])
+@custom_code.route("/vector/<participant_id>/<int:node_id>", methods=["GET", "POST"])
 def vector(participant_id, node_id):
     """ Send GET or POST requests to the vector table.
 
@@ -412,15 +412,6 @@ def vector(participant_id, node_id):
 
     # get the key
     key = participant_id[0:5]
-
-    # check the node_id
-    if not node_id.isdigit():
-        exp.log(
-            "Error: /vector request, non-numeric node_id: {}"
-            .format(node_id), key)
-        page = error_page(error_type="/vector, non-numeric node_id")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
 
     if request.method == "GET":
 
@@ -555,7 +546,7 @@ def vector(participant_id, node_id):
         return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/info/<participant_id>/<node_id>", methods=["GET", "POST"])
+@custom_code.route("/info/<participant_id>/<int:node_id>", methods=["GET", "POST"])
 def info(participant_id, node_id):
     """ Send GET or POST requests to the info table.
 
@@ -576,15 +567,6 @@ def info(participant_id, node_id):
 
     # get the key
     key = participant_id[0:5]
-
-    # check the node_id
-    if not node_id.isdigit():
-        exp.log(
-            "Error: /info request, non-numeric node_id: {}".format(node_id),
-            key)
-        page = error_page(error_type="/info, non-numeric node_id")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
 
     # get info_type
     try:
@@ -728,7 +710,7 @@ def info(participant_id, node_id):
         return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/transmission/<participant_id>/<node_id>", methods=["GET", "POST"])
+@custom_code.route("/transmission/<participant_id>/<int:node_id>", methods=["GET", "POST"])
 def transmission(participant_id, node_id):
     """Send GET or POST requests to the transmission table.
 
@@ -750,15 +732,6 @@ def transmission(participant_id, node_id):
 
     # get the key
     key = participant_id[0:5]
-
-    # check the node_id
-    if not node_id.isdigit():
-        exp.log(
-            "Error: /transmission request, non-numeric node_id: {}"
-            .format(node_id), key)
-        page = error_page(error_type="/transmission, malformed node_id")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
 
     if request.method == "GET":
 
@@ -901,7 +874,7 @@ def transmission(participant_id, node_id):
         return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/transformation/<participant_id>/<node_id>", methods=["GET", "POST"])
+@custom_code.route("/transformation/<participant_id>/<int:node_id>", methods=["GET", "POST"])
 def transformation(participant_id, node_id):
     """ Send GET or POST requests to the transmission table.
 
@@ -924,15 +897,6 @@ def transformation(participant_id, node_id):
 
     # get the key
     key = participant_id[0:5]
-
-    # check the node_id
-    if not node_id.isdigit():
-        exp.log(
-            "Error: /transformation request, non-numeric node_id: {}"
-            .format(node_id), key)
-        page = error_page(error_type="/transformation, non-numeric node_id")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
 
     # get the transformation_type
     try:
