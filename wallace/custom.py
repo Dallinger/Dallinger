@@ -196,7 +196,7 @@ def node(participant_id):
             node_type = request.values["node_type"]
             try:
                 node_type = exp.known_classes[node_type]
-            except:
+            except KeyError:
                 msg = "/node GET request, unknown node_type"
                 exp.log("Error: {} {}".format(msg, node_type), key)
                 data = {
@@ -594,7 +594,7 @@ def info(participant_id, node_id):
     if info_type is not None:
         try:
             info_type = exp.known_classes[info_type]
-        except:
+        except KeyError:
             exp.log("Error: /info request, unknown info_type {}".format(info_type), key)
             page = error_page(error_type="/info, unknown type")
             js = dumps({"status": "error", "html": page})
@@ -939,7 +939,7 @@ def transformation(participant_id, node_id):
         transformation_type = request.values["transformation_type"]
         try:
             transformation_type = exp.known_classes[transformation_type]
-        except:
+        except KeyError:
             exp.log("Error: /transformation request, unknown transformation_type {}".format(transformation_type), key)
             page = error_page(error_type="/transformation, unknown transformation_type")
             js = dumps({"status": "error", "html": page})
