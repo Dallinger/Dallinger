@@ -179,7 +179,7 @@ def node(participant_id):
                     dumps(data),
                     status=403,
                     mimetype='application/json')
-        except:
+        except KeyError:
             msg = "/node GET request, node_id not specified"
             exp.log("Error: {}".format(msg), key)
             data = {
@@ -207,25 +207,25 @@ def node(participant_id):
                     dumps(data),
                     status=403,
                     mimetype='application/json')
-        except:
+        except KeyError:
             node_type = models.Node
 
         # Get failed parameter.
         try:
             failed = request.values["failed"]
-        except:
+        except KeyError:
             failed = False
 
         # Get vector_failed parameter.
         try:
             vector_failed = request.values["vector_failed"]
-        except:
+        except KeyError:
             vector_failed = False
 
         # Get connection parameter.
         try:
             connection = request.values["connection"]
-        except:
+        except KeyError:
             connection = "to"
 
         # Execute the request.
@@ -434,19 +434,19 @@ def vector(participant_id, node_id):
                 page = error_page(error_type="/vector GET, non-numeric other_node_id")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
-        except:
+        except KeyError:
             other_node_id = None
 
         # get the direction
         try:
             direction = request.values["direction"]
-        except:
+        except KeyError:
             direction = "all"
 
         # get failed
         try:
             failed = request.values["failed"]
-        except:
+        except KeyError:
             failed = False
 
         # execute the request
@@ -502,7 +502,7 @@ def vector(participant_id, node_id):
                 page = error_page(error_type="/vector POST, non-numeric other_node_id")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
-        except:
+        except KeyError:
             exp.log("Error: /vector POST request, other_node_id not specified", key)
             page = error_page(error_type="/vector, node_id not specified")
             js = dumps({"status": "error", "html": page})
@@ -511,7 +511,7 @@ def vector(participant_id, node_id):
         # get the direction
         try:
             direction = request.values["direction"]
-        except:
+        except KeyError:
             direction = "to"
 
         # execute the request
@@ -589,7 +589,7 @@ def info(participant_id, node_id):
     # get info_type
     try:
         info_type = request.values["info_type"]
-    except:
+    except KeyError:
         info_type = None
     if info_type is not None:
         try:
@@ -612,7 +612,7 @@ def info(participant_id, node_id):
                 page = error_page(error_type="/info GET, non-numeric info_id")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
-        except:
+        except KeyError:
             info_id = None
 
         # execute the experiment method:
@@ -685,7 +685,7 @@ def info(participant_id, node_id):
         # get the contents
         try:
             contents = request.values["contents"]
-        except:
+        except KeyError:
             exp.log("Error: /info POST request, contents not specified", key)
             page = error_page(error_type="/info POST, contents not specified")
             js = dumps({"status": "error", "html": page})
@@ -765,13 +765,13 @@ def transmission(participant_id, node_id):
         # get direction
         try:
             direction = request.values["direction"]
-        except:
+        except KeyError:
             direction = "outgoing"
 
         # get status
         try:
             status = request.values["status"]
-        except:
+        except KeyError:
             status = "all"
 
         # execute the experiment method
@@ -826,7 +826,7 @@ def transmission(participant_id, node_id):
                 page = error_page(error_type="/transmission POST, non-numeric info_id")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
-        except:
+        except KeyError:
             info_id = None
 
         # get the destination_id
@@ -839,7 +839,7 @@ def transmission(participant_id, node_id):
                 page = error_page(error_type="/transmission POST, malformed destination_id")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
-        except:
+        except KeyError:
             destination_id = None
 
         # execute the experiment method
@@ -944,7 +944,7 @@ def transformation(participant_id, node_id):
             page = error_page(error_type="/transformation, unknown transformation_type")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=403, mimetype='application/json')
-    except:
+    except KeyError:
         transformation_type = models.Transformation
 
     if request.method == "GET":
@@ -993,7 +993,7 @@ def transformation(participant_id, node_id):
                 page = error_page(error_type="/transformation, non-numeric info_in_id")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
-        except:
+        except KeyError:
             exp.log("Error: /transformation POST request, info_in_id not specified", key)
             page = error_page(error_type="/transformation POST, info_in_id not specified")
             js = dumps({"status": "error", "html": page})
@@ -1009,7 +1009,7 @@ def transformation(participant_id, node_id):
                 page = error_page(error_type="/transformation, non-numeric info_out_id")
                 js = dumps({"status": "error", "html": page})
                 return Response(js, status=403, mimetype='application/json')
-        except:
+        except KeyError:
             exp.log("Error: /transformation POST request, info_out_id not specified", key)
             page = error_page(error_type="/transformation POST, info_out_id not specified")
             js = dumps({"status": "error", "html": page})
