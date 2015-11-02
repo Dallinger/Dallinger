@@ -13,6 +13,7 @@ from wallace import db, models
 
 import imp
 import inspect
+import logging
 from operator import attrgetter
 import datetime
 from json import dumps
@@ -27,6 +28,20 @@ config = PsiturkConfig()
 config.load_config()
 myauth = PsiTurkAuthorization(config)
 
+LOG_LEVELS = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR,
+              logging.CRITICAL]
+LOG_LEVEL = LOG_LEVELS[config.getint('Server Parameters', 'loglevel')]
+db.logger.setLevel(LOG_LEVEL)
+if len(db.logger.handlers) == 0:
+    ch = logging.StreamHandler()
+    ch.setLevel(LOG_LEVEL)
+    ch.setFormatter(
+        logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+    )
+    db.logger.addHandler(ch)
+
 # Explore the Blueprint.
 custom_code = Blueprint(
     'custom_code', __name__,
@@ -34,7 +49,7 @@ custom_code = Blueprint(
     static_folder='static')
 
 # Initialize the Wallace database.
-session = db.get_session()
+session = db.session
 
 # Connect to the Redis queue for notifications.
 q = Queue(connection=conn)
@@ -50,6 +65,13 @@ try:
     experiment = getattr(mod, this_experiment)
 except ImportError:
     print "Error: Could not import experiment."
+
+
+@custom_code.teardown_request
+def shutdown_session(_=None):
+    ''' Rollback and close session at request end '''
+    session.remove()
+    db.logger.debug('Closing Wallace DB session at flask request end')
 
 
 @custom_code.route('/robots.txt')
@@ -1188,6 +1210,7 @@ def check_for_duplicate_assignments(participant):
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.uniqueid)
 
 
+@db.scoped_session_decorator
 def worker_function(event_type, assignment_id, participant_id):
     """Process the notification."""
     exp = experiment(session)
