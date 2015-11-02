@@ -249,28 +249,11 @@ def node(participant_id):
         # parse the data to return
         data = []
         for n in nodes:
-            data.append({
-                "id": n.id,
-                "type": n.type,
-                "network_id": n.network_id,
-                "creation_time": n.creation_time,
-                "time_of_death": n.receive_time,
-                "failed": n.failed,
-                "participant_id": n.participant_id,
-                "property1": n.property1,
-                "property2": n.property2,
-                "property3": n.property3,
-                "property4": n.property4,
-                "property5": n.property5
-            })
+            data.append(n.__json__())
         data = {"status": "success", "nodes": data}
 
         exp.log("/node GET request successful.", key)
 
-        data = {
-            "status": "success",
-            "nodes": data
-        }
         return Response(
             dumps(data, default=date_handler),
             status=200,
@@ -367,20 +350,7 @@ def node(participant_id):
         session.commit()
 
         # parse the data for returning
-        data = {
-            "id": node.id,
-            "type": node.type,
-            "network_id": node.network_id,
-            "creation_time": node.creation_time,
-            "time_of_death": node.time_of_death,
-            "failed": node.failed,
-            "participant_id": node.participant_id,
-            "property1": node.property1,
-            "property2": node.property2,
-            "property3": node.property3,
-            "property4": node.property4,
-            "property5": node.property5
-        }
+        data = node.__json__()
         data = {"status": "success", "node": data}
 
         # return the data
@@ -455,21 +425,7 @@ def vector(participant_id, node_id):
         # parse the data for returning
         data = []
         for v in vectors:
-            data.append({
-                "id": v.id,
-                "origin_id": v.origin_id,
-                "destination_id": v.destination_id,
-                "info_id": v.info_id,
-                "network_id": v.network_id,
-                "creation_time": v.creation_time,
-                "failed": v.failed,
-                "time_of_death": v.time_of_death,
-                "property1": v.property1,
-                "property2": v.property2,
-                "property3": v.property3,
-                "property4": v.property4,
-                "property5": v.property5
-            })
+            data.append(v.__json__())
 
         data = {
             "status": "success",
@@ -523,21 +479,7 @@ def vector(participant_id, node_id):
         # parse the data for returning
         data = []
         for v in vectors:
-            data.append({
-                "id": v.id,
-                "origin_id": v.origin_id,
-                "destination_id": v.destination_id,
-                "info_id": v.info_id,
-                "network_id": v.network_id,
-                "creation_time": v.creation_time,
-                "failed": v.failed,
-                "time_of_death": v.time_of_death,
-                "property1": v.property1,
-                "property2": v.property2,
-                "property3": v.property3,
-                "property4": v.property4,
-                "property5": v.property5
-            })
+            data.append(v.__json__())
 
         # return data
         exp.log("/vector POST request successful", key)
@@ -617,19 +559,7 @@ def info(participant_id, node_id):
             data = []
 
             for i in infos:
-                data.append({
-                    "id": i.id,
-                    "type": i.type,
-                    "origin_id": i.origin_id,
-                    "network_id": i.network_id,
-                    "creation_time": i.creation_time,
-                    "contents": i.contents,
-                    "property1": i.property1,
-                    "property2": i.property2,
-                    "property3": i.property3,
-                    "property4": i.property4,
-                    "property5": i.property5
-                })
+                data.append(i.__json__())
             data = {"status": "success", "infos": data}
         else:
             info = models.Info.query.get(info_id)
@@ -642,19 +572,7 @@ def info(participant_id, node_id):
             exp.info_get_request(participant_id=participant_id, node=node, info=info)
             session.commit()
 
-            data = {
-                "id": info.id,
-                "type": info.type,
-                "origin_id": info.origin_id,
-                "network_id": info.network_id,
-                "creation_time": info.creation_time,
-                "contents": info.contents,
-                "property1": info.property1,
-                "property2": info.property2,
-                "property3": info.property3,
-                "property4": info.property4,
-                "property5": info.property5
-            }
+            data = info.__json__()
             data = {"status": "success", "info": data}
 
         # return the data
@@ -689,19 +607,7 @@ def info(participant_id, node_id):
         session.commit()
 
         # parse the data for returning
-        data = {
-            "id": info.id,
-            "type": info.type,
-            "origin_id": info.origin_id,
-            "network_id": info.network_id,
-            "creation_time": info.creation_time,
-            "contents": info.contents,
-            "property1": info.property1,
-            "property2": info.property2,
-            "property3": info.property3,
-            "property4": info.property4,
-            "property5": info.property5
-        }
+        data = info.__json__()
         data = {"status": "success", "info": data}
 
         # return the data
@@ -764,22 +670,7 @@ def transmission(participant_id, node_id):
         # parse the data to return
         data = []
         for t in transmissions:
-            data.append({
-                "id": t.id,
-                "vector_id": t.vector_id,
-                "origin_id": t.origin_id,
-                "destination_id": t.destination_id,
-                "info_id": t.info_id,
-                "network_id": t.network_id,
-                "creation_time": t.creation_time,
-                "receive_time": t.receive_time,
-                "status": t.status,
-                "property1": t.property1,
-                "property2": t.property2,
-                "property3": t.property3,
-                "property4": t.property4,
-                "property5": t.property5
-            })
+            data.append(t.__json__())
         data = {"status": "success", "transmissions": data}
 
         # return the data
@@ -850,22 +741,7 @@ def transmission(participant_id, node_id):
         # parse the data for returning
         data = []
         for t in transmissions:
-            data.append({
-                "id": transmission.id,
-                "vector_id": transmission.vector_id,
-                "origin_id": transmission.origin_id,
-                "destination_id": transmission.destination_id,
-                "info_id": transmission.info_id,
-                "network_id": transmission.network_id,
-                "creation_time": transmission.creation_time,
-                "receive_time": transmission.receive_time,
-                "status": transmission.status,
-                "property1": transmission.property1,
-                "property2": transmission.property2,
-                "property3": transmission.property3,
-                "property4": transmission.property4,
-                "property5": transmission.property5
-            })
+            data.append(t.__json__())
         data = {"status": "success", "transmissions": data}
 
         # return the data
@@ -925,19 +801,7 @@ def transformation(participant_id, node_id):
         # parse the data to return
         data = []
         for t in transformations:
-            data.append({
-                "id": t.id,
-                "info_in_id": t.info_in_id,
-                "info_out_id": t.info_out_id,
-                "node_id": t.node_id,
-                "network_id": t.network_id,
-                "creation_time": t.creation_time,
-                "property1": t.property1,
-                "property2": t.property2,
-                "property3": t.property3,
-                "property4": t.property4,
-                "property5": t.property5
-            })
+            data.append(t.__json__())
         data = {"status": "success", "transformations": data}
 
         js = dumps(data, default=date_handler)
@@ -999,19 +863,7 @@ def transformation(participant_id, node_id):
         session.commit()
 
         # parse the data for returning
-        data = {
-            "id": transformation.id,
-            "type": transformation.type,
-            "info_in_id": transformation.info_in_id,
-            "info_out_id": transformation.info_out_id,
-            "network_id": transformation.network_id,
-            "creation_time": transformation.creation_time,
-            "property1": transformation.property1,
-            "property2": transformation.property2,
-            "property3": transformation.property3,
-            "property4": transformation.property4,
-            "property5": transformation.property5
-        }
+        data = transformation.__json__()
         data = {"status": "success", "transformation": data}
 
         # return success

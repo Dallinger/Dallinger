@@ -360,6 +360,22 @@ class Node(Base):
         """The string representation of a node."""
         return "Node-{}-{}".format(self.id, self.type)
 
+    def __json__(self):
+        return {
+            "id": self.id,
+            "type": self.type,
+            "network_id": self.network_id,
+            "creation_time": self.creation_time,
+            "time_of_death": self.time_of_death,
+            "failed": self.failed,
+            "participant_id": self.participant_id,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
+
     """ ###################################
     Methods that get things about a node
     ################################### """
@@ -934,6 +950,23 @@ class Vector(Base):
         return "Vector-{}-{}".format(
             self.origin_id, self.destination_id)
 
+    def __json__(self):
+        return {
+            "id": self.id,
+            "origin_id": self.origin_id,
+            "destination_id": self.destination_id,
+            "info_id": self.info_id,
+            "network_id": self.network_id,
+            "creation_time": self.creation_time,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
+
     ###################################
     # Methods that get things about a Vector
     ###################################
@@ -1026,6 +1059,21 @@ class Info(Base):
     def __repr__(self):
         """The string representation of an info."""
         return "Info-{}-{}".format(self.id, self.type)
+
+    def __json__(self):
+        return {
+            "id": self.id,
+            "type": self.type,
+            "origin_id": self.origin_id,
+            "network_id": self.network_id,
+            "creation_time": self.creation_time,
+            "contents": self.contents,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
 
     def transmissions(self, status="all"):
         if status not in ["all", "pending", "received"]:
@@ -1140,6 +1188,24 @@ class Transmission(Base):
         """The string representation of a transmission."""
         return "Transmission-{}".format(self.id)
 
+    def __json__(self):
+        return {
+            "id": self.id,
+            "vector_id": self.vector_id,
+            "origin_id": self.origin_id,
+            "destination_id": self.destination_id,
+            "info_id": self.info_id,
+            "network_id": self.network_id,
+            "creation_time": self.creation_time,
+            "receive_time": self.receive_time,
+            "status": self.status,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
+
 
 class Transformation(Base):
     """
@@ -1200,6 +1266,21 @@ class Transformation(Base):
         self.info_out_id = info_out.id
         self.node_id = info_out.origin_id
         self.network_id = info_out.network_id
+
+    def __json__(self):
+        return {
+            "id": self.id,
+            "info_in_id": self.info_in_id,
+            "info_out_id": self.info_out_id,
+            "node_id": self.node_id,
+            "network_id": self.network_id,
+            "creation_time": self.creation_time,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
 
     def check_for_transformation(self, info_in, info_out):
         # check the infos are Infos.
