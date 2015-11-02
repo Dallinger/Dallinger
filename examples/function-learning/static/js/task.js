@@ -90,28 +90,6 @@ var FunctionLearningExperiment = function() {
         });
     };
 
-    getInfo = function(info_id) {
-        reqwest({
-            url: "/info",
-            method: 'get',
-            data: { participant_id: uniqueId, node_id: my_node_id, info_id: info_id },
-            type: 'json',
-            success: function (resp) {
-                story = resp.infos[0].contents;
-                storyHTML = markdown.toHTML(story);
-                $("#story").html(storyHTML);
-                $("#stimulus").show();
-                $("#response-form").hide();
-                $("#finish-reading").show();
-            },
-            error: function (err) {
-                console.log(err);
-                err_response = JSON.parse(err.response);
-                $('body').html(err_response.html);
-            }
-        });
-    };
-
 	getInfo = function(info_id) {
 		reqwest({
             url: "/info",
