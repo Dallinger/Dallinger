@@ -1291,7 +1291,7 @@ class Transformation(Base):
 
         node = info_out.origin
         # check the info_in is from the node or has been sent to the node
-        if not ((info_in.origin != node) or (info_in not in [t.info for t in node.transmissions(direction="incoming", status="received")])):
+        if not ((info_in.origin_id != node.id) or (info_in.id not in [t.info_id for t in node.transmissions(direction="incoming", status="received")])):
             raise ValueError("{} cannot transform {} as it has not been sent it or made it.".format(node, info_in))
 
 
