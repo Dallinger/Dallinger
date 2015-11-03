@@ -18,15 +18,12 @@ class TestNetworks(object):
 
     def test_node_failure(self):
         net = networks.Network()
-        for _ in range(5):
-            agent = nodes.Agent()
-            self.db.add(agent)
-            net.add(agent)
-        agent = None
-        source = nodes.Source()
-        self.db.add(source)
-        net.add(source)
+        self.db.add(net)
         self.db.commit()
+
+        for _ in range(5):
+            nodes.Agent(network=net)
+        nodes.Source(network=net)
 
         assert len(net.nodes(type=nodes.Agent)) == 5
 
@@ -40,27 +37,24 @@ class TestNetworks(object):
 
     def test_network_agents(self):
         net = networks.Network()
+        self.db.add(net)
+        self.db.commit()
+
         assert len(net.nodes(type=nodes.Agent)) == 0
 
-        agent = nodes.Agent()
-        self.db.add(agent)
-
-        net.add(agent)
-
-        self.db.commit()
+        agent = nodes.Agent(network=net)
 
         assert net.nodes(type=nodes.Agent) == [agent]
         assert isinstance(net, models.Network)
 
     def test_network_sources(self):
         net = networks.Network()
+        self.db.add(net)
+        self.db.commit()
 
         assert len(net.nodes(type=nodes.Source)) == 0
 
-        source = nodes.Source()
-        net.add(source)
-        self.db.add(source)
-        self.db.commit()
+        source = nodes.Source(network=net)
 
         assert net.nodes(type=nodes.Source) == [source]
 
@@ -88,19 +82,15 @@ class TestNetworks(object):
 
     def test_network_vectors(self):
         net = networks.Network()
+        self.db.add(net)
+        self.db.commit()
 
         assert len(net.vectors()) == 0
 
-        agent1 = nodes.Agent()
-        agent2 = nodes.Agent()
-        self.db.add_all([agent1, agent2])
-
-        net.add(agent1)
-        net.add(agent2)
-        self.db.commit()
+        agent1 = nodes.Agent(network=net)
+        agent2 = nodes.Agent(network=net)
 
         agent1.connect(whom=agent2)
-        self.db.commit()
 
         assert len(net.vectors()) == 1
         assert net.vectors()[0].origin == agent1
@@ -123,20 +113,14 @@ class TestNetworks(object):
 
     def test_network_add_source_global(self):
         net = networks.Network()
-
-        agent1 = nodes.Agent()
-        agent2 = nodes.Agent()
-
-        # Add agents to network.
-        net.add(agent1)
-        net.add(agent2)
-
-        self.db.add_all([agent1, agent2])
+        self.db.add(net)
         self.db.commit()
 
-        source = nodes.RandomBinaryStringSource()
-        self.db.add(source)
-        net.add(source)
+        agent1 = nodes.Agent(network=net)
+        nodes.Agent(network=net)
+        # self.db.commit()
+
+        source = nodes.RandomBinaryStringSource(network=net)
         source.connect(whom=net.nodes(type=nodes.Agent))
 
         assert len(net.vectors()) == 2
@@ -147,20 +131,13 @@ class TestNetworks(object):
 
     def test_network_add_source_local(self):
         net = networks.Network()
-
-        agent1 = nodes.Agent()
-        agent2 = nodes.Agent()
-
-        # Add agents to network.
-        net.add(agent1)
-        net.add(agent2)
-
-        self.db.add_all([agent1, agent2])
+        self.db.add(net)
         self.db.commit()
 
-        source = nodes.RandomBinaryStringSource()
-        self.db.add(source)
-        net.add(source)
+        nodes.Agent(network=net)
+        nodes.Agent(network=net)
+
+        source = nodes.RandomBinaryStringSource(network=net)
         source.connect(whom=net.nodes(type=nodes.Agent)[0])
 
         assert len(net.vectors()) == 1
@@ -169,18 +146,12 @@ class TestNetworks(object):
 
     def test_network_add_node(self):
         net = networks.Network()
-
-        agent1 = nodes.Agent()
-        agent2 = nodes.Agent()
-        agent3 = nodes.Agent()
-        self.db.add_all([agent1, agent2, agent3])
+        self.db.add(net)
         self.db.commit()
 
-        net.add(agent1)
-        net.add(agent2)
-        net.add(agent3)
-
-        self.db.commit()
+        nodes.Agent(network=net)
+        nodes.Agent(network=net)
+        nodes.Agent(network=net)
 
         assert len(net.nodes(type=nodes.Agent)) == 3
         assert len(net.vectors()) == 0
@@ -196,7 +167,7 @@ class TestNetworks(object):
         agent1 = nodes.Agent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
         source1 = nodes.Source(network=net)
-        source2 = nodes.Source(network=net)
+        nodes.Source(network=net)
 
         node1.connect(whom=[node2, agent1, agent2])
 
@@ -209,30 +180,17 @@ class TestNetworks(object):
         agent1.fail()
         agent2.fail()
 
-        # these assertions removed pending resolution of issue #164
-        #assert node1.neighbors(connection="to", status="dead") == [agent1]
-        #assert node1.neighbors(connection="to, status="failed") == [agent2]
-        #assert node1.neighbors(connection="to, status="alive") == [node2]
-        #assert node1.neighbors(connection="to, status="all") == [node2, agent1, agent2]
-
         assert_raises(ValueError, node1.neighbors, connection="ghbhfgjd")
 
     def test_network_repr(self):
         net = networks.Network()
-
-        agent1 = nodes.Agent()
-        agent2 = nodes.Agent()
-        self.db.add_all([agent1, agent2])
-
-        net.add(agent1)
-        net.add(agent2)
-
+        self.db.add(net)
         self.db.commit()
 
-        source = nodes.RandomBinaryStringSource()
-        self.db.add(source)
+        nodes.Agent(network=net)
+        nodes.Agent(network=net)
 
-        net.add(source)
+        source = nodes.RandomBinaryStringSource(network=net)
         source.connect(whom=net.nodes(type=nodes.Agent))
 
         assert repr(net) == "<Network-" + str(net.id) + "-base with 3 nodes, 2 vectors, 0 infos, 0 transmissions and 0 transformations>"
@@ -240,6 +198,7 @@ class TestNetworks(object):
     def test_create_chain(self):
         net = networks.Chain()
         self.db.add(net)
+        self.db.commit()
 
         for i in range(4):
             agent = nodes.Agent(network=net)
@@ -257,6 +216,7 @@ class TestNetworks(object):
     def test_chain_repr(self):
         net = networks.Chain()
         self.db.add(net)
+        self.db.commit()
 
         for i in range(4):
             agent = nodes.Agent(network=net)
@@ -269,9 +229,11 @@ class TestNetworks(object):
 
     def test_create_fully_connected(self):
         net = networks.FullyConnected()
+        self.db.add(net)
+        self.db.commit()
+
         for i in range(4):
-            agent = nodes.Agent()
-            self.db.add(agent)
+            agent = nodes.Agent(network=net)
             net.add_node(agent)
 
         assert len(net.nodes(type=nodes.Agent)) == 4
@@ -281,9 +243,11 @@ class TestNetworks(object):
     def test_create_empty(self):
         """Empty networks should have nodes, but no edges."""
         net = networks.Empty()
+        self.db.add(net)
+        self.db.commit()
+
         for i in range(10):
-            agent = nodes.Agent()
-            self.db.add(agent)
+            agent = nodes.Agent(network=net)
             net.add_node(agent)
 
         assert len(net.nodes(type=nodes.Agent)) == 10
@@ -292,12 +256,14 @@ class TestNetworks(object):
     def test_create_empty_with_source(self):
         """A sourced empty network should have nodes and an edge for each."""
         net = networks.Empty()
+        self.db.add(net)
+        self.db.commit()
+
         for i in range(10):
-            agent = nodes.Agent()
-            self.db.add(agent)
+            agent = nodes.Agent(network=net)
             net.add_node(agent)
 
-        source = nodes.Source()
+        source = nodes.Source(network=net)
         net.add_source(source)
 
         assert len(net.nodes(type=nodes.Agent)) == 10
@@ -305,9 +271,10 @@ class TestNetworks(object):
 
     def test_fully_connected_repr(self):
         net = networks.FullyConnected()
+        self.db.add(net)
+        self.db.commit()
         for i in range(4):
-            agent = nodes.Agent()
-            self.db.add(agent)
+            agent = nodes.Agent(network=net)
             net.add_node(agent)
 
         assert repr(net) == "<Network-" + str(net.id) + "-fully-connected with 4 nodes, 12 vectors, 0 infos, 0 transmissions and 0 transformations>"
@@ -316,36 +283,33 @@ class TestNetworks(object):
         m0 = 4
         m = 4
         net = networks.ScaleFree(m0=m0, m=m)
+        self.db.add(net)
+        self.db.commit()
 
         for i in range(m0):
-            agent = nodes.Agent()
-            self.db.add(agent)
+            agent = nodes.Agent(network=net)
             net.add_node(agent)
-        self.db.commit()
 
         assert len(net.nodes(type=nodes.Agent)) == m0
         assert len(net.vectors()) == m0*(m0 - 1)
 
-        agent1 = nodes.Agent()
-        self.db.add(agent1)
+        agent1 = nodes.Agent(network=net)
         net.add_node(agent1)
-        self.db.commit()
         assert len(net.nodes(type=nodes.Agent)) == m0 + 1
         assert len(net.vectors()) == m0*(m0 - 1) + 2*m
 
-        agent2 = nodes.Agent()
-        self.db.add(agent2)
+        agent2 = nodes.Agent(network=net)
         net.add_node(agent2)
-        self.db.commit()
         assert len(net.nodes(type=nodes.Agent)) == m0 + 2
         assert len(net.vectors()) == m0*(m0 - 1) + 2*2*m
 
     def test_scale_free_repr(self):
         net = networks.ScaleFree(m0=4, m=4)
+        self.db.add(net)
+        self.db.commit()
 
         for i in range(6):
-            agent = nodes.Agent()
-            self.db.add(agent)
+            agent = nodes.Agent(network=net)
             net.add_node(agent)
 
         assert repr(net) == "<Network-" + str(net.id) + "-scale-free with 6 nodes, 28 vectors, 0 infos, 0 transmissions and 0 transformations>"
@@ -354,9 +318,9 @@ class TestNetworks(object):
         """Create a sequential microsociety."""
         net = networks.SequentialMicrosociety(n=3)
         self.db.add(net)
+        self.db.commit()
 
-        source = nodes.RandomBinaryStringSource(network=net)
-        net.add(source)
+        nodes.RandomBinaryStringSource(network=net)
 
         agent1 = nodes.Agent(network=net)
         net.add_node(agent1)

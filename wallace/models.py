@@ -262,22 +262,6 @@ class Network(Base):
     Methods that make Networks do things
     ################################### """
 
-    def add(self, node):
-        """
-        Add a node to the network.
-
-        Only Nodes can be added to a network.
-        """
-        if isinstance(node, list):
-            for n in node:
-                self.add(n)
-        elif isinstance(node, Node):
-            node.network = self
-            self.calculate_full()
-        else:
-            raise(TypeError("Cannot add {} to the network as it is a {}. " +
-                            "Only Nodes can be added to networks.").format(node, type(node)))
-
     def calculate_full(self):
         """Set whether the network is full."""
         self.full = len(self.nodes()) >= self.max_size

@@ -49,12 +49,12 @@ class TestProcesses(object):
 
         # Create a fully-connected network.
         net = models.Network()
+        self.db.add(net)
+        self.db.commit()
 
-        agent1 = nodes.ReplicatorAgent()
-        agent2 = nodes.ReplicatorAgent()
-        agent3 = nodes.ReplicatorAgent()
-        self.db.add_all([agent1, agent2, agent3])
-        net.add([agent1, agent2, agent3])
+        agent1 = nodes.ReplicatorAgent(network=net)
+        agent2 = nodes.ReplicatorAgent(network=net)
+        agent3 = nodes.ReplicatorAgent(network=net)
         self.db.commit()
 
         agent1.connect(whom=agent2)
@@ -65,9 +65,7 @@ class TestProcesses(object):
         agent3.connect(whom=agent2)
 
         # Add a global source and broadcast to all the nodes.
-        source = nodes.RandomBinaryStringSource()
-        self.db.add(source)
-        net.add(source)
+        source = nodes.RandomBinaryStringSource(network=net)
         for agent in net.nodes(type=Agent):
             source.connect(whom=agent)
             source.transmit(to_whom=agent)
@@ -90,6 +88,7 @@ class TestProcesses(object):
         # Create a fully-connected network.
         net = networks.Network()
         self.db.add(net)
+        self.db.commit()
 
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
