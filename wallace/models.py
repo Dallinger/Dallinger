@@ -475,21 +475,21 @@ class Node(Base):
         connected = []
         if direction == "to":
             vectors = Vector.query.with_entities(Vector.destination_id)\
-                .filter_by(origin_id=self.id).all()
+                .filter_by(origin_id=self.id, failed=False).all()
             destinations = set([v.destination_id for v in vectors])
             for w in whom_ids:
                 connected.append(w in destinations)
 
         elif direction == "from":
             vectors = Vector.query.with_entities(Vector.origin_id)\
-                .filter_by(destination_id=self.id).all()
+                .filter_by(destination_id=self.id, failed=False).all()
             origins = set([v.origin_id for v in vectors])
             for w in whom_ids:
                 connected.append(w in origins)
 
         elif direction == "either":
             vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
+                .filter(and_(Vector.failed == False, or_(Vector.destination_id == self.id, Vector.origin_id == self.id))).all()
             origins_or_destinations = (set([v.destination_id for v in vectors]) |
                                        set([v.origin_id for v in vectors]))
             for w in whom_ids:
@@ -497,7 +497,7 @@ class Node(Base):
 
         elif direction == "both":
             vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
+                .filter(and_(Vector.failed == False, or_(Vector.destination_id == self.id, Vector.origin_id == self.id))).all()
             origins_and_destinations = (set([v.destination_id for v in vectors]) &
                                         set([v.origin_id for v in vectors]))
             for w in whom_ids:
@@ -521,7 +521,7 @@ class Node(Base):
 
         return type\
             .query\
-            .filter_by(origin_id=self.id)\
+            .filter_by(origin_id=self.id, failed=False)\
             .all()
 
     def received_infos(self, type=None):
@@ -537,7 +537,7 @@ class Node(Base):
 
         transmissions = Transmission\
             .query.with_entities(Transmission.info_id)\
-            .filter_by(destination_id=self.id, status="received").all()
+            .filter_by(destination_id=self.id, status="received", failed=False).all()
 
         info_ids = [t.info_id for t in transmissions]
         return type.query.filter(type.id.in_(info_ids)).all()
@@ -562,28 +562,38 @@ class Node(Base):
         if direction == "all":
             if status == "all":
                 return Transmission.query\
-                    .filter(or_(Transmission.destination_id == self.id, Transmission.origin_id == self.id))\
+                    .filter(and_(Transmission.failed == False,
+                                 or_(Transmission.destination_id == self.id,
+                                     Transmission.origin_id == self.id)))\
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.status == status, or_(Transmission.destination_id == self.id, Transmission.origin_id == self.id)))\
+                    .filter(and_(Transmission.failed == False,
+                                 Transmission.status == status,
+                                 or_(Transmission.destination_id == self.id,
+                                     Transmission.origin_id == self.id)))\
                     .all()
         if direction == "incoming":
             if status == "all":
-                return Transmission.query.filter_by(destination_id=self.id)\
+                return Transmission.query\
+                    .filter_by(failed=False, destination_id=self.id)\
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.destination_id == self.id, Transmission.status == status))\
+                    .filter(and_(Transmission.failed == False,
+                                 Transmission.destination_id == self.id,
+                                 Transmission.status == status))\
                     .all()
         if direction == "outgoing":
             if status == "all":
                 return Transmission.query\
-                    .filter_by(origin_id=self.id)\
+                    .filter_by(failed=False, origin_id=self.id)\
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.origin_id == self.id, Transmission.status == status))\
+                    .filter(and_(Transmission.failed == False,
+                                 Transmission.origin_id == self.id,
+                                 Transmission.status == status))\
                     .all()
 
     def transformations(self, type=None):
@@ -596,7 +606,7 @@ class Node(Base):
             type = Transformation
         return type\
             .query\
-            .filter_by(node_id=self.id)\
+            .filter_by(node_id=self.id, failed=False)\
             .all()
 
     """ ###################################
@@ -726,6 +736,11 @@ class Node(Base):
             (2) what is/contains an info that does not originate from the transmitting node
             (3) to_whom is/contains a node that the transmitting node does have have a live connection with.
         """
+
+        # check self is not failed
+        if self.failed:
+            raise ValueError("{} cannot transmit as it has failed.".format(self))
+
         # make the list of what
         what = self.flatten([what])
         for i in range(len(what)):
@@ -794,6 +809,11 @@ class Node(Base):
             (2) a specific transmission.
         Will raise an error if the node is told to receive a transmission it has not been sent.
         """
+
+        # check self is not failed
+        if self.failed:
+            raise ValueError("{} cannot receive as it has failed.".format(self))
+
         received_transmissions = []
         if what is None:
             pending_transmissions = self.transmissions(direction="incoming", status="pending")
@@ -819,14 +839,24 @@ class Node(Base):
         Update controls the default behavior of a node when it receives infos.
         By default it does nothing.
         """
-        pass
+        # check self is not failed
+        if self.failed:
+            raise ValueError("{} cannot update as it has failed.".format(self))
 
     def replicate(self, info_in):
+        # check self is not failed
+        if self.failed:
+            raise ValueError("{} cannot replicate as it has failed.".format(self))
+
         from transformations import Replication
         info_out = type(info_in)(origin=self, contents=info_in.contents)
         Replication(info_in=info_in, info_out=info_out)
 
     def mutate(self, info_in):
+        # check self is not failed
+        if self.failed:
+            raise ValueError("{} cannot mutate as it has failed.".format(self))
+
         from transformations import Mutation
         info_out = type(info_in)(origin=self, contents=info_in._mutated_contents())
         Mutation(info_in=info_in, info_out=info_out)
