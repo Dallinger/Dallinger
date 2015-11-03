@@ -166,22 +166,6 @@ class TestModels(object):
         for t in net.transformations(failed="all"):
             assert type(t.node) == Agent
 
-        # test Network.latest_transmission_recipient()
-
-        agents = net.nodes(type=Agent, failed="all")
-        from operator import attrgetter
-        oldest_agent = min(agents, key=attrgetter('creation_time'))
-        other_agents = [a for a in agents if a != oldest_agent]
-        second_oldest_agent = min(other_agents, key=attrgetter('creation_time'))
-
-        assert net.latest_transmission_recipient() == second_oldest_agent
-
-        if second_oldest_agent.failed:
-            if net.latest_transmission_recipient() is not None:
-                assert net.latest_transmission_recipient() != second_oldest_agent
-        else:
-            assert net.latest_transmission_recipient() == second_oldest_agent
-
         print("Testing models: Network... done!")
         sys.stdout.flush()
 
