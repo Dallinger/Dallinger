@@ -179,7 +179,7 @@ class Experiment(object):
     def node_get_request(self, node, nodes):
         pass
 
-    def connect_request(self, node, vector=None, vectors=None):
+    def vector_post_request(self, node, vector=None, vectors=None):
         pass
 
     def vector_get_request(self, node, vectors):
