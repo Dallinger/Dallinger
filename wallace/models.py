@@ -451,13 +451,12 @@ class Node(Base):
 
         return neighbors
 
-    def is_connected(self, whom, direction="to", vector_failed=False):
+    def is_connected(self, whom, direction="to"):
         """
         Check whether this node is connected [to/from] whom.
 
         whom can be a list of nodes or a single node.
         direction can be "to" (default), "from", "both" or "either".
-        failed can be "all", False (default) or True.
 
         If whom is a single node this method returns a boolean,
         otherwise it returns a list of booleans
@@ -478,10 +477,6 @@ class Node(Base):
                 raise TypeError("is_connected cannot parse objects of type {}."
                                 .format(type(node)))
 
-        # check vector_failed
-        if vector_failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid connection failed".format(vector_failed))
-
         # check direction
         if direction not in ["to", "from", "either", "both"]:
             raise ValueError("{} is not a valid direction for is_connected".format(direction))
@@ -489,49 +484,31 @@ class Node(Base):
         # get is_connected
         connected = []
         if direction == "to":
-            if vector_failed == "all":
-                vectors = Vector.query.with_entities(Vector.destination_id)\
-                    .filter_by(origin_id=self.id).all()
-            else:
-                vectors = Vector.query.with_entities(Vector.destination_id)\
-                    .filter_by(origin_id=self.id, failed=vector_failed).all()
+            vectors = Vector.query.with_entities(Vector.destination_id)\
+                .filter_by(origin_id=self.id).all()
             destinations = set([v.destination_id for v in vectors])
             for w in whom_ids:
                 connected.append(w in destinations)
 
         elif direction == "from":
-            if vector_failed == "all":
-                vectors = Vector.query.with_entities(Vector.origin_id)\
-                    .filter_by(destination_id=self.id).all()
-            else:
-                vectors = Vector.query.with_entities(Vector.origin_id)\
-                    .filter_by(destination_id=self.id, failed=vector_failed).all()
+            vectors = Vector.query.with_entities(Vector.origin_id)\
+                .filter_by(destination_id=self.id).all()
             origins = set([v.origin_id for v in vectors])
             for w in whom_ids:
                 connected.append(w in origins)
 
         elif direction == "either":
-            if vector_failed == "all":
-                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                    .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
-            else:
-                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                    .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id),
-                                 Vector.failed == vector_failed)).all()
+            vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
+                .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
             origins_or_destinations = (set([v.destination_id for v in vectors]) |
                                        set([v.origin_id for v in vectors]))
             for w in whom_ids:
                 connected.append(w in origins_or_destinations)
 
         elif direction == "both":
-            if vector_failed == "all":
-                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                    .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
-            else:
-                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                    .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id),
-                                 Vector.failed == vector_failed)).all()
-            origins_and_destinations = (set([v.destination_id for v in vectors]) +
+            vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
+                .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
+            origins_and_destinations = (set([v.destination_id for v in vectors]) &
                                         set([v.origin_id for v in vectors]))
             for w in whom_ids:
                 connected.append(w in origins_and_destinations)
