@@ -68,7 +68,8 @@ class Network(Base):
 
     def __repr__(self):
         """The string representation of a network."""
-        return "<Network-{}-{} with {} nodes, {} vectors, {} infos, {} transmissions and {} transformations>".format(
+        return "<Network-{}-{} with {} nodes, {} vectors, {} infos, \
+                {} transmissions and {} transformations>".format(
             self.id,
             self.type,
             len(self.nodes()),
@@ -102,12 +103,15 @@ class Network(Base):
             if failed == "all":
                 return type\
                     .query\
-                    .filter_by(network_id=self.id, participant_id=participant_id)\
+                    .filter_by(network_id=self.id,
+                               participant_id=participant_id)\
                     .all()
             else:
                 return type\
                     .query\
-                    .filter_by(network_id=self.id, participant_id=participant_id, failed=failed)\
+                    .filter_by(network_id=self.id,
+                               participant_id=participant_id,
+                               failed=failed)\
                     .all()
         else:
             if failed == "all":
@@ -369,7 +373,10 @@ class Node(Base):
 
         # get the vectors
         if direction == "all":
-            return Vector.query.filter(and_(Vector.failed == False, or_(Vector.destination_id == self.id, Vector.origin_id == self.id)))\
+            return Vector.query\
+                .filter(and_(Vector.failed == False,
+                        or_(Vector.destination_id == self.id,
+                            Vector.origin_id == self.id)))\
                 .all()
 
         if direction == "incoming":
@@ -395,33 +402,42 @@ class Node(Base):
         if type is None:
             type = Node
         if not issubclass(type, Node):
-            raise ValueError("{} is not a valid neighbor type, needs to be a subclass of Node.".format(type))
+            raise ValueError("{} is not a valid neighbor type, \
+                    needs to be a subclass of Node.".format(type))
 
         # get connection
         if connection not in ["both", "either", "from", "to"]:
-            raise ValueError("{} not a valid neighbor connection. Should be both, either, to or from.".format(connection))
+            raise ValueError("{} not a valid neighbor connection. \
+                Should be both, either, to or from.".format(connection))
 
         neighbors = []
         # get the neighbours
         if connection == "to":
-            outgoing_vectors = Vector.query.with_entities(Vector.destination_id).filter_by(origin_id=self.id, failed=False).all()
+            outgoing_vectors = Vector.query\
+                .with_entities(Vector.destination_id)\
+                .filter_by(origin_id=self.id, failed=False).all()
+
             neighbor_ids = [v.destination_id for v in outgoing_vectors]
             if neighbor_ids:
                 neighbors = Node.query.filter(Node.id.in_(neighbor_ids)).all()
                 neighbors = [n for n in neighbors if isinstance(n, type)]
 
         if connection == "from":
-            incoming_vectors = Vector.query.with_entities(Vector.origin_id).filter_by(destination_id=self.id, failed=False).all()
+            incoming_vectors = Vector.query.with_entities(Vector.origin_id)\
+                .filter_by(destination_id=self.id, failed=False).all()
+
             neighbor_ids = [v.origin_id for v in incoming_vectors]
             if neighbor_ids:
                 neighbors = Node.query.filter(Node.id.in_(neighbor_ids)).all()
                 neighbors = [n for n in neighbors if isinstance(n, type)]
 
         if connection == "either":
-            neighbors = list(set(self.neighbors(type=type, connection="to") + self.neighbors(type=type, connection="from")))
+            neighbors = list(set(self.neighbors(type=type, connection="to") +
+                                 self.neighbors(type=type, connection="from")))
 
         if connection == "both":
-            neighbors = list(set(self.neighbors(type=type, connection="to")) & set(self.neighbors(type=type, connection="from")))
+            neighbors = list(set(self.neighbors(type=type, connection="to")) &
+                             set(self.neighbors(type=type, connection="from")))
 
         return neighbors
 
@@ -453,7 +469,8 @@ class Node(Base):
 
         # check direction
         if direction not in ["to", "from", "either", "both"]:
-            raise ValueError("{} is not a valid direction for is_connected".format(direction))
+            raise ValueError("{} is not a valid direction for is_connected"
+                             .format(direction))
 
         # get is_connected
         connected = []
@@ -472,16 +489,24 @@ class Node(Base):
                 connected.append(w in origins)
 
         elif direction == "either":
-            vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                .filter(and_(Vector.failed == False, or_(Vector.destination_id == self.id, Vector.origin_id == self.id))).all()
+            vectors = Vector.query\
+                .with_entities(Vector.origin_id, Vector.destination_id)\
+                .filter(and_(Vector.failed == False,
+                             or_(Vector.destination_id == self.id,
+                                 Vector.origin_id == self.id))).all()
+
             origins_or_destinations = (set([v.destination_id for v in vectors]) |
                                        set([v.origin_id for v in vectors]))
             for w in whom_ids:
                 connected.append(w in origins_or_destinations)
 
         elif direction == "both":
-            vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                .filter(and_(Vector.failed == False, or_(Vector.destination_id == self.id, Vector.origin_id == self.id))).all()
+            vectors = Vector.query\
+                .with_entities(Vector.origin_id, Vector.destination_id)\
+                .filter(and_(Vector.failed == False,
+                             or_(Vector.destination_id == self.id,
+                                 Vector.origin_id == self.id))).all()
+
             origins_and_destinations = (set([v.destination_id for v in vectors]) &
                                         set([v.origin_id for v in vectors]))
             for w in whom_ids:
@@ -501,7 +526,8 @@ class Node(Base):
             type = Info
 
         if not issubclass(type, Info):
-            raise(TypeError("Cannot get-info of type {} as it is not a valid type.".format(type)))
+            raise(TypeError("Cannot get-info of type {} as it is not a valid type."
+                            .format(type)))
 
         return type\
             .query\
@@ -517,7 +543,8 @@ class Node(Base):
             type = Info
 
         if not issubclass(type, Info):
-            raise(TypeError("Cannot get infos of type {} as it is not a valid type.".format(type)))
+            raise(TypeError("Cannot get infos of type {} as it is not a valid type."
+                            .format(type)))
 
         transmissions = Transmission\
             .query.with_entities(Transmission.info_id)\
@@ -535,11 +562,13 @@ class Node(Base):
         """
         #check parameters
         if direction not in ["incoming", "outgoing", "all"]:
-            raise(ValueError("You cannot get transmissions of direction {}.".format(direction) +
+            raise(ValueError("You cannot get transmissions of direction {}."
+                             .format(direction) +
                   "Type can only be incoming, outgoing or all."))
 
         if status not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of status {}.".format(status) +
+            raise(ValueError("You cannot get transmission of status {}."
+                             .format(status) +
                   "Status can only be pending, received or all"))
 
         # get transmissions
@@ -647,7 +676,8 @@ class Node(Base):
 
         # check self is not failed
         if self.failed:
-            raise ValueError("{} cannot connect to other nodes as it has failed.".format(self))
+            raise ValueError("{} cannot connect to other nodes as it has failed."
+                             .format(self))
 
         # check direction
         if direction not in ["to", "from", "both"]:
@@ -682,14 +712,16 @@ class Node(Base):
             already_connected_to = self.flatten([self.is_connected(direction="to", whom=whom)])
             for node, connected in zip(whom, already_connected_to):
                 if connected:
-                    print("Warning! {} already connected to {}, instruction to connect will be ignored.".format(self, node))
+                    print("Warning! {} already connected to {}, instruction to connect will be ignored."
+                          .format(self, node))
                 else:
                     new_vectors.append(Vector(origin=self, destination=node))
         if direction in ["from", "both"]:
             already_connected_from = self.flatten([self.is_connected(direction="from", whom=whom)])
             for node, connected in zip(whom, already_connected_from):
                 if connected:
-                    print("Warning! {} already connected from {}, instruction to connect will be ignored.".format(self, node))
+                    print("Warning! {} already connected from {}, instruction to connect will be ignored."
+                          .format(self, node))
                 else:
                     new_vectors.append(Vector(origin=node, destination=self))
         return new_vectors
@@ -737,7 +769,8 @@ class Node(Base):
             if isinstance(what[i], Info):
                 pass
             elif what[i] is None:
-                raise ValueError("The _what() of {} is returning None: {}.".format(self, self._what()))
+                raise ValueError("The _what() of {} is returning None: {}."
+                                 .format(self, self._what()))
             elif inspect.isclass(what[i]) and issubclass(what[i], Info):
                 what[i] = self.infos(type=what[i])
             else:
@@ -756,7 +789,8 @@ class Node(Base):
             if isinstance(to_whom[i], Node):
                 pass
             elif to_whom[i] is None:
-                raise ValueError("The _to_whom() of {} is returning None: {}.".format(self, self._to_whom()))
+                raise ValueError("The _to_whom() of {} is returning None: {}."
+                                 .format(self, self._to_whom()))
             elif inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
                 to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
             else:
@@ -766,11 +800,14 @@ class Node(Base):
         transmissions = []
         for w in what:
             if w.origin_id != self.id:
-                raise ValueError("{} cannot transmit {} as it is not its origin".format(self, w))
+                raise ValueError("{} cannot transmit {} as it is not its origin"
+                                 .format(self, w))
             for tw in to_whom:
                 if not self.is_connected(whom=tw):
-                    raise ValueError("{} cannot transmit to {} as it does not have a connection to them".format(self, tw))
-                vector = [v for v in self.vectors(direction="outgoing") if v.destination_id == tw.id][0]
+                    raise ValueError("{} cannot transmit to {} as it does not have \
+                                      a connection to them".format(self, tw))
+                vector = [v for v in self.vectors(direction="outgoing")
+                          if v.destination_id == tw.id][0]
                 t = Transmission(info=w, vector=vector)
                 transmissions.append(t)
         if len(transmissions) == 1:
@@ -812,7 +849,8 @@ class Node(Base):
                 what.receive_time = timenow()
                 received_transmissions.append(what)
             else:
-                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, what)))
+                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions"
+                                 .format(self, what)))
         else:
             raise ValueError("Nodes cannot receive {}".format(what))
 
@@ -1070,7 +1108,8 @@ class Info(Base):
 
     def transformations(self, relationship="all"):
         if relationship not in ["all", "parent", "child"]:
-            raise(ValueError("You cannot get transformations of relationship {}".format(relationship) +
+            raise(ValueError("You cannot get transformations of relationship {}"
+                             .format(relationship) +
                   "Relationship can only be parent, child or all."))
 
         if relationship == "all":
@@ -1096,7 +1135,8 @@ class Info(Base):
                 .all()
 
     def _mutated_contents(self):
-        raise NotImplementedError("_mutated_contents needs to be overwritten in class {}".format(type(self)))
+        raise NotImplementedError("_mutated_contents needs to be overwritten in class {}"
+                                  .format(type(self)))
 
 
 class Transmission(Base):
@@ -1198,7 +1238,8 @@ class Transmission(Base):
 
     def fail(self):
         if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError("Cannot fail {} - it has already failed."
+                                 .format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
@@ -1297,14 +1338,19 @@ class Transformation(Base):
     def check_for_transformation(self, info_in, info_out):
         # check the infos are Infos.
         if not isinstance(info_in, Info):
-            raise TypeError("{} cannot be transformed as it is a {}".format(info_in, type(info_in)))
+            raise TypeError("{} cannot be transformed as it is a {}"
+                            .format(info_in, type(info_in)))
         if not isinstance(info_out, Info):
-            raise TypeError("{} cannot be transformed as it is a {}".format(info_out, type(info_out)))
+            raise TypeError("{} cannot be transformed as it is a {}"
+                            .format(info_out, type(info_out)))
 
         node = info_out.origin
         # check the info_in is from the node or has been sent to the node
-        if not ((info_in.origin_id != node.id) or (info_in.id not in [t.info_id for t in node.transmissions(direction="incoming", status="received")])):
-            raise ValueError("{} cannot transform {} as it has not been sent it or made it.".format(node, info_in))
+        if not ((info_in.origin_id != node.id) or
+                (info_in.id not in
+                 [t.info_id for t in node.transmissions(direction="incoming", status="received")])):
+            raise ValueError("{} cannot transform {} as it has not been sent it or made it."
+                             .format(node, info_in))
 
 
 class Notification(Base):
