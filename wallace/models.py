@@ -132,117 +132,106 @@ class Network(Base):
             raise ValueError("{} is not a valid node failed".format(failed))
 
         if failed == "all":
-            return len(type
-                       .query
+            return len(type.query
                        .with_entities(type.id)
                        .filter_by(network_id=self.id)
                        .all())
         else:
-            return len(type
-                       .query
+            return len(type.query
                        .with_entities(type.id)
                        .filter_by(network_id=self.id, failed=failed)
                        .all())
 
-    def infos(self, type=None, origin_failed=False):
+    def infos(self, type=None, failed=False):
         """
         Get infos in the network.
 
-        type specifies the type of info (defaults to Info). only infos created
-        by nodes with a failed of origin_failed will be returned. origin_failed
-        can be "all", False (default) or True "failed". To get infos from
-        a specific node, see the infos() method in class Node.
+        type specifies the type of info (defaults to Info).
+        failed { False, True, "all" } specifies the failed state of the infos
+        To get infos from a specific node, see the infos() method in class Node.
         """
         if type is None:
             type = Info
-        if origin_failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid origin failed".format(origin_failed))
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid failed".format(failed))
 
-        if origin_failed == "all":
+        if failed == "all":
             return type.query\
                 .filter_by(network_id=self.id)\
                 .all()
         else:
-            return type.query.join(Info.origin)\
-                .filter(and_(type.network_id == self.id, Node.failed == origin_failed))\
-                .all()
+            return type.query.filter_by(network_id=self.id, failed=failed).all()
 
-    def transmissions(self, status="all", vector_failed=False):
+    def transmissions(self, status="all", failed=False):
         """
         Get transmissions in the network.
 
-        Only transmissions along vectors with a failed of vector_failed will
-        be returned. vector_failed "all", False (default) or True.
+        status { "all", "received", "pending" }
+        failed { False, True, "all" }
         To get transmissions from a specific vector, see the
         transmissions() method in class Vector.
         """
         if status not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of status {}.".format(status) +
                   "Status can only be pending, received or all"))
-        if vector_failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid vector failed".format(vector_failed))
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid failed".format(failed))
 
         if status == "all":
-            if vector_failed == "all":
+            if failed == "all":
                 return Transmission.query\
                     .filter_by(network_id=self.id)\
                     .all()
             else:
-                return Transmission.query.join(Transmission.vector)\
-                    .filter(and_(Transmission.network_id == self.id, Vector.failed == vector_failed))\
+                return Transmission.query\
+                    .filter_by(network_id=self.id, failed=failed)\
                     .all()
         else:
-            if vector_failed == "all":
+            if failed == "all":
                 return Transmission.query\
-                    .filter(and_(Transmission.network_id == self.id, Transmission.status == status))\
+                    .filter_by(network_id=self.id, status=status)\
                     .all()
             else:
-                return Transmission.query.join(Transmission.vector)\
-                    .filter(and_(Transmission.network_id == self.id, Transmission.status == status, Vector.failed == vector_failed))\
+                return Transmission.query\
+                    .filter_by(network_id=self.id, status=status, failed=failed)\
                     .all()
 
-    def transformations(self, type=None, node_failed=False):
+    def transformations(self, type=None, failed=False):
         """
         Get transformations in the network.
 
-        type specifies the type of transformation (defaults to Transformation).
-        only transformations at nodes with a failed of node_failed will be returned.
-        node_failed can be "all", False (default) or True.
-        To get transformations from a specific node see the transformations() method in class Node.
+        type specifies the type of transformation (default = Transformation).
+        failed = { False, True, "all" }
+
+        To get transformations from a specific node,
+        see Node.transformations().
         """
         if type is None:
             type = Transformation
 
-        if node_failed not in ["all", True, False]:
-            raise ValueError("{} is not a valid origin failed".format(node_failed))
+        if failed not in ["all", True, False]:
+            raise ValueError("{} is not a valid failed".format(failed))
 
-        if node_failed == "all":
+        if failed == "all":
             return type.query\
                 .filter_by(network_id=self.id)\
                 .all()
         else:
-            return type.query.join(type.node)\
-                .filter(and_(type.network_id == self.id, Node.failed == node_failed))\
+            return type.query\
+                .filter_by(network_id=self.id, failed=failed)\
                 .all()
 
-    def latest_transmission_recipient(self, failed=False):
+    def latest_transmission_recipient(self):
         """
-        Get the node of the given failed that most recently received a transmission.
-
-        Failed can be "all", False (default) or True.
+        Get the node that most recently received a transmission.
         """
 
         from operator import attrgetter
 
-        if failed == "all":
-            ts = Transmission.query\
-                .filter(and_(Transmission.status == "received", Transmission.network_id == self.id))\
-                .all()
-        else:
-            ts = Transmission.query\
-                .join(Transmission.destination)\
-                .filter(and_(Transmission.status == "received", Transmission.network_id == self.id, Node.failed == failed))\
-                .all()
+        ts = Transmission.query\
+            .filter_by(status="received", network_id=self.id, failed=False)\
+            .all()
+
         if ts:
             t = max(ts, key=attrgetter('receive_time'))
             return t.destination
@@ -253,9 +242,10 @@ class Network(Base):
         """
         Get vectors in the network.
 
-        Failed can be "all", False (default) or True. To get the
-        vectors attached to a specific node, see Node.vectors().
+        failed = { False, True, "all" }
+        To get the vectors to/from to a specific node, see Node.vectors().
         """
+
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid vector failed".format(failed))
 
@@ -265,28 +255,28 @@ class Network(Base):
                 .all()
         else:
             return Vector.query\
-                .filter(and_(Vector.network_id == self.id, Vector.failed == failed))\
+                .filter_by(network_id=self.id, failed=failed)\
                 .all()
 
     """ ###################################
     Methods that make Networks do things
     ################################### """
 
-    def add(self, base):
+    def add(self, node):
         """
         Add a node to the network.
 
         Only Nodes can be added to a network.
         """
-        if isinstance(base, list):
-            for b in base:
-                self.add(b)
-        elif isinstance(base, Node):
-            base.network = self
+        if isinstance(node, list):
+            for n in node:
+                self.add(n)
+        elif isinstance(node, Node):
+            node.network = self
             self.calculate_full()
         else:
             raise(TypeError("Cannot add {} to the network as it is a {}. " +
-                            "Only Nodes can be added to networks.").format(base, type(base)))
+                            "Only Nodes can be added to networks.").format(node, type(node)))
 
     def calculate_full(self):
         """Set whether the network is full."""
@@ -303,15 +293,15 @@ class Network(Base):
             print v
 
         print "\nInfos: "
-        for i in (self.infos(origin_failed="all")):
+        for i in (self.infos(failed="all")):
             print i
 
         print "\nTransmissions: "
-        for t in (self.transmissions(vector_failed="all")):
+        for t in (self.transmissions(failed="all")):
             print t
 
         print "\nTransformations: "
-        for t in (self.transformations(node_failed="all")):
+        for t in (self.transformations(failed="all")):
             print t
 
 
@@ -613,7 +603,7 @@ class Node(Base):
     Methods that make nodes do things
     ################################### """
 
-    def fail(self, vectors=True, infos=False, transmissions=False, transformations=False):
+    def fail(self, vectors=True, infos=True, transmissions=True, transformations=True):
         """
         Fail a node, setting its status to "failed".
 
@@ -636,7 +626,7 @@ class Node(Base):
                 for i in self.infos():
                     i.fail()
             if transmissions:
-                for t in self.transmissions():
+                for t in self.transmissions(direction="all"):
                     t.fail()
             if transformations:
                 for t in self.transformations():
