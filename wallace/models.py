@@ -1121,6 +1121,12 @@ class Transmission(Base):
     # the time at which the transmission was received
     receive_time = Column(DateTime, default=None)
 
+    # whether the transmission has failed
+    failed = Column(Boolean, nullable=False, default=False, index=True)
+
+    # the time when the transmission failed
+    time_of_death = Column(DateTime, default=None)
+
     # the status of the transmission, can be pending or received
     status = Column(Enum("pending", "received", name="transmission_status"),
                     nullable=False, default="pending", index=True)
@@ -1172,6 +1178,13 @@ class Transmission(Base):
             "property5": self.property5
         }
 
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
+
 
 class Transformation(Base):
     """
@@ -1210,6 +1223,12 @@ class Transformation(Base):
     # the time at which the transformation occurred
     creation_time = Column(DateTime, nullable=False, default=timenow)
 
+    # whether the transformation has failed
+    failed = Column(Boolean, nullable=False, default=False, index=True)
+
+    # the time when the transformation failed
+    time_of_death = Column(DateTime, default=None)
+
     # unused by default, these columns store additional properties used
     # by other types of transformation
     property1 = Column(String(26), default=None)
@@ -1247,6 +1266,13 @@ class Transformation(Base):
             "property4": self.property4,
             "property5": self.property5
         }
+
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
 
     def check_for_transformation(self, info_in, info_out):
         # check the infos are Infos.
