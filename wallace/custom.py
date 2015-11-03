@@ -536,7 +536,7 @@ def node_infos(node_id):
     if type(info_type) == Response:
         return info_type
 
-    exp.log("/info GET request. Params: node_id: {}, info_type: {}"
+    exp.log("/node/infos request. Params: node_id: {}, info_type: {}"
             .format(node_id, info_type))
 
     # check the node exists
@@ -564,7 +564,49 @@ def node_infos(node_id):
     data = {"status": "success", "infos": data}
 
     # return the data
-    exp.log("/info GET request successful.")
+    exp.log("/node/infos request successful.")
+    js = dumps(data, default=date_handler)
+    return Response(js, status=200, mimetype='application/json')
+
+
+@custom_code.route("/node/<int:node_id>/received_infos", methods=["GET"])
+def node_received_infos(node_id):
+    exp = experiment(session)
+
+    # get the parameters
+    info_type = request_parameter(request=request, parameter="info_type", parameter_type="known_class", default=models.Info)
+    if type(info_type) == Response:
+        return info_type
+
+    exp.log("/node/received_infos request. Params: node_id: {}, info_type: {}"
+            .format(node_id, info_type))
+
+    # check the node exists
+    node = models.Node.query.get(node_id)
+    if node is None:
+        exp.log("Error: /node/{}/infos, node does not exist".format(node_id))
+        page = error_page(error_type="/node/infos, node does not exist")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=400, mimetype='application/json')
+
+    # execute the request:
+    infos = node.received_infos(type=info_type)
+
+    # ping the experiment
+    exp.info_get_request(
+        node=node,
+        infos=infos)
+
+    session.commit()
+
+    # parse the data for returning
+    data = []
+    for i in infos:
+        data.append(i.__json__())
+    data = {"status": "success", "infos": data}
+
+    # return the data
+    exp.log("/node/received_infos GET request successful.")
     js = dumps(data, default=date_handler)
     return Response(js, status=200, mimetype='application/json')
 
