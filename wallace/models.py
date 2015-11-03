@@ -559,6 +559,7 @@ class Node(Base):
         Direction can be "all", "incoming" or "outgoing" (default).
         Status can be "all" (default), "pending", or "received".
         """
+        #check parameters
         if direction not in ["incoming", "outgoing", "all"]:
             raise(ValueError("You cannot get transmissions of direction {}.".format(direction) +
                   "Type can only be incoming, outgoing or all."))
@@ -567,6 +568,7 @@ class Node(Base):
             raise(ValueError("You cannot get transmission of status {}.".format(status) +
                   "Status can only be pending, received or all"))
 
+        # get transmissions
         if direction == "all":
             if status == "all":
                 return Transmission.query\
@@ -982,6 +984,12 @@ class Info(Base):
     # the time when the info was created
     creation_time = Column(DateTime, nullable=False, default=timenow)
 
+    # whether the info has failed
+    failed = Column(Boolean, nullable=False, default=False, index=True)
+
+    # the time when the info failed
+    time_of_death = Column(DateTime, default=None)
+
     # the contents of the info
     contents = Column(Text(), default=None)
 
@@ -1025,6 +1033,13 @@ class Info(Base):
             "property4": self.property4,
             "property5": self.property5
         }
+
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
 
     def transmissions(self, status="all"):
         if status not in ["all", "pending", "received"]:
