@@ -86,7 +86,7 @@ var Bartlett1932Experiment = function() {
 
     getPendingTransmissions = function(my_node_id) {
         reqwest({
-            url: "/transmission/" + uniqueId + "/" + my_node_id,
+            url: "/node/" + uniqueId + "/" + my_node_id + "/transmissions",
             method: 'get',
             data: { status: "pending", direction: "incoming" },
             type: 'json',
@@ -104,9 +104,8 @@ var Bartlett1932Experiment = function() {
 
     getInfo = function(info_id) {
         reqwest({
-            url: "/info/" + uniqueId + "/" + my_node_id,
+            url: "/info/" + uniqueId + "/" + my_node_id + "/" + info_id,
             method: 'get',
-            data: { info_id: info_id },
             type: 'json',
             success: function (resp) {
                 story = resp.info.contents;

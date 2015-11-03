@@ -153,13 +153,15 @@ def request_parameter(request, parameter, parameter_type=None, default=None):
     or if the parameter is found but is of the wrong type
     then a Response object is returned"""
 
+    exp = experiment(session)
+
     # get the parameter
     try:
         value = request.values[parameter]
     except KeyError:
         # if it isnt found use the default, or return an error Response
         if default is not None:
-            value = default
+            return default
         else:
             msg = "{} {} request, {} not specified".format(request.url, request.method, parameter)
             exp.log("Error: {}".format(msg))
@@ -239,9 +241,8 @@ def request_parameter(request, parameter, parameter_type=None, default=None):
             mimetype='application/json')
 
 
-
-@custom_code.route("/node/<participant_id>", methods=["GET"])
-def node(participant_id):
+@custom_code.route("/node/<participant_id>/<int:node_id>/neighbors", methods=["GET"])
+def node_neighbors(participant_id, node_id):
     """ Send a GET request to the node table.
 
     This calls the neighbours method of the node
@@ -256,19 +257,17 @@ def node(participant_id):
     exp = experiment(session)
     key = participant_id[0:5]
 
-    node_id = request_parameter(request=request, parameter="node_id", parameter_type=int)
-    if type(node_id) == Response:
-        return node_id
-
     node_type = request_parameter(request=request, parameter="node_type", parameter_type="known_class", default=models.Node)
-    if type(node_type) == Response:
-        return node_type
 
     failed = request_parameter(request=request, parameter="failed", parameter_type=bool, default=False)
 
     vector_failed = request_parameter(request=request, parameter="vector_failed", parameter_type=bool, default=False)
 
     connection = request_parameter(request=request, parameter="connection", default="to")
+
+    for x in [node_type, failed, vector_failed, connection]:
+        if type(x) == Response:
+            return x
 
     # Execute the request.
     exp.log("/node GET request. Params: participant: {}, node: {}, node_type: {}, \
@@ -303,7 +302,7 @@ def node(participant_id):
 
 
 @custom_code.route("/node/<participant_id>", methods=["POST"])
-def node(participant_id):
+def create_node(participant_id):
     """ Send a POST request to the node table.
 
     This makes a new node for the participant, it calls:
@@ -399,14 +398,18 @@ def node(participant_id):
     return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/vector/<participant_id>/<int:node_id>", methods=["GET"])
-def vector(participant_id, node_id):
+@custom_code.route("/node/<participant_id>/<int:node_id>/vectors", methods=["GET"])
+def node_vectors(participant_id, node_id):
     exp = experiment(session)
     key = participant_id[0:5]
 
     direction = request_parameter(request=request, parameter="direction", default="all")
+    if type(direction) == Response:
+        return direction
 
     failed = request_parameter(request=request, parameter="failed", parameter_type=bool, default=False)
+    if type(failed) == Response:
+        return failed
 
     # execute the request
     exp.log("/vector GET request. Params: participant_id: {}, node_id: {}, other_node_id: {}, \
@@ -436,12 +439,14 @@ def vector(participant_id, node_id):
     return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/vector/<participant_id>/<int:node_id>/<int:other_node_id>", methods=["POST"])
-def vector(participant_id, node_id, other_node_id):
+@custom_code.route("/node/<participant_id>/<int:node_id>/connect/<int:other_node_id>", methods=["POST"])
+def connect(participant_id, node_id, other_node_id):
     exp = experiment(session)
     key = participant_id[0:5]
 
     direction = request_parameter(request=request, parameter="direction", default="to")
+    if type(direction == Response):
+        return direction
 
     # execute the request
     exp.log("/vector POST request. Params: participant_id: {}, node_id: {}, other_node_id: {}, \
@@ -470,8 +475,41 @@ def vector(participant_id, node_id, other_node_id):
     return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/info/<participant_id>/<int:node_id>", methods=["GET"])
-def info(participant_id, node_id):
+@custom_code.route("/info/<participant_id>/<int:node_id>/<int:info_id>", methods=["GET"])
+def get_info(participant_id, node_id, info_id):
+    exp = experiment(session)
+    key = participant_id[0:5]
+
+    # execute the experiment method:
+    exp.log("/info GET request. Params: participant_id: {}, node_id: {}, info_id: {}."
+            .format(participant_id, node_id, info_id), key)
+
+    info = models.Info.query.get(info_id)
+    node = models.Node.query.get(node_id)
+    if info is None:
+        exp.log("Error: /info GET request, info {} does not exist".format(info_id), key)
+        page = error_page(error_type="/info GET, info does not exist")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=400, mimetype='application/json')
+    elif info.origin_id != node.id and info.id not in [t.info_id for t in node.transmissions(direction="incoming", status="received")]:
+        exp.log("Error: /info GET request, info not available to requesting node", key)
+        page = error_page(error_type="/info GET, info not available")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=403, mimetype='application/json')
+
+    exp.info_get_request(participant_id=participant_id, node=node, info=info)
+    session.commit()
+
+    data = info.__json__()
+    data = {"status": "success", "info": data}
+
+    exp.log("/info GET request successful.", key)
+    js = dumps(data, default=date_handler)
+    return Response(js, status=200, mimetype='application/json')
+
+
+@custom_code.route("/node/<participant_id>/<int:node_id>/infos", methods=["GET"])
+def node_infos(participant_id, node_id):
     exp = experiment(session)
     key = participant_id[0:5]
 
@@ -479,53 +517,24 @@ def info(participant_id, node_id):
     if type(info_type) == Response:
         return info_type
 
-    try:
-        info_id = request.values["info_id"]
-        if not info_id.isdigit():
-            exp.log(
-                "Error: /info GET request, non-numeric info_id: {}".format(node_id),
-                key)
-            page = error_page(error_type="/info GET, non-numeric info_id")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=400, mimetype='application/json')
-    except KeyError:
-        info_id = None
-
     # execute the experiment method:
-    exp.log("/info GET request. Params: participant_id: {}, node_id: {}, info_type: {}, \
-             info_id: {}."
-            .format(participant_id, node_id, info_type, info_id), key)
+    exp.log("/info GET request. Params: participant_id: {}, node_id: {}, info_type: {}"
+            .format(participant_id, node_id, info_type), key)
     node = models.Node.query.get(node_id)
+    infos = node.infos(type=info_type)
 
-    if info_id is None:
-        infos = node.infos(type=info_type)
+    exp.info_get_request(
+        participant_id=participant_id,
+        node=node,
+        infos=infos)
 
-        exp.info_get_request(
-            participant_id=participant_id,
-            node=node,
-            infos=infos)
+    session.commit()
 
-        session.commit()
-
-        # parse the data for returning
-        data = []
-
-        for i in infos:
-            data.append(i.__json__())
-        data = {"status": "success", "infos": data}
-    else:
-        info = models.Info.query.get(info_id)
-        if info.origin_id != node.id and info.id not in [t.info_id for t in node.transmissions(direction="incoming", status="received")]:
-            exp.log("Error: /info GET request, info not available to requesting node", key)
-            page = error_page(error_type="/info GET, info not available")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=403, mimetype='application/json')
-
-        exp.info_get_request(participant_id=participant_id, node=node, info=info)
-        session.commit()
-
-        data = info.__json__()
-        data = {"status": "success", "info": data}
+    # parse the data for returning
+    data = []
+    for i in infos:
+        data.append(i.__json__())
+    data = {"status": "success", "infos": data}
 
     # return the data
     exp.log("/info GET request successful.", key)
@@ -534,11 +543,11 @@ def info(participant_id, node_id):
 
 
 @custom_code.route("/info/<participant_id>/<int:node_id>", methods=["POST"])
-def info(participant_id, node_id):
+def info_post(participant_id, node_id):
     exp = experiment(session)
     key = participant_id[0:5]
 
-    info_type = request_parameter(request=request, parameter="info_type", parameter_type="known_class", default=models.Info)
+    info_type = request_parameter(request=request, parameter="info_type", parameter_type="known_class", default="Info")
     if type(info_type) == Response:
         return info_type
 
@@ -571,14 +580,18 @@ def info(participant_id, node_id):
     return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/transmission/<participant_id>/<int:node_id>", methods=["GET"])
-def transmission(participant_id, node_id):
+@custom_code.route("/node/<participant_id>/<int:node_id>/transmissions", methods=["GET"])
+def node_transmissions(participant_id, node_id):
     exp = experiment(session)
     key = participant_id[0:5]
 
     direction = request_parameter(request=request, parameter="direction", default="to")
+    if type(direction) == Response:
+        return direction
 
     status = request_parameter(request=request, parameter="status", default="all")
+    if type(status) == Response:
+        return status
 
     # execute the experiment method
     exp.log("/transmission GET request. Params: participant_id: {}, node_id: {}, direction: {}, \
@@ -606,55 +619,53 @@ def transmission(participant_id, node_id):
     return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/transmission/<participant_id>/<int:node_id>", methods=["POST"])
-def transmission(participant_id, node_id):
+@custom_code.route("/node/<participant_id>/<int:node_id>/transmit", methods=["POST"])
+def node_transmit(participant_id, node_id):
     exp = experiment(session)
     key = participant_id[0:5]
 
-    # get the info_id
-    try:
-        info_id = request.values["info_id"]
-        if not info_id.isdigit():
-            exp.log(
-                "Error: /transmission POST request, non-numeric info_id: {}"
-                .format(node_id), key)
-            page = error_page(error_type="/transmission POST, non-numeric info_id")
+    # get the info_id/what
+    info_id = request_parameter(request=request, parameter="info_id", parameter_type=int, default=None)
+    if type(info_id) == Response:
+        return info_id
+
+    if info_id is None:
+        what = request_parameter(request=request, parameter="what", default=None)
+        if type(what) == Response:
+            return what
+    else:
+        what = Info.get(info_id)
+        if what is None:
+            exp.log("Error: /node/transmit POST request, info {} does not exist".format(info_id), key)
+            page = error_page(error_type="/node/transmit POST, info does not exist")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=400, mimetype='application/json')
-    except KeyError:
-        info_id = None
 
     # get the destination_id
-    try:
-        destination_id = request.values["destination_id"]
-        if not destination_id.isdigit():
-            exp.log(
-                "Error: /transmission POST request, non-numeric destination_id: {}"
-                .format(node_id), key)
-            page = error_page(error_type="/transmission POST, malformed destination_id")
+    destination_id = request_parameter(request=request, parameter="destination_id", parameter_type=int, default=None)
+    if type(destination_id) == Response:
+        return destination_id
+
+    if destination_id is None:
+        to_whom = request_parameter(request=request, parameter="to_whom", default=None)
+        if type(to_whom) == Response:
+            return to_whom
+    else:
+        to_whom = Node.get(destination_id)
+        if to_whom is None:
+            exp.log("Error: /node/transmit POST request, destination node {} does not exist".format(info_id), key)
+            page = error_page(error_type="/node/transmit POST, destination does not exist")
             js = dumps({"status": "error", "html": page})
             return Response(js, status=400, mimetype='application/json')
-    except KeyError:
-        destination_id = None
 
     # execute the experiment method
-    exp.log("/transmission POST request. Params: participant_id: {}, node_id: {}, info_id: {}, \
-             destination_id: {}"
-            .format(participant_id, node_id, info_id, destination_id), key)
+    exp.log("/transmission POST request. Params: participant_id: {}, node_id: {}, what: {}, \
+             to_whom: {}"
+            .format(participant_id, node_id, what, to_whom), key)
 
     origin = models.Node.query.get(node_id)
 
-    if info_id is not None:
-        info = info = models.Info.query.get(info_id)
-    else:
-        info = None
-
-    if destination_id is not None:
-        destination = models.Node.query.get(node_id)
-    else:
-        destination = None
-
-    transmissions = origin.transmit(what=info, to_whom=destination)
+    transmissions = origin.transmit(what=what, to_whom=to_whom)
 
     session.commit()
 
@@ -678,7 +689,7 @@ def transmission(participant_id, node_id):
 
 
 @custom_code.route("/transformation/<participant_id>/<int:node_id>", methods=["GET"])
-def transformation(participant_id, node_id):
+def transformation_get(participant_id, node_id):
     exp = experiment(session)
     key = participant_id[0:5]
 
@@ -706,12 +717,13 @@ def transformation(participant_id, node_id):
     exp.log("/transformation GET request successful.", key)
     return Response(js, status=200, mimetype='application/json')
 
+
 @custom_code.route("/transformation/<participant_id>/<int:node_id>/<int:info_in_id>/<int:info_out_id>", methods=["POST"])
-def transformation(participant_id, node_id, info_in_id, info_out_id):
+def transformation_post(participant_id, node_id, info_in_id, info_out_id):
     exp = experiment(session)
     key = participant_id[0:5]
 
-    transformation_type = request_parameter(request=request, parameter="transformation_type", parameter_type="known_class", default=models.Transformation)
+    transformation_type = request_parameter(request=request, parameter="transformation_type", parameter_type="known_class", default="Transformation")
     if type(transformation_type) == Response:
         return transformation_type
 
@@ -719,6 +731,7 @@ def transformation(participant_id, node_id, info_in_id, info_out_id):
     exp.log("/transformation POST request. Params: participant_id: {}, node_id: {}, info_in_id: {}, \
              info_out_id: {}"
             .format(participant_id, node_id, info_in_id, info_out_id), key)
+    node = models.Node.query.get(node_id)
     info_in = models.Info.query.get(info_in_id)
     info_out = models.Info.query.get(info_out_id)
 
