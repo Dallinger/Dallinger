@@ -380,12 +380,11 @@ class Node(Base):
     Methods that get things about a node
     ################################### """
 
-    def vectors(self, direction="all", failed=False):
+    def vectors(self, direction="all"):
         """
         Get vectors that connect at this node.
 
         Direction can be "incoming", "outgoing" or "all" (default).
-        Failed can be "all", False (default) or True.
         """
 
         # check direction
@@ -394,44 +393,20 @@ class Node(Base):
                 "{} is not a valid vector direction. "
                 "Must be all, incoming or outgoing.".format(direction))
 
-        # check failed
-        if failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid vector failed".format(failed))
-
         # get the vectors
         if direction == "all":
-
-            if failed == "all":
-                return Vector.query\
-                    .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id))\
-                    .all()
-            else:
-                return Vector.query\
-                    .filter(and_(Vector.failed == failed, or_(Vector.destination_id == self.id,
-                                 Vector.origin_id == self.id)))\
-                    .all()
+            return Vector.query.filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id))\
+                .all()
 
         if direction == "incoming":
-
-            if failed == "all":
-                return Vector.query\
-                    .filter_by(destination_id=self.id)\
-                    .all()
-            else:
-                return Vector.query\
-                    .filter_by(destination_id=self.id, failed=failed)\
-                    .all()
+            return Vector.query\
+                .filter_by(destination_id=self.id)\
+                .all()
 
         if direction == "outgoing":
-
-            if failed == "all":
-                return Vector.query\
-                    .filter_by(origin_id=self.id)\
-                    .all()
-            else:
-                return Vector.query\
-                    .filter_by(origin_id=self.id, failed=failed)\
-                    .all()
+            return Vector.query\
+                .filter_by(origin_id=self.id)\
+                .all()
 
     def neighbors(self, type=None, connection="to"):
         """
