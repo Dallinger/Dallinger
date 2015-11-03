@@ -184,7 +184,6 @@ def request_parameter(request, parameter, parameter_type=None, default=None):
             value = int(value)
             return value
         except ValueError:
-            # if you cant, return an error Response
             msg = "{} {} request, non-numeric {}: {}".format(request.url, request.method, parameter, value)
             exp.log("Error: {}".format(msg))
             data = {
@@ -201,7 +200,6 @@ def request_parameter(request, parameter, parameter_type=None, default=None):
             value = exp.known_classes[value]
             return value
         except KeyError:
-            # if it cant be found, return an error Response
             msg = "{} {} request, unknown_class: {} for parameter {}".format(request.url, request.method, value, parameter)
             exp.log("Error: {}".format(msg))
             data = {
@@ -217,7 +215,6 @@ def request_parameter(request, parameter, parameter_type=None, default=None):
         if value in ["True", "False"]:
             return value == "True"
         else:
-            # if you cant, return an error Response
             msg = "{} {} request, non-boolean {}: {}".format(request.url, request.method, parameter, value)
             exp.log("Error: {}".format(msg))
             data = {
