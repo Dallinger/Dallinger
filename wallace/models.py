@@ -395,17 +395,17 @@ class Node(Base):
 
         # get the vectors
         if direction == "all":
-            return Vector.query.filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id))\
+            return Vector.query.filter(and_(Vector.failed == False, or_(Vector.destination_id == self.id, Vector.origin_id == self.id)))\
                 .all()
 
         if direction == "incoming":
             return Vector.query\
-                .filter_by(destination_id=self.id)\
+                .filter_by(destination_id=self.id, failed=False)\
                 .all()
 
         if direction == "outgoing":
             return Vector.query\
-                .filter_by(origin_id=self.id)\
+                .filter_by(origin_id=self.id, failed=False)\
                 .all()
 
     def neighbors(self, type=None, connection="to"):
@@ -427,18 +427,21 @@ class Node(Base):
         if connection not in ["both", "either", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection. Should be both, either, to or from.".format(connection))
 
+        neighbors = []
         # get the neighbours
         if connection == "to":
             outgoing_vectors = Vector.query.with_entities(Vector.destination_id).filter_by(origin_id=self.id, failed=False).all()
             neighbor_ids = [v.destination_id for v in outgoing_vectors]
-            neighbors = Node.query.filter(Node.id.in_(neighbor_ids)).all()
-            neighbors = [n for n in neighbors if isinstance(n, type)]
+            if neighbor_ids:
+                neighbors = Node.query.filter(Node.id.in_(neighbor_ids)).all()
+                neighbors = [n for n in neighbors if isinstance(n, type)]
 
         if connection == "from":
             incoming_vectors = Vector.query.with_entities(Vector.origin_id).filter_by(destination_id=self.id, failed=False).all()
             neighbor_ids = [v.origin_id for v in incoming_vectors]
-            neighbors = Node.query.filter(Node.id.in_(neighbor_ids)).all()
-            neighbors = [n for n in neighbors if isinstance(n, type)]
+            if neighbor_ids:
+                neighbors = Node.query.filter(Node.id.in_(neighbor_ids)).all()
+                neighbors = [n for n in neighbors if isinstance(n, type)]
 
         if connection == "either":
             neighbors = list(set(self.neighbors(type=type, connection="to") + self.neighbors(type=type, connection="from")))
