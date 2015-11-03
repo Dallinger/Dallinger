@@ -957,12 +957,15 @@ class Vector(Base):
         if status == "all":
             return Transmission\
                 .query\
-                .filter_by(vector_id=self.id)\
+                .filter_by(vector_id=self.id,
+                           failed=False)\
                 .all()
         else:
             return Transmission\
                 .query\
-                .filter_by(vector_id=self.id, status=status)\
+                .filter_by(vector_id=self.id,
+                           status=status,
+                           failed=False)\
                 .all()
 
     ###################################
@@ -1070,12 +1073,15 @@ class Info(Base):
         if status == "all":
             return Transmission\
                 .query\
-                .filter_by(info_id=self.id)\
+                .filter_by(info_id=self.id,
+                           failed=False)\
                 .all()
         else:
             return Transmission\
                 .query\
-                .filter(and_(Transmission.info_id == self.id, Transmission.status == status))\
+                .filterby(info_id=self.id,
+                          status=status,
+                          failed=False)\
                 .all()
 
     def transformations(self, relationship="all"):
@@ -1086,19 +1092,23 @@ class Info(Base):
         if relationship == "all":
             return Transformation\
                 .query\
-                .filter(or_(Transformation.info_in == self, Transformation.info_out == self))\
+                .filter(and_(Transformation.failed == False,
+                             or_(Transformation.info_in == self,
+                                 Transformation.info_out == self)))\
                 .all()
 
         if relationship == "parent":
             return Transformation\
                 .query\
-                .filter_by(info_in_id=self.id)\
+                .filter_by(info_in_id=self.id,
+                           failed=False)\
                 .all()
 
         if relationship == "child":
             return Transformation\
                 .query\
-                .filter_by(info_out_id=self.id)\
+                .filter_by(info_out_id=self.id,
+                           failed=False)\
                 .all()
 
     def _mutated_contents(self):
