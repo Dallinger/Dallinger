@@ -534,6 +534,24 @@ class Node(Base):
             .filter_by(origin_id=self.id)\
             .all()
 
+    def received_infos(self, type=None):
+        """
+        Get infos that have been sent to this node.
+        Type must be a subclass of info, the default is Info.
+        """
+        if type is None:
+            type = Info
+
+        if not issubclass(type, Info):
+            raise(TypeError("Cannot get infos of type {} as it is not a valid type.".format(type)))
+
+        transmissions = Transmission\
+            .query.with_entities(Transmission.info_id)\
+            .filter_by(destination_id=self.id, status="received").all()
+
+        info_ids = [t.info_id for t in transmissions]
+        return type.query.filter(type.id.in_(info_ids)).all()
+
     def transmissions(self, direction="outgoing", status="all"):
         """
         Get transmissions sent to or from this node.
