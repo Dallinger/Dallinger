@@ -151,8 +151,8 @@ class Experiment(object):
             self.log("All networks full: closing recruitment", "-----")
             self.recruiter().close_recruitment()
 
-    def log(self, text, key="?????"):
-        if self.verbose:
+    def log(self, text, key="?????", force=False):
+        if force or self.verbose:
             print ">>>> {} {}".format(key[0:5], text)
             sys.stdout.flush()
 
@@ -203,7 +203,7 @@ class Experiment(object):
     def transformation_get_request(self, node, transformations):
         pass
 
-    def error_page(participant=None, error_text=None, compensate=True,
+    def error_page(self, participant=None, error_text=None, compensate=True,
                    error_type="default"):
         """Render HTML for error page."""
         from flask import render_template
