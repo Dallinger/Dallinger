@@ -18,10 +18,10 @@ class Agent(Node):
     @hybrid_property
     def fitness(self):
         """Endow agents with a numerical fitness."""
-        if self.property1 is None:
-            return None
-        else:
+        try:
             return float(self.property1)
+        except TypeError:
+            return None
 
     @fitness.setter
     def fitness(self, fitness):

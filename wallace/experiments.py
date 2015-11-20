@@ -151,8 +151,8 @@ class Experiment(object):
             self.log("All networks full: closing recruitment", "-----")
             self.recruiter().close_recruitment()
 
-    def log(self, text, key="?????"):
-        if self.verbose:
+    def log(self, text, key="?????", force=False):
+        if force or self.verbose:
             print ">>>> {} {}".format(key[0:5], text)
             sys.stdout.flush()
 
@@ -176,34 +176,34 @@ class Experiment(object):
     def node_post_request(self, participant_id, node):
         pass
 
-    def node_get_request(self, participant_id, node, nodes):
+    def node_get_request(self, node, nodes):
         pass
 
-    def vector_post_request(self, participant_id, node, vector=None, vectors=None):
+    def vector_post_request(self, node, vector=None, vectors=None):
         pass
 
-    def vector_get_request(self, participant_id, node, vectors):
+    def vector_get_request(self, node, vectors):
         pass
 
-    def info_post_request(self, participant_id, node, info):
+    def info_post_request(self, node, info):
         pass
 
-    def info_get_request(self, participant_id, node, info=None, infos=None):
+    def info_get_request(self, node, info=None, infos=None):
         pass
 
-    def transmission_post_request(self, participant_id, node, transmission):
+    def transmission_post_request(self, node, transmission):
         pass
 
-    def transmission_get_request(self, participant_id, node, transmissions):
+    def transmission_get_request(self, node, transmissions):
         pass
 
-    def transformation_post_request(self, participant_id, node, transformation):
+    def transformation_post_request(self, node, transformation):
         pass
 
-    def transformation_get_request(self, participant_id, node, transformations):
+    def transformation_get_request(self, node, transformations):
         pass
 
-    def error_page(participant=None, error_text=None, compensate=True,
+    def error_page(self, participant=None, error_text=None, compensate=True,
                    error_type="default"):
         """Render HTML for error page."""
         from flask import render_template

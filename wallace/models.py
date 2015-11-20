@@ -68,7 +68,8 @@ class Network(Base):
 
     def __repr__(self):
         """The string representation of a network."""
-        return "<Network-{}-{} with {} nodes, {} vectors, {} infos, {} transmissions and {} transformations>".format(
+        return ("<Network-{}-{} with {} nodes, {} vectors, {} infos, "
+                "{} transmissions and {} transformations>").format(
             self.id,
             self.type,
             len(self.nodes()),
@@ -102,12 +103,15 @@ class Network(Base):
             if failed == "all":
                 return type\
                     .query\
-                    .filter_by(network_id=self.id, participant_id=participant_id)\
+                    .filter_by(network_id=self.id,
+                               participant_id=participant_id)\
                     .all()
             else:
                 return type\
                     .query\
-                    .filter_by(network_id=self.id, participant_id=participant_id, failed=failed)\
+                    .filter_by(network_id=self.id,
+                               participant_id=participant_id,
+                               failed=failed)\
                     .all()
         else:
             if failed == "all":
@@ -132,117 +136,106 @@ class Network(Base):
             raise ValueError("{} is not a valid node failed".format(failed))
 
         if failed == "all":
-            return len(type
-                       .query
+            return len(type.query
                        .with_entities(type.id)
                        .filter_by(network_id=self.id)
                        .all())
         else:
-            return len(type
-                       .query
+            return len(type.query
                        .with_entities(type.id)
                        .filter_by(network_id=self.id, failed=failed)
                        .all())
 
-    def infos(self, type=None, origin_failed=False):
+    def infos(self, type=None, failed=False):
         """
         Get infos in the network.
 
-        type specifies the type of info (defaults to Info). only infos created
-        by nodes with a failed of origin_failed will be returned. origin_failed
-        can be "all", False (default) or True "failed". To get infos from
-        a specific node, see the infos() method in class Node.
+        type specifies the type of info (defaults to Info).
+        failed { False, True, "all" } specifies the failed state of the infos
+        To get infos from a specific node, see the infos() method in class Node.
         """
         if type is None:
             type = Info
-        if origin_failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid origin failed".format(origin_failed))
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid failed".format(failed))
 
-        if origin_failed == "all":
+        if failed == "all":
             return type.query\
                 .filter_by(network_id=self.id)\
                 .all()
         else:
-            return type.query.join(Info.origin)\
-                .filter(and_(type.network_id == self.id, Node.failed == origin_failed))\
-                .all()
+            return type.query.filter_by(network_id=self.id, failed=failed).all()
 
-    def transmissions(self, status="all", vector_failed=False):
+    def transmissions(self, status="all", failed=False):
         """
         Get transmissions in the network.
 
-        Only transmissions along vectors with a failed of vector_failed will
-        be returned. vector_failed "all", False (default) or True.
+        status { "all", "received", "pending" }
+        failed { False, True, "all" }
         To get transmissions from a specific vector, see the
         transmissions() method in class Vector.
         """
         if status not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of status {}.".format(status) +
                   "Status can only be pending, received or all"))
-        if vector_failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid vector failed".format(vector_failed))
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid failed".format(failed))
 
         if status == "all":
-            if vector_failed == "all":
+            if failed == "all":
                 return Transmission.query\
                     .filter_by(network_id=self.id)\
                     .all()
             else:
-                return Transmission.query.join(Transmission.vector)\
-                    .filter(and_(Transmission.network_id == self.id, Vector.failed == vector_failed))\
+                return Transmission.query\
+                    .filter_by(network_id=self.id, failed=failed)\
                     .all()
         else:
-            if vector_failed == "all":
+            if failed == "all":
                 return Transmission.query\
-                    .filter(and_(Transmission.network_id == self.id, Transmission.status == status))\
+                    .filter_by(network_id=self.id, status=status)\
                     .all()
             else:
-                return Transmission.query.join(Transmission.vector)\
-                    .filter(and_(Transmission.network_id == self.id, Transmission.status == status, Vector.failed == vector_failed))\
+                return Transmission.query\
+                    .filter_by(network_id=self.id, status=status, failed=failed)\
                     .all()
 
-    def transformations(self, type=None, node_failed=False):
+    def transformations(self, type=None, failed=False):
         """
         Get transformations in the network.
 
-        type specifies the type of transformation (defaults to Transformation).
-        only transformations at nodes with a failed of node_failed will be returned.
-        node_failed can be "all", False (default) or True.
-        To get transformations from a specific node see the transformations() method in class Node.
+        type specifies the type of transformation (default = Transformation).
+        failed = { False, True, "all" }
+
+        To get transformations from a specific node,
+        see Node.transformations().
         """
         if type is None:
             type = Transformation
 
-        if node_failed not in ["all", True, False]:
-            raise ValueError("{} is not a valid origin failed".format(node_failed))
+        if failed not in ["all", True, False]:
+            raise ValueError("{} is not a valid failed".format(failed))
 
-        if node_failed == "all":
+        if failed == "all":
             return type.query\
                 .filter_by(network_id=self.id)\
                 .all()
         else:
-            return type.query.join(type.node)\
-                .filter(and_(type.network_id == self.id, Node.failed == node_failed))\
+            return type.query\
+                .filter_by(network_id=self.id, failed=failed)\
                 .all()
 
-    def latest_transmission_recipient(self, failed=False):
+    def latest_transmission_recipient(self):
         """
-        Get the node of the given failed that most recently received a transmission.
-
-        Failed can be "all", False (default) or True.
+        Get the node that most recently received a transmission.
         """
 
         from operator import attrgetter
 
-        if failed == "all":
-            ts = Transmission.query\
-                .filter(and_(Transmission.status == "received", Transmission.network_id == self.id))\
-                .all()
-        else:
-            ts = Transmission.query\
-                .join(Transmission.destination)\
-                .filter(and_(Transmission.status == "received", Transmission.network_id == self.id, Node.failed == failed))\
-                .all()
+        ts = Transmission.query\
+            .filter_by(status="received", network_id=self.id, failed=False)\
+            .all()
+
         if ts:
             t = max(ts, key=attrgetter('receive_time'))
             return t.destination
@@ -253,9 +246,10 @@ class Network(Base):
         """
         Get vectors in the network.
 
-        Failed can be "all", False (default) or True. To get the
-        vectors attached to a specific node, see Node.vectors().
+        failed = { False, True, "all" }
+        To get the vectors to/from to a specific node, see Node.vectors().
         """
+
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid vector failed".format(failed))
 
@@ -265,28 +259,12 @@ class Network(Base):
                 .all()
         else:
             return Vector.query\
-                .filter(and_(Vector.network_id == self.id, Vector.failed == failed))\
+                .filter_by(network_id=self.id, failed=failed)\
                 .all()
 
     """ ###################################
     Methods that make Networks do things
     ################################### """
-
-    def add(self, base):
-        """
-        Add a node to the network.
-
-        Only Nodes can be added to a network.
-        """
-        if isinstance(base, list):
-            for b in base:
-                self.add(b)
-        elif isinstance(base, Node):
-            base.network = self
-            self.calculate_full()
-        else:
-            raise(TypeError("Cannot add {} to the network as it is a {}. " +
-                            "Only Nodes can be added to networks.").format(base, type(base)))
 
     def calculate_full(self):
         """Set whether the network is full."""
@@ -303,15 +281,15 @@ class Network(Base):
             print v
 
         print "\nInfos: "
-        for i in (self.infos(origin_failed="all")):
+        for i in (self.infos(failed="all")):
             print i
 
         print "\nTransmissions: "
-        for t in (self.transmissions(vector_failed="all")):
+        for t in (self.transmissions(failed="all")):
             print t
 
         print "\nTransformations: "
-        for t in (self.transformations(node_failed="all")):
+        for t in (self.transformations(failed="all")):
             print t
 
 
@@ -360,16 +338,31 @@ class Node(Base):
         """The string representation of a node."""
         return "Node-{}-{}".format(self.id, self.type)
 
+    def __json__(self):
+        return {
+            "id": self.id,
+            "type": self.type,
+            "network_id": self.network_id,
+            "creation_time": self.creation_time,
+            "time_of_death": self.time_of_death,
+            "failed": self.failed,
+            "participant_id": self.participant_id,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
+
     """ ###################################
     Methods that get things about a node
     ################################### """
 
-    def vectors(self, direction="all", failed=False):
+    def vectors(self, direction="all"):
         """
         Get vectors that connect at this node.
 
         Direction can be "incoming", "outgoing" or "all" (default).
-        Failed can be "all", False (default) or True.
         """
 
         # check direction
@@ -378,58 +371,30 @@ class Node(Base):
                 "{} is not a valid vector direction. "
                 "Must be all, incoming or outgoing.".format(direction))
 
-        # check failed
-        if failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid vector failed".format(failed))
-
         # get the vectors
         if direction == "all":
-
-            if failed == "all":
-                return Vector.query\
-                    .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id))\
-                    .all()
-            else:
-                return Vector.query\
-                    .filter(and_(Vector.failed == failed, or_(Vector.destination_id == self.id,
-                                 Vector.origin_id == self.id)))\
-                    .all()
+            return Vector.query\
+                .filter(and_(Vector.failed == False,
+                        or_(Vector.destination_id == self.id,
+                            Vector.origin_id == self.id)))\
+                .all()
 
         if direction == "incoming":
-
-            if failed == "all":
-                return Vector.query\
-                    .filter_by(destination_id=self.id)\
-                    .all()
-            else:
-                return Vector.query\
-                    .filter_by(destination_id=self.id, failed=failed)\
-                    .all()
+            return Vector.query\
+                .filter_by(destination_id=self.id, failed=False)\
+                .all()
 
         if direction == "outgoing":
+            return Vector.query\
+                .filter_by(origin_id=self.id, failed=False)\
+                .all()
 
-            if failed == "all":
-                return Vector.query\
-                    .filter_by(origin_id=self.id)\
-                    .all()
-            else:
-                return Vector.query\
-                    .filter_by(origin_id=self.id, failed=failed)\
-                    .all()
-
-    def neighbors(self, type=None, failed=False, vector_failed=False, connection="to"):
+    def neighbors(self, type=None, connection="to"):
         """
         Get a node's neighbors - nodes that are directly connected to it.
 
-        This is acheived by calling the node's vectors() method and then
-        getting all the nodes at the other end of the vectors.
-
         Type specifies the class of neighbour and must be a subclass of
         Node (default is Node).
-        Failed is the status of the neighbour nodes and can be "all",
-        False (default) or True.
-        Vector_failed is the status of the connecting vectors and can be
-        "all", False (default) or True.
         Connection is the direction of the connections and can be "to"
         (default), "from", "either", or "both".
         """
@@ -437,55 +402,51 @@ class Node(Base):
         if type is None:
             type = Node
         if not issubclass(type, Node):
-            raise ValueError("{} is not a valid neighbor type, needs to be a subclass of Node.".format(type))
-
-        # get failed
-        if failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid failed".format(failed))
-
-        # get vector_failed
-        if vector_failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid vector_failed".format(failed))
+            raise ValueError("{} is not a valid neighbor type, \
+                    needs to be a subclass of Node.".format(type))
 
         # get connection
         if connection not in ["both", "either", "from", "to"]:
-            raise ValueError("{} not a valid neighbor connection. Should be both, either, to or from.".format(connection))
+            raise ValueError("{} not a valid neighbor connection. \
+                Should be both, either, to or from.".format(connection))
 
-        # convert failed to a list, this makes the next bit easier
-        if failed == "all":
-            failed = [True, False]
-        else:
-            failed = [failed]
-
+        neighbors = []
         # get the neighbours
         if connection == "to":
-            neighbors = [v.destination for v in self.vectors(direction="outgoing", failed=vector_failed)
-                         if isinstance(v.destination, type) and v.destination.failed in failed]
+            outgoing_vectors = Vector.query\
+                .with_entities(Vector.destination_id)\
+                .filter_by(origin_id=self.id, failed=False).all()
+
+            neighbor_ids = [v.destination_id for v in outgoing_vectors]
+            if neighbor_ids:
+                neighbors = Node.query.filter(Node.id.in_(neighbor_ids)).all()
+                neighbors = [n for n in neighbors if isinstance(n, type)]
 
         if connection == "from":
-            neighbors = [v.origin for v in self.vectors(direction="incoming", failed=vector_failed)
-                         if isinstance(v.origin, type) and v.origin.failed in failed]
+            incoming_vectors = Vector.query.with_entities(Vector.origin_id)\
+                .filter_by(destination_id=self.id, failed=False).all()
+
+            neighbor_ids = [v.origin_id for v in incoming_vectors]
+            if neighbor_ids:
+                neighbors = Node.query.filter(Node.id.in_(neighbor_ids)).all()
+                neighbors = [n for n in neighbors if isinstance(n, type)]
 
         if connection == "either":
-            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=vector_failed)
-                                  if isinstance(v.destination, type) and v.destination.failed == failed] +
-                                 [v.origin for v in self.vectors(direction="incoming", failed=vector_failed)
-                                  if isinstance(v.origin, type) and v.origin.failed in failed]))
+            neighbors = list(set(self.neighbors(type=type, connection="to") +
+                                 self.neighbors(type=type, connection="from")))
 
         if connection == "both":
-            neighbors = list(set([v.destination for v in self.vectors(direction="outgoing", failed=vector_failed)
-                                  if isinstance(v.desintation, type) and v.destination.failed in failed])
-                             & set([v.origin for v in self.vectors(direction="incoming", failed=vector_failed)
-                                    if isinstance(v.origin, type) and v.origin.failed in failed]))
+            neighbors = list(set(self.neighbors(type=type, connection="to")) &
+                             set(self.neighbors(type=type, connection="from")))
+
         return neighbors
 
-    def is_connected(self, whom, direction="to", vector_failed=False):
+    def is_connected(self, whom, direction="to"):
         """
         Check whether this node is connected [to/from] whom.
 
         whom can be a list of nodes or a single node.
         direction can be "to" (default), "from", "both" or "either".
-        failed can be "all", False (default) or True.
 
         If whom is a single node this method returns a boolean,
         otherwise it returns a list of booleans
@@ -506,60 +467,47 @@ class Node(Base):
                 raise TypeError("is_connected cannot parse objects of type {}."
                                 .format(type(node)))
 
-        # check vector_failed
-        if vector_failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid connection failed".format(vector_failed))
-
         # check direction
         if direction not in ["to", "from", "either", "both"]:
-            raise ValueError("{} is not a valid direction for is_connected".format(direction))
+            raise ValueError("{} is not a valid direction for is_connected"
+                             .format(direction))
 
         # get is_connected
         connected = []
         if direction == "to":
-            if vector_failed == "all":
-                vectors = Vector.query.with_entities(Vector.destination_id)\
-                    .filter_by(origin_id=self.id).all()
-            else:
-                vectors = Vector.query.with_entities(Vector.destination_id)\
-                    .filter_by(origin_id=self.id, failed=vector_failed).all()
+            vectors = Vector.query.with_entities(Vector.destination_id)\
+                .filter_by(origin_id=self.id, failed=False).all()
             destinations = set([v.destination_id for v in vectors])
             for w in whom_ids:
                 connected.append(w in destinations)
 
         elif direction == "from":
-            if vector_failed == "all":
-                vectors = Vector.query.with_entities(Vector.origin_id)\
-                    .filter_by(destination_id=self.id).all()
-            else:
-                vectors = Vector.query.with_entities(Vector.origin_id)\
-                    .filter_by(destination_id=self.id, failed=vector_failed).all()
+            vectors = Vector.query.with_entities(Vector.origin_id)\
+                .filter_by(destination_id=self.id, failed=False).all()
             origins = set([v.origin_id for v in vectors])
             for w in whom_ids:
                 connected.append(w in origins)
 
         elif direction == "either":
-            if vector_failed == "all":
-                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                    .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
-            else:
-                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                    .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id),
-                                 Vector.failed == vector_failed)).all()
+            vectors = Vector.query\
+                .with_entities(Vector.origin_id, Vector.destination_id)\
+                .filter(and_(Vector.failed == False,
+                             or_(Vector.destination_id == self.id,
+                                 Vector.origin_id == self.id))).all()
+
             origins_or_destinations = (set([v.destination_id for v in vectors]) |
                                        set([v.origin_id for v in vectors]))
             for w in whom_ids:
                 connected.append(w in origins_or_destinations)
 
         elif direction == "both":
-            if vector_failed == "all":
-                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                    .filter(or_(Vector.destination_id == self.id, Vector.origin_id == self.id)).all()
-            else:
-                vectors = Vector.query.with_entities(Vector.origin_id, Vector.destination_id)\
-                    .filter(and_(or_(Vector.destination_id == self.id, Vector.origin_id == self.id),
-                                 Vector.failed == vector_failed)).all()
-            origins_and_destinations = (set([v.destination_id for v in vectors]) +
+            vectors = Vector.query\
+                .with_entities(Vector.origin_id, Vector.destination_id)\
+                .filter(and_(Vector.failed == False,
+                             or_(Vector.destination_id == self.id,
+                                 Vector.origin_id == self.id))).all()
+
+            origins_and_destinations = (set([v.destination_id for v in vectors]) &
                                         set([v.origin_id for v in vectors]))
             for w in whom_ids:
                 connected.append(w in origins_and_destinations)
@@ -578,12 +526,32 @@ class Node(Base):
             type = Info
 
         if not issubclass(type, Info):
-            raise(TypeError("Cannot get-info of type {} as it is not a valid type.".format(type)))
+            raise(TypeError("Cannot get-info of type {} as it is not a valid type."
+                            .format(type)))
 
         return type\
             .query\
-            .filter_by(origin_id=self.id)\
+            .filter_by(origin_id=self.id, failed=False)\
             .all()
+
+    def received_infos(self, type=None):
+        """
+        Get infos that have been sent to this node.
+        Type must be a subclass of info, the default is Info.
+        """
+        if type is None:
+            type = Info
+
+        if not issubclass(type, Info):
+            raise(TypeError("Cannot get infos of type {} as it is not a valid type."
+                            .format(type)))
+
+        transmissions = Transmission\
+            .query.with_entities(Transmission.info_id)\
+            .filter_by(destination_id=self.id, status="received", failed=False).all()
+
+        info_ids = [t.info_id for t in transmissions]
+        return type.query.filter(type.id.in_(info_ids)).all()
 
     def transmissions(self, direction="outgoing", status="all"):
         """
@@ -592,39 +560,53 @@ class Node(Base):
         Direction can be "all", "incoming" or "outgoing" (default).
         Status can be "all" (default), "pending", or "received".
         """
+        #check parameters
         if direction not in ["incoming", "outgoing", "all"]:
-            raise(ValueError("You cannot get transmissions of direction {}.".format(direction) +
+            raise(ValueError("You cannot get transmissions of direction {}."
+                             .format(direction) +
                   "Type can only be incoming, outgoing or all."))
 
         if status not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of status {}.".format(status) +
+            raise(ValueError("You cannot get transmission of status {}."
+                             .format(status) +
                   "Status can only be pending, received or all"))
 
+        # get transmissions
         if direction == "all":
             if status == "all":
                 return Transmission.query\
-                    .filter(or_(Transmission.destination_id == self.id, Transmission.origin_id == self.id))\
+                    .filter(and_(Transmission.failed == False,
+                                 or_(Transmission.destination_id == self.id,
+                                     Transmission.origin_id == self.id)))\
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.status == status, or_(Transmission.destination_id == self.id, Transmission.origin_id == self.id)))\
+                    .filter(and_(Transmission.failed == False,
+                                 Transmission.status == status,
+                                 or_(Transmission.destination_id == self.id,
+                                     Transmission.origin_id == self.id)))\
                     .all()
         if direction == "incoming":
             if status == "all":
-                return Transmission.query.filter_by(destination_id=self.id)\
+                return Transmission.query\
+                    .filter_by(failed=False, destination_id=self.id)\
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.destination_id == self.id, Transmission.status == status))\
+                    .filter(and_(Transmission.failed == False,
+                                 Transmission.destination_id == self.id,
+                                 Transmission.status == status))\
                     .all()
         if direction == "outgoing":
             if status == "all":
                 return Transmission.query\
-                    .filter_by(origin_id=self.id)\
+                    .filter_by(failed=False, origin_id=self.id)\
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.origin_id == self.id, Transmission.status == status))\
+                    .filter(and_(Transmission.failed == False,
+                                 Transmission.origin_id == self.id,
+                                 Transmission.status == status))\
                     .all()
 
     def transformations(self, type=None):
@@ -637,14 +619,14 @@ class Node(Base):
             type = Transformation
         return type\
             .query\
-            .filter_by(node_id=self.id)\
+            .filter_by(node_id=self.id, failed=False)\
             .all()
 
     """ ###################################
     Methods that make nodes do things
     ################################### """
 
-    def fail(self, vectors=True, infos=False, transmissions=False, transformations=False):
+    def fail(self, vectors=True, infos=True, transmissions=True, transformations=True):
         """
         Fail a node, setting its status to "failed".
 
@@ -667,7 +649,7 @@ class Node(Base):
                 for i in self.infos():
                     i.fail()
             if transmissions:
-                for t in self.transmissions():
+                for t in self.transmissions(direction="all"):
                     t.fail()
             if transformations:
                 for t in self.transformations():
@@ -694,7 +676,8 @@ class Node(Base):
 
         # check self is not failed
         if self.failed:
-            raise ValueError("{} cannot connect to other nodes as it has failed.".format(self))
+            raise ValueError("{} cannot connect to other nodes as it has failed."
+                             .format(self))
 
         # check direction
         if direction not in ["to", "from", "both"]:
@@ -729,14 +712,16 @@ class Node(Base):
             already_connected_to = self.flatten([self.is_connected(direction="to", whom=whom)])
             for node, connected in zip(whom, already_connected_to):
                 if connected:
-                    print("Warning! {} already connected to {}, instruction to connect will be ignored.".format(self, node))
+                    print("Warning! {} already connected to {}, instruction to connect will be ignored."
+                          .format(self, node))
                 else:
                     new_vectors.append(Vector(origin=self, destination=node))
         if direction in ["from", "both"]:
             already_connected_from = self.flatten([self.is_connected(direction="from", whom=whom)])
             for node, connected in zip(whom, already_connected_from):
                 if connected:
-                    print("Warning! {} already connected from {}, instruction to connect will be ignored.".format(self, node))
+                    print("Warning! {} already connected from {}, instruction to connect will be ignored."
+                          .format(self, node))
                 else:
                     new_vectors.append(Vector(origin=node, destination=self))
         return new_vectors
@@ -767,6 +752,11 @@ class Node(Base):
             (2) what is/contains an info that does not originate from the transmitting node
             (3) to_whom is/contains a node that the transmitting node does have have a live connection with.
         """
+
+        # check self is not failed
+        if self.failed:
+            raise ValueError("{} cannot transmit as it has failed.".format(self))
+
         # make the list of what
         what = self.flatten([what])
         for i in range(len(what)):
@@ -779,7 +769,8 @@ class Node(Base):
             if isinstance(what[i], Info):
                 pass
             elif what[i] is None:
-                raise ValueError("The _what() of {} is returning None: {}.".format(self, self._what()))
+                raise ValueError("The _what() of {} is returning None: {}."
+                                 .format(self, self._what()))
             elif inspect.isclass(what[i]) and issubclass(what[i], Info):
                 what[i] = self.infos(type=what[i])
             else:
@@ -798,7 +789,8 @@ class Node(Base):
             if isinstance(to_whom[i], Node):
                 pass
             elif to_whom[i] is None:
-                raise ValueError("The _to_whom() of {} is returning None: {}.".format(self, self._to_whom()))
+                raise ValueError("The _to_whom() of {} is returning None: {}."
+                                 .format(self, self._to_whom()))
             elif inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
                 to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
             else:
@@ -808,11 +800,14 @@ class Node(Base):
         transmissions = []
         for w in what:
             if w.origin_id != self.id:
-                raise ValueError("{} cannot transmit {} as it is not its origin".format(self, w))
+                raise ValueError("{} cannot transmit {} as it is not its origin"
+                                 .format(self, w))
             for tw in to_whom:
                 if not self.is_connected(whom=tw):
-                    raise ValueError("{} cannot transmit to {} as it does not have a connection to them".format(self, tw))
-                vector = [v for v in self.vectors(direction="outgoing") if v.destination_id == tw.id][0]
+                    raise ValueError("{} cannot transmit to {} as it does not have \
+                                      a connection to them".format(self, tw))
+                vector = [v for v in self.vectors(direction="outgoing")
+                          if v.destination_id == tw.id][0]
                 t = Transmission(info=w, vector=vector)
                 transmissions.append(t)
         if len(transmissions) == 1:
@@ -835,6 +830,11 @@ class Node(Base):
             (2) a specific transmission.
         Will raise an error if the node is told to receive a transmission it has not been sent.
         """
+
+        # check self is not failed
+        if self.failed:
+            raise ValueError("{} cannot receive as it has failed.".format(self))
+
         received_transmissions = []
         if what is None:
             pending_transmissions = self.transmissions(direction="incoming", status="pending")
@@ -849,7 +849,8 @@ class Node(Base):
                 what.receive_time = timenow()
                 received_transmissions.append(what)
             else:
-                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions".format(self, what)))
+                raise(ValueError("{} cannot receive {} as it is not in its pending_transmissions"
+                                 .format(self, what)))
         else:
             raise ValueError("Nodes cannot receive {}".format(what))
 
@@ -860,14 +861,24 @@ class Node(Base):
         Update controls the default behavior of a node when it receives infos.
         By default it does nothing.
         """
-        pass
+        # check self is not failed
+        if self.failed:
+            raise ValueError("{} cannot update as it has failed.".format(self))
 
     def replicate(self, info_in):
+        # check self is not failed
+        if self.failed:
+            raise ValueError("{} cannot replicate as it has failed.".format(self))
+
         from transformations import Replication
         info_out = type(info_in)(origin=self, contents=info_in.contents)
         Replication(info_in=info_in, info_out=info_out)
 
     def mutate(self, info_in):
+        # check self is not failed
+        if self.failed:
+            raise ValueError("{} cannot mutate as it has failed.".format(self))
+
         from transformations import Mutation
         info_out = type(info_in)(origin=self, contents=info_in._mutated_contents())
         Mutation(info_in=info_in, info_out=info_out)
@@ -934,6 +945,23 @@ class Vector(Base):
         return "Vector-{}-{}".format(
             self.origin_id, self.destination_id)
 
+    def __json__(self):
+        return {
+            "id": self.id,
+            "origin_id": self.origin_id,
+            "destination_id": self.destination_id,
+            "info_id": self.info_id,
+            "network_id": self.network_id,
+            "creation_time": self.creation_time,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
+
     ###################################
     # Methods that get things about a Vector
     ###################################
@@ -951,12 +979,15 @@ class Vector(Base):
         if status == "all":
             return Transmission\
                 .query\
-                .filter_by(vector_id=self.id)\
+                .filter_by(vector_id=self.id,
+                           failed=False)\
                 .all()
         else:
             return Transmission\
                 .query\
-                .filter_by(vector_id=self.id, status=status)\
+                .filter_by(vector_id=self.id,
+                           status=status,
+                           failed=False)\
                 .all()
 
     ###################################
@@ -998,6 +1029,12 @@ class Info(Base):
     # the time when the info was created
     creation_time = Column(DateTime, nullable=False, default=timenow)
 
+    # whether the info has failed
+    failed = Column(Boolean, nullable=False, default=False, index=True)
+
+    # the time when the info failed
+    time_of_death = Column(DateTime, default=None)
+
     # the contents of the info
     contents = Column(Text(), default=None)
 
@@ -1027,6 +1064,30 @@ class Info(Base):
         """The string representation of an info."""
         return "Info-{}-{}".format(self.id, self.type)
 
+    def __json__(self):
+        return {
+            "id": self.id,
+            "type": self.type,
+            "origin_id": self.origin_id,
+            "network_id": self.network_id,
+            "creation_time": self.creation_time,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
+            "contents": self.contents,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
+
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
+
     def transmissions(self, status="all"):
         if status not in ["all", "pending", "received"]:
             raise(ValueError("You cannot get transmission of status {}.".format(status) +
@@ -1034,39 +1095,48 @@ class Info(Base):
         if status == "all":
             return Transmission\
                 .query\
-                .filter_by(info_id=self.id)\
+                .filter_by(info_id=self.id,
+                           failed=False)\
                 .all()
         else:
             return Transmission\
                 .query\
-                .filter(and_(Transmission.info_id == self.id, Transmission.status == status))\
+                .filterby(info_id=self.id,
+                          status=status,
+                          failed=False)\
                 .all()
 
     def transformations(self, relationship="all"):
         if relationship not in ["all", "parent", "child"]:
-            raise(ValueError("You cannot get transformations of relationship {}".format(relationship) +
+            raise(ValueError("You cannot get transformations of relationship {}"
+                             .format(relationship) +
                   "Relationship can only be parent, child or all."))
 
         if relationship == "all":
             return Transformation\
                 .query\
-                .filter(or_(Transformation.info_in == self, Transformation.info_out == self))\
+                .filter(and_(Transformation.failed == False,
+                             or_(Transformation.info_in == self,
+                                 Transformation.info_out == self)))\
                 .all()
 
         if relationship == "parent":
             return Transformation\
                 .query\
-                .filter_by(info_in_id=self.id)\
+                .filter_by(info_in_id=self.id,
+                           failed=False)\
                 .all()
 
         if relationship == "child":
             return Transformation\
                 .query\
-                .filter_by(info_out_id=self.id)\
+                .filter_by(info_out_id=self.id,
+                           failed=False)\
                 .all()
 
     def _mutated_contents(self):
-        raise NotImplementedError("_mutated_contents needs to be overwritten in class {}".format(type(self)))
+        raise NotImplementedError("_mutated_contents needs to be overwritten in class {}"
+                                  .format(type(self)))
 
 
 class Transmission(Base):
@@ -1107,6 +1177,12 @@ class Transmission(Base):
     # the time at which the transmission was received
     receive_time = Column(DateTime, default=None)
 
+    # whether the transmission has failed
+    failed = Column(Boolean, nullable=False, default=False, index=True)
+
+    # the time when the transmission failed
+    time_of_death = Column(DateTime, default=None)
+
     # the status of the transmission, can be pending or received
     status = Column(Enum("pending", "received", name="transmission_status"),
                     nullable=False, default="pending", index=True)
@@ -1139,6 +1215,34 @@ class Transmission(Base):
     def __repr__(self):
         """The string representation of a transmission."""
         return "Transmission-{}".format(self.id)
+
+    def __json__(self):
+        return {
+            "id": self.id,
+            "vector_id": self.vector_id,
+            "origin_id": self.origin_id,
+            "destination_id": self.destination_id,
+            "info_id": self.info_id,
+            "network_id": self.network_id,
+            "creation_time": self.creation_time,
+            "receive_time": self.receive_time,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
+            "status": self.status,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
+
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError("Cannot fail {} - it has already failed."
+                                 .format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
 
 
 class Transformation(Base):
@@ -1178,6 +1282,12 @@ class Transformation(Base):
     # the time at which the transformation occurred
     creation_time = Column(DateTime, nullable=False, default=timenow)
 
+    # whether the transformation has failed
+    failed = Column(Boolean, nullable=False, default=False, index=True)
+
+    # the time when the transformation failed
+    time_of_death = Column(DateTime, default=None)
+
     # unused by default, these columns store additional properties used
     # by other types of transformation
     property1 = Column(String(26), default=None)
@@ -1201,17 +1311,46 @@ class Transformation(Base):
         self.node_id = info_out.origin_id
         self.network_id = info_out.network_id
 
+    def __json__(self):
+        return {
+            "id": self.id,
+            "info_in_id": self.info_in_id,
+            "info_out_id": self.info_out_id,
+            "node_id": self.node_id,
+            "network_id": self.network_id,
+            "creation_time": self.creation_time,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
+
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
+
     def check_for_transformation(self, info_in, info_out):
         # check the infos are Infos.
         if not isinstance(info_in, Info):
-            raise TypeError("{} cannot be transformed as it is a {}".format(info_in, type(info_in)))
+            raise TypeError("{} cannot be transformed as it is a {}"
+                            .format(info_in, type(info_in)))
         if not isinstance(info_out, Info):
-            raise TypeError("{} cannot be transformed as it is a {}".format(info_out, type(info_out)))
+            raise TypeError("{} cannot be transformed as it is a {}"
+                            .format(info_out, type(info_out)))
 
         node = info_out.origin
         # check the info_in is from the node or has been sent to the node
-        if not ((info_in.origin != node) or (info_in not in [t.info for t in node.transmissions(direction="incoming", status="received")])):
-            raise ValueError("{} cannot transform {} as it has not been sent it or made it.".format(node, info_in))
+        if not ((info_in.origin_id != node.id) or
+                (info_in.id not in
+                 [t.info_id for t in node.transmissions(direction="incoming", status="received")])):
+            raise ValueError("{} cannot transform {} as it has not been sent it or made it."
+                             .format(node, info_in))
 
 
 class Notification(Base):

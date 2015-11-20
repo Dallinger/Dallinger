@@ -138,49 +138,33 @@ class TestModels(object):
         # test Network.infos()
 
         from wallace.information import Gene
-        assert len(net.infos(origin_failed="all")) == 10
-        assert len(net.infos(type=models.Info, origin_failed="all")) == 10
-        assert len(net.infos(type=Gene, origin_failed="all")) == 5
+        assert len(net.infos(failed="all")) == 10
+        assert len(net.infos(type=models.Info, failed="all")) == 10
+        assert len(net.infos(type=Gene, failed="all")) == 5
 
         assert len(net.infos()) in [5, 6, 7, 8, 9, 10]
-        assert len(net.infos(origin_failed=False)) in [5, 6, 7, 8, 9, 10]
+        assert len(net.infos(failed=False)) in [5, 6, 7, 8, 9, 10]
         assert len(net.infos(type=Gene)) in [5, 4, 3, 2, 1, 0]
-        assert len(net.infos(origin_failed=True)) in [0, 1, 2, 3, 4, 5]
+        assert len(net.infos(failed=True)) in [0, 1, 2, 3, 4, 5]
 
         # test Network.transmissions()
 
-        assert len(net.transmissions(vector_failed="all")) == 5
-        assert len(net.transmissions(status="pending", vector_failed="all")) == 3
-        assert len(net.transmissions(status="received", vector_failed="all")) == 2
-        assert len(net.transmissions(vector_failed=True)) in [0, 1, 2, 3, 4, 5]
-        assert len(net.transmissions(vector_failed=False)) in [0, 1, 2, 3, 4, 5]
-        assert len(net.transmissions(vector_failed=True)) + len(net.transmissions(vector_failed=False)) == 5
+        assert len(net.transmissions(failed="all")) == 5
+        assert len(net.transmissions(status="pending", failed="all")) == 3
+        assert len(net.transmissions(status="received", failed="all")) == 2
+        assert len(net.transmissions(failed=True)) in [0, 1, 2, 3, 4, 5]
+        assert len(net.transmissions(failed=False)) in [0, 1, 2, 3, 4, 5]
+        assert len(net.transmissions(failed=True)) + len(net.transmissions(failed=False)) == 5
 
         # test Network.transformations()
 
-        assert len(net.transformations(node_failed="all")) == 2
+        assert len(net.transformations(failed="all")) == 2
         from wallace import transformations
-        assert len(net.transformations(node_failed="all", type=transformations.Mutation)) == 0
-        assert len(net.transformations(node_failed="all", type=models.Transformation)) == 2
+        assert len(net.transformations(failed="all", type=transformations.Mutation)) == 0
+        assert len(net.transformations(failed="all", type=models.Transformation)) == 2
 
-        for t in net.transformations(node_failed="all"):
+        for t in net.transformations(failed="all"):
             assert type(t.node) == Agent
-
-        # test Network.latest_transmission_recipient()
-
-        agents = net.nodes(type=Agent, failed="all")
-        from operator import attrgetter
-        oldest_agent = min(agents, key=attrgetter('creation_time'))
-        other_agents = [a for a in agents if a != oldest_agent]
-        second_oldest_agent = min(other_agents, key=attrgetter('creation_time'))
-
-        assert net.latest_transmission_recipient(failed="all") == second_oldest_agent
-
-        if second_oldest_agent.failed:
-            if net.latest_transmission_recipient() is not None:
-                assert net.latest_transmission_recipient() != second_oldest_agent
-        else:
-            assert net.latest_transmission_recipient() == second_oldest_agent
 
         print("Testing models: Network... done!")
         sys.stdout.flush()
