@@ -65,9 +65,8 @@ var Bartlett1932Experiment = function() {
         ensureSameWorker();
 
         reqwest({
-            url: "/node",
+            url: "/node/" + uniqueId,
             method: 'post',
-            data: { participant_id: uniqueId },
             type: 'json',
             success: function (resp) {
                 my_node_id = resp.node.id;
@@ -87,9 +86,9 @@ var Bartlett1932Experiment = function() {
 
     getPendingTransmissions = function(my_node_id) {
         reqwest({
-            url: "/transmission",
+            url: "/node/" + my_node_id + "/transmissions",
             method: 'get',
-            data: { participant_id: uniqueId, node_id: my_node_id, status: "pending", direction: "incoming" },
+            data: { status: "pending", direction: "incoming" },
             type: 'json',
             success: function (resp) {
                 info_id = resp.transmissions[0].info_id;
@@ -105,9 +104,8 @@ var Bartlett1932Experiment = function() {
 
     getInfo = function(info_id) {
         reqwest({
-            url: "/info",
+            url: "/info/" + my_node_id + "/" + info_id,
             method: 'get',
-            data: { participant_id: uniqueId, node_id: my_node_id, info_id: info_id },
             type: 'json',
             success: function (resp) {
                 story = resp.info.contents;
@@ -144,11 +142,9 @@ var Bartlett1932Experiment = function() {
         $("#reproduction").val("");
 
         reqwest({
-            url: "/info",
+            url: "/info/" + my_node_id,
             method: 'post',
             data: {
-                participant_id: uniqueId,
-                node_id: my_node_id,
                 contents: response,
                 info_type: "Info"
             },
