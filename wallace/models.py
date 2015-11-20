@@ -68,8 +68,8 @@ class Network(Base):
 
     def __repr__(self):
         """The string representation of a network."""
-        return "<Network-{}-{} with {} nodes, {} vectors, {} infos, \
-                {} transmissions and {} transformations>".format(
+        return ("<Network-{}-{} with {} nodes, {} vectors, {} infos, "
+                "{} transmissions and {} transformations>").format(
             self.id,
             self.type,
             len(self.nodes()),
