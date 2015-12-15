@@ -551,7 +551,10 @@ class Node(Base):
             .filter_by(destination_id=self.id, status="received", failed=False).all()
 
         info_ids = [t.info_id for t in transmissions]
-        return type.query.filter(type.id.in_(info_ids)).all()
+        if info_ids:
+            return type.query.filter(type.id.in_(info_ids)).all()
+        else:
+            return []
 
     def transmissions(self, direction="outgoing", status="all"):
         """
