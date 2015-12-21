@@ -18,7 +18,7 @@ from operator import attrgetter
 import datetime
 from json import dumps
 
-from rq import Queue
+from rq import Queue, get_current_job
 from worker import conn
 
 from sqlalchemy import and_, exc
@@ -937,7 +937,11 @@ def api_notifications():
     assignment_id = request.values['Event.1.AssignmentId']
 
     # Add the notification to the queue.
+    db.logger.debug('rq: Queueing %s with id: %s for worker_function',
+                    event_type, assignment_id)
     q.enqueue(worker_function, event_type, assignment_id, None)
+    db.logger.debug('rq: Submitted Queue Length: %d (%s)', len(q),
+                    ', '.join(q.job_ids))
 
     return Response(
         dumps({"status": "success"}),
@@ -955,6 +959,10 @@ def check_for_duplicate_assignments(participant):
 @db.scoped_session_decorator
 def worker_function(event_type, assignment_id, participant_id):
     """Process the notification."""
+    db.logger.debug("rq: worker_function working on job id: %s", get_current_job().id)
+    db.logger.debug('rq: Received Queue Length: %d (%s)', len(q),
+                    ', '.join(q.job_ids))
+
     exp = experiment(session)
     key = "-----"
 
