@@ -1,0 +1,23 @@
+version 1.0
+@totalColumns 17
+/*
+Schema for Wallace's participant table.
+http://cocosci.berkeley.edu/wallace
+*/
+uniqueid:
+assignmentid:
+workerid:
+hitid:
+ipaddress:
+browser:
+platform:
+language:
+cond:
+counterbalance:
+codeversion:
+beginhit:
+beginexp:
+endhit:
+bonus:
+status:
+datastring:

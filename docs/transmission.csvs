@@ -1,0 +1,22 @@
+version 1.0
+@totalColumns 16
+/*
+Schema for Wallace's transmission table.
+http://cocosci.berkeley.edu/wallace
+*/
+id: positiveInteger unique($id)
+vector_id: positiveInteger
+info_id: positiveInteger
+origin_id: positiveInteger
+destination_id: positiveInteger
+network_id: positiveInteger
+creation_time: xDateTime
+receive_time: xDateTime
+failed: is("true") or is("false")
+time_of_death: xDateTime
+status:
+property1:
+property2:
+property3:
+property4:
+property5:

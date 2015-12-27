@@ -1,0 +1,19 @@
+version 1.0
+@totalColumns 13
+/*
+Schema for Wallace's info table.
+http://cocosci.berkeley.edu/wallace
+*/
+id: positiveInteger unique($id)
+type: length(1,*)
+origin_id: positiveInteger
+network_id: positiveInteger
+creation_time: xDateTime
+failed: is("true") or is("false")
+time_of_death: xDateTime
+contents: length(1,*)
+property1:
+property2:
+property3:
+property4:
+property5:
