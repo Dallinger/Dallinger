@@ -1255,15 +1255,15 @@ class Transformation(Base):
 
     __tablename__ = "transformation"
 
+    # the unique transformation id
+    id = Column(Integer, primary_key=True, index=True)
+
     # the transformation type -- this allows for inheritance
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'base'
     }
-
-    # the unique transformation id
-    id = Column(Integer, primary_key=True, index=True)
 
     # the info before it was transformed
     info_in_id = Column(Integer, ForeignKey('info.id'), index=True)
