@@ -1,0 +1,10 @@
+version 1.0
+@totalColumns 4
+/*
+Schema for Wallace's notification table.
+http://cocosci.berkeley.edu/wallace
+*/
+id: positiveInteger unique($id)
+assignment_id: length(1,*)
+creation_time: xDateTime
+event_type: length(1,*)

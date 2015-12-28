@@ -1,0 +1,17 @@
+version 1.0
+@totalColumns 11
+/*
+Schema for Wallace's network table.
+http://cocosci.berkeley.edu/wallace
+*/
+id: positiveInteger unique($id)
+type: length(1,*)
+creation_time: xDateTime
+max_size: positiveInteger
+full: is("true") or is("false")
+role:
+property1:
+property2:
+property3:
+property4:
+property5:
