@@ -357,6 +357,8 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
                     str(dyno_type) + " --app " + id, stdout=OUT, shell=True)
     subprocess.call("heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
                     str(dyno_type) + " --app " + id, stdout=OUT, shell=True)
+    subprocess.call("heroku ps:scale clock=1:performance-m",
+                    stdout=OUT, shell=True)
     time.sleep(8)
 
     # Launch the experiment.
