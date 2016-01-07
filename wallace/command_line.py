@@ -136,7 +136,8 @@ def setup(debug=True, verbose=False):
         "Procfile",
         "requirements.txt",
         "psiturkapp.py",
-        "worker.py"
+        "worker.py",
+        "clock.py",
     ]
     for filename in heroku_files:
         src = os.path.join(
