@@ -56,10 +56,18 @@ def check_db_for_missing_notifications():
     }
     requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
 
-    username = os.getenv('wallace_email_username')
-    fromaddr = username + "@gmail.com"
-    email_password = os.getenv("wallace_email_key")
-    toaddr = config.get('HIT Configuration', 'contact_email_on_error')
+    try:
+        username = os.getenv('wallace_email_username')
+        print username
+        fromaddr = username + "@gmail.com"
+        print fromaddr
+        email_password = os.getenv("wallace_email_key")
+        print email_password[:5]
+        toaddr = config.get('HIT Configuration', 'contact_email_on_error')
+        print toaddr
+    except:
+        import traceback
+        traceback.print_exc()
 
     assignment_id = 5
     duration = 600
@@ -75,7 +83,7 @@ had failed to be correctly processed, the assignment had in fact been completed.
 I dealt with this myself and I can assure you there is no immediate cause for concern. \
 Nonetheless, for my own peace of mind, I would appreciate you taking the time to look into this matter \
 at your earliest convenience.\n\nMost sincerely yours,\Alfred\n\nP.S. Please do not respond to this message, \
-for I cannot read.".format(assignment_id, duration/60, p_time/60, (p_time/60-duration/60))
+for I cannot read.".format(datetime.timenow(), assignment_id, duration/60, p_time/60, (p_time/60-duration/60))
 
     server = smtplib.SMTP('smtp.gmail.com:587')
     server.starttls()
