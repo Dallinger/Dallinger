@@ -301,8 +301,6 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
         "heroku addons:create papertrail",
 
-        "heroku addons:create postmark:10k",
-
         "heroku config:set HOST=" +
         id + ".herokuapp.com",
 
