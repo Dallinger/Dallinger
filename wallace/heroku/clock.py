@@ -1,10 +1,19 @@
 """A clock process."""
 
 from apscheduler.schedulers.blocking import BlockingScheduler
-from wallace import db, models
+from wallace import db
+import os
 import imp
 import inspect
 from psiturk.models import Participant
+from datetime import datetime
+from psiturk.psiturk_config import PsiturkConfig
+from boto.mturk.connection import MTurkConnection
+import requests
+from postmark import PMMail
+
+config = PsiturkConfig()
+config.load_config()
 
 # Specify the experiment.
 try:
@@ -17,25 +26,80 @@ try:
     experiment = getattr(mod, this_experiment)
 except ImportError:
     print "Error: Could not import experiment."
-
 session = db.session
+
+aws_access_key_id = config.get('AWS Access', 'aws_access_key_id')
+aws_secret_access_key = config.get('AWS Access', 'aws_secret_access_key')
+conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
 
 scheduler = BlockingScheduler()
 
 
 @scheduler.scheduled_job('interval', minutes=0.25)
 def check_db_for_missing_notifications():
-    print("1")
+    # get all participants with status < 100
     participants = Participant.query.all()
-    print participants
-    print("2")
-    try:
-        nodes = models.Node.query.all()
-        print nodes
-    except:
-        print "something has gone wrong!"
-        import traceback
-        traceback.print_exc()
-    print("3")
+    participants = [p for p in participants if p.status < 100]
+    print "{} participants found".format(len(participants))
+
+    # get current time
+    current_time = datetime.now()
+    print "curren time is {}".format(current_time)
+
+    # get experiment duration in seconds
+    duration = float(config.get('HIT Configuration', 'duration'))*60*60
+    print "hit duration is {}".format(duration)
+
+    args = {
+        'Event.1.EventType': 'AssignmentAccepted',
+        'Event.1.AssignmentId': 5
+    }
+    requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
+
+    # for each participant, if current_time - start_time > duration + 5 mins
+    emergency = False
+    for p in participants:
+        if (current_time - p.beginhit).total_seconds > (duration + 300):
+            emergency = True
+            print "participant {} has been playing for too long and no notification has arrived - running emergency code".format(p)
+
+            # get their assignment
+            assignment_id = p.assignmentid
+
+            # ask amazon for the status of the assignment
+            assignment = conn.get_assignment(assignment_id)
+            status = assignment.Assignment.AssignmentStatus
+
+            if status in ["Submitted", "Approved", "Rejected"]:
+                # if it has been submitted then resend a submitted notification
+                args = {
+                    'Event.1.EventType': 'AssignmentSubmitted',
+                    'Event.1.AssignmentId': assignment_id
+                }
+                requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
+                # send the researcher an email to let them know
+                msg = PMMail(api_key=os.environ['POSTMARK_API_TOKEN'],
+                             subject="An issue of minor concern",
+                             sender="c.darwin@wallace.com",
+                             to=config.get('HIT Configuration', 'contact_email_on_error'),
+                             text_body="Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
+                                        perousal of the most charming participant data table, I happened to notice that assignment \
+                                        {} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
+                                        for what was an acceptable length of time for each assignement, however this assignment had been underway \
+                                        for a shocking {}, a full {} over your allowance. I immediately dispatched a \
+                                        telegram to our mutual friends at AWS and they were able to assure me that although the notification \
+                                        had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
+                                        I passed this message on to Wallace myself and he assured me there is no immediate cause for concern. \
+                                        Nonetheless, for my own peace of mind, I would appreciate you taking the time to consider this matter \
+                                        at your earliest convenience.\n\nMost sincerely yours,\nCharles",
+                             tag="wallace")
+                msg.send()
+            else:
+                # if it has not been submitted shut everything down
+                pass
+                # and send the researcher an email to let them know
+
+    if emergency is False:
+        print "No evidence of missing notifications :-)"
 
 scheduler.start()
