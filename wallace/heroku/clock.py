@@ -69,11 +69,13 @@ def check_db_for_missing_notifications():
         import traceback
         traceback.print_exc()
 
-    assignment_id = 5
-    duration = 600
-    p_time = 1200
+    try:
+        assignment_id = 5
+        print assignment_id
+        p_time = 5000
+        print p_time
 
-    msg = "My Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
+        msg = "My Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
 perousal of the most charming participant data table, I happened to notice that assignment \
 {} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
 for what was an acceptable length of time for each assignement, however this assignment had been underway \
@@ -83,13 +85,20 @@ had failed to be correctly processed, the assignment had in fact been completed.
 I dealt with this myself and I can assure you there is no immediate cause for concern. \
 Nonetheless, for my own peace of mind, I would appreciate you taking the time to look into this matter \
 at your earliest convenience.\n\nMost sincerely yours,\Alfred\n\nP.S. Please do not respond to this message, \
-for I cannot read.".format(datetime.timenow(), assignment_id, duration/60, p_time/60, (p_time/60-duration/60))
+for I cannot read.".format(datetime.now(), assignment_id, duration/60, p_time/60, (p_time-duration)/60)
+    except:
+        import traceback
+        traceback.print_exc()
 
-    server = smtplib.SMTP('smtp.gmail.com:587')
-    server.starttls()
-    server.login(username, email_password)
-    server.sendmail(fromaddr, toaddr, msg)
-    server.quit()
+    try:
+        server = smtplib.SMTP('smtp.gmail.com:587')
+        server.starttls()
+        server.login(username, email_password)
+        server.sendmail(fromaddr, toaddr, msg)
+        server.quit()
+    except:
+        import traceback
+        traceback.print_exc()
 
     # for each participant, if current_time - start_time > duration + 5 mins
     emergency = False
