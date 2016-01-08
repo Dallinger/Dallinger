@@ -10,7 +10,7 @@ from datetime import datetime
 from psiturk.psiturk_config import PsiturkConfig
 from boto.mturk.connection import MTurkConnection
 import requests
-from postmark import PMMail
+import smtplib
 
 config = PsiturkConfig()
 config.load_config()
@@ -54,6 +54,28 @@ def check_db_for_missing_notifications():
         'Event.1.EventType': 'AssignmentAccepted',
         'Event.1.AssignmentId': 5
     }
+    username = config.get('email Access', 'wallace_email_address')
+    fromaddr = username + "@gmail.com"
+    email_password = config.get('email Access', 'wallace_email_password')
+    toaddr = config.get('HIT Configuration', 'contact_email_on_error')
+
+    msg = "Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
+        perousal of the most charming participant data table, I happened to notice that assignment \
+        {} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
+        for what was an acceptable length of time for each assignement, however this assignment had been underway \
+        for a shocking {}, a full {} over your allowance. I immediately dispatched a \
+        telegram to our mutual friends at AWS and they were able to assure me that although the notification \
+        had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
+        I passed this message on to Wallace myself and he assured me there is no immediate cause for concern. \
+        Nonetheless, for my own peace of mind, I would appreciate you taking the time to consider this matter \
+        at your earliest convenience.\n\nMost sincerely yours,\nCharles\n\nP.S. Please do not respond to this message, \
+        for I cannot read."
+
+    server = smtplib.SMTP('smtp.gmail.com:587')
+    server.starttls()
+    server.login(username, email_password)
+    server.sendmail(fromaddr, toaddr, msg)
+    server.quit()
     requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
 
     # for each participant, if current_time - start_time > duration + 5 mins
@@ -78,22 +100,28 @@ def check_db_for_missing_notifications():
                 }
                 requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
                 # send the researcher an email to let them know
-                msg = PMMail(api_key=os.environ['POSTMARK_API_TOKEN'],
-                             subject="An issue of minor concern",
-                             sender="c.darwin@wallace.com",
-                             to=config.get('HIT Configuration', 'contact_email_on_error'),
-                             text_body="Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
-                                        perousal of the most charming participant data table, I happened to notice that assignment \
-                                        {} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
-                                        for what was an acceptable length of time for each assignement, however this assignment had been underway \
-                                        for a shocking {}, a full {} over your allowance. I immediately dispatched a \
-                                        telegram to our mutual friends at AWS and they were able to assure me that although the notification \
-                                        had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
-                                        I passed this message on to Wallace myself and he assured me there is no immediate cause for concern. \
-                                        Nonetheless, for my own peace of mind, I would appreciate you taking the time to consider this matter \
-                                        at your earliest convenience.\n\nMost sincerely yours,\nCharles",
-                             tag="wallace")
-                msg.send()
+                username = config.get('email Access', 'wallace_email_address')
+                fromaddr = username + "@gmail.com"
+                email_password = config.get('email Access', 'wallace_email_password')
+                toaddr = config.get('HIT Configuration', 'contact_email_on_error')
+
+                msg = "Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
+                    perousal of the most charming participant data table, I happened to notice that assignment \
+                    {} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
+                    for what was an acceptable length of time for each assignement, however this assignment had been underway \
+                    for a shocking {}, a full {} over your allowance. I immediately dispatched a \
+                    telegram to our mutual friends at AWS and they were able to assure me that although the notification \
+                    had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
+                    I passed this message on to Wallace myself and he assured me there is no immediate cause for concern. \
+                    Nonetheless, for my own peace of mind, I would appreciate you taking the time to consider this matter \
+                    at your earliest convenience.\n\nMost sincerely yours,\nCharles\n\nP.S. Please do not respond to this message, \
+                    for I cannot read."
+
+                server = smtplib.SMTP('smtp.gmail.com:587')
+                server.starttls()
+                server.login(username, email_password)
+                server.sendmail(fromaddr, toaddr, msg)
+                server.quit()
             else:
                 # if it has not been submitted shut everything down
                 pass
