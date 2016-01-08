@@ -321,6 +321,12 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
         "heroku config:set auto_recruit=" +
         config.get('Experiment Configuration', 'auto_recruit'),
+
+        "heroku config:set wallace_email_username=" +
+        config.get('email Access', 'wallace_email_address'),
+
+        "heroku config:set wallace_email_key=" +
+        config.get('email Access', 'wallace_email_password'),
     ]
     for cmd in cmds:
         subprocess.call(cmd + " --app " + id, stdout=OUT, shell=True)
