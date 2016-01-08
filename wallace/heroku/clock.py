@@ -11,6 +11,7 @@ from psiturk.psiturk_config import PsiturkConfig
 from boto.mturk.connection import MTurkConnection
 import requests
 import smtplib
+from email.mime.text import MIMEText
 
 config = PsiturkConfig()
 config.load_config()
@@ -75,17 +76,18 @@ def check_db_for_missing_notifications():
         p_time = 5000
         print p_time
 
-        msg = "My Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
+        msg = MIMEText("My Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
 perousal of the most charming participant data table, I happened to notice that assignment \
-{} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
+{} has been taking longer than we were expecting. I recall you had suggested {} minutes as an upper limit \
 for what was an acceptable length of time for each assignement, however this assignment had been underway \
-for a shocking {}, a full {} over your allowance. I immediately dispatched a \
+for a shocking {} minutes, a full {} minutes over your allowance. I immediately dispatched a \
 telegram to our mutual friends at AWS and they were able to assure me that although the notification \
 had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
 I dealt with this myself and I can assure you there is no immediate cause for concern. \
 Nonetheless, for my own peace of mind, I would appreciate you taking the time to look into this matter \
-at your earliest convenience.\n\nMost sincerely yours,\Alfred\n\nP.S. Please do not respond to this message, \
-for I cannot read.".format(datetime.now(), assignment_id, duration/60, p_time/60, (p_time-duration)/60)
+at your earliest convenience.\n\nMost sincerely yours,\nAlfred\n\nP.S. Please do not respond to this message, \
+for I cannot read.".format(datetime.now(), assignment_id, round(duration/60), round(p_time/60), round((p_time-duration)/60)))
+        msg['Subject'] = "A minor matter of concern."
     except:
         import traceback
         traceback.print_exc()
@@ -94,7 +96,7 @@ for I cannot read.".format(datetime.now(), assignment_id, duration/60, p_time/60
         server = smtplib.SMTP('smtp.gmail.com:587')
         server.starttls()
         server.login(username, email_password)
-        server.sendmail(fromaddr, toaddr, msg)
+        server.sendmail(fromaddr, toaddr, msg.as_string())
         server.quit()
     except:
         import traceback
