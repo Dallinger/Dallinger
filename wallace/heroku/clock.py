@@ -54,34 +54,40 @@ def check_db_for_missing_notifications():
         'Event.1.EventType': 'AssignmentAccepted',
         'Event.1.AssignmentId': 5
     }
-    username = config.get('email Access', 'wallace_email_address')
+    requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
+
+    username = os.getenv('wallace_email_username')
     fromaddr = username + "@gmail.com"
-    email_password = config.get('email Access', 'wallace_email_password')
+    email_password = os.getenv("wallace_email_key")
     toaddr = config.get('HIT Configuration', 'contact_email_on_error')
 
-    msg = "Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
-        perousal of the most charming participant data table, I happened to notice that assignment \
-        {} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
-        for what was an acceptable length of time for each assignement, however this assignment had been underway \
-        for a shocking {}, a full {} over your allowance. I immediately dispatched a \
-        telegram to our mutual friends at AWS and they were able to assure me that although the notification \
-        had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
-        I passed this message on to Wallace myself and he assured me there is no immediate cause for concern. \
-        Nonetheless, for my own peace of mind, I would appreciate you taking the time to consider this matter \
-        at your earliest convenience.\n\nMost sincerely yours,\nCharles\n\nP.S. Please do not respond to this message, \
-        for I cannot read."
+    assignment_id = 5
+    duration = 600
+    p_time = 1200
+
+    msg = "My Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
+perousal of the most charming participant data table, I happened to notice that assignment \
+{} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
+for what was an acceptable length of time for each assignement, however this assignment had been underway \
+for a shocking {}, a full {} over your allowance. I immediately dispatched a \
+telegram to our mutual friends at AWS and they were able to assure me that although the notification \
+had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
+I dealt with this myself and I can assure you there is no immediate cause for concern. \
+Nonetheless, for my own peace of mind, I would appreciate you taking the time to look into this matter \
+at your earliest convenience.\n\nMost sincerely yours,\Alfred\n\nP.S. Please do not respond to this message, \
+for I cannot read.".format(assignment_id, duration/60, p_time/60, (p_time/60-duration/60))
 
     server = smtplib.SMTP('smtp.gmail.com:587')
     server.starttls()
     server.login(username, email_password)
     server.sendmail(fromaddr, toaddr, msg)
     server.quit()
-    requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
 
     # for each participant, if current_time - start_time > duration + 5 mins
     emergency = False
     for p in participants:
-        if (current_time - p.beginhit).total_seconds > (duration + 300):
+        p_time = (current_time - p.beginhit).total_seconds
+        if p_time > (duration + 300):
             emergency = True
             print "participant {} has been playing for too long and no notification has arrived - running emergency code".format(p)
 
@@ -100,22 +106,22 @@ def check_db_for_missing_notifications():
                 }
                 requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
                 # send the researcher an email to let them know
-                username = config.get('email Access', 'wallace_email_address')
+                username = os.getenv('wallace_email_username')
                 fromaddr = username + "@gmail.com"
-                email_password = config.get('email Access', 'wallace_email_password')
+                email_password = os.getenv("wallace_email_key")
                 toaddr = config.get('HIT Configuration', 'contact_email_on_error')
 
-                msg = "Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
-                    perousal of the most charming participant data table, I happened to notice that assignment \
-                    {} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
-                    for what was an acceptable length of time for each assignement, however this assignment had been underway \
-                    for a shocking {}, a full {} over your allowance. I immediately dispatched a \
-                    telegram to our mutual friends at AWS and they were able to assure me that although the notification \
-                    had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
-                    I passed this message on to Wallace myself and he assured me there is no immediate cause for concern. \
-                    Nonetheless, for my own peace of mind, I would appreciate you taking the time to consider this matter \
-                    at your earliest convenience.\n\nMost sincerely yours,\nCharles\n\nP.S. Please do not respond to this message, \
-                    for I cannot read."
+                msg = "My Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
+perousal of the most charming participant data table, I happened to notice that assignment \
+{} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
+for what was an acceptable length of time for each assignement, however this assignment had been underway \
+for a shocking {}, a full {} over your allowance. I immediately dispatched a \
+telegram to our mutual friends at AWS and they were able to assure me that although the notification \
+had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
+I dealt with this myself and I can assure you there is no immediate cause for concern. \
+Nonetheless, for my own peace of mind, I would appreciate you taking the time to look into this matter \
+at your earliest convenience.\n\nMost sincerely yours,\Alfred\n\nP.S. Please do not respond to this message, \
+for I cannot read.".format(assignment_id, duration/60, p_time/60, (p_time/60-duration/60))
 
                 server = smtplib.SMTP('smtp.gmail.com:587')
                 server.starttls()
