@@ -45,62 +45,15 @@ def check_db_for_missing_notifications():
 
     # get current time
     current_time = datetime.now()
-    print "curren time is {}".format(current_time)
+    print "current time is {}".format(current_time)
 
     # get experiment duration in seconds
     duration = float(config.get('HIT Configuration', 'duration'))*60*60
     print "hit duration is {}".format(duration)
 
-    args = {
-        'Event.1.EventType': 'AssignmentAccepted',
-        'Event.1.AssignmentId': 5
-    }
-    requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
-
-    try:
-        username = os.getenv('wallace_email_username')
-        print username
-        fromaddr = username + "@gmail.com"
-        print fromaddr
-        email_password = os.getenv("wallace_email_key")
-        print email_password[:5]
-        toaddr = config.get('HIT Configuration', 'contact_email_on_error')
-        print toaddr
-    except:
-        import traceback
-        traceback.print_exc()
-
-    try:
-        assignment_id = 5
-        print assignment_id
-        p_time = 5000
-        print p_time
-
-        msg = MIMEText("My Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
-perousal of the most charming participant data table, I happened to notice that assignment \
-{} has been taking longer than we were expecting. I recall you had suggested {} minutes as an upper limit \
-for what was an acceptable length of time for each assignement, however this assignment had been underway \
-for a shocking {} minutes, a full {} minutes over your allowance. I immediately dispatched a \
-telegram to our mutual friends at AWS and they were able to assure me that although the notification \
-had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
-I dealt with this myself and I can assure you there is no immediate cause for concern. \
-Nonetheless, for my own peace of mind, I would appreciate you taking the time to look into this matter \
-at your earliest convenience.\n\nMost sincerely yours,\nAlfred\n\nP.S. Please do not respond to this message, \
-for I cannot read.".format(datetime.now(), assignment_id, round(duration/60), round(p_time/60), round((p_time-duration)/60)))
-        msg['Subject'] = "A minor matter of concern."
-    except:
-        import traceback
-        traceback.print_exc()
-
-    try:
-        server = smtplib.SMTP('smtp.gmail.com:587')
-        server.starttls()
-        server.login(username, email_password)
-        server.sendmail(fromaddr, toaddr, msg.as_string())
-        server.quit()
-    except:
-        import traceback
-        traceback.print_exc()
+    print "bhgkfbshkgf bsgkf bsgjk fbsh kg bfshjk gfhjks"
+    os.environ["auto_recruit"] = False
+    print "2574257429 y5742y5742 7546279 4567296 457296 754892"
 
     # for each participant, if current_time - start_time > duration + 5 mins
     emergency = False
@@ -130,22 +83,23 @@ for I cannot read.".format(datetime.now(), assignment_id, round(duration/60), ro
                 email_password = os.getenv("wallace_email_key")
                 toaddr = config.get('HIT Configuration', 'contact_email_on_error')
 
-                msg = "My Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
+                msg = MIMEText("Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
 perousal of the most charming participant data table, I happened to notice that assignment \
-{} has been taking longer than we were expecting. I recall you had suggested {} as an upper limit \
+{} has been taking longer than we were expecting. I recall you had suggested {} minutes as an upper limit \
 for what was an acceptable length of time for each assignement, however this assignment had been underway \
-for a shocking {}, a full {} over your allowance. I immediately dispatched a \
+for a shocking {} minutes, a full {} minutes over your allowance. I immediately dispatched a \
 telegram to our mutual friends at AWS and they were able to assure me that although the notification \
 had failed to be correctly processed, the assignment had in fact been completed. Rather than trouble you, \
 I dealt with this myself and I can assure you there is no immediate cause for concern. \
 Nonetheless, for my own peace of mind, I would appreciate you taking the time to look into this matter \
-at your earliest convenience.\n\nMost sincerely yours,\Alfred\n\nP.S. Please do not respond to this message, \
-for I cannot read.".format(assignment_id, duration/60, p_time/60, (p_time/60-duration/60))
+at your earliest convenience.\n\nI remain your faithful and obedient servant,\nAlfred R. Wallace\n\nP.S. Please do not respond to this message, \
+I am busy with other matters.".format(datetime.now(), assignment_id, round(duration/60), round(p_time/60), round((p_time-duration)/60)))
+                msg['Subject'] = "A matter of minor concern."
 
                 server = smtplib.SMTP('smtp.gmail.com:587')
                 server.starttls()
                 server.login(username, email_password)
-                server.sendmail(fromaddr, toaddr, msg)
+                server.sendmail(fromaddr, toaddr, msg.as_string())
                 server.quit()
             else:
                 # if it has not been submitted shut everything down
