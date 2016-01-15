@@ -55,11 +55,13 @@ def check_db_for_missing_notifications():
     print "bhgkfbshkgf bsgkf bsgjk fbsh kg bfshjk gfhjks"
     data_string = '{"auto_recruit": "false"}'
     try:
+        host = os.environ['HOST']
+        print host
         subprocess.call(
             'curl -n -X PATCH https://api.heroku.com/apps/{}/config-vars \
             -H "Accept: application/vnd.heroku+json; version=3" \
             -H "Content-Type: application/json" \
-            -d {}'.format(os.environ['HOST'], data_string)
+            -d {}'.format(host, data_string)
         )
     except:
         import traceback
