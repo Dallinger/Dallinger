@@ -53,11 +53,13 @@ def check_db_for_missing_notifications():
     print "hit duration is {}".format(duration)
 
     print "bhgkfbshkgf bsgkf bsgjk fbsh kg bfshjk gfhjks"
-    host = os.environ['HOST']
-    host = host[:-len(".herokuapp.com")]
-    args = {"auto_recruit": "false"}
     try:
-        requests.post("https://api.heroku.com/apps/{}/config-vars".format(host), data=args)
+        host = os.environ['HOST']
+        host = host[:-len(".herokuapp.com")]
+        args = {"auto_recruit": "false"}
+        heroku_email_address = os.getenv('heroku_email_address')
+        heroku_password = os.getenv('heroku_password')
+        requests.post("https://api.heroku.com/apps/{}/config-vars".format(host), data=args, auth=(heroku_email_address, heroku_password))
     except:
         import traceback
         traceback.print_exc()
