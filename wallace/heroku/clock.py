@@ -59,7 +59,11 @@ def check_db_for_missing_notifications():
         args = {"auto_recruit": "false"}
         heroku_email_address = os.getenv('heroku_email_address')
         heroku_password = os.getenv('heroku_password')
-        requests.post("https://api.heroku.com/apps/{}/config-vars".format(host), data=args, auth=(heroku_email_address, heroku_password))
+        print heroku_email_address
+        print heroku_password
+        blah = requests.post("https://api.heroku.com/apps/{}/config-vars".format(host), data=args, auth=(heroku_email_address, heroku_password))
+        print blah
+        print blah.status
     except:
         import traceback
         traceback.print_exc()
