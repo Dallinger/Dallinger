@@ -12,7 +12,6 @@ from boto.mturk.connection import MTurkConnection
 import requests
 import smtplib
 from email.mime.text import MIMEText
-import subprocess
 import json
 
 config = PsiturkConfig()
@@ -43,35 +42,12 @@ def check_db_for_missing_notifications():
     # get all participants with status < 100
     participants = Participant.query.all()
     participants = [p for p in participants if p.status < 100]
-    print "{} participants found".format(len(participants))
 
     # get current time
     current_time = datetime.now()
-    print "current time is {}".format(current_time)
 
     # get experiment duration in seconds
     duration = float(config.get('HIT Configuration', 'duration'))*60*60
-    print "hit duration is {}".format(duration)
-
-    print "bhgkfbshkgf bsgkf bsgjk fbsh kg bfshjk gfhjks"
-    try:
-        host = os.environ['HOST']
-        host = host[:-len(".herokuapp.com")]
-        args = json.dumps({"auto_recruit": "false"})
-        headers = {
-            "Accept": "application/vnd.heroku+json; version=3",
-            "Content-Type": "application/json"
-        }
-        heroku_email_address = os.getenv('heroku_email_address')
-        heroku_password = os.getenv('heroku_password')
-        print heroku_email_address
-        print heroku_password
-        blah = requests.patch("https://api.heroku.com/apps/{}/config-vars".format(host), data=args, auth=(heroku_email_address, heroku_password), headers=headers)
-        print blah
-    except:
-        import traceback
-        traceback.print_exc()
-    print "2574257429 y5742y5742 7546279 4567296 457296 754892"
 
     # for each participant, if current_time - start_time > duration + 5 mins
     emergency = False
@@ -125,15 +101,23 @@ I am busy with other matters.".format(datetime.now(), assignment_id, round(durat
                 server.sendmail(fromaddr, toaddr, msg.as_string())
                 server.quit()
             else:
-                data_string = '{"auto_recruit": "false"'
-                subprocess.call(
-                    "curl -n -X PATCH https://api.heroku.com/apps/{}/config-vars \
-                    -H 'Accept: application/vnd.heroku+json; version=3' \
-                    -H 'Content-Type: application/json' \
-                    -d {}".format(os.environ['HOST'], data_string)
-                )
                 # if it has not been submitted shut everything down
-                pass
+                # first turn off autorecruit
+                host = os.environ['HOST']
+                host = host[:-len(".herokuapp.com")]
+                args = json.dumps({"auto_recruit": "false"})
+                headers = {
+                    "Accept": "application/vnd.heroku+json; version=3",
+                    "Content-Type": "application/json"
+                }
+                heroku_email_address = os.getenv('heroku_email_address')
+                heroku_password = os.getenv('heroku_password')
+                requests.patch("https://api.heroku.com/apps/{}/config-vars".format(host),
+                               data=args,
+                               auth=(heroku_email_address, heroku_password),
+                               headers=headers)
+                # then force expire the hit via boto
+
                 # and send the researcher an email to let them know
 
     if emergency is False:
