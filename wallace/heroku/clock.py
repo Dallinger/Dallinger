@@ -12,6 +12,7 @@ from boto.mturk.connection import MTurkConnection
 import requests
 import smtplib
 from email.mime.text import MIMEText
+import subprocess
 
 config = PsiturkConfig()
 config.load_config()
@@ -52,7 +53,13 @@ def check_db_for_missing_notifications():
     print "hit duration is {}".format(duration)
 
     print "bhgkfbshkgf bsgkf bsgjk fbsh kg bfshjk gfhjks"
-    os.environ["auto_recruit"] = False
+    data_string = '{"auto_recruit": "false"'
+    subprocess.call(
+        "curl -n -X PATCH https://api.heroku.com/apps/{}/config-vars \
+        -H 'Accept: application/vnd.heroku+json; version=3' \
+        -H 'Content-Type: application/json' \
+        -d {}".format(os.environ['HOST'], data_string)
+    )
     print "2574257429 y5742y5742 7546279 4567296 457296 754892"
 
     # for each participant, if current_time - start_time > duration + 5 mins
@@ -102,6 +109,13 @@ I am busy with other matters.".format(datetime.now(), assignment_id, round(durat
                 server.sendmail(fromaddr, toaddr, msg.as_string())
                 server.quit()
             else:
+                data_string = '{"auto_recruit": "false"'
+                subprocess.call(
+                    "curl -n -X PATCH https://api.heroku.com/apps/{}/config-vars \
+                    -H 'Accept: application/vnd.heroku+json; version=3' \
+                    -H 'Content-Type: application/json' \
+                    -d {}".format(os.environ['HOST'], data_string)
+                )
                 # if it has not been submitted shut everything down
                 pass
                 # and send the researcher an email to let them know
