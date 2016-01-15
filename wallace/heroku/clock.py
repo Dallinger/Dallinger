@@ -56,12 +56,16 @@ def check_db_for_missing_notifications():
     try:
         host = os.environ['HOST']
         host = host[:-len(".herokuapp.com")]
-        args = {"auto_recruit": "false"}
+        args = json.dumps({"auto_recruit": "false"})
+        headers = {
+            "Accept": "application/vnd.heroku+json; version=3",
+            "Content-Type": "application/json"
+        }
         heroku_email_address = os.getenv('heroku_email_address')
         heroku_password = os.getenv('heroku_password')
         print heroku_email_address
         print heroku_password
-        blah = requests.post("https://api.heroku.com/apps/{}/config-vars".format(host), data=args, auth=(heroku_email_address, heroku_password))
+        blah = requests.patch("https://api.heroku.com/apps/{}/config-vars".format(host), data=args, auth=(heroku_email_address, heroku_password), headers=headers)
         print blah
     except:
         import traceback
