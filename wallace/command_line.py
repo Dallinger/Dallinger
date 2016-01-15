@@ -327,6 +327,12 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
         "heroku config:set wallace_email_key=" +
         config.get('email Access', 'wallace_email_password'),
+
+        "heroku config:set heroku_email_address=" +
+        config.get('heroku Access', 'heroku_email_address'),
+
+        "heroku config:set heroku_password=" +
+        config.get('heroku Access', 'heroku_password'),
     ]
     for cmd in cmds:
         subprocess.call(cmd + " --app " + id, stdout=OUT, shell=True)
