@@ -30,8 +30,12 @@ except ImportError:
     print "Error: Could not import experiment."
 session = db.session
 
-aws_access_key_id = config.get('AWS Access', 'aws_access_key_id')
-aws_secret_access_key = config.get('AWS Access', 'aws_secret_access_key')
+aws_access_key_id = os.environ['aws_access_key_id']
+aws_secret_access_key = os.environ['AWS Access', 'aws_secret_access_key']
+print "******"
+print aws_access_key_id
+print aws_secret_access_key
+print "******"
 conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
 
 scheduler = BlockingScheduler()
@@ -53,6 +57,9 @@ def check_db_for_missing_notifications():
     emergency = False
     for p in participants:
         p_time = (current_time - p.beginhit).total_seconds
+        print current_time
+        print p.beginhit
+        print p_time
         if p_time > (duration + 300):
             emergency = True
             print "participant {} has been playing for too long and no notification has arrived - running emergency code".format(p)
