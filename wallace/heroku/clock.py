@@ -53,13 +53,17 @@ def check_db_for_missing_notifications():
     print "hit duration is {}".format(duration)
 
     print "bhgkfbshkgf bsgkf bsgjk fbsh kg bfshjk gfhjks"
-    data_string = '{"auto_recruit": "false"'
-    subprocess.call(
-        "curl -n -X PATCH https://api.heroku.com/apps/{}/config-vars \
-        -H 'Accept: application/vnd.heroku+json; version=3' \
-        -H 'Content-Type: application/json' \
-        -d {}".format(os.environ['HOST'], data_string)
-    )
+    data_string = '{"auto_recruit": "false"}'
+    try:
+        subprocess.call(
+            'curl -n -X PATCH https://api.heroku.com/apps/{}/config-vars \
+            -H "Accept: application/vnd.heroku+json; version=3" \
+            -H "Content-Type: application/json" \
+            -d {}'.format(os.environ['HOST'], data_string)
+        )
+    except:
+        import traceback
+        traceback.print_exc()
     print "2574257429 y5742y5742 7546279 4567296 457296 754892"
 
     # for each participant, if current_time - start_time > duration + 5 mins
@@ -74,8 +78,13 @@ def check_db_for_missing_notifications():
             assignment_id = p.assignmentid
 
             # ask amazon for the status of the assignment
-            assignment = conn.get_assignment(assignment_id)
-            status = assignment.Assignment.AssignmentStatus
+            try:
+                assignment = conn.get_assignment(assignment_id)
+                status = assignment.Assignment.AssignmentStatus
+            except:
+                import traceback
+                traceback.print_exc()
+            print "assignment status from AWS is {}".format(status)
 
             if status in ["Submitted", "Approved", "Rejected"]:
                 # if it has been submitted then resend a submitted notification
