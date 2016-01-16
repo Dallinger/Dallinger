@@ -31,11 +31,7 @@ except ImportError:
 session = db.session
 
 aws_access_key_id = os.environ['aws_access_key_id']
-aws_secret_access_key = os.environ['AWS Access', 'aws_secret_access_key']
-print "******"
-print aws_access_key_id
-print aws_secret_access_key
-print "******"
+aws_secret_access_key = os.environ['aws_secret_access_key']
 conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
 
 scheduler = BlockingScheduler()
@@ -56,7 +52,7 @@ def check_db_for_missing_notifications():
     # for each participant, if current_time - start_time > duration + 5 mins
     emergency = False
     for p in participants:
-        p_time = (current_time - p.beginhit).total_seconds
+        p_time = (current_time - p.beginhit).total_seconds()
         print current_time
         print p.beginhit
         print p_time
