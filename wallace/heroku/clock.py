@@ -37,7 +37,10 @@ scheduler = BlockingScheduler()
 def check_db_for_missing_notifications():
     aws_access_key_id = os.environ['aws_access_key_id']
     aws_secret_access_key = os.environ['aws_secret_access_key']
-    conn = MTurkConnection(aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, host='mechanicalturk.sandbox.amazonaws.com')
+    if config.getboolean('Shell Parameters', 'launch_in_sandbox_mode'):
+        conn = MTurkConnection(aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, host='mechanicalturk.sandbox.amazonaws.com')
+    else:
+        conn = MTurkConnection(aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
 
     # get all participants with status < 100
     participants = Participant.query.all()
@@ -53,11 +56,10 @@ def check_db_for_missing_notifications():
     emergency = False
     for p in participants:
         p_time = (current_time - p.beginhit).total_seconds()
-        assignment_id = p.assignmentid
 
         if p_time > (duration + 300):
             emergency = True
-            print "participant {} has been playing for too long and no notification has arrived - running emergency code".format(p)
+            print "participant {} with status {} has been playing for too long and no notification has arrived - running emergency code".format(p.uniqueid, p.status)
 
             # get their assignment
             assignment_id = p.assignmentid
@@ -119,7 +121,11 @@ I am busy with other matters.".format(datetime.now(), assignment_id, round(durat
                                auth=(heroku_email_address, heroku_password),
                                headers=headers)
                 # then force expire the hit via boto
-                conn.expire_hit(hit_id)
+                try:
+                    conn.expire_hit(hit_id)
+                except:
+                    import traceback
+                    traceback.print_exc()
 
                 # and send the researcher an email to let them know
                 # send the researcher an email to let them know
