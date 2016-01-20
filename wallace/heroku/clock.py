@@ -68,10 +68,10 @@ def check_db_for_missing_notifications():
             try:
                 assignment = conn.get_assignment(assignment_id)[0]
                 status = assignment.AssignmentStatus
-                hit_id = assignment.HITId
             except:
                 status = None
             print "assignment status from AWS is {}".format(status)
+            hit_id = p.hitid
 
             if status in ["Submitted", "Approved", "Rejected"]:
                 # if it has been submitted then resend a submitted notification
