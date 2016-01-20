@@ -30,15 +30,15 @@ except ImportError:
     print "Error: Could not import experiment."
 session = db.session
 
-aws_access_key_id = os.environ['aws_access_key_id']
-aws_secret_access_key = os.environ['aws_secret_access_key']
-conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
-
 scheduler = BlockingScheduler()
 
 
 @scheduler.scheduled_job('interval', minutes=0.25)
 def check_db_for_missing_notifications():
+    aws_access_key_id = os.environ['aws_access_key_id']
+    aws_secret_access_key = os.environ['aws_secret_access_key']
+    conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
+
     # get all participants with status < 100
     participants = Participant.query.all()
     participants = [p for p in participants if p.status < 100]
@@ -55,10 +55,14 @@ def check_db_for_missing_notifications():
         p_time = (current_time - p.beginhit).total_seconds()
         assignment_id = p.assignmentid
         print "assignment is {}".format(assignment_id)
-        assignment = conn.get_assignment(assignment_id)
-        print assignment
-        print assignment.Assignment
-        print assignment.Assignment.AssignmentStatus
+        try:
+            assignment = conn.get_assignment(assignment_id)
+            print assignment
+            print assignment.Assignment
+            print assignment.Assignment.AssignmentStatus
+        except:
+            import traceback
+            traceback.print_exc()
 
         if p_time > (duration + 300):
             emergency = True
