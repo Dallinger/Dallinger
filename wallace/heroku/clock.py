@@ -41,7 +41,7 @@ def check_db_for_missing_notifications():
 
     # get all participants with status < 100
     participants = Participant.query.all()
-    #participants = [p for p in participants if p.status < 100]
+    participants = [p for p in participants if p.status < 100]
 
     # get current time
     current_time = datetime.now()
@@ -54,16 +54,6 @@ def check_db_for_missing_notifications():
     for p in participants:
         p_time = (current_time - p.beginhit).total_seconds()
         assignment_id = p.assignmentid
-        print "assignment is {}".format(assignment_id)
-        try:
-            assignment = conn.get_assignment(assignment_id=assignment_id)
-            print assignment
-            print assignment[0]
-            print assignment[0].Assignment
-            print assignment[0].Assignment.AssignmentStatus
-        except:
-            import traceback
-            traceback.print_exc()
 
         if p_time > (duration + 300):
             emergency = True
@@ -74,12 +64,11 @@ def check_db_for_missing_notifications():
 
             # ask amazon for the status of the assignment
             try:
-                assignment = conn.get_assignment(assignment_id)
-                status = assignment.Assignment.AssignmentStatus
-                hit_id = assignment.HIT.HITId
+                assignment = conn.get_assignment(assignment_id)[0]
+                status = assignment.AssignmentStatus
+                hit_id = assignment.HITId
             except:
-                import traceback
-                traceback.print_exc()
+                status = None
             print "assignment status from AWS is {}".format(status)
 
             if status in ["Submitted", "Approved", "Rejected"]:
