@@ -53,9 +53,13 @@ def check_db_for_missing_notifications():
     emergency = False
     for p in participants:
         p_time = (current_time - p.beginhit).total_seconds()
-        print current_time
-        print p.beginhit
-        print p_time
+        assignment_id = p.assignmentid
+        print "assignment is {}".format(assignment_id)
+        assignment = conn.get_assignment(assignment_id)
+        print assignment
+        print assignment.Assignment
+        print assignment.Assignment.AssignmentStatus
+
         if p_time > (duration + 300):
             emergency = True
             print "participant {} has been playing for too long and no notification has arrived - running emergency code".format(p)
