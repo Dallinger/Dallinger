@@ -37,11 +37,11 @@ scheduler = BlockingScheduler()
 def check_db_for_missing_notifications():
     aws_access_key_id = os.environ['aws_access_key_id']
     aws_secret_access_key = os.environ['aws_secret_access_key']
-    conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
+    conn = MTurkConnection(aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, host='mechanicalturk.sandbox.amazonaws.com')
 
     # get all participants with status < 100
     participants = Participant.query.all()
-    participants = [p for p in participants if p.status < 100]
+    #participants = [p for p in participants if p.status < 100]
 
     # get current time
     current_time = datetime.now()
@@ -56,7 +56,7 @@ def check_db_for_missing_notifications():
         assignment_id = p.assignmentid
         print "assignment is {}".format(assignment_id)
         try:
-            assignment = conn.get_assignment(assignment_id)
+            assignment = conn.get_assignment(assignment_id=assignment_id)
             print assignment
             print assignment.Assignment
             print assignment.Assignment.AssignmentStatus
