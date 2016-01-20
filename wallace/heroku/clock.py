@@ -58,8 +58,9 @@ def check_db_for_missing_notifications():
         try:
             assignment = conn.get_assignment(assignment_id=assignment_id)
             print assignment
-            print assignment.Assignment
-            print assignment.Assignment.AssignmentStatus
+            print assignment[0]
+            print assignment[0].Assignment
+            print assignment[0].Assignment.AssignmentStatus
         except:
             import traceback
             traceback.print_exc()
