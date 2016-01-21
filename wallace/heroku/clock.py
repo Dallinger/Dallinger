@@ -85,6 +85,7 @@ def check_db_for_missing_notifications():
                     'Event.1.AssignmentId': assignment_id
                 }
                 requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
+
                 # send the researcher an email to let them know
                 msg = MIMEText("Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
 perousal of the most charming participant data table, I happened to notice that assignment \
