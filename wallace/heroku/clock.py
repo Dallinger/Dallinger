@@ -120,8 +120,9 @@ I am busy with other matters.".format(datetime.now(), assignment_id, round(durat
                                data=args,
                                auth=(heroku_email_address, heroku_password),
                                headers=headers)
-                # # then force expire the hit via boto
-                # conn.expire_hit(hit_id)
+
+                # then force expire the hit via boto
+                conn.expire_hit(hit_id)
 
                 # send the researcher an email to let them know
                 msg = MIMEText("Dearest Friend,\n\nI am afraid I write to you with most grave tidings. \
