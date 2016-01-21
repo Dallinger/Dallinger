@@ -1074,6 +1074,7 @@ def worker_function(event_type, assignment_id, participant_id):
 
     elif event_type == "NotificationMissing":
         participant.status = 106
+        session_psiturk.commit()
         session.commit()
 
     else:
