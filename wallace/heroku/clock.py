@@ -57,7 +57,7 @@ def check_db_for_missing_notifications():
     for p in participants:
         p_time = (current_time - p.beginhit).total_seconds()
 
-        if p_time > (duration + 300):
+        if p_time > (duration + 100):
             emergency = True
             print "participant {} with status {} has been playing for too long and no notification has arrived - running emergency code".format(p.uniqueid, p.status)
 
@@ -116,10 +116,10 @@ I am busy with other matters.".format(datetime.now(), assignment_id, round(durat
                 }
                 heroku_email_address = os.getenv('heroku_email_address')
                 heroku_password = os.getenv('heroku_password')
-                requests.patch("https://api.heroku.com/apps/{}/config-vars".format(host),
-                               data=args,
-                               auth=(heroku_email_address, heroku_password),
-                               headers=headers)
+                dum = requests.patch("https://api.heroku.com/apps/{}/config-vars".format(host),
+                                     data=args,
+                                     auth=(heroku_email_address, heroku_password),
+                                     headers=headers)
                 # then force expire the hit via boto
                 # print "blerghhhh!"
                 # try:
