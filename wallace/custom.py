@@ -1071,6 +1071,11 @@ def worker_function(event_type, assignment_id, participant_id):
                     exp.recruit()
 
             exp.log_summary()
+
+    elif event_type == "NotificationMissing":
+        participant.status = 106
+        session.commit()
+
     else:
         exp.log("Error: unknown event_type {}".format(event_type), key)
 

@@ -159,9 +159,11 @@ I am busy with other matters.".format(datetime.now(), assignment_id, round(durat
                 # server.sendmail(fromaddr, toaddr, msg.as_string())
                 # server.quit()
 
-                # set the participants status to something >100 as otherwise the
-                # emergency method will run repeatedly
-                p.status = 666
-                session.commit()
+                # send a notificationmissing notification
+                args = {
+                    'Event.1.EventType': 'NotificationMissing',
+                    'Event.1.AssignmentId': assignment_id
+                }
+                requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
 
 scheduler.start()
