@@ -28,6 +28,7 @@ try:
     experiment = getattr(mod, this_experiment)
 except ImportError:
     print "Error: Could not import experiment."
+
 session = db.session
 
 scheduler = BlockingScheduler()
@@ -71,6 +72,12 @@ def check_db_for_missing_notifications():
             print "assignment status from AWS is {}".format(status)
             hit_id = p.hitid
 
+            # general email settings:
+            username = os.getenv('wallace_email_username')
+            fromaddr = username + "@gmail.com"
+            email_password = os.getenv("wallace_email_key")
+            toaddr = config.get('HIT Configuration', 'contact_email_on_error')
+
             if status in ["Submitted", "Approved", "Rejected"]:
                 # if it has been submitted then resend a submitted notification
                 args = {
@@ -79,11 +86,6 @@ def check_db_for_missing_notifications():
                 }
                 requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
                 # send the researcher an email to let them know
-                username = os.getenv('wallace_email_username')
-                fromaddr = username + "@gmail.com"
-                email_password = os.getenv("wallace_email_key")
-                toaddr = config.get('HIT Configuration', 'contact_email_on_error')
-
                 msg = MIMEText("Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
 perousal of the most charming participant data table, I happened to notice that assignment \
 {} has been taking longer than we were expecting. I recall you had suggested {} minutes as an upper limit \
@@ -122,24 +124,19 @@ I am busy with other matters.".format(datetime.now(), assignment_id, round(durat
                 # conn.expire_hit(hit_id)
 
                 # send the researcher an email to let them know
-                username = os.getenv('wallace_email_username')
-                fromaddr = username + "@gmail.com"
-                email_password = os.getenv("wallace_email_key")
-                toaddr = config.get('HIT Configuration', 'contact_email_on_error')
-
                 msg = MIMEText("Dearest Friend,\n\nI am afraid I write to you with most grave tidings. \
                     At {}, during a routine check of the usually most delightful participant data table, \
                     I happened to notice that assignment {} has been taking longer than we were expecting. \
                     I recall you had suggested {} minutes as an upper limit for what was an acceptable length \
                     of time for each assignment, however this assignment had been underway for a shocking {} \
                     minutes, a full {} minutes over your allowance. I immediately dispatched a \
-                    telegram to our mutual friends at AWS and they infact informed me that they had already send \
-                    us an {} notification which we must have failed to process, implying that the assignment had \
+                    telegram to our mutual friends at AWS and they infact informed me that they had already sent \
+                    us a notification which we must have failed to process, implying that the assignment had \
                     not been successfully completed. Of course when the seriousness of this scenario dawned on me \
                     I had to depend on my trusting walking stick for support: without the notification \
                     I didn't know to remove the old assignment's data from the tables and AWS will have already sent \
-                    their replacement, meaning that the tables may already be in a most unsound state! \n\n\
-                    I am sorry to trouble you with this, however, I do not know how to proceed so rather than trying \
+                    their replacement, meaning that the tables may already be in a most unsound state!\
+                    \n\nI am sorry to trouble you with this, however, I do not know how to proceed so rather than trying \
                     to remedy the scenario myself, I have instead temporarily ceased operations by expiring the HIT \
                     with the fellows at AWS and have refrained form posting any further invitations myself. Once you \
                     see fit I would be most appreciative if you could attend to this issue with the caution, sensitivity \
