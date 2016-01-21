@@ -53,12 +53,10 @@ def check_db_for_missing_notifications():
     duration = float(config.get('HIT Configuration', 'duration'))*60*60
 
     # for each participant, if current_time - start_time > duration + 5 mins
-    emergency = False
     for p in participants:
         p_time = (current_time - p.beginhit).total_seconds()
 
         if p_time > (duration + 100):
-            emergency = True
             print "participant {} with status {} has been playing for too long and no notification has arrived - running emergency code".format(p.uniqueid, p.status)
 
             # get their assignment
@@ -164,6 +162,6 @@ I am busy with other matters.".format(datetime.now(), assignment_id, round(durat
                 # set the participants status to something >100 as otherwise the
                 # emergency method will run repeatedly
                 p.status = 666
-                db.commit()
+                session.commit()
 
 scheduler.start()
