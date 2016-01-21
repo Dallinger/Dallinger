@@ -121,12 +121,14 @@ I am busy with other matters.".format(datetime.now(), assignment_id, round(durat
                                auth=(heroku_email_address, heroku_password),
                                headers=headers)
                 # then force expire the hit via boto
-                try:
-                    conn.expire_hit(hit_id)
-                except:
-                    import traceback
-                    traceback.print_exc()
+                # print "blerghhhh!"
+                # try:
+                #     conn.expire_hit(hit_id)
+                # except:
+                #     import traceback
+                #     traceback.print_exc()
 
+                # print "gghhhhrrrooooooop"
                 # and send the researcher an email to let them know
                 # send the researcher an email to let them know
                 username = os.getenv('wallace_email_username')
