@@ -34,7 +34,7 @@ session = db.session
 scheduler = BlockingScheduler()
 
 
-@scheduler.scheduled_job('interval', minutes=0.25)
+@scheduler.scheduled_job('interval', minutes=0.5)
 def check_db_for_missing_notifications():
     aws_access_key_id = os.environ['aws_access_key_id']
     aws_secret_access_key = os.environ['aws_secret_access_key']
