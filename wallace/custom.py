@@ -1073,9 +1073,11 @@ def worker_function(event_type, assignment_id, participant_id):
             exp.log_summary()
 
     elif event_type == "NotificationMissing":
+        print "doing this!"
         participant.status = 106
         session_psiturk.commit()
         session.commit()
+        print "and doing this too"
 
     else:
         exp.log("Error: unknown event_type {}".format(event_type), key)
