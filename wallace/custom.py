@@ -163,7 +163,7 @@ Routes for reading and writing to the database.
 """
 
 
-def request_parameter(request, parameter, parameter_type=None, default=None):
+def request_parameter(request, parameter, parameter_type=None, default=None, optional=False):
     """ Get a parameter from a request
 
     The request object itself must be passed.
@@ -184,6 +184,8 @@ def request_parameter(request, parameter, parameter_type=None, default=None):
         # if it isnt found use the default, or return an error Response
         if default is not None:
             return default
+        elif optional:
+            return None
         else:
             msg = "{} {} request, {} not specified".format(request.url, request.method, parameter)
             exp.log("Error: {}".format(msg))
@@ -646,6 +648,14 @@ def info_post(node_id):
     if type(contents) == Response:
         return contents
 
+    properties = [
+        request_parameter(request=request, parameter="property1", optional=True),
+        request_parameter(request=request, parameter="property2", optional=True),
+        request_parameter(request=request, parameter="property3", optional=True),
+        request_parameter(request=request, parameter="property4", optional=True),
+        request_parameter(request=request, parameter="property5", optional=True)
+    ]
+
     exp.log("/info POST request. Params: node_id: {}, info_type: {}, \
              contents: {}"
             .format(node_id, info_type, contents))
@@ -660,6 +670,18 @@ def info_post(node_id):
 
     # execute the request
     info = info_type(origin=node, contents=contents)
+    for p in range(5):
+        if properties[p] is not None:
+            if p == 0:
+                info.property1 = properties[p]
+            elif p == 1:
+                info.property2 = properties[p]
+            elif p == 2:
+                info.property3 = properties[p]
+            elif p == 3:
+                info.property4 = properties[p]
+            else:
+                info.property5 = properties[p]
     session.commit()
 
     # ping the experiment
