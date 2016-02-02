@@ -167,16 +167,13 @@ class DiscreteGenerational(Network):
         if current_generation == 0:
             if self.initial_source:
                 source = min(self.nodes(type=Source), key=attrgetter('creation_time'))
-                source.connect(
-                    direction="to",
-                    whom=newcomer)
+                source.connect(whom=newcomer)
                 source.transmit(to_whom=newcomer)
         else:
-            agent_type = type(newcomer)
-            prev_agents = agent_type.query\
-                .filter(and_(agent_type.failed == False,
-                             agent_type.network_id == self.id,
-                             agent_type.generation == current_generation-1))\
+            prev_agents = type(newcomer).query\
+                .filter_by(failed=False,
+                           network_id=self.id,
+                           generation=current_generation-1)\
                 .all()
             prev_fits = [p.fitness for p in prev_agents]
             prev_probs = [(f/(1.0*sum(prev_fits))) for f in prev_fits]
@@ -189,7 +186,7 @@ class DiscreteGenerational(Network):
                     parent = prev_agents[i]
                     break
 
-            parent.connect(direction="to", whom=newcomer)
+            parent.connect(whom=newcomer)
             parent.transmit(to_whom=newcomer)
 
     def calculate_full(self):
