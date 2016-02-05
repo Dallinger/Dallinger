@@ -1280,7 +1280,7 @@ class Transformation(Base, SharedMixin):
                              .format(node, info_in))
 
 
-class Notification(Base):
+class Notification(Base, SharedMixin):
 
     __tablename__ = "notification"
 
