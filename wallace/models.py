@@ -1284,9 +1284,6 @@ class Notification(Base):
 
     __tablename__ = "notification"
 
-    # the unique notification id
-    id = Column(Integer, primary_key=True)
-
     # the assignment is from AWS the notification pertains to
     assignment_id = Column(String, nullable=False)
 
