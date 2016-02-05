@@ -136,7 +136,8 @@ def setup(debug=True, verbose=False):
         "Procfile",
         "requirements.txt",
         "psiturkapp.py",
-        "worker.py"
+        "worker.py",
+        "clock.py",
     ]
     for filename in heroku_files:
         src = os.path.join(
@@ -320,6 +321,18 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
         "heroku config:set auto_recruit=" +
         config.get('Experiment Configuration', 'auto_recruit'),
+
+        "heroku config:set wallace_email_username=" +
+        config.get('email Access', 'wallace_email_address'),
+
+        "heroku config:set wallace_email_key=" +
+        config.get('email Access', 'wallace_email_password'),
+
+        "heroku config:set heroku_email_address=" +
+        config.get('heroku Access', 'heroku_email_address'),
+
+        "heroku config:set heroku_password=" +
+        config.get('heroku Access', 'heroku_password'),
     ]
     for cmd in cmds:
         subprocess.call(cmd + " --app " + id, stdout=OUT, shell=True)
@@ -357,6 +370,8 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
                     str(dyno_type) + " --app " + id, stdout=OUT, shell=True)
     subprocess.call("heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
                     str(dyno_type) + " --app " + id, stdout=OUT, shell=True)
+    subprocess.call("heroku ps:scale clock=1:performance-m",
+                    stdout=OUT, shell=True)
     time.sleep(8)
 
     # Launch the experiment.
