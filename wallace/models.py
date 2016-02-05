@@ -18,14 +18,25 @@ def timenow():
     return datetime.now()
 
 
-class Network(Base):
+class SharedMixin(object):
+    """Create shared columns."""
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    creation_time = Column(DateTime, nullable=False, default=timenow)
+
+    property1 = Column(String(26), nullable=True, default=None)
+    property2 = Column(String(26), nullable=True, default=None)
+    property3 = Column(String(26), nullable=True, default=None)
+    property4 = Column(String(26), nullable=True, default=None)
+    property5 = Column(String(26), nullable=True, default=None)
+
+
+class Network(Base, SharedMixin):
 
     """A collection of Nodes and Vectors."""
 
     __tablename__ = "network"
-
-    # the unique network id
-    id = Column(Integer, primary_key=True, index=True)
 
     # the network type -- this allows for inheritance
     type = Column(String(50))
@@ -33,9 +44,6 @@ class Network(Base):
         'polymorphic_on': type,
         'polymorphic_identity': 'base'
     }
-
-    # the time when the node was created
-    creation_time = Column(DateTime, nullable=False, default=timenow)
 
     # how big the network can get, this number is used by the full()
     # method to decide whether the network is full
@@ -47,14 +55,6 @@ class Network(Base):
     # the role of the network, by default wallace initializes all
     # networks as either "practice" or "experiment"
     role = Column(String(26), nullable=False, default="default", index=True)
-
-    # unused by default, these columns store additional properties used
-    # by other types of network
-    property1 = Column(String(26), nullable=True, default=None)
-    property2 = Column(String(26), nullable=True, default=None)
-    property3 = Column(String(26), nullable=True, default=None)
-    property4 = Column(String(26), nullable=True, default=None)
-    property5 = Column(String(26), nullable=True, default=None)
 
     def __len__(self):
         """The size of a network is undefined.
@@ -293,14 +293,10 @@ class Network(Base):
             print t
 
 
-class Node(Base):
-
+class Node(Base, SharedMixin):
     """A point in a network."""
 
     __tablename__ = "node"
-
-    # the unique node id
-    id = Column(Integer, primary_key=True, index=True)
 
     # the node type -- this allows for inheritance
     type = Column(String(50))
@@ -313,9 +309,6 @@ class Node(Base):
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_nodes")
 
-    # the time when the node was created
-    creation_time = Column(DateTime, nullable=False, default=timenow)
-
     # whether the node has failed
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
@@ -325,14 +318,6 @@ class Node(Base):
     # the participant id is the sha512 hash of the psiTurk uniqueId of the
     # participant who was this node.
     participant_id = Column(String(128), default=None, index=True)
-
-    # unused by default, these columns store additional properties used
-    # by other types of node
-    property1 = Column(String(26), default=None)
-    property2 = Column(String(26), default=None)
-    property3 = Column(String(26), default=None)
-    property4 = Column(String(26), default=None)
-    property5 = Column(String(26), default=None)
 
     def __repr__(self):
         """The string representation of a node."""
@@ -451,7 +436,6 @@ class Node(Base):
         If whom is a single node this method returns a boolean,
         otherwise it returns a list of booleans
         """
-
         # make whom a list
         if isinstance(whom, list):
             is_list = True
@@ -488,29 +472,25 @@ class Node(Base):
             for w in whom_ids:
                 connected.append(w in origins)
 
-        elif direction == "either":
+        elif direction in ["either", "both"]:
+
             vectors = Vector.query\
                 .with_entities(Vector.origin_id, Vector.destination_id)\
                 .filter(and_(Vector.failed == False,
                              or_(Vector.destination_id == self.id,
                                  Vector.origin_id == self.id))).all()
 
-            origins_or_destinations = (set([v.destination_id for v in vectors]) |
-                                       set([v.origin_id for v in vectors]))
-            for w in whom_ids:
-                connected.append(w in origins_or_destinations)
+            destinations = set([v.destination_id for v in vectors])
+            origins = set([v.origin_id for v in vectors])
 
-        elif direction == "both":
-            vectors = Vector.query\
-                .with_entities(Vector.origin_id, Vector.destination_id)\
-                .filter(and_(Vector.failed == False,
-                             or_(Vector.destination_id == self.id,
-                                 Vector.origin_id == self.id))).all()
+            if direction == "either":
+                origins_destinations = destinations.union(origins)
 
-            origins_and_destinations = (set([v.destination_id for v in vectors]) &
-                                        set([v.origin_id for v in vectors]))
+            elif direction == "both":
+                origins_destinations = destinations.intersection(origins)
+
             for w in whom_ids:
-                connected.append(w in origins_and_destinations)
+                connected.append(w in origins_destinations)
 
         if is_list:
             return connected
@@ -887,7 +867,7 @@ class Node(Base):
         Mutation(info_in=info_in, info_out=info_out)
 
 
-class Vector(Base):
+class Vector(Base, SharedMixin):
 
     """
     A Vector is a path that links two Nodes.
@@ -899,9 +879,6 @@ class Vector(Base):
     ################################### """
 
     __tablename__ = "vector"
-
-    # the unique vector id
-    id = Column(Integer, primary_key=True, index=True)
 
     # the origin node
     origin_id = Column(Integer, ForeignKey('node.id'), index=True)
@@ -917,22 +894,11 @@ class Vector(Base):
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_vectors")
 
-    # the time when the node was created
-    creation_time = Column(DateTime, nullable=False, default=timenow)
-
     # whether the vector has failed
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
     # the time when the vector changed from alive->dead
     time_of_death = Column(DateTime, default=None)
-
-    # unused by default, these columns store additional properties used
-    # by other types of vector
-    property1 = Column(String(26), default=None)
-    property2 = Column(String(26), default=None)
-    property3 = Column(String(26), default=None)
-    property4 = Column(String(26), default=None)
-    property5 = Column(String(26), default=None)
 
     def __init__(self, origin, destination):
         #super(Vector, self).__init__()
@@ -1005,14 +971,11 @@ class Vector(Base):
             self.time_of_death = timenow()
 
 
-class Info(Base):
+class Info(Base, SharedMixin):
 
     """A unit of information sent along a vector via a transmission."""
 
     __tablename__ = "info"
-
-    # the unique info id
-    id = Column(Integer, primary_key=True, info=True)
 
     # the info type -- this allows for inheritance
     type = Column(String(50))
@@ -1029,9 +992,6 @@ class Info(Base):
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_infos")
 
-    # the time when the info was created
-    creation_time = Column(DateTime, nullable=False, default=timenow)
-
     # whether the info has failed
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
@@ -1040,14 +1000,6 @@ class Info(Base):
 
     # the contents of the info
     contents = Column(Text(), default=None)
-
-    # unused by default, these columns store additional properties used
-    # by other types of info
-    property1 = Column(String(26), default=None)
-    property2 = Column(String(26), default=None)
-    property3 = Column(String(26), default=None)
-    property4 = Column(String(26), default=None)
-    property5 = Column(String(26), default=None)
 
     def __init__(self, origin, contents=None):
         self.origin = origin
@@ -1142,15 +1094,12 @@ class Info(Base):
                                   .format(type(self)))
 
 
-class Transmission(Base):
+class Transmission(Base, SharedMixin):
     """
     A Transmission is when an Info is sent along a Vector.
     """
 
     __tablename__ = "transmission"
-
-    # the unique transmission id
-    id = Column(Integer, primary_key=True, index=True)
 
     # the vector the transmission passed along
     vector_id = Column(Integer, ForeignKey('vector.id'), index=True)
@@ -1174,9 +1123,6 @@ class Transmission(Base):
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="networks_transmissions")
 
-    # the time at which the transmission occurred
-    creation_time = Column(DateTime, nullable=False, default=timenow)
-
     # the time at which the transmission was received
     receive_time = Column(DateTime, default=None)
 
@@ -1189,14 +1135,6 @@ class Transmission(Base):
     # the status of the transmission, can be pending or received
     status = Column(Enum("pending", "received", name="transmission_status"),
                     nullable=False, default="pending", index=True)
-
-    # unused by default, these columns store additional properties used
-    # by other types of transmission
-    property1 = Column(String(26), default=None)
-    property2 = Column(String(26), default=None)
-    property3 = Column(String(26), default=None)
-    property4 = Column(String(26), default=None)
-    property5 = Column(String(26), default=None)
 
     def __init__(self, vector, info):
         #super(Transmission, self).__init__()
@@ -1248,15 +1186,12 @@ class Transmission(Base):
             self.time_of_death = timenow()
 
 
-class Transformation(Base):
+class Transformation(Base, SharedMixin):
     """
     A Transformation is when one info is used to generate another Info.
     """
 
     __tablename__ = "transformation"
-
-    # the unique transformation id
-    id = Column(Integer, primary_key=True, index=True)
 
     # the transformation type -- this allows for inheritance
     type = Column(String(50))
@@ -1282,22 +1217,11 @@ class Transformation(Base):
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="networks_transformations")
 
-    # the time at which the transformation occurred
-    creation_time = Column(DateTime, nullable=False, default=timenow)
-
     # whether the transformation has failed
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
     # the time when the transformation failed
     time_of_death = Column(DateTime, default=None)
-
-    # unused by default, these columns store additional properties used
-    # by other types of transformation
-    property1 = Column(String(26), default=None)
-    property2 = Column(String(26), default=None)
-    property3 = Column(String(26), default=None)
-    property4 = Column(String(26), default=None)
-    property5 = Column(String(26), default=None)
 
     def __repr__(self):
         """The string representation of a transformation."""
@@ -1365,9 +1289,6 @@ class Notification(Base):
 
     # the assignment is from AWS the notification pertains to
     assignment_id = Column(String, nullable=False)
-
-    # the time at which the notification arrived
-    creation_time = Column(DateTime, nullable=False, default=timenow)
 
     # the type of notification
     event_type = Column(String, nullable=False)

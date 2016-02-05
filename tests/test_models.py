@@ -538,3 +538,15 @@ class TestModels(object):
         assert len(agent1.transmissions(direction="outgoing")) == 2
         assert len(agent2.transmissions(direction="outgoing")) == 0
         assert len(agent3.transmissions(direction="outgoing")) == 0
+
+    def test_property_node(self):
+        node = models.Node()
+        node.property1 = "foo"
+        self.add(node)
+
+        assert node.property1 == "foo"
+
+    def test_creation_time(self):
+        node = models.Node()
+        self.add(node)
+        assert node.creation_time is not None
