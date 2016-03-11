@@ -640,7 +640,7 @@ def info_post(node_id):
     exp = experiment(session)
 
     # get the parameters
-    info_type = request_parameter(request=request, parameter="info_type", parameter_type="known_class", default="Info")
+    info_type = request_parameter(request=request, parameter="info_type", parameter_type="known_class", default=models.Info)
     if type(info_type) == Response:
         return info_type
 
@@ -856,7 +856,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
     exp = experiment(session)
 
     #get the parameters
-    transformation_type = request_parameter(request=request, parameter="transformation_type", parameter_type="known_class", default="Transformation")
+    transformation_type = request_parameter(request=request, parameter="transformation_type", parameter_type="known_class", default=models.Transformation)
     if type(transformation_type) == Response:
         return transformation_type
 
