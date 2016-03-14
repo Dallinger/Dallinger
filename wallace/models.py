@@ -150,9 +150,9 @@ class Network(Base, SharedMixin):
         """
         Get infos in the network.
 
-        type specifies the type of info (defaults to Info).
-        failed { False, True, "all" } specifies the failed state of the infos
-        To get infos from a specific node, see the infos() method in class Node.
+        type specifies the type of info (defaults to Info). failed { False,
+        True, "all" } specifies the failed state of the infos. To get infos
+        from a specific node, see the infos() method in class Node.
         """
         if type is None:
             type = Info
@@ -164,7 +164,8 @@ class Network(Base, SharedMixin):
                 .filter_by(network_id=self.id)\
                 .all()
         else:
-            return type.query.filter_by(network_id=self.id, failed=failed).all()
+            return type.query.filter_by(
+                network_id=self.id, failed=failed).all()
 
     def transmissions(self, status="all", failed=False):
         """
@@ -226,10 +227,7 @@ class Network(Base, SharedMixin):
                 .all()
 
     def latest_transmission_recipient(self):
-        """
-        Get the node that most recently received a transmission.
-        """
-
+        """Get the node that most recently received a transmission."""
         from operator import attrgetter
 
         ts = Transmission.query\
@@ -249,7 +247,6 @@ class Network(Base, SharedMixin):
         failed = { False, True, "all" }
         To get the vectors to/from to a specific node, see Node.vectors().
         """
-
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid vector failed".format(failed))
 
@@ -349,7 +346,6 @@ class Node(Base, SharedMixin):
 
         Direction can be "incoming", "outgoing" or "all" (default).
         """
-
         # check direction
         if direction not in ["all", "incoming", "outgoing"]:
             raise ValueError(
@@ -618,7 +614,8 @@ class Node(Base, SharedMixin):
         can fail a dead node.
         """
         if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
@@ -1257,7 +1254,8 @@ class Transformation(Base, SharedMixin):
 
     def fail(self):
         if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()

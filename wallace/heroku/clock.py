@@ -36,12 +36,18 @@ scheduler = BlockingScheduler()
 
 @scheduler.scheduled_job('interval', minutes=0.5)
 def check_db_for_missing_notifications():
+    """Check the database for missing notifications."""
     aws_access_key_id = os.environ['aws_access_key_id']
     aws_secret_access_key = os.environ['aws_secret_access_key']
     if config.getboolean('Shell Parameters', 'launch_in_sandbox_mode'):
-        conn = MTurkConnection(aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, host='mechanicalturk.sandbox.amazonaws.com')
+        conn = MTurkConnection(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            host='mechanicalturk.sandbox.amazonaws.com')
     else:
-        conn = MTurkConnection(aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+        conn = MTurkConnection(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key)
 
     # get all participants with status < 100
     participants = Participant.query.all()
@@ -51,7 +57,7 @@ def check_db_for_missing_notifications():
     current_time = datetime.now()
 
     # get experiment duration in seconds
-    duration = float(config.get('HIT Configuration', 'duration'))*60*60
+    duration = float(config.get('HIT Configuration', 'duration')) * 60 * 60
 
     # for each participant, if current_time - start_time > duration + 5 mins
     for p in participants:
@@ -84,7 +90,9 @@ def check_db_for_missing_notifications():
                     'Event.1.EventType': 'AssignmentSubmitted',
                     'Event.1.AssignmentId': assignment_id
                 }
-                requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
+                requests.post(
+                    "http://" + os.environ['HOST'] + '/notifications',
+                    data=args)
 
                 # send the researcher an email to let them know
                 msg = MIMEText("Dearest Friend,\n\nI am writing to let you know that at {}, during my regular (and thoroughly enjoyable) \
@@ -117,10 +125,11 @@ I am busy with other matters.".format(datetime.now(), assignment_id, round(durat
                 }
                 heroku_email_address = os.getenv('heroku_email_address')
                 heroku_password = os.getenv('heroku_password')
-                requests.patch("https://api.heroku.com/apps/{}/config-vars".format(host),
-                               data=args,
-                               auth=(heroku_email_address, heroku_password),
-                               headers=headers)
+                requests.patch(
+                    "https://api.heroku.com/apps/{}/config-vars".format(host),
+                    data=args,
+                    auth=(heroku_email_address, heroku_password),
+                    headers=headers)
 
                 # then force expire the hit via boto
                 conn.expire_hit(hit_id)
@@ -163,6 +172,8 @@ I am busy with other matters.".format(datetime.now(),
                     'Event.1.EventType': 'NotificationMissing',
                     'Event.1.AssignmentId': assignment_id
                 }
-                requests.post("http://" + os.environ['HOST'] + '/notifications', data=args)
+                requests.post(
+                    "http://" + os.environ['HOST'] + '/notifications',
+                    data=args)
 
 scheduler.start()

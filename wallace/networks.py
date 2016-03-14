@@ -2,15 +2,12 @@
 
 from .models import Network
 from .nodes import Agent, Source
-from sqlalchemy import and_
 import random
 from operator import attrgetter
 
 
 class Chain(Network):
-
-    """
-    Source -> Agent -> Agent -> Agent -> ...
+    """Source -> Agent -> Agent -> Agent -> ...
 
     The source is optional and can be added at any time
     """
@@ -47,7 +44,6 @@ class Chain(Network):
 
 
 class FullyConnected(Network):
-
     """A fully-connected network (complete graph) with all possible vectors."""
 
     __mapper_args__ = {"polymorphic_identity": "fully-connected"}
@@ -67,7 +63,6 @@ class FullyConnected(Network):
 
 
 class Empty(Network):
-
     """An empty network with no vectors."""
 
     __mapper_args__ = {"polymorphic_identity": "empty"}
@@ -88,7 +83,6 @@ class Empty(Network):
 
 
 class Star(Network):
-
     """A star network.
 
     A star newtork has a central node with a pair of vectors, incoming and
@@ -107,7 +101,6 @@ class Star(Network):
 
 
 class Burst(Network):
-
     """A burst network.
 
     A burst network has a central node with an outgoing connection to each of
@@ -126,7 +119,6 @@ class Burst(Network):
 
 
 class DiscreteGenerational(Network):
-
     """A discrete generational network.
 
     A discrete generational network arranges agents into none-overlapping
@@ -147,7 +139,7 @@ class DiscreteGenerational(Network):
         self.property1 = repr(generations)
         self.property2 = repr(generation_size)
         self.property3 = repr(initial_source)
-        self.max_size = repr(generations*generation_size)
+        self.max_size = repr(generations * generation_size)
 
     @property
     def generations(self):
@@ -173,17 +165,19 @@ class DiscreteGenerational(Network):
 
         if current_generation == 0:
             if self.initial_source:
-                source = min(self.nodes(type=Source), key=attrgetter('creation_time'))
+                source = min(
+                    self.nodes(type=Source),
+                    key=attrgetter('creation_time'))
                 source.connect(whom=newcomer)
                 source.transmit(to_whom=newcomer)
         else:
             prev_agents = type(newcomer).query\
                 .filter_by(failed=False,
                            network_id=self.id,
-                           generation=current_generation-1)\
+                           generation=(current_generation - 1))\
                 .all()
             prev_fits = [p.fitness for p in prev_agents]
-            prev_probs = [(f/(1.0*sum(prev_fits))) for f in prev_fits]
+            prev_probs = [(f / (1.0 * sum(prev_fits))) for f in prev_fits]
 
             rnd = random.random()
             temp = 0.0
@@ -202,7 +196,6 @@ class DiscreteGenerational(Network):
 
 
 class ScaleFree(Network):
-
     """Barabasi-Albert (1999) model of a scale-free network.
 
     The construction process begins with a fully-connected network with m0
@@ -265,7 +258,6 @@ class ScaleFree(Network):
 
 
 class SequentialMicrosociety(Network):
-
     """A microsociety."""
 
     __mapper_args__ = {"polymorphic_identity": "microsociety"}
@@ -294,7 +286,7 @@ class SequentialMicrosociety(Network):
 
         # ... otherwise connect from the previous n - 1 agents.
         else:
-            for agent in other_agents[0:(self.n-1)]:
+            for agent in other_agents[0:(self.n - 1)]:
                 agent.connect(direction="to", whom=newcomer)
 
     def calculate_full(self):

@@ -105,8 +105,6 @@ def setup(debug=True, verbose=False):
     )
     shutil.copytree(os.getcwd(), dst, ignore=to_ignore)
 
-    print dst
-
     # Save the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
         file.write(id)
@@ -164,9 +162,9 @@ def summary(app):
     for s in summary:
         print "{}\t| {}".format(s[0], s[1])
     num_101s = sum([s[1] for s in summary if s[0] == 101])
-    num_10Xs = sum([s[1] for s in summary if s[0] >= 100])
-    if num_10Xs > 0:
-        print "\nYield: {:.2%}".format(1.0*num_101s / num_10Xs)
+    num_10xs = sum([s[1] for s in summary if s[0] >= 100])
+    if num_10xs > 0:
+        print "\nYield: {:.2%}".format(1.0 * num_101s / num_10xs)
 
 
 @wallace.command()
@@ -255,9 +253,9 @@ def debug(verbose):
 def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
-        OUT = None
+        out = None
     else:
-        OUT = open(os.devnull, 'w')
+        out = open(os.devnull, 'w')
 
     (id, tmp) = setup(debug=False, verbose=verbose)
 
@@ -274,7 +272,7 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
             "git add --all",
             'git commit -m "Experiment ' + id + '"']
     for cmd in cmds:
-        subprocess.call(cmd, stdout=OUT, shell=True)
+        subprocess.call(cmd, stdout=out, shell=True)
         time.sleep(0.5)
 
     # Load psiTurk configuration.
@@ -286,7 +284,7 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
     subprocess.call(
         "heroku apps:create " + id +
         " --buildpack https://github.com/thenovices/heroku-buildpack-scipy",
-        stdout=OUT,
+        stdout=out,
         shell=True)
 
     database_size = config.get('Database Parameters', 'database_size')
@@ -335,7 +333,7 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
         config.get('heroku Access', 'heroku_password'),
     ]
     for cmd in cmds:
-        subprocess.call(cmd + " --app " + id, stdout=OUT, shell=True)
+        subprocess.call(cmd + " --app " + id, stdout=out, shell=True)
 
     # Set the notification URL in the cofig file to the notifications URL.
     config.set(
@@ -348,18 +346,18 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
     db_url = subprocess.check_output(
         "heroku config:get DATABASE_URL --app " + id, shell=True)
     config.set("Database Parameters", "database_url", db_url.rstrip())
-    subprocess.call("git add config.txt", stdout=OUT, shell=True),
+    subprocess.call("git add config.txt", stdout=out, shell=True),
     time.sleep(0.25)
     subprocess.call(
         'git commit -m "Save URLs for database and notifications"',
-        stdout=OUT,
+        stdout=out,
         shell=True)
     time.sleep(0.25)
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
-    subprocess.call("git push heroku HEAD:master", stdout=OUT,
-                    stderr=OUT, shell=True)
+    subprocess.call("git push heroku HEAD:master", stdout=out,
+                    stderr=out, shell=True)
 
     dyno_type = config.get('Server Parameters', 'dyno_type')
     num_dynos_web = config.get('Server Parameters', 'num_dynos_web')
@@ -367,11 +365,11 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
     log("Starting up the web server...")
     subprocess.call("heroku ps:scale web=" + str(num_dynos_web) + ":" +
-                    str(dyno_type) + " --app " + id, stdout=OUT, shell=True)
+                    str(dyno_type) + " --app " + id, stdout=out, shell=True)
     subprocess.call("heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
-                    str(dyno_type) + " --app " + id, stdout=OUT, shell=True)
+                    str(dyno_type) + " --app " + id, stdout=out, shell=True)
     subprocess.call("heroku ps:scale clock=1:performance-m",
-                    stdout=OUT, shell=True)
+                    stdout=out, shell=True)
     time.sleep(8)
 
     # Launch the experiment.
@@ -434,8 +432,8 @@ def deploy(verbose):
 
 @wallace.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
-@click.option(
-    '--local', is_flag=True, flag_value=True, help='Export local data')
+@click.option('--local', is_flag=True, flag_value=True,
+              help='Export local data')
 def export(app, local):
     """Export the data."""
     print_header()
