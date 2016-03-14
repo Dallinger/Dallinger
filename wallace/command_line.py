@@ -18,6 +18,7 @@ import pkg_resources
 import re
 import psycopg2
 from wallace import db
+from wallace.version import __version__
 import requests
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -54,6 +55,7 @@ def ensure_heroku_logged_in():
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
+@click.version_option(__version__, '--version', '-v', message='%(version)s')
 def wallace():
     """Set up Wallace as a name space."""
     pass

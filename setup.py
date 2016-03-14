@@ -1,10 +1,11 @@
 """Install Wallace as a command line utility."""
 
 from setuptools import setup
+from wallace.version import __version__
 
 setup_args = dict(
     name='wallace',
-    version='0.5',
+    version=__version__,
     description='A platform for experimental evolution',
     url='http://github.com/suchow/Wallace',
     author='Berkeley CoCoSci',
