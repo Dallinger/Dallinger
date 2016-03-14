@@ -16,6 +16,7 @@ import inspect
 import imp
 import pkg_resources
 import re
+import zipfile
 import psycopg2
 from wallace import db
 from wallace.version import __version__
@@ -449,6 +450,15 @@ def export(app, local):
     # Create the data package
     if not os.path.exists(id):
         os.makedirs(id)
+
+    # Copy the experiment code into a code/ subdirectory
+    try:
+        z = zipfile.ZipFile(os.path.join("snapshots", id + "-code.zip"))
+        z.extractall(os.path.join(id, "code"))
+    except:
+        pass
+
+    # Copy in the readme.
     open(os.path.join(id, "README.txt"), "a").close()
 
     # Save the experiment id.
