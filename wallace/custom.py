@@ -844,7 +844,13 @@ def node_transmit(node_id):
                 return Response(js, status=400, mimetype='application/json')
 
     # execute the request
-    transmissions = node.transmit(what=what, to_whom=to_whom)
+    try:
+        transmissions = node.transmit(what=what, to_whom=to_whom)
+    except:
+        exp.log("Error: /node/transmit POST request, transmit failed")
+        page = error_page(error_type="/node/transmit POST, transmit failed")
+        js = dumps({"status": "error", "html": page})
+        return Response(js, status=400, mimetype='application/json')
     for t in transmissions:
         assign_properties(t, request)
     session.commit()
