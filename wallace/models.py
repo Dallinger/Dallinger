@@ -636,7 +636,6 @@ class Node(Base, SharedMixin):
                     t.fail()
 
     def connect(self, whom, direction="to"):
-        from wallace.nodes import Source
         """Create a vector from self to/from whom.
 
         whom may be a (nested) list of nodes.
@@ -654,37 +653,12 @@ class Node(Base, SharedMixin):
         (even if there is only one).
         """
 
-        # check self is not failed
-        if self.failed:
-            raise ValueError("{} cannot connect to other nodes as it has failed."
-                             .format(self))
-
         # check direction
         if direction not in ["to", "from", "both"]:
             raise ValueError("{} is not a valid direction for connect()".format(direction))
 
         # make whom a list
         whom = self.flatten([whom])
-
-        # ensure self not in whom
-        if self in whom:
-            raise ValueError("A node cannot connect to itself.")
-
-        # check whom
-        for node in whom:
-            if not isinstance(node, Node):
-                raise(TypeError("Cannot connect to objects not of type {}.".
-                                format(type(node))))
-
-            if direction in ["to", "both"] and isinstance(node, Source):
-                raise(TypeError("Cannot connect to {} as it is a Source.".format(node)))
-
-            if node.failed:
-                raise ValueError("Cannot connect to/from {} as it has failed".format(node))
-
-            if node.network_id != self.network_id:
-                raise ValueError("{}, in network {}, cannot connect with {} as it is in network {}"
-                                 .format(self, self.network_id, node, node.network_id))
 
         # make the connections
         new_vectors = []
@@ -898,7 +872,35 @@ class Vector(Base, SharedMixin):
     time_of_death = Column(DateTime, default=None)
 
     def __init__(self, origin, destination):
-        #super(Vector, self).__init__()
+
+        # check origin and destination are in the same network
+        if origin.network_id != destination.network_id:
+            raise ValueError("{}, in network {}, cannot connect with {} as it is in network {}"
+                             .format(origin, origin.network_id, destination, destination.network_id))
+
+        # check neither the origin or destination have failed
+        if origin.failed:
+            raise ValueError("{} cannot connect to {} as {} has failed".format(origin, destination, origin))
+        if destination.failed:
+            raise ValueError("{} cannot connect to {} as {} has failed".format(origin, destination, destination))
+
+        # check the destination isnt a source
+        from wallace.nodes import Source
+        if isinstance(destination, Source):
+            raise(TypeError("Cannot connect to {} as it is a Source.".format(destination)))
+
+        # check origin and destination are both nodes
+        if not isinstance(origin, Node):
+            raise(TypeError("{} cannot connect to {} as {} is a {}.".
+                            format(origin, destination, origin, type(origin))))
+        if not isinstance(destination, Node):
+            raise(TypeError("{} cannot connect to {} as {} is a {}.".
+                            format(origin, destination, destination, type(destination))))
+
+        # check origin and destination are different nodes
+        if origin == destination:
+            raise ValueError("{} cannot connect to itself.".format(origin))
+
         self.origin = origin
         self.origin_id = origin.id
         self.destination = destination
