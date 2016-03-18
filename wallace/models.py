@@ -1207,8 +1207,14 @@ class Transformation(Base, SharedMixin):
         """The string representation of a transformation."""
         return "Transformation-{}".format(self.id)
 
-    def __init__(self, info_in, info_out=None):
-        self.check_for_transformation(info_in, info_out)
+    def __init__(self, info_in, info_out):
+
+        # check info_in is from the same node as info_out or has been sent to the same node
+        if (info_in.origin_id != info_out.origin_id and
+           info_in.id not in [t.info_id for t in info_out.origin.transmissions(direction="incoming", status="received")]):
+            raise ValueError("Cannot transform {} into {} as they are not at the same node."
+                             .format(info_in, info_out))
+
         self.info_in = info_in
         self.info_out = info_out
         self.node = info_out.origin
@@ -1242,23 +1248,6 @@ class Transformation(Base, SharedMixin):
         else:
             self.failed = True
             self.time_of_death = timenow()
-
-    def check_for_transformation(self, info_in, info_out):
-        # check the infos are Infos.
-        if not isinstance(info_in, Info):
-            raise TypeError("{} cannot be transformed as it is a {}"
-                            .format(info_in, type(info_in)))
-        if not isinstance(info_out, Info):
-            raise TypeError("{} cannot be transformed as it is a {}"
-                            .format(info_out, type(info_out)))
-
-        node = info_out.origin
-        # check the info_in is from the node or has been sent to the node
-        if not ((info_in.origin_id != node.id) or
-                (info_in.id not in
-                 [t.info_id for t in node.transmissions(direction="incoming", status="received")])):
-            raise ValueError("{} cannot transform {} as it has not been sent it or made it."
-                             .format(node, info_in))
 
 
 class Notification(Base, SharedMixin):
