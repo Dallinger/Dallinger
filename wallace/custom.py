@@ -262,6 +262,33 @@ def request_parameter(request, parameter, parameter_type=None, default=None, opt
             mimetype='application/json')
 
 
+def assign_properties(thing, request):
+    """ When creating something via a post request (e.g. a node)
+    you can pass the properties of the object in the request.
+    This function gets those values from the request and fills
+    in the relevant columns of the table. """
+    properties = [
+        request_parameter(request=request, parameter="property1", optional=True),
+        request_parameter(request=request, parameter="property2", optional=True),
+        request_parameter(request=request, parameter="property3", optional=True),
+        request_parameter(request=request, parameter="property4", optional=True),
+        request_parameter(request=request, parameter="property5", optional=True)
+    ]
+    for p in range(5):
+        if properties[p] is not None:
+            if p == 0:
+                thing.property1 = properties[p]
+            elif p == 1:
+                thing.property2 = properties[p]
+            elif p == 2:
+                thing.property3 = properties[p]
+            elif p == 3:
+                thing.property4 = properties[p]
+            else:
+                thing.property5 = properties[p]
+    session.commit()
+
+
 @custom_code.route("/node/<int:node_id>/neighbors", methods=["GET"])
 def node_neighbors(node_id):
     """ Send a GET request to the node table.
@@ -401,6 +428,8 @@ def create_node(participant_id):
             participant_id=participant_id,
             network=network)
 
+        assign_properties(node, request)
+
         exp.add_node_to_network(
             participant_id=participant_id,
             node=node,
@@ -493,6 +522,8 @@ def connect(node_id, other_node_id):
 
     # execute the request
     vectors = node.connect(whom=other_node, direction=direction)
+    for v in vectors:
+        assign_properties(v, request)
 
     # ping the experiment
     exp.vector_post_request(
@@ -648,14 +679,6 @@ def info_post(node_id):
     if type(contents) == Response:
         return contents
 
-    properties = [
-        request_parameter(request=request, parameter="property1", optional=True),
-        request_parameter(request=request, parameter="property2", optional=True),
-        request_parameter(request=request, parameter="property3", optional=True),
-        request_parameter(request=request, parameter="property4", optional=True),
-        request_parameter(request=request, parameter="property5", optional=True)
-    ]
-
     exp.log("/info POST request. Params: node_id: {}, info_type: {}, \
              contents: {}"
             .format(node_id, info_type, contents))
@@ -670,19 +693,7 @@ def info_post(node_id):
 
     # execute the request
     info = info_type(origin=node, contents=contents)
-    for p in range(5):
-        if properties[p] is not None:
-            if p == 0:
-                info.property1 = properties[p]
-            elif p == 1:
-                info.property2 = properties[p]
-            elif p == 2:
-                info.property3 = properties[p]
-            elif p == 3:
-                info.property4 = properties[p]
-            else:
-                info.property5 = properties[p]
-    session.commit()
+    assign_properties(info, request)
 
     # ping the experiment
     exp.info_post_request(
@@ -796,6 +807,8 @@ def node_transmit(node_id):
 
     # execute the request
     transmissions = node.transmit(what=what, to_whom=to_whom)
+    for t in transmissions:
+        assign_properties(t, request)
     session.commit()
 
     # ping the experiment
@@ -894,6 +907,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
 
     # execute the request
     transformation = transformation_type(info_in=info_in, info_out=info_out)
+    assign_properties(transformation, request)
     session.commit()
 
     # ping the experiment
