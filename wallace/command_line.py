@@ -436,6 +436,71 @@ def deploy(verbose):
 
 
 @wallace.command()
+@click.option('--qualification')
+@click.option('--value')
+@click.option('--worker')
+def qualify(qualification, value, worker):
+    """Assign a qualification to a worker."""
+    # create connection to AWS
+    from boto.mturk.connection import MTurkConnection
+    config = PsiturkConfig()
+    config.load_config()
+    aws_access_key_id = config.get('AWS Access', 'aws_access_key_id')
+    aws_secret_access_key = config.get('AWS Access', 'aws_secret_access_key')
+    conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
+
+    def get_workers_with_qualification(qualification):
+        """Get workers with the given qualification."""
+        results = []
+        continue_flag = True
+        page = 1
+        while(continue_flag):
+            new_results = conn.get_qualifications_for_qualification_type(
+                qualification,
+                page_size=100,
+                page_number=page)
+
+            if(len(new_results) == 0):
+                continue_flag = False
+            else:
+                results.extend(new_results)
+                page = page + 1
+
+        return results
+
+    results = get_workers_with_qualification(qualification)
+    workers = [x.SubjectId for x in results]
+
+    # assign the qualification
+    click.echo(
+        "Assigning qualification {} with value {} to worker {}".format(
+            qualification,
+            value,
+            worker))
+
+    if worker in workers:
+        result = conn.update_qualification_score(qualification, worker, value)
+    else:
+        result = conn.assign_qualification(qualification, worker, value)
+
+    if result:
+        click.echo(result)
+
+    # print out the current set of workers with the qualification
+    results = get_workers_with_qualification(qualification)
+
+    click.echo("{} workers with qualification {}:".format(
+        len(results),
+        qualification))
+
+    unique_values = list(set([r.IntegerValue for r in results]))
+    for v in unique_values:
+        click.echo("{} with value {}".format(
+            len([val for val in unique_values if val == v]),
+            v))
+
+
+@wallace.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option('--local', is_flag=True, flag_value=True,
               help='Export local data')
