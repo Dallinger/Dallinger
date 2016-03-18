@@ -707,10 +707,6 @@ class Node(Base, SharedMixin):
             (3) to_whom is/contains a node that the transmitting node does have have a live connection with.
         """
 
-        # check self is not failed
-        if self.failed:
-            raise ValueError("{} cannot transmit as it has failed.".format(self))
-
         # make the list of what
         what = self.flatten([what])
         for i in range(len(what)):
@@ -720,15 +716,8 @@ class Node(Base, SharedMixin):
                 what[i] = self.infos(type=what[i])
         what = self.flatten(what)
         for i in range(len(what)):
-            if isinstance(what[i], Info):
-                pass
-            elif what[i] is None:
-                raise ValueError("The _what() of {} is returning None: {}."
-                                 .format(self, self._what()))
-            elif inspect.isclass(what[i]) and issubclass(what[i], Info):
+            if inspect.isclass(what[i]) and issubclass(what[i], Info):
                 what[i] = self.infos(type=what[i])
-            else:
-                raise ValueError("Cannot transmit {}".format(what[i]))
         what = list(set(self.flatten(what)))
 
         # make the list of to_whom
@@ -740,28 +729,20 @@ class Node(Base, SharedMixin):
                 to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
         to_whom = self.flatten(to_whom)
         for i in range(len(to_whom)):
-            if isinstance(to_whom[i], Node):
-                pass
-            elif to_whom[i] is None:
-                raise ValueError("The _to_whom() of {} is returning None: {}."
-                                 .format(self, self._to_whom()))
-            elif inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
+            if inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
                 to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
-            else:
-                raise ValueError("Cannot transmit to {}".format(to_whom[i]))
         to_whom = list(set(self.flatten(to_whom)))
 
         transmissions = []
+        vectors = self.vectors(direction="outgoing")
         for w in what:
-            if w.origin_id != self.id:
-                raise ValueError("{} cannot transmit {} as it is not its origin"
-                                 .format(self, w))
             for tw in to_whom:
-                if not self.is_connected(whom=tw):
+                try:
+                    vector = [v for v in vectors
+                              if v.destination_id == tw.id][0]
+                except:
                     raise ValueError("{} cannot transmit to {} as it does not have \
                                       a connection to them".format(self, tw))
-                vector = [v for v in self.vectors(direction="outgoing")
-                          if v.destination_id == tw.id][0]
                 t = Transmission(info=w, vector=vector)
                 transmissions.append(t)
         if len(transmissions) == 1:
@@ -1128,7 +1109,15 @@ class Transmission(Base, SharedMixin):
                     nullable=False, default="pending", index=True)
 
     def __init__(self, vector, info):
-        #super(Transmission, self).__init__()
+
+        # check vector is not failed
+        if vector.failed:
+            raise ValueError("Cannot transmit along {} as it has failed.".format(vector))
+
+        # check the origin of the vector is the same as the origin of the info
+        if info.origin_id != vector.origin_id:
+            raise ValueError("Cannot transmit {} along {} as they do not have the same origin".format(info, vector))
+
         self.vector_id = vector.id
         self.vector = vector
         self.info_id = info
