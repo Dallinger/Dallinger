@@ -202,7 +202,7 @@ def request_parameter(request, parameter, parameter_type=None, default=None, opt
     if parameter_type is None:
         # if no parameter_type is required, return the parameter as is
         return value
-    elif parameter_type == int:
+    elif parameter_type == "int":
         # if int is required, convert to an int
         try:
             value = int(value)
@@ -234,7 +234,7 @@ def request_parameter(request, parameter, parameter_type=None, default=None, opt
                 dumps(data),
                 status=400,
                 mimetype='application/json')
-    elif parameter_type == bool:
+    elif parameter_type == "bool":
         # if its a boolean, convert to a boolean
         if value in ["True", "False"]:
             return value == "True"
@@ -306,8 +306,8 @@ def node_neighbors(node_id):
 
     # get the parameters
     node_type = request_parameter(request=request, parameter="node_type", parameter_type="known_class", default=models.Node)
-    failed = request_parameter(request=request, parameter="failed", parameter_type=bool, default=False)
-    vector_failed = request_parameter(request=request, parameter="vector_failed", parameter_type=bool, default=False)
+    failed = request_parameter(request=request, parameter="failed", parameter_type="bool", default=False)
+    vector_failed = request_parameter(request=request, parameter="vector_failed", parameter_type="bool", default=False)
     connection = request_parameter(request=request, parameter="connection", default="to")
 
     for x in [node_type, failed, vector_failed, connection]:
@@ -458,7 +458,7 @@ def node_vectors(node_id):
     if type(direction) == Response:
         return direction
 
-    failed = request_parameter(request=request, parameter="failed", parameter_type=bool, default=False)
+    failed = request_parameter(request=request, parameter="failed", parameter_type="bool", default=False)
     if type(failed) == Response:
         return failed
 
@@ -758,40 +758,40 @@ def node_transmissions(node_id):
 
 @custom_code.route("/node/<int:node_id>/transmit", methods=["POST"])
 def node_transmit(node_id):
+    """ The /node/<id>/transmit route allows the front end to
+    request that a node transmit to other nodes.
+
+    As with node.transmit() the key parameters are what and to_whom.
+    However, the values these accept are more limited than for the back end
+    due to the necessity of serialization.
+
+    If what and to_whom are not specified they will default to None.
+    Alternatively you can pass an int (e.g. '5') or a class name (e.g.
+    'Info' or 'Agent'). Passing an int will get that info/node, passing
+    a class name will pass the class. Note that if the class you are specifying
+    is a custom class it will need to be added to the dictionary of known_classes
+    in your experiment code.
+
+    You may also pass the values property1, property2, property3, property4
+    and property5. If passed this will fill in the relevant values of the
+    transmissions created with the values you specified.
+
+    For example, to transmit all infos of type Meme to the node with id 10:
+    reqwest({
+        url: "/node/" + my_node_id + "/transmit",
+        method: 'post',
+        type: 'json',
+        data: {
+            what: "Meme",
+            to_whom: 10,
+        },
+    });
+    """
+
     exp = experiment(session)
 
-    # get the parameters
-    info_id = request_parameter(request=request, parameter="info_id", parameter_type=int, default=None)
-    if type(info_id) == Response:
-        return info_id
-
-    if info_id is None:
-        what = request_parameter(request=request, parameter="what", default=None)
-        if type(what) == Response:
-            return what
-    else:
-        what = models.Info.get(info_id)
-        if what is None:
-            exp.log("Error: /node/transmit POST request, info {} does not exist".format(info_id))
-            page = error_page(error_type="/node/transmit POST, info does not exist")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=400, mimetype='application/json')
-
-    destination_id = request_parameter(request=request, parameter="destination_id", parameter_type=int, default=None)
-    if type(destination_id) == Response:
-        return destination_id
-
-    if destination_id is None:
-        to_whom = request_parameter(request=request, parameter="to_whom", default=None)
-        if type(to_whom) == Response:
-            return to_whom
-    else:
-        to_whom = models.Node.get(destination_id)
-        if to_whom is None:
-            exp.log("Error: /node/transmit POST request, destination node {} does not exist".format(info_id))
-            page = error_page(error_type="/node/transmit POST, destination does not exist")
-            js = dumps({"status": "error", "html": page})
-            return Response(js, status=400, mimetype='application/json')
+    what = request_parameter(request=request, parameter="what", optional=True)
+    to_whom = request_parameter(request=request, parameter="to_whom", optional=True)
 
     exp.log("/node/transmit request. Params: node_id: {}, what: {}, \
              to_whom: {}"
@@ -804,6 +804,44 @@ def node_transmit(node_id):
         page = error_page(error_type="/node/transmit, node does not exist")
         js = dumps({"status": "error", "html": page})
         return Response(js, status=400, mimetype='application/json')
+
+    # create what
+    if what is not None:
+        try:
+            what = int(what)
+            what = models.Info.get(what)
+            if what is None:
+                exp.log("Error: /node/transmit POST request, info {} does not exist".format(int(request_parameter(request=request, parameter="what", optional=True))))
+                page = error_page(error_type="/node/transmit POST, info does not exist")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=400, mimetype='application/json')
+        except:
+            try:
+                what = exp.known_classes[what]
+            except:
+                exp.log("Error: /node/transmit POST request, bad what: {}".format(request_parameter(request=request, parameter="what", optional=True)))
+                page = error_page(error_type="/node/transmit POST, info does not exist")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=400, mimetype='application/json')
+
+    # create to_whom
+    if to_whom is not None:
+        try:
+            to_whom = int(to_whom)
+            to_whom = models.Node.get(to_whom)
+            if what is None:
+                exp.log("Error: /node/transmit POST request, info {} does not exist".format(int(request_parameter(request=request, parameter="to_whom", optional=True))))
+                page = error_page(error_type="/node/transmit POST, info does not exist")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=400, mimetype='application/json')
+        except:
+            try:
+                to_whom = exp.known_classes[to_whom]
+            except:
+                exp.log("Error: /node/transmit POST request, bad to_whom: {}".format(request_parameter(request=request, parameter="to_whom", optional=True)))
+                page = error_page(error_type="/node/transmit POST, info does not exist")
+                js = dumps({"status": "error", "html": page})
+                return Response(js, status=400, mimetype='application/json')
 
     # execute the request
     transmissions = node.transmit(what=what, to_whom=to_whom)
