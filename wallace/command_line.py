@@ -449,22 +449,26 @@ def qualify(qualification, value, worker):
     aws_secret_access_key = config.get('AWS Access', 'aws_secret_access_key')
     conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
 
-    # get workers who already have the qualification
-    results = []
-    page = 1
-    new_results = conn.get_qualifications_for_qualification_type(
-        qualification,
-        page_size=100,
-        page_number=page)
+    def get_workers_with_qualification(qualification):
+        """Get workers with the given qualification."""
+        results = []
+        continue_flag = True
+        page = 1
+        while(continue_flag):
+            new_results = conn.get_qualifications_for_qualification_type(
+                qualification,
+                page_size=100,
+                page_number=page)
 
-    while(len(new_results) > 0):
-        results.extend(new_results)
-        page = page + 1
-        new_results = conn.get_qualifications_for_qualification_type(
-            qualification,
-            page_size=100,
-            page_number=page)
+            if(len(new_results) == 0):
+                continue_flag = False
+            else:
+                results.extend(new_results)
+                page = page + 1
 
+        return results
+
+    results = get_workers_with_qualification(qualification)
     workers = [x.SubjectId for x in results]
 
     # assign the qualification
@@ -483,20 +487,7 @@ def qualify(qualification, value, worker):
         click.echo(result)
 
     # print out the current set of workers with the qualification
-    results = []
-    page = 1
-    new_results = conn.get_qualifications_for_qualification_type(
-        qualification,
-        page_size=100,
-        page_number=page)
-
-    while(len(new_results) > 0):
-        results.extend(new_results)
-        page = page + 1
-        new_results = conn.get_qualifications_for_qualification_type(
-            qualification,
-            page_size=100,
-            page_number=page)
+    results = get_workers_with_qualification(qualification)
 
     click.echo("{} workers with qualification {}:".format(
         len(results),
