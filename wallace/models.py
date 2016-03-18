@@ -889,14 +889,6 @@ class Vector(Base, SharedMixin):
         if isinstance(destination, Source):
             raise(TypeError("Cannot connect to {} as it is a Source.".format(destination)))
 
-        # check origin and destination are both nodes
-        if not isinstance(origin, Node):
-            raise(TypeError("{} cannot connect to {} as {} is a {}.".
-                            format(origin, destination, origin, type(origin))))
-        if not isinstance(destination, Node):
-            raise(TypeError("{} cannot connect to {} as {} is a {}.".
-                            format(origin, destination, destination, type(destination))))
-
         # check origin and destination are different nodes
         if origin == destination:
             raise ValueError("{} cannot connect to itself.".format(origin))
