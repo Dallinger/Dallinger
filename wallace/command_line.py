@@ -459,13 +459,13 @@ def qualify(qualification, value, worker):
     workers = [x.SubjectId for x in results]
 
     # assign the qualification
-    print "Assigning qualification {} with value {} to worker {}".format(qualification, value, worker)
+    click.echo("Assigning qualification {} with value {} to worker {}".format(qualification, value, worker))
     if worker in workers:
         result = conn.update_qualification_score(qualification, worker, value)
     else:
         result = conn.assign_qualification(qualification, worker, value)
     if result != []:
-        print result
+        click.echo(result)
 
     # print out the current set of workers with the qualification
     results = []
@@ -475,11 +475,11 @@ def qualify(qualification, value, worker):
         results.extend(new_results)
         page = page + 1
         new_results = conn.get_qualifications_for_qualification_type(qualification, page_size=100, page_number=page)
-    print "{} workers with qualification {}:".format(len(results), qualification)
+    click.echo("{} workers with qualification {}:".format(len(results), qualification))
     values = [r.IntegerValue for r in results]
     unique_values = set(values)
     for v in unique_values:
-        print "{} with value {}".format(len([val for val in values if val == v]), v)
+        click.echo("{} with value {}".format(len([val for val in values if val == v]), v))
 
 
 @wallace.command()
