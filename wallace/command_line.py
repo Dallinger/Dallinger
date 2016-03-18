@@ -440,6 +440,7 @@ def deploy(verbose):
 @click.option('--value')
 @click.option('--worker')
 def qualify(qualification, value, worker):
+    """Assign a qualification to a worker."""
     # create connection to AWS
     from boto.mturk.connection import MTurkConnection
     config = PsiturkConfig()
