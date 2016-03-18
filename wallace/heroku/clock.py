@@ -63,7 +63,7 @@ def check_db_for_missing_notifications():
     for p in participants:
         p_time = (current_time - p.beginhit).total_seconds()
 
-        if p_time > (duration + 100):
+        if p_time > (duration + 120):
             print "participant {} with status {} has been playing for too long and no notification has arrived - running emergency code".format(p.uniqueid, p.status)
 
             # get their assignment
