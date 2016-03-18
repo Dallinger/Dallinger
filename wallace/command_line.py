@@ -436,6 +436,53 @@ def deploy(verbose):
 
 
 @wallace.command()
+@click.option('--qualification')
+@click.option('--value')
+@click.option('--worker')
+def qualify(qualification, value, worker):
+    # create connection to AWS
+    from boto.mturk.connection import MTurkConnection
+    config = PsiturkConfig()
+    config.load_config()
+    aws_access_key_id = config.get('AWS Access', 'aws_access_key_id')
+    aws_secret_access_key = config.get('AWS Access', 'aws_secret_access_key')
+    conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
+
+    # get workers who already have the qualification
+    results = []
+    page = 1
+    new_results = conn.get_qualifications_for_qualification_type(qualification, page_size=100, page_number=page)
+    while(len(new_results) > 0):
+        results.extend(new_results)
+        page = page + 1
+        new_results = conn.get_qualifications_for_qualification_type(qualification, page_size=100, page_number=page)
+    workers = [x.SubjectId for x in results]
+
+    # assign the qualification
+    print "Assigning qualification {} with value {} to worker {}".format(qualification, value, worker)
+    if worker in workers:
+        result = conn.update_qualification_score(qualification, worker, value)
+    else:
+        result = conn.assign_qualification(qualification, worker, value)
+    if result != []:
+        print result
+
+    # print out the current set of workers with the qualification
+    results = []
+    page = 1
+    new_results = conn.get_qualifications_for_qualification_type(qualification, page_size=100, page_number=page)
+    while(len(new_results) > 0):
+        results.extend(new_results)
+        page = page + 1
+        new_results = conn.get_qualifications_for_qualification_type(qualification, page_size=100, page_number=page)
+    print "{} workers with qualification {}:".format(len(results), qualification)
+    values = [r.IntegerValue for r in results]
+    unique_values = set(values)
+    for v in unique_values:
+        print "{} with value {}".format(len([val for val in values if val == v]), v)
+
+
+@wallace.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option('--local', is_flag=True, flag_value=True,
               help='Export local data')
