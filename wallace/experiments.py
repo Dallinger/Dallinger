@@ -1,6 +1,6 @@
 """The base experiment class."""
 
-from wallace.models import Network, Node, Info, Transformation
+from wallace.models import Network, Node, Info, Transformation, Participant
 from wallace.information import Gene, Meme, State
 from wallace.nodes import Agent, Source, Environment
 from wallace.transformations import Mutation, Replication, Compression, Response
@@ -104,8 +104,7 @@ class Experiment(object):
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            from psiturk.models import Participant
-            participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
+            participant = Participant.query.filter_by(unique_id=participant_id).all()[0]
             if participant.status in [1, 2]:
                 node = self.agent(network=network)(participant_id=participant_id, network=network)
             else:
@@ -158,7 +157,6 @@ class Experiment(object):
 
     def log_summary(self):
         """Log a summary of all the participants' status codes."""
-        from psiturk.models import Participant
         participants = Participant.query.with_entities(Participant.status).all()
         counts = Counter([p.status for p in participants])
         sorted_counts = sorted(counts.items(), key=itemgetter(0))
