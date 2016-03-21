@@ -5,7 +5,7 @@ from datetime import datetime
 from .db import Base
 
 from sqlalchemy import ForeignKey, or_, and_
-from sqlalchemy import Column, String, Text, Enum, Integer, Boolean, DateTime
+from sqlalchemy import Column, String, Text, Enum, Integer, Boolean, DateTime, Float
 from sqlalchemy.orm import relationship, validates
 
 import inspect
@@ -30,6 +30,40 @@ class SharedMixin(object):
     property3 = Column(String(26), nullable=True, default=None)
     property4 = Column(String(26), nullable=True, default=None)
     property5 = Column(String(26), nullable=True, default=None)
+
+
+class Participant(Base, SharedMixin):
+
+    """An ex silico participant."""
+
+    __tablename__ = "participant"
+
+    # the participant type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'participant'
+    }
+
+    worker_id = Column(String(50), nullable=False)
+    assignment_id = Column(String(50), nullable=False, index=True)
+    unique_id = Column(String(50), nullable=False, index=True)
+    hit_id = Column(String(50), nullable=False)
+
+    end_time = Column(DateTime)
+
+    base_pay = Column(Float)
+    bonus = Column(Float)
+
+    status = Column(Enum("working", "submitted", "approved", "rejected", "returned", "abandoned", "did_not_attend", "bad_data", "missing_notification", name="participant_status"),
+                    nullable=False, default="working", index=True)
+
+    def __init__(self, worker_id, assignment_id, hit_id):
+
+        self.worker_id = worker_id
+        self.assignment_id = assignment_id
+        self.hit_id = hit_id
+        self.unique_id = worker_id + ":" + assignment_id
 
 
 class Network(Base, SharedMixin):
