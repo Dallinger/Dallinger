@@ -493,10 +493,11 @@ def qualify(qualification, value, worker):
         len(results),
         qualification))
 
+    values = [r.IntegerValue for r in results]
     unique_values = list(set([r.IntegerValue for r in results]))
     for v in unique_values:
         click.echo("{} with value {}".format(
-            len([val for val in unique_values if val == v]),
+            len([val for val in values if val == v]),
             v))
 
 
