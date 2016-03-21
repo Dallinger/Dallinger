@@ -288,6 +288,21 @@ def assign_properties(thing, request):
     session.commit()
 
 
+@custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>", methods=["POST"])
+def create_participant(worker_id, hit_id, assignment_id):
+
+    parts = models.Participant.query.filter_by(worker_id=worker_id).all()
+    if parts:
+        print "participant already exists!"
+        return Response(status=200)
+
+    participant = models.Participant(worker_id=worker_id, assignment_id=assignment_id, hit_id=hit_id)
+    session.add(participant)
+    session.commit()
+
+    return Response(status=200)
+
+
 @custom_code.route("/node/<int:node_id>/neighbors", methods=["GET"])
 def node_neighbors(node_id):
     """ Send a GET request to the node table.
