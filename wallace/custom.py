@@ -16,6 +16,8 @@ import logging
 from operator import attrgetter
 import datetime
 from json import dumps
+import os
+import requests
 
 from rq import Queue, get_current_job
 from worker import conn
@@ -316,6 +318,34 @@ def get_page(page):
 @custom_code.route("/<directory>/<page>", methods=["GET"])
 def get_page_from_directory(directory, page):
     return return_page(directory + '/' + page + '.html', request)
+
+
+@custom_code.route("/ad_address/<mode>/<hit_id>", methods=["GET"])
+def ad_address(mode, hit_id):
+    if mode == "debug":
+        address = '/complete'
+    elif mode in ["sandbox", "live"]:
+        CONFIG = PsiturkConfig()
+        CONFIG.load_config()
+        username = os.getenv('psiturk_access_key_id', CONFIG.get("psiTurk Access", "psiturk_access_key_id"))
+        password = os.getenv('psiturk_secret_access_id', CONFIG.get("psiTurk Access", "psiturk_secret_access_id"))
+        try:
+            req = requests.get('https://api.psiturk.org/api/ad/lookup/' + hit_id,
+                               auth=(username, password))
+        except:
+            raise ValueError('api_server_not_reachable')
+        else:
+            if req.status_code == 200:
+                hit_address = req.json()['ad_id']
+            else:
+                raise ValueError("something here")
+        if mode == "sandbox":
+            address = 'https://sandbox.ad.psiturk.org/complete/' + str(hit_address)
+        elif mode == "live":
+            address = 'https://ad.psiturk.org/complete/' + str(hit_address)
+    else:
+        raise ValueError("Unknown mode: {}".format(mode))
+    return Response(dumps({"address": address}), status=200)
 
 
 @custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>", methods=["POST"])
