@@ -288,6 +288,36 @@ def assign_properties(thing, request):
     session.commit()
 
 
+def return_page(page, request):
+    exp = experiment(session)
+    try:
+        hit_id = request.args['hit_id']
+        assignment_id = request.args['assignment_id']
+        worker_id = request.args['worker_id']
+        mode = request.args['mode']
+        return render_template(
+            page,
+            hit_id=hit_id,
+            assignment_id=assignment_id,
+            worker_id=worker_id,
+            mode=mode
+        )
+    except:
+        import traceback
+        traceback.print_exc()
+        return exp.error_page(error_type="{} AWS args missing".format(page))
+
+
+@custom_code.route("/<page>", methods=["GET"])
+def get_page(page):
+    return return_page(page + '.html', request)
+
+
+@custom_code.route("/<directory>/<page>", methods=["GET"])
+def get_page_from_directory(directory, page):
+    return return_page(directory + '/' + page + '.html', request)
+
+
 @custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>", methods=["POST"])
 def create_participant(worker_id, hit_id, assignment_id):
 
