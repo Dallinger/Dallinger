@@ -382,9 +382,16 @@ class Node(Base, SharedMixin):
     # the time when the node changed from alive->dead or alive->failed
     time_of_death = Column(DateTime, default=None)
 
-    # the participant id is the sha512 hash of the psiTurk uniqueId of the
-    # participant who was this node.
-    participant_id = Column(String(128), default=None, index=True)
+    # the participant whose node this is
+    participant_id = Column(Integer, ForeignKey('participant.id'), index=True)
+    participant = relationship(Participant, backref='all_nodes')
+
+    def __init__(self, network, participant=None):
+        self.network = network
+        self.network_id = network.id
+        if participant is not None:
+            self.participant = participant
+            self.participant_id = participant.id
 
     def __repr__(self):
         """The string representation of a node."""
