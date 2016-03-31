@@ -66,6 +66,42 @@ class Participant(Base, SharedMixin):
         self.unique_id = worker_id + ":" + assignment_id
 
 
+class Question(Base, SharedMixin):
+
+    """A class that stores the response of a participant to
+    a debriefing question"""
+
+    __tablename__ = "question"
+
+    # the question type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'question'
+    }
+
+    # the participant who made the response
+    participant_id = Column(String, ForeignKey('participant.unique_id'))
+    participant = relationship(Participant, backref='all_questions')
+
+    # the network that this node is a part of
+    question_id = Column(Integer, nullable=False)
+
+    # the text of the question
+    question = Column(String(250), nullable=False)
+
+    # the response from the participants
+    response = Column(String(1000), nullable=False)
+
+    def __init__(self, participant, question, response, question_id):
+
+        self.participant = participant
+        self.participant_id = participant.id
+        self.question_id = question_id
+        self.question = question
+        self.response = response
+
+
 class Network(Base, SharedMixin):
 
     """A collection of Nodes and Vectors."""
