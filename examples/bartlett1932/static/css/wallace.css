@@ -1,0 +1,25 @@
+body {
+    font-weight: 300;
+    font-size: 13pt;
+}
+
+.main_div {
+    margin: 5% 10% 5% 10%;
+}
+
+.consent_div {
+    margin: 0 15% 0 15%;
+}
+
+.margin_div {
+    margin: 2% 2% 2% 2%;
+}
+
+.center_div {
+    text-align: center;
+    width: 100%;
+}
+
+.right_div {
+    text-align: right;
+}

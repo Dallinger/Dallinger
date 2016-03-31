@@ -36,6 +36,7 @@ class Bartlett1932(Experiment):
         """When an agent is created, add it to the network and take a step."""
         network.add_node(node)
         processes.random_walk(network)
+        node.receive()
 
     def recruit(self):
         """Recruit participants to the experiment as needed."""
