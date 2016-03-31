@@ -496,13 +496,13 @@ def create_node(participant_id):
 
     else:
         node = exp.make_node_for_participant(
-            participant_id=participant_id,
+            participant=participant,
             network=network)
 
         assign_properties(node, request)
 
         exp.add_node_to_network(
-            participant_id=participant_id,
+            participant=participant,
             node=node,
             network=network)
 

@@ -96,22 +96,20 @@ class Experiment(object):
             self.log("No practice networks available. Assigning participant to experiment network {}".format(chosen_network.id), key)
         return chosen_network
 
-    def make_node_for_participant(self, participant_id, network):
-        key = participant_id[0:5]
+    def make_node_for_participant(self, participant, network):
         if inspect.isclass(self.agent):
             if issubclass(self.agent, Node):
-                node = self.agent(participant_id=participant_id, network=network)
+                node = self.agent(participant=participant, network=network)
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            participant = Participant.query.filter_by(unique_id=participant_id).all()[0]
             if participant.status in [1, 2]:
-                node = self.agent(network=network)(participant_id=participant_id, network=network)
+                node = self.agent(network=network)(participant=participant, network=network)
             else:
-                self.log("Participant status = {}, node creation aborted".format(participant.status), key)
+                self.log("Participant status = {}, node creation aborted".format(participant.status))
                 return None
 
-        self.log("Node successfully generated, recalculating if network is full", key)
+        self.log("Node successfully generated, recalculating if network is full")
         network.calculate_full()
         return node
 
