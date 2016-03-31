@@ -363,6 +363,80 @@ def create_participant(worker_id, hit_id, assignment_id):
     return Response(status=200)
 
 
+@custom_code.route("/question/<participant_id>", methods=["POST"])
+def create_question(participant_id):
+    """ Send a POST request to the question table.
+    """
+    exp = experiment(session)
+
+    # Get the participant.
+    try:
+        participant = models.Participant.query.filter_by(unique_id=participant_id).one()
+    except NoResultFound:
+        exp.log("Error: /question POST request from unrecognized participant_id {}.".format(participant_id))
+        page = error_page(
+            error_text="You cannot continue because your worker id does not match anyone in our records.",
+            error_type="/question POST no participant found")
+        data = {
+            "status": "error",
+            "html": page
+        }
+        return Response(dumps(data), status=403, mimetype='application/json')
+
+    # Make sure the participant status is "working"
+    if participant.status != "working":
+
+        exp.log("Error: Participant status is {}, they should not have been able to contact this route.".format(participant.status))
+        error_type = "/question POST, status = {}".format(participant.status)
+
+        if participant.status in ["submitted", "approved", "rejected"]:
+            error_text = "You cannot continue because we have received a notification from AWS that you have already submitted the assignment.'"
+
+        elif participant.status == "returned":
+            error_text = "You cannot continue because we have received a notification from AWS that you have returned the assignment.'"
+
+        elif participant.status == "abandoned":
+            error_text = "You cannot continue because we have received a notification from AWS that your assignment has expired."
+
+        else:
+            error_text = None
+
+        page = error_page(
+            participant=participant,
+            error_text=error_text,
+            error_type=error_type)
+
+        data = {
+            "status": "error",
+            "html": page
+        }
+        return Response(
+            dumps(data),
+            status=400,
+            mimetype='application/json')
+
+    question = request_parameter(request=request, parameter="question")
+    if type(question) == Response:
+        return question
+
+    response = request_parameter(request=request, parameter="response")
+    if type(response) == Response:
+        return response
+
+    question_id = request_parameter(request=request, parameter="question_id", parameter_type="known_class")
+    if type(question_id) == Response:
+        return question_id
+
+    # execute the request
+    models.Question(participant=participant, question=question, response=response, question_id=question_id)
+    session.commit()
+
+    # return the data
+    data = {"status": "success"}
+    js = dumps(data, default=date_handler)
+    return Response(js, status=200, mimetype='application/json')
+
+
 @custom_code.route("/node/<int:node_id>/neighbors", methods=["GET"])
 def node_neighbors(node_id):
     """ Send a GET request to the node table.
