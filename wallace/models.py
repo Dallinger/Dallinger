@@ -103,7 +103,7 @@ class Question(Base, SharedMixin):
     }
 
     # the participant who made the response
-    participant_id = Column(String, ForeignKey('participant.unique_id'))
+    participant_id = Column(Integer, ForeignKey('participant.id'))
     participant = relationship(Participant, backref='all_questions')
 
     # the network that this node is a part of
