@@ -457,7 +457,7 @@ def create_question(participant_id):
     if type(response) == Response:
         return response
 
-    question_id = request_parameter(request=request, parameter="question_id", parameter_type="known_class")
+    question_id = request_parameter(request=request, parameter="question_id", parameter_type="int")
     if type(question_id) == Response:
         return question_id
 
