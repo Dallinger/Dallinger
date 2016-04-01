@@ -16,17 +16,21 @@ class TestInformation(object):
         self.db.commit()
 
     def test_create_genome(self):
-        node = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node = models.Node(network=net)
         info = information.Gene(origin=node)
-        self.add(node, info)
+        self.db.commit()
 
         assert info.type == "gene"
         assert info.contents is None
 
     def test_create_memome(self):
-        node = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node = models.Node(network=net)
         info = information.Meme(origin=node)
-        self.add(node, info)
+        self.db.commit()
 
         assert info.type == "meme"
         assert info.contents is None
