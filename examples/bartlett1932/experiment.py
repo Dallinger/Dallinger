@@ -32,7 +32,7 @@ class Bartlett1932(Experiment):
                     net.add_source(source)
             self.save()
 
-    def add_node_to_network(self, participant_id, node, network):
+    def add_node_to_network(self, participant, node, network):
         """When an agent is created, add it to the network and take a step."""
         network.add_node(node)
         processes.random_walk(network)
