@@ -1,7 +1,7 @@
 // Create the agent.
 create_agent = function() {
     reqwest({
-        url: "/node/" + worker_id.concat(":").concat(assignment_id),
+        url: "/node/" + participant_id,
         method: 'post',
         type: 'json',
         success: function (resp) {
