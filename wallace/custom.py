@@ -405,7 +405,7 @@ def create_question(participant_id):
 
     # Get the participant.
     try:
-        participant = models.Participant.query.filter_by(unique_id=participant_id).one()
+        participant = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
         exp.log("Error: /question POST request from unrecognized participant_id {}.".format(participant_id))
         page = error_page(
@@ -547,7 +547,7 @@ def create_node(participant_id):
 
     # Get the participant.
     try:
-        participant = models.Participant.query.filter_by(unique_id=participant_id).one()
+        participant = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
         exp.log("Error: /node POST request from unrecognized participant_id {}.".format(participant_id))
         page = error_page(
