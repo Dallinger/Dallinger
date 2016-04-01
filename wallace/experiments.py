@@ -120,11 +120,11 @@ class Experiment(object):
         for t in transmissions:
             t.mark_received()
 
-    def data_check(self, participant=None):
+    def data_check(self, participant):
         """Check that the data are acceptable."""
         return True
 
-    def bonus(self, participant=None):
+    def bonus(self, participant):
         """The bonus to be awarded to the given participant."""
         return 0
 
@@ -132,11 +132,11 @@ class Experiment(object):
         """The reason offered to the participant for giving the bonus."""
         return "Thank for participating! Here is your bonus."
 
-    def attention_check(self, participant=None):
+    def attention_check(self, participant):
         """Check if participant performed adequately."""
         return True
 
-    def submission_successful(self, participant=None):
+    def submission_successful(self, participant):
         pass
 
     def recruit(self):
