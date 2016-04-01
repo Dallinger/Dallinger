@@ -305,9 +305,16 @@ def return_page(page, request):
             mode=mode
         )
     except:
-        import traceback
-        traceback.print_exc()
-        return exp.error_page(error_type="{} AWS args missing".format(page))
+        try:
+            participant_id = request.args['participant_id']
+            return render_template(
+                page,
+                participant_id=participant_id
+            )
+        except:
+            import traceback
+            traceback.print_exc()
+            return exp.error_page(error_type="{} args missing".format(page))
 
 
 @custom_code.route("/<page>", methods=["GET"])
