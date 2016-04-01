@@ -49,6 +49,7 @@ class Participant(Base, SharedMixin):
     assignment_id = Column(String(50), nullable=False, index=True)
     unique_id = Column(String(50), nullable=False, index=True)
     hit_id = Column(String(50), nullable=False)
+    mode = Column(String(50), nullable=False)
 
     end_time = Column(DateTime)
 
@@ -58,12 +59,33 @@ class Participant(Base, SharedMixin):
     status = Column(Enum("working", "submitted", "approved", "rejected", "returned", "abandoned", "did_not_attend", "bad_data", "missing_notification", name="participant_status"),
                     nullable=False, default="working", index=True)
 
-    def __init__(self, worker_id, assignment_id, hit_id):
+    def __init__(self, worker_id, assignment_id, hit_id, mode):
 
         self.worker_id = worker_id
         self.assignment_id = assignment_id
         self.hit_id = hit_id
         self.unique_id = worker_id + ":" + assignment_id
+        self.mode = mode
+
+    def __json__(self):
+        return {
+            "id": self.id,
+            "type": self.type,
+            "worker_id": self.worker_id,
+            "assignment_id": self.assignment_id,
+            "unique_id": self.unique_id,
+            "hit_id": self.hit_id,
+            "mode": self.mode,
+            "end_time": self.end_time,
+            "base_pay": self.base_pay,
+            "bonus": self.bonus,
+            "status": self.status,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
 
 
 class Question(Base, SharedMixin):
