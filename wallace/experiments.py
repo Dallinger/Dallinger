@@ -169,13 +169,13 @@ class Experiment(object):
         self.session.commit()
         session_psiturk.commit()
 
-    def node_post_request(self, participant_id, node):
+    def node_post_request(self, participant, node):
         pass
 
     def node_get_request(self, node, nodes):
         pass
 
-    def vector_post_request(self, node, vector=None, vectors=None):
+    def vector_post_request(self, node, vectors):
         pass
 
     def vector_get_request(self, node, vectors):
@@ -184,10 +184,10 @@ class Experiment(object):
     def info_post_request(self, node, info):
         pass
 
-    def info_get_request(self, node, info=None, infos=None):
+    def info_get_request(self, node, infos):
         pass
 
-    def transmission_post_request(self, node, transmission):
+    def transmission_post_request(self, node, transmissions):
         pass
 
     def transmission_get_request(self, node, transmissions):
