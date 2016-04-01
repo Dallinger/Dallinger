@@ -348,19 +348,46 @@ def ad_address(mode, hit_id):
     return Response(dumps({"address": address}), status=200)
 
 
-@custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>", methods=["POST"])
-def create_participant(worker_id, hit_id, assignment_id):
+@custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>", methods=["POST"])
+def create_participant(worker_id, hit_id, assignment_id, mode):
 
     parts = models.Participant.query.filter_by(worker_id=worker_id).all()
     if parts:
         print "participant already exists!"
         return Response(status=200)
 
-    participant = models.Participant(worker_id=worker_id, assignment_id=assignment_id, hit_id=hit_id)
+    participant = models.Participant(worker_id=worker_id, assignment_id=assignment_id, hit_id=hit_id, mode=mode)
     session.add(participant)
     session.commit()
 
-    return Response(status=200)
+    # return the data
+    data = participant.__json__()
+    data = {"status": "success", "participant": data}
+    js = dumps(data, default=date_handler)
+    return Response(js, status=200, mimetype='application/json')
+
+
+@custom_code.route("/participant/<participant_id>", methods=["GET"])
+def get_participant(participant_id):
+
+    try:
+        participant = models.Participant.query.filter_by(id=participant_id).one()
+    except NoResultFound:
+        exp.log("Error: /participant GET request for unrecognized participant_id {}.".format(participant_id))
+        page = error_page(
+            error_text="You cannot continue because your id does not match anyone in our records.",
+            error_type="/participant GET no participant found")
+        data = {
+            "status": "error",
+            "html": page
+        }
+        return Response(dumps(data), status=403, mimetype='application/json')
+
+    # return the data
+    data = participant.__json__()
+    data = {"status": "success", "participant": data}
+    js = dumps(data, default=date_handler)
+    return Response(js, status=200, mimetype='application/json')
 
 
 @custom_code.route("/question/<participant_id>", methods=["POST"])
