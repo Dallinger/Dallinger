@@ -15,7 +15,7 @@ create_agent = function() {
                 $('body').html(err_response.html);
             } else {
                 allow_exit();
-                window.location = "/postquestionnaire?hit_id=" + hit_id + "&assignment_id=" + assignment_id + "&worker_id=" + worker_id + "&mode=" + mode;
+                go_to_page('postquestionnaire');
             }
         }
     });

@@ -30,6 +30,10 @@ allow_exit = function() {
     window.onbeforeunload = function() {};
 };
 
+go_to_page = function(page) {
+    window.location = "/" + page + "?participant_id=" + participant_id;
+};
+
 // go back to psiturk
 return_to_psiturk_server = function() {
     reqwest({
