@@ -617,7 +617,7 @@ def create_node(participant_id):
     session.commit()
 
     # ping the experument
-    exp.node_post_request(participant_id=participant_id, node=node)
+    exp.node_post_request(participant=participant, node=node)
     session.commit()
 
     # return the data
