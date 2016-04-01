@@ -562,7 +562,7 @@ def create_node(participant_id):
     # replace any duplicate assignments
     check_for_duplicate_assignments(participant)
 
-    # Make sure the participant status is 1 or 2.
+    # Make sure the participant status is working
     if participant.status != "working":
 
         exp.log("Error: Participant status is {}, they should not have been able to contact this route.".format(participant.status))
