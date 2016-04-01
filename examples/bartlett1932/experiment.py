@@ -45,14 +45,6 @@ class Bartlett1932(Experiment):
         else:
             self.recruiter().close_recruitment()
 
-    def bonus(self, participant=None):
-        """Compute the bonus for the given participant.
-
-        This is called automatically when a participant finishes,
-        it is called immediately prior to the participant_submission_trigger
-        """
-        return 1
-
 
 class WarOfTheGhostsSource(Source):
 
