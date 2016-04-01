@@ -17,6 +17,7 @@ hit_id = getUrlParameter('hit_id');
 worker_id = getUrlParameter('worker_id');
 assignment_id = getUrlParameter('assignment_id');
 mode = getUrlParameter('mode');
+participant_id = getUrlParameter('participant_id');
 
 // stop people leaving the page
 window.onbeforeunload = function() {
@@ -37,13 +38,28 @@ go_to_page = function(page) {
 // go back to psiturk
 return_to_psiturk_server = function() {
     reqwest({
-        url: "/ad_address/" + mode + '/' + hit_id,
-        method: 'get',
+        url: "/participant/" + participant_id,
+        method: "get",
         type: 'json',
         success: function (resp) {
-            console.log(resp.address);
-            allow_exit();
-            window.location = resp.address + "?hit_id=" + hit_id + "&assignment_id=" + assignment_id + "&worker_id=" + worker_id + "&mode=" + mode;
+            mode = resp.participant.mode;
+            hit_id = resp.participant.hit_id;
+            assignment_id = resp.assignment_id;
+            worker_id = resp.worker_id;
+            reqwest({
+                url: "/ad_address/" + mode + '/' + hit_id,
+                method: 'get',
+                type: 'json',
+                success: function (resp) {
+                    allow_exit();
+                    window.location = resp.address + "?hit_id=" + hit_id + "&assignment_id=" + assignment_id + "&worker_id=" + worker_id + "&mode=" + mode;
+                },
+                error: function (err) {
+                    console.log(err);
+                    err_response = JSON.parse(err.response);
+                    $('body').html(err_response.html);
+                }
+            });
         },
         error: function (err) {
             console.log(err);
@@ -51,13 +67,21 @@ return_to_psiturk_server = function() {
             $('body').html(err_response.html);
         }
     });
+    
 };
 
 // make a new participant
 create_participant = function() {
     reqwest({
-        url: "/participant/" + worker_id + '/' + hit_id + '/' + assignment_id,
+        url: "/participant/" + worker_id + '/' + hit_id + '/' + assignment_id + '/' + mode,
         method: 'post',
-        type: 'json'
+        type: 'json',
+        success: function(resp) {
+            participant_id = resp.participant.id;
+        },
+        error: function (err) {
+            err_response = JSON.parse(err.response);
+            $('body').html(err_response.html);
+        }
     });
 };
