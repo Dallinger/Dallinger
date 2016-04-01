@@ -326,16 +326,16 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
         config.get('Experiment Configuration', 'auto_recruit'),
 
         "heroku config:set wallace_email_username=" +
-        config.get('email Access', 'wallace_email_address'),
+        config.get('Email Access', 'wallace_email_address'),
 
         "heroku config:set wallace_email_key=" +
-        config.get('email Access', 'wallace_email_password'),
+        config.get('Email Access', 'wallace_email_password'),
 
         "heroku config:set heroku_email_address=" +
-        config.get('heroku Access', 'heroku_email_address'),
+        config.get('Heroku Access', 'heroku_email_address'),
 
         "heroku config:set heroku_password=" +
-        config.get('heroku Access', 'heroku_password'),
+        config.get('Heroku Access', 'heroku_password'),
     ]
     for cmd in cmds:
         subprocess.call(cmd + " --app " + id, stdout=out, shell=True)
