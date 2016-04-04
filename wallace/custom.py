@@ -358,6 +358,8 @@ def ad_address(mode, hit_id):
 @custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>", methods=["POST"])
 def create_participant(worker_id, hit_id, assignment_id, mode):
 
+    nodes = models.Node.query.all()
+
     parts = models.Participant.query.filter_by(worker_id=worker_id).all()
     if parts:
         print "participant already exists!"
