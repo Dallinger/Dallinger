@@ -47,12 +47,16 @@ submit_assignment = function() {
             assignment_id = resp.participant.assignment_id;
             worker_id = resp.participant.worker_id;
             reqwest({
-                url: "/ad_address/" + mode + '/' + hit_id,
-                method: 'get',
+                url: "/participant/" + participant_id + "/submit",
+                method: 'post',
+                //url: "/ad_address/" + mode + '/' + hit_id,
+                //method: 'get',
                 type: 'json',
                 success: function (resp) {
                     allow_exit();
-                    window.location = resp.address + "?uniqueId=" + worker_id + ":" + assignment_id;
+                    opener.location.reload(true);
+                    //console.log(resp.address + "?uniqueId=" + worker_id + ":" + assignment_id);
+                    //window.location = resp.address + "?uniqueId=" + worker_id + ":" + assignment_id;
                 },
                 error: function (err) {
                     console.log(err);
