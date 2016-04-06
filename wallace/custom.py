@@ -417,13 +417,14 @@ def submit_participant(participant_id):
         'assignmentId': participant.assignment_id
     }
     if participant.mode == "sandbox":
-        print(requests.post(
+        req = requests.post(
             "https://workersandbox.mturk.com/mturk/externalSubmit",
-            data=args))
+            data=args)
     elif participant.mode == "live":
-        print(requests.post(
+        req = requests.post(
             "https://www.mturk.com/mturk/externalSubmit",
-            data=args))
+            data=args)
+    print req.json()
     return Response(status=200, mimetype='application/json')
 
 
