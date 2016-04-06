@@ -52,7 +52,7 @@ return_to_psiturk_server = function() {
                 type: 'json',
                 success: function (resp) {
                     allow_exit();
-                    window.location = resp.address + "?hit_id=" + hit_id + "&assignment_id=" + assignment_id + "&worker_id=" + worker_id + "&mode=" + mode;
+                    window.location = resp.address + "?uniqueId=" + worker_id + ":" + assignment_id;
                 },
                 error: function (err) {
                     console.log(err);
