@@ -419,9 +419,21 @@ def submit_participant(participant_id):
         elif participant.mode == "live":
             url = "https://www.mturk.com/mturk/externalSubmit"
 
-        req = requests.post(
-            url + "?assignmentId=" + participant.assignment_id)
-        print req.json()
+        req = requests.post(url + "?assignmentId=" + participant.assignment_id)
+
+        print req
+        try:
+            print req.status_code
+        except:
+            pass
+        try:
+            print req.text
+        except:
+            pass
+        try:
+            print req.json()
+        except:
+            pass
 
     return Response(status=200, mimetype='application/json')
 
