@@ -291,7 +291,6 @@ def assign_properties(thing, request):
 
 
 def return_page(page, request):
-    exp = experiment(session)
     try:
         hit_id = request.args['hit_id']
         assignment_id = request.args['assignment_id']
@@ -314,7 +313,7 @@ def return_page(page, request):
         except:
             import traceback
             traceback.print_exc()
-            return exp.error_page(error_type="{} args missing".format(page))
+            return error_page(error_type="{} args missing".format(page))
 
 
 @custom_code.route("/<page>", methods=["GET"])
@@ -357,9 +356,6 @@ def ad_address(mode, hit_id):
 
 @custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>", methods=["POST"])
 def create_participant(worker_id, hit_id, assignment_id, mode):
-
-    nodes = models.Node.query.all()
-
     parts = models.Participant.query.filter_by(worker_id=worker_id).all()
     if parts:
         print "participant already exists!"
