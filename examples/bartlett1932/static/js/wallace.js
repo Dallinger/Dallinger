@@ -44,8 +44,8 @@ return_to_psiturk_server = function() {
         success: function (resp) {
             mode = resp.participant.mode;
             hit_id = resp.participant.hit_id;
-            assignment_id = resp.assignment_id;
-            worker_id = resp.worker_id;
+            assignment_id = resp.participant.assignment_id;
+            worker_id = resp.participant.worker_id;
             reqwest({
                 url: "/ad_address/" + mode + '/' + hit_id,
                 method: 'get',
