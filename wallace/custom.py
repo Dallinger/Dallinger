@@ -1208,9 +1208,9 @@ def api_notifications():
 
 def check_for_duplicate_assignments(participant):
     participants = models.Participant.query.filter_by(assignment_id=participant.assignment_id).all()
-    duplicates = [p for p in participants if p.unique_id != participant.unique_id and p.status == "working"]
+    duplicates = [p for p in participants if p.id != participant.id and p.status == "working"]
     for d in duplicates:
-        q.enqueue(worker_function, "AssignmentAbandoned", None, d.uniqueid)
+        q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
 
 
 @db.scoped_session_decorator
@@ -1259,13 +1259,12 @@ def worker_function(event_type, assignment_id, participant_id):
             participant = participants[0]
 
     elif participant_id is not None:
-        participant = models.Participant.query.filter_by(unique_id=participant_id).all()[0]
+        participant = models.Participant.query.filter_by(id=participant_id).all()[0]
     else:
         raise ValueError("Error: worker_function needs either an assignment_id or a \
                           participant_id, they cannot both be None")
 
-    participant_id = participant.uniqueid
-    key = participant_id[0:5]
+    participant_id = participant.id
 
     if event_type == 'AssignmentAccepted':
         pass
@@ -1342,14 +1341,13 @@ def worker_function(event_type, assignment_id, participant_id):
 
 def fail_participant(exp, participant, new_status, msg=""):
     """Fail the participants' nodes and set their status new_status."""
-    participant_id = participant.uniqueid
-    key = participant_id[0:5]
+    participant_id = participant.id
 
     participant_nodes = models.Node.query\
         .filter_by(participant_id=participant_id, failed=False)\
         .all()
 
-    exp.log(msg, key)
+    exp.log(msg)
     participant.status = new_status
 
     for node in participant_nodes:
