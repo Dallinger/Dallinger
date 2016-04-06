@@ -23,7 +23,7 @@ submit_responses = function() {
                         response: $("#difficulty").val()
                     },
                     success: function(resp) {
-                        return_to_psiturk_server();
+                        submit_assignment();
                     },
                     error: function (err) {
                         err_response = JSON.parse(err.response);

@@ -395,6 +395,38 @@ def get_participant(participant_id):
     return Response(js, status=200, mimetype='application/json')
 
 
+@custom_code.route("/participant/<participant_id>/submit", methods=["POST"])
+def submit_participant(participant_id):
+
+    try:
+        participant = models.Participant.query.filter_by(id=participant_id).one()
+    except NoResultFound:
+        exp.log("Error: /participant/submit request for unrecognized participant_id {}.".format(participant_id))
+        page = error_page(
+            error_text="You cannot continue because your id does not match anyone in our records.",
+            error_type="/participant submit no participant found")
+        data = {
+            "status": "error",
+            "html": page
+        }
+        return Response(dumps(data), status=403, mimetype='application/json')
+
+    if participant.mode == "debug":
+        pass
+    args = {
+        'assignmentId': participant.assignment_id
+    }
+    if participant.mode == "sandbox":
+        requests.post(
+            "https://workersandbox.mturk.com/mturk/externalSubmit",
+            data=args)
+    elif participant.mode == "live":
+        requests.post(
+            "https://www.mturk.com/mturk/externalSubmit",
+            data=args)
+    return Response(status=200, mimetype='application/json')
+
+
 @custom_code.route("/question/<participant_id>", methods=["POST"])
 def create_question(participant_id):
     """ Send a POST request to the question table.
