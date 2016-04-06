@@ -3,7 +3,6 @@ lock = false;
 submit_responses = function() {
     if (lock===false) {
         lock=true;
-        console.log(1);
         reqwest({
             url: "/question/" + participant_id,
             method: 'post',
@@ -14,7 +13,6 @@ submit_responses = function() {
                 response: $("#engagement").val()
             },
             success: function (resp) {
-                console.log(2);
                 reqwest({
                     url: "/question/" + participant_id,
                     method: 'post',
@@ -25,7 +23,6 @@ submit_responses = function() {
                         response: $("#difficulty").val()
                     },
                     success: function(resp) {
-                        console.log(3);
                         return_to_psiturk_server();
                     },
                     error: function (err) {
