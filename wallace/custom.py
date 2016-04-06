@@ -365,6 +365,11 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     session.add(participant)
     session.commit()
 
+    from psiturk.models import Participant as PsiturkParticipant
+    psiturk_participant = PsiturkParticipant(workerid=worker_id, assignmentid=assignment_id, hitid=hit_id)
+    session_psiturk.add(psiturk_participant)
+    session_psiturk.commit()
+
     # return the data
     data = participant.__json__()
     data = {"status": "success", "participant": data}
