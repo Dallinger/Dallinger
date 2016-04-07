@@ -114,6 +114,24 @@ class Participant(Base, SharedMixin):
                 .filter_by(failed=failed, participant_id=self.id)\
                 .all()
 
+    def questions(self, type=None):
+        """
+        Get questions associated with this participant.
+
+        type specifies the type of Question.
+        """
+        if type is None:
+            type = Question
+
+        if not issubclass(type, Question):
+            raise(TypeError("{} is not a valid question type.".format(type)))
+
+        return type\
+            .query\
+            .filter_by(participant_id=self.id)\
+            .all()
+
+
 class Question(Base, SharedMixin):
 
     """A class that stores the response of a participant to
