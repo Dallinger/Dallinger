@@ -490,11 +490,12 @@ class Node(Base, SharedMixin):
     Methods that get things about a node
     ################################### """
 
-    def vectors(self, direction="all"):
+    def vectors(self, direction="all", failed=False):
         """
         Get vectors that connect at this node.
 
         Direction can be "incoming", "outgoing" or "all" (default).
+        Failed can be True, False or all
         """
         # check direction
         if direction not in ["all", "incoming", "outgoing"]:
@@ -502,25 +503,45 @@ class Node(Base, SharedMixin):
                 "{} is not a valid vector direction. "
                 "Must be all, incoming or outgoing.".format(direction))
 
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid vector failed".format(failed))
+
         # get the vectors
-        if direction == "all":
-            return Vector.query\
-                .filter(and_(Vector.failed == False,
-                        or_(Vector.destination_id == self.id,
-                            Vector.origin_id == self.id)))\
-                .all()
+        if failed == "all":
+            if direction == "all":
+                return Vector.query\
+                    .filter(or_(Vector.destination_id == self.id,
+                                Vector.origin_id == self.id))\
+                    .all()
 
-        if direction == "incoming":
-            return Vector.query\
-                .filter_by(destination_id=self.id, failed=False)\
-                .all()
+            if direction == "incoming":
+                return Vector.query\
+                    .filter_by(destination_id=self.id)\
+                    .all()
 
-        if direction == "outgoing":
-            return Vector.query\
-                .filter_by(origin_id=self.id, failed=False)\
-                .all()
+            if direction == "outgoing":
+                return Vector.query\
+                    .filter_by(origin_id=self.id)\
+                    .all()
+        else:
+            if direction == "all":
+                return Vector.query\
+                    .filter(and_(Vector.failed == failed,
+                            or_(Vector.destination_id == self.id,
+                                Vector.origin_id == self.id)))\
+                    .all()
 
-    def neighbors(self, type=None, connection="to"):
+            if direction == "incoming":
+                return Vector.query\
+                    .filter_by(destination_id=self.id, failed=failed)\
+                    .all()
+
+            if direction == "outgoing":
+                return Vector.query\
+                    .filter_by(origin_id=self.id, failed=failed)\
+                    .all()
+
+    def neighbors(self, type=None, connection="to", failed=None):
         """
         Get a node's neighbors - nodes that are directly connected to it.
 
@@ -540,6 +561,16 @@ class Node(Base, SharedMixin):
         if connection not in ["both", "either", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection. \
                 Should be both, either, to or from.".format(connection))
+
+        if failed is not None:
+            raise ValueError("You should not pass a failed argument to neighbors(). Neighbors is \
+                unusual in that a failed argument cannot be passed. This is because there \
+                is inherent uncertainty in what it means for a neighbor to be \
+                failed. The neighbors function will only ever return not-failed nodes \
+                connected to you via not-failed vectors. \
+                If you want to do more elaborate queries, for example, \
+                getting not-failed nodes connected to you via failed vectors, \
+                you should do so via sql queries.")
 
         neighbors = []
         # get the neighbours
@@ -572,7 +603,7 @@ class Node(Base, SharedMixin):
 
         return neighbors
 
-    def is_connected(self, whom, direction="to"):
+    def is_connected(self, whom, direction="to", failed=None):
         """
         Check whether this node is connected [to/from] whom.
 
@@ -582,6 +613,16 @@ class Node(Base, SharedMixin):
         If whom is a single node this method returns a boolean,
         otherwise it returns a list of booleans
         """
+
+        if failed is not None:
+            raise ValueError("You should not pass a failed argument to is_connected. \
+                is_connected is \
+                unusual in that a failed argument cannot be passed. This is because there \
+                is inherent uncertainty in what it means for a connection to be \
+                failed. The is_connected function will only ever check along not-failed vectors. \
+                If you want to check along failed vectors \
+                you should do so via sql queries.")
+
         # make whom a list
         if isinstance(whom, list):
             is_list = True
@@ -643,10 +684,11 @@ class Node(Base, SharedMixin):
         else:
             return connected[0]
 
-    def infos(self, type=None):
+    def infos(self, type=None, failed=False):
         """
         Get infos that originate from this node.
         Type must be a subclass of info, the default is Info.
+        Failed can be True, False or "all".
         """
         if type is None:
             type = Info
@@ -655,16 +697,35 @@ class Node(Base, SharedMixin):
             raise(TypeError("Cannot get-info of type {} as it is not a valid type."
                             .format(type)))
 
-        return type\
-            .query\
-            .filter_by(origin_id=self.id, failed=False)\
-            .all()
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid vector failed".format(failed))
 
-    def received_infos(self, type=None):
+        if failed == "all":
+            return type\
+                .query\
+                .filter_by(origin_id=self.id)\
+                .all()
+        else:
+            return type\
+                .query\
+                .filter_by(origin_id=self.id, failed=failed)\
+                .all()
+
+    def received_infos(self, type=None, failed=None):
         """
         Get infos that have been sent to this node.
         Type must be a subclass of info, the default is Info.
         """
+
+        if failed is not None:
+            raise ValueError("You should not pass a failed argument to received_infos. \
+                received_infos is \
+                unusual in that a failed argument cannot be passed. This is because there \
+                is inherent uncertainty in what it means for a received info to be \
+                failed. The received_infos function will only ever check not-failed transmissions. \
+                If you want to check failed transmissions \
+                you should do so via sql queries.")
+
         if type is None:
             type = Info
 
@@ -682,12 +743,13 @@ class Node(Base, SharedMixin):
         else:
             return []
 
-    def transmissions(self, direction="outgoing", status="all"):
+    def transmissions(self, direction="outgoing", status="all", failed=False):
         """
         Get transmissions sent to or from this node.
 
         Direction can be "all", "incoming" or "outgoing" (default).
         Status can be "all" (default), "pending", or "received".
+        failed can be True, False or "all"
         """
         #check parameters
         if direction not in ["incoming", "outgoing", "all"]:
@@ -699,6 +761,9 @@ class Node(Base, SharedMixin):
             raise(ValueError("You cannot get transmission of status {}."
                              .format(status) +
                   "Status can only be pending, received or all"))
+
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid transmission failed".format(failed))
 
         # get transmissions
         if direction == "all":
@@ -738,18 +803,29 @@ class Node(Base, SharedMixin):
                                  Transmission.status == status))\
                     .all()
 
-    def transformations(self, type=None):
+    def transformations(self, type=None, failed=False):
         """
         Get Transformations done by this Node.
 
         type must be a type of Transformation (defaults to Transformation)
+        Failed can be True, False or "all"
         """
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid transmission failed".format(failed))
+
         if type is None:
             type = Transformation
-        return type\
-            .query\
-            .filter_by(node_id=self.id, failed=False)\
-            .all()
+
+        if failed == "all":
+            return type\
+                .query\
+                .filter_by(node_id=self.id)\
+                .all()
+        else:
+            return type\
+                .query\
+                .filter_by(node_id=self.id, failed=failed)\
+                .all()
 
     """ ###################################
     Methods that make nodes do things
