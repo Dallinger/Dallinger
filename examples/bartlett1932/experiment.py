@@ -1,7 +1,5 @@
-"""Bartlett's trasmission chain experiment from Remembering (1932)."""
-
 from wallace.networks import Chain
-from wallace.nodes import Source, Agent
+from wallace.nodes import Source
 from wallace import processes
 from wallace.experiments import Experiment
 import random
@@ -9,37 +7,35 @@ import random
 
 class Bartlett1932(Experiment):
 
-    """Defines the experiment."""
+    """Bartlett's trasmission chain experiment from Remembering (1932)."""
 
     def __init__(self, session):
-        """Set up the initial networks."""
+        """ Calls the same function in the super (see experiments.py in wallace).
+        A few properties are then overwritten.
+        Finally, setup() is called. """
         super(Bartlett1932, self).__init__(session)
-
-        self.practice_repeats = 0
         self.experiment_repeats = 1
-        self.agent = Agent
         self.network = lambda: Chain(max_size=3)
-
         self.setup()
 
     def setup(self):
-        """Setup for first time experiment is accessed."""
+        """ Setup only does stuff if there are no networks, this is so it only runs once
+        at the start of the experiment.
+        It first calls the same function in the super (see experiments.py in wallace).
+        Then it adds a source to each network."""
         if not self.networks():
             super(Bartlett1932, self).setup()
             for net in self.networks():
-                if not net.nodes(type=Source):
-                    source = WarOfTheGhostsSource(network=net)
-                    net.add_source(source)
-            self.save()
+                WarOfTheGhostsSource(network=net)
 
     def add_node_to_network(self, participant, node, network):
-        """When an agent is created, add it to the network and take a step."""
+        """ When a node is created it is added to the chain (see Chain in networks.py)
+        and it receives any transmissions."""
         network.add_node(node)
-        processes.random_walk(network)
         node.receive()
 
     def recruit(self):
-        """Recruit participants to the experiment as needed."""
+        """ Recruitment proceeds one participant at a time until all networks are full. """
         if self.networks(full=False):
             self.recruiter().recruit_participants(n=1)
         else:
@@ -48,12 +44,13 @@ class Bartlett1932(Experiment):
 
 class WarOfTheGhostsSource(Source):
 
-    """Transmit a story from Bartlett (1932)."""
+    """ A Source that reads in a random story from a file and transmits it."""
 
     __mapper_args__ = {"polymorphic_identity": "war_of_the_ghosts_source"}
 
     def _contents(self):
-        """Read the markdown source of the story from a file."""
+        """ Defines the contents of new Infos.
+        transmit() -> _what() -> create_information() -> _contents() """
         stories = [
             "ghosts.md",
             "cricket.md",
