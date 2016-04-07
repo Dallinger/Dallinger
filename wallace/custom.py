@@ -1333,8 +1333,8 @@ def worker_function(event_type, assignment_id, participant_id):
 
             # Approve the assignment.
             exp.recruiter().approve_hit(assignment_id)
-            """ this needs to be fixed - get the base pay form the config file! """
-            participant.base_pay = 0.0
+            participant.base_pay = config.get(
+                'HIT Configuration', 'base_payment')
 
             # Check that the participant's data is okay.
             worked = exp.data_check(participant=participant)
