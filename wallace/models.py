@@ -87,6 +87,32 @@ class Participant(Base, SharedMixin):
             "property5": self.property5
         }
 
+    def nodes(self, type=None, failed=False):
+        """
+        Get nodes associated with this participant.
+
+        type specifies the type of Node. Failed can be "all", False
+        (default) or True.
+        """
+        if type is None:
+            type = Node
+
+        if not issubclass(type, Node):
+            raise(TypeError("{} is not a valid node type.".format(type)))
+
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid node failed".format(failed))
+
+        if failed == "all":
+            return type\
+                .query\
+                .filter_by(participant_id=self.id)\
+                .all()
+        else:
+            return type\
+                .query\
+                .filter_by(failed=failed, participant_id=self.id)\
+                .all()
 
 class Question(Base, SharedMixin):
 
