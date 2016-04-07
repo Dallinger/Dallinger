@@ -1319,15 +1319,16 @@ def worker_function(event_type, assignment_id, participant_id):
 
     elif event_type == 'AssignmentAbandoned':
         if participant.status == "working":
-            fail_participant(exp, participant, "abandoned", msg="Assignment abandoned.")
+            participant.status = "abandoned"
+            exp.assignment_abandoned(participant=participant)
 
     elif event_type == 'AssignmentReturned':
         if participant.status == "working":
-            fail_participant(exp, participant, "returned", msg="Assignment returned.")
+            participant.status = "returned"
+            exp.assignment_returned(participant=participant)
 
     elif event_type == 'AssignmentSubmitted':
         if participant.status == "working":
-
             participant.status = "submitted"
 
             # Approve the assignment.
@@ -1340,7 +1341,8 @@ def worker_function(event_type, assignment_id, participant_id):
 
             # If it isn't, fail their nodes and recruit a replacement.
             if not worked:
-                fail_participant(exp, participant, "bad_data", msg="Participant failed data check.")
+                participant.status = "bad_data"
+                exp.data_check_failed(participant=participant)
                 exp.recruiter().recruit_participants(n=1)
             else:
                 # If their data is ok, pay them a bonus.
@@ -1361,11 +1363,8 @@ def worker_function(event_type, assignment_id, participant_id):
 
                 # If they fail the attention check, fail nodes and replace.
                 if not attended:
-                    fail_participant(
-                        exp,
-                        participant,
-                        "did_not_attend",
-                        msg="Attention check failed")
+                    participant.status = "did_not_attend"
+                    exp.attention_check_failed(participant=participant)
                     exp.recruiter().recruit_participants(n=1)
                 else:
                     # All good. Possibly recruit more participants.
@@ -1385,23 +1384,6 @@ def worker_function(event_type, assignment_id, participant_id):
 
     else:
         exp.log("Error: unknown event_type {}".format(event_type), key)
-
-
-def fail_participant(exp, participant, new_status, msg=""):
-    """Fail the participants' nodes and set their status new_status."""
-    participant_id = participant.id
-
-    participant_nodes = models.Node.query\
-        .filter_by(participant_id=participant_id, failed=False)\
-        .all()
-
-    exp.log(msg)
-    participant.status = new_status
-
-    for node in participant_nodes:
-        node.fail()
-
-    session.commit()
 
 
 @custom_code.route('/quitter', methods=['POST'])

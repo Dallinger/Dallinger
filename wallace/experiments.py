@@ -197,3 +197,23 @@ class Experiment(object):
 
     def transformation_get_request(self, node, transformations):
         pass
+
+    def fail_participant(self, participant):
+        participant_nodes = Node.query\
+            .filter_by(participant_id=participant.id, failed=False)\
+            .all()
+
+        for node in participant_nodes:
+            node.fail()
+
+    def data_check_failed(self, participant):
+        self.fail_participant(participant)
+
+    def attention_check_failed(self, participant):
+        self.fail_participant(participant)
+
+    def assignment_abandoned(self, participant):
+        self.fail_participant(participant)
+
+    def assignment_returned(self, participant):
+        self.fail_participant(participant)
