@@ -31,6 +31,10 @@ class SharedMixin(object):
     property4 = Column(String(26), nullable=True, default=None)
     property5 = Column(String(26), nullable=True, default=None)
 
+    failed = Column(Boolean, nullable=False, default=False, index=True)
+
+    time_of_death = Column(DateTime, default=None)
+
 
 class Participant(Base, SharedMixin):
 
@@ -448,12 +452,6 @@ class Node(Base, SharedMixin):
     # the network that this node is a part of
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_nodes")
-
-    # whether the node has failed
-    failed = Column(Boolean, nullable=False, default=False, index=True)
-
-    # the time when the node changed from alive->dead or alive->failed
-    time_of_death = Column(DateTime, default=None)
 
     # the participant whose node this is
     participant_id = Column(Integer, ForeignKey('participant.id'), index=True)
@@ -1072,12 +1070,6 @@ class Vector(Base, SharedMixin):
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_vectors")
 
-    # whether the vector has failed
-    failed = Column(Boolean, nullable=False, default=False, index=True)
-
-    # the time when the vector changed from alive->dead
-    time_of_death = Column(DateTime, default=None)
-
     def __init__(self, origin, destination):
 
         # check origin and destination are in the same network
@@ -1189,12 +1181,6 @@ class Info(Base, SharedMixin):
     # the network the info is in
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_infos")
-
-    # whether the info has failed
-    failed = Column(Boolean, nullable=False, default=False, index=True)
-
-    # the time when the info failed
-    time_of_death = Column(DateTime, default=None)
 
     # the contents of the info
     contents = Column(Text(), default=None)
@@ -1324,12 +1310,6 @@ class Transmission(Base, SharedMixin):
     # the time at which the transmission was received
     receive_time = Column(DateTime, default=None)
 
-    # whether the transmission has failed
-    failed = Column(Boolean, nullable=False, default=False, index=True)
-
-    # the time when the transmission failed
-    time_of_death = Column(DateTime, default=None)
-
     # the status of the transmission, can be pending or received
     status = Column(Enum("pending", "received", name="transmission_status"),
                     nullable=False, default="pending", index=True)
@@ -1422,12 +1402,6 @@ class Transformation(Base, SharedMixin):
     # the network of the transformation
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="networks_transformations")
-
-    # whether the transformation has failed
-    failed = Column(Boolean, nullable=False, default=False, index=True)
-
-    # the time when the transformation failed
-    time_of_death = Column(DateTime, default=None)
 
     def __repr__(self):
         """The string representation of a transformation."""
