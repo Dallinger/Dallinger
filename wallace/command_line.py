@@ -501,6 +501,26 @@ def qualify(qualification, value, worker):
             v))
 
 
+def dump_database(id):
+    """Backup the Postgres database locally."""
+    log("Generating a backup of the database on Heroku...")
+
+    subprocess.call("heroku pg:backups capture --app " + id, shell=True)
+
+    backup_url = subprocess.check_output(
+        "heroku pg:backups public-url --app " + id, shell=True)
+    backup_url = backup_url.replace('"', '').rstrip()
+    backup_url = re.search("https:.*", backup_url).group(0)
+
+    log("Downloading the backup...")
+    dump_filename = "data.dump"
+    dump_path = os.path.join(id, dump_filename)
+    with open(dump_path, 'wb') as file:
+        subprocess.call(['curl', '-o', dump_path, backup_url], stdout=file)
+
+    return dump_filename
+
+
 @wallace.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option('--local', is_flag=True, flag_value=True,
@@ -539,23 +559,7 @@ def export(app, local):
             " --app " + id,
             shell=True)
 
-        log("Generating a backup of the database on Heroku...")
-        subprocess.call(
-            "heroku pg:backups capture --app " + id, shell=True)
-        # subprocess.call(
-        #     "heroku pgbackups:capture --expire --app " + id, shell=True)
-        backup_url = subprocess.check_output(
-            "heroku pg:backups public-url --app " + id, shell=True)
-
-        backup_url = backup_url.replace('"', '').rstrip()
-        m = re.search("https:.*", backup_url)
-        backup_url = m.group(0)
-
-        log("Downloading the backup...")
-        dump_filename = "data.dump"
-        dump_path = os.path.join(id, dump_filename)
-        with open(dump_path, 'wb') as file:
-            subprocess.call(['curl', '-o', dump_path, backup_url], stdout=file)
+        dump_filename = dump_database(id)
 
         subprocess.call(
             "pg_restore --verbose --clean -d wallace " + id + "/data.dump",
@@ -564,14 +568,16 @@ def export(app, local):
     data_directory = "data"
     os.makedirs(os.path.join(id, data_directory))
 
-    all_tables = ["node",
-                  "network",
-                  "vector",
-                  "info",
-                  "transformation",
-                  "transmission",
-                  "psiturk",
-                  "notification"]
+    all_tables = [
+        "node",
+        "network",
+        "vector",
+        "info",
+        "transformation",
+        "transmission",
+        "psiturk",
+        "notification"
+    ]
 
     for table in all_tables:
         subprocess.call(
