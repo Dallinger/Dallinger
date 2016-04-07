@@ -23,6 +23,7 @@ class Experiment(object):
         self.experiment_repeats = 0
         self.recruiter = PsiTurkRecruiter
         self.initial_recruitment_size = 1
+        self.agent = Agent
         self.known_classes = {
             "Info": Info, "Gene": Gene, "Meme": Meme, "State": State,
             "Node": Node, "Agent": Agent, "Source": Source, "Environment": Environment,
@@ -31,7 +32,7 @@ class Experiment(object):
         }
 
     def setup(self):
-        """Create the networks iff they don't already exist."""
+        """Create the networks if they don't already exist."""
         if not self.networks():
             for _ in range(self.practice_repeats):
                 network = self.network()
@@ -41,7 +42,7 @@ class Experiment(object):
                 network = self.network()
                 network.role = "experiment"
                 self.session.add(network)
-            self.save()
+            self.session.commit()
 
     def networks(self, role="all", full="all"):
         """All the networks in the experiment."""
@@ -163,11 +164,9 @@ class Experiment(object):
 
     def save(self, *objects):
         """Add all the objects to the session and commit them."""
-        from psiturk.db import db_session as session_psiturk
         if len(objects) > 0:
             self.session.add_all(objects)
         self.session.commit()
-        session_psiturk.commit()
 
     def node_post_request(self, participant, node):
         pass
