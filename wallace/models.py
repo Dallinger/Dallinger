@@ -131,6 +131,13 @@ class Participant(Base, SharedMixin):
             .filter_by(participant_id=self.id)\
             .all()
 
+    def infos(self, type=None, failed=False):
+        nodes = self.nodes(failed=failed)
+        infos = []
+        for n in nodes:
+            infos.extend(n.infos(type=type, failed=failed))
+        return infos
+
 
 class Question(Base, SharedMixin):
 
