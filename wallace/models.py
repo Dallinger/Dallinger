@@ -142,6 +142,17 @@ class Participant(Base, SharedMixin):
             infos.extend(n.infos(type=type, failed=failed))
         return infos
 
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
+
+            for n in self.nodes():
+                n.fail()
+
 
 class Question(Base, SharedMixin):
 
@@ -177,6 +188,14 @@ class Question(Base, SharedMixin):
         self.question_id = question_id
         self.question = question
         self.response = response
+
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
 
 
 class Network(Base, SharedMixin):
@@ -409,6 +428,17 @@ class Network(Base, SharedMixin):
     """ ###################################
     Methods that make Networks do things
     ################################### """
+
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
+
+            for n in self.nodes():
+                n.fail()
 
     def calculate_full(self):
         """Set whether the network is full."""
@@ -829,7 +859,7 @@ class Node(Base, SharedMixin):
     Methods that make nodes do things
     ################################### """
 
-    def fail(self, vectors=True, infos=True, transmissions=True, transformations=True):
+    def fail(self):
         """
         Fail a node, setting its status to "failed".
 
@@ -843,21 +873,16 @@ class Node(Base, SharedMixin):
         else:
             self.failed = True
             self.time_of_death = timenow()
-            if self.network is not None:
-                self.network.calculate_full()
+            self.network.calculate_full()
 
-            if vectors:
-                for v in self.vectors():
-                    v.fail()
-            if infos:
-                for i in self.infos():
-                    i.fail()
-            if transmissions:
-                for t in self.transmissions(direction="all"):
-                    t.fail()
-            if transformations:
-                for t in self.transformations():
-                    t.fail()
+            for v in self.vectors():
+                v.fail()
+            for i in self.infos():
+                i.fail()
+            for t in self.transmissions(direction="all"):
+                t.fail()
+            for t in self.transformations():
+                t.fail()
 
     def connect(self, whom, direction="to"):
         """Create a vector from self to/from whom.
@@ -1155,10 +1180,14 @@ class Vector(Base, SharedMixin):
 
     def fail(self):
         if self.failed is True:
-            raise AttributeError("You cannot fail {}, it has already failed".format(self))
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
+
+            for t in self.transmissions():
+                t.fail()
 
 
 class Info(Base, SharedMixin):
@@ -1222,10 +1251,16 @@ class Info(Base, SharedMixin):
 
     def fail(self):
         if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
+
+            for t in self.transmissions():
+                t.fail()
+            for t in self.transformations():
+                t.fail()
 
     def transmissions(self, status="all"):
         if status not in ["all", "pending", "received"]:
