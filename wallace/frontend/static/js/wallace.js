@@ -68,16 +68,18 @@ submit_assignment = function() {
 
 // make a new participant
 create_participant = function() {
-    reqwest({
-        url: "/participant/" + worker_id + '/' + hit_id + '/' + assignment_id + '/' + mode,
-        method: 'post',
-        type: 'json',
-        success: function(resp) {
-            participant_id = resp.participant.id;
-        },
-        error: function (err) {
-            err_response = JSON.parse(err.response);
-            $('body').html(err_response.html);
-        }
-    });
+    if (participant_id === undefined) {
+        reqwest({
+            url: "/participant/" + worker_id + '/' + hit_id + '/' + assignment_id + '/' + mode,
+            method: 'post',
+            type: 'json',
+            success: function(resp) {
+                participant_id = resp.participant.id;
+            },
+            error: function (err) {
+                err_response = JSON.parse(err.response);
+                $('body').html(err_response.html);
+            }
+        });
+    }
 };
