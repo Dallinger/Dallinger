@@ -31,6 +31,7 @@ allow_exit = function() {
     window.onbeforeunload = function() {};
 };
 
+// advance the participant to a given html page
 go_to_page = function(page) {
     window.location = "/" + page + "?participant_id=" + participant_id;
 };
