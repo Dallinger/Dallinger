@@ -47,15 +47,11 @@ submit_assignment = function() {
             assignment_id = resp.participant.assignment_id;
             worker_id = resp.participant.worker_id;
             reqwest({
-                // url: "/participant/" + participant_id + "/submit",
-                // method: 'post',
                 url: "/ad_address/" + mode + '/' + hit_id,
                 method: 'get',
                 type: 'json',
                 success: function (resp) {
                     allow_exit();
-                    // opener.location.reload(true);
-                    // console.log(resp.address + "?uniqueId=" + worker_id + ":" + assignment_id);
                     window.location = resp.address + "?uniqueId=" + worker_id + ":" + assignment_id;
                 },
                 error: function (err) {
@@ -66,21 +62,6 @@ submit_assignment = function() {
             });
         }
     });
-    // reqwest({
-    //     url: "/participant/" + participant_id + "/submit",
-    //     method: "post",
-    //     type: 'json',
-    //     success: function (resp) {
-    //         opener.location.reload(true);
-    //         allow_exit();
-    //         window.close();
-    //     },
-    //     error: function (err) {
-    //         console.log(err);
-    //         err_response = JSON.parse(err.response);
-    //         $('body').html(err_response.html);
-    //     }
-    // });
     
 };
 
