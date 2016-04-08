@@ -136,7 +136,7 @@ class Participant(Base, SharedMixin):
             .all()
 
     def infos(self, type=None, failed=False):
-        nodes = self.nodes(failed=failed)
+        nodes = self.nodes(failed="all")
         infos = []
         for n in nodes:
             infos.extend(n.infos(type=type, failed=failed))
