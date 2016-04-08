@@ -1,6 +1,5 @@
 from wallace.networks import Chain
 from wallace.nodes import Source
-from wallace import processes
 from wallace.experiments import Experiment
 import random
 

@@ -21,7 +21,7 @@ create_agent = function() {
     });
 };
 
-get_info = function(info_id) {
+get_info = function() {
     reqwest({
         url: "/node/" + my_node_id + "/received_infos",
         method: 'get',
