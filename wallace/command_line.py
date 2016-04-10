@@ -563,7 +563,7 @@ def export(app, local):
             " --app " + id,
             shell=True)
 
-        dump_filename = dump_database(id)
+        dump_path = dump_database(id)
 
         subprocess.call(
             "pg_restore --verbose --clean -d wallace " + id + "/data.dump",
@@ -590,7 +590,7 @@ def export(app, local):
             shell=True)
 
     if not local:
-        os.remove(os.path.join(id, dump_filename))
+        os.remove(os.path.join(id, dump_path))
 
     log("Zipping up the package...")
     shutil.make_archive(os.path.join("data", id + "-data"), "zip", id)
