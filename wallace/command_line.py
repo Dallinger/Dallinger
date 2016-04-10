@@ -62,7 +62,7 @@ def wallace():
     pass
 
 
-def setup(debug=True, verbose=False):
+def setup(debug=True, verbose=False, app=None):
     """Check the app and, if it's compatible with Wallace, freeze its state."""
     print_header()
 
@@ -94,7 +94,10 @@ def setup(debug=True, verbose=False):
             "but the experiment requires v" + wallace_version)
 
     # Generate a unique id for this experiment.
-    id = "w" + str(uuid.uuid4())[0:28]
+    if app:
+        id = str(app)
+    else:
+        id = "w" + str(uuid.uuid4())[0:28]
     log("Running as experiment " + id + "...")
 
     # Copy this directory into a temporary folder, ignoring .git
@@ -262,7 +265,7 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
     else:
         out = open(os.devnull, 'w')
 
-    (id, tmp) = setup(debug=False, verbose=verbose)
+    (id, tmp) = setup(debug=False, verbose=verbose, app=app)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -399,7 +402,8 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
 @wallace.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def sandbox(verbose):
+@click.option('--app', default=None, help='ID of the sandboxed experiment')
+def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -413,12 +417,12 @@ def sandbox(verbose):
     config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(verbose=verbose)
+    deploy_sandbox_shared_setup(verbose=verbose, app=app)
 
 
 @wallace.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def deploy(verbose):
+def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -432,7 +436,7 @@ def deploy(verbose):
     config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(verbose=verbose)
+    deploy_sandbox_shared_setup(verbose=verbose, id=app)
 
 
 @wallace.command()
