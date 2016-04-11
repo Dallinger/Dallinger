@@ -165,7 +165,8 @@ def setup(debug=True, verbose=False, app=None):
         "static/lib/reqwest.min.js",
         "templates/error_wallace.html",
         "templates/launch.html",
-        "templates/complete.html"
+        "templates/complete.html",
+        "static/robots.txt"
     ]
 
     for filename in frontend_files:
