@@ -21,6 +21,7 @@ import psycopg2
 from wallace import db
 from wallace.version import __version__
 import requests
+import boto
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -62,7 +63,7 @@ def wallace():
     pass
 
 
-def setup(debug=True, verbose=False):
+def setup(debug=True, verbose=False, app=None):
     """Check the app and, if it's compatible with Wallace, freeze its state."""
     print_header()
 
@@ -95,6 +96,12 @@ def setup(debug=True, verbose=False):
 
     # Generate a unique id for this experiment.
     id = "w" + str(uuid.uuid4())[0:28]
+
+    # If the user provided an app name, use it everywhere that's user-facing.
+    if app:
+        id_long = id
+        id = str(app)
+
     log("Running as experiment " + id + "...")
 
     # Copy this directory into a temporary folder, ignoring .git
@@ -112,7 +119,10 @@ def setup(debug=True, verbose=False):
 
     # Save the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
-        file.write(id)
+        if app:
+            file.write(id_long)
+        else:
+            file.write(id)
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
@@ -271,14 +281,37 @@ def debug(verbose):
     os.chdir(cwd)
 
 
-def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
+def scale_up_dynos(id):
+    """Scale up the Heroku dynos."""
+    # Load psiTurk configuration.
+    config = PsiturkConfig()
+    config.load_config()
+
+    dyno_type = config.get('Server Parameters', 'dyno_type')
+    num_dynos_web = config.get('Server Parameters', 'num_dynos_web')
+    num_dynos_worker = config.get('Server Parameters', 'num_dynos_worker')
+
+    log("Scaling up the dynos...")
+    subprocess.call(
+        "heroku ps:scale web=" + str(num_dynos_web) + ":" +
+        str(dyno_type) + " --app " + id, shell=True)
+
+    subprocess.call(
+        "heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
+        str(dyno_type) + " --app " + id, shell=True)
+
+    subprocess.call(
+        "heroku ps:scale clock=1:performance-m" + " --app " + id, shell=True)
+
+
+def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
         out = None
     else:
         out = open(os.devnull, 'w')
 
-    (id, tmp) = setup(debug=False, verbose=verbose)
+    (id, tmp) = setup(debug=False, verbose=verbose, app=app)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -380,17 +413,8 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
     subprocess.call("git push heroku HEAD:master", stdout=out,
                     stderr=out, shell=True)
 
-    dyno_type = config.get('Server Parameters', 'dyno_type')
-    num_dynos_web = config.get('Server Parameters', 'num_dynos_web')
-    num_dynos_worker = config.get('Server Parameters', 'num_dynos_worker')
+    scale_up_dynos(id)
 
-    log("Starting up the web server...")
-    subprocess.call("heroku ps:scale web=" + str(num_dynos_web) + ":" +
-                    str(dyno_type) + " --app " + id, stdout=out, shell=True)
-    subprocess.call("heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
-                    str(dyno_type) + " --app " + id, stdout=out, shell=True)
-    subprocess.call("heroku ps:scale clock=1:performance-m",
-                    stdout=out, shell=True)
     time.sleep(8)
 
     # Launch the experiment.
@@ -415,7 +439,8 @@ def deploy_sandbox_shared_setup(verbose=True, web_procs=1):
 
 @wallace.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def sandbox(verbose):
+@click.option('--app', default=None, help='ID of the sandboxed experiment')
+def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -429,12 +454,13 @@ def sandbox(verbose):
     config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(verbose=verbose)
+    deploy_sandbox_shared_setup(verbose=verbose, app=app)
 
 
 @wallace.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def deploy(verbose):
+@click.option('--app', default=None, help='ID of the deployed experiment')
+def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
     # Load psiTurk configuration.
     config = PsiturkConfig()
@@ -448,7 +474,7 @@ def deploy(verbose):
     config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(verbose=verbose)
+    deploy_sandbox_shared_setup(verbose=verbose, id=app)
 
 
 @wallace.command()
@@ -517,6 +543,130 @@ def qualify(qualification, value, worker):
             v))
 
 
+def dump_database(id):
+    """Backup the Postgres database locally."""
+    log("Generating a backup of the database on Heroku...")
+
+    dump_filename = "data.dump"
+    data_directory = "data"
+    dump_dir = os.path.join(data_directory, id)
+    if not os.path.exists(dump_dir):
+        os.makedirs(dump_dir)
+
+    subprocess.call("heroku pg:backups capture --app " + id, shell=True)
+
+    backup_url = subprocess.check_output(
+        "heroku pg:backups public-url --app " + id, shell=True)
+    backup_url = backup_url.replace('"', '').rstrip()
+    backup_url = re.search("https:.*", backup_url).group(0)
+    print(backup_url)
+
+    log("Downloading the backup...")
+    dump_path = os.path.join(dump_dir, dump_filename)
+    with open(dump_path, 'wb') as file:
+        subprocess.call(['curl', '-o', dump_path, backup_url], stdout=file)
+
+    return dump_path
+
+
+def backup(app):
+    """Dump the database."""
+    dump_path = dump_database(app)
+
+    config = PsiturkConfig()
+    config.load_config()
+
+    conn = boto.connect_s3(
+        config.get('AWS Access', 'aws_access_key_id'),
+        config.get('AWS Access', 'aws_secret_access_key'),
+    )
+
+    bucket = conn.create_bucket(
+        app,
+        location=boto.s3.connection.Location.DEFAULT
+    )
+
+    k = boto.s3.key.Key(bucket)
+    k.key = 'database.dump'
+    k.set_contents_from_filename(dump_path)
+    url = k.generate_url(expires_in=0, query_auth=False)
+
+    log("The database backup URL is...")
+    print(url)
+
+
+@wallace.command()
+@click.option('--app', default=None, help='ID of the deployed experiment')
+def hibernate(app):
+    """Pause an experiment and remove costly resources."""
+    backup(app)
+
+    log("Scaling down the web servers...")
+    subprocess.call("heroku ps:scale web=0" + " --app " + app, shell=True)
+    subprocess.call("heroku ps:scale worker=0" + " --app " + app, shell=True)
+    subprocess.call("heroku ps:scale clock=0" + " --app " + app, shell=True)
+
+    log("Removing addons...")
+    addons = [
+        "heroku-postgresql",
+        # "papertrail",
+        "rediscloud",
+    ]
+    for addon in addons:
+        subprocess.call(
+            "heroku addons:destroy {} --app {} --confirm {}".format(
+                addon,
+                app,
+                app
+            ),
+            shell=True,
+        )
+
+
+@wallace.command()
+@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--databaseurl', default=None, help='URL of the database')
+def awaken(app, databaseurl):
+    """Restore the database from a given url."""
+    config = PsiturkConfig()
+    config.load_config()
+
+    database_size = config.get('Database Parameters', 'database_size')
+
+    subprocess.call(
+        "heroku addons:create heroku-postgresql:{} --app {}".format(
+            database_size,
+            app),
+        shell=True)
+
+    subprocess.call("heroku pg:wait --app {}".format(app), shell=True)
+
+    conn = boto.connect_s3(
+        config.get('AWS Access', 'aws_access_key_id'),
+        config.get('AWS Access', 'aws_secret_access_key'),
+    )
+
+    bucket = conn.get_bucket(app)
+    key = bucket.lookup('database.dump')
+    url = key.generate_url(expires_in=300)
+
+    cmd = "heroku pg:backups restore"
+    subprocess.call(
+        "{} '{}' DATABASE_URL --app {} --confirm {}".format(
+            cmd,
+            url,
+            app,
+            app),
+        shell=True)
+
+    subprocess.call(
+        "heroku addons:create rediscloud:250 --app {}".format(app),
+        shell=True)
+
+    # Scale up the dynos.
+    scale_up_dynos(app)
+
+
 @wallace.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option('--local', is_flag=True, flag_value=True,
@@ -555,23 +705,7 @@ def export(app, local):
             " --app " + id,
             shell=True)
 
-        log("Generating a backup of the database on Heroku...")
-        subprocess.call(
-            "heroku pg:backups capture --app " + id, shell=True)
-        # subprocess.call(
-        #     "heroku pgbackups:capture --expire --app " + id, shell=True)
-        backup_url = subprocess.check_output(
-            "heroku pg:backups public-url --app " + id, shell=True)
-
-        backup_url = backup_url.replace('"', '').rstrip()
-        m = re.search("https:.*", backup_url)
-        backup_url = m.group(0)
-
-        log("Downloading the backup...")
-        dump_filename = "data.dump"
-        dump_path = os.path.join(id, dump_filename)
-        with open(dump_path, 'wb') as file:
-            subprocess.call(['curl', '-o', dump_path, backup_url], stdout=file)
+        dump_path = dump_database(id)
 
         subprocess.call(
             "pg_restore --verbose --clean -d wallace " + id + "/data.dump",
@@ -580,14 +714,16 @@ def export(app, local):
     data_directory = "data"
     os.makedirs(os.path.join(id, data_directory))
 
-    all_tables = ["node",
-                  "network",
-                  "vector",
-                  "info",
-                  "transformation",
-                  "transmission",
-                  "psiturk",
-                  "notification"]
+    all_tables = [
+        "node",
+        "network",
+        "vector",
+        "info",
+        "transformation",
+        "transmission",
+        "psiturk",
+        "notification"
+    ]
 
     for table in all_tables:
         subprocess.call(
@@ -596,7 +732,7 @@ def export(app, local):
             shell=True)
 
     if not local:
-        os.remove(os.path.join(id, dump_filename))
+        os.remove(os.path.join(id, dump_path))
 
     log("Zipping up the package...")
     shutil.make_archive(os.path.join("data", id + "-data"), "zip", id)
