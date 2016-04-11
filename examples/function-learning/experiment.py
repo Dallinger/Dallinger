@@ -31,7 +31,7 @@ class FunctionLearning(Experiment):
             for net in self.networks():
                 self.source(network=net)
 
-    def add_node_to_network(self, participant, node, network):
+    def add_node_to_network(self, node, network):
         """When an agent is created, add it to the network and take a step."""
         network.add_node(node)
         node.receive()

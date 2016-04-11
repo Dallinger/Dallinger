@@ -27,7 +27,7 @@ class Bartlett1932(Experiment):
             for net in self.networks():
                 WarOfTheGhostsSource(network=net)
 
-    def add_node_to_network(self, participant, node, network):
+    def add_node_to_network(self, node, network):
         """ When a node is created it is added to the chain (see Chain in networks.py)
         and it receives any transmissions."""
         network.add_node(node)
