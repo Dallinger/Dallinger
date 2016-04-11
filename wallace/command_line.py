@@ -95,10 +95,13 @@ def setup(debug=True, verbose=False, app=None):
             "but the experiment requires v" + wallace_version)
 
     # Generate a unique id for this experiment.
+    id = "w" + str(uuid.uuid4())[0:28]
+
+    # If the user provided an app name, use it everywhere that's user-facing.
     if app:
+        id_long = id
         id = str(app)
-    else:
-        id = "w" + str(uuid.uuid4())[0:28]
+
     log("Running as experiment " + id + "...")
 
     # Copy this directory into a temporary folder, ignoring .git
@@ -116,7 +119,10 @@ def setup(debug=True, verbose=False, app=None):
 
     # Save the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
-        file.write(id)
+        if app:
+            file.write(id_long)
+        else:
+            file.write(id)
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
