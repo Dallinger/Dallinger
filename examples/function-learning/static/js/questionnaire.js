@@ -28,15 +28,18 @@ submit_responses = function() {
                             method: 'post',
                             type: 'json',
                             data: {
-                                question: "realtionship",
+                                question: "relationship",
                                 question_id: 3,
-                                response: $("#realationsip").val()
+                                response: $("#relationship").val()
                             },
                             success: function(resp) {
                                 submit_assignment();
                             },
                             error: function (err) {
-
+                                err_response = JSON.parse(err.response);
+                                if (err_response.hasOwnProperty('html')) {
+                                    $('body').html(err_response.html);
+                                }
                             }
                         });
                     },
