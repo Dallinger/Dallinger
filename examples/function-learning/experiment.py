@@ -1,9 +1,6 @@
-"""A function-learning experiment."""
-
 from wallace.experiments import Experiment
-from wallace.nodes import Agent, Source
+from wallace.nodes import Source
 from wallace.networks import Chain
-from wallace import processes
 import random
 import json
 from sqlalchemy.ext.declarative import declared_attr
@@ -12,33 +9,32 @@ import math
 
 class FunctionLearning(Experiment):
 
-    """Defines the experiment."""
+    """A function-learning experiment."""
 
     def __init__(self, session):
-        """Set up the initial networks."""
+        """ Calls the same function in the super (see experiments.py in wallace).
+        A few properties are then overwritten.
+        Finally, setup() is called. """
         super(FunctionLearning, self).__init__(session)
-
-        self.practice_repeats = 0
+        self.source = SinusoidalFunctionSource
         self.experiment_repeats = 1
-        self.agent = Agent
         self.network = lambda: Chain(max_size=3)
-
         self.setup()
 
     def setup(self):
-        """Setup for first time experiment is accessed."""
+        """ Setup only does stuff if there are no networks, this is so it only runs once
+        at the start of the experiment.
+        It first calls the same function in the super (see experiments.py in wallace).
+        Then it adds a source to each network."""
         if not self.networks():
             super(FunctionLearning, self).setup()
             for net in self.networks():
-                if not net.nodes(type=Source):
-                    source = SinusoidalFunctionSource(network=net)
-                    net.add_source(source)
-            self.save()
+                self.source(network=net)
 
-    def add_node_to_network(self, participant_id, node, network):
+    def add_node_to_network(self, participant, node, network):
         """When an agent is created, add it to the network and take a step."""
         network.add_node(node)
-        processes.random_walk(network)
+        node.receive()
 
 
 class AbstractFnSource(Source):

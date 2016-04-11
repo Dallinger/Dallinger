@@ -7,7 +7,6 @@ from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
 from psiturk.db import init_db
 from psiturk.db import db_session as session_psiturk
-from psiturk.models import Participant
 
 from wallace import db, models
 
@@ -17,6 +16,8 @@ import logging
 from operator import attrgetter
 import datetime
 from json import dumps
+import os
+import requests
 
 from rq import Queue, get_current_job
 from worker import conn
@@ -120,42 +121,42 @@ def summary():
     return Response(dumps(data), status=200, mimetype='application/json')
 
 
-@custom_code.route('/worker_complete', methods=['GET'])
-def worker_complete():
-    """Overide the psiTurk worker_complete route.
+# @custom_code.route('/worker_complete', methods=['GET'])
+# def worker_complete():
+#     """Overide the psiTurk worker_complete route.
 
-    This skirts around an issue where the participant's status reverts to 3
-    because of rogue calls to this route. It does this by changing the status
-    only if it's not already >= 100.
-    """
-    exp = experiment(session)
+#     This skirts around an issue where the participant's status reverts to 3
+#     because of rogue calls to this route. It does this by changing the status
+#     only if it's not already >= 100.
+#     """
+#     exp = experiment(session)
 
-    if 'uniqueId' not in request.args:
-        data = {"status": "bad request"}
-        return jsonify(**data)
+#     if 'uniqueId' not in request.args:
+#         data = {"status": "bad request"}
+#         return jsonify(**data)
 
-    else:
-        unique_id = request.args['uniqueId']
-        exp.log("Completed experiment %s" % unique_id)
-        try:
-            user = Participant.query.\
-                filter(Participant.uniqueid == unique_id).one()
+#     else:
+#         unique_id = request.args['uniqueId']
+#         exp.log("Completed experiment %s" % unique_id)
+#         try:
+#             user = Participant.query.\
+#                 filter(Participant.uniqueid == unique_id).one()
 
-            if user.status < 100:
-                user.status = 3
-                user.endhit = datetime.datetime.now()
-                session_psiturk.add(user)
-                session_psiturk.commit()
+#             if user.status < 100:
+#                 user.status = 3
+#                 user.endhit = datetime.datetime.now()
+#                 session_psiturk.add(user)
+#                 session_psiturk.commit()
 
-            status = "success"
+#             status = "success"
 
-        except exc.SQLAlchemyError:
-            status = "database error"
+#         except exc.SQLAlchemyError:
+#             status = "database error"
 
-        data = {
-            "status": status
-        }
-        return jsonify(**data)
+#         data = {
+#             "status": status
+#         }
+#         return jsonify(**data)
 
 
 """
@@ -289,6 +290,233 @@ def assign_properties(thing, request):
     session.commit()
 
 
+def return_page(page, request):
+    try:
+        hit_id = request.args['hit_id']
+        assignment_id = request.args['assignment_id']
+        worker_id = request.args['worker_id']
+        mode = request.args['mode']
+        return render_template(
+            page,
+            hit_id=hit_id,
+            assignment_id=assignment_id,
+            worker_id=worker_id,
+            mode=mode
+        )
+    except:
+        try:
+            participant_id = request.args['participant_id']
+            return render_template(
+                page,
+                participant_id=participant_id
+            )
+        except:
+            import traceback
+            traceback.print_exc()
+            return error_page(error_type="{} args missing".format(page))
+
+
+@custom_code.route("/<page>", methods=["GET"])
+def get_page(page):
+    return return_page(page + '.html', request)
+
+
+@custom_code.route("/<directory>/<page>", methods=["GET"])
+def get_page_from_directory(directory, page):
+    return return_page(directory + '/' + page + '.html', request)
+
+
+@custom_code.route("/ad_address/<mode>/<hit_id>", methods=["GET"])
+def ad_address(mode, hit_id):
+    if mode == "debug":
+        address = '/complete'
+    elif mode in ["sandbox", "live"]:
+        CONFIG = PsiturkConfig()
+        CONFIG.load_config()
+        username = os.getenv('psiturk_access_key_id', CONFIG.get("psiTurk Access", "psiturk_access_key_id"))
+        password = os.getenv('psiturk_secret_access_id', CONFIG.get("psiTurk Access", "psiturk_secret_access_id"))
+        try:
+            req = requests.get('https://api.psiturk.org/api/ad/lookup/' + hit_id,
+                               auth=(username, password))
+        except:
+            raise ValueError('api_server_not_reachable')
+        else:
+            if req.status_code == 200:
+                hit_address = req.json()['ad_id']
+            else:
+                raise ValueError("something here")
+        if mode == "sandbox":
+            address = 'https://sandbox.ad.psiturk.org/complete/' + str(hit_address)
+        elif mode == "live":
+            address = 'https://ad.psiturk.org/complete/' + str(hit_address)
+    else:
+        raise ValueError("Unknown mode: {}".format(mode))
+    return Response(dumps({"address": address}), status=200)
+
+
+@custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>", methods=["POST"])
+def create_participant(worker_id, hit_id, assignment_id, mode):
+    parts = models.Participant.query.filter_by(worker_id=worker_id).all()
+    if parts:
+        print "participant already exists!"
+        return Response(status=200)
+
+    participant = models.Participant(worker_id=worker_id, assignment_id=assignment_id, hit_id=hit_id, mode=mode)
+    session.add(participant)
+    session.commit()
+
+    from psiturk.models import Participant as PsiturkParticipant
+    psiturk_participant = PsiturkParticipant(workerid=worker_id, assignmentid=assignment_id, hitid=hit_id)
+    session_psiturk.add(psiturk_participant)
+    session_psiturk.commit()
+
+    # return the data
+    data = participant.__json__()
+    data = {"status": "success", "participant": data}
+    js = dumps(data, default=date_handler)
+    return Response(js, status=200, mimetype='application/json')
+
+
+@custom_code.route("/participant/<participant_id>", methods=["GET"])
+def get_participant(participant_id):
+
+    try:
+        participant = models.Participant.query.filter_by(id=participant_id).one()
+    except NoResultFound:
+        exp.log("Error: /participant GET request for unrecognized participant_id {}.".format(participant_id))
+        page = error_page(
+            error_text="You cannot continue because your id does not match anyone in our records.",
+            error_type="/participant GET no participant found")
+        data = {
+            "status": "error",
+            "html": page
+        }
+        return Response(dumps(data), status=403, mimetype='application/json')
+
+    # return the data
+    data = participant.__json__()
+    data = {"status": "success", "participant": data}
+    js = dumps(data, default=date_handler)
+    return Response(js, status=200, mimetype='application/json')
+
+
+@custom_code.route("/participant/<participant_id>/submit", methods=["POST"])
+def submit_participant(participant_id):
+
+    try:
+        participant = models.Participant.query.filter_by(id=participant_id).one()
+    except NoResultFound:
+        exp.log("Error: /participant/submit request for unrecognized participant_id {}.".format(participant_id))
+        page = error_page(
+            error_text="You cannot continue because your id does not match anyone in our records.",
+            error_type="/participant submit no participant found")
+        data = {
+            "status": "error",
+            "html": page
+        }
+        return Response(dumps(data), status=403, mimetype='application/json')
+
+    if participant.mode == "debug":
+        pass
+    else:
+        if participant.mode == "sandbox":
+            url = "https://workersandbox.mturk.com/mturk/externalSubmit"
+        elif participant.mode == "live":
+            url = "https://www.mturk.com/mturk/externalSubmit"
+
+        req = requests.post(url + "?assignmentId=" + participant.assignment_id)
+
+        print req
+        try:
+            print req.status_code
+        except:
+            pass
+        try:
+            print req.text
+        except:
+            pass
+        try:
+            print req.json()
+        except:
+            pass
+
+    return Response(status=200, mimetype='application/json')
+
+
+@custom_code.route("/question/<participant_id>", methods=["POST"])
+def create_question(participant_id):
+    """ Send a POST request to the question table.
+    """
+    exp = experiment(session)
+
+    # Get the participant.
+    try:
+        participant = models.Participant.query.filter_by(id=participant_id).one()
+    except NoResultFound:
+        exp.log("Error: /question POST request from unrecognized participant_id {}.".format(participant_id))
+        page = error_page(
+            error_text="You cannot continue because your worker id does not match anyone in our records.",
+            error_type="/question POST no participant found")
+        data = {
+            "status": "error",
+            "html": page
+        }
+        return Response(dumps(data), status=403, mimetype='application/json')
+
+    # Make sure the participant status is "working"
+    if participant.status != "working":
+
+        exp.log("Error: Participant status is {}, they should not have been able to contact this route.".format(participant.status))
+        error_type = "/question POST, status = {}".format(participant.status)
+
+        if participant.status in ["submitted", "approved", "rejected"]:
+            error_text = "You cannot continue because we have received a notification from AWS that you have already submitted the assignment.'"
+
+        elif participant.status == "returned":
+            error_text = "You cannot continue because we have received a notification from AWS that you have returned the assignment.'"
+
+        elif participant.status == "abandoned":
+            error_text = "You cannot continue because we have received a notification from AWS that your assignment has expired."
+
+        else:
+            error_text = None
+
+        page = error_page(
+            participant=participant,
+            error_text=error_text,
+            error_type=error_type)
+
+        data = {
+            "status": "error",
+            "html": page
+        }
+        return Response(
+            dumps(data),
+            status=400,
+            mimetype='application/json')
+
+    question = request_parameter(request=request, parameter="question")
+    if type(question) == Response:
+        return question
+
+    response = request_parameter(request=request, parameter="response")
+    if type(response) == Response:
+        return response
+
+    question_id = request_parameter(request=request, parameter="question_id", parameter_type="int")
+    if type(question_id) == Response:
+        return question_id
+
+    # execute the request
+    models.Question(participant=participant, question=question, response=response, question_id=question_id)
+    session.commit()
+
+    # return the data
+    data = {"status": "success"}
+    js = dumps(data, default=date_handler)
+    return Response(js, status=200, mimetype='application/json')
+
+
 @custom_code.route("/node/<int:node_id>/neighbors", methods=["GET"])
 def node_neighbors(node_id):
     """ Send a GET request to the node table.
@@ -365,7 +593,7 @@ def create_node(participant_id):
 
     # Get the participant.
     try:
-        participant = Participant.query.filter_by(uniqueid=participant_id).one()
+        participant = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
         exp.log("Error: /node POST request from unrecognized participant_id {}.".format(participant_id))
         page = error_page(
@@ -380,23 +608,20 @@ def create_node(participant_id):
     # replace any duplicate assignments
     check_for_duplicate_assignments(participant)
 
-    # Make sure the participant status is 1 or 2.
-    if participant.status not in [1, 2]:
+    # Make sure the participant status is working
+    if participant.status != "working":
 
-        exp.log("Error: Participant status is {} they should not have been able to contact this route.".format(participant.status))
+        exp.log("Error: Participant status is {}, they should not have been able to contact this route.".format(participant.status))
         error_type = "/node POST, status = {}".format(participant.status)
 
-        if participant.status in [3, 4, 5, 100, 101, 102, 105]:
+        if participant.status in ["submitted", "approved", "rejected"]:
             error_text = "You cannot continue because we have received a notification from AWS that you have already submitted the assignment.'"
 
-        elif participant.status == 103:
+        elif participant.status == "returned":
             error_text = "You cannot continue because we have received a notification from AWS that you have returned the assignment.'"
 
-        elif participant.status == 104:
+        elif participant.status == "abandoned":
             error_text = "You cannot continue because we have received a notification from AWS that your assignment has expired."
-
-        elif participant.status == 106:
-            error_text = "You cannot continue because we have received a notification from AWS that your assignment has been assigned to someone else."
 
         else:
             error_text = None
@@ -425,20 +650,20 @@ def create_node(participant_id):
 
     else:
         node = exp.make_node_for_participant(
-            participant_id=participant_id,
+            participant=participant,
             network=network)
 
         assign_properties(node, request)
 
         exp.add_node_to_network(
-            participant_id=participant_id,
+            participant=participant,
             node=node,
             network=network)
 
     session.commit()
 
     # ping the experument
-    exp.node_post_request(participant_id=participant_id, node=node)
+    exp.node_post_request(participant=participant, node=node)
     session.commit()
 
     # return the data
@@ -966,48 +1191,48 @@ def transformation_post(node_id, info_in_id, info_out_id):
     return Response(js, status=200, mimetype='application/json')
 
 
-@custom_code.route("/nudge", methods=["POST"])
-def nudge():
-    """Call the participant submission trigger for everyone who finished."""
-    exp = experiment(session)
+# @custom_code.route("/nudge", methods=["POST"])
+# def nudge():
+#     """Call the participant submission trigger for everyone who finished."""
+#     exp = experiment(session)
 
-    exp.log("Nudging the experiment along.")
+#     exp.log("Nudging the experiment along.")
 
-    # If a participant is hung at status 4, we must have missed the
-    # notification saying they had submitted, so we bump them to status 100
-    # and run the submission trigger.
-    participants = Participant.query.filter_by(status=4).all()
+#     # If a participant is hung at status 4, we must have missed the
+#     # notification saying they had submitted, so we bump them to status 100
+#     # and run the submission trigger.
+#     participants = models.Participant.query.filter_by(status="submitted").all()
 
-    for participant in participants:
+#     for participant in participants:
 
-        exp.log("Nudging participant {}".format(participant))
-        participant_id = participant.uniqueid
+#         exp.log("Nudging participant {}".format(participant))
+#         participant_id = participant.unique_id
 
-        # Assign participant status 100.
-        participant.status = 100
-        session_psiturk.commit()
+#         # Assign participant status 100.
+#         participant.status = 100
+#         session_psiturk.commit()
 
-        # Recruit new participants.
-        exp.participant_submission_trigger(
-            participant_id=participant_id,
-            assignment_id=participant.assignmentid)
+#         # Recruit new participants.
+#         exp.participant_submission_trigger(
+#             participant_id=participant_id,
+#             assignment_id=participant.assignmentid)
 
-    # If a participant has status 3, but has an endhit time, something must
-    # have gone awry, so we bump the status to 100 and call it a day.
-    participants = Participant.query.filter(
-        and_(
-            Participant.status == 3,
-            Participant.endhit != None)).all()
+#     # If a participant has status 3, but has an endhit time, something must
+#     # have gone awry, so we bump the status to 100 and call it a day.
+#     participants = Participant.query.filter(
+#         and_(
+#             Participant.status == 3,
+#             Participant.endhit != None)).all()
 
-    for participant in participants:
-        exp.log("Bumping {} from status 3 (with endhit time) to 100.")
-        participant.status = 100
-        session_psiturk.commit()
+#     for participant in participants:
+#         exp.log("Bumping {} from status 3 (with endhit time) to 100.")
+#         participant.status = 100
+#         session_psiturk.commit()
 
-    return Response(
-        dumps({"status": "success"}),
-        status=200,
-        mimetype='application/json')
+#     return Response(
+#         dumps({"status": "success"}),
+#         status=200,
+#         mimetype='application/json')
 
 
 @custom_code.route("/notifications", methods=["POST", "GET"])
@@ -1030,10 +1255,10 @@ def api_notifications():
 
 
 def check_for_duplicate_assignments(participant):
-    participants = Participant.query.filter_by(assignmentid=participant.assignmentid).all()
-    duplicates = [p for p in participants if p.uniqueid != participant.uniqueid and p.status < 100]
+    participants = models.Participant.query.filter_by(assignment_id=participant.assignment_id).all()
+    duplicates = [p for p in participants if p.id != participant.id and p.status == "working"]
     for d in duplicates:
-        q.enqueue(worker_function, "AssignmentAbandoned", None, d.uniqueid)
+        q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
 
 
 @db.scoped_session_decorator
@@ -1057,20 +1282,20 @@ def worker_function(event_type, assignment_id, participant_id):
         session.commit()
 
         # try to identify the participant
-        participants = Participant.query\
-            .filter_by(assignmentid=assignment_id)\
+        participants = models.Participant.query\
+            .filter_by(assignment_id=assignment_id)\
             .all()
 
         # if there are multiple participants select the most recent
         if len(participants) > 1:
             if event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
-                participants = [p for p in participants if p.status < 100]
+                participants = [p for p in participants if p.status == "working"]
                 if participants:
-                    participant = min(participants, key=attrgetter('beginhit'))
+                    participant = min(participants, key=attrgetter('creation_time'))
                 else:
                     return None
             else:
-                participant = max(participants, key=attrgetter('beginhit'))
+                participant = max(participants, key=attrgetter('creation_time'))
 
         # if there are none (this is also bad news) print an error
         elif len(participants) == 0:
@@ -1082,42 +1307,48 @@ def worker_function(event_type, assignment_id, participant_id):
             participant = participants[0]
 
     elif participant_id is not None:
-        participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
+        participant = models.Participant.query.filter_by(id=participant_id).all()[0]
     else:
         raise ValueError("Error: worker_function needs either an assignment_id or a \
                           participant_id, they cannot both be None")
 
-    participant_id = participant.uniqueid
-    key = participant_id[0:5]
+    participant_id = participant.id
 
     if event_type == 'AssignmentAccepted':
         pass
 
     elif event_type == 'AssignmentAbandoned':
-        if participant.status < 100:
-            fail_participant(exp, participant, 104, msg="Assignment abandoned.")
+        if participant.status == "working":
+            participant.status = "abandoned"
+            exp.assignment_abandoned(participant=participant)
 
     elif event_type == 'AssignmentReturned':
-        if participant.status < 100:
-            fail_participant(exp, participant, 103, msg="Assignment returned.")
+        if participant.status == "working":
+            participant.status = "returned"
+            exp.assignment_returned(participant=participant)
 
     elif event_type == 'AssignmentSubmitted':
-        if participant.status < 100:
+        if participant.status == "working":
+            participant.status = "submitted"
 
             # Approve the assignment.
             exp.recruiter().approve_hit(assignment_id)
+            participant.base_pay = config.get(
+                'HIT Configuration', 'base_payment')
 
             # Check that the participant's data is okay.
             worked = exp.data_check(participant=participant)
 
             # If it isn't, fail their nodes and recruit a replacement.
             if not worked:
-                fail_participant(exp, participant, 105, msg="Participant failed data check.")
+                participant.status = "bad_data"
+                exp.data_check_failed(participant=participant)
                 exp.recruiter().recruit_participants(n=1)
             else:
                 # If their data is ok, pay them a bonus.
                 # Note that the bonus is paid before the attention check.
                 bonus = exp.bonus(participant=participant)
+                participant.bonus = bonus
                 if bonus >= 0.01:
                     exp.log("Bonus = {}: paying bonus".format(bonus), key)
                     exp.recruiter().reward_bonus(
@@ -1132,18 +1363,13 @@ def worker_function(event_type, assignment_id, participant_id):
 
                 # If they fail the attention check, fail nodes and replace.
                 if not attended:
-                    fail_participant(
-                        exp,
-                        participant,
-                        102,
-                        msg="Attention check failed")
+                    participant.status = "did_not_attend"
+                    exp.attention_check_failed(participant=participant)
                     exp.recruiter().recruit_participants(n=1)
                 else:
                     # All good. Possibly recruit more participants.
                     exp.log("All checks passed.", key)
-
-                    participant.status = 101
-                    session_psiturk.commit()
+                    participant.status = "approved"
 
                     exp.submission_successful(participant=participant)
                     session.commit()
@@ -1153,31 +1379,11 @@ def worker_function(event_type, assignment_id, participant_id):
             exp.log_summary()
 
     elif event_type == "NotificationMissing":
-        participant.status = 106
-        session_psiturk.commit()
+        participant.status = "missing_notification"
         session.commit()
 
     else:
         exp.log("Error: unknown event_type {}".format(event_type), key)
-
-
-def fail_participant(exp, participant, new_status, msg=""):
-    """Fail the participants' nodes and set their status to >101."""
-    participant_id = participant.uniqueid
-    key = participant_id[0:5]
-
-    participant_nodes = models.Node.query\
-        .filter_by(participant_id=participant_id, failed=False)\
-        .all()
-
-    exp.log(msg, key)
-    participant.status = new_status
-    session_psiturk.commit()
-
-    for node in participant_nodes:
-        node.fail()
-
-    session.commit()
 
 
 @custom_code.route('/quitter', methods=['POST'])
@@ -1206,9 +1412,9 @@ def error_page(participant=None, error_text=None, compensate=True,
             about compensation"""
 
     if participant is not None:
-        hit_id = participant.hitid,
-        assignment_id = participant.assignmentid,
-        worker_id = participant.workerid
+        hit_id = participant.hit_id,
+        assignment_id = participant.assignment_id,
+        worker_id = participant.worker_id
     else:
         hit_id = 'unknown'
         assignment_id = 'unknown'

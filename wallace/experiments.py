@@ -1,6 +1,6 @@
 """The base experiment class."""
 
-from wallace.models import Network, Node, Info, Transformation
+from wallace.models import Network, Node, Info, Transformation, Participant
 from wallace.information import Gene, Meme, State
 from wallace.nodes import Agent, Source, Environment
 from wallace.transformations import Mutation, Replication, Compression, Response
@@ -23,6 +23,7 @@ class Experiment(object):
         self.experiment_repeats = 0
         self.recruiter = PsiTurkRecruiter
         self.initial_recruitment_size = 1
+        self.agent = Agent
         self.known_classes = {
             "Info": Info, "Gene": Gene, "Meme": Meme, "State": State,
             "Node": Node, "Agent": Agent, "Source": Source, "Environment": Environment,
@@ -31,7 +32,7 @@ class Experiment(object):
         }
 
     def setup(self):
-        """Create the networks iff they don't already exist."""
+        """Create the networks if they don't already exist."""
         if not self.networks():
             for _ in range(self.practice_repeats):
                 network = self.network()
@@ -41,7 +42,7 @@ class Experiment(object):
                 network = self.network()
                 network.role = "experiment"
                 self.session.add(network)
-            self.save()
+            self.session.commit()
 
     def networks(self, role="all", full="all"):
         """All the networks in the experiment."""
@@ -96,38 +97,35 @@ class Experiment(object):
             self.log("No practice networks available. Assigning participant to experiment network {}".format(chosen_network.id), key)
         return chosen_network
 
-    def make_node_for_participant(self, participant_id, network):
-        key = participant_id[0:5]
+    def make_node_for_participant(self, participant, network):
         if inspect.isclass(self.agent):
             if issubclass(self.agent, Node):
-                node = self.agent(participant_id=participant_id, network=network)
+                node = self.agent(participant=participant, network=network)
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            from psiturk.models import Participant
-            participant = Participant.query.filter_by(uniqueid=participant_id).all()[0]
             if participant.status in [1, 2]:
-                node = self.agent(network=network)(participant_id=participant_id, network=network)
+                node = self.agent(network=network)(participant=participant, network=network)
             else:
-                self.log("Participant status = {}, node creation aborted".format(participant.status), key)
+                self.log("Participant status = {}, node creation aborted".format(participant.status))
                 return None
 
-        self.log("Node successfully generated, recalculating if network is full", key)
+        self.log("Node successfully generated, recalculating if network is full")
         network.calculate_full()
         return node
 
-    def add_node_to_network(self, participant_id, node, network):
+    def add_node_to_network(self, participant, node, network):
         network.add_node(node)
 
     def receive_transmissions(self, transmissions):
         for t in transmissions:
             t.mark_received()
 
-    def data_check(self, participant=None):
+    def data_check(self, participant):
         """Check that the data are acceptable."""
         return True
 
-    def bonus(self, participant=None):
+    def bonus(self, participant):
         """The bonus to be awarded to the given participant."""
         return 0
 
@@ -135,11 +133,11 @@ class Experiment(object):
         """The reason offered to the participant for giving the bonus."""
         return "Thank for participating! Here is your bonus."
 
-    def attention_check(self, participant=None):
+    def attention_check(self, participant):
         """Check if participant performed adequately."""
         return True
 
-    def submission_successful(self, participant=None):
+    def submission_successful(self, participant):
         pass
 
     def recruit(self):
@@ -158,7 +156,6 @@ class Experiment(object):
 
     def log_summary(self):
         """Log a summary of all the participants' status codes."""
-        from psiturk.models import Participant
         participants = Participant.query.with_entities(Participant.status).all()
         counts = Counter([p.status for p in participants])
         sorted_counts = sorted(counts.items(), key=itemgetter(0))
@@ -167,19 +164,17 @@ class Experiment(object):
 
     def save(self, *objects):
         """Add all the objects to the session and commit them."""
-        from psiturk.db import db_session as session_psiturk
         if len(objects) > 0:
             self.session.add_all(objects)
         self.session.commit()
-        session_psiturk.commit()
 
-    def node_post_request(self, participant_id, node):
+    def node_post_request(self, participant, node):
         pass
 
     def node_get_request(self, node, nodes):
         pass
 
-    def vector_post_request(self, node, vector=None, vectors=None):
+    def vector_post_request(self, node, vectors):
         pass
 
     def vector_get_request(self, node, vectors):
@@ -188,10 +183,10 @@ class Experiment(object):
     def info_post_request(self, node, info):
         pass
 
-    def info_get_request(self, node, info=None, infos=None):
+    def info_get_request(self, node, infos):
         pass
 
-    def transmission_post_request(self, node, transmission):
+    def transmission_post_request(self, node, transmissions):
         pass
 
     def transmission_get_request(self, node, transmissions):
@@ -203,42 +198,22 @@ class Experiment(object):
     def transformation_get_request(self, node, transformations):
         pass
 
-    def error_page(self, participant=None, error_text=None, compensate=True,
-                   error_type="default"):
-        """Render HTML for error page."""
-        from flask import render_template
-        from psiturk.psiturk_config import PsiturkConfig
-        from psiturk.user_utils import PsiTurkAuthorization
-        config = PsiturkConfig()
-        config.load_config()
-        PsiTurkAuthorization(config)
+    def fail_participant(self, participant):
+        participant_nodes = Node.query\
+            .filter_by(participant_id=participant.id, failed=False)\
+            .all()
 
-        if error_text is None:
-            if compensate:
-                error_text = 'There has been an error and so you are unable to continue, sorry! \
-                    If possible, please return the assignment so someone else can work on it. \
-                    Please use the information below to contact us about compensation'
-            else:
-                error_text = 'There has been an error and so you are unable to continue, sorry! \
-                    If possible, please return the assignment so someone else can work on it.'
+        for node in participant_nodes:
+            node.fail()
 
-        if participant is not None:
-            hit_id = participant.hitid,
-            assignment_id = participant.assignmentid,
-            worker_id = participant.workerid
-        else:
-            hit_id = 'unknown'
-            assignment_id = 'unknown'
-            worker_id = 'unknown'
+    def data_check_failed(self, participant):
+        self.fail_participant(participant)
 
-        return render_template(
-            'error_wallace.html',
-            error_text=error_text,
-            compensate=compensate,
-            contact_address=config.get(
-                'HIT Configuration', 'contact_email_on_error'),
-            error_type=error_type,
-            hit_id=hit_id,
-            assignment_id=assignment_id,
-            worker_id=worker_id
-        )
+    def attention_check_failed(self, participant):
+        self.fail_participant(participant)
+
+    def assignment_abandoned(self, participant):
+        self.fail_participant(participant)
+
+    def assignment_returned(self, participant):
+        self.fail_participant(participant)

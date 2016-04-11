@@ -149,6 +149,22 @@ def setup(debug=True, verbose=False):
             filename)
         shutil.copy(src, os.path.join(dst, filename))
 
+    frontend_files = [
+        "static/css/wallace.css",
+        "static/js/wallace.js",
+        "static/lib/reqwest.min.js",
+        "templates/error_wallace.html",
+        "templates/launch.html",
+        "templates/complete.html"
+    ]
+
+    for filename in frontend_files:
+        src = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "frontend",
+            filename)
+        shutil.copy(src, os.path.join(dst, filename))
+
     time.sleep(0.25)
 
     os.chdir(cwd)

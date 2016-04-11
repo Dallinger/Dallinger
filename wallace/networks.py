@@ -14,19 +14,25 @@ class Chain(Network):
 
     __mapper_args__ = {"polymorphic_identity": "chain"}
 
-    def add_node(self, newcomer):
+    def add_node(self, node, transmit=True):
         """Add an agent, connecting it to the previous node."""
         agents = self.nodes(type=Agent)
-        other_agents = [a for a in agents if a.id != newcomer.id]
+        other_agents = [a for a in agents if a.id != node.id]
         sources = self.nodes(type=Source)
 
+        parent = None
         if other_agents:
-            max(other_agents,
-                key=attrgetter('creation_time')).connect(whom=newcomer)
+            parent = max(other_agents,
+                         key=attrgetter('creation_time'))
 
         elif sources:
-            min(sources,
-                key=attrgetter('creation_time')).connect(whom=newcomer)
+            parent = min(sources,
+                         key=attrgetter('creation_time'))
+
+        if parent:
+            parent.connect(whom=node)
+            if transmit:
+                parent.transmit()
 
     def add_source(self, source):
         """Add the source to the beginning of the chain."""

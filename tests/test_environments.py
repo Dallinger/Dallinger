@@ -1,4 +1,4 @@
-from wallace import nodes, db, information
+from wallace import nodes, db, information, models
 
 
 class TestEnvironments(object):
@@ -17,9 +17,11 @@ class TestEnvironments(object):
 
     def test_create_environment(self):
         """Create an environment"""
-        environment = nodes.Environment()
-        state = information.State(origin=environment, contents="foo")
-        self.add(environment, state)
+        net = models.Network()
+        self.db.add(net)
+        environment = nodes.Environment(network=net)
+        information.State(origin=environment, contents="foo")
+        self.db.commit()
 
         assert isinstance(environment.id, int)
         assert environment.type == "environment"
@@ -27,12 +29,12 @@ class TestEnvironments(object):
         assert environment.state().contents == "foo"
 
     def test_create_environment_get_observed(self):
-        environment = nodes.Environment()
-        state = information.State(origin=environment, contents="foo")
-        self.add(environment, state)
+        net = models.Network()
+        self.db.add(net)
+        environment = nodes.Environment(network=net)
+        information.State(origin=environment, contents="foo")
 
-        agent = nodes.ReplicatorAgent()
-        self.add(agent)
+        agent = nodes.ReplicatorAgent(network=net)
 
         environment.connect(direction="to", whom=agent)
         environment.transmit(to_whom=agent)

@@ -48,31 +48,32 @@ class ReplicatorAgent(Agent):
 
 class Source(Node):
 
-    """A Source is a Node that generates information.
+    """A Source is a Node that sends transmissions.
 
-    Unlike a base Node it has a create_information method. By default, when
-    asked to transmit, a Source creates new information and sends that
-    information. Sources cannot receive transmissions.
+    By default, when asked to transmit, a Source creates and sends
+    a new Info. Sources cannot receive transmissions.
     """
 
     __mapper_args__ = {"polymorphic_identity": "generic_source"}
 
+    def _what(self):
+        """ Determines what to transmit by default. """
+        return self.create_information()
+
     def create_information(self):
-        """Create a new info with contents defined by the source."""
+        """ Called by _what(), creates new infos on demand. """
         info = Info(
             origin=self,
             contents=self._contents())
         return info
 
-    def _what(self):
-        return self.create_information()
-
     def _contents(self):
+        """ Determines the contents of new infos created on demand. """
         raise NotImplementedError(
             "{}.contents() needs to be defined.".format(type(self)))
 
     def receive(self, what):
-        """Throw an exception if a source tries to receive information."""
+        """ Sources cannot receive transmissions."""
         raise Exception("Sources cannot receive transmissions.")
 
 

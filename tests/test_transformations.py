@@ -16,7 +16,9 @@ class TestTransformations(object):
         self.db.commit()
 
     def test_identity_transformation(self):
-        node = models.Node()
+        net = models.Network()
+        self.add(net)
+        node = models.Node(network=net)
         self.db.add(node)
         self.db.commit()
 

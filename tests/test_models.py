@@ -40,9 +40,11 @@ class TestModels(object):
         from wallace.nodes import Agent, Source
 
         for i in range(5):
+
+            participant = models.Participant(worker_id=str(i), hit_id=str(i), assignment_id=str(i), mode="test")
             # nodes
             node = models.Node(network=net)
-            agent = Agent(network=net, participant_id=i)
+            agent = Agent(network=net, participant=participant)
             source = Source(network=net)
 
             # vectors
@@ -111,8 +113,8 @@ class TestModels(object):
         assert len(net.nodes(failed=True)) == 5
         assert len(net.nodes(failed="all")) == 15
         for i in range(5):
-            assert len(net.nodes(failed="all", participant_id=str(i)))
-            assert type(net.nodes(failed="all", participant_id=str(i))[0]) == Agent
+            assert len(net.nodes(failed="all", participant_id=i+1)) == 1
+            assert type(net.nodes(failed="all", participant_id=i+1)[0]) == Agent
 
         # test Network.size()
 
@@ -175,7 +177,9 @@ class TestModels(object):
 
     def test_create_node(self):
         """Create a basic node"""
-        node = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node = models.Node(network=net)
         self.add(node)
 
         assert isinstance(node.id, int)
@@ -189,15 +193,19 @@ class TestModels(object):
 
     def test_different_node_ids(self):
         """Test that two nodes have different ids"""
-        node1 = models.Node()
-        node2 = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
         self.add(node1, node2)
 
         assert node1.id != node2.id
 
     def test_node_repr(self):
         """Test the repr of a node"""
-        node = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node = models.Node(network=net)
         self.add(node)
 
         assert repr(node).split("-") == ["Node", str(node.id), "base"]
@@ -261,12 +269,14 @@ class TestModels(object):
         assert_raises(TypeError, node1.connect, whom=net)
 
     def test_node_outdegree(self):
-        node1 = models.Node()
+        net = models.Network()
+        self.add(net)
+        node1 = models.Node(network=net)
         self.db.add(node1)
 
         for i in xrange(5):
             assert len(node1.vectors(direction="outgoing")) == i
-            new_node = models.Node()
+            new_node = models.Node(network=net)
             self.add(new_node)
             self.db.commit()
             node1.connect(whom=new_node)
@@ -280,13 +290,15 @@ class TestModels(object):
         assert node5 == node1
 
     def test_node_indegree(self):
-        node1 = models.Node()
+        net = models.Network()
+        self.add(net)
+        node1 = models.Node(network=net)
         self.db.add(node1)
         self.db.commit()
 
         for i in xrange(5):
             assert len(node1.vectors(direction="incoming")) == i
-            new_node = models.Node()
+            new_node = models.Node(network=net)
             self.db.add(new_node)
             self.db.commit()
             node1.connect(direction="from", whom=new_node)
@@ -299,8 +311,10 @@ class TestModels(object):
         assert node5 == node1
 
     def test_node_has_connection_to(self):
-        node1 = models.Node()
-        node2 = models.Node()
+        net = models.Network()
+        self.add(net)
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
         self.add(node1, node2)
         self.db.commit()
 
@@ -311,8 +325,10 @@ class TestModels(object):
         assert not node2.is_connected(direction="to", whom=node1)
 
     def test_node_has_connection_from(self):
-        node1 = models.Node()
-        node2 = models.Node()
+        net = models.Network()
+        self.add(net)
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
         self.add(node1, node2)
         self.db.commit()
 
@@ -328,8 +344,10 @@ class TestModels(object):
 
     def test_create_vector(self):
         """Test creating a vector between two nodes"""
-        node1 = models.Node()
-        node2 = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
         #vector = models.Vector(origin=node1, destination=node2)
         #self.add(node1, node2, vector)
         self.add(node1, node2)
@@ -341,8 +359,10 @@ class TestModels(object):
         #assert len(vector.transmissions) == 0
 
     def test_kill_vector(self):
-        node1 = models.Node()
-        node2 = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
         vector = models.Vector(origin=node1, destination=node2)
         self.add(node1, node2, vector)
 
@@ -353,8 +373,10 @@ class TestModels(object):
 
     def test_create_bidirectional_vectors(self):
         """Test creating a bidirectional connection between nodes"""
-        node1 = models.Node()
-        node2 = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
         vector1 = models.Vector(origin=node1, destination=node2)
         vector2 = models.Vector(origin=node2, destination=node1)
         self.add(node1, node2, vector1, vector2)
@@ -384,8 +406,10 @@ class TestModels(object):
 
     def test_vector_repr(self):
         """Test the repr of a vector"""
-        node1 = models.Node()
-        node2 = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
         vector1 = models.Vector(origin=node1, destination=node2)
         vector2 = models.Vector(origin=node2, destination=node1)
         self.add(node1, node2, vector1, vector2)
@@ -401,7 +425,9 @@ class TestModels(object):
 
     def test_create_info(self):
         """Try creating an info"""
-        node = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node = models.Node(network=net)
         info = models.Info(origin=node, contents="foo")
         self.add(node, info)
 
@@ -416,7 +442,9 @@ class TestModels(object):
 
     def test_create_two_infos(self):
         """Try creating two infos"""
-        node = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node = models.Node(network=net)
         info1 = models.Info(origin=node, contents="bar")
         info2 = models.Info(origin=node, contents="foo")
         self.add(node, info1, info2)
@@ -434,7 +462,9 @@ class TestModels(object):
 
     def test_info_repr(self):
         """Check the info repr"""
-        node = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node = models.Node(network=net)
         info = models.Info(origin=node)
         self.add(info)
 
@@ -443,7 +473,9 @@ class TestModels(object):
     @raises(ValueError)
     def test_info_write_twice(self):
         """Overwrite an info's contents."""
-        node = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node = models.Node(network=net)
         info = models.Info(origin=node, contents="foo")
 
         self.add(node, info)
@@ -457,8 +489,10 @@ class TestModels(object):
 
     def test_create_transmission(self):
         """Try creating a transmission"""
-        node1 = models.Node()
-        node2 = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
         self.add(node1, node2)
         self.db.commit()
         node1.connect(whom=node2)
@@ -480,8 +514,10 @@ class TestModels(object):
         assert vector.transmissions() == [transmission]
 
     def test_transmission_repr(self):
-        node1 = models.Node()
-        node2 = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node1 = models.Node(network=net)
+        node2 = models.Node(network=net)
         self.add(node1, node2)
 
         node1.connect(whom=node2)
@@ -495,9 +531,11 @@ class TestModels(object):
                 ["Transmission", str(transmission.id)])
 
     def test_node_incoming_transmissions(self):
-        agent1 = nodes.ReplicatorAgent()
-        agent2 = nodes.ReplicatorAgent()
-        agent3 = nodes.ReplicatorAgent()
+        net = models.Network()
+        self.db.add(net)
+        agent1 = nodes.ReplicatorAgent(network=net)
+        agent2 = nodes.ReplicatorAgent(network=net)
+        agent3 = nodes.ReplicatorAgent(network=net)
         self.add(agent1, agent2, agent3)
         self.db.commit()
 
@@ -517,9 +555,11 @@ class TestModels(object):
         assert len(agent3.transmissions(direction="incoming")) == 0
 
     def test_node_outgoing_transmissions(self):
-        agent1 = nodes.ReplicatorAgent()
-        agent2 = nodes.ReplicatorAgent()
-        agent3 = nodes.ReplicatorAgent()
+        net = models.Network()
+        self.db.add(net)
+        agent1 = nodes.ReplicatorAgent(network=net)
+        agent2 = nodes.ReplicatorAgent(network=net)
+        agent3 = nodes.ReplicatorAgent(network=net)
         self.add(agent1, agent2, agent3)
         self.db.commit()
 
@@ -540,13 +580,17 @@ class TestModels(object):
         assert len(agent3.transmissions(direction="outgoing")) == 0
 
     def test_property_node(self):
-        node = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node = models.Node(network=net)
         node.property1 = "foo"
         self.add(node)
 
         assert node.property1 == "foo"
 
     def test_creation_time(self):
-        node = models.Node()
+        net = models.Network()
+        self.db.add(net)
+        node = models.Node(network=net)
         self.add(node)
         assert node.creation_time is not None

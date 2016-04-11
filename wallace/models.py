@@ -5,7 +5,7 @@ from datetime import datetime
 from .db import Base
 
 from sqlalchemy import ForeignKey, or_, and_
-from sqlalchemy import Column, String, Text, Enum, Integer, Boolean, DateTime
+from sqlalchemy import Column, String, Text, Enum, Integer, Boolean, DateTime, Float
 from sqlalchemy.orm import relationship, validates
 
 import inspect
@@ -30,6 +30,172 @@ class SharedMixin(object):
     property3 = Column(String(26), nullable=True, default=None)
     property4 = Column(String(26), nullable=True, default=None)
     property5 = Column(String(26), nullable=True, default=None)
+
+    failed = Column(Boolean, nullable=False, default=False, index=True)
+
+    time_of_death = Column(DateTime, default=None)
+
+
+class Participant(Base, SharedMixin):
+
+    """An ex silico participant."""
+
+    __tablename__ = "participant"
+
+    # the participant type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'participant'
+    }
+
+    worker_id = Column(String(50), nullable=False)
+    assignment_id = Column(String(50), nullable=False, index=True)
+    unique_id = Column(String(50), nullable=False, index=True)
+    hit_id = Column(String(50), nullable=False)
+    mode = Column(String(50), nullable=False)
+
+    end_time = Column(DateTime)
+
+    base_pay = Column(Float)
+    bonus = Column(Float)
+
+    status = Column(Enum("working", "submitted", "approved", "rejected", "returned", "abandoned", "did_not_attend", "bad_data", "missing_notification", name="participant_status"),
+                    nullable=False, default="working", index=True)
+
+    def __init__(self, worker_id, assignment_id, hit_id, mode):
+
+        self.worker_id = worker_id
+        self.assignment_id = assignment_id
+        self.hit_id = hit_id
+        self.unique_id = worker_id + ":" + assignment_id
+        self.mode = mode
+
+    def __json__(self):
+        return {
+            "id": self.id,
+            "type": self.type,
+            "worker_id": self.worker_id,
+            "assignment_id": self.assignment_id,
+            "unique_id": self.unique_id,
+            "hit_id": self.hit_id,
+            "mode": self.mode,
+            "end_time": self.end_time,
+            "base_pay": self.base_pay,
+            "bonus": self.bonus,
+            "status": self.status,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
+
+    def nodes(self, type=None, failed=False):
+        """
+        Get nodes associated with this participant.
+
+        type specifies the type of Node. Failed can be "all", False
+        (default) or True.
+        """
+        if type is None:
+            type = Node
+
+        if not issubclass(type, Node):
+            raise(TypeError("{} is not a valid node type.".format(type)))
+
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid node failed".format(failed))
+
+        if failed == "all":
+            return type\
+                .query\
+                .filter_by(participant_id=self.id)\
+                .all()
+        else:
+            return type\
+                .query\
+                .filter_by(failed=failed, participant_id=self.id)\
+                .all()
+
+    def questions(self, type=None):
+        """
+        Get questions associated with this participant.
+
+        type specifies the type of Question.
+        """
+        if type is None:
+            type = Question
+
+        if not issubclass(type, Question):
+            raise(TypeError("{} is not a valid question type.".format(type)))
+
+        return type\
+            .query\
+            .filter_by(participant_id=self.id)\
+            .all()
+
+    def infos(self, type=None, failed=False):
+        nodes = self.nodes(failed="all")
+        infos = []
+        for n in nodes:
+            infos.extend(n.infos(type=type, failed=failed))
+        return infos
+
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
+
+            for n in self.nodes():
+                n.fail()
+
+
+class Question(Base, SharedMixin):
+
+    """A class that stores the response of a participant to
+    a debriefing question"""
+
+    __tablename__ = "question"
+
+    # the question type -- this allows for inheritance
+    type = Column(String(50))
+    __mapper_args__ = {
+        'polymorphic_on': type,
+        'polymorphic_identity': 'question'
+    }
+
+    # the participant who made the response
+    participant_id = Column(Integer, ForeignKey('participant.id'))
+    participant = relationship(Participant, backref='all_questions')
+
+    # the network that this node is a part of
+    question_id = Column(Integer, nullable=False)
+
+    # the text of the question
+    question = Column(String(250), nullable=False)
+
+    # the response from the participants
+    response = Column(String(1000), nullable=False)
+
+    def __init__(self, participant, question, response, question_id):
+
+        self.participant = participant
+        self.participant_id = participant.id
+        self.question_id = question_id
+        self.question = question
+        self.response = response
+
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
 
 
 class Network(Base, SharedMixin):
@@ -263,6 +429,17 @@ class Network(Base, SharedMixin):
     Methods that make Networks do things
     ################################### """
 
+    def fail(self):
+        if self.failed is True:
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.time_of_death = timenow()
+
+            for n in self.nodes():
+                n.fail()
+
     def calculate_full(self):
         """Set whether the network is full."""
         self.full = len(self.nodes()) >= self.max_size
@@ -306,15 +483,16 @@ class Node(Base, SharedMixin):
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_nodes")
 
-    # whether the node has failed
-    failed = Column(Boolean, nullable=False, default=False, index=True)
+    # the participant whose node this is
+    participant_id = Column(Integer, ForeignKey('participant.id'), index=True)
+    participant = relationship(Participant, backref='all_nodes')
 
-    # the time when the node changed from alive->dead or alive->failed
-    time_of_death = Column(DateTime, default=None)
-
-    # the participant id is the sha512 hash of the psiTurk uniqueId of the
-    # participant who was this node.
-    participant_id = Column(String(128), default=None, index=True)
+    def __init__(self, network, participant=None):
+        self.network = network
+        self.network_id = network.id
+        if participant is not None:
+            self.participant = participant
+            self.participant_id = participant.id
 
     def __repr__(self):
         """The string representation of a node."""
@@ -340,11 +518,12 @@ class Node(Base, SharedMixin):
     Methods that get things about a node
     ################################### """
 
-    def vectors(self, direction="all"):
+    def vectors(self, direction="all", failed=False):
         """
         Get vectors that connect at this node.
 
         Direction can be "incoming", "outgoing" or "all" (default).
+        Failed can be True, False or all
         """
         # check direction
         if direction not in ["all", "incoming", "outgoing"]:
@@ -352,25 +531,45 @@ class Node(Base, SharedMixin):
                 "{} is not a valid vector direction. "
                 "Must be all, incoming or outgoing.".format(direction))
 
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid vector failed".format(failed))
+
         # get the vectors
-        if direction == "all":
-            return Vector.query\
-                .filter(and_(Vector.failed == False,
-                        or_(Vector.destination_id == self.id,
-                            Vector.origin_id == self.id)))\
-                .all()
+        if failed == "all":
+            if direction == "all":
+                return Vector.query\
+                    .filter(or_(Vector.destination_id == self.id,
+                                Vector.origin_id == self.id))\
+                    .all()
 
-        if direction == "incoming":
-            return Vector.query\
-                .filter_by(destination_id=self.id, failed=False)\
-                .all()
+            if direction == "incoming":
+                return Vector.query\
+                    .filter_by(destination_id=self.id)\
+                    .all()
 
-        if direction == "outgoing":
-            return Vector.query\
-                .filter_by(origin_id=self.id, failed=False)\
-                .all()
+            if direction == "outgoing":
+                return Vector.query\
+                    .filter_by(origin_id=self.id)\
+                    .all()
+        else:
+            if direction == "all":
+                return Vector.query\
+                    .filter(and_(Vector.failed == failed,
+                            or_(Vector.destination_id == self.id,
+                                Vector.origin_id == self.id)))\
+                    .all()
 
-    def neighbors(self, type=None, connection="to"):
+            if direction == "incoming":
+                return Vector.query\
+                    .filter_by(destination_id=self.id, failed=failed)\
+                    .all()
+
+            if direction == "outgoing":
+                return Vector.query\
+                    .filter_by(origin_id=self.id, failed=failed)\
+                    .all()
+
+    def neighbors(self, type=None, connection="to", failed=None):
         """
         Get a node's neighbors - nodes that are directly connected to it.
 
@@ -390,6 +589,16 @@ class Node(Base, SharedMixin):
         if connection not in ["both", "either", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection. \
                 Should be both, either, to or from.".format(connection))
+
+        if failed is not None:
+            raise ValueError("You should not pass a failed argument to neighbors(). Neighbors is \
+                unusual in that a failed argument cannot be passed. This is because there \
+                is inherent uncertainty in what it means for a neighbor to be \
+                failed. The neighbors function will only ever return not-failed nodes \
+                connected to you via not-failed vectors. \
+                If you want to do more elaborate queries, for example, \
+                getting not-failed nodes connected to you via failed vectors, \
+                you should do so via sql queries.")
 
         neighbors = []
         # get the neighbours
@@ -422,7 +631,7 @@ class Node(Base, SharedMixin):
 
         return neighbors
 
-    def is_connected(self, whom, direction="to"):
+    def is_connected(self, whom, direction="to", failed=None):
         """
         Check whether this node is connected [to/from] whom.
 
@@ -432,6 +641,16 @@ class Node(Base, SharedMixin):
         If whom is a single node this method returns a boolean,
         otherwise it returns a list of booleans
         """
+
+        if failed is not None:
+            raise ValueError("You should not pass a failed argument to is_connected. \
+                is_connected is \
+                unusual in that a failed argument cannot be passed. This is because there \
+                is inherent uncertainty in what it means for a connection to be \
+                failed. The is_connected function will only ever check along not-failed vectors. \
+                If you want to check along failed vectors \
+                you should do so via sql queries.")
+
         # make whom a list
         if isinstance(whom, list):
             is_list = True
@@ -493,10 +712,11 @@ class Node(Base, SharedMixin):
         else:
             return connected[0]
 
-    def infos(self, type=None):
+    def infos(self, type=None, failed=False):
         """
         Get infos that originate from this node.
         Type must be a subclass of info, the default is Info.
+        Failed can be True, False or "all".
         """
         if type is None:
             type = Info
@@ -505,16 +725,35 @@ class Node(Base, SharedMixin):
             raise(TypeError("Cannot get-info of type {} as it is not a valid type."
                             .format(type)))
 
-        return type\
-            .query\
-            .filter_by(origin_id=self.id, failed=False)\
-            .all()
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid vector failed".format(failed))
 
-    def received_infos(self, type=None):
+        if failed == "all":
+            return type\
+                .query\
+                .filter_by(origin_id=self.id)\
+                .all()
+        else:
+            return type\
+                .query\
+                .filter_by(origin_id=self.id, failed=failed)\
+                .all()
+
+    def received_infos(self, type=None, failed=None):
         """
         Get infos that have been sent to this node.
         Type must be a subclass of info, the default is Info.
         """
+
+        if failed is not None:
+            raise ValueError("You should not pass a failed argument to received_infos. \
+                received_infos is \
+                unusual in that a failed argument cannot be passed. This is because there \
+                is inherent uncertainty in what it means for a received info to be \
+                failed. The received_infos function will only ever check not-failed transmissions. \
+                If you want to check failed transmissions \
+                you should do so via sql queries.")
+
         if type is None:
             type = Info
 
@@ -532,12 +771,13 @@ class Node(Base, SharedMixin):
         else:
             return []
 
-    def transmissions(self, direction="outgoing", status="all"):
+    def transmissions(self, direction="outgoing", status="all", failed=False):
         """
         Get transmissions sent to or from this node.
 
         Direction can be "all", "incoming" or "outgoing" (default).
         Status can be "all" (default), "pending", or "received".
+        failed can be True, False or "all"
         """
         #check parameters
         if direction not in ["incoming", "outgoing", "all"]:
@@ -549,6 +789,9 @@ class Node(Base, SharedMixin):
             raise(ValueError("You cannot get transmission of status {}."
                              .format(status) +
                   "Status can only be pending, received or all"))
+
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid transmission failed".format(failed))
 
         # get transmissions
         if direction == "all":
@@ -588,24 +831,35 @@ class Node(Base, SharedMixin):
                                  Transmission.status == status))\
                     .all()
 
-    def transformations(self, type=None):
+    def transformations(self, type=None, failed=False):
         """
         Get Transformations done by this Node.
 
         type must be a type of Transformation (defaults to Transformation)
+        Failed can be True, False or "all"
         """
+        if failed not in ["all", False, True]:
+            raise ValueError("{} is not a valid transmission failed".format(failed))
+
         if type is None:
             type = Transformation
-        return type\
-            .query\
-            .filter_by(node_id=self.id, failed=False)\
-            .all()
+
+        if failed == "all":
+            return type\
+                .query\
+                .filter_by(node_id=self.id)\
+                .all()
+        else:
+            return type\
+                .query\
+                .filter_by(node_id=self.id, failed=failed)\
+                .all()
 
     """ ###################################
     Methods that make nodes do things
     ################################### """
 
-    def fail(self, vectors=True, infos=True, transmissions=True, transformations=True):
+    def fail(self):
         """
         Fail a node, setting its status to "failed".
 
@@ -619,21 +873,16 @@ class Node(Base, SharedMixin):
         else:
             self.failed = True
             self.time_of_death = timenow()
-            if self.network is not None:
-                self.network.calculate_full()
+            self.network.calculate_full()
 
-            if vectors:
-                for v in self.vectors():
-                    v.fail()
-            if infos:
-                for i in self.infos():
-                    i.fail()
-            if transmissions:
-                for t in self.transmissions(direction="all"):
-                    t.fail()
-            if transformations:
-                for t in self.transformations():
-                    t.fail()
+            for v in self.vectors():
+                v.fail()
+            for i in self.infos():
+                i.fail()
+            for t in self.transmissions(direction="all"):
+                t.fail()
+            for t in self.transformations():
+                t.fail()
 
     def connect(self, whom, direction="to"):
         """Create a vector from self to/from whom.
@@ -846,12 +1095,6 @@ class Vector(Base, SharedMixin):
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_vectors")
 
-    # whether the vector has failed
-    failed = Column(Boolean, nullable=False, default=False, index=True)
-
-    # the time when the vector changed from alive->dead
-    time_of_death = Column(DateTime, default=None)
-
     def __init__(self, origin, destination):
 
         # check origin and destination are in the same network
@@ -937,10 +1180,14 @@ class Vector(Base, SharedMixin):
 
     def fail(self):
         if self.failed is True:
-            raise AttributeError("You cannot fail {}, it has already failed".format(self))
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
+
+            for t in self.transmissions():
+                t.fail()
 
 
 class Info(Base, SharedMixin):
@@ -963,12 +1210,6 @@ class Info(Base, SharedMixin):
     # the network the info is in
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="all_infos")
-
-    # whether the info has failed
-    failed = Column(Boolean, nullable=False, default=False, index=True)
-
-    # the time when the info failed
-    time_of_death = Column(DateTime, default=None)
 
     # the contents of the info
     contents = Column(Text(), default=None)
@@ -1010,10 +1251,16 @@ class Info(Base, SharedMixin):
 
     def fail(self):
         if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError(
+                "Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
+
+            for t in self.transmissions():
+                t.fail()
+            for t in self.transformations():
+                t.fail()
 
     def transmissions(self, status="all"):
         if status not in ["all", "pending", "received"]:
@@ -1097,12 +1344,6 @@ class Transmission(Base, SharedMixin):
 
     # the time at which the transmission was received
     receive_time = Column(DateTime, default=None)
-
-    # whether the transmission has failed
-    failed = Column(Boolean, nullable=False, default=False, index=True)
-
-    # the time when the transmission failed
-    time_of_death = Column(DateTime, default=None)
 
     # the status of the transmission, can be pending or received
     status = Column(Enum("pending", "received", name="transmission_status"),
@@ -1196,12 +1437,6 @@ class Transformation(Base, SharedMixin):
     # the network of the transformation
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     network = relationship(Network, backref="networks_transformations")
-
-    # whether the transformation has failed
-    failed = Column(Boolean, nullable=False, default=False, index=True)
-
-    # the time when the transformation failed
-    time_of_death = Column(DateTime, default=None)
 
     def __repr__(self):
         """The string representation of a transformation."""
