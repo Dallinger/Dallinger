@@ -114,7 +114,7 @@ class Experiment(object):
         network.calculate_full()
         return node
 
-    def add_node_to_network(self, participant, node, network):
+    def add_node_to_network(self, node, network):
         network.add_node(node)
 
     def receive_transmissions(self, transmissions):
