@@ -907,12 +907,12 @@ def transformation_get(node_id):
 def transformation_post(node_id, info_in_id, info_out_id):
     exp = experiment(session)
 
-    #get the parameters
+    # Get the parameters.
     transformation_type = request_parameter(parameter="transformation_type", parameter_type="known_class", default=models.Transformation)
     if type(transformation_type) == Response:
         return transformation_type
 
-    # check the node etc exists
+    # Check that the node etc. exists.
     node = models.Node.query.get(node_id)
     if node is None:
         return error_response(error_type="/transformation POST, node does not exist")

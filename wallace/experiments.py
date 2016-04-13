@@ -14,7 +14,10 @@ from operator import itemgetter
 
 class Experiment(object):
 
+    """Define the structure of an experiment."""
+
     def __init__(self, session):
+        """Initialize an experiment object."""
         from recruiters import PsiTurkRecruiter
         self.verbose = True
         self.task = "Experiment title"
@@ -25,10 +28,19 @@ class Experiment(object):
         self.initial_recruitment_size = 1
         self.agent = Agent
         self.known_classes = {
-            "Info": Info, "Gene": Gene, "Meme": Meme, "State": State,
-            "Node": Node, "Agent": Agent, "Source": Source, "Environment": Environment,
-            "Transformation": Transformation, "Mutation": Mutation,
-            "Replication": Replication, "Compression": Compression, "Response": Response
+            "Agent": Agent,
+            "Compression": Compression,
+            "Environment": Environment,
+            "Gene": Gene,
+            "Info": Info,
+            "Meme": Meme,
+            "Mutation": Mutation,
+            "Node": Node,
+            "Replication": Replication,
+            "Response": Response,
+            "Source": Source,
+            "State": State,
+            "Transformation": Transformation,
         }
 
     def setup(self):

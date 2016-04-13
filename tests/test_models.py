@@ -19,10 +19,7 @@ class TestModels(object):
         self.db.commit()
 
     def test_models(self):
-
-        """
-        Test Networks
-        """
+        """Test networks."""
         print("")
         print("Testing models: Network...", end="\r")
         sys.stdout.flush()
