@@ -77,11 +77,108 @@ except ImportError:
     print "Error: Could not import experiment."
 
 
+"""Define some canned response types."""
+
+
+def success_response(field=None, data=None, request_type=""):
+    """Return a generic success response."""
+    data_out = {}
+    data_out["status"] = "success"
+    if field:
+        data_out[field] = data
+    print("{} request successful.".format(request_type))
+    js = dumps(data_out, default=date_handler)
+    return Response(js, status=200, mimetype='application/json')
+
+
+def error_response(error_type="Internal server error",
+                   error_text=None,
+                   status=400,
+                   participant=None):
+    """Return a generic server error response."""
+    traceback.print_exc()
+    print("Error: {}.".format(error_type))
+
+    page = error_page(
+        error_text=error_text,
+        error_type=error_type,
+        participant=participant)
+
+    data = {
+        "status": "error",
+        "html": page
+    }
+    return Response(dumps(data), status=status, mimetype='application/json')
+
+
+def return_page(page, request):
+    """Return a rendered template."""
+    try:
+        hit_id = request.args['hit_id']
+        assignment_id = request.args['assignment_id']
+        worker_id = request.args['worker_id']
+        mode = request.args['mode']
+        return render_template(
+            page,
+            hit_id=hit_id,
+            assignment_id=assignment_id,
+            worker_id=worker_id,
+            mode=mode
+        )
+    except:
+        try:
+            participant_id = request.args['participant_id']
+            return render_template(page, participant_id=participant_id)
+        except:
+            return error_response(error_type="{} args missing".format(page))
+
+
+def error_page(participant=None, error_text=None, compensate=True,
+               error_type="default"):
+    """Render HTML for error page."""
+    if error_text is None:
+
+        error_text = """There has been an error and so you are unable to
+        continue, sorry! If possible, please return the assignment so someone
+        else can work on it."""
+
+    if compensate:
+        error_text += """ Please use the information below to contact us
+        about compensation"""
+
+    if participant is not None:
+        hit_id = participant.hit_id,
+        assignment_id = participant.assignment_id,
+        worker_id = participant.worker_id
+    else:
+        hit_id = 'unknown'
+        assignment_id = 'unknown'
+        worker_id = 'unknown'
+
+    return render_template(
+        'error_wallace.html',
+        error_text=error_text,
+        compensate=compensate,
+        contact_address=config.get(
+            'HIT Configuration', 'contact_email_on_error'),
+        error_type=error_type,
+        hit_id=hit_id,
+        assignment_id=assignment_id,
+        worker_id=worker_id
+    )
+
+
+"""Define functions for handling requests."""
+
+
 @custom_code.teardown_request
 def shutdown_session(_=None):
-    """Rollback and close session at request end."""
+    """Rollback and close session at end of a request."""
     session.remove()
     db.logger.debug('Closing Wallace DB session at flask request end')
+
+
+"""Define routes for managing an experiment and the participants."""
 
 
 @custom_code.route('/robots.txt')
@@ -118,6 +215,60 @@ def summary():
     return success_response(field="summary",
                             data=exp.log_summary(),
                             request_type="summary")
+
+
+@custom_code.route('/quitter', methods=['POST'])
+def quitter():
+    """Overide the psiTurk quitter route."""
+    exp = experiment(session)
+    exp.log("Quitter route was hit.")
+
+    return Response(
+        dumps({"status": "success"}),
+        status=200,
+        mimetype='application/json')
+
+
+@custom_code.route("/ad_address/<mode>/<hit_id>", methods=["GET"])
+def ad_address(mode, hit_id):
+    if mode == "debug":
+        address = '/complete'
+    elif mode in ["sandbox", "live"]:
+        CONFIG = PsiturkConfig()
+        CONFIG.load_config()
+        username = os.getenv('psiturk_access_key_id', CONFIG.get("psiTurk Access", "psiturk_access_key_id"))
+        password = os.getenv('psiturk_secret_access_id', CONFIG.get("psiTurk Access", "psiturk_secret_access_id"))
+        try:
+            req = requests.get('https://api.psiturk.org/api/ad/lookup/' + hit_id,
+                               auth=(username, password))
+        except:
+            raise ValueError('api_server_not_reachable')
+        else:
+            if req.status_code == 200:
+                hit_address = req.json()['ad_id']
+            else:
+                raise ValueError("something here")
+        if mode == "sandbox":
+            address = 'https://sandbox.ad.psiturk.org/complete/' + str(hit_address)
+        elif mode == "live":
+            address = 'https://ad.psiturk.org/complete/' + str(hit_address)
+    else:
+        raise ValueError("Unknown mode: {}".format(mode))
+    return success_response(field="address",
+                            data=address,
+                            request_type="ad_address")
+
+
+@custom_code.route("/<page>", methods=["GET"])
+def get_page(page):
+    """Return the requested page."""
+    return return_page(page + '.html', request)
+
+
+@custom_code.route("/<directory>/<page>", methods=["GET"])
+def get_page_from_directory(directory, page):
+    """Get a page from a given directory."""
+    return return_page(directory + '/' + page + '.html', request)
 
 
 """Routes for reading and writing to the database."""
@@ -196,70 +347,6 @@ def assign_properties(thing, request):
             setattr(thing, property_name, property)
 
     session.commit()
-
-
-def return_page(page, request):
-    """Return a rendered template."""
-    try:
-        hit_id = request.args['hit_id']
-        assignment_id = request.args['assignment_id']
-        worker_id = request.args['worker_id']
-        mode = request.args['mode']
-        return render_template(
-            page,
-            hit_id=hit_id,
-            assignment_id=assignment_id,
-            worker_id=worker_id,
-            mode=mode
-        )
-    except:
-        try:
-            participant_id = request.args['participant_id']
-            return render_template(page, participant_id=participant_id)
-        except:
-            return error_response(error_type="{} args missing".format(page))
-
-
-@custom_code.route("/<page>", methods=["GET"])
-def get_page(page):
-    """Return the requested page."""
-    return return_page(page + '.html', request)
-
-
-@custom_code.route("/<directory>/<page>", methods=["GET"])
-def get_page_from_directory(directory, page):
-    """Get a page from a given directory."""
-    return return_page(directory + '/' + page + '.html', request)
-
-
-@custom_code.route("/ad_address/<mode>/<hit_id>", methods=["GET"])
-def ad_address(mode, hit_id):
-    if mode == "debug":
-        address = '/complete'
-    elif mode in ["sandbox", "live"]:
-        CONFIG = PsiturkConfig()
-        CONFIG.load_config()
-        username = os.getenv('psiturk_access_key_id', CONFIG.get("psiTurk Access", "psiturk_access_key_id"))
-        password = os.getenv('psiturk_secret_access_id', CONFIG.get("psiTurk Access", "psiturk_secret_access_id"))
-        try:
-            req = requests.get('https://api.psiturk.org/api/ad/lookup/' + hit_id,
-                               auth=(username, password))
-        except:
-            raise ValueError('api_server_not_reachable')
-        else:
-            if req.status_code == 200:
-                hit_address = req.json()['ad_id']
-            else:
-                raise ValueError("something here")
-        if mode == "sandbox":
-            address = 'https://sandbox.ad.psiturk.org/complete/' + str(hit_address)
-        elif mode == "live":
-            address = 'https://ad.psiturk.org/complete/' + str(hit_address)
-    else:
-        raise ValueError("Unknown mode: {}".format(mode))
-    return success_response(field="address",
-                            data=address,
-                            request_type="ad_address")
 
 
 @custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>", methods=["POST"])
@@ -385,37 +472,6 @@ def node_neighbors(node_id):
     return success_response(field="nodes",
                             data=data,
                             request_type="neighbors")
-
-
-def error_response(error_type="Internal server error",
-                   error_text=None,
-                   status=400,
-                   participant=None):
-    """Return a generic server error response."""
-    traceback.print_exc()
-    print("Error: {}.".format(error_type))
-
-    page = error_page(
-        error_text=error_text,
-        error_type=error_type,
-        participant=participant)
-
-    data = {
-        "status": "error",
-        "html": page
-    }
-    return Response(dumps(data), status=status, mimetype='application/json')
-
-
-def success_response(field=None, data=None, request_type=""):
-    """Return a generic success response."""
-    data_out = {}
-    data_out["status"] = "success"
-    if field:
-        data_out[field] = data
-    print("{} request successful.".format(request_type))
-    js = dumps(data_out, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
 
 
 @custom_code.route("/node/<participant_id>", methods=["POST"])
@@ -1052,53 +1108,6 @@ def worker_function(event_type, assignment_id, participant_id):
 
     else:
         exp.log("Error: unknown event_type {}".format(event_type), key)
-
-
-@custom_code.route('/quitter', methods=['POST'])
-def quitter():
-    """Overide the psiTurk quitter route."""
-    exp = experiment(session)
-    exp.log("Quitter route was hit.")
-
-    return Response(
-        dumps({"status": "success"}),
-        status=200,
-        mimetype='application/json')
-
-
-def error_page(participant=None, error_text=None, compensate=True,
-               error_type="default"):
-    """Render HTML for error page."""
-    if error_text is None:
-
-        error_text = """There has been an error and so you are unable to
-        continue, sorry! If possible, please return the assignment so someone
-        else can work on it."""
-
-    if compensate:
-        error_text += """ Please use the information below to contact us
-        about compensation"""
-
-    if participant is not None:
-        hit_id = participant.hit_id,
-        assignment_id = participant.assignment_id,
-        worker_id = participant.worker_id
-    else:
-        hit_id = 'unknown'
-        assignment_id = 'unknown'
-        worker_id = 'unknown'
-
-    return render_template(
-        'error_wallace.html',
-        error_text=error_text,
-        compensate=compensate,
-        contact_address=config.get(
-            'HIT Configuration', 'contact_email_on_error'),
-        error_type=error_type,
-        hit_id=hit_id,
-        assignment_id=assignment_id,
-        worker_id=worker_id
-    )
 
 
 def date_handler(obj):
