@@ -1,7 +1,7 @@
 """Import custom routes into the experiment server."""
 
 from flask import Blueprint, request, Response, send_from_directory, \
-    jsonify, render_template
+    render_template
 
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
@@ -14,15 +14,14 @@ import imp
 import inspect
 import logging
 from operator import attrgetter
-import datetime
 from json import dumps
 import os
 import requests
+import traceback
 
 from rq import Queue, get_current_job
 from worker import conn
 
-from sqlalchemy import and_, exc
 from sqlalchemy.orm.exc import NoResultFound
 
 # Load the configuration options.
@@ -71,7 +70,7 @@ except ImportError:
 
 @custom_code.teardown_request
 def shutdown_session(_=None):
-    ''' Rollback and close session at request end '''
+    """Rollback and close session at request end."""
     session.remove()
     db.logger.debug('Closing Wallace DB session at flask request end')
 
@@ -93,12 +92,7 @@ def launch():
     session_psiturk.commit()
     session.commit()
 
-    exp.log("...experiment launched.", "-----")
-
-    data = {
-        "status": "success"
-    }
-    return Response(dumps(data), status=200, mimetype='application/json')
+    return success_response(request_type="launch")
 
 
 @custom_code.route('/compute_bonus', methods=['GET'])
@@ -113,50 +107,9 @@ def compute_bonus():
 @custom_code.route('/summary', methods=['GET'])
 def summary():
     """Summarize the participants' status codes."""
-    exp = experiment(session)
-    data = {
-        "status": "success",
-        "summary": exp.log_summary()
-    }
-    return Response(dumps(data), status=200, mimetype='application/json')
-
-
-# @custom_code.route('/worker_complete', methods=['GET'])
-# def worker_complete():
-#     """Overide the psiTurk worker_complete route.
-
-#     This skirts around an issue where the participant's status reverts to 3
-#     because of rogue calls to this route. It does this by changing the status
-#     only if it's not already >= 100.
-#     """
-#     exp = experiment(session)
-
-#     if 'uniqueId' not in request.args:
-#         data = {"status": "bad request"}
-#         return jsonify(**data)
-
-#     else:
-#         unique_id = request.args['uniqueId']
-#         exp.log("Completed experiment %s" % unique_id)
-#         try:
-#             user = Participant.query.\
-#                 filter(Participant.uniqueid == unique_id).one()
-
-#             if user.status < 100:
-#                 user.status = 3
-#                 user.endhit = datetime.datetime.now()
-#                 session_psiturk.add(user)
-#                 session_psiturk.commit()
-
-#             status = "success"
-
-#         except exc.SQLAlchemyError:
-#             status = "database error"
-
-#         data = {
-#             "status": status
-#         }
-#         return jsonify(**data)
+    return success_response(field="summary",
+                            data=exp.log_summary(),
+                            request_type="summary")
 
 
 """
@@ -164,8 +117,9 @@ Routes for reading and writing to the database.
 """
 
 
-def request_parameter(request, parameter, parameter_type=None, default=None, optional=False):
-    """ Get a parameter from a request
+def request_parameter(parameter, parameter_type=None, default=None,
+                      optional=False):
+    """Get a parameter from a request.
 
     The request object itself must be passed.
     parameter is the name of the parameter you are looking for
@@ -174,8 +128,8 @@ def request_parameter(request, parameter, parameter_type=None, default=None, opt
 
     If the parameter is not found and no default is specified,
     or if the parameter is found but is of the wrong type
-    then a Response object is returned"""
-
+    then a Response object is returned
+    """
     exp = experiment(session)
 
     # get the parameter
@@ -189,15 +143,7 @@ def request_parameter(request, parameter, parameter_type=None, default=None, opt
             return None
         else:
             msg = "{} {} request, {} not specified".format(request.url, request.method, parameter)
-            exp.log("Error: {}".format(msg))
-            data = {
-                "status": "error",
-                "html": error_page(error_type=msg)
-            }
-            return Response(
-                dumps(data),
-                status=400,
-                mimetype='application/json')
+            return error_response(error_type=msg)
 
     # check the parameter type
     if parameter_type is None:
@@ -210,15 +156,7 @@ def request_parameter(request, parameter, parameter_type=None, default=None, opt
             return value
         except ValueError:
             msg = "{} {} request, non-numeric {}: {}".format(request.url, request.method, parameter, value)
-            exp.log("Error: {}".format(msg))
-            data = {
-                "status": "error",
-                "html": error_page(error_type=msg)
-            }
-            return Response(
-                dumps(data),
-                status=400,
-                mimetype='application/json')
+            return error_response(error_type=msg)
     elif parameter_type == "known_class":
         # if its a known class check against the known classes
         try:
@@ -226,71 +164,37 @@ def request_parameter(request, parameter, parameter_type=None, default=None, opt
             return value
         except KeyError:
             msg = "{} {} request, unknown_class: {} for parameter {}".format(request.url, request.method, value, parameter)
-            exp.log("Error: {}".format(msg))
-            data = {
-                "status": "error",
-                "html": error_page(error_type=msg)
-            }
-            return Response(
-                dumps(data),
-                status=400,
-                mimetype='application/json')
+            return error_response(error_type=msg)
     elif parameter_type == "bool":
         # if its a boolean, convert to a boolean
         if value in ["True", "False"]:
             return value == "True"
         else:
             msg = "{} {} request, non-boolean {}: {}".format(request.url, request.method, parameter, value)
-            exp.log("Error: {}".format(msg))
-            data = {
-                "status": "error",
-                "html": error_page(error_type=msg)
-            }
-            return Response(
-                dumps(data),
-                status=400,
-                mimetype='application/json')
+            return error_response(error_type=msg)
     else:
         msg = "/{} {} request, unknown parameter type: {} for parameter {}".format(request.url, request.method, parameter_type, parameter)
-        exp.log("Error: {}".format(msg))
-        data = {
-            "status": "error",
-            "html": error_page(error_type=msg)
-        }
-        return Response(
-            dumps(data),
-            status=400,
-            mimetype='application/json')
+        return error_response(error_type=msg)
 
 
 def assign_properties(thing, request):
-    """ When creating something via a post request (e.g. a node)
-    you can pass the properties of the object in the request.
-    This function gets those values from the request and fills
-    in the relevant columns of the table. """
-    properties = [
-        request_parameter(request=request, parameter="property1", optional=True),
-        request_parameter(request=request, parameter="property2", optional=True),
-        request_parameter(request=request, parameter="property3", optional=True),
-        request_parameter(request=request, parameter="property4", optional=True),
-        request_parameter(request=request, parameter="property5", optional=True)
-    ]
+    """Assign properties to an object.
+
+    When creating something via a post request (e.g. a node), you can pass the
+    properties of the object in the request. This function gets those values
+    from the request and fills in the relevant columns of the table.
+    """
     for p in range(5):
-        if properties[p] is not None:
-            if p == 0:
-                thing.property1 = properties[p]
-            elif p == 1:
-                thing.property2 = properties[p]
-            elif p == 2:
-                thing.property3 = properties[p]
-            elif p == 3:
-                thing.property4 = properties[p]
-            else:
-                thing.property5 = properties[p]
+        property_name = "property" + str(p)
+        property = request_parameter(parameter=property_name, optional=True),
+        if property:
+            setattr(thing, property_name, property)
+
     session.commit()
 
 
 def return_page(page, request):
+    """Return a rendered template."""
     try:
         hit_id = request.args['hit_id']
         assignment_id = request.args['assignment_id']
@@ -311,13 +215,12 @@ def return_page(page, request):
                 participant_id=participant_id
             )
         except:
-            import traceback
-            traceback.print_exc()
-            return error_page(error_type="{} args missing".format(page))
+            return error_response(error_type="{} args missing".format(page))
 
 
 @custom_code.route("/<page>", methods=["GET"])
 def get_page(page):
+    """Return the requested page."""
     return return_page(page + '.html', request)
 
 
@@ -351,30 +254,34 @@ def ad_address(mode, hit_id):
             address = 'https://ad.psiturk.org/complete/' + str(hit_address)
     else:
         raise ValueError("Unknown mode: {}".format(mode))
-    return Response(dumps({"address": address}), status=200)
+    return success_response(field="address",
+                            data=address,
+                            request_type="ad_address")
 
 
 @custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>", methods=["POST"])
 def create_participant(worker_id, hit_id, assignment_id, mode):
+    # check this worker hasn't already taken part
     parts = models.Participant.query.filter_by(worker_id=worker_id).all()
     if parts:
         print "participant already exists!"
         return Response(status=200)
 
+    # make the participant
     participant = models.Participant(worker_id=worker_id, assignment_id=assignment_id, hit_id=hit_id, mode=mode)
     session.add(participant)
     session.commit()
 
+    # make a psiturk participant too, for now
     from psiturk.models import Participant as PsiturkParticipant
     psiturk_participant = PsiturkParticipant(workerid=worker_id, assignmentid=assignment_id, hitid=hit_id)
     session_psiturk.add(psiturk_participant)
     session_psiturk.commit()
 
     # return the data
-    data = participant.__json__()
-    data = {"status": "success", "participant": data}
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(field="participant",
+                            data=participant.__json__(),
+                            request_type="participant post")
 
 
 @custom_code.route("/participant/<participant_id>", methods=["GET"])
@@ -383,143 +290,50 @@ def get_participant(participant_id):
     try:
         participant = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
-        exp.log("Error: /participant GET request for unrecognized participant_id {}.".format(participant_id))
-        page = error_page(
-            error_text="You cannot continue because your id does not match anyone in our records.",
-            error_type="/participant GET no participant found")
-        data = {
-            "status": "error",
-            "html": page
-        }
-        return Response(dumps(data), status=403, mimetype='application/json')
+        return error_response(error_type="/participant GET: no participant found",
+                              status=403)
 
     # return the data
-    data = participant.__json__()
-    data = {"status": "success", "participant": data}
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
-
-
-@custom_code.route("/participant/<participant_id>/submit", methods=["POST"])
-def submit_participant(participant_id):
-
-    try:
-        participant = models.Participant.query.filter_by(id=participant_id).one()
-    except NoResultFound:
-        exp.log("Error: /participant/submit request for unrecognized participant_id {}.".format(participant_id))
-        page = error_page(
-            error_text="You cannot continue because your id does not match anyone in our records.",
-            error_type="/participant submit no participant found")
-        data = {
-            "status": "error",
-            "html": page
-        }
-        return Response(dumps(data), status=403, mimetype='application/json')
-
-    if participant.mode == "debug":
-        pass
-    else:
-        if participant.mode == "sandbox":
-            url = "https://workersandbox.mturk.com/mturk/externalSubmit"
-        elif participant.mode == "live":
-            url = "https://www.mturk.com/mturk/externalSubmit"
-
-        req = requests.post(url + "?assignmentId=" + participant.assignment_id)
-
-        print req
-        try:
-            print req.status_code
-        except:
-            pass
-        try:
-            print req.text
-        except:
-            pass
-        try:
-            print req.json()
-        except:
-            pass
-
-    return Response(status=200, mimetype='application/json')
+    return success_response(field="participant",
+                            data=participant.__json__(),
+                            request_type="participant get")
 
 
 @custom_code.route("/question/<participant_id>", methods=["POST"])
 def create_question(participant_id):
-    """ Send a POST request to the question table.
-    """
-    exp = experiment(session)
+    """Send a POST request to the question table."""
 
     # Get the participant.
     try:
         participant = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
-        exp.log("Error: /question POST request from unrecognized participant_id {}.".format(participant_id))
-        page = error_page(
-            error_text="You cannot continue because your worker id does not match anyone in our records.",
-            error_type="/question POST no participant found")
-        data = {
-            "status": "error",
-            "html": page
-        }
-        return Response(dumps(data), status=403, mimetype='application/json')
+        return error_response(error_type="/question POST no participant found",
+                              status=403)
 
     # Make sure the participant status is "working"
     if participant.status != "working":
-
-        exp.log("Error: Participant status is {}, they should not have been able to contact this route.".format(participant.status))
         error_type = "/question POST, status = {}".format(participant.status)
+        return error_response(error_type=error_type,
+                              participant=participant)
 
-        if participant.status in ["submitted", "approved", "rejected"]:
-            error_text = "You cannot continue because we have received a notification from AWS that you have already submitted the assignment.'"
-
-        elif participant.status == "returned":
-            error_text = "You cannot continue because we have received a notification from AWS that you have returned the assignment.'"
-
-        elif participant.status == "abandoned":
-            error_text = "You cannot continue because we have received a notification from AWS that your assignment has expired."
-
-        else:
-            error_text = None
-
-        page = error_page(
-            participant=participant,
-            error_text=error_text,
-            error_type=error_type)
-
-        data = {
-            "status": "error",
-            "html": page
-        }
-        return Response(
-            dumps(data),
-            status=400,
-            mimetype='application/json')
-
-    question = request_parameter(request=request, parameter="question")
-    if type(question) == Response:
-        return question
-
-    response = request_parameter(request=request, parameter="response")
-    if type(response) == Response:
-        return response
-
-    question_id = request_parameter(request=request, parameter="question_id", parameter_type="int")
-    if type(question_id) == Response:
-        return question_id
+    question = request_parameter(parameter="question")
+    response = request_parameter(parameter="response")
+    question_id = request_parameter(parameter="question_id", parameter_type="int")
+    for x in [question, response, question_id]:
+        if type(x) == Response:
+            return x
 
     # execute the request
     models.Question(participant=participant, question=question, response=response, question_id=question_id)
     session.commit()
 
     # return the data
-    data = {"status": "success"}
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(request_type="question post")
 
 
 @custom_code.route("/node/<int:node_id>/neighbors", methods=["GET"])
 def node_neighbors(node_id):
-    """ Send a GET request to the node table.
+    """Send a GET request to the node table.
 
     This calls the neighbours method of the node
     making the request and returns a list of descriptions of
@@ -533,55 +347,77 @@ def node_neighbors(node_id):
     exp = experiment(session)
 
     # get the parameters
-    node_type = request_parameter(request=request, parameter="node_type", parameter_type="known_class", default=models.Node)
-    failed = request_parameter(request=request, parameter="failed", parameter_type="bool", default=False)
-    vector_failed = request_parameter(request=request, parameter="vector_failed", parameter_type="bool", default=False)
-    connection = request_parameter(request=request, parameter="connection", default="to")
-
-    for x in [node_type, failed, vector_failed, connection]:
+    node_type = request_parameter(parameter="node_type", parameter_type="known_class", default=models.Node)
+    failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
+    connection = request_parameter(parameter="connection", default="to")
+    for x in [node_type, failed, connection]:
         if type(x) == Response:
             return x
-
-    exp.log("/node GET request. Params: node: {}, node_type: {}, \
-             failed: {}, vector_failed: {}, connection: {}"
-            .format(node_id, node_type, failed, vector_failed, connection))
 
     # make sure the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /node/{}/neighbors, node {} does not exist".format(node_id))
-        page = error_page(error_type="/node/neighbors, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/node/neighbors, node does not exist",
+                              error_text="/node/{}/neighbors, node {} does not exist".format(node_id))
 
     # get its neighbors
     nodes = node.neighbours(
         type=node_type,
         failed=failed,
-        vector_failed=vector_failed,
         connection=connection)
 
-    # ping the experiment
-    exp.node_get_request(
-        node=node,
-        nodes=nodes)
-    session.commit()
+    try:
+        # ping the experiment
+        exp.node_get_request(
+            node=node,
+            nodes=nodes)
+        session.commit()
+    except:
+        return error_response(error_type="exp.node_get_request")
 
     # return the data
     data = []
     for n in nodes:
         data.append(n.__json__())
-    data = {"status": "success", "nodes": data}
-    exp.log("/node/neighbors request successful.")
-    return Response(
-        dumps(data, default=date_handler),
-        status=200,
-        mimetype='application/json')
+    return success_response(field="nodes",
+                            data=data,
+                            request_type="neighbors")
+
+
+def error_response(error_type="Internal server error",
+                   error_text=None,
+                   status=400,
+                   participant=None):
+    """Returns a generic server error response."""
+    traceback.print_exc()
+    print("Error: {}.".format(error_type))
+
+    page = error_page(
+        error_text=error_text,
+        error_type=error_type,
+        participant=participant)
+
+    data = {
+        "status": "error",
+        "html": page
+    }
+    return Response(dumps(data), status=status, mimetype='application/json')
+
+
+def success_response(field=None, data=None, request_type=""):
+    """Return a generic success response."""
+    data_out = {}
+    data_out["status"] = "success"
+    if field:
+        data_out[field] = data
+    print("{} request successful.".format(request_type))
+    js = dumps(data_out, default=date_handler)
+    return Response(js, status=200, mimetype='application/json')
 
 
 @custom_code.route("/node/<participant_id>", methods=["POST"])
 def create_node(participant_id):
-    """ Send a POST request to the node table.
+    """Send a POST request to the node table.
 
     This makes a new node for the participant, it calls:
         1. exp.get_network_for_participant
@@ -595,60 +431,25 @@ def create_node(participant_id):
     try:
         participant = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
-        exp.log("Error: /node POST request from unrecognized participant_id {}.".format(participant_id))
-        page = error_page(
-            error_text="You cannot continue because your worker id does not match anyone in our records.",
-            error_type="/node POST no participant found")
-        data = {
-            "status": "error",
-            "html": page
-        }
-        return Response(dumps(data), status=403, mimetype='application/json')
+        return error_response(error_type="/node POST no participant found",
+                              status=403)
 
     # replace any duplicate assignments
     check_for_duplicate_assignments(participant)
 
     # Make sure the participant status is working
     if participant.status != "working":
-
-        exp.log("Error: Participant status is {}, they should not have been able to contact this route.".format(participant.status))
         error_type = "/node POST, status = {}".format(participant.status)
+        return error_response(error_type=error_type,
+                              participant=participant)
 
-        if participant.status in ["submitted", "approved", "rejected"]:
-            error_text = "You cannot continue because we have received a notification from AWS that you have already submitted the assignment.'"
+    try:
+        # execute the request
+        network = exp.get_network_for_participant(participant_id=participant_id)
 
-        elif participant.status == "returned":
-            error_text = "You cannot continue because we have received a notification from AWS that you have returned the assignment.'"
+        if network is None:
+            return Response(dumps({"status": "error"}), status=403)
 
-        elif participant.status == "abandoned":
-            error_text = "You cannot continue because we have received a notification from AWS that your assignment has expired."
-
-        else:
-            error_text = None
-
-        page = error_page(
-            participant=participant,
-            error_text=error_text,
-            error_type=error_type)
-
-        data = {
-            "status": "error",
-            "html": page
-        }
-        return Response(
-            dumps(data),
-            status=400,
-            mimetype='application/json')
-
-    # execute the request
-    exp.log("/node POST request. Params: participant_id: {}".format(participant_id))
-    network = exp.get_network_for_participant(participant_id=participant_id)
-
-    if network is None:
-        exp.log("No networks available for participant.")
-        return Response(dumps({"status": "error"}), status=403)
-
-    else:
         node = exp.make_node_for_participant(
             participant=participant,
             network=network)
@@ -656,22 +457,22 @@ def create_node(participant_id):
         assign_properties(node, request)
 
         exp.add_node_to_network(
-            participant=participant,
             node=node,
             network=network)
 
-    session.commit()
+        session.commit()
 
-    # ping the experument
-    exp.node_post_request(participant=participant, node=node)
-    session.commit()
+        # ping the experiment
+        exp.node_post_request(participant=participant, node=node)
+        session.commit()
+    except:
+        return error_response(error_type="/node POST server error",
+                              status=403,
+                              participant=participant)
 
     # return the data
-    data = node.__json__()
-    data = {"status": "success", "node": data}
-    exp.log("/node POST request successful.")
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(
+        field="node", data=node.__json__(), request_type="/node POST")
 
 
 @custom_code.route("/node/<int:node_id>/vectors", methods=["GET"])
@@ -679,42 +480,35 @@ def node_vectors(node_id):
     exp = experiment(session)
 
     # get the parameters
-    direction = request_parameter(request=request, parameter="direction", default="all")
-    if type(direction) == Response:
-        return direction
-
-    failed = request_parameter(request=request, parameter="failed", parameter_type="bool", default=False)
-    if type(failed) == Response:
-        return failed
+    direction = request_parameter(parameter="direction", default="all")
+    failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
+    for x in [direction, failed]:
+        if type(x) == Response:
+            return x
 
     # execute the request
-    exp.log("/vector GET request. Params: node_id: {}, other_node_id: {}, \
-             direction: {}, failed: {}"
-            .format(node_id, direction, failed))
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /node/{}/vectors, node {} does not exist".format(node_id))
-        page = error_page(error_type="/node/vectors, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/node/vectors, node does not exist")
 
-    vectors = node.vectors(direction=direction, failed=failed)
+    try:
+        vectors = node.vectors(direction=direction, failed=failed)
 
-    # ping the experument
-    exp.vector_get_request(node=node, vectors=vectors)
-    session.commit()
+        # ping the experiment
+        exp.vector_get_request(node=node, vectors=vectors)
+        session.commit()
+    except:
+        return error_response(error_type="/node/vectors GET server error",
+                              status=403,
+                              participant=node.participant)
 
     # return the data
     data = []
     for v in vectors:
         data.append(v.__json__())
-    data = {
-        "status": "success",
-        "vectors": data
-    }
-    exp.log("/vector GET request successful.")
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(field="vectors",
+                            data=data,
+                            request_type="vector get")
 
 
 @custom_code.route("/node/<int:node_id>/connect/<int:other_node_id>", methods=["POST"])
@@ -722,89 +516,78 @@ def connect(node_id, other_node_id):
     exp = experiment(session)
 
     # get the parameters
-    direction = request_parameter(request=request, parameter="direction", default="to")
+    direction = request_parameter(parameter="direction", default="to")
     if type(direction == Response):
         return direction
-
-    exp.log("/vector POST request. Params: node_id: {}, other_node_id: {}, \
-             direction: {}"
-            .format(node_id, other_node_id, direction))
 
     # check the nodes exist
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /node/{}/connect, node {} does not exist".format(node_id, node_id))
-        page = error_page(error_type="/node/connect, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/node/connect, node does not exist")
 
     other_node = models.Node.query.get(other_node_id)
     if other_node is None:
-        exp.log("Error: /node/{}/connect, other_node {} does not exist".format(node_id, other_node_id))
-        page = error_page(error_type="/node/connect, other node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/node/connect, other node does not exist",
+                              participant=node.participant)
 
     # execute the request
-    vectors = node.connect(whom=other_node, direction=direction)
-    for v in vectors:
-        assign_properties(v, request)
+    try:
+        vectors = node.connect(whom=other_node, direction=direction)
+        for v in vectors:
+            assign_properties(v, request)
 
-    # ping the experiment
-    exp.vector_post_request(
-        node=node,
-        vectors=vectors)
+        # ping the experiment
+        exp.vector_post_request(
+            node=node,
+            vectors=vectors)
 
-    session.commit()
+        session.commit()
+    except:
+        return error_response(error_type="/vector POST server error",
+                              status=403,
+                              participant=node.participant)
 
     # return the data
     data = []
     for v in vectors:
         data.append(v.__json__())
-    exp.log("/vector POST request successful")
-    data = {"status": "success", "vectors": data}
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(field="vectors",
+                            data=data,
+                            request_type="vector post")
 
 
 @custom_code.route("/info/<int:node_id>/<int:info_id>", methods=["GET"])
 def get_info(node_id, info_id):
     exp = experiment(session)
 
-    exp.log("/info GET request. Params: node_id: {}, info_id: {}."
-            .format(node_id, info_id))
-
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /info/{}, node {} does not exist".format(node_id, node_id))
-        page = error_page(error_type="/info, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/info, node does not exist")
 
     # execute the experiment method:
     info = models.Info.query.get(info_id)
     if info is None:
-        exp.log("Error: /info GET request, info {} does not exist".format(info_id))
-        page = error_page(error_type="/info GET, info does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/info GET, info does not exist",
+                              participant=node.participant)
     elif info.origin_id != node.id and info.id not in [t.info_id for t in node.transmissions(direction="incoming", status="received")]:
-        exp.log("Error: /info GET request, info not available to requesting node")
-        page = error_page(error_type="/info GET, forbidden info")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=403, mimetype='application/json')
+        return error_response(error_type="/info GET, forbidden info",
+                              status=403,
+                              participant=node.participant)
 
-    # ping the experiment
-    exp.info_get_request(node=node, info=info)
-    session.commit()
+    try:
+        # ping the experiment
+        exp.info_get_request(node=node, info=info)
+        session.commit()
+    except:
+        return error_response(error_type="/info GET server error",
+                              status=403,
+                              participant=node.participant)
 
     # return the data
-    data = info.__json__()
-    data = {"status": "success", "info": data}
-    exp.log("/info GET request successful.")
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(field="info",
+                            data=info.__json__(),
+                            request_type="info get")
 
 
 @custom_code.route("/node/<int:node_id>/infos", methods=["GET"])
@@ -812,41 +595,37 @@ def node_infos(node_id):
     exp = experiment(session)
 
     # get the parameters
-    info_type = request_parameter(request=request, parameter="info_type", parameter_type="known_class", default=models.Info)
+    info_type = request_parameter(parameter="info_type", parameter_type="known_class", default=models.Info)
     if type(info_type) == Response:
         return info_type
-
-    exp.log("/node/infos request. Params: node_id: {}, info_type: {}"
-            .format(node_id, info_type))
 
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /node/{}/infos, node does not exist".format(node_id))
-        page = error_page(error_type="/node/infos, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/node/infos, node does not exist")
 
-    # execute the request:
-    infos = node.infos(type=info_type)
+    try:
+        # execute the request:
+        infos = node.infos(type=info_type)
 
-    # ping the experiment
-    exp.info_get_request(
-        node=node,
-        infos=infos)
+        # ping the experiment
+        exp.info_get_request(
+            node=node,
+            infos=infos)
 
-    session.commit()
+        session.commit()
+    except:
+        return error_response(error_type="/node/infos GET server error",
+                              status=403,
+                              participant=node.participant)
 
     # parse the data for returning
     data = []
     for i in infos:
         data.append(i.__json__())
-    data = {"status": "success", "infos": data}
-
-    # return the data
-    exp.log("/node/infos request successful.")
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(field="infos",
+                            data=data,
+                            request_type="infos")
 
 
 @custom_code.route("/node/<int:node_id>/received_infos", methods=["GET"])
@@ -854,41 +633,37 @@ def node_received_infos(node_id):
     exp = experiment(session)
 
     # get the parameters
-    info_type = request_parameter(request=request, parameter="info_type", parameter_type="known_class", default=models.Info)
+    info_type = request_parameter(parameter="info_type", parameter_type="known_class", default=models.Info)
     if type(info_type) == Response:
         return info_type
-
-    exp.log("/node/received_infos request. Params: node_id: {}, info_type: {}"
-            .format(node_id, info_type))
 
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /node/{}/infos, node does not exist".format(node_id))
-        page = error_page(error_type="/node/infos, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/node/infos, node does not exist")
 
     # execute the request:
     infos = node.received_infos(type=info_type)
 
-    # ping the experiment
-    exp.info_get_request(
-        node=node,
-        infos=infos)
+    try:
+        # ping the experiment
+        exp.info_get_request(
+            node=node,
+            infos=infos)
 
-    session.commit()
+        session.commit()
+    except:
+        return error_response(error_type="info_get_request error",
+                              status=403,
+                              participant=node.participant)
 
     # parse the data for returning
     data = []
     for i in infos:
         data.append(i.__json__())
-    data = {"status": "success", "infos": data}
-
-    # return the data
-    exp.log("/node/received_infos GET request successful.")
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(field="infos",
+                            data=data,
+                            request_type="received infos")
 
 
 @custom_code.route("/info/<int:node_id>", methods=["POST"])
@@ -896,43 +671,37 @@ def info_post(node_id):
     exp = experiment(session)
 
     # get the parameters
-    info_type = request_parameter(request=request, parameter="info_type", parameter_type="known_class", default=models.Info)
-    if type(info_type) == Response:
-        return info_type
-
-    contents = request_parameter(request=request, parameter="contents")
-    if type(contents) == Response:
-        return contents
-
-    exp.log("/info POST request. Params: node_id: {}, info_type: {}, \
-             contents: {}"
-            .format(node_id, info_type, contents))
+    info_type = request_parameter(parameter="info_type", parameter_type="known_class", default=models.Info)
+    contents = request_parameter(parameter="contents")
+    for x in [info_type, contents]:
+        if type(x) == Response:
+            return x
 
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /info/{} POST, node does not exist".format(node_id))
-        page = error_page(error_type="/info POST, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/info POST, node does not exist")
 
-    # execute the request
-    info = info_type(origin=node, contents=contents)
-    assign_properties(info, request)
+    try:
+        # execute the request
+        info = info_type(origin=node, contents=contents)
+        assign_properties(info, request)
 
-    # ping the experiment
-    exp.info_post_request(
-        node=node,
-        info=info)
+        # ping the experiment
+        exp.info_post_request(
+            node=node,
+            info=info)
 
-    session.commit()
+        session.commit()
+    except:
+        return error_response(error_type="/info POST server error",
+                              status=403,
+                              participant=node.participant)
 
     # return the data
-    data = info.__json__()
-    data = {"status": "success", "info": data}
-    exp.log("/info POST request successful.")
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(field="info",
+                            data=info.__json__(),
+                            request_type="info post")
 
 
 @custom_code.route("/node/<int:node_id>/transmissions", methods=["GET"])
@@ -940,50 +709,44 @@ def node_transmissions(node_id):
     exp = experiment(session)
 
     # get the parameters
-    direction = request_parameter(request=request, parameter="direction", default="to")
-    if type(direction) == Response:
-        return direction
-
-    status = request_parameter(request=request, parameter="status", default="all")
-    if type(status) == Response:
-        return status
-
-    exp.log("/transmission GET request. Params: node_id: {}, direction: {}, \
-             status: {}"
-            .format(node_id, direction, status))
+    direction = request_parameter(parameter="direction", default="to")
+    status = request_parameter(parameter="status", default="all")
+    for x in [direction, status]:
+        if type(x) == Response:
+            return x
 
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /node/{}/transmissions, node does not exist".format(node_id))
-        page = error_page(error_type="/node/transmissions, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/node/transmissions, node does not exist")
 
     # execute the request
     transmissions = node.transmissions(direction=direction, status=status)
 
-    if direction in ["incoming", "all"] and status in ["pending", "all"]:
-        node.receive()
+    try:
+        if direction in ["incoming", "all"] and status in ["pending", "all"]:
+            node.receive()
+            session.commit()
+        # ping the experiment
+        exp.transmission_get_request(node=node, transmissions=transmissions)
         session.commit()
-
-    # ping the experiment
-    exp.transmission_get_request(node=node, transmissions=transmissions)
-    session.commit()
+    except:
+        return error_response(error_type="/node/transmissions GET server error",
+                              status=403,
+                              participant=node.participant)
 
     # return the data
     data = []
     for t in transmissions:
         data.append(t.__json__())
-    data = {"status": "success", "transmissions": data}
-    exp.log("/transmission GET request successful.")
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(field="transmissions",
+                            data=data,
+                            request_type="transmissions")
 
 
 @custom_code.route("/node/<int:node_id>/transmit", methods=["POST"])
 def node_transmit(node_id):
-    """ The /node/<id>/transmit route allows the front end to
+    """The /node/<id>/transmit route allows the front end to
     request that a node transmit to other nodes.
 
     As with node.transmit() the key parameters are what and to_whom.
@@ -1015,20 +778,13 @@ def node_transmit(node_id):
 
     exp = experiment(session)
 
-    what = request_parameter(request=request, parameter="what", optional=True)
-    to_whom = request_parameter(request=request, parameter="to_whom", optional=True)
-
-    exp.log("/node/transmit request. Params: node_id: {}, what: {}, \
-             to_whom: {}"
-            .format(node_id, what, to_whom))
+    what = request_parameter(parameter="what", optional=True)
+    to_whom = request_parameter(parameter="to_whom", optional=True)
 
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /node/{}/transmit, node does not exist".format(node_id))
-        page = error_page(error_type="/node/transmit, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/node/transmit, node does not exist")
 
     # create what
     if what is not None:
@@ -1036,18 +792,14 @@ def node_transmit(node_id):
             what = int(what)
             what = models.Info.get(what)
             if what is None:
-                exp.log("Error: /node/transmit POST request, info {} does not exist".format(int(request_parameter(request=request, parameter="what", optional=True))))
-                page = error_page(error_type="/node/transmit POST, info does not exist")
-                js = dumps({"status": "error", "html": page})
-                return Response(js, status=400, mimetype='application/json')
+                return error_response(error_type="/node/transmit POST, info does not exist",
+                                      participant=node.participant)
         except:
             try:
                 what = exp.known_classes[what]
             except:
-                exp.log("Error: /node/transmit POST request, bad what: {}".format(request_parameter(request=request, parameter="what", optional=True)))
-                page = error_page(error_type="/node/transmit POST, info does not exist")
-                js = dumps({"status": "error", "html": page})
-                return Response(js, status=400, mimetype='application/json')
+                return error_response(error_type="/node/transmit POST, info does not exist",
+                                      participant=node.participant)
 
     # create to_whom
     if to_whom is not None:
@@ -1055,45 +807,37 @@ def node_transmit(node_id):
             to_whom = int(to_whom)
             to_whom = models.Node.get(to_whom)
             if what is None:
-                exp.log("Error: /node/transmit POST request, info {} does not exist".format(int(request_parameter(request=request, parameter="to_whom", optional=True))))
-                page = error_page(error_type="/node/transmit POST, info does not exist")
-                js = dumps({"status": "error", "html": page})
-                return Response(js, status=400, mimetype='application/json')
+                return error_response(error_type="/node/transmit POST, info does not exist",
+                                      participant=node.participant)
         except:
             try:
                 to_whom = exp.known_classes[to_whom]
             except:
-                exp.log("Error: /node/transmit POST request, bad to_whom: {}".format(request_parameter(request=request, parameter="to_whom", optional=True)))
-                page = error_page(error_type="/node/transmit POST, info does not exist")
-                js = dumps({"status": "error", "html": page})
-                return Response(js, status=400, mimetype='application/json')
+                return error_response(error_type="/node/transmit POST, info does not exist",
+                                      participant=node.participant)
 
     # execute the request
     try:
         transmissions = node.transmit(what=what, to_whom=to_whom)
+        for t in transmissions:
+            assign_properties(t, request)
+        session.commit()
+        # ping the experiment
+        exp.transmission_post_request(
+            node=node,
+            transmissions=transmissions)
+        session.commit()
     except:
-        exp.log("Error: /node/transmit POST request, transmit failed")
-        page = error_page(error_type="/node/transmit POST, transmit failed")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
-    for t in transmissions:
-        assign_properties(t, request)
-    session.commit()
-
-    # ping the experiment
-    exp.transmission_post_request(
-        node=node,
-        transmissions=transmissions)
-    session.commit()
+        return error_response(error_type="/node/transmit POST, server error",
+                              participant=node.participant)
 
     # return the data
     data = []
     for t in transmissions:
         data.append(t.__json__())
-    data = {"status": "success", "transmissions": data}
-    exp.log("/node/transmit request successful.")
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(field="transmissions",
+                            data=data,
+                            request_type="transmit")
 
 
 @custom_code.route("/node/<int:node_id>/transformations", methods=["GET"])
@@ -1101,36 +845,32 @@ def transformation_get(node_id):
     exp = experiment(session)
 
     # get the parameters
-    transformation_type = request_parameter(request=request, parameter="transformation_type", parameter_type="known_class", default=models.Transformation)
+    transformation_type = request_parameter(parameter="transformation_type", parameter_type="known_class", default=models.Transformation)
     if type(transformation_type) == Response:
         return transformation_type
-
-    exp.log("/transformation GET request. Params: node_id: {}, transformation_type: {}"
-            .format(node_id, transformation_type))
 
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /node/{}/transformations node does not exist".format(node_id))
-        page = error_page(error_type="/node/transformations, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/node/transformations, node does not exist")
 
     # execute the request
     transformations = node.transformations(transformation_type=transformation_type)
-
-    # ping the experiment
-    exp.transformation_get_request(node=node, transformations=transformations)
-    session.commit()
+    try:
+        # ping the experiment
+        exp.transformation_get_request(node=node, transformations=transformations)
+        session.commit()
+    except:
+        return error_response(error_type="/node/tranaformations GET failed",
+                              participant=node.participant)
 
     # return the data
     data = []
     for t in transformations:
         data.append(t.__json__())
-    data = {"status": "success", "transformations": data}
-    js = dumps(data, default=date_handler)
-    exp.log("/transformation GET request successful.")
-    return Response(js, status=200, mimetype='application/json')
+    return success_response(field="transformations",
+                            data=data,
+                            request_type="transformations")
 
 
 @custom_code.route("/transformation/<int:node_id>/<int:info_in_id>/<int:info_out_id>", methods=["POST"])
@@ -1138,101 +878,42 @@ def transformation_post(node_id, info_in_id, info_out_id):
     exp = experiment(session)
 
     #get the parameters
-    transformation_type = request_parameter(request=request, parameter="transformation_type", parameter_type="known_class", default=models.Transformation)
+    transformation_type = request_parameter(parameter="transformation_type", parameter_type="known_class", default=models.Transformation)
     if type(transformation_type) == Response:
         return transformation_type
-
-    exp.log("/transformation POST request. Params: node_id: {}, info_in_id: {}, \
-             info_out_id: {}"
-            .format(node_id, info_in_id, info_out_id))
 
     # check the node etc exists
     node = models.Node.query.get(node_id)
     if node is None:
-        exp.log("Error: /transformation/ POST, node {} does not exist".format(node_id))
-        page = error_page(error_type="/transformation POST, node does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/transformation POST, node does not exist")
 
     info_in = models.Info.query.get(info_in_id)
     if info_in is None:
-        exp.log("Error: /transformation/ POST, info_in {} does not exist".format(info_in_id))
-        page = error_page(error_type="/transformation POST, info_in does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/transformation POST, info_in does not exist",
+                              participant=node.participant)
 
     info_out = models.Info.query.get(info_out_id)
     if info_out is None:
-        exp.log("Error: /transformation/ POST, info_out {} does not exist".format(info_out_id))
-        page = error_page(error_type="/transformation POST, info_out does not exist")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=400, mimetype='application/json')
+        return error_response(error_type="/transformation POST, info_out does not exist",
+                              participant=node.participant)
 
-    if node_id != info_out.origin_id:
-        exp.log("Error: /transformation POST request, node not origin of info_out")
-        page = error_page(error_type="/transformation POST, node not origin of info_out")
-        js = dumps({"status": "error", "html": page})
-        return Response(js, status=403, mimetype='application/json')
+    try:
+        # execute the request
+        transformation = transformation_type(info_in=info_in, info_out=info_out)
+        assign_properties(transformation, request)
+        session.commit()
 
-    # execute the request
-    transformation = transformation_type(info_in=info_in, info_out=info_out)
-    assign_properties(transformation, request)
-    session.commit()
-
-    # ping the experiment
-    exp.transformation_post_request(node=node, transformation=transformation)
-    session.commit()
+        # ping the experiment
+        exp.transformation_post_request(node=node, transformation=transformation)
+        session.commit()
+    except:
+        return error_response(error_type="/tranaformation POST failed",
+                              participant=node.participant)
 
     # return the data
-    data = transformation.__json__()
-    data = {"status": "success", "transformation": data}
-    exp.log("/transformation POST request successful.")
-    js = dumps(data, default=date_handler)
-    return Response(js, status=200, mimetype='application/json')
-
-
-# @custom_code.route("/nudge", methods=["POST"])
-# def nudge():
-#     """Call the participant submission trigger for everyone who finished."""
-#     exp = experiment(session)
-
-#     exp.log("Nudging the experiment along.")
-
-#     # If a participant is hung at status 4, we must have missed the
-#     # notification saying they had submitted, so we bump them to status 100
-#     # and run the submission trigger.
-#     participants = models.Participant.query.filter_by(status="submitted").all()
-
-#     for participant in participants:
-
-#         exp.log("Nudging participant {}".format(participant))
-#         participant_id = participant.unique_id
-
-#         # Assign participant status 100.
-#         participant.status = 100
-#         session_psiturk.commit()
-
-#         # Recruit new participants.
-#         exp.participant_submission_trigger(
-#             participant_id=participant_id,
-#             assignment_id=participant.assignmentid)
-
-#     # If a participant has status 3, but has an endhit time, something must
-#     # have gone awry, so we bump the status to 100 and call it a day.
-#     participants = Participant.query.filter(
-#         and_(
-#             Participant.status == 3,
-#             Participant.endhit != None)).all()
-
-#     for participant in participants:
-#         exp.log("Bumping {} from status 3 (with endhit time) to 100.")
-#         participant.status = 100
-#         session_psiturk.commit()
-
-#     return Response(
-#         dumps({"status": "success"}),
-#         status=200,
-#         mimetype='application/json')
+    return success_response(field="transformation",
+                            data=transformation.__json__(),
+                            request_type="transformation post")
 
 
 @custom_code.route("/notifications", methods=["POST", "GET"])
@@ -1248,10 +929,7 @@ def api_notifications():
     db.logger.debug('rq: Submitted Queue Length: %d (%s)', len(q),
                     ', '.join(q.job_ids))
 
-    return Response(
-        dumps({"status": "success"}),
-        status=200,
-        mimetype='application/json')
+    return success_response(request_type="notification")
 
 
 def check_for_duplicate_assignments(participant):
@@ -1407,9 +1085,9 @@ def error_page(participant=None, error_text=None, compensate=True,
         continue, sorry! If possible, please return the assignment so someone
         else can work on it."""
 
-        if compensate:
-            error_text += """Please use the information below to contact us
-            about compensation"""
+    if compensate:
+        error_text += """ Please use the information below to contact us
+        about compensation"""
 
     if participant is not None:
         hit_id = participant.hit_id,
