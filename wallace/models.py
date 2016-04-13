@@ -499,6 +499,9 @@ class Node(Base, SharedMixin):
         # check the participant hasn't failed
         if participant is not None and participant.failed:
             raise ValueError("{} cannot create a node as it has failed".format(participant))
+        # check the participant is working
+        if participant is not None and participant.status != "working":
+            raise ValueError("{} cannot create a node as it they are not working".format(participant))
 
         self.network = network
         self.network_id = network.id
