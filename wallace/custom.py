@@ -376,7 +376,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
 @custom_code.route("/participant/<participant_id>", methods=["GET"])
 def get_participant(participant_id):
-
+    """Get the participant with the given id."""
     try:
         participant = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
