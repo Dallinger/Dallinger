@@ -445,7 +445,7 @@ def create_node(participant_id):
 
     try:
         # execute the request
-        network = exp.get_network_for_participant(participant_id=participant_id)
+        network = exp.get_network_for_participant(participant=participant)
 
         if network is None:
             return Response(dumps({"status": "error"}), status=403)
