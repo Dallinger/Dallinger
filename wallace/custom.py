@@ -112,16 +112,13 @@ def summary():
                             request_type="summary")
 
 
-"""
-Routes for reading and writing to the database.
-"""
+"""Routes for reading and writing to the database."""
 
 
 def request_parameter(parameter, parameter_type=None, default=None,
                       optional=False):
     """Get a parameter from a request.
 
-    The request object itself must be passed.
     parameter is the name of the parameter you are looking for
     parameter_type is the type the parameter should have
     default is the value the parameter takes if it has not been passed
@@ -210,10 +207,7 @@ def return_page(page, request):
     except:
         try:
             participant_id = request.args['participant_id']
-            return render_template(
-                page,
-                participant_id=participant_id
-            )
+            return render_template(page, participant_id=participant_id)
         except:
             return error_response(error_type="{} args missing".format(page))
 
@@ -226,6 +220,7 @@ def get_page(page):
 
 @custom_code.route("/<directory>/<page>", methods=["GET"])
 def get_page_from_directory(directory, page):
+    """Get a page from a given directory."""
     return return_page(directory + '/' + page + '.html', request)
 
 
@@ -388,7 +383,7 @@ def error_response(error_type="Internal server error",
                    error_text=None,
                    status=400,
                    participant=None):
-    """Returns a generic server error response."""
+    """Return a generic server error response."""
     traceback.print_exc()
     print("Error: {}.".format(error_type))
 
@@ -471,8 +466,9 @@ def create_node(participant_id):
                               participant=participant)
 
     # return the data
-    return success_response(
-        field="node", data=node.__json__(), request_type="/node POST")
+    return success_response(field="node",
+                            data=node.__json__(),
+                            request_type="/node POST")
 
 
 @custom_code.route("/node/<int:node_id>/vectors", methods=["GET"])
@@ -493,8 +489,6 @@ def node_vectors(node_id):
 
     try:
         vectors = node.vectors(direction=direction, failed=failed)
-
-        # ping the experiment
         exp.vector_get_request(node=node, vectors=vectors)
         session.commit()
     except:
