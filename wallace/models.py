@@ -213,7 +213,7 @@ class Network(Base, SharedMixin):
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
-        'polymorphic_identity': 'base'
+        'polymorphic_identity': 'network'
     }
 
     # how big the network can get, this number is used by the full()
@@ -481,7 +481,7 @@ class Node(Base, SharedMixin):
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
-        'polymorphic_identity': 'base'
+        'polymorphic_identity': 'node'
     }
 
     # the network that this node is a part of
@@ -1212,7 +1212,7 @@ class Info(Base, SharedMixin):
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
-        'polymorphic_identity': 'base'
+        'polymorphic_identity': 'info'
     }
 
     # the node that created this info
@@ -1438,7 +1438,7 @@ class Transformation(Base, SharedMixin):
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
-        'polymorphic_identity': 'base'
+        'polymorphic_identity': 'transformation'
     }
 
     # the info before it was transformed
