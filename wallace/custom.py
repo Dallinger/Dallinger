@@ -333,7 +333,7 @@ def request_parameter(parameter, parameter_type=None, default=None,
         return error_response(error_type=msg)
 
 
-def assign_properties(thing, request):
+def assign_properties(thing):
     """Assign properties to an object.
 
     When creating something via a post request (e.g. a node), you can pass the
@@ -513,7 +513,7 @@ def create_node(participant_id):
             participant=participant,
             network=network)
 
-        assign_properties(node, request)
+        assign_properties(node)
 
         exp.add_node_to_network(
             node=node,
@@ -589,7 +589,7 @@ def connect(node_id, other_node_id):
     try:
         vectors = node.connect(whom=other_node, direction=direction)
         for v in vectors:
-            assign_properties(v, request)
+            assign_properties(v)
 
         # ping the experiment
         exp.vector_post_request(
@@ -740,7 +740,7 @@ def info_post(node_id):
     try:
         # execute the request
         info = info_type(origin=node, contents=contents)
-        assign_properties(info, request)
+        assign_properties(info)
 
         # ping the experiment
         exp.info_post_request(
@@ -872,7 +872,7 @@ def node_transmit(node_id):
     try:
         transmissions = node.transmit(what=what, to_whom=to_whom)
         for t in transmissions:
-            assign_properties(t, request)
+            assign_properties(t)
         session.commit()
         # ping the experiment
         exp.transmission_post_request(
@@ -946,7 +946,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
     try:
         # execute the request
         transformation = transformation_type(info_in=info_in, info_out=info_out)
-        assign_properties(transformation, request)
+        assign_properties(transformation)
         session.commit()
 
         # ping the experiment
