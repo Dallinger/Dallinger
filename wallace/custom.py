@@ -29,10 +29,18 @@ config = PsiturkConfig()
 config.load_config()
 myauth = PsiTurkAuthorization(config)
 
-LOG_LEVELS = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR,
-              logging.CRITICAL]
+# Set logging options.
+LOG_LEVELS = [
+    logging.DEBUG,
+    logging.INFO,
+    logging.WARNING,
+    logging.ERROR,
+    logging.CRITICAL
+]
 LOG_LEVEL = LOG_LEVELS[config.getint('Server Parameters', 'loglevel')]
+
 db.logger.setLevel(LOG_LEVEL)
+
 if len(db.logger.handlers) == 0:
     ch = logging.StreamHandler()
     ch.setLevel(LOG_LEVEL)
