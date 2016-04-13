@@ -339,7 +339,7 @@ def assign_properties(thing):
     from the request and fills in the relevant columns of the table.
     """
     for p in range(5):
-        property_name = "property" + str(p)
+        property_name = "property" + str(p+1)
         property = request_parameter(parameter=property_name, optional=True),
         if property:
             setattr(thing, property_name, property)
