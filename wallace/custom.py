@@ -234,10 +234,8 @@ def ad_address(mode, hit_id):
     if mode == "debug":
         address = '/complete'
     elif mode in ["sandbox", "live"]:
-        CONFIG = PsiturkConfig()
-        CONFIG.load_config()
-        username = os.getenv('psiturk_access_key_id', CONFIG.get("psiTurk Access", "psiturk_access_key_id"))
-        password = os.getenv('psiturk_secret_access_id', CONFIG.get("psiTurk Access", "psiturk_secret_access_id"))
+        username = os.getenv('psiturk_access_key_id', config.get("psiTurk Access", "psiturk_access_key_id"))
+        password = os.getenv('psiturk_secret_access_id', config.get("psiTurk Access", "psiturk_secret_access_id"))
         try:
             req = requests.get('https://api.psiturk.org/api/ad/lookup/' + hit_id,
                                auth=(username, password))
