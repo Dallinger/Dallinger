@@ -111,7 +111,7 @@ def error_response(error_type="Internal server error",
     return Response(dumps(data), status=status, mimetype='application/json')
 
 
-def return_page(page, request):
+def return_page(page):
     """Return a rendered template."""
     try:
         hit_id = request.args['hit_id']
@@ -260,13 +260,13 @@ def ad_address(mode, hit_id):
 @custom_code.route("/<page>", methods=["GET"])
 def get_page(page):
     """Return the requested page."""
-    return return_page(page + '.html', request)
+    return return_page(page + '.html')
 
 
 @custom_code.route("/<directory>/<page>", methods=["GET"])
 def get_page_from_directory(directory, page):
     """Get a page from a given directory."""
-    return return_page(directory + '/' + page + '.html', request)
+    return return_page(directory + '/' + page + '.html')
 
 
 """Routes for reading and writing to the database."""
