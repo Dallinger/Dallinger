@@ -63,7 +63,7 @@ session = db.session
 # Connect to the Redis queue for notifications.
 q = Queue(connection=conn)
 
-# Specify the experiment.
+# Load the experiment.
 try:
     exp = imp.load_source('experiment', "wallace_experiment.py")
     classes = inspect.getmembers(exp, inspect.isclass)
@@ -72,6 +72,7 @@ try:
     this_experiment = exps[0][0]
     mod = __import__('wallace_experiment', fromlist=[this_experiment])
     experiment = getattr(mod, this_experiment)
+
 except ImportError:
     print "Error: Could not import experiment."
 
@@ -93,7 +94,6 @@ def static_from_root():
 def launch():
     """Launch the experiment."""
     exp = experiment(db.init_db(drop_all=False))
-
     exp.log("Launching experiment...", "-----")
     init_db()
     exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
