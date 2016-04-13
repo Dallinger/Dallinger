@@ -193,7 +193,7 @@ class TestNetworks(object):
         source = nodes.RandomBinaryStringSource(network=net)
         source.connect(whom=net.nodes(type=nodes.Agent))
 
-        assert repr(net) == "<Network-" + str(net.id) + "-base with 3 nodes, 2 vectors, 0 infos, 0 transmissions and 0 transformations>"
+        assert repr(net) == "<Network-" + str(net.id) + "-network with 3 nodes, 2 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
     def test_create_chain(self):
         net = networks.Chain()

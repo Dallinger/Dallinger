@@ -32,13 +32,16 @@ class TestModels(object):
 
         net = models.Network.query.one()
 
-        assert repr(net) == "<Network-1-base with 0 nodes, 0 vectors, 0 infos, 0 transmissions and 0 transformations>"
+        assert repr(net) == "<Network-1-network with 0 nodes, 0 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
         from wallace.nodes import Agent, Source
 
         for i in range(5):
 
             participant = models.Participant(worker_id=str(i), hit_id=str(i), assignment_id=str(i), mode="test")
+            self.db.add(participant)
+            self.db.commit()
+
             # nodes
             node = models.Node(network=net)
             agent = Agent(network=net, participant=participant)
@@ -62,7 +65,7 @@ class TestModels(object):
             else:
                 agent.transmit(to_whom=node)
 
-        assert repr(net) == "<Network-1-base with 15 nodes, 15 vectors, 10 infos, 5 transmissions and 2 transformations>"
+        assert repr(net) == "<Network-1-network with 15 nodes, 15 vectors, 10 infos, 5 transmissions and 2 transformations>"
 
         # Test Network sql columns
 
@@ -88,8 +91,6 @@ class TestModels(object):
         assert ran is False
 
         # test Network.nodes()
-
-        net.calculate_full()
 
         assert net.full is False
         assert len(net.nodes()) == 15
@@ -180,7 +181,7 @@ class TestModels(object):
         self.add(node)
 
         assert isinstance(node.id, int)
-        assert node.type == "base"
+        assert node.type == "node"
         assert node.creation_time
         assert len(node.infos()) == 0
         assert len(node.vectors(direction="outgoing")) == 0
@@ -205,7 +206,7 @@ class TestModels(object):
         node = models.Node(network=net)
         self.add(node)
 
-        assert repr(node).split("-") == ["Node", str(node.id), "base"]
+        assert repr(node).split("-") == ["Node", str(node.id), "node"]
 
     def _check_single_connection(self, node1, node2):
 
@@ -429,7 +430,7 @@ class TestModels(object):
         self.add(node, info)
 
         assert isinstance(info.id, int)
-        assert info.type == "base"
+        assert info.type == "info"
         assert info.origin_id == node.id
         assert info.creation_time
         assert info.contents == "foo"
@@ -465,7 +466,7 @@ class TestModels(object):
         info = models.Info(origin=node)
         self.add(info)
 
-        assert repr(info).split("-") == ["Info", str(info.id), "base"]
+        assert repr(info).split("-") == ["Info", str(info.id), "info"]
 
     @raises(ValueError)
     def test_info_write_twice(self):

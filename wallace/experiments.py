@@ -116,14 +116,7 @@ class Experiment(object):
             else:
                 raise ValueError("{} is not a subclass of Node".format(self.agent))
         else:
-            if participant.status in [1, 2]:
-                node = self.agent(network=network)(participant=participant, network=network)
-            else:
-                self.log("Participant status = {}, node creation aborted".format(participant.status))
-                return None
-
-        self.log("Node successfully generated, recalculating if network is full")
-        network.calculate_full()
+            node = self.agent(network=network)(participant=participant, network=network)
         return node
 
     def add_node_to_network(self, node, network):

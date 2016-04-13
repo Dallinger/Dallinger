@@ -339,7 +339,7 @@ def assign_properties(thing):
     from the request and fills in the relevant columns of the table.
     """
     for p in range(5):
-        property_name = "property" + str(p)
+        property_name = "property" + str(p+1)
         property = request_parameter(parameter=property_name, optional=True),
         if property:
             setattr(thing, property_name, property)
@@ -411,9 +411,13 @@ def create_question(participant_id):
         if type(x) == Response:
             return x
 
-    # execute the request
-    models.Question(participant=participant, question=question, response=response, question_id=question_id)
-    session.commit()
+    try:
+        # execute the request
+        models.Question(participant=participant, question=question, response=response, question_id=question_id)
+        session.commit()
+    except:
+        return error_response(error_type="/question POST server error",
+                              status=403)
 
     # return the data
     return success_response(request_type="question post")
