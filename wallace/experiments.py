@@ -68,7 +68,7 @@ class Experiment(object):
                     .all()
 
     def get_network_for_participant(self, participant):
-        key = participant.id[0:5]
+        key = participant.id
         networks_with_space = Network.query.filter_by(full=False).all()
         networks_participated_in = [
             node.network_id for node in
@@ -151,7 +151,7 @@ class Experiment(object):
 
     def log(self, text, key="?????", force=False):
         if force or self.verbose:
-            print ">>>> {} {}".format(key[0:5], text)
+            print ">>>> {} {}".format(key, text)
             sys.stdout.flush()
 
     def log_summary(self):
