@@ -67,12 +67,12 @@ class Experiment(object):
                     .filter(and_(Network.role == role, Network.full == full))\
                     .all()
 
-    def get_network_for_participant(self, participant_id):
-        key = participant_id[0:5]
+    def get_network_for_participant(self, participant):
+        key = participant.id[0:5]
         networks_with_space = Network.query.filter_by(full=False).all()
         networks_participated_in = [
             node.network_id for node in
-            Node.query.with_entities(Node.network_id).filter_by(participant_id=participant_id).all()
+            Node.query.with_entities(Node.network_id).filter_by(participant_id=participant.id).all()
         ]
 
         legal_networks = [
