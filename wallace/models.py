@@ -84,6 +84,8 @@ class Participant(Base, SharedMixin):
             "base_pay": self.base_pay,
             "bonus": self.bonus,
             "status": self.status,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
             "property1": self.property1,
             "property2": self.property2,
             "property3": self.property3,
