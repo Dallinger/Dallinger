@@ -465,12 +465,8 @@ def node_neighbors(node_id):
     except:
         return error_response(error_type="exp.node_get_request")
 
-    # return the data
-    data = []
-    for n in nodes:
-        data.append(n.__json__())
     return success_response(field="nodes",
-                            data=data,
+                            data=[n.__json__() for n in nodes],
                             request_type="neighbors")
 
 
@@ -602,12 +598,8 @@ def connect(node_id, other_node_id):
                               status=403,
                               participant=node.participant)
 
-    # return the data
-    data = []
-    for v in vectors:
-        data.append(v.__json__())
     return success_response(field="vectors",
-                            data=data,
+                            data=[v.__json__() for v in vectors],
                             request_type="vector post")
 
 
@@ -674,12 +666,8 @@ def node_infos(node_id):
                               status=403,
                               participant=node.participant)
 
-    # parse the data for returning
-    data = []
-    for i in infos:
-        data.append(i.__json__())
     return success_response(field="infos",
-                            data=data,
+                            data=[i.__json__() for i in infos],
                             request_type="infos")
 
 
@@ -712,12 +700,8 @@ def node_received_infos(node_id):
                               status=403,
                               participant=node.participant)
 
-    # parse the data for returning
-    data = []
-    for i in infos:
-        data.append(i.__json__())
     return success_response(field="infos",
-                            data=data,
+                            data=[i.__json__() for i in infos],
                             request_type="received infos")
 
 
