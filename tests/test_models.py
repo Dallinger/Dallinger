@@ -39,6 +39,9 @@ class TestModels(object):
         for i in range(5):
 
             participant = models.Participant(worker_id=str(i), hit_id=str(i), assignment_id=str(i), mode="test")
+            self.db.add(participant)
+            self.db.commit()
+
             # nodes
             node = models.Node(network=net)
             agent = Agent(network=net, participant=participant)
