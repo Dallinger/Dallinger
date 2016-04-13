@@ -503,11 +503,8 @@ def node_vectors(node_id):
                               participant=node.participant)
 
     # return the data
-    data = []
-    for v in vectors:
-        data.append(v.__json__())
     return success_response(field="vectors",
-                            data=data,
+                            data=[v.__json__() for v in vectors],
                             request_type="vector get")
 
 
@@ -736,11 +733,8 @@ def node_transmissions(node_id):
                               participant=node.participant)
 
     # return the data
-    data = []
-    for t in transmissions:
-        data.append(t.__json__())
     return success_response(field="transmissions",
-                            data=data,
+                            data=[t.__json__() for t in transmissions],
                             request_type="transmissions")
 
 
@@ -832,11 +826,8 @@ def node_transmit(node_id):
                               participant=node.participant)
 
     # return the data
-    data = []
-    for t in transmissions:
-        data.append(t.__json__())
     return success_response(field="transmissions",
-                            data=data,
+                            data=[t.__json__() for t in transmissions],
                             request_type="transmit")
 
 
@@ -865,11 +856,8 @@ def transformation_get(node_id):
                               participant=node.participant)
 
     # return the data
-    data = []
-    for t in transformations:
-        data.append(t.__json__())
     return success_response(field="transformations",
-                            data=data,
+                            data=[t.__json__() for t in transformations],
                             request_type="transformations")
 
 
