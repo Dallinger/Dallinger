@@ -89,8 +89,6 @@ class TestModels(object):
 
         # test Network.nodes()
 
-        net.calculate_full()
-
         assert net.full is False
         assert len(net.nodes()) == 15
         assert len(net.nodes(type=Agent)) == 5

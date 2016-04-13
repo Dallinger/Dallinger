@@ -502,6 +502,8 @@ class Node(Base, SharedMixin):
 
         self.network = network
         self.network_id = network.id
+        network.calculate_full()
+
         if participant is not None:
             self.participant = participant
             self.participant_id = participant.id

@@ -122,8 +122,6 @@ class Experiment(object):
                 self.log("Participant status = {}, node creation aborted".format(participant.status))
                 return None
 
-        self.log("Node successfully generated, recalculating if network is full")
-        network.calculate_full()
         return node
 
     def add_node_to_network(self, node, network):
