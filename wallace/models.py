@@ -184,6 +184,9 @@ class Question(Base, SharedMixin):
     response = Column(String(1000), nullable=False)
 
     def __init__(self, participant, question, response, question_id):
+        # check the participant hasn't failed
+        if participant.failed:
+            raise ValueError("{} cannot create a question as it has failed".format(participant))
 
         self.participant = participant
         self.participant_id = participant.id
@@ -490,6 +493,13 @@ class Node(Base, SharedMixin):
     participant = relationship(Participant, backref='all_nodes')
 
     def __init__(self, network, participant=None):
+        # check the network hasn't failed
+        if network.failed:
+            raise ValueError("Cannot create node in {} as it has failed".format(network))
+        # check the participant hasn't failed
+        if participant is not None and participant.failed:
+            raise ValueError("{} cannot create a node as it has failed".format(participant))
+
         self.network = network
         self.network_id = network.id
         if participant is not None:
@@ -1217,6 +1227,10 @@ class Info(Base, SharedMixin):
     contents = Column(Text(), default=None)
 
     def __init__(self, origin, contents=None):
+        # check the origin hasn't failed
+        if origin.failed:
+            raise ValueError("{} cannot create an info as it has failed".format(origin))
+
         self.origin = origin
         self.origin_id = origin.id
         self.contents = contents
@@ -1357,6 +1371,10 @@ class Transmission(Base, SharedMixin):
         if vector.failed:
             raise ValueError("Cannot transmit along {} as it has failed.".format(vector))
 
+        # check info is not failed
+        if info.failed:
+            raise ValueError("Cannot transmit {} as it has failed.".format(info))
+
         # check the origin of the vector is the same as the origin of the info
         if info.origin_id != vector.origin_id:
             raise ValueError("Cannot transmit {} along {} as they do not have the same origin".format(info, vector))
@@ -1451,6 +1469,11 @@ class Transformation(Base, SharedMixin):
            info_in.id not in [t.info_id for t in info_out.origin.transmissions(direction="incoming", status="received")]):
             raise ValueError("Cannot transform {} into {} as they are not at the same node."
                              .format(info_in, info_out))
+
+        # check info_in/out are not failed
+        for i in [info_in, info_out]:
+            if i.failed:
+                raise ValueError("Cannot transform {} as it has failed".format(i))
 
         self.info_in = info_in
         self.info_out = info_out
