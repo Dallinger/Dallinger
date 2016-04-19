@@ -161,8 +161,8 @@ def setup(debug=True, verbose=False, app=None):
 
     frontend_files = [
         "static/css/wallace.css",
-        "static/js/wallace.js",
-        "static/lib/reqwest.min.js",
+        "static/scripts/wallace.js",
+        "static/scripts/reqwest.min.js",
         "templates/error_wallace.html",
         "templates/launch.html",
         "templates/complete.html",
