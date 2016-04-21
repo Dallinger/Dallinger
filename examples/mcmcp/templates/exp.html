@@ -12,17 +12,23 @@
     <body>
         <div class="main_div">
             <div id="stimulus">
-                <h1>Read the following text:</h1>
-                <div><blockquote id="story"><p>&lt;&lt; loading &gt;&gt;</p></blockquote></div>
-                <button id="finish-reading" type="button" class="btn btn-primary" onClick="finish_reading();">I'm done reading.</button>
-            </div>
-
-            <div id="response-form" style="display:none;">
-                <h1>Now reproduce the passage, verbatim:</h1>
-                <p><b>Note:</b> Your task is to recreate the text, word for word, to the best of your ability.<p>
-                <textarea id="reproduction" class="form-control" rows="10"></textarea>
-                <p></p>
-                <button id="submit-response" type="button" class="btn btn-primary" onClick="submit_response();">Submit response.</button>
+                <h1>Pick a list</h1>
+                <table>
+                    <tr>
+                        <td id="vector_0">
+                        </td>
+                        <td id="vector_1">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button type="button" class="btn btn-primary submit-response" onClick="submit_response(0);">This one</button>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-primary submit-response" onClick="submit_response(1);">This one</button>
+                        </td>
+                    </tr>
+                </table>
             </div>
         </div>
     </body>

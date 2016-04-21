@@ -6,7 +6,7 @@ create_agent = function() {
         type: 'json',
         success: function (resp) {
             my_node_id = resp.node.id;
-            //get_info(my_node_id);
+            get_infos(my_node_id);
         },
         error: function (err) {
             console.log(err);
@@ -21,18 +21,17 @@ create_agent = function() {
     });
 };
 
-get_info = function() {
+get_infos = function() {
     reqwest({
-        url: "/node/" + my_node_id + "/received_infos",
+        url: "/node/" + my_node_id + "/infos",
         method: 'get',
         type: 'json',
         success: function (resp) {
-            story = resp.infos[0].contents;
-            storyHTML = markdown.toHTML(story);
-            $("#story").html(storyHTML);
-            $("#stimulus").show();
-            $("#response-form").hide();
-            $("#finish-reading").show();
+            vector_0 = resp.infos[0].contents;
+            $("#vector_0").html(vector_0);
+            vector_1 = resp.infos[1].contents;
+            $("#vector_1").html(vector_1);
+            $(".submit-response").attr('disabled',false);
         },
         error: function (err) {
             console.log(err);
@@ -42,29 +41,16 @@ get_info = function() {
     });
 };
 
-finish_reading = function() {
-    $("#stimulus").hide();
-    $("#response-form").show();
-    $("#submit-response").removeClass('disabled');
-    $("#submit-response").html('Submit');
-};
-
-submit_response = function() {
-    $("#submit-response").addClass('disabled');
-    $("#submit-response").html('Sending...');
-
-    response = $("#reproduction").val();
-
-    $("#reproduction").val("");
+submit_response = function(choice) {
+    $(".submit-response").attr('disabled',true);
 
     reqwest({
-        url: "/info/" + my_node_id,
+        url: "/record_choice/" + my_node_id + "/" + choice,
         method: 'post',
-        data: {
-            contents: response,
-            info_type: "Info"
-        },
         success: function (resp) {
+            create_agent();
+        },
+        error: function (resp) {
             create_agent();
         }
     });
