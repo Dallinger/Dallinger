@@ -9,6 +9,7 @@ from flask import Blueprint, Response, request
 from rq import Queue
 from wallace.heroku.worker import conn
 import json
+import random
 
 
 class MCMCP(Experiment):
@@ -37,7 +38,7 @@ class MCMCP(Experiment):
         if not self.networks():
             super(MCMCP, self).setup()
             for net in self.networks():
-                WarOfTheGhostsSource(network=net)
+                VectorSource(network=net)
 
     def add_node_to_network(self, node, network):
         """When a node is created it is added to the chain (see Chain in networks.py)
@@ -53,30 +54,19 @@ class MCMCP(Experiment):
             self.recruiter().close_recruitment()
 
 
-class WarOfTheGhostsSource(Source):
+class VectorSource(Source):
+    """A Source that transmits a random vector."""
 
-    """A Source that reads in a random story from a file and transmits it."""
-
-    __mapper_args__ = {"polymorphic_identity": "war_of_the_ghosts_source"}
+    __mapper_args__ = {
+        "polymorphic_identity": "random_vector_source"
+    }
 
     def _contents(self):
         """Define the contents of new Infos.
 
         transmit() -> _what() -> create_information() -> _contents().
         """
-        stories = [
-            "ghosts.md",
-            "cricket.md",
-            "moochi.md",
-            "outwit.md",
-            "raid.md",
-            "species.md",
-            "tennis.md",
-            "vagabond.md"
-        ]
-        story = random.choice(stories)
-        with open("static/stimuli/{}".format(story), "r") as f:
-            return f.read()
+        return json.dumps([random.random() for i in range(10)])
 
 
 extra_routes = Blueprint(
