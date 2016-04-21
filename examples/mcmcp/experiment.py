@@ -70,7 +70,8 @@ class MCMCPAgent(Agent):
 
     def update(self, infos):
         info = infos[0]
-        new_info = Info(origin=self, contents=self.perturb(json.loads(info.contents)))
+        self.replicate(info)
+        new_info = VectorInfo(origin=self, contents=self.perturb(json.loads(info.contents)))
         Perturbation(info_in=info, info_out=new_info)
 
     def perturb(self, l):
