@@ -1,7 +1,8 @@
 """Monte Carlo Markov Chains with people!"""
 
+from wallace.models import Info, Transformation
 from wallace.networks import Chain
-from wallace.nodes import Source
+from wallace.nodes import Source, Agent
 from wallace.experiments import Experiment
 from wallace import db
 import random
@@ -9,7 +10,6 @@ from flask import Blueprint, Response, request
 from rq import Queue
 from wallace.heroku.worker import conn
 import json
-import random
 
 
 class MCMCP(Experiment):
@@ -27,6 +27,7 @@ class MCMCP(Experiment):
         self.trials_per_participant = 10
         self.network = lambda: Chain(max_size=100)
         self.setup()
+        self.agent = MCMCPAgent
 
     def setup(self):
         """Setup the networks.
@@ -42,8 +43,8 @@ class MCMCP(Experiment):
                 VectorSource(network=net)
 
     def get_network_for_participant(self, participant):
-        if participant.nodes(failed="all") <= self.trials_per_participant:
-            return random.choice(self.networks, 1)
+        if len(participant.nodes(failed="all")) <= self.trials_per_participant:
+            return random.choice(self.networks())
         else:
             return None
 
@@ -61,6 +62,21 @@ class MCMCP(Experiment):
             self.recruiter().close_recruitment()
 
 
+class MCMCPAgent(Agent):
+
+    __mapper_args__ = {
+        "polymorphic_identity": "MCMCP_agent"
+    }
+
+    def update(self, infos):
+        info = infos[0]
+        new_info = Info(origin=self, contents=self.perturb(json.loads(info.contents)))
+        Perturbation(info_in=info, info_out=new_info)
+
+    def perturb(self, l):
+        return json.dumps([abs(v + random.random() - 0.5) for v in l])
+
+
 class VectorSource(Source):
     """A Source that transmits a random vector."""
 
@@ -74,6 +90,13 @@ class VectorSource(Source):
         transmit() -> _what() -> create_information() -> _contents().
         """
         return json.dumps([random.random() for i in range(10)])
+
+
+class Perturbation(Transformation):
+
+    __mapper_args__ = {
+        "polymorphic_identity": "perturbation"
+    }
 
 
 extra_routes = Blueprint(
