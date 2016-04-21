@@ -81,6 +81,10 @@ class MCMCPAgent(Agent):
     def perturb(self, l):
         return json.dumps([abs(v + random.random() - 0.5) for v in l])
 
+    def _what(self):
+        infos = self.infos()
+        return [i for i in infos if i.chosen][0]
+
 
 class VectorSource(Source):
     """A Source that transmits a random vector."""
