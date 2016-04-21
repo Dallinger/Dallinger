@@ -11,7 +11,7 @@ from wallace.heroku.worker import conn
 import json
 
 
-class Bartlett1932(Experiment):
+class MCMCP(Experiment):
 
     """Define the structure of the experiment."""
 
@@ -21,7 +21,7 @@ class Bartlett1932(Experiment):
         A few properties are then overwritten.
         Finally, setup() is called.
         """
-        super(Bartlett1932, self).__init__(session)
+        super(MCMCP, self).__init__(session)
         self.experiment_repeats = 1
         self.network = lambda: Chain(max_size=3)
         self.setup()
@@ -35,7 +35,7 @@ class Bartlett1932(Experiment):
         source to each network.
         """
         if not self.networks():
-            super(Bartlett1932, self).setup()
+            super(MCMCP, self).setup()
             for net in self.networks():
                 WarOfTheGhostsSource(network=net)
 

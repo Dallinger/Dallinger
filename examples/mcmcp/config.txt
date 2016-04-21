@@ -4,18 +4,18 @@ mode = sandbox
 auto_recruit = true
 
 [HIT Configuration]
-title = War of the Ghosts
-description = Read a brief story and answer some questions about it.
-amt_keywords = Psychology, reading, text
+title = Select the image
+description = Decide which image is a better match to a given category.
+amt_keywords = vision, categorization, images
 base_payment = 1.00
 lifetime = 24
 duration = 0.1
 us_only = true
 approve_requirement = 95
-contact_email_on_error = bartlett1932@mailinator.com
-ad_group = War of the Ghosts
-psiturk_keywords = ghosts
-organization_name = Monsters University
+contact_email_on_error = mcmcp@mailinator.com
+ad_group = MCMCP
+psiturk_keywords = mcmcp
+organization_name = UC Berkeley
 browser_exclude_rule = MSIE, mobile, tablet
 
 [Database Parameters]
