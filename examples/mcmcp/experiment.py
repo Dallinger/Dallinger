@@ -139,6 +139,32 @@ extra_routes = Blueprint(
     static_folder='static')
 
 
+@extra_routes.route("/record_choice/<int:node_id>/<int:choice>", methods=["POST"])
+def record_choice(node_id, choice):
+    try:
+        exp = MCMCP(db.session)
+        node = Agent.query.get(node_id)
+        infos = node.infos()
+
+        if choice == 0:
+            info = max(infos, key=attrgetter("id"))
+        elif choice == 1:
+            info = min(infos, key=attrgetter("id"))
+        else:
+            raise ValueError("Choice must be 1 or 0")
+
+        info.chosen = True
+        exp.save()
+
+        return Response(
+            status=200,
+            mimetype='application/json')
+    except:
+        return Response(
+            status=403,
+            mimetype='application/json')
+
+
 @db.scoped_session_decorator
 def worker_function(vector):
     """Return the given vector."""
