@@ -43,7 +43,7 @@ class MCMCP(Experiment):
                 VectorSource(network=net)
 
     def get_network_for_participant(self, participant):
-        if len(participant.nodes(failed="all")) <= self.trials_per_participant:
+        if len(participant.nodes(failed="all")) < self.trials_per_participant:
             return random.choice(self.networks())
         else:
             return None
