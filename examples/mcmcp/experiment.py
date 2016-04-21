@@ -93,12 +93,13 @@ class VectorSource(Source):
         "polymorphic_identity": "random_vector_source"
     }
 
-    def _contents(self):
+    def create_information(self):
         """Define the contents of new Infos.
 
-        transmit() -> _what() -> create_information() -> _contents().
+        transmit() -> _what() -> create_information().
         """
-        return json.dumps([random.random() for i in range(10)])
+        return VectorInfo(origin=self, contents=json.dumps([random.random() for i in range(10)]))
+
 
 class VectorInfo(Info):
 
