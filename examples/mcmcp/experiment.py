@@ -91,6 +91,29 @@ class VectorSource(Source):
         """
         return json.dumps([random.random() for i in range(10)])
 
+class VectorInfo(Info):
+
+    __mapper_args__ = {
+        "polymorphic_identity": "vector_info"
+    }
+
+    @hybrid_property
+    def chosen(self):
+        try:
+            return bool(self.property1)
+        except TypeError:
+            return None
+
+    @chosen.setter
+    def chosen(self, chosen):
+        """Assign chosen to property1."""
+        self.property1 = repr(chosen)
+
+    @chosen.expression
+    def chosen(self):
+        """Retrieve chosen via property1."""
+        return cast(self.property1, Boolean)
+
 
 class Perturbation(Transformation):
 
