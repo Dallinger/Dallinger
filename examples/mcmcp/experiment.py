@@ -1,4 +1,4 @@
-"""Bartlett's trasmission chain experiment from Remembering (1932)."""
+"""Monte Carlo Markov Chains with people!"""
 
 from wallace.networks import Chain
 from wallace.nodes import Source
@@ -24,7 +24,8 @@ class MCMCP(Experiment):
         """
         super(MCMCP, self).__init__(session)
         self.experiment_repeats = 1
-        self.network = lambda: Chain(max_size=3)
+        self.trials_per_participant = 10
+        self.network = lambda: Chain(max_size=100)
         self.setup()
 
     def setup(self):
@@ -39,6 +40,12 @@ class MCMCP(Experiment):
             super(MCMCP, self).setup()
             for net in self.networks():
                 VectorSource(network=net)
+
+    def get_network_for_participant(self, participant):
+        if participant.nodes(failed="all") <= self.trials_per_participant:
+            return random.choice(self.networks, 1)
+        else:
+            return None
 
     def add_node_to_network(self, node, network):
         """When a node is created it is added to the chain (see Chain in networks.py)
