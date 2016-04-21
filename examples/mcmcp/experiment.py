@@ -3,7 +3,12 @@
 from wallace.networks import Chain
 from wallace.nodes import Source
 from wallace.experiments import Experiment
+from wallace import db
 import random
+from flask import Blueprint, Response, request
+from rq import Queue
+from wallace.heroku.worker import conn
+import json
 
 
 class Bartlett1932(Experiment):
@@ -72,3 +77,45 @@ class WarOfTheGhostsSource(Source):
         story = random.choice(stories)
         with open("static/stimuli/{}".format(story), "r") as f:
             return f.read()
+
+
+extra_routes = Blueprint(
+    'extra_routes',
+    __name__,
+    template_folder='templates',
+    static_folder='static')
+
+
+@db.scoped_session_decorator
+def worker_function(vector):
+    """Return the given vector."""
+    img = vector
+    return img
+
+
+@extra_routes.route("/image", methods=["POST"])
+def image_post():
+    """Create an image."""
+    q = Queue(connection=conn)
+
+    job = q.enqueue(
+        worker_function,
+        request.values['vector'])
+
+    return Response(
+        json.dumps({"job_id": job.id}),
+        status=200,
+        mimetype='application/json')
+
+
+@extra_routes.route("/image", methods=["GET"])
+def image_get():
+    """Get an image."""
+    q = Queue(connection=conn)
+
+    job = q.fetch_job(request.values['job_id'])
+
+    return Response(
+        json.dumps({"image": job.result}),
+        status=200,
+        mimetype='application/json')
