@@ -75,6 +75,8 @@ class MCMCPAgent(Agent):
     def update(self, infos):
         info = infos[0]
         self.replicate(info)
+
+        # TODO: find a more logical place for this code.
         perturbed = AnimalSource.perturb(info.contents, 0.1)
         new_info = ChoosableInfo(origin=self, contents=perturbed)
         Perturbation(info_in=info, info_out=new_info)
