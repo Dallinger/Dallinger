@@ -75,11 +75,13 @@ class MCMCPAgent(Agent):
     def update(self, infos):
         info = infos[0]
         self.replicate(info)
-        new_info = ChoosableInfo(origin=self, contents=self.perturb(json.loads(info.contents)))
+        new_info = ChoosableInfo(origin=self, contents=self.perturb(info.contents))
         Perturbation(info_in=info, info_out=new_info)
 
-    def perturb(self, l):
-        return json.dumps([abs(v + random.random() - 0.5) for v in l])
+    def perturb(self, contents):
+        animal = json.loads(contents)
+        # return json.dumps([abs(v + random.random() - 0.5) for v in animal])
+        return json.dumps(animal)
 
     def _what(self):
         infos = self.infos()
@@ -93,19 +95,23 @@ class AnimalSource(Source):
         "polymorphic_identity": "animal_source"
     }
 
+    properties = {
+        "foot_spread": [0, 1],
+        "body_height": [0.1, 1.5],
+        "body_tilt": [-15, 45],
+        "tail_length": [0.05, 1.2],
+        "tail_angle": [-45, 190],
+        "neck_length": [0, 2.5],
+        "neck_angle": [90, 180],
+        "head_length": [0.05, 0.75],
+        "head_angle": [5, 80]
+    }
+
     def _contents(self):
 
-        data = {
-            "foot_spread": random.uniform(0, 1),
-            "body_height": random.uniform(0.1, 1.5),
-            "body_tilt": random.uniform(-15, 45),
-            "tail_length": random.uniform(0.05, 1.2),
-            "tail_angle": random.uniform(-45, 190),
-            "neck_length": random.uniform(0, 2.5),
-            "neck_angle": random.uniform(90, 180),
-            "head_length": random.uniform(0.05, 0.75),
-            "head_angle": random.uniform(5, 80)
-        }
+        data = {}
+        for prop, prop_range in AnimalSource.properties.iteritems():
+            data[prop] = random.uniform(prop_range[0], prop_range[1])
 
         return json.dumps(data)
 
