@@ -94,20 +94,18 @@ class AnimalSource(Source):
     }
 
     def _contents(self):
-        data = {}
 
-        for i in range(20):
-            data["animal_" + str(i)] = {
-                "foot_spread": random.uniform(0, 1),
-                "body_height": random.uniform(0.1, 1.5),
-                "body_tilt": random.uniform(-15, 45),
-                "tail_length": random.uniform(0.05, 1.2),
-                "tail_angle": random.uniform(-45, 190),
-                "neck_length": random.uniform(0, 2.5),
-                "neck_angle": random.uniform(90, 180),
-                "head_length": random.uniform(0.05, 0.75),
-                "head_angle": random.uniform(5, 80)
-            }
+        data = {
+            "foot_spread": random.uniform(0, 1),
+            "body_height": random.uniform(0.1, 1.5),
+            "body_tilt": random.uniform(-15, 45),
+            "tail_length": random.uniform(0.05, 1.2),
+            "tail_angle": random.uniform(-45, 190),
+            "neck_length": random.uniform(0, 2.5),
+            "neck_angle": random.uniform(90, 180),
+            "head_length": random.uniform(0.05, 0.75),
+            "head_angle": random.uniform(5, 80)
+        }
 
         return json.dumps(data)
 
