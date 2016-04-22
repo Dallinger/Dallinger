@@ -75,7 +75,7 @@ class MCMCPAgent(Agent):
     def update(self, infos):
         info = infos[0]
         self.replicate(info)
-        new_info = VectorInfo(origin=self, contents=self.perturb(json.loads(info.contents)))
+        new_info = ChoosableInfo(origin=self, contents=self.perturb(json.loads(info.contents)))
         Perturbation(info_in=info, info_out=new_info)
 
     def perturb(self, l):
@@ -98,10 +98,10 @@ class VectorSource(Source):
 
         transmit() -> _what() -> create_information().
         """
-        return VectorInfo(origin=self, contents=json.dumps([random.random() for i in range(10)]))
+        return ChoosableInfo(origin=self, contents=json.dumps([random.random() for i in range(10)]))
 
 
-class VectorInfo(Info):
+class ChoosableInfo(Info):
 
     __mapper_args__ = {
         "polymorphic_identity": "vector_info"
