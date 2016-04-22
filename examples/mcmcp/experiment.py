@@ -6,9 +6,7 @@ from wallace.nodes import Source, Agent
 from wallace.experiments import Experiment
 from wallace import db
 import random
-from flask import Blueprint, Response, request
-from rq import Queue
-from wallace.heroku.worker import conn
+from flask import Blueprint, Response
 import json
 from sqlalchemy import Boolean
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -195,38 +193,3 @@ def choice(node_id, choice):
         return Response(
             status=403,
             mimetype='application/json')
-
-
-@db.scoped_session_decorator
-def worker_function(vector):
-    """Return the given vector."""
-    img = vector
-    return img
-
-
-@extra_routes.route("/image", methods=["POST"])
-def image_post():
-    """Create an image."""
-    q = Queue(connection=conn)
-
-    job = q.enqueue(
-        worker_function,
-        request.values['vector'])
-
-    return Response(
-        json.dumps({"job_id": job.id}),
-        status=200,
-        mimetype='application/json')
-
-
-@extra_routes.route("/image", methods=["GET"])
-def image_get():
-    """Get an image."""
-    q = Queue(connection=conn)
-
-    job = q.fetch_job(request.values['job_id'])
-
-    return Response(
-        json.dumps({"image": job.result}),
-        status=200,
-        mimetype='application/json')
