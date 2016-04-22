@@ -27,10 +27,18 @@ get_infos = function() {
         method: 'get',
         type: 'json',
         success: function (resp) {
+            sides_switched = Math.random() < 0.5;
+
             animal_0 = JSON.parse(resp.infos[0].contents);
-            drawAnimal(animal_0, "left");
             animal_1 = JSON.parse(resp.infos[1].contents);
-            drawAnimal(animal_1, "right");
+
+            if (sides_switched === false) {
+                drawAnimal(animal_0, "left");
+                drawAnimal(animal_1, "right");
+            } else {
+                drawAnimal(animal_1, "left");
+                drawAnimal(animal_0, "right");
+            }
             $(".submit-response").attr('disabled',false);
         },
         error: function (err) {
@@ -42,6 +50,9 @@ get_infos = function() {
 };
 
 submit_response = function(choice) {
+    if (sides_switched === true) {
+        choice = 1 - choice;
+    }
     $(".submit-response").attr('disabled',true);
     paper.clear();
 
