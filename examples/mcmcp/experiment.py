@@ -44,7 +44,7 @@ class MCMCP(Experiment):
         if not self.networks():
             super(MCMCP, self).setup()
             for net in self.networks():
-                VectorSource(network=net)
+                AnimalSource(network=net)
 
     def get_network_for_participant(self, participant):
         if len(participant.nodes(failed="all")) < self.trials_per_participant:
@@ -86,19 +86,37 @@ class MCMCPAgent(Agent):
         return [i for i in infos if i.chosen][0]
 
 
-class VectorSource(Source):
-    """A Source that transmits a random vector."""
+class AnimalSource(Source):
+    """A source that transmits animal shapes."""
 
     __mapper_args__ = {
-        "polymorphic_identity": "random_vector_source"
+        "polymorphic_identity": "animal_source"
     }
+
+    def _contents(self):
+        data = {}
+
+        for i in range(20):
+            data["animal_" + str(i)] = {
+                "foot_spread": random.uniform(0, 1),
+                "body_height": random.uniform(0.1, 1.5),
+                "body_tilt": random.uniform(-15, 45),
+                "tail_length": random.uniform(0.05, 1.2),
+                "tail_angle": random.uniform(-45, 190),
+                "neck_length": random.uniform(0, 2.5),
+                "neck_angle": random.uniform(90, 180),
+                "head_length": random.uniform(0.05, 0.75),
+                "head_angle": random.uniform(5, 80)
+            }
+
+        return json.dumps(data)
 
     def create_information(self):
         """Define the contents of new Infos.
 
         transmit() -> _what() -> create_information().
         """
-        return ChoosableInfo(origin=self, contents=json.dumps([random.random() for i in range(10)]))
+        return ChoosableInfo(origin=self, contents=self._contents())
 
 
 class ChoosableInfo(Info):
