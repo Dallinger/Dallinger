@@ -75,19 +75,9 @@ class MCMCPAgent(Agent):
     def update(self, infos):
         info = infos[0]
         self.replicate(info)
-        new_info = ChoosableInfo(origin=self, contents=self.perturb(info.contents, 0.1))
+        perturbed = AnimalSource.perturb(info.contents, 0.1)
+        new_info = ChoosableInfo(origin=self, contents=perturbed)
         Perturbation(info_in=info, info_out=new_info)
-
-    def perturb(self, contents, fractional_sd):
-        """Perturb the given animal."""
-        animal = json.loads(contents)
-
-        for prop, prop_range in AnimalSource.properties.iteritems():
-            range = prop_range[1] - prop_range[0]
-            jittered = animal[prop] + random.gauss(0, fractional_sd * range)
-            animal[prop] = max(min(jittered, prop_range[1]), prop_range[0])
-
-        return json.dumps(animal)
 
     def _what(self):
         infos = self.infos()
@@ -112,6 +102,18 @@ class AnimalSource(Source):
         "head_length": [0.05, 0.75],
         "head_angle": [5, 80]
     }
+
+    @staticmethod
+    def perturb(contents, fractional_sd):
+        """Perturb the given animal."""
+        animal = json.loads(contents)
+
+        for prop, prop_range in AnimalSource.properties.iteritems():
+            range = prop_range[1] - prop_range[0]
+            jittered = animal[prop] + random.gauss(0, fractional_sd * range)
+            animal[prop] = max(min(jittered, prop_range[1]), prop_range[0])
+
+        return json.dumps(animal)
 
     def _contents(self):
 
