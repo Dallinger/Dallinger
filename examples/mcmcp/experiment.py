@@ -19,11 +19,7 @@ class MCMCP(Experiment):
     """Define the structure of the experiment."""
 
     def __init__(self, session):
-        """Call the same function in the super (see experiments.py in wallace).
-
-        A few properties are then overwritten.
-        Finally, setup() is called.
-        """
+        """Initialize the experiment."""
         super(MCMCP, self).__init__(session)
         self.experiment_repeats = 1
         self.trials_per_participant = 10
@@ -32,13 +28,7 @@ class MCMCP(Experiment):
         self.agent = MCMCPAgent
 
     def setup(self):
-        """Setup the networks.
-
-        Setup only does stuff if there are no networks, this is so it only
-        runs once at the start of the experiment. It first calls the same
-        function in the super (see experiments.py in wallace). Then it adds a
-        source to each network.
-        """
+        """Setup the networks."""
         if not self.networks():
             super(MCMCP, self).setup()
             for net in self.networks():
@@ -78,6 +68,7 @@ class MCMCPAgent(Agent):
 
 
 class AnimalSource(Source):
+
     """A source that transmits animal shapes."""
 
     __mapper_args__ = {
@@ -125,6 +116,7 @@ class AnimalSource(Source):
 
 
 class ChoosableInfo(Info):
+    """An Info that can be chosen."""
 
     __mapper_args__ = {
         "polymorphic_identity": "vector_info"
@@ -132,6 +124,7 @@ class ChoosableInfo(Info):
 
     @hybrid_property
     def chosen(self):
+        """Use property1 to store whether an info was chosen."""
         try:
             return bool(self.property1)
         except TypeError:
@@ -149,6 +142,7 @@ class ChoosableInfo(Info):
 
 
 class Perturbation(Transformation):
+    """A perturbation is a transformation that perturbs the contents."""
 
     __mapper_args__ = {
         "polymorphic_identity": "perturbation"
