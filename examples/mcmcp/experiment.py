@@ -1,4 +1,4 @@
-"""Monte Carlo Markov Chains with people!"""
+"""Monte Carlo Markov Chains with people."""
 
 from wallace.models import Info, Transformation
 from wallace.networks import Chain
