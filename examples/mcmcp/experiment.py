@@ -56,13 +56,6 @@ class MCMCP(Experiment):
         network.add_node(node)
         node.receive()
 
-    def recruit(self):
-        """Recruit one participant at a time until all networks are full."""
-        if self.networks(full=False):
-            self.recruiter().recruit_participants(n=1)
-        else:
-            self.recruiter().close_recruitment()
-
 
 class MCMCPAgent(Agent):
 
