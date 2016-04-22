@@ -45,7 +45,7 @@ submit_response = function(choice) {
     $(".submit-response").attr('disabled',true);
 
     reqwest({
-        url: "/record_choice/" + my_node_id + "/" + choice,
+        url: "/choice/" + my_node_id + "/" + choice,
         method: 'post',
         success: function (resp) {
             create_agent();
