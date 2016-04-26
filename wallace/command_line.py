@@ -722,7 +722,7 @@ def export(app, local):
         "info",
         "transformation",
         "transmission",
-        "psiturk",
+        "participant",
         "notification"
     ]
 
