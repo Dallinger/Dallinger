@@ -231,14 +231,24 @@ def quitter():
 
 @custom_code.route("/ad_address/<mode>/<hit_id>", methods=["GET"])
 def ad_address(mode, hit_id):
+    """Get the address of the ad on AWS.
+
+    This is used at the end of the experiment to send participants
+    back to AWS where they can complete and submit the HIT.
+    """
     if mode == "debug":
         address = '/complete'
     elif mode in ["sandbox", "live"]:
-        username = os.getenv('psiturk_access_key_id', config.get("psiTurk Access", "psiturk_access_key_id"))
-        password = os.getenv('psiturk_secret_access_id', config.get("psiTurk Access", "psiturk_secret_access_id"))
+        username = os.getenv('psiturk_access_key_id',
+                             config.get("psiTurk Access",
+                                        "psiturk_access_key_id"))
+        password = os.getenv('psiturk_secret_access_id',
+                             config.get("psiTurk Access",
+                                        "psiturk_secret_access_id"))
         try:
-            req = requests.get('https://api.psiturk.org/api/ad/lookup/' + hit_id,
-                               auth=(username, password))
+            req = requests.get(
+                'https://api.psiturk.org/api/ad/lookup/' + hit_id,
+                auth=(username, password))
         except:
             raise ValueError('api_server_not_reachable')
         else:
@@ -247,7 +257,8 @@ def ad_address(mode, hit_id):
             else:
                 raise ValueError("something here")
         if mode == "sandbox":
-            address = 'https://sandbox.ad.psiturk.org/complete/' + str(hit_address)
+            address = ('https://sandbox.ad.psiturk.org/complete/' +
+                       str(hit_address))
         elif mode == "live":
             address = 'https://ad.psiturk.org/complete/' + str(hit_address)
     else:
@@ -296,7 +307,8 @@ def request_parameter(parameter, parameter_type=None, default=None,
         elif optional:
             return None
         else:
-            msg = "{} {} request, {} not specified".format(request.url, request.method, parameter)
+            msg = "{} {} request, {} not specified".format(
+                request.url, request.method, parameter)
             return error_response(error_type=msg)
 
     # check the parameter type
@@ -309,7 +321,8 @@ def request_parameter(parameter, parameter_type=None, default=None,
             value = int(value)
             return value
         except ValueError:
-            msg = "{} {} request, non-numeric {}: {}".format(request.url, request.method, parameter, value)
+            msg = "{} {} request, non-numeric {}: {}".format(
+                request.url, request.method, parameter, value)
             return error_response(error_type=msg)
     elif parameter_type == "known_class":
         # if its a known class check against the known classes
@@ -317,17 +330,20 @@ def request_parameter(parameter, parameter_type=None, default=None,
             value = exp.known_classes[value]
             return value
         except KeyError:
-            msg = "{} {} request, unknown_class: {} for parameter {}".format(request.url, request.method, value, parameter)
+            msg = "{} {} request, unknown_class: {} for parameter {}".format(
+                request.url, request.method, value, parameter)
             return error_response(error_type=msg)
     elif parameter_type == "bool":
         # if its a boolean, convert to a boolean
         if value in ["True", "False"]:
             return value == "True"
         else:
-            msg = "{} {} request, non-boolean {}: {}".format(request.url, request.method, parameter, value)
+            msg = "{} {} request, non-boolean {}: {}".format(
+                request.url, request.method, parameter, value)
             return error_response(error_type=msg)
     else:
-        msg = "/{} {} request, unknown parameter type: {} for parameter {}".format(request.url, request.method, parameter_type, parameter)
+        msg = "/{} {} request, unknown parameter type: {} for parameter {}"\
+            .format(request.url, request.method, parameter_type, parameter)
         return error_response(error_type=msg)
 
 
@@ -347,8 +363,15 @@ def assign_properties(thing):
     session.commit()
 
 
-@custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>", methods=["POST"])
+@custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
+                   methods=["POST"])
 def create_participant(worker_id, hit_id, assignment_id, mode):
+    """Create a participant.
+
+    This route will be hit very early on as any nodes the participant creates
+    will be defined in reference to the participant object.
+    You must specify the worker_id, hit_id, assignment_id and mode in the url.
+    """
     # check this worker hasn't already taken part
     parts = models.Participant.query.filter_by(worker_id=worker_id).all()
     if parts:
@@ -356,13 +379,18 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         return Response(status=200)
 
     # make the participant
-    participant = models.Participant(worker_id=worker_id, assignment_id=assignment_id, hit_id=hit_id, mode=mode)
+    participant = models.Participant(worker_id=worker_id,
+                                     assignment_id=assignment_id,
+                                     hit_id=hit_id,
+                                     mode=mode)
     session.add(participant)
     session.commit()
 
     # make a psiturk participant too, for now
     from psiturk.models import Participant as PsiturkParticipant
-    psiturk_participant = PsiturkParticipant(workerid=worker_id, assignmentid=assignment_id, hitid=hit_id)
+    psiturk_participant = PsiturkParticipant(workerid=worker_id,
+                                             assignmentid=assignment_id,
+                                             hitid=hit_id)
     session_psiturk.add(psiturk_participant)
     session_psiturk.commit()
 
@@ -376,44 +404,52 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 def get_participant(participant_id):
     """Get the participant with the given id."""
     try:
-        participant = models.Participant.query.filter_by(id=participant_id).one()
+        ppt = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
-        return error_response(error_type="/participant GET: no participant found",
-                              status=403)
+        return error_response(
+            error_type="/participant GET: no participant found",
+            status=403)
 
     # return the data
     return success_response(field="participant",
-                            data=participant.__json__(),
+                            data=ppt.__json__(),
                             request_type="participant get")
 
 
 @custom_code.route("/question/<participant_id>", methods=["POST"])
 def create_question(participant_id):
-    """Send a POST request to the question table."""
+    """Send a POST request to the question table.
 
+    Questions store information at the participant level, not the node
+    level.
+    You should pass the question (string) question_id (int) and response
+    (string) as arguments.
+    """
     # Get the participant.
     try:
-        participant = models.Participant.query.filter_by(id=participant_id).one()
+        ppt = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
         return error_response(error_type="/question POST no participant found",
                               status=403)
 
     # Make sure the participant status is "working"
-    if participant.status != "working":
-        error_type = "/question POST, status = {}".format(participant.status)
+    if ppt.status != "working":
+        error_type = "/question POST, status = {}".format(ppt.status)
         return error_response(error_type=error_type,
-                              participant=participant)
+                              participant=ppt)
 
     question = request_parameter(parameter="question")
     response = request_parameter(parameter="response")
-    question_id = request_parameter(parameter="question_id", parameter_type="int")
+    question_id = request_parameter(parameter="question_id",
+                                    parameter_type="int")
     for x in [question, response, question_id]:
         if type(x) == Response:
             return x
 
     try:
         # execute the request
-        models.Question(participant=participant, question=question, response=response, question_id=question_id)
+        models.Question(participant=ppt, question=question,
+                        response=response, question_id=question_id)
         session.commit()
     except:
         return error_response(error_type="/question POST server error",
@@ -439,8 +475,12 @@ def node_neighbors(node_id):
     exp = experiment(session)
 
     # get the parameters
-    node_type = request_parameter(parameter="node_type", parameter_type="known_class", default=models.Node)
-    failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
+    node_type = request_parameter(parameter="node_type",
+                                  parameter_type="known_class",
+                                  default=models.Node)
+    failed = request_parameter(parameter="failed",
+                               parameter_type="bool",
+                               default=False)
     connection = request_parameter(parameter="connection", default="to")
     for x in [node_type, failed, connection]:
         if type(x) == Response:
@@ -449,8 +489,10 @@ def node_neighbors(node_id):
     # make sure the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        return error_response(error_type="/node/neighbors, node does not exist",
-                              error_text="/node/{}/neighbors, node {} does not exist".format(node_id))
+        return error_response(
+            error_type="/node/neighbors, node does not exist",
+            error_text="/node/{}/neighbors, node {} does not exist"
+            .format(node_id))
 
     # get its neighbors
     nodes = node.neighbours(
@@ -486,7 +528,8 @@ def create_node(participant_id):
 
     # Get the participant.
     try:
-        participant = models.Participant.query.filter_by(id=participant_id).one()
+        participant = models.Participant.\
+            query.filter_by(id=participant_id).one()
     except NoResultFound:
         return error_response(error_type="/node POST no participant found",
                               status=403)
@@ -535,11 +578,17 @@ def create_node(participant_id):
 
 @custom_code.route("/node/<int:node_id>/vectors", methods=["GET"])
 def node_vectors(node_id):
-    exp = experiment(session)
+    """Get the vectors of a node.
 
+    You must specify the node id in the url.
+    You can pass direction (incoming/outgoing/all) and failed
+    (True/False/all).
+    """
+    exp = experiment(session)
     # get the parameters
     direction = request_parameter(parameter="direction", default="all")
-    failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
+    failed = request_parameter(parameter="failed",
+                               parameter_type="bool", default=False)
     for x in [direction, failed]:
         if type(x) == Response:
             return x
@@ -564,8 +613,14 @@ def node_vectors(node_id):
                             request_type="vector get")
 
 
-@custom_code.route("/node/<int:node_id>/connect/<int:other_node_id>", methods=["POST"])
+@custom_code.route("/node/<int:node_id>/connect/<int:other_node_id>",
+                   methods=["POST"])
 def connect(node_id, other_node_id):
+    """Connect to another node.
+
+    The ids of both nodes must be speficied in the url.
+    You can also pass direction (to/from/both) as an argument.
+    """
     exp = experiment(session)
 
     # get the parameters
@@ -580,8 +635,9 @@ def connect(node_id, other_node_id):
 
     other_node = models.Node.query.get(other_node_id)
     if other_node is None:
-        return error_response(error_type="/node/connect, other node does not exist",
-                              participant=node.participant)
+        return error_response(
+            error_type="/node/connect, other node does not exist",
+            participant=node.participant)
 
     # execute the request
     try:
@@ -607,6 +663,10 @@ def connect(node_id, other_node_id):
 
 @custom_code.route("/info/<int:node_id>/<int:info_id>", methods=["GET"])
 def get_info(node_id, info_id):
+    """Get a specific info.
+
+    Both the node and info id must be specified in the url.
+    """
     exp = experiment(session)
 
     # check the node exists
@@ -619,7 +679,10 @@ def get_info(node_id, info_id):
     if info is None:
         return error_response(error_type="/info GET, info does not exist",
                               participant=node.participant)
-    elif info.origin_id != node.id and info.id not in [t.info_id for t in node.transmissions(direction="incoming", status="received")]:
+    elif (info.origin_id != node.id and
+          info.id not in
+            [t.info_id for t in node.transmissions(direction="incoming",
+                                                   status="received")]):
         return error_response(error_type="/info GET, forbidden info",
                               status=403,
                               participant=node.participant)
@@ -641,10 +704,17 @@ def get_info(node_id, info_id):
 
 @custom_code.route("/node/<int:node_id>/infos", methods=["GET"])
 def node_infos(node_id):
+    """Get all the infos of a node.
+
+    The node id must be specified in the url.
+    You can also pass info_type.
+    """
     exp = experiment(session)
 
     # get the parameters
-    info_type = request_parameter(parameter="info_type", parameter_type="known_class", default=models.Info)
+    info_type = request_parameter(parameter="info_type",
+                                  parameter_type="known_class",
+                                  default=models.Info)
     if type(info_type) == Response:
         return info_type
 
@@ -675,10 +745,17 @@ def node_infos(node_id):
 
 @custom_code.route("/node/<int:node_id>/received_infos", methods=["GET"])
 def node_received_infos(node_id):
+    """Get all the infos a node has been sent and has received.
+
+    You must specify the node id in the url.
+    You can also pass the info type.
+    """
     exp = experiment(session)
 
     # get the parameters
-    info_type = request_parameter(parameter="info_type", parameter_type="known_class", default=models.Info)
+    info_type = request_parameter(parameter="info_type",
+                                  parameter_type="known_class",
+                                  default=models.Info)
     if type(info_type) == Response:
         return info_type
 
@@ -709,10 +786,21 @@ def node_received_infos(node_id):
 
 @custom_code.route("/info/<int:node_id>", methods=["POST"])
 def info_post(node_id):
+    """Create an info.
+
+    The node id must be specified in the url.
+
+    You must pass contents as an argument.
+    info_type is an additional optional argument.
+    If info_type is a custom subclass of Info it must be
+    added to the known_classes of the experiment class.
+    """
     exp = experiment(session)
 
     # get the parameters
-    info_type = request_parameter(parameter="info_type", parameter_type="known_class", default=models.Info)
+    info_type = request_parameter(parameter="info_type",
+                                  parameter_type="known_class",
+                                  default=models.Info)
     contents = request_parameter(parameter="contents")
     for x in [info_type, contents]:
         if type(x) == Response:
@@ -747,6 +835,12 @@ def info_post(node_id):
 
 @custom_code.route("/node/<int:node_id>/transmissions", methods=["GET"])
 def node_transmissions(node_id):
+    """Get all the transmissions of a node.
+
+    The node id must be specified in the url.
+    You can also pass direction (to/from/all) or status (all/pending/received)
+    as arguments.
+    """
     exp = experiment(session)
 
     # get the parameters
@@ -759,7 +853,8 @@ def node_transmissions(node_id):
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        return error_response(error_type="/node/transmissions, node does not exist")
+        return error_response(
+            error_type="/node/transmissions, node does not exist")
 
     # execute the request
     transmissions = node.transmissions(direction=direction, status=status)
@@ -772,9 +867,10 @@ def node_transmissions(node_id):
         exp.transmission_get_request(node=node, transmissions=transmissions)
         session.commit()
     except:
-        return error_response(error_type="/node/transmissions GET server error",
-                              status=403,
-                              participant=node.participant)
+        return error_response(
+            error_type="/node/transmissions GET server error",
+            status=403,
+            participant=node.participant)
 
     # return the data
     return success_response(field="transmissions",
@@ -784,8 +880,9 @@ def node_transmissions(node_id):
 
 @custom_code.route("/node/<int:node_id>/transmit", methods=["POST"])
 def node_transmit(node_id):
-    """The /node/<id>/transmit route allows the front end to
-    request that a node transmit to other nodes.
+    """Transmit to another node.
+
+    The sender's node id must be specified in the url.
 
     As with node.transmit() the key parameters are what and to_whom.
     However, the values these accept are more limited than for the back end
@@ -795,8 +892,8 @@ def node_transmit(node_id):
     Alternatively you can pass an int (e.g. '5') or a class name (e.g.
     'Info' or 'Agent'). Passing an int will get that info/node, passing
     a class name will pass the class. Note that if the class you are specifying
-    is a custom class it will need to be added to the dictionary of known_classes
-    in your experiment code.
+    is a custom class it will need to be added to the dictionary of
+    known_classes in your experiment code.
 
     You may also pass the values property1, property2, property3, property4
     and property5. If passed this will fill in the relevant values of the
@@ -813,7 +910,6 @@ def node_transmit(node_id):
         },
     });
     """
-
     exp = experiment(session)
 
     what = request_parameter(parameter="what", optional=True)
@@ -830,14 +926,16 @@ def node_transmit(node_id):
             what = int(what)
             what = models.Info.get(what)
             if what is None:
-                return error_response(error_type="/node/transmit POST, info does not exist",
-                                      participant=node.participant)
+                return error_response(
+                    error_type="/node/transmit POST, info does not exist",
+                    participant=node.participant)
         except:
             try:
                 what = exp.known_classes[what]
             except:
-                return error_response(error_type="/node/transmit POST, info does not exist",
-                                      participant=node.participant)
+                return error_response(
+                    error_type="/node/transmit POST, info does not exist",
+                    participant=node.participant)
 
     # create to_whom
     if to_whom is not None:
@@ -845,14 +943,16 @@ def node_transmit(node_id):
             to_whom = int(to_whom)
             to_whom = models.Node.get(to_whom)
             if what is None:
-                return error_response(error_type="/node/transmit POST, info does not exist",
-                                      participant=node.participant)
+                return error_response(
+                    error_type="/node/transmit POST, info does not exist",
+                    participant=node.participant)
         except:
             try:
                 to_whom = exp.known_classes[to_whom]
             except:
-                return error_response(error_type="/node/transmit POST, info does not exist",
-                                      participant=node.participant)
+                return error_response(
+                    error_type="/node/transmit POST, info does not exist",
+                    participant=node.participant)
 
     # execute the request
     try:
@@ -877,23 +977,34 @@ def node_transmit(node_id):
 
 @custom_code.route("/node/<int:node_id>/transformations", methods=["GET"])
 def transformation_get(node_id):
+    """Get all the transformations of a node.
+
+    The node id must be specified in the url.
+
+    You can also pass transformation_type.
+    """
     exp = experiment(session)
 
     # get the parameters
-    transformation_type = request_parameter(parameter="transformation_type", parameter_type="known_class", default=models.Transformation)
+    transformation_type = request_parameter(parameter="transformation_type",
+                                            parameter_type="known_class",
+                                            default=models.Transformation)
     if type(transformation_type) == Response:
         return transformation_type
 
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        return error_response(error_type="/node/transformations, node does not exist")
+        return error_response(
+            error_type="/node/transformations, node does not exist")
 
     # execute the request
-    transformations = node.transformations(transformation_type=transformation_type)
+    transformations = node.transformations(
+        transformation_type=transformation_type)
     try:
         # ping the experiment
-        exp.transformation_get_request(node=node, transformations=transformations)
+        exp.transformation_get_request(node=node,
+                                       transformations=transformations)
         session.commit()
     except:
         return error_response(error_type="/node/tranaformations GET failed",
@@ -905,38 +1016,52 @@ def transformation_get(node_id):
                             request_type="transformations")
 
 
-@custom_code.route("/transformation/<int:node_id>/<int:info_in_id>/<int:info_out_id>", methods=["POST"])
+@custom_code.route(
+    "/transformation/<int:node_id>/<int:info_in_id>/<int:info_out_id>",
+    methods=["POST"])
 def transformation_post(node_id, info_in_id, info_out_id):
+    """Transform an info.
+
+    The ids of the node, info in and info out must all be in the url.
+    You can also pass transformation_type.
+    """
     exp = experiment(session)
 
     # Get the parameters.
-    transformation_type = request_parameter(parameter="transformation_type", parameter_type="known_class", default=models.Transformation)
+    transformation_type = request_parameter(parameter="transformation_type",
+                                            parameter_type="known_class",
+                                            default=models.Transformation)
     if type(transformation_type) == Response:
         return transformation_type
 
     # Check that the node etc. exists.
     node = models.Node.query.get(node_id)
     if node is None:
-        return error_response(error_type="/transformation POST, node does not exist")
+        return error_response(
+            error_type="/transformation POST, node does not exist")
 
     info_in = models.Info.query.get(info_in_id)
     if info_in is None:
-        return error_response(error_type="/transformation POST, info_in does not exist",
-                              participant=node.participant)
+        return error_response(
+            error_type="/transformation POST, info_in does not exist",
+            participant=node.participant)
 
     info_out = models.Info.query.get(info_out_id)
     if info_out is None:
-        return error_response(error_type="/transformation POST, info_out does not exist",
-                              participant=node.participant)
+        return error_response(
+            error_type="/transformation POST, info_out does not exist",
+            participant=node.participant)
 
     try:
         # execute the request
-        transformation = transformation_type(info_in=info_in, info_out=info_out)
+        transformation = transformation_type(info_in=info_in,
+                                             info_out=info_out)
         assign_properties(transformation)
         session.commit()
 
         # ping the experiment
-        exp.transformation_post_request(node=node, transformation=transformation)
+        exp.transformation_post_request(node=node,
+                                        transformation=transformation)
         session.commit()
     except:
         return error_response(error_type="/tranaformation POST failed",
@@ -965,8 +1090,14 @@ def api_notifications():
 
 
 def check_for_duplicate_assignments(participant):
-    participants = models.Participant.query.filter_by(assignment_id=participant.assignment_id).all()
-    duplicates = [p for p in participants if p.id != participant.id and p.status == "working"]
+    """Check that the assignment_id of the participant is unique.
+
+    If it isnt the older participants will be failed.
+    """
+    participants = models.Participant.query.filter_by(
+        assignment_id=participant.assignment_id).all()
+    duplicates = [p for p in participants if (p.id != participant.id and
+                                              p.status == "working")]
     for d in duplicates:
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
 
@@ -974,14 +1105,16 @@ def check_for_duplicate_assignments(participant):
 @db.scoped_session_decorator
 def worker_function(event_type, assignment_id, participant_id):
     """Process the notification."""
-    db.logger.debug("rq: worker_function working on job id: %s", get_current_job().id)
+    db.logger.debug("rq: worker_function working on job id: %s",
+                    get_current_job().id)
     db.logger.debug('rq: Received Queue Length: %d (%s)', len(q),
                     ', '.join(q.job_ids))
 
     exp = experiment(session)
     key = "-----"
 
-    exp.log("Received an {} notification for assignment {}, participant {}".format(event_type, assignment_id, participant_id), key)
+    exp.log("Received an {} notification for assignment {}, participant {}"
+            .format(event_type, assignment_id, participant_id), key)
 
     if assignment_id is not None:
         # save the notification to the notification table
@@ -999,17 +1132,21 @@ def worker_function(event_type, assignment_id, participant_id):
         # if there are multiple participants select the most recent
         if len(participants) > 1:
             if event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
-                participants = [p for p in participants if p.status == "working"]
+                participants = [p for p in participants if
+                                p.status == "working"]
                 if participants:
-                    participant = min(participants, key=attrgetter('creation_time'))
+                    participant = min(participants,
+                                      key=attrgetter('creation_time'))
                 else:
                     return None
             else:
-                participant = max(participants, key=attrgetter('creation_time'))
+                participant = max(participants,
+                                  key=attrgetter('creation_time'))
 
         # if there are none (this is also bad news) print an error
         elif len(participants) == 0:
-            exp.log("Warning: No participants associated with this assignment_id. Notification will not be processed.", key)
+            exp.log("Warning: No participants associated with this\
+                    assignment_id. Notification will not be processed.", key)
             return None
 
         # if theres only one participant (this is good) select them
@@ -1017,7 +1154,8 @@ def worker_function(event_type, assignment_id, participant_id):
             participant = participants[0]
 
     elif participant_id is not None:
-        participant = models.Participant.query.filter_by(id=participant_id).all()[0]
+        participant = models.Participant.query\
+            .filter_by(id=participant_id).all()[0]
     else:
         raise ValueError("Error: worker_function needs either an assignment_id or a \
                           participant_id, they cannot both be None")
