@@ -11,28 +11,24 @@ from models import Transformation
 
 
 class Replication(Transformation):
-
-    """The identity transformation."""
+    """An instance of one info being identically copied into another."""
 
     __mapper_args__ = {"polymorphic_identity": "replication"}
 
 
 class Mutation(Transformation):
-
-    """The mutation transformation."""
+    """An instance of one info being tranformed into another + mutations."""
 
     __mapper_args__ = {"polymorphic_identity": "mutation"}
 
 
 class Compression(Transformation):
-
-    """The compression transformation."""
+    """An instance of one info being compressed into another."""
 
     __mapper_args__ = {"polymorphic_identity": "compression"}
 
 
 class Response(Transformation):
-
-    """The response transformation."""
+    """An instance of one info being a response to another."""
 
     __mapper_args__ = {"polymorphic_identity": "response"}
