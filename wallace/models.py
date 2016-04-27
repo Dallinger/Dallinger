@@ -235,16 +235,6 @@ class Network(Base, SharedMixin):
     # networks as either "practice" or "experiment"
     role = Column(String(26), nullable=False, default="default", index=True)
 
-    def __len__(self):
-        """The size of a network is undefined.
-
-        The length of a network is confusing because it might refer either
-        to the number of agents, sources, or nodes. Better to be explicit.
-        """
-        raise SyntaxError(
-            "len is not defined for networks. " +
-            "Use len(net.nodes()) instead.")
-
     def __repr__(self):
         """The string representation of a network."""
         return ("<Network-{}-{} with {} nodes, {} vectors, {} infos, "
