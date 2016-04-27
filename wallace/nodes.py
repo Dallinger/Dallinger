@@ -59,10 +59,14 @@ class Source(Node):
 
     def create_information(self):
         """Create new infos on demand."""
-        info = Info(
+        info = self._info_type()(
             origin=self,
             contents=self._contents())
         return info
+
+    def _info_type(self):
+        """The type of info to be created."""
+        return Info
 
     def _contents(self):
         """The contents of new infos."""
