@@ -299,25 +299,7 @@ class Network(Base, SharedMixin):
         type specifies the class of node, failed
         can be True/False/all.
         """
-        if type is None:
-            type = Node
-
-        if not issubclass(type, Node):
-            raise(TypeError("{} is not a valid node type.".format(type)))
-
-        if failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid node failed".format(failed))
-
-        if failed == "all":
-            return len(type.query
-                       .with_entities(type.id)
-                       .filter_by(network_id=self.id)
-                       .all())
-        else:
-            return len(type.query
-                       .with_entities(type.id)
-                       .filter_by(network_id=self.id, failed=failed)
-                       .all())
+        return len(self.nodes(type=type, failed=failed))
 
     def infos(self, type=None, failed=False):
         """
