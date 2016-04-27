@@ -10,8 +10,7 @@ import random
 
 
 class Agent(Node):
-
-    """An Agent is a Node with a fitness."""
+    """A Node with fitness."""
 
     __mapper_args__ = {"polymorphic_identity": "agent"}
 
@@ -35,7 +34,6 @@ class Agent(Node):
 
 
 class ReplicatorAgent(Agent):
-
     """An agent that copies incoming transmissions."""
 
     __mapper_args__ = {"polymorphic_identity": "replicator_agent"}
@@ -47,8 +45,7 @@ class ReplicatorAgent(Agent):
 
 
 class Source(Node):
-
-    """A Source is a Node that sends transmissions.
+    """An AI Node that only sends transmissions.
 
     By default, when asked to transmit, a Source creates and sends
     a new Info. Sources cannot receive transmissions.
@@ -57,47 +54,45 @@ class Source(Node):
     __mapper_args__ = {"polymorphic_identity": "generic_source"}
 
     def _what(self):
-        """ Determines what to transmit by default. """
+        """What to transmit by default."""
         return self.create_information()
 
     def create_information(self):
-        """ Called by _what(), creates new infos on demand. """
+        """Create new infos on demand."""
         info = Info(
             origin=self,
             contents=self._contents())
         return info
 
     def _contents(self):
-        """ Determines the contents of new infos created on demand. """
+        """The contents of new infos."""
         raise NotImplementedError(
             "{}.contents() needs to be defined.".format(type(self)))
 
     def receive(self, what):
-        """ Sources cannot receive transmissions."""
+        """Raise an error if asked to receive a transmission."""
         raise Exception("Sources cannot receive transmissions.")
 
 
 class RandomBinaryStringSource(Source):
-
     """A source that transmits random binary strings."""
 
     __mapper_args__ = {"polymorphic_identity": "random_binary_string_source"}
 
     def _contents(self):
+        """Generate a random binary string."""
         return "".join([str(random.randint(0, 1)) for i in range(2)])
 
 
 class Environment(Node):
-
-    """Environments are nodes with a state."""
+    """A node with a state."""
 
     __mapper_args__ = {"polymorphic_identity": "environment"}
 
     def state(self, time=None):
-        """The most recently-created info of type State.
+        """The most recently-created info of type State at the specfied time.
 
-        If given a timestamp, it will return the most recent state at that
-        point in time.
+        If time is None then it returns the most recent state as of now.
         """
         if time is None:
             return max(self.infos(type=State), key=attrgetter('creation_time'))
@@ -107,4 +102,5 @@ class Environment(Node):
             return max(states, key=attrgetter('creation_time'))
 
     def _what(self):
+        """Return the most recent state."""
         return self.state()
