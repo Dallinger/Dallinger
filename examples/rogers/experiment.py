@@ -53,18 +53,20 @@ class RogersExperiment(Experiment):
             source = RogersSource(network=net)
             source.create_information()
             if net.role == "practice":
-                RogersEnvironment(proportion=self.practice_difficulty,
-                                  network=net)
+                env = RogersEnvironment(network=net)
+                env.create_state(proportion=self.practice_difficulty)
             if net.role == "catch":
-                RogersEnvironment(proportion=self.catch_difficulty,
-                                  network=net)
+                env = RogersEnvironment(network=net)
+                env.create_state(proportion=self.catch_difficulty)
             if net.role == "experiment":
                 difficulty = self.difficulties[self.networks(role="experiment")
                                                .index(net)]
-                RogersEnvironment(proportion=difficulty, network=net)
+                env = RogersEnvironment(network=net)
+                env.create_state(proportion=difficulty)
 
-    def agent(self, network=None):
+    def agent(self, network):
         """What class of agent to create."""
+        print "blah blah blah"
         if network.role == "practice" or network.role == "catch":
             return RogersAgentFounder
         elif network.size(type=Agent) < network.generation_size:
@@ -190,12 +192,8 @@ class RogersExperiment(Experiment):
             return False
         return True
 
-    def add_node_to_network(self, participant_id, node, network):
+    def add_node_to_network(self, node, network):
         """Add participant's node to a network."""
-        num_agents = network.size(type=Agent)
-        current_generation = int((num_agents-1)/float(network.generation_size))
-        node.generation = current_generation
-
         network.add_node(node)
         node.receive()
 
@@ -360,17 +358,11 @@ class RogersEnvironment(Environment):
 
     __mapper_args__ = {"polymorphic_identity": "rogers_environment"}
 
-    def __init__(self, proportion=None):
-        """Create the environment."""
-        super(RogersEnvironment, self).__init__()
-        if proportion is None:
-            raise(ValueError("You need to pass RogersEnvironment \
-                              a proprtion when you make it."))
-        elif random.random() < 0.5:
+    def create_state(self, proportion):
+        """Create an environmental state."""
+        if random.random() < 0.5:
             proportion = 1 - proportion
-        State(
-            origin=self,
-            contents=proportion)
+        State(origin=self, contents=proportion)
 
     def step(self):
         """Prompt the environment to change."""
