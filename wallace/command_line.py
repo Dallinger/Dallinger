@@ -723,7 +723,8 @@ def export(app, local):
         "transformation",
         "transmission",
         "participant",
-        "notification"
+        "notification",
+        "question"
     ]
 
     for table in all_tables:
