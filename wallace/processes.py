@@ -80,8 +80,8 @@ def moran_sexual(network):
 def transmit_by_fitness(from_whom, to_whom=None, what=None):
     """Choose a parent with probability proportional to their fitness."""
     parents = from_whom
-    parent_fitnesses = [p.fitness for p in parents]
-    parent_probs = [(f/(1.0*sum(parent_fitnesses))) for f in parent_fitnesses]
+    parent_fs = [p.fitness for p in parents]
+    parent_probs = [(f / (1.0 * sum(parent_fs))) for f in parent_fs]
 
     rnd = random.random()
     temp = 0.0

@@ -45,6 +45,7 @@ def sessions_scope(local_session, commit=False):
 
 
 def scoped_session_decorator(func):
+    """Manage contexts and add debugging to psiTurk sessions."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         from wallace.db import session as wallace_session

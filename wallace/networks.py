@@ -166,10 +166,10 @@ class DiscreteGenerational(Network):
         """Link the agent to a random member of the previous generation."""
         agents = self.nodes(type=Agent)
         num_agents = len(agents)
-        current_generation = int((num_agents-1)/float(self.generation_size))
-        newcomer.generation = current_generation
+        curr_generation = int((num_agents - 1) / float(self.generation_size))
+        newcomer.generation = curr_generation
 
-        if current_generation == 0:
+        if curr_generation == 0:
             if self.initial_source:
                 source = min(
                     self.nodes(type=Source),
@@ -180,7 +180,7 @@ class DiscreteGenerational(Network):
             prev_agents = type(newcomer).query\
                 .filter_by(failed=False,
                            network_id=self.id,
-                           generation=(current_generation - 1))\
+                           generation=(curr_generation - 1))\
                 .all()
             prev_fits = [p.fitness for p in prev_agents]
             prev_probs = [(f / (1.0 * sum(prev_fits))) for f in prev_fits]

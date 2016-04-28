@@ -353,7 +353,8 @@ class Network(Base, SharedMixin):
                     .all()
             else:
                 return Transmission.query\
-                    .filter_by(network_id=self.id, status=status, failed=failed)\
+                    .filter_by(
+                        network_id=self.id, status=status, failed=failed)\
                     .all()
 
     def transformations(self, type=None, failed=False):
@@ -1213,7 +1214,7 @@ class Vector(Base, SharedMixin):
     ####################################"""
 
     def fail(self):
-        """fail a vector."""
+        """Fail a vector."""
         if self.failed is True:
             raise AttributeError(
                 "Cannot fail {} - it has already failed.".format(self))

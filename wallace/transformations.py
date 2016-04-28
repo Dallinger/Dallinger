@@ -13,22 +13,30 @@ from models import Transformation
 class Replication(Transformation):
     """An instance of one info being identically copied into another."""
 
-    __mapper_args__ = {"polymorphic_identity": "replication"}
+    __mapper_args__ = {
+        "polymorphic_identity": "replication"
+    }
 
 
 class Mutation(Transformation):
     """An instance of one info being tranformed into another + mutations."""
 
-    __mapper_args__ = {"polymorphic_identity": "mutation"}
+    __mapper_args__ = {
+        "polymorphic_identity": "mutation"
+    }
 
 
 class Compression(Transformation):
     """An instance of one info being compressed into another."""
 
-    __mapper_args__ = {"polymorphic_identity": "compression"}
+    __mapper_args__ = {
+        "polymorphic_identity": "compression"
+    }
 
 
 class Response(Transformation):
     """An instance of one info being a response to another."""
 
-    __mapper_args__ = {"polymorphic_identity": "response"}
+    __mapper_args__ = {
+        "polymorphic_identity": "response"
+    }

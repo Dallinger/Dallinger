@@ -1,7 +1,12 @@
 """Import custom routes into the experiment server."""
 
-from flask import Blueprint, request, Response, send_from_directory, \
+from flask import (
+    Blueprint,
+    request,
+    Response,
+    send_from_directory,
     render_template
+)
 
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
@@ -355,7 +360,7 @@ def assign_properties(thing):
     from the request and fills in the relevant columns of the table.
     """
     for p in range(5):
-        property_name = "property" + str(p+1)
+        property_name = "property" + str(p + 1)
         property = request_parameter(parameter=property_name, optional=True),
         if property:
             setattr(thing, property_name, property)

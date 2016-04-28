@@ -188,10 +188,10 @@ class PsiTurkRecruiter(Recruiter):
             self.mtc.extend_hit(
                 hit_id,
                 expiration_increment=int(
-                    float(expiration_increment or 0)*3600))
+                    float(expiration_increment or 0) * 3600))
         else:
-            print (">>>> auto_recruit set to {}: recruitment suppressed"
-                   .format(auto_recruit))
+            print(">>>> auto_recruit set to {}: recruitment suppressed"
+                  .format(auto_recruit))
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
