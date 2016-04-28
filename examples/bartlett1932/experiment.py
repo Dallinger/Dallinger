@@ -7,7 +7,6 @@ import random
 
 
 class Bartlett1932(Experiment):
-
     """Define the structure of the experiment."""
 
     def __init__(self, session):
@@ -35,8 +34,7 @@ class Bartlett1932(Experiment):
                 WarOfTheGhostsSource(network=net)
 
     def add_node_to_network(self, node, network):
-        """When a node is created it is added to the chain (see Chain in networks.py)
-        and it receives any transmissions."""
+        """Add node to the chain and receive transmissions."""
         network.add_node(node)
         node.receive()
 
@@ -49,10 +47,11 @@ class Bartlett1932(Experiment):
 
 
 class WarOfTheGhostsSource(Source):
-
     """A Source that reads in a random story from a file and transmits it."""
 
-    __mapper_args__ = {"polymorphic_identity": "war_of_the_ghosts_source"}
+    __mapper_args__ = {
+        "polymorphic_identity": "war_of_the_ghosts_source"
+    }
 
     def _contents(self):
         """Define the contents of new Infos.
