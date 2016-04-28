@@ -7,66 +7,75 @@ from boto.mturk.connection import MTurkConnection
 
 
 class Recruiter(object):
-
-    """Define the base recruiter."""
+    """The base recruiter."""
 
     def __init__(self):
+        """Create a recruiter."""
         super(Recruiter, self).__init__()
 
     def open_recruitment(self):
+        """Throw an error."""
         raise NotImplementedError
 
     def recruit_participants(self, n=1):
+        """Throw an error."""
         raise NotImplementedError
 
     def close_recruitment(self):
+        """Throw an error."""
         raise NotImplementedError
 
 
 class HotAirRecruiter(object):
+    """A dummy recruiter.
 
-    """Print statements about recruiting, but don't actually recruit."""
+    Talks the talk, but does not walk the walk.
+    """
 
     def __init__(self):
+        """Create a hot air recruiter."""
         super(HotAirRecruiter, self).__init__()
 
     def open_recruitment(self):
+        """Talk about opening recruitment."""
         print "Opening recruitment."
 
     def recruit_participants(self, n=1):
+        """Talk about recruiting participants."""
         print "Recruiting a new participant."
 
     def close_recruitment(self):
+        """Talk about closing recruitment."""
         print "Close recruitment."
 
 
 class SimulatedRecruiter(object):
-
-    """Recruit simulated agents."""
+    """A recruiter that recruits simulated participants."""
 
     def __init__(self):
+        """Create a simulated recruiter."""
         super(SimulatedRecruiter, self).__init__()
 
     def open_recruitment(self, exp=None):
+        """Open recruitment with a single participant."""
         self.recruit_participants(exp, n=1)
 
     def recruit_participants(self, n=1, exp=None):
+        """Recruit n participants."""
         for i in xrange(n):
             newcomer = exp.agent_type()
             exp.newcomer_arrival_trigger(newcomer)
 
     def close_recruitment(self):
+        """Do nothing."""
         pass
 
 
 class PsiTurkRecruiter(Recruiter):
-
-    """Recruit participants from Amazon Mechanical Turk."""
+    """Recruit participants from Amazon Mechanical Turk via PsiTurk."""
 
     def __init__(self):
-
         """Set up the connection to MTurk and psiTurk web services."""
-
         # load the configuration options
         self.config = PsiturkConfig()
         self.config.load_config()
@@ -141,7 +150,7 @@ class PsiTurkRecruiter(Recruiter):
             print "Reject recruitment reopening: experiment has started."
 
     def recruit_participants(self, n=1):
-        """Extend the HIT to recruit more people."""
+        """Recruit n participants."""
         auto_recruit = os.environ['auto_recruit'] == 'true'
 
         if auto_recruit:
@@ -149,7 +158,8 @@ class PsiTurkRecruiter(Recruiter):
             print "Starting Wallace's recruit_participants."
 
             hit_id = str(
-                Participant.query.with_entities(Participant.hitid).first().hitid)
+                Participant.query.
+                with_entities(Participant.hitid).first().hitid)
 
             print "hit_id is {}.".format(hit_id)
 
@@ -172,14 +182,16 @@ class PsiTurkRecruiter(Recruiter):
                 hit_id,
                 assignments_increment=int(n or 0))
 
-            expiration_increment = self.config.get('HIT Configuration', 'duration')
+            expiration_increment = self.config.get('HIT Configuration',
+                                                   'duration')
 
             self.mtc.extend_hit(
                 hit_id,
-                expiration_increment=int(float(expiration_increment or 0)*3600))
+                expiration_increment=int(
+                    float(expiration_increment or 0) * 3600))
         else:
-            print (">>>> auto_recruit set to {}: recruitment suppressed"
-                   .format(auto_recruit))
+            print(">>>> auto_recruit set to {}: recruitment suppressed"
+                  .format(auto_recruit))
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""

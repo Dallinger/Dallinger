@@ -15,7 +15,6 @@ from operator import attrgetter
 
 
 class MCMCP(Experiment):
-
     """Define the structure of the experiment."""
 
     def __init__(self, session):
@@ -65,7 +64,6 @@ class MCMCPAgent(Agent):
 
 
 class AnimalSource(Source):
-
     """A source that transmits animal shapes."""
 
     __mapper_args__ = {
@@ -73,7 +71,7 @@ class AnimalSource(Source):
     }
 
     def create_information(self):
-        """Create a new Info
+        """Create a new Info.
 
         transmit() -> _what() -> create_information().
         """
