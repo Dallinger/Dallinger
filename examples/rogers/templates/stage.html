@@ -4,21 +4,22 @@
     <script src="/static/scripts/reqwest.min.js" type="text/javascript"> </script>
     <script src="/static/scripts/wallace.js" type="text/javascript"> </script>
     <script src="/static/scripts/jquery-min.js" type="text/javascript"> </script>
+    <script src="/static/scripts/raphael-min.js" type="text/javascript"> </script>
     <script src="/static/scripts/experiment.js" type="text/javascript"> </script>
 </head>
 
-<div id="main_div">
-    <p class="trial_info_text">Round <span id="trial-number">0</span> of 125</p>
-    <p class="trial_info_text"><span id="practice-trial">This is a practice trial</span></p>
-    <div id="stimulus-stage">
+<div class="main_div">
+    <div class="right_div">
+        <p class="trial_info_text">Round <span id="trial-number">0</span> of 125</p>
+        <p class="trial_info_text"><span id="practice-trial">This is a practice trial</span></p>
+    </div>
+    <div class="center_div">
         <p class="trial_text" id="instructions">Are there more blue or yellow dots?</p>
-        <div class="trial_div">
-            <button id="more-blue" type="button" class="btn btn-primary">Blue</button>
-            <button id="more-yellow" type="button" class="btn btn-warning">Yellow</button>
-        </div>
-        <div>
-            <img id="stimulus" class="stimulus_image" src="" width="500px" />
-        </div>
+        <br>
+        <button id="more-blue" type="button" class="btn btn-primary">Blue</button>
+        <button id="more-yellow" type="button" class="btn btn-warning">Yellow</button>
+        <br>
+        <img id="stimulus" class="stimulus_image" width="500px" />
 	</div>
     <script>
         create_agent();
