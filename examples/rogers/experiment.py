@@ -32,7 +32,6 @@ class RogersExperiment(Experiment):
         self.network = lambda: DiscreteGenerational(
             generations=4, generation_size=self.generation_size,
             initial_source=True)
-        self.environment_type = RogersEnvironment
         self.bonus_payment = 1.0
         self.initial_recruitment_size = self.generation_size
         self.known_classes["LearningGene"] = LearningGene
