@@ -1,3 +1,1 @@
-This is the readme for Bartlett's 1932 experiment on iterated learning. It used 'The War of the Ghosts' story.
-
-Bartlett, F. C. (1932). Remembering. Cambridge: Cambridge University Press.
+This is the readme for the Wallace demo Rogers. It explores the evolution of asocial learning and unguided social learning in the context of a numerical discrimination task.
