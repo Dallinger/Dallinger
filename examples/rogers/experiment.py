@@ -214,6 +214,7 @@ class RogersExperiment(Experiment):
         else:
             raise ValueError("{} has invalid learning gene value of {}"
                              .format(node, gene))
+        node.receive()
 
 
 class LearningGene(Gene):
