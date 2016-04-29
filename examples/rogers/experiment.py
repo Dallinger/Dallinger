@@ -64,9 +64,8 @@ class RogersExperiment(Experiment):
                 env = RogersEnvironment(network=net)
                 env.create_state(proportion=difficulty)
 
-    def agent(self, network):
+    def node_type(self, network):
         """What class of agent to create."""
-        print "blah blah blah"
         if network.role == "practice" or network.role == "catch":
             return RogersAgentFounder
         elif network.size(type=Agent) < network.generation_size:
