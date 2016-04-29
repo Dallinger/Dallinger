@@ -28,7 +28,7 @@ create_agent = function() {
                 $('body').html(err_response.html);
             } else {
                 allow_exit();
-                go_to_page('debriefing')
+                go_to_page('postquestionnaire')
             }
         }
     });
@@ -60,6 +60,13 @@ get_received_infos = function() {
         type: 'json',
         success: function (resp) {
 
+            infos = resp.infos;
+            for (i = 0; i < infos.length; i++) {
+                if (infos[i].type != "learning_gene") {
+                    info = infos[i];
+                }
+            }
+
             trial = trial + 1;
             $("#trial-number").html(trial);
             if (trial <= num_practice_trials) {
@@ -74,7 +81,7 @@ get_received_infos = function() {
 
                 $("#instructions").text("Are there more blue or yellow dots?");
 
-                state = resp.info.contents;
+                state = info.contents;
                 regenerateDisplay(state);
 
                 $("#more-blue").addClass('disabled');
@@ -96,7 +103,7 @@ get_received_infos = function() {
                 $("#more-blue").addClass('disabled');
                 $("#more-yellow").addClass('disabled');
 
-                meme = resp.info.contents;
+                meme = info.contents;
 
                 if (meme == "blue") {
                     $("#stimulus").attr("src", "/static/images/blue_social.jpg");
@@ -150,7 +157,7 @@ function regenerateDisplay (state) {
     rMax = 20;
     horizontalOffset = (window.innerWidth - width) / 2;
 
-    paper = Raphael(horizontalOffset, 200, width, height);
+    paper = Raphael(horizontalOffset, 300, width, height);
 
     colors = [];
     colorsRGB = ["#428bca", "#FBB829"];
@@ -219,7 +226,7 @@ reportBlue = function () {
                 $("#more-blue").removeClass('disabled');
                 $("#more-blue").blur();
                 $("#more-blue").html('Blue');
-                createAgent();
+                create_agent();
             }
         });
         lock = true;
@@ -243,7 +250,7 @@ reportYellow = function () {
                 $("#more-yellow").removeClass('disabled');
                 $("#more-yellow").blur();
                 $("#more-yellow").html('Yellow');
-                createAgent();
+                create_agent();
             }
         });
         lock = true;
