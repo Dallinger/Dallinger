@@ -24,7 +24,9 @@ class MCMCP(Experiment):
         self.trials_per_participant = 10
         self.network = lambda: Chain(max_size=100)
         self.setup()
-        self.agent = MCMCPAgent
+
+    def node_type(self, network):
+        return MCMCPAgent
 
     def setup(self):
         """Setup the networks."""
