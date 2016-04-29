@@ -26,7 +26,6 @@ class Experiment(object):
         self.experiment_repeats = 0
         self.recruiter = PsiTurkRecruiter
         self.initial_recruitment_size = 1
-        self.agent = Agent
         self.known_classes = {
             "Agent": Agent,
             "Compression": Compression,
@@ -123,16 +122,12 @@ class Experiment(object):
 
     def make_node_for_participant(self, participant, network):
         """Create a node for a participant."""
-        if inspect.isclass(self.agent):
-            if issubclass(self.agent, Node):
-                node = self.agent(participant=participant, network=network)
-            else:
-                raise ValueError("{} is not a subclass of Node"
-                                 .format(self.agent))
-        else:
-            node = self.agent(network=network)(participant=participant,
+        return self.node_type(network=network)(participant=participant,
                                                network=network)
-        return node
+
+    def node_type(self, network):
+        """The type of node to make."""
+        return Node
 
     def add_node_to_network(self, node, network):
         """Add a node to a network."""
