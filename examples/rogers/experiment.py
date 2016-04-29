@@ -204,7 +204,7 @@ class RogersExperiment(Experiment):
             prev_agents = RogersAgent.query\
                 .filter(and_(RogersAgent.failed == False,
                              RogersAgent.network_id == network.id,
-                             RogersAgent.generation == current_generation-1))\
+                             RogersAgent.generation == node.generation-1))\
                 .all()
             parent = random.choice(prev_agents)
             parent.connect(whom=node)
