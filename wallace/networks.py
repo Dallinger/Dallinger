@@ -7,46 +7,31 @@ from operator import attrgetter
 
 
 class Chain(Network):
-    """Source -> Agent -> Agent -> Agent -> ...
+    """Source -> Node -> Node -> Node -> ...
 
-    The source is optional and can be added at any time
+    The source is optional, but must be added first.
     """
 
     __mapper_args__ = {"polymorphic_identity": "chain"}
 
     def add_node(self, node, transmit=True):
         """Add an agent, connecting it to the previous node."""
-        agents = self.nodes(type=Agent)
-        other_agents = [a for a in agents if a.id != node.id]
-        sources = self.nodes(type=Source)
+        other_nodes = [n for n in self.nodes() if n.id != node.id]
 
-        parent = None
-        if other_agents:
-            parent = max(other_agents,
+        if isinstance(node, Source) and other_nodes:
+            raise(Exception("Chain network already has a nodes, \
+                             can't add a source."))
+
+        if other_nodes:
+            parent = max(other_nodes,
                          key=attrgetter('creation_time'))
-
-        elif sources:
-            parent = min(sources,
-                         key=attrgetter('creation_time'))
-
-        if parent:
             parent.connect(whom=node)
             if transmit:
                 parent.transmit()
 
-    def add_source(self, source):
-        """Add the source to the beginning of the chain."""
-        if len(self.nodes(type=Source)) > 1:
-            raise(Exception("Chain network already has a source"))
-
-        else:
-            if len(self.nodes(type=Agent)) > 0:
-                source.connect(whom=min(self.nodes(type=Agent),
-                                        key=attrgetter('creation_time')))
-
     def calculate_full(self):
         """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
+        self.full = len(self.nodes()) >= self.max_size
 
 
 class FullyConnected(Network):

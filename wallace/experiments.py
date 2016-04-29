@@ -7,7 +7,6 @@ from wallace.transformations import Compression, Response
 from wallace.transformations import Mutation, Replication
 from sqlalchemy import and_
 import random
-import inspect
 import sys
 from collections import Counter
 from operator import itemgetter

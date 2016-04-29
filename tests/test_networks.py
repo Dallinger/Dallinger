@@ -200,12 +200,12 @@ class TestNetworks(object):
         self.db.add(net)
         self.db.commit()
 
+        source = nodes.RandomBinaryStringSource(network=net)
+        net.add_node(source)
+
         for i in range(4):
             agent = nodes.Agent(network=net)
             net.add_node(agent)
-
-        source = nodes.RandomBinaryStringSource(network=net)
-        net.add_source(source)
 
         assert len(net.nodes(type=nodes.Agent)) == 4
         assert len(net.nodes(type=nodes.Source)) == 1
@@ -218,14 +218,16 @@ class TestNetworks(object):
         self.db.add(net)
         self.db.commit()
 
-        for i in range(4):
-            agent = nodes.Agent(network=net)
-            net.add_node(agent)
-
         source = nodes.RandomBinaryStringSource(network=net)
-        net.add_source(source)
+        net.add_node(source)
 
-        assert repr(net) == "<Network-" + str(net.id) + "-chain with 5 nodes, 4 vectors, 0 infos, 0 transmissions and 0 transformations>"
+        for i in range(4):
+            agent = nodes.ReplicatorAgent(network=net)
+            net.add_node(agent)
+            agent.receive()
+        self.db.commit()
+
+        assert repr(net) == "<Network-" + str(net.id) + "-chain with 5 nodes, 4 vectors, 5 infos, 4 transmissions and 4 transformations>"
 
     def test_create_fully_connected(self):
         net = networks.FullyConnected()
