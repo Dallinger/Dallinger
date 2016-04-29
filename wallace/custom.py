@@ -234,6 +234,14 @@ def quitter():
         mimetype='application/json')
 
 
+@custom_code.route('/experiment_property/<prop>', methods=['GET'])
+def experiment_property(prop):
+    """Get a property of the experiment by name."""
+    exp = experiment(session)
+    p = getattr(exp, prop)
+    return success_response(field=prop, data=p, request_type=prop)
+
+
 @custom_code.route("/ad_address/<mode>/<hit_id>", methods=["GET"])
 def ad_address(mode, hit_id):
     """Get the address of the ad on AWS.
