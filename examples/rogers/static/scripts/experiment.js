@@ -1,5 +1,16 @@
 trial = 0;
 lock = true;
+reqwest({
+    url: "/experiment_property/practice_repeats",
+    method: "get",
+    type: "json",
+    success: function (resp) {
+        num_practice_trials = resp.practice_repeats;
+    },
+    error: function (err) {
+        console.log(err);
+    }
+});
 
 create_agent = function() {
     reqwest({
@@ -44,7 +55,7 @@ get_infos = function() {
 
 get_received_infos = function() {
     reqwest({
-        url: "/node/" + my_node_id + "/" + received_infos,
+        url: "/node/" + my_node_id + "/received_infos",
         method: 'get',
         type: 'json',
         success: function (resp) {
