@@ -12,6 +12,18 @@ reqwest({
     }
 });
 
+reqwest({
+    url: "/experiment_property/experiment_repeats",
+    method: "get",
+    type: "json",
+    success: function (resp) {
+        num_experiment_trials = resp.experiment_repeats;
+    },
+    error: function (err) {
+        console.log(err);
+    }
+});
+
 create_agent = function() {
     reqwest({
         url: "/node/" + participant_id,
@@ -69,6 +81,7 @@ get_received_infos = function() {
 
             trial = trial + 1;
             $("#trial-number").html(trial);
+            $("#total-trial-number").html(num_practice_trials + num_experiment_trials);
             if (trial <= num_practice_trials) {
                 $("#practice-trial").html("This is a practice trial");
             } else {
