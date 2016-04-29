@@ -46,7 +46,6 @@ create_agent = function() {
     });
 };
 
-// Get all the infos
 get_infos = function() {
     reqwest({
         url: "/node/" + my_node_id + "/infos",
@@ -222,47 +221,22 @@ function shuffle(o){
     return o;
 }
 
-reportBlue = function () {
+report = function (color) {
     if(lock === false) {
         $("#more-blue").addClass('disabled');
-        $("#more-blue").html('Sending...');
+        $("#more-yellow").addClass('disabled');
         $("#reproduction").val("");
 
         reqwest({
             url: "/info/" + my_node_id,
             method: 'post',
             data: {
-                contents: "blue",
+                contents: color,
                 info_type: "Meme"
             },
             success: function (resp) {
                 $("#more-blue").removeClass('disabled');
-                $("#more-blue").blur();
-                $("#more-blue").html('Blue');
-                create_agent();
-            }
-        });
-        lock = true;
-    }
-};
-
-reportYellow = function () {
-    if(lock === false) {
-        $("#more-yellow").addClass('disabled');
-        $("#more-yellow").html('Sending...');
-        $("#reproduction").val("");
-
-        reqwest({
-            url: "/info/" + my_node_id,
-            method: 'post',
-            data: {
-                contents: "yellow",
-                info_type: "Meme"
-            },
-            success: function (resp) {
                 $("#more-yellow").removeClass('disabled');
-                $("#more-yellow").blur();
-                $("#more-yellow").html('Yellow');
                 create_agent();
             }
         });
@@ -273,16 +247,16 @@ reportYellow = function () {
 $(document).keydown(function(e) {
     var code = e.keyCode || e.which;
     if(code == 70) { //Enter keycode
-        reportBlue();
+        report("blue");
     } else if (code == 74) {
-        reportYellow();
+        report("yellow");
     }
 });
 
 $("#more-yellow").click(function() {
-    reportYellow();
+    report("yellow");
 });
 
 $("#more-blue").click(function() {
-    reportBlue();
+    report("blue");
 });
