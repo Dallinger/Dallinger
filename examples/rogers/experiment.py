@@ -25,9 +25,9 @@ class RogersExperiment(Experiment):
         self.practice_repeats = 0
         self.catch_repeats = 0  # a subset of experiment repeats
         self.practice_difficulty = 0.80
-        self.difficulties = [0.525, 0.5625, 0.65]*self.experiment_repeats
+        self.difficulties = [0.525, 0.5625, 0.65] * self.experiment_repeats
         self.catch_difficulty = 0.80
-        self.min_acceptable_performance = 10/float(12)
+        self.min_acceptable_performance = 10 / float(12)
         self.generation_size = 40
         self.network = lambda: DiscreteGenerational(
             generations=4, generation_size=self.generation_size,
@@ -82,7 +82,7 @@ class RogersExperiment(Experiment):
 
         finished_participants = Participant.query.filter_by(status=101).all()
         num_finished_participants = len(finished_participants)
-        current_generation = int((num_finished_participants-1) /
+        current_generation = int((num_finished_participants - 1) /
                                  float(self.generation_size))
 
         if num_finished_participants % self.generation_size == 0:
@@ -141,8 +141,8 @@ class RogersExperiment(Experiment):
             return 0
         self.log("calculating bonus...", key)
         score = [node.score for node in nodes]
-        average = float(sum(score))/float(len(score))
-        bonus = round(max(0.0, ((average-0.5)*2))*self.bonus_payment, 2)
+        average = float(sum(score)) / float(len(score))
+        bonus = round(max(0.0, ((average - 0.5) * 2)) * self.bonus_payment, 2)
         self.log("bonus calculated, returning {}".format(bonus), key)
         return bonus
 
@@ -155,7 +155,7 @@ class RogersExperiment(Experiment):
         scores = [n.score for n in participant_nodes]
 
         if participant_nodes:
-            avg = sum(scores)/float(len(scores))
+            avg = sum(scores) / float(len(scores))
         else:
             return True
 
@@ -169,8 +169,8 @@ class RogersExperiment(Experiment):
         nodes = Node.query.filter_by(participant_id=participant_id).all()
 
         if len(nodes) != self.experiment_repeats + self.practice_repeats:
-            print ("Error: Participant has {} nodes. Data check failed"
-                   .format(len(nodes)))
+            print("Error: Participant has {} nodes. Data check failed"
+                  .format(len(nodes)))
             return False
 
         nets = [n.network_id for n in nodes]
@@ -203,7 +203,7 @@ class RogersExperiment(Experiment):
             prev_agents = RogersAgent.query\
                 .filter(and_(RogersAgent.failed == False,
                              RogersAgent.network_id == network.id,
-                             RogersAgent.generation == node.generation-1))\
+                             RogersAgent.generation == node.generation - 1))\
                 .all()
             parent = random.choice(prev_agents)
             parent.connect(whom=node)
@@ -250,7 +250,7 @@ class RogersAgent(Agent):
 
     @hybrid_property
     def generation(self):
-        """convert property2 to genertion."""
+        """Convert property2 to genertion."""
         return int(self.property2)
 
     @generation.setter
@@ -319,8 +319,8 @@ class RogersAgent(Agent):
         ][0].contents == "asocial"
         e = 2
         b = 1
-        c = 0.3*b
-        baseline = c+0.0001
+        c = 0.3 * b
+        baseline = c + 0.0001
 
         self.fitness = (baseline + self.score * b - is_asocial * c) ** e
 
@@ -368,6 +368,6 @@ class RogersEnvironment(Environment):
         current_state = max(self.infos(type=State),
                             key=attrgetter('creation_time'))
         current_contents = float(current_state.contents)
-        new_contents = 1-current_contents
+        new_contents = 1 - current_contents
         info_out = State(origin=self, contents=new_contents)
         transformations.Mutation(info_in=current_state, info_out=info_out)

@@ -1,20 +1,29 @@
+"""Test Rogers demo."""
+
 from __future__ import print_function
+
 import sys
-from wallace import db
-from wallace.nodes import Agent, Source, Environment
-from wallace.information import Gene, Meme, State
-from wallace import models
-from experiment import RogersExperiment, RogersAgent, RogersAgentFounder, RogersSource, RogersEnvironment, LearningGene
 import random
 import traceback
 from datetime import datetime
-
-
 import subprocess
 import re
 import requests
 import threading
 import time
+
+from wallace import db
+from wallace.nodes import Agent, Source, Environment
+from wallace.information import Gene, Meme, State
+from wallace import models
+from experiment import (
+    RogersExperiment,
+    RogersAgent,
+    RogersAgentFounder,
+    RogersSource,
+    RogersEnvironment,
+    LearningGene
+)
 
 
 def timenow():
@@ -43,10 +52,9 @@ class TestRogers(object):
             "wallace logs --app " + exp_id,
             shell=True)
 
-        # methods that defines the behavior of each worker
         def autobot(session, url, i):
-
-            time.sleep(i*2)
+            """Define the behavior of each worker."""
+            time.sleep(i * 2)
             print("bot {} starting".format(i))
             start_time = timenow()
 
@@ -58,7 +66,12 @@ class TestRogers(object):
                 'User-Agent': 'python',
                 'Content-Type': 'application/x-www-form-urlencoded',
             }
-            args = {'hitId': 'rogers-test-hit', 'assignmentId': i, 'workerId': i, 'mode': 'sandbox'}
+            args = {
+                'hitId': 'rogers-test-hit',
+                'assignmentId': i,
+                'workerId': i,
+                'mode': 'sandbox'
+            }
             session.get(url + '/exp', params=args, headers=headers)
 
             # send AssignmentAccepted notification
