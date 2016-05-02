@@ -1,0 +1,49 @@
+[Experiment Configuration]
+wallace_version = 0.7.0
+mode = sandbox
+auto_recruit = true
+
+[HIT Configuration]
+title = Judge the dots
+description = Look at some dots and determine if there are more blue or yellow ones
+amt_keywords = Psychology, vision, dots
+base_payment = 1.00
+lifetime = 24
+duration = 0.5
+us_only = true
+approve_requirement = 95
+contact_email_on_error = rogers@mailinator.com
+ad_group = RogersGame
+psiturk_keywords = dots
+organization_name = Monsters University
+browser_exclude_rule = MSIE, mobile, tablet
+
+[Database Parameters]
+database_url = postgresql://postgres@localhost/wallace
+table_name = psiturk
+anonymize_data = false
+database_size = standard-2
+
+[Server Parameters]
+host = 0.0.0.0
+port = 5000
+cutoff_time = 30
+logfile = -
+loglevel = 0
+debug = true
+login_username = examplename
+login_pw = examplepassword
+threads = auto
+notification_url = None
+dyno_type = performance-m
+num_dynos_web = 2
+num_dynos_worker = 1
+
+[Task Parameters]
+experiment_code_version = 1.0
+num_conds = 1
+num_counters = 1
+
+[Shell Parameters]
+launch_in_sandbox_mode = true
+
