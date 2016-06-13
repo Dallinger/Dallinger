@@ -1,0 +1,49 @@
+[Experiment Configuration]
+wallace_version = 0.8.0
+mode = sandbox
+auto_recruit = true
+
+[HIT Configuration]
+title = Coordination game
+description = Coordinate with other players.
+amt_keywords = Coordination, chat
+base_payment = 1.00
+lifetime = 24
+duration = 0.1
+us_only = true
+approve_requirement = 95
+contact_email_on_error = bartlett1932@mailinator.com
+ad_group = Coordination
+psiturk_keywords = coordination
+organization_name = Monsters University
+browser_exclude_rule = MSIE, mobile, tablet
+
+[Database Parameters]
+database_url = postgresql://postgres@localhost/wallace
+table_name = psiturk
+anonymize_data = false
+database_size = hobby-dev
+
+[Server Parameters]
+host = 0.0.0.0
+port = 5000
+cutoff_time = 30
+logfile = -
+loglevel = 0
+debug = true
+login_username = examplename
+login_pw = examplepassword
+threads = 1
+notification_url = None
+dyno_type = free
+num_dynos_web = 1
+num_dynos_worker = 1
+
+[Task Parameters]
+experiment_code_version = 1.0
+num_conds = 1
+num_counters = 1
+
+[Shell Parameters]
+launch_in_sandbox_mode = true
+
