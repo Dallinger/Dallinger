@@ -857,7 +857,7 @@ def node_transmissions(node_id):
     exp = experiment(session)
 
     # get the parameters
-    direction = request_parameter(parameter="direction", default="to")
+    direction = request_parameter(parameter="direction", default="incoming")
     status = request_parameter(parameter="status", default="all")
     for x in [direction, status]:
         if type(x) == Response:
