@@ -587,23 +587,26 @@ class Node(Base, SharedMixin):
         if type is None:
             type = Node
         if not issubclass(type, Node):
-            raise ValueError("{} is not a valid neighbor type, \
-                    needs to be a subclass of Node.".format(type))
+            raise ValueError("{} is not a valid neighbor type,"
+                             "needs to be a subclass of Node.".format(type))
 
         # get connection
         if connection not in ["both", "either", "from", "to"]:
-            raise ValueError("{} not a valid neighbor connection. \
-                Should be both, either, to or from.".format(connection))
+            raise ValueError("{} not a valid neighbor connection."
+                             "Should be both, either, to or from."
+                             .format(connection))
 
         if failed is not None:
-            raise ValueError("You should not pass a failed argument to neighbors(). Neighbors is \
-                unusual in that a failed argument cannot be passed. This is \
-                because there is inherent uncertainty in what it means for a \
-                neighbor to be failed. The neighbors function will only ever \
-                return not-failed nodes connected to you via not-failed \
-                vectors. If you want to do more elaborate queries, for \
-                example, getting not-failed nodes connected to you via failed \
-                vectors, you should do so via sql queries.")
+            raise ValueError(
+                "You should not pass a failed argument to neighbors(). "
+                "Neighbors is "
+                "unusual in that a failed argument cannot be passed. This is "
+                "because there is inherent uncertainty in what it means for a "
+                "neighbor to be failed. The neighbors function will only ever "
+                "return not-failed nodes connected to you via not-failed "
+                "vectors. If you want to do more elaborate queries, for "
+                "example, getting not-failed nodes connected to you via failed"
+                " vectors, you should do so via sql queries.")
 
         neighbors = []
         # get the neighbours
@@ -646,14 +649,15 @@ class Node(Base, SharedMixin):
         otherwise it returns a list of booleans
         """
         if failed is not None:
-            raise ValueError("You should not pass a failed argument to is_connected. \
-                is_connected is \
-                unusual in that a failed argument cannot be passed. This is \
-                because there is inherent uncertainty in what it means for a \
-                connection to be failed. The is_connected function will only \
-                ever check along not-failed vectors. \
-                If you want to check along failed vectors \
-                you should do so via sql queries.")
+            raise ValueError(
+                "You should not pass a failed argument to is_connected."
+                "is_connected is "
+                "unusual in that a failed argument cannot be passed. This is "
+                "because there is inherent uncertainty in what it means for a "
+                "connection to be failed. The is_connected function will only "
+                "ever check along not-failed vectors. "
+                "If you want to check along failed vectors "
+                "you should do so via sql queries.")
 
         # make whom a list
         if isinstance(whom, list):
@@ -726,8 +730,8 @@ class Node(Base, SharedMixin):
             type = Info
 
         if not issubclass(type, Info):
-            raise(TypeError("Cannot get infos of type {} as \
-                             it is not a valid type."
+            raise(TypeError("Cannot get infos of type {} as "
+                            "it is not a valid type."
                             .format(type)))
 
         if failed not in ["all", False, True]:
@@ -750,21 +754,22 @@ class Node(Base, SharedMixin):
         Type must be a subclass of info, the default is Info.
         """
         if failed is not None:
-            raise ValueError("You should not pass a failed argument to received_infos. \
-                received_infos is \
-                unusual in that a failed argument cannot be passed. This is \
-                because there is inherent uncertainty in what it means for a \
-                received info to be failed. The received_infos function will \
-                only ever check not-failed transmissions. \
-                If you want to check failed transmissions \
-                you should do so via sql queries.")
+            raise ValueError(
+                "You should not pass a failed argument to received_infos. "
+                "received_infos is "
+                "unusual in that a failed argument cannot be passed. This is "
+                "because there is inherent uncertainty in what it means for a "
+                "received info to be failed. The received_infos function will "
+                "only ever check not-failed transmissions. "
+                "If you want to check failed transmissions "
+                "you should do so via sql queries.")
 
         if type is None:
             type = Info
 
         if not issubclass(type, Info):
-            raise(TypeError("Cannot get infos of type {} \
-                             as it is not a valid type."
+            raise(TypeError("Cannot get infos of type {} "
+                            "as it is not a valid type."
                             .format(type)))
 
         transmissions = Transmission\
@@ -925,8 +930,8 @@ class Node(Base, SharedMixin):
                 [self.is_connected(direction="to", whom=whom)])
             for node, connected in zip(whom, already_connected_to):
                 if connected:
-                    print("Warning! {} already connected to {}, \
-                           instruction to connect will be ignored."
+                    print("Warning! {} already connected to {}, "
+                          "instruction to connect will be ignored."
                           .format(self, node))
                 else:
                     new_vectors.append(Vector(origin=self, destination=node))
@@ -935,8 +940,8 @@ class Node(Base, SharedMixin):
                 [self.is_connected(direction="from", whom=whom)])
             for node, connected in zip(whom, already_connected_from):
                 if connected:
-                    print("Warning! {} already connected from {}, \
-                           instruction to connect will be ignored."
+                    print("Warning! {} already connected from {}, "
+                          "instruction to connect will be ignored."
                           .format(self, node))
                 else:
                     new_vectors.append(Vector(origin=node, destination=self))
@@ -1006,8 +1011,9 @@ class Node(Base, SharedMixin):
                     vector = [v for v in vectors
                               if v.destination_id == tw.id][0]
                 except:
-                    raise ValueError("{} cannot transmit to {} as it does not have \
-                                      a connection to them".format(self, tw))
+                    raise ValueError(
+                        "{} cannot transmit to {} as it does not have "
+                        "a connection to them".format(self, tw))
                 t = Transmission(info=w, vector=vector)
                 transmissions.append(t)
         if len(transmissions) == 1:
@@ -1057,8 +1063,8 @@ class Node(Base, SharedMixin):
                 what.receive_time = timenow()
                 received_transmissions.append(what)
             else:
-                raise(ValueError("{} cannot receive {} as it is not \
-                                  in its pending_transmissions"
+                raise(ValueError("{} cannot receive {} as it is not "
+                                 "in its pending_transmissions"
                                  .format(self, what)))
         else:
             raise ValueError("Nodes cannot receive {}".format(what))
@@ -1128,8 +1134,8 @@ class Vector(Base, SharedMixin):
         """Create a vector."""
         # check origin and destination are in the same network
         if origin.network_id != destination.network_id:
-            raise ValueError("{}, in network {}, cannot connect with {} \
-                              as it is in network {}"
+            raise ValueError("{}, in network {}, cannot connect with {} "
+                             "as it is in network {}"
                              .format(origin, origin.network_id,
                                      destination, destination.network_id))
 
@@ -1423,8 +1429,8 @@ class Transmission(Base, SharedMixin):
 
         # check the origin of the vector is the same as the origin of the info
         if info.origin_id != vector.origin_id:
-            raise ValueError("Cannot transmit {} along {} as they do not \
-                              have the same origin".format(info, vector))
+            raise ValueError("Cannot transmit {} along {} as they do not "
+                             "have the same origin".format(info, vector))
 
         self.vector_id = vector.id
         self.vector = vector
