@@ -702,7 +702,7 @@ def get_info(node_id, info_id):
 
     try:
         # ping the experiment
-        exp.info_get_request(node=node, info=info)
+        exp.info_get_request(node=node, infos=info)
         session.commit()
     except:
         return error_response(error_type="/info GET server error",
