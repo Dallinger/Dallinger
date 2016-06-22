@@ -51,19 +51,14 @@ class Empty(Network):
 
     __mapper_args__ = {"polymorphic_identity": "empty"}
 
-    def add_node(self, newcomer):
-        """Add an agent, connecting it to everyone and back."""
+    def add_node(self, node):
+        """Do nothing."""
         pass
 
     def add_source(self, source):
-        """Connect the source to all existing agents."""
-        agents = self.nodes(type=Agent)
-        for agent in agents:
-            source.connect(whom=agent)
-
-    def calculate_full(self):
-        """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
+        """Connect the source to all existing other nodes."""
+        nodes = [n for n in self.nodes() if not isinstance(n, Source)]
+        source.connect(whom=nodes)
 
 
 class Star(Network):
