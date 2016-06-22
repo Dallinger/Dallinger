@@ -200,27 +200,27 @@ class ScaleFree(Network):
         """Number of connections that a newcomer makes."""
         return int(self.property2)
 
-    def add_node(self, newcomer):
+    def add_node(self, node):
         """Add newcomers one by one, using linear preferential attachment."""
-        agents = self.nodes(type=Agent)
+        nodes = self.nodes()
 
         # Start with a core of m0 fully-connected agents...
-        if len(agents) <= self.m0:
-            other_agents = [a for a in agents if a.id != newcomer.id]
-            for agent in other_agents:
-                newcomer.connect(direction="both", whom=agent)
+        if len(nodes) <= self.m0:
+            other_nodes = [n for n in nodes if n.id != node.id]
+            for n in other_nodes:
+                node.connect(direction="both", whom=n)
 
         # ...then add newcomers one by one with preferential attachment.
         else:
             for idx_newvector in xrange(self.m):
 
-                these_agents = [
-                    a for a in agents if (
-                        a.id != newcomer.id and
-                        not a.is_connected(direction="either", whom=newcomer))]
+                these_nodes = [
+                    n for n in nodes if (
+                        n.id != node.id and
+                        not n.is_connected(direction="either", whom=node))]
 
                 outdegrees = [
-                    len(a.vectors(direction="outgoing")) for a in these_agents]
+                    len(n.vectors(direction="outgoing")) for n in these_nodes]
 
                 # Select a member using preferential attachment
                 ps = [(d / (1.0 * sum(outdegrees))) for d in outdegrees]
@@ -229,10 +229,10 @@ class ScaleFree(Network):
                 for i, p in enumerate(ps):
                     cur += p
                     if rnd < cur:
-                        vector_to = these_agents[i]
+                        vector_to = these_nodes[i]
 
                 # Create vector from newcomer to selected member and back
-                newcomer.connect(direction="both", whom=vector_to)
+                node.connect(direction="both", whom=vector_to)
 
 
 class SequentialMicrosociety(Network):
