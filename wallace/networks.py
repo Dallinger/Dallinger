@@ -70,13 +70,13 @@ class Star(Network):
 
     __mapper_args__ = {"polymorphic_identity": "star"}
 
-    def add_node(self, newcomer):
-        """Add an agent and connect it to the center."""
-        agents = self.nodes(type=Agent)
+    def add_node(self, node):
+        """Add a node and connect it to the center."""
+        nodes = self.nodes()
 
-        if len(agents) > 1:
-            first_agent = min(agents, key=attrgetter('creation_time'))
-            first_agent.connect(direction="both", whom=newcomer)
+        if len(nodes) > 1:
+            first_node = min(nodes, key=attrgetter('creation_time'))
+            first_node.connect(direction="both", whom=node)
 
 
 class Burst(Network):
