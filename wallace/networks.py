@@ -1,6 +1,6 @@
 """Network structures commonly used in simulations of evolution."""
 
-from .models import Network
+from .models import Network, Node
 from .nodes import Agent, Source
 import random
 from operator import attrgetter
@@ -118,7 +118,10 @@ class DiscreteGenerational(Network):
         self.property1 = repr(generations)
         self.property2 = repr(generation_size)
         self.property3 = repr(initial_source)
-        self.max_size = repr(generations * generation_size)
+        if self.initial_source:
+            self.max_size = repr(generations * generation_size) + 1
+        else:
+            self.max_size = repr(generations * generation_size)
 
     @property
     def generations(self):
@@ -135,22 +138,22 @@ class DiscreteGenerational(Network):
         """The source that seeds the first generation."""
         return bool(self.property3)
 
-    def add_node(self, newcomer):
+    def add_node(self, node):
         """Link the agent to a random member of the previous generation."""
-        agents = self.nodes(type=Agent)
-        num_agents = len(agents)
+        nodes = [n for n in self.nodes() if not isinstance(n, Source)]
+        num_agents = len(nodes)
         curr_generation = int((num_agents - 1) / float(self.generation_size))
-        newcomer.generation = curr_generation
+        node.generation = curr_generation
 
         if curr_generation == 0:
             if self.initial_source:
                 source = min(
                     self.nodes(type=Source),
                     key=attrgetter('creation_time'))
-                source.connect(whom=newcomer)
-                source.transmit(to_whom=newcomer)
+                source.connect(whom=node)
+                source.transmit(to_whom=node)
         else:
-            prev_agents = type(newcomer).query\
+            prev_agents = Node.query\
                 .filter_by(failed=False,
                            network_id=self.id,
                            generation=(curr_generation - 1))\
@@ -166,12 +169,8 @@ class DiscreteGenerational(Network):
                     parent = prev_agents[i]
                     break
 
-            parent.connect(whom=newcomer)
-            parent.transmit(to_whom=newcomer)
-
-    def calculate_full(self):
-        """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
+            parent.connect(whom=node)
+            parent.transmit(to_whom=node)
 
 
 class ScaleFree(Network):
