@@ -246,27 +246,18 @@ class SequentialMicrosociety(Network):
 
     @property
     def n(self):
-        """Number of people active at once."""
+        """Number of nodes active at once."""
         return int(self.property1)
 
-    def add_node(self, newcomer):
-        """Add an agent, connecting it to all the active nodes."""
-        agents = sorted(
-            self.nodes(type=Agent),
+    def add_node(self, node):
+        """Add a node, connecting it to all the active nodes."""
+        nodes = sorted(
+            self.nodes(),
             key=attrgetter('creation_time'), reverse=True)
 
-        other_agents = [a for a in agents if a.id != newcomer.id]
+        other_nodes = [n for n in nodes if n.id != node.id]
 
-        # If the newcomer is one of the first agents, connect from source...
-        if len(self.nodes(type=Agent)) < self.n:
-            sources = self.nodes(type=Source)
-            sources[0].connect(direction="to", whom=newcomer)
+        connecting_nodes = other_nodes[0:(self.n - 1)]
 
-        # ... otherwise connect from the previous n - 1 agents.
-        else:
-            for agent in other_agents[0:(self.n - 1)]:
-                agent.connect(direction="to", whom=newcomer)
-
-    def calculate_full(self):
-        """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
+        for n in connecting_nodes:
+            n.connect(whom=node)
