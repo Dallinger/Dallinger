@@ -35,18 +35,15 @@ class FullyConnected(Network):
 
     __mapper_args__ = {"polymorphic_identity": "fully-connected"}
 
-    def add_node(self, newcomer):
-        """Add an agent, connecting it to everyone and back."""
-        agents = self.nodes(type=Agent)
+    def add_node(self, node):
+        """Add a node, connecting it to everyone and back."""
+        other_nodes = [n for n in self.nodes() if n.id != node.id]
 
-        if len(agents) > 1:
-            other_agents = [a for a in agents if a.id != newcomer.id]
-            for agent in other_agents:
-                agent.connect(direction="both", whom=newcomer)
-
-    def calculate_full(self):
-        """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
+        for n in other_nodes:
+            if isinstance(n, Source):
+                node.connect(direction="from", whom=n)
+            else:
+                node.connect(direction="both", whom=n)
 
 
 class Empty(Network):
