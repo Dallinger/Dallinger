@@ -87,6 +87,7 @@ class Participant(Base, SharedMixin):
             "base_pay": self.base_pay,
             "bonus": self.bonus,
             "status": self.status,
+            "creation_time": self.creation_time,
             "failed": self.failed,
             "time_of_death": self.time_of_death,
             "property1": self.property1,
@@ -246,6 +247,24 @@ class Network(Base, SharedMixin):
             len(self.infos()),
             len(self.transmissions()),
             len(self.transformations()))
+
+    def __json__(self):
+        """Return json description of a participant."""
+        return {
+            "id": self.id,
+            "type": self.type,
+            "max_size": self.max_size,
+            "full": self.full,
+            "role": self.role,
+            "creation_time": self.creation_time,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
 
     """ ###################################
     Methods that get things about a Network
