@@ -429,6 +429,22 @@ def get_participant(participant_id):
                             request_type="participant get")
 
 
+@custom_code.route("/network/<network_id>", methods=["GET"])
+def get_network(network_id):
+    """Get the network with the given id."""
+    try:
+        net = models.Network.query.filter_by(id=network_id).one()
+    except NoResultFound:
+        return error_response(
+            error_type="/network GET: no network found",
+            status=403)
+
+    # return the data
+    return success_response(field="network",
+                            data=net.__json__(),
+                            request_type="network get")
+
+
 @custom_code.route("/question/<participant_id>", methods=["POST"])
 def create_question(participant_id):
     """Send a POST request to the question table.
