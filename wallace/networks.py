@@ -1,7 +1,7 @@
 """Network structures commonly used in simulations of evolution."""
 
 from .models import Network, Node
-from .nodes import Agent, Source
+from .nodes import Source
 import random
 from operator import attrgetter
 
@@ -14,7 +14,7 @@ class Chain(Network):
 
     __mapper_args__ = {"polymorphic_identity": "chain"}
 
-    def add_node(self, node, transmit=True):
+    def add_node(self, node):
         """Add an agent, connecting it to the previous node."""
         other_nodes = [n for n in self.nodes() if n.id != node.id]
 
@@ -23,11 +23,8 @@ class Chain(Network):
                             "can't add a source."))
 
         if other_nodes:
-            parent = max(other_nodes,
-                         key=attrgetter('creation_time'))
+            parent = max(other_nodes, key=attrgetter('creation_time'))
             parent.connect(whom=node)
-            if transmit:
-                parent.transmit()
 
 
 class FullyConnected(Network):
