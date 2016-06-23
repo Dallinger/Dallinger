@@ -322,7 +322,7 @@ class TestNetworks(object):
         self.db.add(net)
         self.db.commit()
 
-        nodes.RandomBinaryStringSource(network=net)
+        net.add_node(nodes.RandomBinaryStringSource(network=net))
 
         agent1 = nodes.Agent(network=net)
         net.add_node(agent1)
@@ -342,7 +342,7 @@ class TestNetworks(object):
         agent6 = nodes.Agent(network=net)
         net.add_node(agent6)
 
-        assert len(agent1.vectors(direction="outgoing")) == 1
+        assert len(agent1.vectors(direction="outgoing")) == 2
         assert len(agent2.vectors(direction="outgoing")) == 2
         assert len(agent3.vectors(direction="outgoing")) == 2
 

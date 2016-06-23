@@ -1,6 +1,6 @@
 """Network structures commonly used in simulations of evolution."""
 
-from .models import Network
+from .models import Network, Node
 from .nodes import Agent, Source
 import random
 from operator import attrgetter
@@ -19,8 +19,8 @@ class Chain(Network):
         other_nodes = [n for n in self.nodes() if n.id != node.id]
 
         if isinstance(node, Source) and other_nodes:
-            raise(Exception("Chain network already has a nodes, \
-                             can't add a source."))
+            raise(Exception("Chain network already has a nodes, "
+                            "can't add a source."))
 
         if other_nodes:
             parent = max(other_nodes,
@@ -29,28 +29,21 @@ class Chain(Network):
             if transmit:
                 parent.transmit()
 
-    def calculate_full(self):
-        """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes()) >= self.max_size
-
 
 class FullyConnected(Network):
     """A fully-connected network (complete graph) with all possible vectors."""
 
     __mapper_args__ = {"polymorphic_identity": "fully-connected"}
 
-    def add_node(self, newcomer):
-        """Add an agent, connecting it to everyone and back."""
-        agents = self.nodes(type=Agent)
+    def add_node(self, node):
+        """Add a node, connecting it to everyone and back."""
+        other_nodes = [n for n in self.nodes() if n.id != node.id]
 
-        if len(agents) > 1:
-            other_agents = [a for a in agents if a.id != newcomer.id]
-            for agent in other_agents:
-                agent.connect(direction="both", whom=newcomer)
-
-    def calculate_full(self):
-        """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
+        for n in other_nodes:
+            if isinstance(n, Source):
+                node.connect(direction="from", whom=n)
+            else:
+                node.connect(direction="both", whom=n)
 
 
 class Empty(Network):
@@ -58,19 +51,14 @@ class Empty(Network):
 
     __mapper_args__ = {"polymorphic_identity": "empty"}
 
-    def add_node(self, newcomer):
-        """Add an agent, connecting it to everyone and back."""
+    def add_node(self, node):
+        """Do nothing."""
         pass
 
     def add_source(self, source):
-        """Connect the source to all existing agents."""
-        agents = self.nodes(type=Agent)
-        for agent in agents:
-            source.connect(whom=agent)
-
-    def calculate_full(self):
-        """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
+        """Connect the source to all existing other nodes."""
+        nodes = [n for n in self.nodes() if not isinstance(n, Source)]
+        source.connect(whom=nodes)
 
 
 class Star(Network):
@@ -82,13 +70,13 @@ class Star(Network):
 
     __mapper_args__ = {"polymorphic_identity": "star"}
 
-    def add_node(self, newcomer):
-        """Add an agent and connect it to the center."""
-        agents = self.nodes(type=Agent)
+    def add_node(self, node):
+        """Add a node and connect it to the center."""
+        nodes = self.nodes()
 
-        if len(agents) > 1:
-            first_agent = min(agents, key=attrgetter('creation_time'))
-            first_agent.connect(direction="both", whom=newcomer)
+        if len(nodes) > 1:
+            first_node = min(nodes, key=attrgetter('creation_time'))
+            first_node.connect(direction="both", whom=node)
 
 
 class Burst(Network):
@@ -100,13 +88,13 @@ class Burst(Network):
 
     __mapper_args__ = {"polymorphic_identity": "burst"}
 
-    def add_node(self, newcomer):
-        """Add an agent and connect it to the center."""
-        agents = self.nodes(type=Agent)
+    def add_node(self, node):
+        """Add a node and connect it to the center."""
+        nodes = self.nodes()
 
-        if len(agents) > 1:
-            first_agent = min(agents, key=attrgetter('creation_time'))
-            first_agent.connect(whom=newcomer)
+        if len(nodes) > 1:
+            first_node = min(nodes, key=attrgetter('creation_time'))
+            first_node.connect(whom=node)
 
 
 class DiscreteGenerational(Network):
@@ -130,7 +118,10 @@ class DiscreteGenerational(Network):
         self.property1 = repr(generations)
         self.property2 = repr(generation_size)
         self.property3 = repr(initial_source)
-        self.max_size = repr(generations * generation_size)
+        if self.initial_source:
+            self.max_size = repr(generations * generation_size + 1)
+        else:
+            self.max_size = repr(generations * generation_size)
 
     @property
     def generations(self):
@@ -147,22 +138,22 @@ class DiscreteGenerational(Network):
         """The source that seeds the first generation."""
         return bool(self.property3)
 
-    def add_node(self, newcomer):
+    def add_node(self, node):
         """Link the agent to a random member of the previous generation."""
-        agents = self.nodes(type=Agent)
-        num_agents = len(agents)
+        nodes = [n for n in self.nodes() if not isinstance(n, Source)]
+        num_agents = len(nodes)
         curr_generation = int((num_agents - 1) / float(self.generation_size))
-        newcomer.generation = curr_generation
+        node.generation = curr_generation
 
         if curr_generation == 0:
             if self.initial_source:
                 source = min(
                     self.nodes(type=Source),
                     key=attrgetter('creation_time'))
-                source.connect(whom=newcomer)
-                source.transmit(to_whom=newcomer)
+                source.connect(whom=node)
+                source.transmit(to_whom=node)
         else:
-            prev_agents = type(newcomer).query\
+            prev_agents = Node.query\
                 .filter_by(failed=False,
                            network_id=self.id,
                            generation=(curr_generation - 1))\
@@ -178,12 +169,8 @@ class DiscreteGenerational(Network):
                     parent = prev_agents[i]
                     break
 
-            parent.connect(whom=newcomer)
-            parent.transmit(to_whom=newcomer)
-
-    def calculate_full(self):
-        """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
+            parent.connect(whom=node)
+            parent.transmit(to_whom=node)
 
 
 class ScaleFree(Network):
@@ -213,27 +200,27 @@ class ScaleFree(Network):
         """Number of connections that a newcomer makes."""
         return int(self.property2)
 
-    def add_node(self, newcomer):
+    def add_node(self, node):
         """Add newcomers one by one, using linear preferential attachment."""
-        agents = self.nodes(type=Agent)
+        nodes = self.nodes()
 
         # Start with a core of m0 fully-connected agents...
-        if len(agents) <= self.m0:
-            other_agents = [a for a in agents if a.id != newcomer.id]
-            for agent in other_agents:
-                newcomer.connect(direction="both", whom=agent)
+        if len(nodes) <= self.m0:
+            other_nodes = [n for n in nodes if n.id != node.id]
+            for n in other_nodes:
+                node.connect(direction="both", whom=n)
 
         # ...then add newcomers one by one with preferential attachment.
         else:
             for idx_newvector in xrange(self.m):
 
-                these_agents = [
-                    a for a in agents if (
-                        a.id != newcomer.id and
-                        not a.is_connected(direction="either", whom=newcomer))]
+                these_nodes = [
+                    n for n in nodes if (
+                        n.id != node.id and
+                        not n.is_connected(direction="either", whom=node))]
 
                 outdegrees = [
-                    len(a.vectors(direction="outgoing")) for a in these_agents]
+                    len(n.vectors(direction="outgoing")) for n in these_nodes]
 
                 # Select a member using preferential attachment
                 ps = [(d / (1.0 * sum(outdegrees))) for d in outdegrees]
@@ -242,10 +229,10 @@ class ScaleFree(Network):
                 for i, p in enumerate(ps):
                     cur += p
                     if rnd < cur:
-                        vector_to = these_agents[i]
+                        vector_to = these_nodes[i]
 
                 # Create vector from newcomer to selected member and back
-                newcomer.connect(direction="both", whom=vector_to)
+                node.connect(direction="both", whom=vector_to)
 
 
 class SequentialMicrosociety(Network):
@@ -259,27 +246,18 @@ class SequentialMicrosociety(Network):
 
     @property
     def n(self):
-        """Number of people active at once."""
+        """Number of nodes active at once."""
         return int(self.property1)
 
-    def add_node(self, newcomer):
-        """Add an agent, connecting it to all the active nodes."""
-        agents = sorted(
-            self.nodes(type=Agent),
+    def add_node(self, node):
+        """Add a node, connecting it to all the active nodes."""
+        nodes = sorted(
+            self.nodes(),
             key=attrgetter('creation_time'), reverse=True)
 
-        other_agents = [a for a in agents if a.id != newcomer.id]
+        other_nodes = [n for n in nodes if n.id != node.id]
 
-        # If the newcomer is one of the first agents, connect from source...
-        if len(self.nodes(type=Agent)) < self.n:
-            sources = self.nodes(type=Source)
-            sources[0].connect(direction="to", whom=newcomer)
+        connecting_nodes = other_nodes[0:(self.n - 1)]
 
-        # ... otherwise connect from the previous n - 1 agents.
-        else:
-            for agent in other_agents[0:(self.n - 1)]:
-                agent.connect(direction="to", whom=newcomer)
-
-    def calculate_full(self):
-        """Determine whether the network is full by counting the agents."""
-        self.full = len(self.nodes(type=Agent)) >= self.max_size
+        for n in connecting_nodes:
+            n.connect(whom=node)

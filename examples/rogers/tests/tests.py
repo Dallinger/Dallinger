@@ -197,7 +197,7 @@ class TestRogers(object):
 
                 worker_id = str(random.random())
                 assignment_id = str(random.random())
-                from psiturk.models import Participant
+                from models import Participant
                 p = Participant(workerid=worker_id, assignmentid=assignment_id, hitid=hit_id)
                 self.db.add(p)
                 self.db.commit()
@@ -207,7 +207,7 @@ class TestRogers(object):
 
                 while True:
                     assign_start_time = timenow()
-                    network = exp.get_network_for_participant(participant_id=p_id)
+                    network = exp.get_network_for_participant(participant=p)
                     if network is None:
                         break
                     else:
