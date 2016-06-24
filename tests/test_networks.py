@@ -224,10 +224,9 @@ class TestNetworks(object):
         for i in range(4):
             agent = nodes.ReplicatorAgent(network=net)
             net.add_node(agent)
-            agent.receive()
         self.db.commit()
 
-        assert repr(net) == "<Network-" + str(net.id) + "-chain with 5 nodes, 4 vectors, 5 infos, 4 transmissions and 4 transformations>"
+        assert repr(net) == "<Network-" + str(net.id) + "-chain with 5 nodes, 4 vectors, 0 infos, 0 transmissions and 0 transformations>"
 
     def test_create_fully_connected(self):
         net = networks.FullyConnected()
