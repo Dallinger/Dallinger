@@ -109,13 +109,13 @@ class Experiment(object):
                                    if net.role == "practice"]
         if legal_practice_networks:
             chosen_network = legal_practice_networks[0]
-            self.log("Practice networks available.\
-                     Assigning participant to practice network {}."
+            self.log("Practice networks available."
+                     "Assigning participant to practice network {}."
                      .format(chosen_network.id), key)
         else:
             chosen_network = random.choice(legal_networks)
-            self.log("No practice networks available.\
-                     Assigning participant to experiment network {}"
+            self.log("No practice networks available."
+                     "Assigning participant to experiment network {}"
                      .format(chosen_network.id), key)
         return chosen_network
 
