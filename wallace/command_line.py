@@ -344,6 +344,14 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
     database_size = config.get('Database Parameters', 'database_size')
 
+    try:
+        if config.getboolean('Easter eggs', 'whimsical'):
+            whimsical = "true"
+        else:
+            whimsical = "false"
+    except:
+        whimsical = "false"
+
     # Set up postgres database and AWS/psiTurk environment variables.
     cmds = [
         "heroku addons:create heroku-postgresql:{}".format(database_size),
@@ -386,6 +394,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
         "heroku config:set heroku_password=" +
         config.get('Heroku Access', 'heroku_password'),
+
+        "heroku config:set whimsical=" + whimsical,
     ]
     for cmd in cmds:
         subprocess.call(cmd + " --app " + id, stdout=out, shell=True)
