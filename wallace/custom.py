@@ -1174,8 +1174,8 @@ def worker_function(event_type, assignment_id, participant_id):
 
         # if there are none (this is also bad news) print an error
         elif len(participants) == 0:
-            exp.log("Warning: No participants associated with this\
-                    assignment_id. Notification will not be processed.", key)
+            exp.log("Warning: No participants associated with this "
+                    "assignment_id. Notification will not be processed.", key)
             return None
 
         # if theres only one participant (this is good) select them
@@ -1186,8 +1186,9 @@ def worker_function(event_type, assignment_id, participant_id):
         participant = models.Participant.query\
             .filter_by(id=participant_id).all()[0]
     else:
-        raise ValueError("Error: worker_function needs either an assignment_id or a \
-                          participant_id, they cannot both be None")
+        raise ValueError(
+            "Error: worker_function needs either an assignment_id or a "
+            "participant_id, they cannot both be None")
 
     participant_id = participant.id
 
