@@ -132,11 +132,6 @@ class Experiment(object):
         """Add a node to a network."""
         network.add_node(node)
 
-    def receive_transmissions(self, transmissions):
-        """Receive transmissions."""
-        for t in transmissions:
-            t.mark_received()
-
     def data_check(self, participant):
         """Check that the data are acceptable."""
         return True
