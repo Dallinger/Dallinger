@@ -29,9 +29,6 @@ class RogersExperiment(Experiment):
         self.catch_difficulty = 0.80
         self.min_acceptable_performance = 10 / float(12)
         self.generation_size = 40
-        self.network = lambda: DiscreteGenerational(
-            generations=4, generation_size=self.generation_size,
-            initial_source=True)
         self.bonus_payment = 1.0
         self.initial_recruitment_size = self.generation_size
         self.known_classes["LearningGene"] = LearningGene
@@ -62,6 +59,12 @@ class RogersExperiment(Experiment):
                                                .index(net)]
                 env = RogersEnvironment(network=net)
                 env.create_state(proportion=difficulty)
+
+    def make_network(self):
+        """Return a new network."""
+        return DiscreteGenerational(
+            generations=4, generation_size=self.generation_size,
+            initial_source=True)
 
     def node_type(self, network):
         """What class of agent to create."""
