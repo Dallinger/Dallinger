@@ -66,7 +66,7 @@ class RogersExperiment(Experiment):
             generations=4, generation_size=self.generation_size,
             initial_source=True)
 
-    def make_node_for_participant(self, network, participant):
+    def create_node(self, network, participant):
         """Make a new node for participants."""
         if network.role == "practice" or network.role == "catch":
             return RogersAgentFounder(network=network, participant=participant)

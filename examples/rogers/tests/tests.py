@@ -211,7 +211,7 @@ class TestRogers(object):
                     if network is None:
                         break
                     else:
-                        agent = exp.make_node_for_participant(
+                        agent = exp.create_node(
                             participant_id=p_id,
                             network=network)
                         exp.add_node_to_network(

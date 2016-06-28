@@ -549,7 +549,7 @@ def create_node(participant_id):
 
     This makes a new node for the participant, it calls:
         1. exp.get_network_for_participant
-        2. exp.make_node_for_participant
+        2. exp.create_node
         3. exp.add_node_to_network
         4. exp.node_post_request
     """
@@ -579,7 +579,7 @@ def create_node(participant_id):
         if network is None:
             return Response(dumps({"status": "error"}), status=403)
 
-        node = exp.make_node_for_participant(
+        node = exp.create_node(
             participant=participant,
             network=network)
 

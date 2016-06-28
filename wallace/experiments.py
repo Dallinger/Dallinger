@@ -126,7 +126,7 @@ class Experiment(object):
                      .format(chosen_network.id), key)
         return chosen_network
 
-    def make_node_for_participant(self, participant, network):
+    def create_node(self, participant, network):
         """Create a node for a participant."""
         return self.node_type()(participant=participant, network=network)
 
