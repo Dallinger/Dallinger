@@ -229,10 +229,10 @@ class TestModels(object):
         assert len(node2.vectors(direction="incoming")) == 1
         assert len(node2.vectors(direction="outgoing")) == 0
 
-        assert node1.neighbors(connection="to") == [node2]
-        assert len(node1.neighbors(connection="from")) == 0
-        assert node2.neighbors(connection="from") == [node1]
-        assert len(node2.neighbors(connection="to")) == 0
+        assert node1.neighbors(direction="to") == [node2]
+        assert len(node1.neighbors(direction="from")) == 0
+        assert node2.neighbors(direction="from") == [node1]
+        assert len(node2.neighbors(direction="to")) == 0
 
     def test_node_connect(self):
         """Test connecting one node to another"""
@@ -249,15 +249,15 @@ class TestModels(object):
 
         node1.connect(whom=node2)
 
-        assert node1.neighbors(connection="to") == [node2]
+        assert node1.neighbors(direction="to") == [node2]
 
-        assert node2.neighbors(connection="from") == [node1]
+        assert node2.neighbors(direction="from") == [node1]
 
         node2.connect(whom=[node3, node4])
 
-        for n in node2.neighbors(connection="to"):
+        for n in node2.neighbors(direction="to"):
             assert n in [node3, node4]
-        assert node3.neighbors(connection="from") == [node2]
+        assert node3.neighbors(direction="from") == [node2]
 
         assert_raises(ValueError, node1.connect, whom=node1)
 

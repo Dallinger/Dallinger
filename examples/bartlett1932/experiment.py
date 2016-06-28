@@ -39,7 +39,7 @@ class Bartlett1932(Experiment):
     def add_node_to_network(self, node, network):
         """Add node to the chain and receive transmissions."""
         network.add_node(node)
-        parent = node.neighbors(connection="from")[0]
+        parent = node.neighbors(direction="from")[0]
         parent.transmit()
         node.receive()
 
