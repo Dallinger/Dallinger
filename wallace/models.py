@@ -26,11 +26,11 @@ class SharedMixin(object):
 
     creation_time = Column(DateTime, nullable=False, default=timenow)
 
-    property1 = Column(String(26), nullable=True, default=None)
-    property2 = Column(String(26), nullable=True, default=None)
-    property3 = Column(String(26), nullable=True, default=None)
-    property4 = Column(String(26), nullable=True, default=None)
-    property5 = Column(String(26), nullable=True, default=None)
+    property1 = Column(String(256), nullable=True, default=None)
+    property2 = Column(String(256), nullable=True, default=None)
+    property3 = Column(String(256), nullable=True, default=None)
+    property4 = Column(String(256), nullable=True, default=None)
+    property5 = Column(String(256), nullable=True, default=None)
 
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
