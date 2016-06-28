@@ -25,6 +25,6 @@ class CoordinationChatroom(Experiment):
         for agent in node.neighbors():
             node.transmit(what=info, to_whom=agent)
 
-    def node_type(self, network):
+    def node_type(self):
         """The type of node to make."""
         return Agent

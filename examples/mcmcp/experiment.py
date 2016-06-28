@@ -24,7 +24,7 @@ class MCMCP(Experiment):
         self.trials_per_participant = 10
         self.setup()
 
-    def node_type(self, network):
+    def node_type(self):
         return MCMCPAgent
 
     def setup(self):

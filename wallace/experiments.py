@@ -128,11 +128,9 @@ class Experiment(object):
 
     def make_node_for_participant(self, participant, network):
         """Create a node for a participant."""
-        return self.node_type(network=network)(participant=participant,
-                                               network=network)
+        return self.node_type()(participant=participant, network=network)
 
-    def node_type(self, network):
-        """The type of node to make."""
+    def node_type(self):
         return Node
 
     def add_node_to_network(self, node, network):
