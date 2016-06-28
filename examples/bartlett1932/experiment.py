@@ -32,7 +32,7 @@ class Bartlett1932(Experiment):
             for net in self.networks():
                 WarOfTheGhostsSource(network=net)
 
-    def make_network(self):
+    def create_network(self):
         """Return a new network."""
         return Chain(max_size=3)
 

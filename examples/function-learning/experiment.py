@@ -34,8 +34,8 @@ class FunctionLearning(Experiment):
             for net in self.networks():
                 self.source(network=net)
 
-    def make_network(self):
-        """Return a new network."""
+    def create_network(self):
+        """Create a new network."""
         return Chain(max_size=3)
 
     def add_node_to_network(self, node, network):

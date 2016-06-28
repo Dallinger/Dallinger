@@ -34,8 +34,8 @@ class MCMCP(Experiment):
             for net in self.networks():
                 AnimalSource(network=net)
 
-    def make_network(self):
-        """Return a new network."""
+    def create_network(self):
+        """Create a new network."""
         return Chain(max_size=100)
 
     def get_network_for_participant(self, participant):

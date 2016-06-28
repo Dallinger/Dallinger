@@ -60,8 +60,8 @@ class RogersExperiment(Experiment):
                 env = RogersEnvironment(network=net)
                 env.create_state(proportion=difficulty)
 
-    def make_network(self):
-        """Return a new network."""
+    def create_network(self):
+        """Create a new network."""
         return DiscreteGenerational(
             generations=4, generation_size=self.generation_size,
             initial_source=True)

@@ -16,8 +16,8 @@ class CoordinationChatroom(Experiment):
         self.initial_recruitment_size = self.num_participants
         self.setup()
 
-    def make_network(self):
-        """Return a new network."""
+    def create_network(self):
+        """Create a new network."""
         return FullyConnected(max_size=self.num_participants)
 
     def info_post_request(self, node, info):
