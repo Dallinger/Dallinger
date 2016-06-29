@@ -45,6 +45,8 @@ class MCMCP(Experiment):
         """When a node is created it is added to the chain (see Chain in networks.py)
         and it receives any transmissions."""
         network.add_node(node)
+        parent = node.neighbors(connection="from")[0]
+        parent.transmit()
         node.receive()
 
 
