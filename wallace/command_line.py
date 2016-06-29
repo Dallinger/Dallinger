@@ -680,40 +680,42 @@ def export(app, local):
 
     id = str(app)
 
+    subdata_path = os.path.join("data", id, "data")
+
     # Create the data package
-    if not os.path.exists(id):
-        os.makedirs(id)
+    os.makedirs(subdata_path)
 
     # Copy the experiment code into a code/ subdirectory
     try:
-        z = zipfile.ZipFile(os.path.join("snapshots", id + "-code.zip"))
-        z.extractall(os.path.join(id, "code"))
+        shutil.copyfile(
+            os.path.join("snapshots", id + "-code.zip"),
+            os.path.join("data", id, id + "-code.zip")
+        )
+
     except:
         pass
 
-    # Copy in the readme.
-    open(os.path.join(id, "README.txt"), "a").close()
+    # Copy in the DATA readme.
+    # open(os.path.join(id, "README.txt"), "a").close()
 
     # Save the experiment id.
-    with open(os.path.join(id, "experiment_id.txt"), "w") as file:
+    with open(os.path.join("data", id, "experiment_id.md"), "a+") as file:
         file.write(id)
 
     if not local:
         # Export the logs
         subprocess.call(
             "heroku logs " +
-            "-n 10000 > " + os.path.join(id, "server_logs.txt") +
+            "-n 10000 > " + os.path.join("data", id, "server_logs.md") +
             " --app " + id,
             shell=True)
 
         dump_path = dump_database(id)
 
         subprocess.call(
-            "pg_restore --verbose --clean -d wallace " + id + "/data.dump",
+            "pg_restore --verbose --clean -d wallace " +
+            os.path.join("data", id) + "/data.dump",
             shell=True)
-
-    data_directory = "data"
-    os.makedirs(os.path.join(id, data_directory))
 
     all_tables = [
         "node",
@@ -730,16 +732,19 @@ def export(app, local):
     for table in all_tables:
         subprocess.call(
             "psql -d wallace --command=\"\\copy " + table + " to \'" +
-            os.path.join(id, data_directory, table) + ".csv\' csv header\"",
+            os.path.join(subdata_path, table) + ".csv\' csv header\"",
             shell=True)
 
-    if not local:
-        os.remove(os.path.join(id, dump_path))
+    os.remove(dump_path)
 
     log("Zipping up the package...")
-    shutil.make_archive(os.path.join("data", id + "-data"), "zip", id)
+    shutil.make_archive(
+        os.path.join("data", id + "-data"),
+        "zip",
+        os.path.join("data", id)
+    )
 
-    shutil.rmtree(id)
+    shutil.rmtree(os.path.join("data", id))
 
     log("Done. Data available in " + str(id) + ".zip")
 
