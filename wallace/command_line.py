@@ -475,7 +475,7 @@ def deploy(verbose, app):
     config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(verbose=verbose, id=app)
+    deploy_sandbox_shared_setup(verbose=verbose, app=app)
 
 
 @wallace.command()
