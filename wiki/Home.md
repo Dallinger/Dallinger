@@ -1,6 +1,6 @@
 This is a guide to running experiments on Wallace.
    
-If, instead, you would like to contribute to Wallace, go to [Developing Wallace](https://github.com/suchow/Wallace/wiki/Developing-Wallace-(setup-guide)), which will take you through the steps necessary for setting up a development environment for Wallace.
+If, instead, you would like to contribute to Wallace, go to [Developing Wallace](https://github.com/berkeley-cocosci/Wallace/wiki/Developing-Wallace-(setup-guide)), which will take you through the steps necessary for setting up a development environment for Wallace.
 
 
 # Getting Started: Running Wallace
@@ -24,7 +24,7 @@ If, instead, you would like to contribute to Wallace, go to [Developing Wallace]
     `ls /Applications/Postgres.app/Contents/Versions/`    
     Whatever number that returns is the version number that you should place in the `export` command above. If it does not return a number, you have not installed Postgres correctly in your /Applications folder or something else is horribly wrong. :(
 
-3. Install Wallace and its dependencies using pip (`pip install wallace`). Or, if you want to develop with Wallace, follow the instructions below (in the section [Developing Wallace](https://github.com/suchow/Wallace/wiki/Developing-Wallace-(setup-guide))).
+3. Install Wallace and its dependencies using pip (`pip install wallace`). Or, if you want to develop with Wallace, follow the instructions below (in the section [Developing Wallace](https://github.com/berkeley-cocosci/Wallace/wiki/Developing-Wallace-(setup-guide))).
 
 ## Testing Wallace
 1. Change directory to the `bartlett1932` demo.

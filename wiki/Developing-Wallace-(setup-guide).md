@@ -50,7 +50,7 @@ NB: **To stop working on the virtual environment, just run `deactivate`.** If yo
 Now, navigate to the directory in which you want to house your development work on Wallace. Once you are there, clone the git repository using:
 
 ```
-git clone https://github.com/suchow/Wallace
+git clone https://github.com/berkeley-cocosci/Wallace
 ```
 
 This will create a directory called `Wallace` in your current directory. 
@@ -75,4 +75,4 @@ python setup.py develop
 
 
 
-Once that's finished, we need to input the credentials for 3rd party applications including Amazon Web Services (AWS), Amazon Mechanical Turk (AMT), PsiTurk & Heroku. [Instructions for this process as it applies to Wallace live at this page.](https://github.com/suchow/Wallace/wiki/Setting-up-AWS,-psiTurk,-MTurk,-and-Heroku)
+Once that's finished, we need to input the credentials for 3rd party applications including Amazon Web Services (AWS), Amazon Mechanical Turk (AMT), PsiTurk & Heroku. [Instructions for this process as it applies to Wallace live at this page.](https://github.com/berkeley-cocosci/Wallace/wiki/Setting-up-AWS,-psiTurk,-MTurk,-and-Heroku)

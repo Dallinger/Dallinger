@@ -59,4 +59,4 @@ You won't need to interact with Heroku directly from here on out --- the Wallace
 
 Now you're all set up with the tools you need to work with Wallace. 
 
-Now it's time to test Wallace to make sure it's working on your system. [click here to see the next steps and demos](https://github.com/suchow/Wallace/wiki#testing-wallace).
+Now it's time to test Wallace to make sure it's working on your system. [click here to see the next steps and demos](https://github.com/berkeley-cocosci/Wallace/wiki#testing-wallace).
