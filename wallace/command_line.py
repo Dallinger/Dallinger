@@ -16,7 +16,6 @@ import inspect
 import imp
 import pkg_resources
 import re
-import zipfile
 import psycopg2
 from wallace import db
 from wallace.version import __version__
