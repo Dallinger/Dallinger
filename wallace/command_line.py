@@ -63,6 +63,23 @@ def wallace():
     pass
 
 
+@wallace.command()
+def setup():
+    """Walk the user though the Wallace setup."""
+    # Create the Wallace config file if it does not already exist.
+    config_name = ".wallaceconfig"
+    config_path = os.path.join(os.path.expanduser("~"), config_name)
+
+    if os.path.isfile(config_path):
+        log("Wallace config file exists.")
+
+    else:
+        log("Creating Wallace config file at ~/.wallaceconfig...")
+        wallace_module_path = os.path.dirname(os.path.realpath(__file__))
+        src = os.path.join(wallace_module_path, "config", config_name)
+        shutil.copyfile(src, config_path)
+
+
 def setup_experiment(debug=True, verbose=False, app=None):
     """Check the app and, if it's compatible with Wallace, freeze its state."""
     print_header()
