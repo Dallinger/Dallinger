@@ -1,5 +1,5 @@
 [Experiment Configuration]
-wallace_version = 0.8.0
+wallace_version = 0.9.0
 mode = sandbox
 auto_recruit = true
 

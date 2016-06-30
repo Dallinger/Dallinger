@@ -26,11 +26,11 @@ class SharedMixin(object):
 
     creation_time = Column(DateTime, nullable=False, default=timenow)
 
-    property1 = Column(String(26), nullable=True, default=None)
-    property2 = Column(String(26), nullable=True, default=None)
-    property3 = Column(String(26), nullable=True, default=None)
-    property4 = Column(String(26), nullable=True, default=None)
-    property5 = Column(String(26), nullable=True, default=None)
+    property1 = Column(String(256), nullable=True, default=None)
+    property2 = Column(String(256), nullable=True, default=None)
+    property3 = Column(String(256), nullable=True, default=None)
+    property4 = Column(String(256), nullable=True, default=None)
+    property5 = Column(String(256), nullable=True, default=None)
 
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
@@ -594,7 +594,7 @@ class Node(Base, SharedMixin):
                     .filter_by(origin_id=self.id, failed=failed)\
                     .all()
 
-    def neighbors(self, type=None, connection="to", failed=None):
+    def neighbors(self, type=None, direction="to", failed=None):
         """Get a node's neighbors - nodes that are directly connected to it.
 
         Type specifies the class of neighbour and must be a subclass of
@@ -609,11 +609,11 @@ class Node(Base, SharedMixin):
             raise ValueError("{} is not a valid neighbor type,"
                              "needs to be a subclass of Node.".format(type))
 
-        # get connection
-        if connection not in ["both", "either", "from", "to"]:
+        # get direction
+        if direction not in ["both", "either", "from", "to"]:
             raise ValueError("{} not a valid neighbor connection."
                              "Should be both, either, to or from."
-                             .format(connection))
+                             .format(direction))
 
         if failed is not None:
             raise ValueError(
@@ -629,7 +629,7 @@ class Node(Base, SharedMixin):
 
         neighbors = []
         # get the neighbours
-        if connection == "to":
+        if direction == "to":
             outgoing_vectors = Vector.query\
                 .with_entities(Vector.destination_id)\
                 .filter_by(origin_id=self.id, failed=False).all()
@@ -639,7 +639,7 @@ class Node(Base, SharedMixin):
                 neighbors = Node.query.filter(Node.id.in_(neighbor_ids)).all()
                 neighbors = [n for n in neighbors if isinstance(n, type)]
 
-        if connection == "from":
+        if direction == "from":
             incoming_vectors = Vector.query.with_entities(Vector.origin_id)\
                 .filter_by(destination_id=self.id, failed=False).all()
 
@@ -648,11 +648,11 @@ class Node(Base, SharedMixin):
                 neighbors = Node.query.filter(Node.id.in_(neighbor_ids)).all()
                 neighbors = [n for n in neighbors if isinstance(n, type)]
 
-        if connection == "either":
+        if direction == "either":
             neighbors = list(set(self.neighbors(type=type, connection="to") +
                                  self.neighbors(type=type, connection="from")))
 
-        if connection == "both":
+        if direction == "both":
             neighbors = list(set(self.neighbors(type=type, connection="to")) &
                              set(self.neighbors(type=type, connection="from")))
 
@@ -1015,11 +1015,11 @@ class Node(Base, SharedMixin):
             if to_whom[i] is None:
                 to_whom[i] = self._to_whom()
             elif inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
-                to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
+                to_whom[i] = self.neighbors(direction="to", type=to_whom[i])
         to_whom = self.flatten(to_whom)
         for i in range(len(to_whom)):
             if inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
-                to_whom[i] = self.neighbors(connection="to", type=to_whom[i])
+                to_whom[i] = self.neighbors(direction="to", type=to_whom[i])
         to_whom = list(set(self.flatten(to_whom)))
 
         transmissions = []

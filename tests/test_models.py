@@ -1,8 +1,13 @@
+"""Test the classes in models.py."""
+
 from __future__ import print_function
 import sys
 from datetime import datetime
 from wallace import models, db, nodes
 from nose.tools import raises, assert_raises
+from wallace.nodes import Agent, Source
+from wallace.information import Gene
+from wallace.transformations import Mutation
 
 
 class TestModels(object):
@@ -19,154 +24,144 @@ class TestModels(object):
         self.db.commit()
 
     def test_models(self):
-        """Test networks."""
+
+        """####################
+        #### Test Network ####
+        ####################"""
+
         print("")
-        print("Testing models: Network...", end="\r")
+        print("Testing models: Network", end="\r")
         sys.stdout.flush()
 
         # create test network:
-
         net = models.Network()
         self.db.add(net)
         self.db.commit()
-
         net = models.Network.query.one()
 
-        assert repr(net) == "<Network-1-network with 0 nodes, 0 vectors, 0 infos, 0 transmissions and 0 transformations>"
+        # create a participant
+        participant = models.Participant(worker_id=str(1), hit_id=str(1), assignment_id=str(1), mode="test")
+        self.db.add(participant)
+        self.db.commit()
 
-        from wallace.nodes import Agent, Source
+        # create some nodes
+        node = models.Node(network=net)
+        agent = Agent(network=net, participant=participant)
+        source = Source(network=net)
 
-        for i in range(5):
+        # create vectors
+        source.connect(direction="to", whom=agent)
+        agent.connect(direction="both", whom=node)
 
-            participant = models.Participant(worker_id=str(i), hit_id=str(i), assignment_id=str(i), mode="test")
-            self.db.add(participant)
-            self.db.commit()
+        # create some infos
+        info = models.Info(origin=agent, contents="ethwth")
+        gene = Gene(origin=source, contents="hkhkhkh")
 
-            # nodes
-            node = models.Node(network=net)
-            agent = Agent(network=net, participant=participant)
-            source = Source(network=net)
+        # conditionally transmit and transform
+        source.transmit(what=models.Info)
+        agent.receive()
+        agent.transmit(what=Gene)
+        models.Transformation(info_in=gene, info_out=info)
 
-            # vectors
-            source.connect(direction="to", whom=agent)
-            agent.connect(direction="both", whom=node)
+        # Test attributes
 
-            # infos
-            info = models.Info(origin=agent, contents=str(i))
-            from wallace.information import Gene
-            gene = Gene(origin=source, contents=str(i))
-
-            if i in [0, 1]:
-                source.transmit(what=models.Info)
-                agent.receive()
-                agent.transmit(what=Gene)
-
-                models.Transformation(info_in=gene, info_out=info)
-            else:
-                agent.transmit(to_whom=node)
-
-        assert repr(net) == "<Network-1-network with 15 nodes, 15 vectors, 10 infos, 5 transmissions and 2 transformations>"
-
-        # Test Network sql columns
-
-        assert isinstance(net.id, int)
         assert net.id == 1
         assert isinstance(net.creation_time, datetime)
-        assert isinstance(net.max_size, int)
-        assert isinstance(net.full, bool)
-        assert net.full is False
-        assert isinstance(net.role, unicode)
-        assert net.role == "default"
         assert net.property1 is None
         assert net.property2 is None
         assert net.property3 is None
         assert net.property4 is None
         assert net.property5 is None
-
-        try:
-            len(net)
-            ran = True
-        except:
-            ran = False
-        assert ran is False
-
-        # test Network.nodes()
-
+        assert net.failed is False
+        assert net.time_of_death is None
+        assert net.type == "network"
+        assert isinstance(net.max_size, int)
+        assert net.max_size == 1e6
+        assert isinstance(net.full, bool)
         assert net.full is False
-        assert len(net.nodes()) == 15
-        assert len(net.nodes(type=Agent)) == 5
-        assert len(net.nodes(type=Source)) == 5
-        assert len(net.nodes(type=models.Node)) == 15
-        for a in net.nodes(type=Agent):
-            assert type(a) == Agent
+        assert isinstance(net.role, unicode)
+        assert net.role == "default"
 
-        assert len(net.nodes(failed="all")) == 15
+        # test __repr__()
+        assert repr(net) == "<Network-1-network with 3 nodes, 3 vectors, 2 infos, 1 transmissions and 1 transformations>"
+
+        # test __json__()
+        assert net.__json__() == {
+            "id": 1,
+            "type": "network",
+            "max_size": 1e6,
+            "full": False,
+            "role": "default",
+            "creation_time": net.creation_time,
+            "failed": False,
+            "time_of_death": None,
+            "property1": None,
+            "property2": None,
+            "property3": None,
+            "property4": None,
+            "property5": None
+        }
+
+        # test nodes()
+        for n in [node, agent, source]:
+            assert n in net.nodes()
+
+        assert net.nodes(type=Agent) == [agent]
+
         assert net.nodes(failed=True) == []
+        for n in [node, agent, source]:
+            assert n in net.nodes(failed="all")
 
-        import random
-        for node in random.sample(net.nodes(), 5):
-            node.fail()
+        assert net.nodes(participant_id=1) == [agent]
 
-        assert len(net.nodes()) == 10
-        assert len(net.nodes(failed=True)) == 5
-        assert len(net.nodes(failed="all")) == 15
-        for i in range(5):
-            assert len(net.nodes(failed="all", participant_id=i+1)) == 1
-            assert type(net.nodes(failed="all", participant_id=i+1)[0]) == Agent
+        # test size()
+        assert net.size() == 3
+        assert net.size(type=Source) == 1
+        assert net.size(type=Agent) == 1
+        assert net.size(failed=True) == 0
+        assert net.size(failed="all") == 3
 
-        # test Network.size()
-
-        assert net.size() == 10
-        assert net.size(type=Agent) in [0, 1, 2, 3, 4, 5]
-        assert net.size(type=Source) in [0, 1, 2, 3, 4, 5]
-        assert net.size(type=models.Node) == 10
-
-        assert net.size(failed="all") == 15
-        assert net.size(type=Agent, failed="all") == 5
-        assert net.size(type=Source, failed="all") == 5
-        assert net.size(type=models.Node, failed="all") == 15
-        assert net.size(failed=True) == 5
-
-        # test Network.vectors()
-
-        assert len(net.vectors(failed="all")) == 15
-        assert len(net.vectors(failed=False)) in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-        assert len(net.vectors(failed=True)) in [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-        for v in net.vectors(failed="all"):
-            assert type(v) == models.Vector
-
-        # test Network.infos()
-
-        from wallace.information import Gene
-        assert len(net.infos(failed="all")) == 10
-        assert len(net.infos(type=models.Info, failed="all")) == 10
-        assert len(net.infos(type=Gene, failed="all")) == 5
-
-        assert len(net.infos()) in [5, 6, 7, 8, 9, 10]
-        assert len(net.infos(failed=False)) in [5, 6, 7, 8, 9, 10]
-        assert len(net.infos(type=Gene)) in [5, 4, 3, 2, 1, 0]
-        assert len(net.infos(failed=True)) in [0, 1, 2, 3, 4, 5]
+        # test infos()
+        assert len(net.infos(failed="all")) == 2
+        assert len(net.infos(type=models.Info, failed="all")) == 2
+        assert len(net.infos(type=Gene, failed="all")) == 1
+        assert len(net.infos(type=Gene)) == 1
+        assert len(net.infos(failed=True)) == 0
 
         # test Network.transmissions()
-
-        assert len(net.transmissions(failed="all")) == 5
-        assert len(net.transmissions(status="pending", failed="all")) == 3
-        assert len(net.transmissions(status="received", failed="all")) == 2
-        assert len(net.transmissions(failed=True)) in [0, 1, 2, 3, 4, 5]
-        assert len(net.transmissions(failed=False)) in [0, 1, 2, 3, 4, 5]
-        assert len(net.transmissions(failed=True)) + len(net.transmissions(failed=False)) == 5
+        assert len(net.transmissions(failed="all")) == 1
+        assert len(net.transmissions(failed=True)) == 0
+        assert len(net.transmissions(failed=False)) == 1
+        assert len(net.transmissions(status="pending", failed="all")) == 0
+        assert len(net.transmissions(status="received", failed="all")) == 1
 
         # test Network.transformations()
-
-        assert len(net.transformations(failed="all")) == 2
-        from wallace import transformations
-        assert len(net.transformations(failed="all", type=transformations.Mutation)) == 0
-        assert len(net.transformations(failed="all", type=models.Transformation)) == 2
+        assert len(net.transformations(failed="all")) == 1
+        assert len(net.transformations(failed="all", type=Mutation)) == 0
+        assert len(net.transformations(failed="all", type=models.Transformation)) == 1
 
         for t in net.transformations(failed="all"):
             assert type(t.node) == Agent
 
-        print("Testing models: Network... done!")
+        # test latest_transmission_recipient
+        assert net.latest_transmission_recipient() == agent
+
+        # test Network.vectors()
+        assert len(net.vectors(failed="all")) == 3
+        assert len(net.vectors(failed=False)) == 3
+        assert len(net.vectors(failed=True)) == 0
+
+        # test fail()
+        net.fail()
+        assert net.nodes() == []
+        assert len(net.nodes(failed=True)) == 3
+        assert len(net.nodes(failed="all")) == 3
+        assert net.infos() == []
+        assert net.transmissions() == []
+        assert net.vectors() == []
+        assert net.transformations() == []
+
+        print("Testing models: Network    passed!")
         sys.stdout.flush()
 
     ##################################################################
@@ -229,10 +224,10 @@ class TestModels(object):
         assert len(node2.vectors(direction="incoming")) == 1
         assert len(node2.vectors(direction="outgoing")) == 0
 
-        assert node1.neighbors(connection="to") == [node2]
-        assert len(node1.neighbors(connection="from")) == 0
-        assert node2.neighbors(connection="from") == [node1]
-        assert len(node2.neighbors(connection="to")) == 0
+        assert node1.neighbors(direction="to") == [node2]
+        assert len(node1.neighbors(direction="from")) == 0
+        assert node2.neighbors(direction="from") == [node1]
+        assert len(node2.neighbors(direction="to")) == 0
 
     def test_node_connect(self):
         """Test connecting one node to another"""
@@ -249,15 +244,15 @@ class TestModels(object):
 
         node1.connect(whom=node2)
 
-        assert node1.neighbors(connection="to") == [node2]
+        assert node1.neighbors(direction="to") == [node2]
 
-        assert node2.neighbors(connection="from") == [node1]
+        assert node2.neighbors(direction="from") == [node1]
 
         node2.connect(whom=[node3, node4])
 
-        for n in node2.neighbors(connection="to"):
+        for n in node2.neighbors(direction="to"):
             assert n in [node3, node4]
-        assert node3.neighbors(connection="from") == [node2]
+        assert node3.neighbors(direction="from") == [node2]
 
         assert_raises(ValueError, node1.connect, whom=node1)
 

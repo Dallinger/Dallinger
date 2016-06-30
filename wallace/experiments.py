@@ -45,14 +45,21 @@ class Experiment(object):
         """Create the networks if they don't already exist."""
         if not self.networks():
             for _ in range(self.practice_repeats):
-                network = self.network()
+                network = self.create_network()
                 network.role = "practice"
                 self.session.add(network)
             for _ in range(self.experiment_repeats):
-                network = self.network()
+                network = self.create_network()
                 network.role = "experiment"
                 self.session.add(network)
             self.session.commit()
+
+    def create_network(self):
+        """Return a new network."""
+        return self.network_type()
+
+    def network_type(self):
+        return Network
 
     def networks(self, role="all", full="all"):
         """All the networks in the experiment."""
@@ -119,23 +126,16 @@ class Experiment(object):
                      .format(chosen_network.id), key)
         return chosen_network
 
-    def make_node_for_participant(self, participant, network):
+    def create_node(self, participant, network):
         """Create a node for a participant."""
-        return self.node_type(network=network)(participant=participant,
-                                               network=network)
+        return self.node_type()(participant=participant, network=network)
 
-    def node_type(self, network):
-        """The type of node to make."""
+    def node_type(self):
         return Node
 
     def add_node_to_network(self, node, network):
         """Add a node to a network."""
         network.add_node(node)
-
-    def receive_transmissions(self, transmissions):
-        """Receive transmissions."""
-        for t in transmissions:
-            t.mark_received()
 
     def data_check(self, participant):
         """Check that the data are acceptable."""

@@ -134,6 +134,14 @@ def setup(debug=True, verbose=False, app=None):
     cwd = os.getcwd()
     os.chdir(dst)
 
+    # Check directories.
+    if not os.path.exists("static/scripts"):
+        os.makedirs("static/scripts")
+    if not os.path.exists("templates"):
+        os.makedirs("templates")
+    if not os.path.exists("static/css"):
+        os.makedirs("static/css")
+
     # Rename experiment.py to wallace_experiment.py to aviod psiTurk conflict.
     os.rename(
         os.path.join(dst, "experiment.py"),
@@ -344,6 +352,14 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
     database_size = config.get('Database Parameters', 'database_size')
 
+    try:
+        if config.getboolean('Easter eggs', 'whimsical'):
+            whimsical = "true"
+        else:
+            whimsical = "false"
+    except:
+        whimsical = "false"
+
     # Set up postgres database and AWS/psiTurk environment variables.
     cmds = [
         "heroku addons:create heroku-postgresql:{}".format(database_size),
@@ -386,6 +402,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
         "heroku config:set heroku_password=" +
         config.get('Heroku Access', 'heroku_password'),
+
+        "heroku config:set whimsical=" + whimsical,
     ]
     for cmd in cmds:
         subprocess.call(cmd + " --app " + id, stdout=out, shell=True)
@@ -838,6 +856,39 @@ def verify_package(verbose=True):
             delay=0, chevrons=False, verbose=verbose)
     else:
         log("✓ README is OK",
+            delay=0, chevrons=False, verbose=verbose)
+
+    # Check front-end files do not exist
+    if os.path.exists("templates/complete.html"):
+        log("✗ templates/complete.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
+            delay=0, chevrons=False, verbose=verbose)
+        return False
+    elif os.path.exists("templates/error_wallace.html"):
+        log("✗ templates/error_wallace.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
+            delay=0, chevrons=False, verbose=verbose)
+        return False
+    elif os.path.exists("templates/launch.html"):
+        log("✗ templates/launch.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
+            delay=0, chevrons=False, verbose=verbose)
+        return False
+    elif os.path.exists("static/css/wallace.css"):
+        log("✗ static/css/wallace.css will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
+            delay=0, chevrons=False, verbose=verbose)
+        return False
+    elif os.path.exists("static/scripts/wallace.js"):
+        log("✗ static/scripts/wallace.js will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
+            delay=0, chevrons=False, verbose=verbose)
+        return False
+    elif os.path.exists("static/scripts/reqwest.min.js"):
+        log("✗ static/scripts/reqwest.min.js will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
+            delay=0, chevrons=False, verbose=verbose)
+        return False
+    elif os.path.exists("static/robots.txt"):
+        log("✗ static/robots.txt will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
+            delay=0, chevrons=False, verbose=verbose)
+        return False
+    else:
+        log("✓ no file conflicts",
             delay=0, chevrons=False, verbose=verbose)
 
     return is_passing

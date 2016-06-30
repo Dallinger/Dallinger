@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup_args = dict(
     name='wallace',
-    version="0.8.0",
+    version="0.9.0",
     description='A platform for experimental evolution',
     url='http://github.com/berkeley-cocosci/Wallace',
     author='Berkeley CoCoSci',

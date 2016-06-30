@@ -17,7 +17,6 @@ class Bartlett1932(Experiment):
         """
         super(Bartlett1932, self).__init__(session)
         self.experiment_repeats = 1
-        self.network = lambda: Chain(max_size=3)
         self.setup()
 
     def setup(self):
@@ -33,10 +32,14 @@ class Bartlett1932(Experiment):
             for net in self.networks():
                 WarOfTheGhostsSource(network=net)
 
+    def create_network(self):
+        """Return a new network."""
+        return Chain(max_size=3)
+
     def add_node_to_network(self, node, network):
         """Add node to the chain and receive transmissions."""
         network.add_node(node)
-        parent = node.neighbors(connection="from")[0]
+        parent = node.neighbors(direction="from")[0]
         parent.transmit()
         node.receive()
 

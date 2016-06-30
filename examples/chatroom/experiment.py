@@ -14,14 +14,17 @@ class CoordinationChatroom(Experiment):
         self.experiment_repeats = 1
         self.num_participants = 3
         self.initial_recruitment_size = self.num_participants
-        self.network = lambda: FullyConnected(max_size=self.num_participants)
         self.setup()
+
+    def create_network(self):
+        """Create a new network."""
+        return FullyConnected(max_size=self.num_participants)
 
     def info_post_request(self, node, info):
         """Run when a request to create an info is complete."""
         for agent in node.neighbors():
             node.transmit(what=info, to_whom=agent)
 
-    def node_type(self, network):
+    def node_type(self):
         """The type of node to make."""
         return Agent

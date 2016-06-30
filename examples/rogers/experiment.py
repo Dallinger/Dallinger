@@ -29,9 +29,6 @@ class RogersExperiment(Experiment):
         self.catch_difficulty = 0.80
         self.min_acceptable_performance = 10 / float(12)
         self.generation_size = 40
-        self.network = lambda: DiscreteGenerational(
-            generations=4, generation_size=self.generation_size,
-            initial_source=True)
         self.bonus_payment = 1.0
         self.initial_recruitment_size = self.generation_size
         self.known_classes["LearningGene"] = LearningGene
@@ -63,14 +60,20 @@ class RogersExperiment(Experiment):
                 env = RogersEnvironment(network=net)
                 env.create_state(proportion=difficulty)
 
-    def node_type(self, network):
-        """What class of agent to create."""
+    def create_network(self):
+        """Create a new network."""
+        return DiscreteGenerational(
+            generations=4, generation_size=self.generation_size,
+            initial_source=True)
+
+    def create_node(self, network, participant):
+        """Make a new node for participants."""
         if network.role == "practice" or network.role == "catch":
-            return RogersAgentFounder
+            return RogersAgentFounder(network=network, participant=participant)
         elif network.size(type=Agent) < network.generation_size:
-            return RogersAgentFounder
+            return RogersAgentFounder(network=network, participant=participant)
         else:
-            return RogersAgent
+            return RogersAgent(network=network, participant=participant)
 
     def info_post_request(self, node, info):
         """Run whenever an info is created."""

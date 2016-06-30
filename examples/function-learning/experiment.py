@@ -20,7 +20,6 @@ class FunctionLearning(Experiment):
         super(FunctionLearning, self).__init__(session)
         self.source = SinusoidalFunctionSource
         self.experiment_repeats = 1
-        self.network = lambda: Chain(max_size=3)
         self.setup()
 
     def setup(self):
@@ -34,6 +33,10 @@ class FunctionLearning(Experiment):
             super(FunctionLearning, self).setup()
             for net in self.networks():
                 self.source(network=net)
+
+    def create_network(self):
+        """Create a new network."""
+        return Chain(max_size=3)
 
     def add_node_to_network(self, node, network):
         """When an agent is created, add it to the network and take a step."""

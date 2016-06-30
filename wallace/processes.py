@@ -17,7 +17,7 @@ def random_walk(network):
     else:
         sender = latest
 
-    receiver = random.choice(sender.neighbors(connection="to", type=Agent))
+    receiver = random.choice(sender.neighbors(direction="to", type=Agent))
 
     sender.transmit(to_whom=receiver)
 
@@ -34,7 +34,7 @@ def moran_cultural(network):
     else:
         replacer = random.choice(network.nodes(type=Agent))
         replaced = random.choice(
-            replacer.neighbors(connection="to", type=Agent))
+            replacer.neighbors(direction="to", type=Agent))
 
         from operator import attrgetter
 
@@ -60,14 +60,14 @@ def moran_sexual(network):
         agents = [a for a in agents if a.id != baby.id]
         replacer = random.choice(agents)
         replaced = random.choice(
-            replacer.neighbors(connection="to", type=Agent))
+            replacer.neighbors(direction="to", type=Agent))
 
         # Give the baby the same outgoing connections as the replaced.
-        for node in replaced.neighbors(connection="to"):
+        for node in replaced.neighbors(direction="to"):
             baby.connect(direction="to", whom=node)
 
         # Give the baby the same incoming connections as the replaced.
-        for node in replaced.neighbors(connection="from"):
+        for node in replaced.neighbors(direction="from"):
             node.connect(direction="to", whom=baby)
 
         # Kill the replaced agent.

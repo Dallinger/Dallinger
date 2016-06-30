@@ -22,10 +22,9 @@ class MCMCP(Experiment):
         super(MCMCP, self).__init__(session)
         self.experiment_repeats = 1
         self.trials_per_participant = 10
-        self.network = lambda: Chain(max_size=100)
         self.setup()
 
-    def node_type(self, network):
+    def node_type(self):
         return MCMCPAgent
 
     def setup(self):
@@ -34,6 +33,10 @@ class MCMCP(Experiment):
             super(MCMCP, self).setup()
             for net in self.networks():
                 AnimalSource(network=net)
+
+    def create_network(self):
+        """Create a new network."""
+        return Chain(max_size=100)
 
     def get_network_for_participant(self, participant):
         if len(participant.nodes(failed="all")) < self.trials_per_participant:
