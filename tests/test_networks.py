@@ -1,6 +1,6 @@
 from wallace import networks, nodes, db, models
 import random
-from nose.tools import assert_raises
+from nose.tools import assert_raises, raises
 
 
 class TestNetworks(object):
@@ -46,6 +46,16 @@ class TestNetworks(object):
 
         assert net.nodes(type=nodes.Agent) == [agent]
         assert isinstance(net, models.Network)
+
+    @raises(NotImplementedError)
+    def test_network_base_add_node_not_implemented(self):
+        net = models.Network()
+        self.db.add(net)
+        self.db.commit()
+        node = models.Node(network=net)
+        self.db.add(net)
+        self.db.commit()
+        net.add_node(node)
 
     def test_network_sources(self):
         net = networks.Network()
