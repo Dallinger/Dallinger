@@ -3,7 +3,7 @@ Wallace
 [![Build Status](https://travis-ci.org/suchow/Wallace.svg?branch=master)](https://travis-ci.org/suchow/Wallace)
 [![Coverage Status](https://coveralls.io/repos/suchow/Wallace/badge.svg?branch=master&service=github)](https://coveralls.io/github/suchow/Wallace?branch=master)
 <a href="https://codeclimate.com/github/suchow/Wallace"><img src="https://codeclimate.com/github/suchow/Wallace/badges/gpa.svg" /></a>
-[![License](https://img.shields.io/github/license/suchow/Wallace.svg)](http://en.wikipedia.org/wiki/MIT_License)
+[![License](https://img.shields.io/github/license/berkeley-cocosci/Wallace.svg)](http://en.wikipedia.org/wiki/MIT_License)
 
 <img src="portrait.jpg?raw=true" width="125" alt="Portrait of Alfred Russel Wallace">
 
@@ -21,8 +21,8 @@ Features
 
 Contribute
 ----------
-- Issue Tracker: http://github.com/suchow/Wallace/issues
-- Source Code: http://github.com/suchow/Wallace
+- Issue Tracker: http://github.com/berkeley-cocosci/Wallace/issues
+- Source Code: http://github.com/berkeley-cocosci/Wallace
 
 Support
 -------
