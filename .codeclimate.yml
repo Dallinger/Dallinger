@@ -3,3 +3,5 @@ languages:
   JavaScript: true
   PHP: true
   Python: true
+exclude_paths:
+- "**.min.js"
