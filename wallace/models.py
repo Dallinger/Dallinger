@@ -437,6 +437,10 @@ class Network(Base, SharedMixin):
     Methods that make Networks do things
     ################################### """
 
+    def add_node(self, node):
+        """Add the node to the network."""
+        raise NotImplementedError
+
     def fail(self):
         """Fail an entire network."""
         if self.failed is True:
