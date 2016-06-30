@@ -24,13 +24,13 @@ A corollary is that when you create your AWS account be sure to record your valu
 
 If you are not the primary user of the account, see if you can obtain these keys from others who have successfully been able to use AWS.
 
-## Making the `.psiturkconfig` file
+## Making the `.wallaceconfig` file
 
-Place your psiTurk and Amazon Web Services credentials in `~/.psiturkconfig` (you may need to create this file:  `touch ~/.psiturkconfig`); it should live in your home directory). 
+Place your psiTurk and Amazon Web Services credentials in `~/.wallaceconfig` (you may need to create this file:  `touch ~/.wallaceconfig`); it should live in your home directory). 
 
 In your preferred text editor, edit the file to include the following text(filling in the ALL_CAPS with your relevant values):
 
-    $ cat ~/.psiturkconfig
+    $ cat ~/.wallaceconfig
     [AWS Access]
     aws_access_key_id = YOUR_AWS_ACCESS_KEY_ID
     aws_secret_access_key = YOUR_AWS_SECRET_ACCESS_KEY
