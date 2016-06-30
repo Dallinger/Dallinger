@@ -63,7 +63,7 @@ def wallace():
     pass
 
 
-def setup(debug=True, verbose=False, app=None):
+def setup_experiment(debug=True, verbose=False, app=None):
     """Check the app and, if it's compatible with Wallace, freeze its state."""
     print_header()
 
@@ -211,7 +211,7 @@ def summary(app):
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 def debug(verbose):
     """Run the experiment locally."""
-    (id, tmp) = setup(debug=True, verbose=verbose)
+    (id, tmp) = setup_experiment(debug=True, verbose=verbose)
 
     # Drop all the tables from the database.
     db.init_db(drop_all=True)
@@ -320,7 +320,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     else:
         out = open(os.devnull, 'w')
 
-    (id, tmp) = setup(debug=False, verbose=verbose, app=app)
+    (id, tmp) = setup_experiment(debug=False, verbose=verbose, app=app)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
