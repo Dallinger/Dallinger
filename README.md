@@ -1,6 +1,6 @@
 Wallace
 =======
-[![Build Status](https://travis-ci.org/suchow/Wallace.svg?branch=master)](https://travis-ci.org/suchow/Wallace)
+[![Build Status](https://travis-ci.org/berkeley-cocosci/Wallace.svg?branch=master)](https://travis-ci.org/berkeley-cocosci/Wallace)
 [![Coverage Status](https://coveralls.io/repos/suchow/Wallace/badge.svg?branch=master&service=github)](https://coveralls.io/github/suchow/Wallace?branch=master)
 <a href="https://codeclimate.com/github/suchow/Wallace"><img src="https://codeclimate.com/github/suchow/Wallace/badges/gpa.svg" /></a>
 [![License](https://img.shields.io/github/license/berkeley-cocosci/Wallace.svg)](http://en.wikipedia.org/wiki/MIT_License)
