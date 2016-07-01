@@ -56,7 +56,7 @@ class Experiment(object):
 
     def create_network(self):
         """Return a new network."""
-        return self.network_type()
+        return self.network_type()()
 
     def network_type(self):
         return Network
