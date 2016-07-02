@@ -217,6 +217,7 @@ def compute_bonus():
 @custom_code.route('/summary', methods=['GET'])
 def summary():
     """Summarize the participants' status codes."""
+    exp = experiment(session)
     return success_response(field="summary",
                             data=exp.log_summary(),
                             request_type="summary")
