@@ -23,6 +23,7 @@ from json import dumps
 import os
 import requests
 import traceback
+from datetime import datetime
 
 from rq import Queue, get_current_job
 from worker import conn
@@ -1198,16 +1199,19 @@ def worker_function(event_type, assignment_id, participant_id):
 
     elif event_type == 'AssignmentAbandoned':
         if participant.status == "working":
+            participant.end_time = datetime.now()
             participant.status = "abandoned"
             exp.assignment_abandoned(participant=participant)
 
     elif event_type == 'AssignmentReturned':
         if participant.status == "working":
+            participant.end_time = datetime.now()
             participant.status = "returned"
             exp.assignment_returned(participant=participant)
 
     elif event_type == 'AssignmentSubmitted':
         if participant.status == "working":
+            participant.end_time = datetime.now()
             participant.status = "submitted"
 
             # Approve the assignment.
@@ -1258,8 +1262,10 @@ def worker_function(event_type, assignment_id, participant_id):
             exp.log_summary()
 
     elif event_type == "NotificationMissing":
-        participant.status = "missing_notification"
-        session.commit()
+        if participant.status == "working":
+            participant.end_time = datetime.now()
+            participant.status = "missing_notification"
+            session.commit()
 
     else:
         exp.log("Error: unknown event_type {}".format(event_type), key)
