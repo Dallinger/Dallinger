@@ -5,7 +5,7 @@ from wallace import db
 import os
 import imp
 import inspect
-from psiturk.models import Participant
+from wallace.models import Participant
 from datetime import datetime
 from psiturk.psiturk_config import PsiturkConfig
 from boto.mturk.connection import MTurkConnection
@@ -52,7 +52,7 @@ def check_db_for_missing_notifications():
 
     # get all participants with status < 100
     participants = Participant.query.all()
-    participants = [p for p in participants if p.status < 100]
+    participants = [p for p in participants if p.status == "working"]
 
     # get current time
     current_time = datetime.now()
