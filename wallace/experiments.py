@@ -56,10 +56,7 @@ class Experiment(object):
 
     def create_network(self):
         """Return a new network."""
-        return self.network_type()()
-
-    def network_type(self):
-        return Network
+        return Empty()
 
     def networks(self, role="all", full="all"):
         """All the networks in the experiment."""
@@ -128,10 +125,7 @@ class Experiment(object):
 
     def create_node(self, participant, network):
         """Create a node for a participant."""
-        return self.node_type()(participant=participant, network=network)
-
-    def node_type(self):
-        return Node
+        return Node(network=network, participant=participant)
 
     def add_node_to_network(self, node, network):
         """Add a node to a network."""
