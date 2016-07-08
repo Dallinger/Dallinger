@@ -61,15 +61,15 @@ def check_db_for_missing_notifications():
 
     # for each participant, if current_time - start_time > duration + 5 mins
     for p in participants:
-        p_time = (current_time - p.beginhit).total_seconds()
+        p_time = (current_time - p.creation_time).total_seconds()
 
         if p_time > (duration + 120):
             print ("participant {} with status {} has been playing for too "
                    "long and no notification has arrived - "
-                   "running emergency code".format(p.uniqueid, p.status))
+                   "running emergency code".format(p.unique_id, p.status))
 
             # get their assignment
-            assignment_id = p.assignmentid
+            assignment_id = p.assignment_id
 
             # ask amazon for the status of the assignment
             try:
@@ -78,7 +78,7 @@ def check_db_for_missing_notifications():
             except:
                 status = None
             print "assignment status from AWS is {}".format(status)
-            hit_id = p.hitid
+            hit_id = p.hit_id
 
             # general email settings:
             username = os.getenv('wallace_email_username')
