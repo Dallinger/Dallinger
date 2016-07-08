@@ -51,8 +51,7 @@ def check_db_for_missing_notifications():
             aws_secret_access_key=aws_secret_access_key)
 
     # get all participants with status < 100
-    participants = Participant.query.all()
-    participants = [p for p in participants if p.status == "working"]
+    participants = Participant.query.filter_by(status="working").all()
 
     # get current time
     current_time = datetime.now()
@@ -62,15 +61,15 @@ def check_db_for_missing_notifications():
 
     # for each participant, if current_time - start_time > duration + 5 mins
     for p in participants:
-        p_time = (current_time - p.beginhit).total_seconds()
+        p_time = (current_time - p.creation_time).total_seconds()
 
         if p_time > (duration + 120):
             print ("participant {} with status {} has been playing for too "
                    "long and no notification has arrived - "
-                   "running emergency code".format(p.uniqueid, p.status))
+                   "running emergency code".format(p.id, p.status))
 
             # get their assignment
-            assignment_id = p.assignmentid
+            assignment_id = p.assignment_id
 
             # ask amazon for the status of the assignment
             try:
@@ -79,7 +78,7 @@ def check_db_for_missing_notifications():
             except:
                 status = None
             print "assignment status from AWS is {}".format(status)
-            hit_id = p.hitid
+            hit_id = p.hit_id
 
             # general email settings:
             username = os.getenv('wallace_email_username')
@@ -138,11 +137,16 @@ def check_db_for_missing_notifications():
                         round(p_time/60))
                     msg['Subject'] = "Wallace automated email - minor error."
 
-                server = smtplib.SMTP('smtp.gmail.com:587')
-                server.starttls()
-                server.login(username, email_password)
-                server.sendmail(fromaddr, toaddr, msg.as_string())
-                server.quit()
+                # This method commented out as gmail now blocks emails from
+                # new locations
+                # server = smtplib.SMTP('smtp.gmail.com:587')
+                # server.starttls()
+                # server.login(username, email_password)
+                # server.sendmail(fromaddr, toaddr, msg.as_string())
+                # server.quit()
+                print ("Error - submitted notification for participant {} missed. "
+                       "Database automatically corrected, but proceed with caution."
+                       .format(p.id))
             else:
                 # if it has not been submitted shut everything down
                 # first turn off autorecruit
@@ -217,11 +221,13 @@ def check_db_for_missing_notifications():
                         round(p_time/60))
                     msg['Subject'] = "Wallace automated email - major error."
 
-                server = smtplib.SMTP('smtp.gmail.com:587')
-                server.starttls()
-                server.login(username, email_password)
-                server.sendmail(fromaddr, toaddr, msg.as_string())
-                server.quit()
+                # This method commented out as gmail now blocks emails from
+                # new locations
+                # server = smtplib.SMTP('smtp.gmail.com:587')
+                # server.starttls()
+                # server.login(username, email_password)
+                # server.sendmail(fromaddr, toaddr, msg.as_string())
+                # server.quit()
 
                 # send a notificationmissing notification
                 args = {
@@ -231,5 +237,10 @@ def check_db_for_missing_notifications():
                 requests.post(
                     "http://" + os.environ['HOST'] + '/notifications',
                     data=args)
+
+                print ("Error - abandoned/returned notification for participant {} missed. "
+                       "Experiment shut down. Please check database and then manually "
+                       "resume experiment."
+                       .format(p.id))
 
 scheduler.start()
