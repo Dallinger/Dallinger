@@ -51,8 +51,7 @@ def check_db_for_missing_notifications():
             aws_secret_access_key=aws_secret_access_key)
 
     # get all participants with status < 100
-    participants = Participant.query.all()
-    participants = [p for p in participants if p.status == "working"]
+    participants = Participant.query.filter_by(status="working").all()
 
     # get current time
     current_time = datetime.now()
