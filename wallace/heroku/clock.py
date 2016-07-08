@@ -66,7 +66,7 @@ def check_db_for_missing_notifications():
         if p_time > (duration + 120):
             print ("participant {} with status {} has been playing for too "
                    "long and no notification has arrived - "
-                   "running emergency code".format(p.unique_id, p.status))
+                   "running emergency code".format(p.id, p.status))
 
             # get their assignment
             assignment_id = p.assignment_id
