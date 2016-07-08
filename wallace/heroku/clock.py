@@ -137,11 +137,16 @@ def check_db_for_missing_notifications():
                         round(p_time/60))
                     msg['Subject'] = "Wallace automated email - minor error."
 
-                server = smtplib.SMTP('smtp.gmail.com:587')
-                server.starttls()
-                server.login(username, email_password)
-                server.sendmail(fromaddr, toaddr, msg.as_string())
-                server.quit()
+                # This method commented out as gmail now blocks emails from
+                # new locations
+                # server = smtplib.SMTP('smtp.gmail.com:587')
+                # server.starttls()
+                # server.login(username, email_password)
+                # server.sendmail(fromaddr, toaddr, msg.as_string())
+                # server.quit()
+                print ("Error - submitted notification for participant {} missed. "
+                       "Database automatically corrected, but proceed with caution."
+                       .format(p.id))
             else:
                 # if it has not been submitted shut everything down
                 # first turn off autorecruit
@@ -216,11 +221,13 @@ def check_db_for_missing_notifications():
                         round(p_time/60))
                     msg['Subject'] = "Wallace automated email - major error."
 
-                server = smtplib.SMTP('smtp.gmail.com:587')
-                server.starttls()
-                server.login(username, email_password)
-                server.sendmail(fromaddr, toaddr, msg.as_string())
-                server.quit()
+                # This method commented out as gmail now blocks emails from
+                # new locations
+                # server = smtplib.SMTP('smtp.gmail.com:587')
+                # server.starttls()
+                # server.login(username, email_password)
+                # server.sendmail(fromaddr, toaddr, msg.as_string())
+                # server.quit()
 
                 # send a notificationmissing notification
                 args = {
@@ -230,5 +237,10 @@ def check_db_for_missing_notifications():
                 requests.post(
                     "http://" + os.environ['HOST'] + '/notifications',
                     data=args)
+
+                print ("Error - abandoned/returned notification for participant {} missed. "
+                       "Experiment shut down. Please check database and then manually "
+                       "resume experiment."
+                       .format(p.id))
 
 scheduler.start()
