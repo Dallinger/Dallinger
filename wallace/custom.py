@@ -371,7 +371,7 @@ def assign_properties(thing):
     """
     for p in range(5):
         property_name = "property" + str(p + 1)
-        property = request_parameter(parameter=property_name, optional=True),
+        property = request_parameter(parameter=property_name, optional=True)
         if property:
             setattr(thing, property_name, property)
 
