@@ -1202,14 +1202,12 @@ def worker_function(event_type, assignment_id, participant_id):
             participant.end_time = datetime.now()
             participant.status = "abandoned"
             exp.assignment_abandoned(participant=participant)
-            session.commit()
 
     elif event_type == 'AssignmentReturned':
         if participant.status == "working":
             participant.end_time = datetime.now()
             participant.status = "returned"
             exp.assignment_returned(participant=participant)
-            session.commit()
 
     elif event_type == 'AssignmentSubmitted':
         if participant.status == "working":
@@ -1248,6 +1246,7 @@ def worker_function(event_type, assignment_id, participant_id):
 
                 # If they fail the attention check, fail nodes and replace.
                 if not attended:
+                    exp.log("Attention check failed.", key)
                     participant.status = "did_not_attend"
                     exp.attention_check_failed(participant=participant)
                     exp.recruiter().recruit_participants(n=1)
@@ -1255,22 +1254,18 @@ def worker_function(event_type, assignment_id, participant_id):
                     # All good. Possibly recruit more participants.
                     exp.log("All checks passed.", key)
                     participant.status = "approved"
-
                     exp.submission_successful(participant=participant)
-                    session.commit()
-
                     exp.recruit()
-
-            exp.log_summary()
 
     elif event_type == "NotificationMissing":
         if participant.status == "working":
             participant.end_time = datetime.now()
             participant.status = "missing_notification"
-            session.commit()
 
     else:
         exp.log("Error: unknown event_type {}".format(event_type), key)
+
+    session.commit()
 
 
 def date_handler(obj):
