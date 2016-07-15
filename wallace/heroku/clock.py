@@ -64,7 +64,7 @@ def check_db_for_missing_notifications():
         p_time = (current_time - p.creation_time).total_seconds()
 
         if p_time > (duration + 120):
-            print ("participant {} with status {} has been playing for too "
+            print ("Error: participant {} with status {} has been playing for too "
                    "long and no notification has arrived - "
                    "running emergency code".format(p.id, p.status))
 
@@ -87,7 +87,17 @@ def check_db_for_missing_notifications():
             toaddr = config.get('HIT Configuration', 'contact_email_on_error')
             whimsical = os.getenv("whimsical")
 
-            if status in ["Submitted", "Approved", "Rejected"]:
+            if status == "Approved":
+                # if its been approved, set the status accordingly
+                print "status set to approved"
+                p.status = "approved"
+                session.commit()
+            elif status == "Rejected":
+                print "status set to rejected"
+                # if its been rejected, set the status accordingly
+                p.status = "rejected"
+                session.commit()
+            elif status == "Submitted":
                 # if it has been submitted then resend a submitted notification
                 args = {
                     'Event.1.EventType': 'AssignmentSubmitted',
