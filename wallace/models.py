@@ -212,6 +212,25 @@ class Question(Base, SharedMixin):
             self.failed = True
             self.time_of_death = timenow()
 
+    def __json__(self):
+        """Return json description of a question."""
+        return {
+            "id": self.id,
+            "question_id": self.question_id,
+            "type": self.type,
+            "participant_id": self.participant_id,
+            "question": self.question,
+            "response": self.response,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
+            "creation_time": self.creation_time,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
+
 
 class Network(Base, SharedMixin):
     """Contains and manages a set of Nodes and Vectors etc."""
