@@ -182,7 +182,7 @@ class Question(Base, SharedMixin):
     participant = relationship(Participant, backref='all_questions')
 
     # the network that this node is a part of
-    question_id = Column(Integer, nullable=False)
+    number = Column(Integer, nullable=False)
 
     # the text of the question
     question = Column(String(250), nullable=False)
@@ -190,7 +190,7 @@ class Question(Base, SharedMixin):
     # the response from the participants
     response = Column(String(1000), nullable=False)
 
-    def __init__(self, participant, question, response, question_id):
+    def __init__(self, participant, question, response, number):
         """Create a question."""
         # check the participant hasn't failed
         if participant.failed:
@@ -199,7 +199,7 @@ class Question(Base, SharedMixin):
 
         self.participant = participant
         self.participant_id = participant.id
-        self.question_id = question_id
+        self.number = number
         self.question = question
         self.response = response
 
@@ -211,6 +211,25 @@ class Question(Base, SharedMixin):
         else:
             self.failed = True
             self.time_of_death = timenow()
+
+    def __json__(self):
+        """Return json description of a question."""
+        return {
+            "id": self.id,
+            "number": self.number,
+            "type": self.type,
+            "participant_id": self.participant_id,
+            "question": self.question,
+            "response": self.response,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
+            "creation_time": self.creation_time,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5
+        }
 
 
 class Network(Base, SharedMixin):

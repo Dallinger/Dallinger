@@ -9,7 +9,7 @@ submit_responses = function() {
             type: 'json',
             data: {
                 question: "engagement",
-                question_id: 1,
+                number: 1,
                 response: $("#engagement").val()
             },
             success: function (resp) {
@@ -19,7 +19,7 @@ submit_responses = function() {
                     type: 'json',
                     data: {
                         question: "difficulty",
-                        question_id: 2,
+                        number: 2,
                         response: $("#difficulty").val()
                     },
                     success: function(resp) {
