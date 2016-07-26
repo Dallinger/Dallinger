@@ -15,7 +15,7 @@ create_agent = function() {
                 $('body').html(err_response.html);
             } else {
                 allow_exit();
-                go_to_page('postquestionnaire');
+                go_to_page('questionnaire');
             }
         }
     });

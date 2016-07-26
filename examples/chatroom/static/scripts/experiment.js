@@ -21,7 +21,7 @@ create_agent = function () {
                 $('body').html(err_response.html);
             } else {
                 allow_exit();
-                go_to_page('postquestionnaire');
+                go_to_page('questionnaire');
             }
         }
     });
@@ -94,7 +94,7 @@ send_message = function() {
 
 submit_response = function() {
     allow_exit();
-    go_to_page('postquestionnaire');
+    go_to_page('questionnaire');
 };
 
 $(document).keypress(function (e) {
