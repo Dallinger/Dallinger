@@ -453,7 +453,7 @@ def create_question(participant_id):
 
     Questions store information at the participant level, not the node
     level.
-    You should pass the question (string) question_id (int) and response
+    You should pass the question (string) number (int) and response
     (string) as arguments.
     """
     # Get the participant.
@@ -471,16 +471,16 @@ def create_question(participant_id):
 
     question = request_parameter(parameter="question")
     response = request_parameter(parameter="response")
-    question_id = request_parameter(parameter="question_id",
+    number = request_parameter(parameter="number",
                                     parameter_type="int")
-    for x in [question, response, question_id]:
+    for x in [question, response, number]:
         if type(x) == Response:
             return x
 
     try:
         # execute the request
         models.Question(participant=ppt, question=question,
-                        response=response, question_id=question_id)
+                        response=response, number=number)
         session.commit()
     except:
         return error_response(error_type="/question POST server error",
