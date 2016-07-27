@@ -1,6 +1,6 @@
 SQLAlchemy==0.8.3
 -e git+git://github.com/berkeley-cocosci/psiTurk.git@wallace2#egg=psiturk
-click==3.3
+click==6.6
 coverage==3.7.1
 coveralls==0.4.2
 future==0.15.2
