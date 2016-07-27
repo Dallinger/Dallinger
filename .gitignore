@@ -12,3 +12,4 @@
 .env
 /snapshots/
 *-
+site/*
