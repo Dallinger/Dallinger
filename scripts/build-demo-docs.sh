@@ -15,3 +15,5 @@ for filename in *; do
 done
 
 cd ..
+
+mkdocs gh-deploy --clean --verbose
