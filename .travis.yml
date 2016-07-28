@@ -20,6 +20,7 @@ env:
   - secure: 3rnkGugv5Hp71gjwQMUj5tup7/xk94p5IXEh0VItSXTziKn0pBY+yrCzAuIzlylbrl0baLaZOFGEFn2K+Jf+tr9mmN23X+zOUNsIqC4swlLLJx6hzH5AZaRmqzGjURM2gLISUayXGT9flOXyOKzzCGFELJKG9KlVyEOJ4fk04wQ=
 script:
 - nosetests --with-coverage --cover-package wallace
+- mkdocs gh-deploy --clean
 # - nosetests tests._test_heroku --nocapture
 after_success:
 - coveralls
