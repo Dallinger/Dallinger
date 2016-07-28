@@ -28,9 +28,3 @@ class TestExamples(object):
 
     def test_verify_example_function_learning(self):
         self.verify_example("function-learning")
-
-    def test_verify_example_moran_process(self):
-        self.verify_example("moran-process")
-
-    def test_verify_example_translations(self):
-        self.verify_example("translations")
