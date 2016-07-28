@@ -2,6 +2,7 @@
 
 mkdir -p docs/demos/assets
 mkdir -p build
+rm -r build/*
 
 cd examples
 
