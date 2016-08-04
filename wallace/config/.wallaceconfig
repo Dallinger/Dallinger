@@ -14,3 +14,8 @@ heroku_password = ???
 [Email Access]
 wallace_email_address = ???
 wallace_email_password = ???
+
+[Task Parameters]
+experiment_code_version = 1.0
+num_conds = 1
+num_counters = 1
