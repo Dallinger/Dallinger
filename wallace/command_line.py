@@ -70,10 +70,11 @@ def setup():
     config_path = os.path.join(os.path.expanduser("~"), config_name)
 
     if os.path.isfile(config_path):
-        log("Wallace config file exists.")
+        log("Wallace config file already exists.", chevrons=False)
 
     else:
-        log("Creating Wallace config file at ~/.wallaceconfig...")
+        log("Creating Wallace config file at ~/.wallaceconfig...",
+            chevrons=False)
         wallace_module_path = os.path.dirname(os.path.realpath(__file__))
         src = os.path.join(wallace_module_path, "config", config_name)
         shutil.copyfile(src, config_path)
