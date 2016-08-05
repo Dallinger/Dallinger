@@ -1,5 +1,5 @@
 [Experiment Configuration]
-wallace_version = 0.9.3
+wallace_version = 0.10.0
 auto_recruit = true
 mode = sandbox
 
@@ -25,24 +25,11 @@ anonymize_data = true
 database_size = standard-0
 
 [Server Parameters]
-host = 0.0.0.0
-port = 5000
-cutoff_time = 30
-logfile = -
-loglevel = 0
-debug = true
-login_username = examplename
-login_pw = examplepassword
-threads = 1
-notification_url = None
 dyno_type = standard-1x
 num_dynos_web = 2
 num_dynos_worker = 1
-
-[Task Parameters]
-experiment_code_version = 1.0
-num_conds = 1
-num_counters = 1
+host = 0.0.0.0
+notification_url = None
 
 [Shell Parameters]
 launch_in_sandbox_mode = true
