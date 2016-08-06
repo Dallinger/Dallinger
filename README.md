@@ -19,6 +19,12 @@ Features
 - Coordinates participant recruitment using Mechanical Turk
 - Demos of common experimental paradigms
 
+Install
+-------
+
+To install Wallace, please see [Installing Wallace (for users)](docs/Installing-Wallace-(for-users).md).
+For a development install of Wallace, please see [Developing Wallace (setup guide)](/docs/Developing-Wallace-(setup-guide).md).
+
 Contribute
 ----------
 - Issue Tracker: http://github.com/berkeley-cocosci/Wallace/issues
