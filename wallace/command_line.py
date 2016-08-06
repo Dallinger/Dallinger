@@ -327,7 +327,7 @@ def scale_up_dynos(id):
         str(dyno_type) + " --app " + id, shell=True)
 
     subprocess.call(
-        "heroku ps:scale clock=1:performance-m" + " --app " + id, shell=True)
+        "heroku ps:scale clock=1:" + dyno_type + " --app " + id, shell=True)
 
 
 def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
