@@ -1,4 +1,4 @@
-*If you would like to contribute to Wallace please follow these [alternative install instructions](https://github.com/suchow/Wallace/wiki/Installing-Wallace-(for-developers)).*
+*If you would like to contribute to Wallace please follow these [alternative install instructions](Installing-Wallace-(for-developers)).*
 
 #### Install Python
 
@@ -37,28 +37,8 @@ Install Wallace from the terminal by running
 pip install wallace
 ```
 
-#### Testing Wallace
-
-To test that Wallace works we will run an example experiment in debug mode. From a terminal within the Wallace directory, run
+Test that your installation works by running:
 
 ```
-cd examples/bartlett1932
-wallace debug
+wallace --version
 ```
-
-You will see some print-out as Wallace loads. When it is finished you will see something that looks like:
-
-```
-Now serving on http://0.0.0.0:5000
-[psiTurk server:on mode:sdbx #HITs:4]$
-```
-
-Into that prompt type,
-
-```
-debug
-```
-
-This will cause the experiment to open in a new window in your browser. Once you have finished the experiment you can type `debug` again to play as the next participant too.
-
-**Help, the experiment page is blank!** This may happen if you are using an ad-blocker. Try disabling your ad-blocker and refresh the page.

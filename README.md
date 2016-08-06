@@ -19,7 +19,7 @@ Install
 -------
 
 To install Wallace, please see [Installing Wallace (for users)](docs/Installing-Wallace-(for-users).md).
-For a development install of Wallace, please see [Developing Wallace (setup guide)](/docs/Developing-Wallace-(setup-guide).md).
+For a development install of Wallace, please see [Developing Wallace (setup guide)](docs/Developing-Wallace-(setup-guide).md).
 
 Documentation
 -------------
