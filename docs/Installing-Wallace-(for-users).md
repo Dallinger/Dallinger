@@ -20,7 +20,15 @@ NB: If you have installed a more recent version of Postgres (e.g., the [the upco
 ```
 ls /Applications/Postgres.app/Contents/Versions/
 ```
-Whatever number that returns is the version number that you should place in the `export` command above. If it does not return a number, you have not installed Postgres correctly in your /Applications folder or something else is horribly wrong. :(
+Whatever number that returns is the version number that you should place in the `export` command above. If it does not return a number, you have not installed Postgres correctly in your /Applications folder or something else is horribly wrong.
+
+#### Create the Database
+
+After installing Postgres, you will need to create a database for your experiment to use. Run the following command from the comand line:
+
+```
+psql -c 'create database wallace;' -U postgres
+```
 
 #### Install Wallace
 
@@ -33,16 +41,24 @@ pip install wallace
 
 To test that Wallace works we will run an example experiment in debug mode. From a terminal within the Wallace directory, run
 
-`cd examples/bartlett1932
-wallace debug`
+```
+cd examples/bartlett1932
+wallace debug
+```
 
-You will see some print-out as Wallace loads. When it is finished you will see:
+You will see some print-out as Wallace loads. When it is finished you will see something that looks like:
+
 ```
 Now serving on http://0.0.0.0:5000
 [psiTurk server:on mode:sdbx #HITs:4]$
 ```
+
 Into that prompt type,
+
 ```
 debug
 ```
+
 This will cause the experiment to open in a new window in your browser. Once you have finished the experiment you can type `debug` again to play as the next participant too.
+
+**Help, the experiment page is blank!** This may happen if you are using an ad-blocker. Try disabling your ad-blocker and refresh the page.

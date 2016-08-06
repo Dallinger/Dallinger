@@ -23,9 +23,9 @@ brew install postgres
 
 ***
 
-#### Detailed installation for setting up virtual environments in which to work on Wallace.
+#### Setting up a virtual environment
 
-If you would like to develop Wallace(or if you primarily use Python3), you will need to set up a virtual environment (you only need to run these commands once):
+If you would like to develop Wallace (or if you primarily use Python3), you will need to set up a virtual environment (you only need to run these commands once):
 
 ```
 pip install virtualenv
@@ -46,6 +46,8 @@ workon wallace
 ```
 
 NB: **To stop working on the virtual environment, just run `deactivate`.** If you ever need to see what environments you have (if you don't remember their names) use the command `workon` with no arguments
+
+#### Installing Wallace
 
 Now, navigate to the directory in which you want to house your development work on Wallace. Once you are there, clone the git repository using:
 
@@ -73,6 +75,12 @@ Then run `setup.py` with the argument `develop`:
 python setup.py develop
 ```
 
+Test that your installation works by running:
 
+```
+wallace --version
+```
 
-Once that's finished, we need to input the credentials for 3rd party applications including Amazon Web Services (AWS), Amazon Mechanical Turk (AMT), PsiTurk & Heroku. [Instructions for this process as it applies to Wallace live at this page.](https://github.com/suchow/Wallace/wiki/Setting-up-AWS,-psiTurk,-MTurk,-and-Heroku)
+**Note: if you are using Anaconda and get a long traceback here, please see the special [Anaconda installation instructions](Wallace-with-Anaconda.md).**
+
+Once that's finished, we need to input the credentials for 3rd party applications including Amazon Web Services (AWS), Amazon Mechanical Turk (AMT), PsiTurk & Heroku. [Instructions for this process as it applies to Wallace live at this page.](Setting-up-AWS,-psiTurk,-MTurk,-and-Heroku)
