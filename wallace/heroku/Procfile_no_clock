@@ -1,0 +1,2 @@
+web: python psiturkapp.py
+worker: python worker.py

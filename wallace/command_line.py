@@ -177,12 +177,23 @@ def setup_experiment(debug=True, verbose=False, app=None):
         "worker.py",
         "clock.py",
     ]
+
     for filename in heroku_files:
         src = os.path.join(
             os.path.dirname(os.path.realpath(__file__)),
             "heroku",
             filename)
         shutil.copy(src, os.path.join(dst, filename))
+
+    clock_on = config.getboolean('Server Parameters', 'clock_on')
+
+    # If the clock process has been disabled, overwrite the Procfile.
+    if not clock_on:
+        src = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "heroku",
+            "Procfile_no_clock")
+        shutil.copy(src, os.path.join(dst, "Procfile"))
 
     frontend_files = [
         "static/css/wallace.css",
@@ -326,8 +337,11 @@ def scale_up_dynos(id):
         "heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
         str(dyno_type) + " --app " + id, shell=True)
 
-    subprocess.call(
-        "heroku ps:scale clock=1:" + dyno_type + " --app " + id, shell=True)
+    clock_on = config.getboolean('Server Parameters', 'clock_on')
+    if clock_on:
+        subprocess.call(
+            "heroku ps:scale clock=1:" + dyno_type + " --app " + id,
+            shell=True)
 
 
 def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
