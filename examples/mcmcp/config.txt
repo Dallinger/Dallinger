@@ -15,7 +15,7 @@ approve_requirement = 95
 contact_email_on_error = mcmcp@mailinator.com
 ad_group = MCMCP
 psiturk_keywords = mcmcp
-organization_name = UC Berkeley
+organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
 [Database Parameters]
