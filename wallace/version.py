@@ -1,3 +1,3 @@
 """Wallace version number."""
 
-__version__ = "0.11.4"
+__version__ = "0.11.5"
