@@ -19,7 +19,7 @@ setup_args = dict(
             'wallace = wallace.command_line:wallace',
         ],
     },
-    dependency_links=['-e git+git://github.com/berkeley-cocosci/psiTurk.git@wallace3#egg=psiturk']
+    dependency_links=['https://github.com/berkeley-cocosci/psiTurk/zipball/wallace3#egg=psiturk']
 )
 
 # Read in requirements.txt for dependencies.
