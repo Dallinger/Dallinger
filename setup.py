@@ -19,20 +19,21 @@ setup_args = dict(
             'wallace = wallace.command_line:wallace',
         ],
     },
-    dependency_links=['https://github.com/berkeley-cocosci/psiTurk/zipball/wallace3#egg=psiturk']
+    dependency_links=['https://github.com/berkeley-cocosci/psiTurk/zipball/wallace3#egg=psiturk-2.1.1.w'],
+    install_requires=['psiturk==2.1.1.w']
 )
 
 # Read in requirements.txt for dependencies.
-setup_args['install_requires'] = install_requires = []
-setup_args['dependency_links'] = dependency_links = []
-with open('requirements.txt') as f:
-    for line in f.readlines():
-        req = line.strip()
-        if not req or req.startswith('#'):
-            continue
-        if req.startswith('-e '):
-            dependency_links.append(req[3:])
-        else:
-            install_requires.append(req)
+# setup_args['install_requires'] = install_requires = []
+# setup_args['dependency_links'] = dependency_links = []
+# with open('requirements.txt') as f:
+#     for line in f.readlines():
+#         req = line.strip()
+#         if not req or req.startswith('#'):
+#             continue
+#         if req.startswith('-e '):
+#             dependency_links.append(req[3:])
+#         else:
+#             install_requires.append(req)
 
 setup(**setup_args)
