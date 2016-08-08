@@ -1,4 +1,4 @@
-*If you would like to contribute to Wallace please follow these [alternative install instructions](https://github.com/suchow/Wallace/wiki/Installing-Wallace-(for-developers)).*
+*If you would like to contribute to Wallace please follow these [alternative install instructions](Installing-Wallace-(for-developers)).*
 
 #### Install Python
 
@@ -20,7 +20,15 @@ NB: If you have installed a more recent version of Postgres (e.g., the [the upco
 ```
 ls /Applications/Postgres.app/Contents/Versions/
 ```
-Whatever number that returns is the version number that you should place in the `export` command above. If it does not return a number, you have not installed Postgres correctly in your /Applications folder or something else is horribly wrong. :(
+Whatever number that returns is the version number that you should place in the `export` command above. If it does not return a number, you have not installed Postgres correctly in your /Applications folder or something else is horribly wrong.
+
+#### Create the Database
+
+After installing Postgres, you will need to create a database for your experiment to use. Run the following command from the comand line:
+
+```
+psql -c 'create database wallace;' -U postgres
+```
 
 #### Install Wallace
 
@@ -29,20 +37,8 @@ Install Wallace from the terminal by running
 pip install wallace
 ```
 
-#### Testing Wallace
+Test that your installation works by running:
 
-To test that Wallace works we will run an example experiment in debug mode. From a terminal within the Wallace directory, run
-
-`cd examples/bartlett1932
-wallace debug`
-
-You will see some print-out as Wallace loads. When it is finished you will see:
 ```
-Now serving on http://0.0.0.0:5000
-[psiTurk server:on mode:sdbx #HITs:4]$
+wallace --version
 ```
-Into that prompt type,
-```
-debug
-```
-This will cause the experiment to open in a new window in your browser. Once you have finished the experiment you can type `debug` again to play as the next participant too.
