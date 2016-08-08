@@ -23,7 +23,15 @@ Intall postgres using homebrew:
 brew install postgres
 ```
 
-***
+On OS X, we recommend installing [Postgres.app](postgresapp.com) to start and stop the Postgres server.
+
+#### Create the Database
+
+After installing Postgres, you will need to create a database for your experiments to use. Run the following command from the comand line:
+
+```
+psql -c 'create database wallace;' -U postgres
+```
 
 #### Set up a virtual environment
 
