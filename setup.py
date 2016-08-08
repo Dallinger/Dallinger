@@ -3,14 +3,16 @@
 from setuptools import setup
 
 setup_args = dict(
-    name='wallace',
+    name='wallace-platform',
+    packages=['wallace'],
     version="0.11.0",
-    description='A platform for experimental evolution',
+    description='Wallace, a platform for experimental cultural evolution',
     url='http://github.com/berkeley-cocosci/Wallace',
     author='Berkeley CoCoSci',
     author_email='wallace@cocosci.berkeley.edu',
     license='MIT',
-    packages=['wallace'],
+    keywords=['science', 'cultural evolution', 'experiments', 'psychology'],
+    classifiers=[],
     zip_safe=False,
     entry_points={
         'console_scripts': [
