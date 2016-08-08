@@ -1,0 +1,6 @@
+recursive-include wallace *
+recursive-include docs *
+
+include README.md
+include LICENSE
+include portrait.jpg
