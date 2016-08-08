@@ -12,6 +12,7 @@ for filename in *; do
     zip -r "$filename.zip" $filename
     cp "$filename.zip" ../build/"$filename.zip"
     cp "$filename.zip" ../docs/demos/assets/"$filename.zip"
+    rm "$filename.zip"
 done
 
 cd ..
