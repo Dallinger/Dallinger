@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup_args = dict(
-    name='wallace-platform',
+    name='w',
     packages=['wallace'],
     version="0.11.0",
     description='Wallace, a platform for experimental cultural evolution',
