@@ -1,12 +1,12 @@
-Experiments are designed in Wallace by creating a custom subclass of the base Experiment class. The code for the Experiment class is in experiments.py. Unlike the [other classes](https://github.com/suchow/Wallace/wiki/Classes), each experiment involves only a single Experiment object and it is not stored as an entry in a corresponding table, rather each Experiment is a set of instructions that tell the server what to do with the database when the server receives requests from outside.
+Experiments are designed in Wallace by creating a custom subclass of the base Experiment class. The code for the Experiment class is in experiments.py. Unlike the [other classes](https://github.com/berkeley-cocosci/Wallace/wiki/Classes), each experiment involves only a single Experiment object and it is not stored as an entry in a corresponding table, rather each Experiment is a set of instructions that tell the server what to do with the database when the server receives requests from outside.
 
 #### Attributes
 
 + verbose - Boolean, determines whether the experiment logs output when running. Default is True.
 + task - String, the name of the experiment. Default is "Experiment title".
 + session - session, the experiment's connection to the database.
-+ practice_repeats - int, the number of practice networks (see [Network.role](https://github.com/suchow/Wallace/wiki/Classes#columns)). Default is 0.
-+ experiment_repeats - int, the number of non practice networks (see [Network.role](https://github.com/suchow/Wallace/wiki/Classes#columns)). Default is 0.
++ practice_repeats - int, the number of practice networks (see [Network.role](https://github.com/berkeley-cocosci/Wallace/wiki/Classes#columns)). Default is 0.
++ experiment_repeats - int, the number of non practice networks (see [Network.role](https://github.com/berkeley-cocosci/Wallace/wiki/Classes#columns)). Default is 0.
 + recruiter - Recruiter, the Wallace class that recruits participants. Default is PsiTurkRecruiter.
 + initial_recruitment_size - int, the number of participants requested when the experiment first starts. Default is 1.
 + known_classes - dictionary, the classes Wallace can make in response to front-end requests. Experiments can add new classes to this dictionary.

@@ -1,15 +1,15 @@
 ### Beginner
 
 ##### Key concepts in Wallace
-* [Classes](https://github.com/suchow/Wallace/wiki/Classes)
-* [The Experiment class](https://github.com/suchow/Wallace/wiki/The-Experiment-class)
+* [Classes](https://github.com/berkeley-cocosci/Wallace/wiki/Classes)
+* [The Experiment class](https://github.com/berkeley-cocosci/Wallace/wiki/The-Experiment-class)
 
 ##### Wallace as a web app
-* [Communicating with the server](https://github.com/suchow/Wallace/wiki/Communicating-with-the-server)
+* [Communicating with the server](https://github.com/berkeley-cocosci/Wallace/wiki/Communicating-with-the-server)
 * [Web API](https://github.com/berkeley-cocosci/Wallace/wiki/Web-API)
 
 ##### Experimental design
-* [Required experimental files](https://github.com/suchow/Wallace/wiki/Required-experimental-files)
+* [Required experimental files](https://github.com/berkeley-cocosci/Wallace/wiki/Required-experimental-files)
 * config.txt
 * Wallace.js
 

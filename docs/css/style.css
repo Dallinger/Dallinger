@@ -3,5 +3,9 @@ body {
 }
 
 code {
-    font-size: 18px;
+    font-size: 14px;
+}
+
+tt, code {
+    padding: 4px 5px 1px 5px;
 }

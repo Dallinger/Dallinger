@@ -1,4 +1,4 @@
-The Wallace server comes with a number of pre-existing routes by which the front-end can communicate with the back end. Many of these routes correspond to specific functions of Wallace's [classes](https://github.com/suchow/Wallace/wiki/Classes), particularly Node. For instance, Nodes have a connect method that creates new Vectors between Nodes and there is a corresponding connect route that allows the front end to call this method.
+The Wallace server comes with a number of pre-existing routes by which the front-end can communicate with the back end. Many of these routes correspond to specific functions of Wallace's [classes](https://github.com/berkeley-cocosci/Wallace/wiki/Classes), particularly Node. For instance, Nodes have a connect method that creates new Vectors between Nodes and there is a corresponding connect route that allows the front end to call this method.
 
 #### Miscellaneous routes
 

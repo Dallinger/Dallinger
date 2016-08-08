@@ -1,62 +1,100 @@
-Before you can use Wallace you will need accounts with the following services, which will make it possible for you to deploy Wallace experiments on the web: [psiTurk](https://psiturk.org/register), [Amazon Web Services](http://aws.amazon.com/), [Amazon Mechanical Turk](https://requester.mturk.com/), & [Heroku](https://signup.heroku.com/identity).
+Before you can use Wallace, you will need accounts with Amazon Web Services, Amazon Mechanical Turk, Heroku, and psiTurk. You will then need to create a configuration file and set up your environment so that Wallace can access your accounts.
 
-In addition to signing up for the relevant accounts you will need to set up your environment such that Wallace is able to access your accounts. 
+## Create the configuration file
 
-This involves first creating an API Key access file so that it can connect to your psiTurk and Amazon Web Services accounts. Wallace interfaces with Amazon Mechanical Turk via your Amazon Web Services Account. 
+The first step is to create the Wallace configuration file in your home directory. You can do this using the Wallace command-line utility through
 
-You then will need to set up your command line installation of the Heroku toolset to be able to log in to your Heroku account. 
+    wallace setup 
 
-# Creating your API Key access file
+which we prepopulate a hidden file `.wallaceconfig` in your home directory. Alternatively, you can create this file yourself and fill it in like so:
+
+```
+[AWS Access]
+aws_access_key_id = ???
+aws_secret_access_key = ???
+aws_region = us-east-1
+
+[psiTurk Access]
+psiturk_access_key_id = ???
+psiturk_secret_access_id = ???
+
+[Heroku Access]
+heroku_email_address = ???
+heroku_password = ???
+
+[Email Access]
+wallace_email_address = ???
+wallace_email_password = ???
+
+[Task Parameters]
+experiment_code_version = 1.0
+num_conds = 1
+num_counters = 1
+
+[Server Parameters]
+port = 5000
+cutoff_time = 30
+logfile = -
+loglevel = 0
+debug = true
+login_username = examplename
+login_pw = examplepassword
+threads = 1
+clock_on = true
+```
+
+In the next steps, we'll fill in your config file with keys.
+
+## Amazon Web Services API Keys
+You can get API keys for Amazon Web Services by [following these instructions](http://docs.aws.amazon.com/general/latest/gr/managing-aws-access-keys.html). 
+
+Then fill in the following lines of `.wallaceconfig`, replacing `???` with your keys:
+```
+[AWS Access]
+aws_access_key_id = ???
+aws_secret_access_key = ???
+```
+
+**N.B.** One feature of AWS API keys is that they are only displayed once, and though they can be regenerated, doing so will render invalid previously generated keys. If you are running experiments using a laboratory account (or any other kind of group-owned account), regenerating keys will stop other users who have previously generated keys from being able to use the AWS account. Unless you are sure that you will not be interrupting others' workflows, it is advised that you do **not** generate new API keys. If you are not the primary user of the account, see if you can obtain these keys from others who have successfully used AWS.
+
+## Amazon Mechanical Turk
+It's worth signing up for Amazon Mechanical Turk (perhaps using your AWS account from above), both as a [requester](https://requester.mturk.com/mturk/beginsignin) and as a [worker](https://www.mturk.com/mturk/beginsignin). You'll use this to test and monitor experiments. You should also sign in to each sandbox, [requester](https://requester.mturk.com/begin_signin) and [worker](https://workersandbox.mturk.com/mturk/welcome) using the same account. Store this account and password somewhere, but you don't need to tell it to Wallace.
 
 ## psiTurk 
-
-When you create your psiTurk account this will require a valid email address, and once you confirm your account you can then click on [**API Keys**](https://psiturk.org/dashboard/api_credentials) which will allow you to access your API keys as seen in the image below:
+Next, create an account on [psiTurk](http://psiturk.org/), which will require a valid email address. Once you confirm your account, click on [**API Keys**](https://psiturk.org/dashboard/api_credentials), which will allow you to access your API keys as seen in the image below:
 
 ![Don't even try to use these API Keys, they've been reissued!](http://note.io/145nfz4)
 
-## AWS API Keys
-One feature of the AWS API keys is that they are only displayed once, and while they can be regenerated that will render invalid previously generated keys. If you are running experiments using a laboratory account (or any other kind of group-owned account) if you regenerate keys that will stop other users who have previously generated keys from being able to use the AWS account. Unless you are sure that you will not be interrupting others' workflows, it is advised that you do **not** generate new API keys. 
+Place these credential in the `.wallaceconfig` file:
 
-A corollary is that when you create your AWS account be sure to record your values for the following keys:
-
-    aws_access_key_id = 
-    aws_secret_access_key = 
-
-If you are not the primary user of the account, see if you can obtain these keys from others who have successfully been able to use AWS.
-
-## Making the `.wallaceconfig` file
-
-Place your psiTurk and Amazon Web Services credentials in `~/.wallaceconfig` (you may need to create this file:  `touch ~/.wallaceconfig`); it should live in your home directory). 
-
-In your preferred text editor, edit the file to include the following text(filling in the ALL_CAPS with your relevant values):
-
-    $ cat ~/.wallaceconfig
-    [AWS Access]
-    aws_access_key_id = YOUR_AWS_ACCESS_KEY_ID
-    aws_secret_access_key = YOUR_AWS_SECRET_ACCESS_KEY
+Then fill in the following lines of `.wallaceconfig`, replacing `???` with your keys:
 
     [psiTurk Access]
-    psiturk_access_key_id = YOUR_PSITURK_ACCESS_KEY_ID
-    psiturk_secret_access_id = YOUR_PSITURK_SECRET_ACCESS_ID
+    psiturk_access_key_id = ???
+    psiturk_secret_access_id = ???
 
 ## Heroku
 
-Sign up for [Heroku](https://www.heroku.com/), and install the [Heroku toolbelt](https://toolbelt.heroku.com/). 
+Next, sign up for [Heroku](https://www.heroku.com/) and install the [Heroku toolbelt](https://toolbelt.heroku.com/). 
 
-You should be able to see an interface that looks like the following
+You should see an interface that looks something like the following:
 
 ![This is the interface with the Heroku app](http://note.io/11c7tkL)
 
 Then, log in from the command line:
 
-
     heroku login
 
+And fill in the appropriate section of `.wallaceconfig`:
 
-You won't need to interact with Heroku directly from here on out --- the Wallace command line tool handles that for you.
+```
+[Heroku Access]
+heroku_email_address = ???
+heroku_password = ???
+```
 
-## Ready to Wallace your first experiment‽
+## Done?
 
-Now you're all set up with the tools you need to work with Wallace. 
+Done. You're now all set up with the tools you need to work with Wallace. 
 
-Now it's time to test Wallace to make sure it's working on your system. [click here to see the next steps and demos](https://github.com/suchow/Wallace/wiki#testing-wallace).
+Next, we'll [test Wallace to make sure it's working on your system](Demoing-Wallace.md).
