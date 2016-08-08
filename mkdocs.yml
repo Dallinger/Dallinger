@@ -15,7 +15,7 @@ pages:
   - 'Examining the database': 'Postico-and-Postgres.md'
 - New experiments:
   - 'Required experimental files': 'Required-experimental-files.md'
-  - 'The Experiment Class': 'The-Experiment-Class.md'
+  - 'The Experiment Class': 'The-Experiment-class.md'
   - 'Classes': 'Classes.md'
   - 'Web API': 'Web-API.md'
   - 'Communicating with the server': 'Communicating-with-the-server.md'
