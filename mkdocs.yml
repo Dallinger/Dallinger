@@ -1,5 +1,7 @@
 site_name: Wallace
 theme: alabaster
+extra_css:
+    - css/style.css
 pages:
 - Introduction: 'index.md'
 - Installation:
