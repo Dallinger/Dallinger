@@ -18,7 +18,8 @@ setup_args = dict(
         'console_scripts': [
             'wallace = wallace.command_line:wallace',
         ],
-    }
+    },
+    dependency_links=['-e git+git://github.com/berkeley-cocosci/psiTurk.git@wallace3#egg=psiturk']
 )
 
 # Read in requirements.txt for dependencies.
