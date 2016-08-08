@@ -6,7 +6,7 @@ The first step is to create the Wallace configuration file in your home director
 
     wallace setup 
 
-which we prepopulate a hidden file `.wallaceconfig` in your home directory. Alternatively, you can create this file yourself and fill it in like so:
+which will prepopulate a hidden file `.wallaceconfig` in your home directory. Alternatively, you can create this file yourself and fill it in like so:
 
 ```
 [AWS Access]
