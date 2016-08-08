@@ -34,7 +34,7 @@ psql -c 'create database wallace;' -U postgres
 
 Install Wallace from the terminal by running
 ```
-pip install wallace
+pip install wallace-platform
 ```
 
 Test that your installation works by running:
