@@ -10,7 +10,7 @@ pages:
   - 'Keys for AWS, Heroku, etc.': 'AWS-etc-keys.md'
   - 'For users of Anaconda': 'Wallace-with-Anaconda.md'
 - Usage:
-  - 'Learning to use Wallace': 'Learning-to-use-Wallace.md'
+  # - 'Learning to use Wallace': 'Learning-to-use-Wallace.md'
   - 'Running a demo': 'Demoing-Wallace.md'
   - 'Command-line utility': 'Command-line-utility.md'
   - 'Monitoring a live experiment': 'Monitoring-a-live-experiment.md'
