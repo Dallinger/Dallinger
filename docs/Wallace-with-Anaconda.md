@@ -18,6 +18,8 @@ into the command line. For those of us with Anaconda, we'll get a long error mes
 export DYLD_FALLBACK_LIBRARY_PATH=$HOME/anaconda/lib/:$DYLD_FALLBACK_LIBRARY_PATH
 ```
 
+If you installed anaconda using `Python 3`, you will need to change  `anaconda` in that path to `anaconda3`. 
+
 After you `source` your `.bash_profile`, you can check your Wallace version (using the same command that we used earlier), which should return the Wallace version that you've installed.
 
 ## Re-link `openssl`
