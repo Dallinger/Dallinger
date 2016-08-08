@@ -15,6 +15,12 @@ pages:
   - 'Command-line utility': 'Command-line-utility.md'
   - 'Monitoring a live experiment': 'Monitoring-a-live-experiment.md'
   - 'Examining the database': 'Postico-and-Postgres.md'
+- Demos:
+  - 'War of the Ghosts': 'demos/bartlett1932.md'
+  - 'Transmitting functions': 'demos/function-learning.md'
+  - 'Markov Chain Monte Carlo with people': 'demos/mcmcp.md'
+  - 'Chatroom-based coordination game': 'demos/chatroom.md'
+  - 'Rogers paradox': 'demos/rogers.md'
 - New experiments:
   - 'Required experimental files': 'Required-experimental-files.md'
   - 'The Experiment Class': 'The-Experiment-class.md'
