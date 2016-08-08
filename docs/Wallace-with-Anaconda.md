@@ -22,7 +22,7 @@ If you installed anaconda using `Python 3`, you will need to change  `anaconda` 
 
 After you `source` your `.bash_profile`, you can check your Wallace version (using the same command that we used earlier), which should return the Wallace version that you've installed.
 
-## Re-link `openssl`
+## Re-link Open SSL
 
 Finally, you'll need to re-link `openssl`. Run the following:
 
