@@ -21,6 +21,16 @@ If you have Python 3.*x* installed and and symlinked to the command `python`, yo
 
 On OS X, we recommend installing [Postgres.app](http://postgresapp.com) to start and stop a Postgres server.
 
+You will then need to add Postgres to your PATH environmental variable. If you use the default location for installing applications on OS X (namely `/Applications`), you can adjust your path by running the following command:
+```
+export PATH="/Applications/Postgres.app/Contents/Versions/9.3/bin:$PATH"
+```
+NB: If you have installed a more recent version of Postgres (e.g., the [the upcoming version 9.4](https://github.com/PostgresApp/PostgresApp/releases/tag/9.4rc1)), you may need to alter that command slightly to accommodate the more recent version number. To double check which version to include, then run:    
+```
+ls /Applications/Postgres.app/Contents/Versions/
+```
+Whatever number that returns is the version number that you should place in the `export` command above. If it does not return a number, you have not installed Postgres correctly in your `/Applications` folder or something else is horribly wrong.
+
 On Ubuntu, follow the instructions under the heading "Installation" [here](https://help.ubuntu.com/community/PostgreSQL). 
 
 ## Create the Database
