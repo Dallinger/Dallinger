@@ -10,7 +10,7 @@ python --version
 ```
 If you do not have Python 2.7 installed, you can install it from the [Python website](https://www.python.org/downloads/).
 
-Or, if you use Homebrew:
+Or, if you use Homebrew (if you use Anaconda, install using `conda`, not Homebrew):
 ```
 brew install python
 ```
@@ -54,6 +54,8 @@ psql: could not connect to server: No such file or directory
 ...then you probably did not start the app.
 
 ## Set up a virtual environment
+
+**Note**: if you are using Anaconda ignore this `virtualenv` section; use `conda` to create your virtual environment. Or, see the special [Anaconda installation instructions](Wallace-with-Anaconda.md). 
 
 Set up a virtual environment by running the following commands:
 
