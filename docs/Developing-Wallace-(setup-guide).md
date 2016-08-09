@@ -19,7 +19,7 @@ If you have Python 3.*x* installed and and symlinked to the command `python`, yo
 
 ## Install Postgres
 
-On OS X, we recommend installing [Postgres.app](http://postgresapp.com) to start and stop a Postgres server.
+On OS X, we recommend installing [Postgres.app](http://postgresapp.com) to start and stop a Postgres server. You'll also want to set up the Postgres command-line utilities by following the instructions [here](http://postgresapp.com/documentation/cli-tools.html).
 
 You will then need to add Postgres to your PATH environmental variable. If you use the default location for installing applications on OS X (namely `/Applications`), you can adjust your path by running the following command:
 ```
