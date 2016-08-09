@@ -105,7 +105,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
     # Check that the version of Wallace specified in the config file is the one
     # that we are currently running.
     wallace_version = config.get('Experiment Configuration', 'wallace_version')
-    this_version = pkg_resources.require("wallace")[0].version
+    this_version = pkg_resources.require("wallace-platform")[0].version
     if wallace_version != this_version:
         raise AssertionError(
             "You are using Wallace v" + this_version + ", "
