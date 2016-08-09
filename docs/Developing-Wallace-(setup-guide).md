@@ -19,7 +19,7 @@ If you have Python 3.*x* installed and and symlinked to the command `python`, yo
 
 ## Install Postgres
 
-On OS X, we recommend installing [Postgres.app](postgresapp.com) to start and stop a Postgres server.
+On OS X, we recommend installing [Postgres.app](http://postgresapp.com) to start and stop a Postgres server.
 
 On Ubuntu, follow the instructions under the heading "Installation" [here](https://help.ubuntu.com/community/PostgreSQL). 
 
