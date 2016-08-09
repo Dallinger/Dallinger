@@ -4,6 +4,4 @@ Wallace is a platform for conducting research on experimental cultural evolution
 
 Want to take Wallace for a test drive? Start [here](Installing-Wallace-(for-users).md).
 
-Want to learn more? Try [here](Learning-to-use-Wallace.md).
-
 Feel like contributing to Wallace? Great! Start [here](Developing-Wallace-(setup-guide).md).
