@@ -1,6 +1,6 @@
 When an experiment is running, the database and the experiment class (i.e. the instructions for what to do with the database) will be hosted on a server, the server is also known as the "back-end". However, participants will take part in experiments via an interactive web-site (the "front-end"). Accordingly for an experiment to proceed there must be a means of communication between the front and back ends. This is achieved with routes:
 
-![](https://github.com/berkeley-cocosci/Wallace/blob/master/wiki/images/front_back_layout.jpg)
+![](images/front_back_layout.jpg)
 
 Routes are specific web addresses on the server that respond to requests from the front-end. Routes have direct access to the database, though most of the time they will pass requests to the experiment which will in turn access the database. As such, changing the behavior of the experiment is the easiest way to create a new experiment. However it is also possible to change the behavior of the routes or add new routes entirely.
 
