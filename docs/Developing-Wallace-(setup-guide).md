@@ -1,11 +1,13 @@
 # Developer's installation of Wallace
 
-#### Install Python 2.7
+We recommend installing Wallace on Mac OS X. It's also possible to use Ubuntu.
+
+## Install Python 2.7
 
 You will need Python 2.7. You can check what version of Python you have by running:
-    ```
-    python --version
-    ```
+```
+python --version
+```
 If you do not have Python 2.7 installed, you can install it from the [Python website](https://www.python.org/downloads/).
 
 Or, if you use Homebrew:
@@ -15,11 +17,13 @@ brew install python
 
 If you have Python 3.*x* installed and and symlinked to the command `python`, you will need to create a `virtualenv` that interprets the code as `python2.7` (for compatibility with the `psiturk` module). Fortunately, we will be creating a virtual environment anyway, so as long as you run `brew install python` and you don't run into any errors because of your symlinks, then you can proceed with the instructions. If you do run into any errors, good luck, we're rooting for you. 
 
-#### Install Postgres
+## Install Postgres
 
-On OS X, we recommend installing [Postgres.app](postgresapp.com) to start and stop the Postgres server.
+On OS X, we recommend installing [Postgres.app](postgresapp.com) to start and stop a Postgres server.
 
-#### Create the Database
+On Ubuntu, follow the instructions under the heading "Installation" [here](https://help.ubuntu.com/community/PostgreSQL). 
+
+## Create the Database
 
 After installing Postgres, you will need to create a database for your experiments to use. Run the following command from the comand line:
 
@@ -27,7 +31,7 @@ After installing Postgres, you will need to create a database for your experimen
 psql -c 'create database wallace;' -U postgres
 ```
 
-#### Set up a virtual environment
+## Set up a virtual environment
 
 Set up a virtual environment by running the following commands:
 
@@ -51,7 +55,7 @@ workon wallace
 
 NB: To stop working on the virtual environment, run `deactivate`. To list all available virtual environments, run `workon` with no arguments.
 
-#### Install Wallace
+## Install Wallace
 
 Next, navigate to the directory where you want to house your development work on Wallace. Once there, clone the Git repository using:
 
