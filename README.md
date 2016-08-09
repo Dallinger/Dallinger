@@ -17,7 +17,7 @@ Features
 
 Install
 -------
-To install Wallace, please see please see [Developing Wallace (setup guide)](docs/Developing-Wallace-(setup-guide).md).
+To install Wallace, see [Developing Wallace (setup guide)](docs/Developing-Wallace-(setup-guide).md).
 
 Documentation
 -------------
