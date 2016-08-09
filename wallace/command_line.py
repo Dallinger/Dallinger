@@ -784,7 +784,8 @@ def export(app, local):
             os.path.join(subdata_path, table) + ".csv\' csv header\"",
             shell=True)
 
-    os.remove(dump_path)
+    if not local:
+        os.remove(dump_path)
 
     log("Zipping up the package...")
     shutil.make_archive(
