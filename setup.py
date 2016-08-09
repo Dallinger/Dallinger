@@ -5,7 +5,7 @@ from setuptools import setup
 setup_args = dict(
     name='wallace-platform',
     packages=['wallace'],
-    version="0.11.2",
+    version="0.11.6",
     description='Wallace, a platform for experimental cultural evolution',
     url='http://github.com/berkeley-cocosci/Wallace',
     author='Berkeley CoCoSci',

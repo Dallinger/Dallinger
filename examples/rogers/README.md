@@ -1,1 +1,3 @@
-This is the readme for the Wallace demo Rogers. It explores the evolution of asocial learning and unguided social learning in the context of a numerical discrimination task.
+This experiment, which demonstrates Rogers paradox, explores the evolution of asocial learning and unguided social learning in the context of a numerical discrimination task.
+
+[Download the demo](assets/rogers.zip).

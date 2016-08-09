@@ -24,7 +24,7 @@ For a development install of Wallace, please see [Developing Wallace (setup guid
 Documentation
 -------------
 
-Documentation is available in the [docs](docs) directory.
+Documentation is available on the [documentation website](http://berkeley-cocosci.github.io/Wallace/Developing-Wallace-(setup-guide)).
 
 Contribute
 ----------

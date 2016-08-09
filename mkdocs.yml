@@ -1,2 +1,29 @@
 site_name: Wallace
 theme: alabaster
+extra_css:
+    - css/style.css
+pages:
+- Introduction: 'index.md'
+- Installation:
+  - 'For users': 'Installing-Wallace-(for-users).md'
+  - 'For developers': 'Developing-Wallace-(setup-guide).md'
+  - 'Keys for AWS, Heroku, etc.': 'AWS-etc-keys.md'
+  - 'For users of Anaconda': 'Wallace-with-Anaconda.md'
+- Usage:
+  # - 'Learning to use Wallace': 'Learning-to-use-Wallace.md'
+  - 'Running a demo': 'Demoing-Wallace.md'
+  - 'Command-line utility': 'Command-line-utility.md'
+  - 'Monitoring a live experiment': 'Monitoring-a-live-experiment.md'
+  - 'Examining the database': 'Postico-and-Postgres.md'
+- Demos:
+  - 'War of the Ghosts': 'demos/bartlett1932.md'
+  - 'Transmitting functions': 'demos/function-learning.md'
+  - 'Markov Chain Monte Carlo with people': 'demos/mcmcp.md'
+  - 'Chatroom-based coordination game': 'demos/chatroom.md'
+  - 'Rogers paradox': 'demos/rogers.md'
+- New experiments:
+  - 'Required experimental files': 'Required-experimental-files.md'
+  - 'The Experiment Class': 'The-Experiment-class.md'
+  - 'Classes': 'Classes.md'
+  - 'Web API': 'Web-API.md'
+  - 'Communicating with the server': 'Communicating-with-the-server.md'
