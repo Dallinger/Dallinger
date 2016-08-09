@@ -17,14 +17,11 @@ Features
 
 Install
 -------
-
-To install Wallace, please see [Installing Wallace (for users)](docs/Installing-Wallace-(for-users).md).
-For a development install of Wallace, please see [Developing Wallace (setup guide)](docs/Developing-Wallace-(setup-guide).md).
+To install Wallace, please see please see [Developing Wallace (setup guide)](docs/Developing-Wallace-(setup-guide).md).
 
 Documentation
 -------------
-
-Documentation is available on the [documentation website](http://berkeley-cocosci.github.io/Wallace/Developing-Wallace-(setup-guide)).
+Documentation is available on the [documentation website](http://berkeley-cocosci.github.io/Wallace/).
 
 Contribute
 ----------
