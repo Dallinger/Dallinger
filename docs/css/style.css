@@ -9,3 +9,9 @@ code {
 tt, code {
     padding: 4px 5px 1px 5px;
 }
+
+@media screen and (max-width: 875px) {
+    div .sphinxsidebar {
+        background: #3e4349;
+    }
+}
