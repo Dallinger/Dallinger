@@ -80,6 +80,9 @@ Returns a list of json descriptions of vectors connected to the node as `vectors
 **/node/\<participant_id>** [post]   
 Create a node for the specified participant. The route calls the following experiment methods: `get_network_for_participant(participant)`, `create_node(network, participant)`, `add_node_to_network(node, network)`, and `node_post_request(participant, node)`. Returns a json description of the created node as `node`.
 
+**/notifications** [post/get]   
+This is the route to which notifications from AWS are sent. It is also possible to send your own notifications to this route, thereby simulating notifications from AWS. Necessary arguments are *Event.1.EventType* which can be AssignmentAccepted, AssignmentAbandoned, AssignmentReturned or AssignmentSubmitted and *Event.1.AssignmentId* which is the id of the relevant assignment. In addition, Wallace uses a custom EventType of NotificationMissing.
+
 **/participant/\<participant_id>** [get]   
 Returns a json description of the requested participant as `participant`.
 
@@ -88,3 +91,6 @@ Create a participant. Returns a json description of the participant as `particip
 
 **/question/\<participant_id>** [post]   
 Create a question. *question*, *response* and *question_id* should be passed as data. Does not return anything.
+
+**/transformation/\<int:node_id>/\<int:info_in_id>/\<int:info_out_id>** [post] 
+Create a transformation from *info_in* to *info_out* at the specified node. *transformation_type* can be passed as data and the transformation will be of that class if it is a known class. Returns a json description of the created transformation.
