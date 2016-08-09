@@ -15,13 +15,7 @@ brew install python
 
 If you have Python 3.*x* installed and and symlinked to the command `python`, you will need to create a `virtualenv` that interprets the code as `python2.7` (for compatibility with the `psiturk` module). Fortunately, we will be creating a virtual environment anyway, so as long as you run `brew install python` and you don't run into any errors because of your symlinks, then you can proceed with the instructions. If you do run into any errors, good luck, we're rooting for you. 
 
-#### Install Postgres using `brew`
-
-Intall postgres using homebrew:
-
-```
-brew install postgres
-```
+#### Install Postgres
 
 On OS X, we recommend installing [Postgres.app](postgresapp.com) to start and stop the Postgres server.
 
