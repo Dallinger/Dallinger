@@ -326,8 +326,8 @@ class TestRogers(object):
                         assert len(agent.vectors(direction="incoming")) in [2, 3]
                         assert not agent.is_connected(direction="from", whom=source)
                         assert agent.is_connected(direction="from", whom=environment)
-                        assert RogersAgent in [type(a) for a in agent.neighbors(connection="from")] or\
-                            RogersAgentFounder in [type(a) for a in agent.neighbors(connection="from")]
+                        assert RogersAgent in [type(a) for a in agent.neighbors(direction="from")] or\
+                            RogersAgentFounder in [type(a) for a in agent.neighbors(direction="from")]
 
             print("Testing nodes...                     done!")
             sys.stdout.flush()

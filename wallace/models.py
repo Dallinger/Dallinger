@@ -672,12 +672,12 @@ class Node(Base, SharedMixin):
                 neighbors = [n for n in neighbors if isinstance(n, type)]
 
         if direction == "either":
-            neighbors = list(set(self.neighbors(type=type, connection="to") +
-                                 self.neighbors(type=type, connection="from")))
+            neighbors = list(set(self.neighbors(type=type, direction="to") +
+                                 self.neighbors(type=type, direction="from")))
 
         if direction == "both":
-            neighbors = list(set(self.neighbors(type=type, connection="to")) &
-                             set(self.neighbors(type=type, connection="from")))
+            neighbors = list(set(self.neighbors(type=type, direction="to")) &
+                             set(self.neighbors(type=type, direction="from")))
 
         return neighbors
 

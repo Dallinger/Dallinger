@@ -391,4 +391,4 @@ class TestNetworks(object):
     #             else:
     #                 assert (agents[a].is_connected(direction="to", whom=agents[b]) is False)
     #             if a_gen == 0:
-    #                 assert isinstance(agents[a].neighbors(connection="from")[0], nodes.Source)
+    #                 assert isinstance(agents[a].neighbors(direction="from")[0], nodes.Source)

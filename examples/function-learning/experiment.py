@@ -41,7 +41,7 @@ class FunctionLearning(Experiment):
     def add_node_to_network(self, node, network):
         """When an agent is created, add it to the network and take a step."""
         network.add_node(node)
-        parent = node.neighbors(connection="from")[0]
+        parent = node.neighbors(direction="from")[0]
         parent.transmit()
         node.receive()
 
