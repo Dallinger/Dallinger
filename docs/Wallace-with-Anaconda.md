@@ -2,7 +2,7 @@ If you are interested in developing Wallace but already use [Anaconda](https://w
 
 ## Install Wallace
 
-You'll follow all of the [Wallace development installation instructions](https://github.com/berkeley-cocosci/Wallace/wiki/Developing-Wallace-(setup-guide)), **with the exception of the virtual environment step**.
+You'll follow all of the [Wallace development installation instructions](Developing-Wallace-(setup-guide).md), **with the exception of the virtual environment step**.
 
 ## Confirm Wallace works
 
