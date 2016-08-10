@@ -37,13 +37,13 @@ On Ubuntu, follow the instructions under the heading "Installation" [here](https
 
 ## Create the Database
 
-After installing Postgres, you will need to create a database for your experiments to use. First, open the Postgres.app in any way you like (e.g., <kbd>⌘</kbd>+<kbd>␣</kbd> (command and space) and type `Postgres`). Then, run the following command from the comand line:
+After installing Postgres, you will need to create a database for your experiments to use. First, open the Postgres.app. Then, run the following command from the comand line:
 
 ```
 psql -c 'create database wallace;' -U postgres
 ```
 
-If you get an error like: 
+If you get the following error...
 
 ```
 psql: could not connect to server: No such file or directory
@@ -51,7 +51,7 @@ psql: could not connect to server: No such file or directory
     connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
 ```
 
-Then, you probably forgot to start the app.
+...then you probably did not start the app.
 
 ## Set up a virtual environment
 
