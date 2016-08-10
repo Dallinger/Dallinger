@@ -15,6 +15,8 @@ Or, if you use Homebrew:
 brew install python
 ```
 
+Or, if you use Anaconda, install using `conda`, not Homebrew.
+
 If you have Python 3.*x* installed and and symlinked to the command `python`, you will need to create a `virtualenv` that interprets the code as `python2.7` (for compatibility with the `psiturk` module). Fortunately, we will be creating a virtual environment anyway, so as long as you run `brew install python` and you don't run into any errors because of your symlinks, then you can proceed with the instructions. If you do run into any errors, good luck, we're rooting for you. 
 
 ## Install Postgres
@@ -54,6 +56,8 @@ psql: could not connect to server: No such file or directory
 ...then you probably did not start the app.
 
 ## Set up a virtual environment
+
+**Note**: if you are using Anaconda, igncore this `virtualenv` section; use `conda` to create your virtual environment. Or, see the special [Anaconda installation instructions](Wallace-with-Anaconda.md). 
 
 Set up a virtual environment by running the following commands:
 
