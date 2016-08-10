@@ -1,4 +1,4 @@
-Wallace is flexible with regards to the form the front end takes. However, there are a number of required or forbidden files. You can verify that a directory is compatible by running [`wallace verify`](https://github.com/berkeley-cocosci/Wallace/wiki/Command-line-utility#verify) from a terminal within the directory. Though just because these checks pass doesn't mean the experiment will run! The minimal required structure is as follows:
+Wallace is flexible with regards to the form the front end takes. However, there are a number of required or forbidden files. You can verify that a directory is compatible by running [`wallace verify`](Command-line-utility.md#verify) from a terminal within the directory. Though just because these checks pass doesn't mean the experiment will run! The minimal required structure is as follows:
 
 ![](https://github.com/berkeley-cocosci/Wallace/blob/master/wiki/images/directories.jpg)
 
