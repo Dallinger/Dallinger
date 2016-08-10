@@ -49,5 +49,6 @@ If you use Anaconda installing wallace probably failed. The problem is that you 
 conda install psycopg2
 ```
 
+Then, try the above installation commands, they should work now, meaning you can move on. 
 
 Next, you'll need [access keys for AWS, Heroku, etc.](AWS-etc-keys.md)
