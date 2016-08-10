@@ -1,6 +1,6 @@
 Wallace is flexible with regards to the form the front end takes. However, there are a number of required or forbidden files. You can verify that a directory is compatible by running [`wallace verify`](Command-line-utility.md#verify) from a terminal within the directory. Though just because these checks pass doesn't mean the experiment will run! The minimal required structure is as follows:
 
-![](https://github.com/berkeley-cocosci/Wallace/blob/master/wiki/images/directories.jpg)
+![](images/directories.jpg)
 
 Blue items are (optional) directories (note that the experiment directory can have any name), green items are required files (the README file can be either a txt file or a md file), and red items are forbidden files that will cause a conflict at run time. 
 
