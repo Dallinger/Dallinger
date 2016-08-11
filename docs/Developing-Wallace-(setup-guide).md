@@ -93,6 +93,8 @@ This will create a directory called `Wallace` in your current directory.
 
 Change into your the new directory and make sure you are still in your virtual environment before installing the dependencies. If you want to be extra carfeul, run the command `workon wallace`, which will ensure that you are in the right virtual environment.
 
+**Note**: if you are using Anaconda – as of August 10, 2016 – you will need to follow special [Anaconda installation instructions](Wallace-with-Anaconda.md). This should be fixed in future versions.
+
 ```
 cd Wallace
 ```

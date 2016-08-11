@@ -43,4 +43,12 @@ Test that your installation works by running:
 wallace --version
 ```
 
+If you use Anaconda, installing Wallace probably failed. The problem is that you need to install bindings for the `psycopg2` package (it helps Python play nicely with Postgres) and you must use conda for conda to know where to look for the links. You do this with:
+
+```
+conda install psycopg2
+```
+
+Then, try the above installation commands. They should work now, meaning you can move on. 
+
 Next, you'll need [access keys for AWS, Heroku, etc.](AWS-etc-keys.md)
