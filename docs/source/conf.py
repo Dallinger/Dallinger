@@ -353,3 +353,13 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #
 # texinfo_no_detailmenu = False
+
+# -- Install demo files -------------------------------------------
+
+import sys
+import os
+root = os.path.abspath(os.path.dirname(__file__))
+sys.path.append(root)
+
+import build_demo_docs
+build_demo_docs.build(root)

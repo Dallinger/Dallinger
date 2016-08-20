@@ -18,3 +18,4 @@ dist/*
 src/*
 _build/*
 docs/build
+docs/source/demos

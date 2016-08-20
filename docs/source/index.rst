@@ -23,6 +23,16 @@ experiments.
 
 .. toctree::
     :maxdepth: 1
+    :caption: Demos
+
+    demos/bartlett1932
+    demos/chatroom
+    demos/function-learning
+    demos/mcmcp
+    demos/rogers
+
+.. toctree::
+    :maxdepth: 1
     :caption: Utility and API Documentation
 
     classes
