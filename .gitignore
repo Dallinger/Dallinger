@@ -17,3 +17,4 @@ docs/demos/*
 dist/*
 src/*
 _build/*
+docs/build
