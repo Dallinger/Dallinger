@@ -139,6 +139,13 @@ NB: To stop working on the virtual environment, run ``deactivate``. To
 list all available virtual environments, run ``workon`` with no
 arguments.
 
+Install enchant
+---------------
+
+To be able to build the documentation, you will need to have the Enchant
+library installed. Please follow the instructions `here
+<http://pythonhosted.org/pyenchant/download.html>`__ to install it.
+
 Install Wallace
 ---------------
 
