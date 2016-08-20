@@ -1,16 +1,27 @@
 Installing Wallace with Anaconda
 ================================
 
-If you are interested in developing Wallace but already use
-`Anaconda <https://www.continuum.io/downloads>`__, you'll need to
-slightly adapt the standard instructions for Wallace.
+If you are interested in Wallace and use
+`Anaconda <https://www.continuum.io/downloads>`__, you'll need to adapt
+the standard instructions slightly.
+
+Install psycopg2
+----------------
+
+In order to get the correct bindings, you need to install ``psycopg2``
+before you use ``requirements.txt``; otherwise, everything will fail and
+you will be endlessly frustrated.
+
+::
+
+    conda install psycopg2
 
 Install Wallace
 ---------------
 
 You'll follow all of the :doc:`Wallace development installation
 instructions <developing_wallace_setup_guide>`,
-**with the exception of the virtual environment step**.
+**with the exception of the virtual environment step**.  Then return here.
 
 Confirm Wallace works
 ---------------------

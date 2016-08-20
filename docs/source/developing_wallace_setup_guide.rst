@@ -23,6 +23,8 @@ Or, if you use Homebrew:
 
     brew install python
 
+Or, if you use Anaconda, install using ``conda``, not Homebrew.
+
 If you have Python 3.\ *x* installed and and symlinked to the command
 ``python``, you will need to create a ``virtualenv`` that interprets the
 code as ``python2.7`` (for compatibility with the ``psiturk`` module).
@@ -48,23 +50,22 @@ following command:
 
 ::
 
-    export PATH="/Applications/Postgres.app/Contents/Versions/9.3/bin:$PATH"
+    export PATH="$PATH:/Applications/Postgres.app/Contents/Versions/latest/bin"
 
-NB: If you have installed a more recent version of Postgres (e.g., the
-`the upcoming version
-9.4 <https://github.com/PostgresApp/PostgresApp/releases/tag/9.4rc1>`__),
-you may need to alter that command slightly to accommodate the more
-recent version number. To double check which version to include, then
-run:
+NB: If you have installed an older version of Postgres (e.g., < 9.5),
+you may need to alter that command to accommodate the more recent
+version number. To double check which version to include, run:
 
 ::
 
     ls /Applications/Postgres.app/Contents/Versions/
 
-Whatever number that returns is the version number that you should place
-in the ``export`` command above. If it does not return a number, you
-have not installed Postgres correctly in your ``/Applications`` folder
-or something else is horribly wrong.
+Whatever values that returns are the versions that you should place in
+the ``export`` command above in the place of ``latest``.
+
+If it does not return a number, you have not installed Postgres
+correctly in your ``/Applications`` folder or something else is horribly
+wrong.
 
 On Ubuntu, follow the instructions under the heading "Installation"
 `here <https://help.ubuntu.com/community/PostgreSQL>`__.
@@ -73,14 +74,30 @@ Create the Database
 -------------------
 
 After installing Postgres, you will need to create a database for your
-experiments to use. Run the following command from the comand line:
+experiments to use. First, open the Postgres.app. Then, run the
+following command from the comand line:
 
 ::
 
     psql -c 'create database wallace;' -U postgres
 
+If you get the following error...
+
+::
+
+    psql: could not connect to server: No such file or directory
+        Is the server running locally and accepting
+        connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
+
+...then you probably did not start the app.
+
 Set up a virtual environment
 ----------------------------
+
+**Note**: if you are using Anaconda, ignore this ``virtualenv``
+section; use ``conda`` to create your virtual environment. Or, see the
+special `Anaconda installation
+instructions <Wallace-with-Anaconda.md>`__.
 
 Set up a virtual environment by running the following commands:
 
@@ -139,6 +156,10 @@ Change into your the new directory and make sure you are still in your
 virtual environment before installing the dependencies. If you want to
 be extra carfeul, run the command ``workon wallace``, which will ensure
 that you are in the right virtual environment.
+
+**Note**: if you are using Anaconda – as of August 10, 2016 – you will need to
+follow special :doc:`Anaconda installation instructions
+<wallace_with_anaconda>`. This should be fixed in future versions.
 
 ::
 
