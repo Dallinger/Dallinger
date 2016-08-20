@@ -43,7 +43,7 @@ name. The files are as follows:
    something goes wrong.
 -  launch.html - this page is shown when the /launch route is pinged and
    the experiment starts successfully.
--  robots.txt - this file is returned to bots (e.g. from google) that
+-  robots.txt - this file is returned to bots (e.g. from Google) that
    bump into the experiment when crawling the internet.
 -  wallace.js - this is a javascript library with a number of helpful
    functions.

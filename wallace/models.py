@@ -109,7 +109,7 @@ class Participant(Base, SharedMixin):
     #:    - ``bad_data`` - the participant finished, but their data was
     #:      malformed
     #:    - ``missing notification`` - this indicates that Wallace has
-    #:      inferred that an MTurk notification corresponding to this
+    #:      inferred that a Mechanical Turk notification corresponding to this
     #:      participant failed to arrive. This is an uncommon, but potentially
     #:      serious issue.
     status = Column(Enum("working", "submitted", "approved", "rejected",
@@ -1040,7 +1040,7 @@ class Node(Base, SharedMixin):
         only connect with nodes in the same network. In addition nodes cannot
         connect with themselves or with Sources. ``direction`` specifies the
         direction of the connection it can be "to" (node -> whom), "from" (whom
-        -> node) or both (node <-> whom). The defult is "to".
+        -> node) or both (node <-> whom). The default is "to".
 
         Whom may be a (nested) list of nodes.
 
@@ -1676,7 +1676,7 @@ class Transmission(Base, SharedMixin):
 
 
 class Transformation(Base, SharedMixin):
-    """An instance of one info being tranformed into another."""
+    """An instance of one info being transformed into another."""
 
     __tablename__ = "transformation"
 

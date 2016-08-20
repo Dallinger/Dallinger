@@ -75,7 +75,7 @@ Create the Database
 
 After installing Postgres, you will need to create a database for your
 experiments to use. First, open the Postgres.app. Then, run the
-following command from the comand line:
+following command from the command line:
 
 ::
 
@@ -154,7 +154,7 @@ directory.
 
 Change into your the new directory and make sure you are still in your
 virtual environment before installing the dependencies. If you want to
-be extra carfeul, run the command ``workon wallace``, which will ensure
+be extra careful, run the command ``workon wallace``, which will ensure
 that you are in the right virtual environment.
 
 **Note**: if you are using Anaconda – as of August 10, 2016 – you will need to

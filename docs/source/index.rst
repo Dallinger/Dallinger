@@ -3,7 +3,7 @@ Wallace
 
 Wallace is a platform for conducting research on experimental cultural
 evolution. Its namesake is Alfred Russel Wallace, a British naturalist
-and the oft-ignored codiscoverer of evolution by natural selection. You
+and the oft-ignored co-discoverer of evolution by natural selection. You
 can use Wallace to create new experiments or to reproduce existing
 experiments.
 

@@ -3,7 +3,7 @@ Wallace, The Scientist
 
 In 1848, following numerous poor investments and failed business
 ventures, the 25 year old Alfred Russell Wallace set out aboard the
-*Mischief* for Brasil. His plan was to document the geography, flora,
+*Mischief* for Brazil. His plan was to document the geography, flora,
 fauna and people of South America, collecting evidence for the
 transmutation of species as well as animal specimens which could be sold
 to collectors back in the United Kingdom. However, on the return journey

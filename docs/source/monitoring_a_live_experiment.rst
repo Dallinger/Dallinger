@@ -30,7 +30,7 @@ You can use Papertrail to view and search the live logs of your
 experiment. You can access the logs either through the Heroku
 dashboard's Resources panel
 (https://dashboard.heroku.com/apps/{#id}/resources), where {#id} is the
-id of your experiment, or directly through papertrail.com
+id of your experiment, or directly through Papertrail.com
 (https://papertrailapp.com/systems/{#id}/events).
 
 Setting up alerts
@@ -67,6 +67,6 @@ another communications platform.
     click "Save integration".
 15. Go back to Papertrail page that you left in Step 7.
 16. Paste the copied URL into the input text box labeled "Integration's
-    Webook URL" under the "Slack Details" heading.
+    Webhook URL" under the "Slack Details" heading.
 17. Click "Create Alert" on the same page.
 18. Victory.

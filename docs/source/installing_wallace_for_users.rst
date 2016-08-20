@@ -56,7 +56,7 @@ Create the Database
 ^^^^^^^^^^^^^^^^^^^
 
 After installing Postgres, you will need to create a database for your
-experiments to use. Run the following command from the comand line:
+experiments to use. Run the following command from the command line:
 
 ::
 
