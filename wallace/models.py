@@ -22,18 +22,38 @@ def timenow():
 class SharedMixin(object):
     """Create shared columns."""
 
+    #: a unique number for every entry. 1, 2, 3 and so on...
     id = Column(Integer, primary_key=True, index=True)
 
+    #: the time at which the Network was created.
     creation_time = Column(DateTime, nullable=False, default=timenow)
 
+    #: a generic column that can be used to store experiment-specific details in
+    #: String form.
     property1 = Column(String(256), nullable=True, default=None)
+
+    #: a generic column that can be used to store experiment-specific details in
+    #: String form.
     property2 = Column(String(256), nullable=True, default=None)
+
+    #: a generic column that can be used to store experiment-specific details in
+    #: String form.
     property3 = Column(String(256), nullable=True, default=None)
+
+    #: a generic column that can be used to store experiment-specific details in
+    #: String form.
     property4 = Column(String(256), nullable=True, default=None)
+
+    #: a generic column that can be used to store experiment-specific details in
+    #: String form.
     property5 = Column(String(256), nullable=True, default=None)
 
+    #: boolean indicating whether the Network has failed which
+    #: prompts Wallace to ignore it unless specified otherwise. Objects are
+    #: usually failed to indicate something has gone wrong.
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
+    #: the time at which failing occurred
     time_of_death = Column(DateTime, default=None)
 
 
@@ -42,24 +62,56 @@ class Participant(Base, SharedMixin):
 
     __tablename__ = "participant"
 
-    # the participant type -- this allows for inheritance
+    #: a String giving the name of the class. Defaults to
+    #: "participant". This allows subclassing.
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'participant'
     }
 
+    #: A String, the worker id of the participant.
     worker_id = Column(String(50), nullable=False)
+
+    #: A String, the assignment id of the participant.
     assignment_id = Column(String(50), nullable=False, index=True)
+
+    #: A String, a concatenation of :attr:`~wallace.models.Participant.worker_id`
+    #: and :attr:`~wallace.models.Participant.assignment_id`, used by psiTurk.
     unique_id = Column(String(50), nullable=False, index=True)
+
+    #: A String, the id of the hit the participant is working on
     hit_id = Column(String(50), nullable=False)
+
+    #: A String, the mode in which Wallace is running: live,
+    #: sandbox or debug.
     mode = Column(String(50), nullable=False)
 
+    #: The time at which the participant finished.
     end_time = Column(DateTime)
 
+    #: The amount the participant was paid for finishing the
+    #: experiment.
     base_pay = Column(Float)
+
+    #: the amount the participant was paid as a bonus.
     bonus = Column(Float)
 
+    #: String representing the current status of the participant, can be:
+    #:    - ``working`` - participant is working
+    #:    - ``submitted`` - participant has submitted their work
+    #:    - ``approved`` - their work has been approved and they have been paid
+    #:    - ``rejected`` - their work has been rejected
+    #:    - ``returned`` - they returned the hit before finishing
+    #:    - ``abandoned`` - they ran out of time
+    #:    - ``did_not_attend`` - the participant finished, but failed the
+    #:      attention check
+    #:    - ``bad_data`` - the participant finished, but their data was
+    #:      malformed
+    #:    - ``missing notification`` - this indicates that Wallace has
+    #:      inferred that a Mechanical Turk notification corresponding to this
+    #:      participant failed to arrive. This is an uncommon, but potentially
+    #:      serious issue.
     status = Column(Enum("working", "submitted", "approved", "rejected",
                          "returned", "abandoned", "did_not_attend", "bad_data",
                          "missing_notification", name="participant_status"),
@@ -100,8 +152,11 @@ class Participant(Base, SharedMixin):
     def nodes(self, type=None, failed=False):
         """Get nodes associated with this participant.
 
-        type specifies the class of Node. Failed can be "all", False
-        (default) or True.
+        Return a list of nodes associated with the participant. If specified,
+        ``type`` filters by class. By default failed nodes are excluded, to
+        include only failed nodes use ``failed=True``, for all nodes use
+        ``failed=all``.
+
         """
         if type is None:
             type = Node
@@ -124,10 +179,11 @@ class Participant(Base, SharedMixin):
                 .all()
 
     def questions(self, type=None):
-        """
-        Get questions associated with this participant.
+        """Get questions associated with this participant.
 
-        type specifies the class of Question.
+        Return a list of questions associated with the participant. If
+        specified, ``type`` filters by class.
+
         """
         if type is None:
             type = Question
@@ -143,8 +199,13 @@ class Participant(Base, SharedMixin):
     def infos(self, type=None, failed=False):
         """Get all infos created by the participants nodes.
 
-        type specifies the class of Info, failed can be
-        True, False or all.
+        Return a list of infos produced by nodes associated with the
+        participant. If specified, ``type`` filters by class. By default, failed
+        infos are excluded, to include only failed nodes use ``failed=True``,
+        for all nodes use ``failed=all``. Note that failed filters the infos,
+        not the nodes - infos from all nodes (whether failed or not) can be
+        returned.
+
         """
         nodes = self.nodes(failed="all")
         infos = []
@@ -153,7 +214,13 @@ class Participant(Base, SharedMixin):
         return infos
 
     def fail(self):
-        """Fail a participant."""
+        """Fail a participant.
+
+        Set :attr:`~wallace.models.SharedMixin.failed` to ``True`` and
+        :attr:`~wallace.models.SharedMixin.time_of_death` to now. Instruct all
+        not-failed nodes associated with the participant to fail.
+
+        """
         if self.failed is True:
             raise AttributeError(
                 "Cannot fail {} - it has already failed.".format(self))
@@ -170,24 +237,28 @@ class Question(Base, SharedMixin):
 
     __tablename__ = "question"
 
-    # the question type -- this allows for inheritance
+    #: a String giving the name of the class. Defaults to
+    #: "question". This allows subclassing.
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'question'
     }
 
-    # the participant who made the response
+    #: the participant who made the response
     participant_id = Column(Integer, ForeignKey('participant.id'))
+
+    #: the participant who answered the question
     participant = relationship(Participant, backref='all_questions')
 
-    # the network that this node is a part of
+    #: A number identifying the question. e.g., each participant might complete
+    #: three questions numbered 1, 2, and 3.
     number = Column(Integer, nullable=False)
 
-    # the text of the question
+    #: the text of the question
     question = Column(String(250), nullable=False)
 
-    # the response from the participants
+    #: the participant's response. Stored as a string.
     response = Column(String(1000), nullable=False)
 
     def __init__(self, participant, question, response, number):
@@ -204,7 +275,12 @@ class Question(Base, SharedMixin):
         self.response = response
 
     def fail(self):
-        """Fail a question."""
+        """Fail a question.
+
+        Set :attr:`~wallace.models.SharedMixin.failed` to True and
+        :attr:`~wallace.models.SharedMixin.time_of_death` to now.
+
+        """
         if self.failed is True:
             raise AttributeError(
                 "Cannot fail {} - it has already failed.".format(self))
@@ -237,22 +313,24 @@ class Network(Base, SharedMixin):
 
     __tablename__ = "network"
 
-    # the network type -- this allows for inheritance
+    #: A String giving the name of the class. Defaults to
+    #: "network". This allows subclassing.
     type = Column(String(50))
+
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'network'
     }
 
-    # how big the network can get, this number is used by the full()
-    # method to decide whether the network is full
+    #: How big the network can get, this number is used by the full()
+    #: method to decide whether the network is full
     max_size = Column(Integer, nullable=False, default=1e6)
 
-    # whether the network is currently full
+    #: Whether the network is currently full
     full = Column(Boolean, nullable=False, default=False, index=True)
 
-    # the role of the network, by default wallace initializes all
-    # networks as either "practice" or "experiment"
+    #: The role of the network. By default wallace initializes all
+    #: networks as either "practice" or "experiment"
     role = Column(String(26), nullable=False, default="default", index=True)
 
     def __repr__(self):
@@ -345,7 +423,9 @@ class Network(Base, SharedMixin):
 
         type specifies the type of info (defaults to Info). failed { False,
         True, "all" } specifies the failed state of the infos. To get infos
-        from a specific node, see the infos() method in class Node.
+        from a specific node, see the infos() method in class
+        :class:`~wallace.models.Node`.
+
         """
         if type is None:
             type = Info
@@ -504,19 +584,24 @@ class Node(Base, SharedMixin):
 
     __tablename__ = "node"
 
-    # the node type -- this allows for inheritance
+    #: A String giving the name of the class. Defaults to
+    #: ``node``. This allows subclassing.
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'node'
     }
 
-    # the network that this node is a part of
+    #: the id of the network that this node is a part of
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
+
+    #: the network the node is in
     network = relationship(Network, backref="all_nodes")
 
-    # the participant whose node this is
+    #: the id of the participant whose node this is
     participant_id = Column(Integer, ForeignKey('participant.id'), index=True)
+
+    #: the participant the node is associated with
     participant = relationship(Participant, backref='all_nodes')
 
     def __init__(self, network, participant=None):
@@ -765,8 +850,9 @@ class Node(Base, SharedMixin):
     def infos(self, type=None, failed=False):
         """Get infos that originate from this node.
 
-        Type must be a subclass of info, the default is Info.
-        Failed can be True, False or "all".
+        Type must be a subclass of :class:`~wallace.models.Info`, the default is
+        ``Info``. Failed can be True, False or "all".
+
         """
         if type is None:
             type = Info
@@ -922,6 +1008,12 @@ class Node(Base, SharedMixin):
         Also fails all vectors that connect to or from the node.
         You cannot fail a node that has already failed, but you
         can fail a dead node.
+
+        Set node.failed to True and :attr:`~wallace.models.Node.time_of_death`
+        to now. Instruct all not-failed vectors connected to this node, infos
+        made by this node, transmissions to or from this node and
+        transformations made by this node to fail.
+
         """
         if self.failed is True:
             raise AttributeError(
@@ -943,19 +1035,27 @@ class Node(Base, SharedMixin):
     def connect(self, whom, direction="to"):
         """Create a vector from self to/from whom.
 
-        whom may be a (nested) list of nodes.
+        Return a list of newly created vector between the node and whom.
+        ``whom`` can be a specific node or a (nested) list of nodes. Nodes can
+        only connect with nodes in the same network. In addition nodes cannot
+        connect with themselves or with Sources. ``direction`` specifies the
+        direction of the connection it can be "to" (node -> whom), "from" (whom
+        -> node) or both (node <-> whom). The default is "to".
+
+        Whom may be a (nested) list of nodes.
+
         Will raise an error if:
-            (1) whom is not a node or list of nodes
-            (2) whom is/contains a source if direction
-                is to or both
-            (3) whom is/contains self
-            (4) whom is/contains a node in a different
-                network
+            1. whom is not a node or list of nodes
+            2. whom is/contains a source if direction is to or both
+            3. whom is/contains self
+            4. whom is/contains a node in a different network
+
         If self is already connected to/from whom a Warning
         is raised and nothing happens.
 
         This method returns a list of the vectors created
         (even if there is only one).
+
         """
         # check direction
         if direction not in ["to", "from", "both"]:
@@ -1064,25 +1164,40 @@ class Node(Base, SharedMixin):
             return transmissions
 
     def _what(self):
-        """What to transmit if what is not specified."""
+        """What to transmit if what is not specified.
+
+        Return the default value of ``what`` for
+        :func:`~wallace.models.Node.transmit`. Should not return None or a list
+        containing None.
+
+        """
         return Info
 
     def _to_whom(self):
-        """To whom to transmit if to_whom is not specified."""
+        """To whom to transmit if to_whom is not specified.
+
+        Return the default value of ``to_whom`` for
+        :func:`~wallace.models.Node.transmit`. Should not return None or a list
+        containing None.
+
+        """
         return Node
 
     def receive(self, what=None):
         """Receive some transmissions.
 
-        Received transmissions are marked as received,
-        then their infos are passed to update().
+        Received transmissions are marked as received, then their infos are
+        passed to update().
 
         "what" can be:
-            (1) None (the default) in which case all pending
-                transmissions are received.
-            (2) a specific transmission.
-        Will raise an error if the node is told to receive a transmission
-        it has not been sent.
+
+            1. None (the default) in which case all pending transmissions are
+               received.
+            2. a specific transmission.
+
+        Will raise an error if the node is told to receive a transmission it has
+        not been sent.
+
         """
         # check self is not failed
         if self.failed:
@@ -1138,7 +1253,8 @@ class Node(Base, SharedMixin):
         """Replicate an info + mutation.
 
         To mutate an info, that info must have a method called
-        _mutated_contents.
+        ``_mutated_contents``.
+
         """
         # check self is not failed
         if self.failed:
@@ -1158,18 +1274,24 @@ class Vector(Base, SharedMixin):
 
     __tablename__ = "vector"
 
-    # the origin node
+    #: the id of the Node at which the vector originates
     origin_id = Column(Integer, ForeignKey('node.id'), index=True)
+
+    #: the Node at which the vector originates.
     origin = relationship(Node, foreign_keys=[origin_id],
                           backref="all_outgoing_vectors")
 
-    # the destination node
+    #: the id of the Node at which the vector terminates.
     destination_id = Column(Integer, ForeignKey('node.id'), index=True)
+
+    #: the Node at which the vector terminates.
     destination = relationship(Node, foreign_keys=[destination_id],
                                backref="all_incoming_vectors")
 
-    # the network that this vector is in
+    #: the id of the network the vector is in.
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
+
+    #: the network the vector is in.
     network = relationship(Network, backref="all_vectors")
 
     def __init__(self, origin, destination):
@@ -1279,22 +1401,27 @@ class Info(Base, SharedMixin):
 
     __tablename__ = "info"
 
-    # the info type -- this allows for inheritance
+    #: a String giving the name of the class. Defaults to "info".
+    #: This allows subclassing.
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'info'
     }
 
-    # the node that created this info
+    #: the id of the Node that created the info
     origin_id = Column(Integer, ForeignKey('node.id'), index=True)
+
+    #: the Node that created the info.
     origin = relationship(Node, backref='all_infos')
 
-    # the network the info is in
+    #: the id of the network the info is in
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
+
+    #: the network the info is in
     network = relationship(Network, backref="all_infos")
 
-    # the contents of the info
+    #: the contents of the info. Must be stored as a String.
     contents = Column(Text(), default=None)
 
     def __init__(self, origin, contents=None):
@@ -1340,7 +1467,12 @@ class Info(Base, SharedMixin):
         }
 
     def fail(self):
-        """Fail an info."""
+        """Fail an info.
+
+        Set info.failed to True and :attr:`~wallace.models.Info.time_of_death`
+        to now. Instruct all transmissions and transformations involving this
+        info to fail.
+        """
         if self.failed is True:
             raise AttributeError(
                 "Cannot fail {} - it has already failed.".format(self))
@@ -1379,7 +1511,13 @@ class Info(Base, SharedMixin):
     def transformations(self, relationship="all"):
         """Get all the transformations of this info.
 
-        relationship can be all/parent/child.
+        Return a list of transformations involving this info. ``relationship``
+        can be "parent" (in which case only transformations where the info is
+        the ``info_in`` are returned), "child" (in which case only
+        transformations where the info is the ``info_out`` are returned) or
+        ``all`` (in which case any transformations where the info is the
+        ``info_out`` or the ``info_in`` are returned). The default is ``all``
+
         """
         if relationship not in ["all", "parent", "child"]:
             raise(ValueError(
@@ -1428,32 +1566,44 @@ class Transmission(Base, SharedMixin):
 
     __tablename__ = "transmission"
 
-    # the vector the transmission passed along
+    #: the id of the vector the info was sent along
     vector_id = Column(Integer, ForeignKey('vector.id'), index=True)
+
+    #: the vector the info was sent along.
     vector = relationship(Vector, backref='all_transmissions')
 
-    # the info that was transmitted
+    #: the id of the info that was transmitted
     info_id = Column(Integer, ForeignKey('info.id'), index=True)
+
+    #: the info that was transmitted.
     info = relationship(Info, backref='all_transmissions')
 
-    # the origin node
+    #: the id of the Node that sent the transmission
     origin_id = Column(Integer, ForeignKey('node.id'), index=True)
+
+    #: the Node that sent the transmission.
     origin = relationship(Node, foreign_keys=[origin_id],
                           backref="all_outgoing_transmissions")
 
-    # the destination node
+    #: the id of the Node that the transmission was sent to
     destination_id = Column(Integer, ForeignKey('node.id'), index=True)
+
+    #: the Node that the transmission was sent to.
     destination = relationship(Node, foreign_keys=[destination_id],
                                backref="all_incoming_transmissions")
 
-    # the network of the transformation
+    #: the id of the network the transmission is in
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
+
+    #: the network the transmission is in.
     network = relationship(Network, backref="networks_transmissions")
 
-    # the time at which the transmission was received
+    #: the time at which the transmission was received
     receive_time = Column(DateTime, default=None)
 
-    # the status of the transmission, can be pending or received
+    #: the status of the transmission, can be "pending", which means the
+    #: transmission has been sent, but not received; or "received", which means
+    #: the transmission has been sent and received
     status = Column(Enum("pending", "received", name="transmission_status"),
                     nullable=False, default="pending", index=True)
 
@@ -1526,32 +1676,42 @@ class Transmission(Base, SharedMixin):
 
 
 class Transformation(Base, SharedMixin):
-    """An instance of one info being tranformed into another."""
+    """An instance of one info being transformed into another."""
 
     __tablename__ = "transformation"
 
-    # the transformation type -- this allows for inheritance
+    #: a String giving the name of the class. Defaults to
+    #: "transformation". This allows subclassing.
     type = Column(String(50))
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'transformation'
     }
 
-    # the info before it was transformed
+    #: the id of the info that was transformed.
     info_in_id = Column(Integer, ForeignKey('info.id'), index=True)
+
+    #: the info that was transformed.
     info_in = relationship(Info, foreign_keys=[info_in_id],
                            backref="transformation_applied_to")
 
-    # the info produced as a result of the transformation
+    #: the id of the info produced by the transformation.
     info_out_id = Column(Integer, ForeignKey('info.id'), index=True)
+
+    #: the info produced by the transformation.
     info_out = relationship(Info, foreign_keys=[info_out_id],
                             backref="transformation_whence")
 
+    #: the id of the Node that did the transformation.
     node_id = Column(Integer, ForeignKey('node.id'), index=True)
+
+    #: the Node that did the transformation.
     node = relationship(Node, backref='transformations_here')
 
-    # the network of the transformation
+    #: the id of the network the transformation is in.
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
+
+    #: the network the transmission is in.
     network = relationship(Network, backref="networks_transformations")
 
     def __repr__(self):

@@ -1,3 +1,3 @@
-This experiment, which demonstrates Rogers paradox, explores the evolution of asocial learning and unguided social learning in the context of a numerical discrimination task.
+# Rogers Demo
 
-[Download the demo](assets/rogers.zip).
+This experiment, which demonstrates Rogers paradox, explores the evolution of asocial learning and unguided social learning in the context of a numerical discrimination task.
