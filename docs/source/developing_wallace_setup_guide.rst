@@ -169,7 +169,7 @@ Now we need to install the dependencies using pip:
 
 ::
 
-    pip install -r requirements.txt
+    pip install -r dev-requirements.txt
 
 Next run ``setup.py`` with the argument ``develop``:
 
