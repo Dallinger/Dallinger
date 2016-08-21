@@ -32,3 +32,7 @@ tt.xref, code.xref, a tt {
 pre {
     background: #ecf0f3;
 }
+
+.injected {
+    display: none;
+}
