@@ -146,7 +146,15 @@ html_context = {
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    'logo_name': True,
+    'github_user': 'berkeley-cocosci',
+    'github_repo': 'Wallace',
+    'github_type': 'star',
+    'github_button': True,
+    'description': 'A platform for experimental cultural evolution.',
+    'show_powered_by': False,
+}
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []
@@ -195,7 +203,15 @@ html_static_path = ['_static']
 
 # Custom sidebar templates, maps document names to template names.
 #
-# html_sidebars = {}
+html_sidebars = {
+    '**': [
+        'about.html',
+        'navigation.html',
+        'relations.html',
+        'searchbox.html',
+        'donate.html',
+    ]
+}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
