@@ -121,7 +121,7 @@ will run the command that follows, which in this case locates the
 ``virtualenvwrapper.sh`` shell script, the contents of which are beyond
 the scope of this setup tutorial. If you want to know what it does, a
 more in depth description can be found at `this page on
-``virtualenvwrapper.sh`` <http://virtualenvwrapper.readthedocs.org/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
+``virtualenvwrapper.sh`` <http://virtualenvwrapper.readthedocs.io/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
 Finally, the ``mkvirtualenv`` makes your first virtual environment which
 you've named ``wallace``. We have explicitly passed it the location of
 ``python2.7`` so that even if your ``python`` command has been remapped

@@ -134,15 +134,27 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-import sphinx_rtd_theme
-html_theme = "sphinx_rtd_theme"
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+import alabaster
+html_theme_path = [alabaster.get_path()]
+extensions += ['alabaster']
+html_theme = 'alabaster'
+html_context = {
+    'css_files': ['_static/style.css'],
+}
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    'logo_name': True,
+    'github_user': 'berkeley-cocosci',
+    'github_repo': 'Wallace',
+    'github_type': 'star',
+    'github_button': True,
+    'description': 'A platform for experimental cultural evolution.',
+    'show_powered_by': False,
+}
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []
@@ -191,7 +203,15 @@ html_static_path = ['_static']
 
 # Custom sidebar templates, maps document names to template names.
 #
-# html_sidebars = {}
+html_sidebars = {
+    '**': [
+        'about.html',
+        'navigation.html',
+        'relations.html',
+        'searchbox.html',
+        'donate.html',
+    ]
+}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.

@@ -1,9 +1,13 @@
 body {
-    font-size: 20px;
+    font-size: 22px;
 }
 
 code {
     font-size: 14px;
+}
+
+.highlight {
+    font-size: 18px;
 }
 
 tt, code {
@@ -14,4 +18,17 @@ tt, code {
     div .sphinxsidebar {
         background: #3e4349;
     }
+}
+
+h2 {
+    font-size: 75%;
+}
+
+tt.xref, code.xref, a tt {
+    background-color: #ecf0f3;
+    padding: 4px 5px 1px 5px;
+}
+
+pre {
+    background: #ecf0f3;
 }
