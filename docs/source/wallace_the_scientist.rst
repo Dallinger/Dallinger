@@ -30,6 +30,6 @@ of bad investments Wallace again faced an uncertain future, which
 stabilized after Darwin lobbied successfully for him to receive a
 government pension for lifetime contributions to science. Today,
 Wallace's legacy can be seen in the `Wallace
-Line <http://en.wikipedia.org/wiki/Wallace_Line>`__, the `Wallace
-Effect <http://en.wikipedia.org/wiki/Wallace_effect>`__ and Wallace, a
+Line <https://en.wikipedia.org/wiki/Wallace_Line>`__, the `Wallace
+Effect <https://en.wikipedia.org/wiki/Wallace_effect>`__ and Wallace, a
 platform for conducting research on experimental cultural evolution.
