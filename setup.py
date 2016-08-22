@@ -13,6 +13,7 @@ setup_args = dict(
     license='MIT',
     keywords=['science', 'cultural evolution', 'experiments', 'psychology'],
     classifiers=[],
+    include_package_data=True,
     zip_safe=False,
     entry_points={
         'console_scripts': [
