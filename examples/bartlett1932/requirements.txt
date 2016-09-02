@@ -1,1 +1,1 @@
-wallace-platform == 0.14.0
+wallace-platform == 1.0.0
