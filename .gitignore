@@ -19,3 +19,4 @@ src/*
 _build/*
 docs/build
 docs/source/demos
+.DS_Store
