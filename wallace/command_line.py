@@ -103,9 +103,13 @@ def setup_experiment(debug=True, verbose=False, app=None):
     config.load_config()
 
     # Check that the demo-specific requirements are satisfied.
-    with open("requirements.txt", "r+") as f:
-        dependencies = f.readlines()
-        pkg_resources.require(dependencies)
+    try:
+        with open("requirements.txt", "r") as f:
+            dependencies = f.readlines()
+    except:
+        dependencies = []
+
+    pkg_resources.require(dependencies)
 
     # Generate a unique id for this experiment.
     id = "w" + str(uuid.uuid4())[0:28]
