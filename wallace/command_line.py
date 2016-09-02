@@ -102,14 +102,10 @@ def setup_experiment(debug=True, verbose=False, app=None):
     config = PsiturkConfig()
     config.load_config()
 
-    # Check that the version of Wallace specified in the config file is the one
-    # that we are currently running.
-    wallace_version = config.get('Experiment Configuration', 'wallace_version')
-    this_version = pkg_resources.require("wallace-platform")[0].version
-    if wallace_version != this_version:
-        raise AssertionError(
-            "You are using Wallace v" + this_version + ", "
-            "but the experiment requires v" + wallace_version)
+    # Check that the demo-specific requirements are satisfied.
+    with open("requirements.txt", "r+") as f:
+        dependencies = f.readlines()
+        pkg_resources.require(dependencies)
 
     # Generate a unique id for this experiment.
     id = "w" + str(uuid.uuid4())[0:28]
