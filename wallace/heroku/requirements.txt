@@ -1,4 +1,4 @@
--e git+https://github.com/berkeley-cocosci/Wallace.git@v0.12.4#egg=wallace
+-e git+https://github.com/berkeley-cocosci/Wallace.git@v0.13.0#egg=wallace
 APScheduler==3.0.5
 click==3.3
 coverage==3.7.1
