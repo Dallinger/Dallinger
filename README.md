@@ -1,7 +1,7 @@
 Wallace
 =======
 [![Build Status](https://travis-ci.org/berkeley-cocosci/Wallace.svg?branch=master)](https://travis-ci.org/berkeley-cocosci/Wallace)
-[![Coverage Status](https://coveralls.io/repos/github/berkeley-cocosci/Wallace/badge.svg?branch=master)](https://coveralls.io/github/berkeley-cocosci/Wallace?branch=master)
+[![codecov](https://codecov.io/gh/Dallinger/Dallinger/branch/master/graph/badge.svg)](https://codecov.io/gh/Dallinger/Dallinger)
 [![Code Climate](https://codeclimate.com/github/berkeley-cocosci/Wallace/badges/gpa.svg)](https://codeclimate.com/github/berkeley-cocosci/Wallace)
 [![License](https://img.shields.io/github/license/berkeley-cocosci/Wallace.svg)](http://en.wikipedia.org/wiki/MIT_License)
 
