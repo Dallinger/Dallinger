@@ -1,4 +1,4 @@
-from wallace import nodes, db, models
+from dallinger import nodes, db, models
 
 
 class TestSources(object):

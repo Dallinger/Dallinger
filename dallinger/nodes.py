@@ -1,7 +1,7 @@
 """Define kinds of nodes: agents, sources, and environments."""
 
-from wallace.models import Node, Info
-from wallace.information import State
+from dallinger.models import Node, Info
+from dallinger.information import State
 from sqlalchemy import Integer
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast

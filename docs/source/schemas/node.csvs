@@ -1,8 +1,8 @@
 version 1.0
 @totalColumns 12
 /*
-Schema for Wallace's node table.
-http://cocosci.berkeley.edu/wallace
+Schema for Dallinger's node table.
+https://github.com/Dallinger/Dallinger
 */
 id: positiveInteger unique($id)
 type: length(1,*)

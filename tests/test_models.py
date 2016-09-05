@@ -3,11 +3,11 @@
 from __future__ import print_function
 import sys
 from datetime import datetime
-from wallace import models, db, nodes
+from dallinger import models, db, nodes
 from nose.tools import raises, assert_raises
-from wallace.nodes import Agent, Source
-from wallace.information import Gene
-from wallace.transformations import Mutation
+from dallinger.nodes import Agent, Source
+from dallinger.information import Gene
+from dallinger.transformations import Mutation
 
 
 class TestModels(object):

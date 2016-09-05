@@ -1,8 +1,8 @@
 version 1.0
 @totalColumns 13
 /*
-Schema for Wallace's info table.
-http://cocosci.berkeley.edu/wallace
+Schema for Dallinger's info table.
+https://github.com/Dallinger/Dallinger
 */
 id: positiveInteger unique($id)
 type: length(1,*)

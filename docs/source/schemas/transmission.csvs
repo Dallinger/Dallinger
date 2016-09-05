@@ -1,8 +1,8 @@
 version 1.0
 @totalColumns 16
 /*
-Schema for Wallace's transmission table.
-http://cocosci.berkeley.edu/wallace
+Schema for Dallinger's transmission table.
+https://github.com/Dallinger/Dallinger
 */
 id: positiveInteger unique($id)
 vector_id: positiveInteger

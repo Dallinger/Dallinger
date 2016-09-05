@@ -1,4 +1,4 @@
-from wallace import db
+from dallinger import db
 import os
 
 
@@ -19,13 +19,13 @@ class TestRecruiters(object):
         self.db.commit()
 
     def test_recruiter_generic(self):
-        from wallace.recruiters import Recruiter
+        from dallinger.recruiters import Recruiter
         assert Recruiter()
 
     def test_recruiter_psiturk(self):
-        from wallace.recruiters import PsiTurkRecruiter
+        from dallinger.recruiters import PsiTurkRecruiter
         assert PsiTurkRecruiter()
 
     def test_recruiter_simulated(self):
-        from wallace.recruiters import SimulatedRecruiter
+        from dallinger.recruiters import SimulatedRecruiter
         assert SimulatedRecruiter()

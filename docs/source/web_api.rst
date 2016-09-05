@@ -1,10 +1,10 @@
 Web API
 =======
 
-The Wallace API allows the experiment frontend to communicate with the
+The Dallinger API allows the experiment frontend to communicate with the
 backend. Many of these routes correspond to specific functions of
-Wallace's :doc:`classes <classes>`__, particularly
-:class:`wallace.models.Node`. For example,
+Dallinger's :doc:`classes <classes>`__, particularly
+:class:`dallinger.models.Node`. For example,
 nodes have a ``connect`` method that creates new vectors between nodes
 and there is a corresponding ``connect/`` route that allows the frontend
 to call this method.
@@ -18,7 +18,7 @@ Miscellaneous routes
 
 Used to get the address of the experiment on the psiTurk server and to return
 participants to Mechanical Turk upon completion of the experiment. This route
-is pinged automatically by the function ``submit_assignment`` in wallace.js.
+is pinged automatically by the function ``submit_assignment`` in dallinger.js.
 
 ::
 
@@ -71,7 +71,7 @@ cause the info to be of the specified type. Also calls experiment method
     POST /launch
 
 Initializes the experiment and opens recruitment. This route is
-automatically pinged by Wallace.
+automatically pinged by Dallinger.
 
 ::
 
@@ -209,7 +209,7 @@ simulating notifications from AWS. Necessary arguments are
 ``Event.1.EventType``, which can be ``AssignmentAccepted``,
 ``AssignmentAbandoned``, ``AssignmentReturned`` or
 ``AssignmentSubmitted``, and ``Event.1.AssignmentId``, which is the id
-of the relevant assignment. In addition, Wallace uses a custom event
+of the relevant assignment. In addition, Dallinger uses a custom event
 type of ``NotificationMissing``.
 
 ::

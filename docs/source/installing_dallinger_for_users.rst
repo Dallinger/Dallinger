@@ -1,14 +1,14 @@
 Installation
 ============
 
-*If you would like to contribute to Wallace, please follow these
+*If you would like to contribute to Dallinger, please follow these
 :doc:`alternative install
-instructions <developing_wallace_setup_guide>`.*
+instructions <developing_dallinger_setup_guide>`.*
 
 Install Python
 ^^^^^^^^^^^^^^
 
-Wallace is written in the language Python. For it to work, you will need
+Dallinger is written in the language Python. For it to work, you will need
 to have Python 2.7 installed. You can check what version of Python you
 have by running:
 
@@ -22,7 +22,7 @@ If you do not have Python 2.7 installed, you can install it from the
 Install Postgres
 ^^^^^^^^^^^^^^^^
 
-Wallace uses Postgres to create local databases. On OS X, install
+Dallinger uses Postgres to create local databases. On OS X, install
 Postgres from `postgresapp.com <http://postgresapp.com>`__. This will
 require downloading a zip file, unzipping the file and installing the
 unzipped application.
@@ -60,24 +60,24 @@ experiments to use. Run the following command from the command line:
 
 ::
 
-    psql -c 'create database wallace;' -U postgres
+    psql -c 'create database dallinger;' -U postgres
 
-Install Wallace
+Install Dallinger
 ^^^^^^^^^^^^^^^
 
-Install Wallace from the terminal by running
+Install Dallinger from the terminal by running
 
 ::
 
-    pip install wallace-platform
+    pip install dallinger
 
 Test that your installation works by running:
 
 ::
 
-    wallace --version
+    dallinger --version
 
-If you use Anaconda, installing Wallace probably failed. The problem is
+If you use Anaconda, installing Dallinger probably failed. The problem is
 that you need to install bindings for the ``psycopg2`` package (it helps
 Python play nicely with Postgres) and you must use conda for conda to
 know where to look for the links. You do this with:

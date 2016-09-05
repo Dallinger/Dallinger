@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Wallace documentation build configuration file, created by
+# Dallinger documentation build configuration file, created by
 # sphinx-quickstart on Wed Aug 10 14:50:29 2016.
 #
 # This file is execfile()d with the current directory set to its
@@ -63,9 +63,9 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Wallace'
-copyright = u'2016, Wallace Development Team'
-author = u'Wallace Development Team'
+project = u'Dallinger'
+copyright = u'2016, Dallinger Development Team'
+author = u'Dallinger Development Team'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -148,8 +148,8 @@ html_context = {
 #
 html_theme_options = {
     'logo_name': True,
-    'github_user': 'berkeley-cocosci',
-    'github_repo': 'Wallace',
+    'github_user': 'Dallinger',
+    'github_repo': 'Dallinger',
     'github_type': 'star',
     'github_button': True,
     'description': 'A platform for experimental cultural evolution.',
@@ -162,7 +162,7 @@ html_theme_options = {
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
 #
-# html_title = u'Wallace v0.11.6'
+# html_title = u'Dallinger v0.11.6'
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 #
@@ -270,7 +270,7 @@ html_sidebars = {
 # html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'Wallacedoc'
+htmlhelp_basename = 'Dallingerdoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -296,8 +296,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'Wallace.tex', u'Wallace Documentation',
-     u'Wallace Development Team', 'manual'),
+    (master_doc, 'Dallinger.tex', u'Dallinger Documentation',
+     u'Dallinger Development Team', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -338,7 +338,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'wallace', u'Wallace Documentation',
+    (master_doc, 'dallinger', u'Dallinger Documentation',
      [author], 1)
 ]
 
@@ -353,8 +353,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'Wallace', u'Wallace Documentation',
-     author, 'Wallace', 'One line description of project.',
+    (master_doc, 'Dallinger', u'Dallinger Documentation',
+     author, 'Dallinger', 'One line description of project.',
      'Miscellaneous'),
 ]
 

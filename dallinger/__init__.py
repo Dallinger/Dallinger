@@ -1,4 +1,4 @@
-"""This is Wallace, a platform for simulating evolution with people."""
+"""This is Dallinger, a platform for simulating evolution with people."""
 
 from . import (
     models,

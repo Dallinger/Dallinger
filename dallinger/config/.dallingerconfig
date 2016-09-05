@@ -12,8 +12,8 @@ heroku_email_address = ???
 heroku_password = ???
 
 [Email Access]
-wallace_email_address = ???
-wallace_email_password = ???
+dallinger_email_address = ???
+dallinger_email_password = ???
 
 [Task Parameters]
 experiment_code_version = 1.0

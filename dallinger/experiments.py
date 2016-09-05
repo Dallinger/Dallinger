@@ -1,10 +1,10 @@
 """The base experiment class."""
 
-from wallace.models import Network, Node, Info, Transformation, Participant
-from wallace.information import Gene, Meme, State
-from wallace.nodes import Agent, Source, Environment
-from wallace.transformations import Compression, Response
-from wallace.transformations import Mutation, Replication
+from dallinger.models import Network, Node, Info, Transformation, Participant
+from dallinger.information import Gene, Meme, State
+from dallinger.nodes import Agent, Source, Environment
+from dallinger.transformations import Compression, Response
+from dallinger.transformations import Mutation, Replication
 from sqlalchemy import and_
 import random
 import sys
@@ -31,14 +31,14 @@ class Experiment(object):
         self.session = session
 
         #: int, the number of practice networks (see
-        #: :attr:`~wallace.models.Network.role`). Default is 0.
+        #: :attr:`~dallinger.models.Network.role`). Default is 0.
         self.practice_repeats = 0
 
         #: int, the number of non practice networks (see
-        #: :attr:`~wallace.models.Network.role`). Default is 0.
+        #: :attr:`~dallinger.models.Network.role`). Default is 0.
         self.experiment_repeats = 0
 
-        #: Recruiter, the Wallace class that recruits participants.
+        #: Recruiter, the Dallinger class that recruits participants.
         #: Default is PsiTurkRecruiter.
         self.recruiter = PsiTurkRecruiter
 
@@ -46,7 +46,7 @@ class Experiment(object):
         #: requested when the experiment first starts. Default is 1.
         self.initial_recruitment_size = 1
 
-        #: dictionary, the classes Wallace can make in response
+        #: dictionary, the classes Dallinger can make in response
         #: to front-end requests. Experiments can add new classes to this
         #: dictionary.
         self.known_classes = {
@@ -158,7 +158,7 @@ class Experiment(object):
     def add_node_to_network(self, node, network):
         """Add a node to a network.
 
-        This passes `node` to :func:`~wallace.models.Network.add_node()`.
+        This passes `node` to :func:`~dallinger.models.Network.add_node()`.
 
         """
         network.add_node(node)
@@ -170,7 +170,7 @@ class Experiment(object):
         acceptable. This is meant to check for missing or invalid data. This
         check will be run once the `participant` completes the experiment. By
         default performs no checks and returns True. See also,
-        :func:`~wallace.experiments.Experiment.attention_check`.
+        :func:`~dallinger.experiments.Experiment.attention_check`.
 
         """
         return True
@@ -201,7 +201,7 @@ class Experiment(object):
         acceptable. This is mean to check the participant's data to determine
         that they paid attention. This check will run once the *participant*
         completes the experiment. By default performs no checks and returns
-        True. See also :func:`~wallace.experiments.Experiment.data_check`.
+        True. See also :func:`~dallinger.experiments.Experiment.data_check`.
 
         """
         return True
@@ -304,8 +304,8 @@ class Experiment(object):
     def data_check_failed(self, participant):
         """What to do if a participant fails the data check.
 
-        Runs when `participant` has failed :func:`~wallace.experiments.Experiment.data_check`. By default calls
-        :func:`~wallace.experiments.Experiment.fail_participant`.
+        Runs when `participant` has failed :func:`~dallinger.experiments.Experiment.data_check`. By default calls
+        :func:`~dallinger.experiments.Experiment.fail_participant`.
 
         """
         self.fail_participant(participant)
@@ -314,8 +314,8 @@ class Experiment(object):
         """What to do if a participant fails the attention check.
 
         Runs when `participant` has failed the
-        :func:`~wallace.experiments.Experiment.attention_check`. By default calls
-        :func:`~wallace.experiments.Experiment.fail_participant`.
+        :func:`~dallinger.experiments.Experiment.attention_check`. By default calls
+        :func:`~dallinger.experiments.Experiment.fail_participant`.
 
         """
         self.fail_participant(participant)
@@ -325,7 +325,7 @@ class Experiment(object):
 
         This runs when a notification from AWS is received indicating that
         `participant` has run out of time. Calls
-        :func:`~wallace.experiments.Experiment.fail_participant`.
+        :func:`~dallinger.experiments.Experiment.fail_participant`.
 
         """
         self.fail_participant(participant)
@@ -335,7 +335,7 @@ class Experiment(object):
 
         This runs when a notification from AWS is received indicating that
         `participant` has returned the experiment assignment. Calls
-        :func:`~wallace.experiments.Experiment.fail_participant`.
+        :func:`~dallinger.experiments.Experiment.fail_participant`.
 
         """
         self.fail_participant(participant)

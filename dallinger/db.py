@@ -8,9 +8,9 @@ from functools import wraps
 import logging
 import os
 
-logger = logging.getLogger('wallace.db')
+logger = logging.getLogger('dallinger.db')
 
-db_url_default = "postgresql://postgres@localhost/wallace"
+db_url_default = "postgresql://postgres@localhost/dallinger"
 db_url = os.environ.get("DATABASE_URL", db_url_default)
 engine = create_engine(db_url, pool_size=1000)
 session = scoped_session(sessionmaker(autocommit=False,
@@ -48,8 +48,8 @@ def scoped_session_decorator(func):
     """Manage contexts and add debugging to psiTurk sessions."""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        from wallace.db import session as wallace_session
-        with sessions_scope(wallace_session) as session:
+        from dallinger.db import session as dallinger_session
+        with sessions_scope(dallinger_session) as session:
             from psiturk.db import db_session as psi_session
             with sessions_scope(psi_session) as session_psiturk:
                 # The sessions used in func come from the funcs globals, but

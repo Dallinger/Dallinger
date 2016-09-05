@@ -1,10 +1,10 @@
 """Monte Carlo Markov Chains with people."""
 
-from wallace.models import Info, Transformation
-from wallace.networks import Chain
-from wallace.nodes import Source, Agent
-from wallace.experiments import Experiment
-from wallace import db
+from dallinger.models import Info, Transformation
+from dallinger.networks import Chain
+from dallinger.nodes import Source, Agent
+from dallinger.experiments import Experiment
+from dallinger import db
 import random
 from flask import Blueprint, Response
 import json

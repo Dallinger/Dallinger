@@ -13,7 +13,7 @@ from psiturk.user_utils import PsiTurkAuthorization
 from psiturk.db import init_db
 from psiturk.db import db_session as session_psiturk
 
-from wallace import db, models
+from dallinger import db, models
 
 import imp
 import inspect
@@ -63,7 +63,7 @@ custom_code = Blueprint(
     template_folder='templates',
     static_folder='static')
 
-# Initialize the Wallace database.
+# Initialize the Dallinger database.
 session = db.session
 
 # Connect to the Redis queue for notifications.
@@ -71,12 +71,12 @@ q = Queue(connection=conn)
 
 # Load the experiment.
 try:
-    exp = imp.load_source('experiment', "wallace_experiment.py")
+    exp = imp.load_source('experiment', "dallinger_experiment.py")
     classes = inspect.getmembers(exp, inspect.isclass)
     exps = [c for c in classes
             if (c[1].__bases__[0].__name__ in "Experiment")]
     this_experiment = exps[0][0]
-    mod = __import__('wallace_experiment', fromlist=[this_experiment])
+    mod = __import__('dallinger_experiment', fromlist=[this_experiment])
     experiment = getattr(mod, this_experiment)
 
 except ImportError:
@@ -162,7 +162,7 @@ def error_page(participant=None, error_text=None, compensate=True,
         worker_id = 'unknown'
 
     return render_template(
-        'error_wallace.html',
+        'error_dallinger.html',
         error_text=error_text,
         compensate=compensate,
         contact_address=config.get(
@@ -181,7 +181,7 @@ def error_page(participant=None, error_text=None, compensate=True,
 def shutdown_session(_=None):
     """Rollback and close session at end of a request."""
     session.remove()
-    db.logger.debug('Closing Wallace DB session at flask request end')
+    db.logger.debug('Closing Dallinger DB session at flask request end')
 
 
 """Define routes for managing an experiment and the participants."""

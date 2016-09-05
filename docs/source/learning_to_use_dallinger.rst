@@ -1,16 +1,16 @@
-Learning to Use Wallace
+Learning to Use Dallinger
 =======================
 
 Beginner
 ~~~~~~~~
 
-Key concepts in Wallace
+Key concepts in Dallinger
 '''''''''''''''''''''''
 
 -  :doc:`classes`
 -  :doc:`the_experiment_class`
 
-Wallace as a web app
+Dallinger as a web app
 ''''''''''''''''''''
 
 -  :doc:`communicating_with_the_server`
@@ -21,7 +21,7 @@ Experimental design
 
 -  :doc:`required_experimental_files`
 -  config.txt
--  Wallace.js
+-  Dallinger.js
 
 Example walkthroughs
 ''''''''''''''''''''
@@ -55,7 +55,7 @@ Experimental design
 '''''''''''''''''''
 
 -  Changing route behavior and making new routes
--  Sending requests from within Wallace
+-  Sending requests from within Dallinger
 
 Running experiments
 '''''''''''''''''''

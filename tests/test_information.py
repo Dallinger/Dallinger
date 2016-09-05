@@ -1,4 +1,4 @@
-from wallace import models, information, db
+from dallinger import models, information, db
 
 
 class TestInformation(object):

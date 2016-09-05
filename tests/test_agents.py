@@ -1,7 +1,7 @@
 """Tests for creating and manipulating agents."""
 
-from wallace import nodes, information, db, models
-from wallace.information import Meme, Gene
+from dallinger import nodes, information, db, models
+from dallinger.information import Meme, Gene
 from nose.tools import raises
 
 

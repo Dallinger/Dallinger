@@ -1,5 +1,5 @@
 SQLAlchemy==0.8.3
-psiturk-wallace==2.2.0
+psiturk-dallinger==3.0.0
 click==6.6
 future==0.15.2
 pexpect==3.3

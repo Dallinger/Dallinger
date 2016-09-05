@@ -1,4 +1,4 @@
-"""Install Wallace as a command line utility."""
+"""Install Dallinger as a command line utility."""
 
 import pypandoc
 from setuptools import setup
@@ -9,14 +9,12 @@ with open('README.rst', 'w') as outfile:
     outfile.write(long_description)
 
 setup_args = dict(
-    name='wallace-platform',
-    packages=['wallace'],
+    name='dallinger',
+    packages=['dallinger'],
     version="1.0.0",
-    description='Wallace, a platform for experimental cultural evolution',
+    description='Laboratory automation for the behavioral and social sciences',
     long_description=long_description,
-    url='http://github.com/berkeley-cocosci/Wallace',
-    author='Berkeley CoCoSci',
-    author_email='wallace@cocosci.berkeley.edu',
+    url='http://github.com/Dallinger/Dallinger',
     license='MIT',
     keywords=['science', 'cultural evolution', 'experiments', 'psychology'],
     classifiers=[],
@@ -24,7 +22,7 @@ setup_args = dict(
     zip_safe=False,
     entry_points={
         'console_scripts': [
-            'wallace = wallace.command_line:wallace',
+            'dallinger = dallinger.command_line:dallinger',
         ],
     }
 )

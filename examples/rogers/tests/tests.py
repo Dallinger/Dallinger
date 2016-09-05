@@ -12,10 +12,10 @@ import requests
 import threading
 import time
 
-from wallace import db
-from wallace.nodes import Agent, Source, Environment
-from wallace.information import Gene, Meme, State
-from wallace import models
+from dallinger import db
+from dallinger.nodes import Agent, Source, Environment
+from dallinger.information import Gene, Meme, State
+from dallinger import models
 from experiment import (
     RogersExperiment,
     RogersAgent,
@@ -40,7 +40,7 @@ class TestRogers(object):
         autobots = 36
 
         sandbox_output = subprocess.check_output(
-            "wallace sandbox",
+            "dallinger sandbox",
             shell=True)
 
         m = re.search('Running as experiment (.*)...', sandbox_output)
@@ -49,7 +49,7 @@ class TestRogers(object):
 
         # Open the logs in the browser.
         subprocess.call(
-            "wallace logs --app " + exp_id,
+            "dallinger logs --app " + exp_id,
             shell=True)
 
         def autobot(session, url, i):

@@ -1,4 +1,4 @@
-from wallace import nodes, db, information, models
+from dallinger import nodes, db, information, models
 
 
 class TestEnvironments(object):

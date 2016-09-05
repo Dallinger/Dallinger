@@ -1,4 +1,4 @@
-from wallace import networks, nodes, db, models
+from dallinger import networks, nodes, db, models
 import random
 from nose.tools import assert_raises, raises
 

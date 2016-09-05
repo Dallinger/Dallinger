@@ -1,11 +1,11 @@
 """A clock process."""
 
 from apscheduler.schedulers.blocking import BlockingScheduler
-from wallace import db
+from dallinger import db
 import os
 import imp
 import inspect
-from wallace.models import Participant
+from dallinger.models import Participant
 from datetime import datetime
 from psiturk.psiturk_config import PsiturkConfig
 from boto.mturk.connection import MTurkConnection
@@ -19,12 +19,12 @@ config.load_config()
 
 # Import the experiment.
 try:
-    exp = imp.load_source('experiment', "wallace_experiment.py")
+    exp = imp.load_source('experiment', "dallinger_experiment.py")
     classes = inspect.getmembers(exp, inspect.isclass)
     exps = [c for c in classes
             if (c[1].__bases__[0].__name__ in "Experiment")]
     this_experiment = exps[0][0]
-    mod = __import__('wallace_experiment', fromlist=[this_experiment])
+    mod = __import__('dallinger_experiment', fromlist=[this_experiment])
     experiment = getattr(mod, this_experiment)
 
 except ImportError:
@@ -81,9 +81,9 @@ def check_db_for_missing_notifications():
             hit_id = p.hit_id
 
             # general email settings:
-            username = os.getenv('wallace_email_username')
+            username = os.getenv('dallinger_email_username')
             fromaddr = username + "@gmail.com"
-            email_password = os.getenv("wallace_email_key")
+            email_password = os.getenv("dallinger_email_key")
             toaddr = config.get('HIT Configuration', 'contact_email_on_error')
             whimsical = os.getenv("whimsical")
 
@@ -123,7 +123,7 @@ def check_db_for_missing_notifications():
  assure you there is no immediate cause for concern. Nonetheless, for my own
  peace of mind, I would appreciate you taking the time to look into this matter
  at your earliest convenience.\n\nI remain your faithful and obedient servant,
-\nAlfred R. Wallace\n\n P.S. Please do not respond to this message, I am busy
+\nWilliam H. Dallinger\n\n P.S. Please do not respond to this message, I am busy
  with other matters.""".format(
                         datetime.now(),
                         assignment_id,
@@ -134,18 +134,18 @@ def check_db_for_missing_notifications():
                 else:
                     msg = MIMEText(
                         """Dear experimenter,\n\nThis is an automated email from
- Wallace. You are receiving this email because the Wallace platform has
+ Dallinger. You are receiving this email because the Dallinger platform has
  discovered evidence that a notification from Amazon Web Services failed to
- arrive at the server. Wallace has automatically contacted AWS and has
+ arrive at the server. Dallinger has automatically contacted AWS and has
  determined the dropped notification was a submitted notification (i.e. the
  participant has finished the experiment). This is a non-fatal error and so
- Wallace has auto-corrected the problem. Nonetheless you may wish to check the
- database.\n\nBest,\nThe Wallace dev. team.\n\n Error details:\nAssignment: {}
+ Dallinger has auto-corrected the problem. Nonetheless you may wish to check the
+ database.\n\nBest,\nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
 \nAllowed time: {}\nTime since participant started: {}""").format(
                         assignment_id,
                         round(duration/60),
                         round(p_time/60))
-                    msg['Subject'] = "Wallace automated email - minor error."
+                    msg['Subject'] = "Dallinger automated email - minor error."
 
                 # This method commented out as gmail now blocks emails from
                 # new locations
@@ -201,7 +201,7 @@ def check_db_for_missing_notifications():
  posting any further invitations myself. Once you see fit I would be most
  appreciative if you could attend to this issue with the caution, sensitivity
  and intelligence for which I know you so well.\n\nI remain your faithful and
- obedient servant,\nAlfred R. Wallace\n\nP.S. Please do not respond to this
+ obedient servant,\nWilliam H. Dallinger\n\nP.S. Please do not respond to this
  message, I am busy with other matters.""".format(
                         datetime.now(),
                         assignment_id,
@@ -212,24 +212,24 @@ def check_db_for_missing_notifications():
                 else:
                     msg = MIMEText(
                         """Dear experimenter,\n\nThis is an automated email from
- Wallace. You are receiving this email because the Wallace platform has
+ Dallinger. You are receiving this email because the Dallinger platform has
  discovered evidence that a notification from Amazon Web Services failed to
- arrive at the server. Wallace has automatically contacted AWS and has
+ arrive at the server. Dallinger has automatically contacted AWS and has
  determined the dropped notification was an abandoned/returned notification
  (i.e. the participant had returned the experiment or had run out of time).
- This is a serious error and so Wallace has paused the experiment - expiring
+ This is a serious error and so Dallinger has paused the experiment - expiring
  the HIT on MTurk and setting auto_recruit to false. Participants currently
  playing will be able to finish, however no further participants will be
  recruited until you do so manually. We strongly suggest you use the details
  below to check the database to make sure the missing notification has not caused
  additional problems before resuming.\nIf you are receiving a lot of these
  emails this suggests something is wrong with your experiment code.\n\nBest,
-\nThe Wallace dev. team.\n\n Error details:\nAssignment: {}
+\nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
 \nAllowed time: {}\nTime since participant started: {}""").format(
                         assignment_id,
                         round(duration/60),
                         round(p_time/60))
-                    msg['Subject'] = "Wallace automated email - major error."
+                    msg['Subject'] = "Dallinger automated email - major error."
 
                 # This method commented out as gmail now blocks emails from
                 # new locations

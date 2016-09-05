@@ -18,7 +18,7 @@ organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
 [Database Parameters]
-database_url = postgresql://postgres@localhost/wallace
+database_url = postgresql://postgres@localhost/dallinger
 table_name = psiturk
 anonymize_data = false
 database_size = standard-2

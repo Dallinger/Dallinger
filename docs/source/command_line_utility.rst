@@ -1,23 +1,23 @@
 Command Line Utility
 ====================
 
-| Wallace is executed from the command line within the experiment
+| Dallinger is executed from the command line within the experiment
   directory with the following commands:
-| \* ```wallace verify`` <#verify>`__ \* ```wallace debug`` <#debug>`__
-  \* ```wallace sandbox`` <#sandbox>`__ \*
-  ```wallace deploy`` <#deploy>`__ \* ```wallace logs`` <#logs>`__ \*
-  ```wallace status`` <#status>`__ \* ```wallace export`` <#export>`__
-  \* ```wallace summary`` <#summary>`__ \*
-  ```wallace qualify`` <#qualify>`__ \*
-  ```wallace hibernate`` <#hibernate>`__ \*
-  ```wallace awaken`` <#awaken>`__ \* ```wallace create`` <#create>`__
+| \* ```dallinger verify`` <#verify>`__ \* ```dallinger debug`` <#debug>`__
+  \* ```dallinger sandbox`` <#sandbox>`__ \*
+  ```dallinger deploy`` <#deploy>`__ \* ```dallinger logs`` <#logs>`__ \*
+  ```dallinger status`` <#status>`__ \* ```dallinger export`` <#export>`__
+  \* ```dallinger summary`` <#summary>`__ \*
+  ```dallinger qualify`` <#qualify>`__ \*
+  ```dallinger hibernate`` <#hibernate>`__ \*
+  ```dallinger awaken`` <#awaken>`__ \* ```dallinger create`` <#create>`__
 
-.. _wallace-verify:
+.. _dallinger-verify:
 
 verify
 ^^^^^^
 
-Verifies that a directory is a Wallace-compatible app.
+Verifies that a directory is a Dallinger-compatible app.
 
 debug
 ^^^^^

@@ -19,7 +19,7 @@ class TestExamples(object):
 
     def verify_example(self, example):
         os.chdir(example)
-        output = subprocess.check_output("wallace verify", shell=True)
+        output = subprocess.check_output("dallinger verify", shell=True)
         assert "✗" not in output
         os.chdir("..")
 

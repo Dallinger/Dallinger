@@ -1,8 +1,8 @@
 """Define a transmission-chain experiment that transmits functional forms."""
 
-from wallace.experiments import Experiment
-from wallace.nodes import Source
-from wallace.networks import Chain
+from dallinger.experiments import Experiment
+from dallinger.nodes import Source
+from dallinger.networks import Chain
 import random
 import json
 from sqlalchemy.ext.declarative import declared_attr
@@ -13,7 +13,7 @@ class FunctionLearning(Experiment):
     """A function-learning experiment."""
 
     def __init__(self, session):
-        """Call the same function in the super (see experiments.py in wallace).
+        """Call the same function in the super (see experiments.py in dallinger).
 
         A few properties are then overwritten. Finally, setup() is called.
         """
@@ -26,7 +26,7 @@ class FunctionLearning(Experiment):
         """Setup does stuff only if there are no networks.
 
         This is so it only runs once at the start of the experiment. It first
-        calls the same function in the super (see experiments.py in wallace).
+        calls the same function in the super (see experiments.py in dallinger).
         Then it adds a source to each network.
         """
         if not self.networks():

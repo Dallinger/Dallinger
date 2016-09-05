@@ -1,7 +1,7 @@
 Developer Installation
 ======================
 
-We recommend installing Wallace on Mac OS X. It's also possible to use
+We recommend installing Dallinger on Mac OS X. It's also possible to use
 Ubuntu.
 
 Install Python 2.7
@@ -79,7 +79,7 @@ following command from the command line:
 
 ::
 
-    psql -c 'create database wallace;' -U postgres
+    psql -c 'create database dallinger;' -U postgres
 
 If you get the following error...
 
@@ -97,7 +97,7 @@ Set up a virtual environment
 **Note**: if you are using Anaconda, ignore this ``virtualenv``
 section; use ``conda`` to create your virtual environment. Or, see the
 special `Anaconda installation
-instructions <Wallace-with-Anaconda.md>`__.
+instructions <Dallinger-with-Anaconda.md>`__.
 
 Set up a virtual environment by running the following commands:
 
@@ -108,7 +108,7 @@ Set up a virtual environment by running the following commands:
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
     source $(which virtualenvwrapper.sh)
-    mkvirtualenv wallace --python /usr/local/bin/python2.7
+    mkvirtualenv dallinger --python /usr/local/bin/python2.7
 
 These commands use ``pip``, the Python package manager, to install two
 packages ``virtualenv`` and ``virtualenvwrapper``. They set up an
@@ -123,7 +123,7 @@ the scope of this setup tutorial. If you want to know what it does, a
 more in depth description can be found at `this page on
 ``virtualenvwrapper.sh`` <http://virtualenvwrapper.readthedocs.io/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
 Finally, the ``mkvirtualenv`` makes your first virtual environment which
-you've named ``wallace``. We have explicitly passed it the location of
+you've named ``dallinger``. We have explicitly passed it the location of
 ``python2.7`` so that even if your ``python`` command has been remapped
 to ``python3``, it will create the environment with ``python2.7`` as its
 interpreter.
@@ -133,7 +133,7 @@ In the future, you can work on your virtual environment by running:
 ::
 
     source $(which virtualenvwrapper.sh)
-    workon wallace
+    workon dallinger
 
 NB: To stop working on the virtual environment, run ``deactivate``. To
 list all available virtual environments, run ``workon`` with no
@@ -146,31 +146,31 @@ To be able to build the documentation, you will need to have the Enchant
 library installed. Please follow the instructions `here
 <http://pythonhosted.org/pyenchant/download.html>`__ to install it.
 
-Install Wallace
+Install Dallinger
 ---------------
 
 Next, navigate to the directory where you want to house your development
-work on Wallace. Once there, clone the Git repository using:
+work on Dallinger. Once there, clone the Git repository using:
 
 ::
 
-    git clone https://github.com/berkeley-cocosci/Wallace
+    git clone https://github.com/Dallinger/Dallinger
 
-This will create a directory called ``Wallace`` in your current
+This will create a directory called ``Dallinger`` in your current
 directory.
 
 Change into your the new directory and make sure you are still in your
 virtual environment before installing the dependencies. If you want to
-be extra careful, run the command ``workon wallace``, which will ensure
+be extra careful, run the command ``workon dallinger``, which will ensure
 that you are in the right virtual environment.
 
 **Note**: if you are using Anaconda – as of August 10, 2016 – you will need to
 follow special :doc:`Anaconda installation instructions
-<wallace_with_anaconda>`. This should be fixed in future versions.
+<dallinger_with_anaconda>`. This should be fixed in future versions.
 
 ::
 
-    cd Wallace
+    cd Dallinger
 
 Now we need to install the dependencies using pip:
 
@@ -188,10 +188,10 @@ Test that your installation works by running:
 
 ::
 
-    wallace --version
+    dallinger --version
 
 **Note**: if you are using Anaconda and get a long traceback here,
-please see the special :doc:`wallace_with_anaconda`.
+please see the special :doc:`dallinger_with_anaconda`.
 
 Next, you'll need :doc:`access keys for AWS, Heroku,
 etc. <aws_etc_keys>`.
