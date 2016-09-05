@@ -32,7 +32,7 @@ script:
 - nosetests --with-coverage --cover-package wallace
 # - nosetests tests._test_heroku --nocapture
 after_success:
-- coveralls
+- bash <(curl -s https://codecov.io/bash)
 notifications:
   email:
     recipients:
