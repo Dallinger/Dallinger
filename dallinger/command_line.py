@@ -28,13 +28,15 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 def print_header():
     """Print a fancy-looking header."""
     log("""
-     _    _    __    __    __      __    ___  ____
-    ( \/\/ )  /__\  (  )  (  )    /__\  / __)( ___)
-     )    (  /(__)\  )(__  )(__  /(__)\ |(__  )__)
-    (__/\__)(__)(__)(____)(____)(__)(__)\___)(____)
+        ____        ____
+       / __ \____ _/ / (_)___  ____ ____  _____
+      / / / / __ `/ / / / __ \/ __ `/ _ \/ ___/
+     / /_/ / /_/ / / / / / / / /_/ /  __/ /
+    /_____/\__,_/_/_/_/_/ /_/\__, /\___/_/
+                            /____/
 
-             a platform for experimental evolution.
-
+                    Laboratory automation for
+           the behavioral and social sciences.
     """, 0.5, False)
 
 
