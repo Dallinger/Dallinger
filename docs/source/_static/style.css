@@ -1,5 +1,10 @@
 body {
-    font-size: 22px;
+    font-size: 20px;
+    font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
+}
+
+div.body p, div.body dd, div.body li {
+    line-height: 1.6em;
 }
 
 code {
@@ -20,10 +25,6 @@ tt, code {
     }
 }
 
-h2 {
-    font-size: 75%;
-}
-
 tt.xref, code.xref, a tt {
     background-color: #ecf0f3;
     padding: 4px 5px 1px 5px;
@@ -35,4 +36,51 @@ pre {
 
 .injected {
     display: none;
+}
+
+@font-face {
+  font-family:'AvenirLTStd-Book';
+  src: url('AvenirLTStd-Book_gdi.eot');
+  src: url('AvenirLTStd-Book_gdi.eot?#iefix') format('embedded-opentype'),
+    url('AvenirLTStd-Book_gdi.woff') format('woff'),
+    url('AvenirLTStd-Book_gdi.ttf') format('truetype'),
+    url('AvenirLTStd-Book_gdi.svg#AvenirLTStd-Book') format('svg');
+  font-weight: 350;
+  font-style: normal;
+  font-stretch: normal;
+  unicode-range: U+0020-25CA;
+}
+
+div.body h1 {
+  font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
+  font-weight: bold;
+}
+
+div.body h2 {
+  font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
+  font-size: 150%;
+  font-weight: bold;
+  padding-top: 20px;
+}
+
+div.body h3 {
+  font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
+  font-weight: bold;
+}
+
+div.sphinxsidebar h3 {
+  font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
+}
+
+div.sphinxsidebar h4 {
+  font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
+}
+
+div.sphinxsidebar input {
+  font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
+}
+
+a.reference {
+    text-decoration: none;
+    border-bottom: 1px solid #64d2e9;
 }

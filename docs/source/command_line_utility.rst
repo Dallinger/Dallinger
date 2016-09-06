@@ -1,16 +1,7 @@
-Command Line Utility
+Command-Line Utility
 ====================
 
-| Dallinger is executed from the command line within the experiment
-  directory with the following commands:
-| \* ```dallinger verify`` <#verify>`__ \* ```dallinger debug`` <#debug>`__
-  \* ```dallinger sandbox`` <#sandbox>`__ \*
-  ```dallinger deploy`` <#deploy>`__ \* ```dallinger logs`` <#logs>`__ \*
-  ```dallinger status`` <#status>`__ \* ```dallinger export`` <#export>`__
-  \* ```dallinger summary`` <#summary>`__ \*
-  ```dallinger qualify`` <#qualify>`__ \*
-  ```dallinger hibernate`` <#hibernate>`__ \*
-  ```dallinger awaken`` <#awaken>`__ \* ```dallinger create`` <#create>`__
+Dallinger is executed from the command line within the experiment directory with the following commands:
 
 .. _dallinger-verify:
 

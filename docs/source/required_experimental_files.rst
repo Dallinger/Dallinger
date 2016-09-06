@@ -3,8 +3,8 @@ Required Experimental Files
 
 Dallinger is flexible with regards to the form the front end takes.
 However, there are a number of required or forbidden files. You can
-verify that a directory is compatible by running
-:ref:```dallinger verify`` <dallinger-verify>`
+verify that a directory is compatible by running the
+:ref:`verify <dallinger-verify>` command
 from a terminal within the directory. Though just because these checks
 pass doesn't mean the experiment will run! The minimal required
 structure is as follows:
