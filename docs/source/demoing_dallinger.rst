@@ -1,20 +1,20 @@
-Demoing Wallace
+Demoing Dallinger
 ===============
 
-First, make sure you have Wallace installed:
+First, make sure you have Dallinger installed:
 
--  :doc:`installing_wallace_for_users`
--  :doc:`developing_wallace_setup_guide`
+-  :doc:`installing_dallinger_for_users`
+-  :doc:`developing_dallinger_setup_guide`
 
-To test out Wallace, we'll run an example experiment in debug mode. From
-a terminal within the Wallace directory, run
+To test out Dallinger, we'll run an example experiment in debug mode. From
+a terminal within the Dallinger directory, run
 
 ::
 
     cd examples/bartlett1932
-    wallace debug
+    dallinger debug
 
-You will see some output as Wallace loads. When it is finished, you will
+You will see some output as Dallinger loads. When it is finished, you will
 see something that looks like:
 
 ::

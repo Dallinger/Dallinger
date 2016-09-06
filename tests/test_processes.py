@@ -1,5 +1,5 @@
-from wallace import processes, networks, nodes, db, models
-from wallace.nodes import Agent
+from dallinger import processes, networks, nodes, db, models
+from dallinger.nodes import Agent
 
 
 class TestProcesses(object):

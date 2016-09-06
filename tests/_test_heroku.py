@@ -1,4 +1,4 @@
-"""Tests for the Wallace API."""
+"""Tests for the Dallinger API."""
 
 import subprocess
 import re
@@ -11,7 +11,7 @@ class TestHeroku(object):
     """The Heroku test class."""
 
     sandbox_output = subprocess.check_output(
-        "cd examples/bartlett1932; wallace sandbox --verbose", shell=True)
+        "cd examples/bartlett1932; dallinger sandbox --verbose", shell=True)
 
     os.environ['app_id'] = re.search(
         'Running as experiment (.*)...', sandbox_output).group(1)

@@ -1,8 +1,8 @@
 """Bartlett's trasmission chain experiment from Remembering (1932)."""
 
-from wallace.networks import Chain
-from wallace.nodes import Source
-from wallace.experiments import Experiment
+from dallinger.networks import Chain
+from dallinger.nodes import Source
+from dallinger.experiments import Experiment
 import random
 
 
@@ -10,7 +10,7 @@ class Bartlett1932(Experiment):
     """Define the structure of the experiment."""
 
     def __init__(self, session):
-        """Call the same function in the super (see experiments.py in wallace).
+        """Call the same function in the super (see experiments.py in dallinger).
 
         A few properties are then overwritten.
         Finally, setup() is called.
@@ -24,7 +24,7 @@ class Bartlett1932(Experiment):
 
         Setup only does stuff if there are no networks, this is so it only
         runs once at the start of the experiment. It first calls the same
-        function in the super (see experiments.py in wallace). Then it adds a
+        function in the super (see experiments.py in dallinger). Then it adds a
         source to each network.
         """
         if not self.networks():

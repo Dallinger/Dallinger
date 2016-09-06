@@ -1,23 +1,23 @@
 Setting Up AWS, psiTurk, and Heroku
 ===================================
 
-Before you can use Wallace, you will need accounts with Amazon Web
+Before you can use Dallinger, you will need accounts with Amazon Web
 Services, Amazon Mechanical Turk, Heroku, and psiTurk. You will then
 need to create a configuration file and set up your environment so that
-Wallace can access your accounts.
+Dallinger can access your accounts.
 
 Create the configuration file
 -----------------------------
 
-The first step is to create the Wallace configuration file in your home
-directory. You can do this using the Wallace command-line utility
+The first step is to create the Dallinger configuration file in your home
+directory. You can do this using the Dallinger command-line utility
 through
 
 ::
 
-    wallace setup 
+    dallinger setup 
 
-which will prepopulate a hidden file ``.wallaceconfig`` in your home
+which will prepopulate a hidden file ``.dallingerconfig`` in your home
 directory. Alternatively, you can create this file yourself and fill it
 in like so:
 
@@ -37,8 +37,8 @@ in like so:
     heroku_password = ???
 
     [Email Access]
-    wallace_email_address = ???
-    wallace_email_password = ???
+    dallinger_email_address = ???
+    dallinger_email_password = ???
 
     [Task Parameters]
     experiment_code_version = 1.0
@@ -64,7 +64,7 @@ Amazon Web Services API Keys
 You can get API keys for Amazon Web Services by `following these
 instructions <http://docs.aws.amazon.com/general/latest/gr/managing-aws-access-keys.html>`__.
 
-Then fill in the following lines of ``.wallaceconfig``, replacing
+Then fill in the following lines of ``.dallingerconfig``, replacing
 ``???`` with your keys:
 
 ::
@@ -95,7 +95,7 @@ test and monitor experiments. You should also sign in to each sandbox,
 `requester <https://requester.mturk.com/begin_signin>`__ and
 `worker <https://workersandbox.mturk.com/mturk/welcome>`__ using the
 same account. Store this account and password somewhere, but you don't
-need to tell it to Wallace.
+need to tell it to Dallinger.
 
 psiTurk
 -------
@@ -110,9 +110,9 @@ will allow you to access your API keys as seen in the image below:
 
    Don't even try to use these API Keys, they've been reissued!
 
-Place these credential in the ``.wallaceconfig`` file:
+Place these credential in the ``.dallingerconfig`` file:
 
-Then fill in the following lines of ``.wallaceconfig``, replacing
+Then fill in the following lines of ``.dallingerconfig``, replacing
 ``???`` with your keys:
 
 ::
@@ -140,7 +140,7 @@ Then, log in from the command line:
 
     heroku login
 
-And fill in the appropriate section of ``.wallaceconfig``:
+And fill in the appropriate section of ``.dallingerconfig``:
 
 ::
 
@@ -152,7 +152,7 @@ Done?
 -----
 
 Done. You're now all set up with the tools you need to work with
-Wallace.
+Dallinger.
 
-Next, we'll :doc:`test Wallace to make sure it's working on your
-system <demoing_wallace>`.
+Next, we'll :doc:`test Dallinger to make sure it's working on your
+system <demoing_dallinger>`.

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-"""The Wallace command-line utility."""
+"""The Dallinger command-line utility."""
 
 import click
 import time
@@ -17,8 +17,8 @@ import imp
 import pkg_resources
 import re
 import psycopg2
-from wallace import db
-from wallace.version import __version__
+from dallinger import db
+from dallinger.version import __version__
 import requests
 import boto
 
@@ -57,39 +57,39 @@ def ensure_heroku_logged_in():
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
-def wallace():
-    """Set up Wallace as a name space."""
+def dallinger():
+    """Set up Dallinger as a name space."""
     pass
 
 
-@wallace.command()
+@dallinger.command()
 def setup():
-    """Walk the user though the Wallace setup."""
-    # Create the Wallace config file if it does not already exist.
-    config_name = ".wallaceconfig"
+    """Walk the user though the Dallinger setup."""
+    # Create the Dallinger config file if it does not already exist.
+    config_name = ".dallingerconfig"
     config_path = os.path.join(os.path.expanduser("~"), config_name)
 
     if os.path.isfile(config_path):
-        log("Wallace config file already exists.", chevrons=False)
+        log("Dallinger config file already exists.", chevrons=False)
 
     else:
-        log("Creating Wallace config file at ~/.wallaceconfig...",
+        log("Creating Dallinger config file at ~/.dallingerconfig...",
             chevrons=False)
-        wallace_module_path = os.path.dirname(os.path.realpath(__file__))
-        src = os.path.join(wallace_module_path, "config", config_name)
+        dallinger_module_path = os.path.dirname(os.path.realpath(__file__))
+        src = os.path.join(dallinger_module_path, "config", config_name)
         shutil.copyfile(src, config_path)
 
 
 def setup_experiment(debug=True, verbose=False, app=None):
-    """Check the app and, if it's compatible with Wallace, freeze its state."""
+    """Check the app and, if it's compatible with Dallinger, freeze its state."""
     print_header()
 
     # Verify that the package is usable.
-    log("Verifying that directory is compatible with Wallace...")
+    log("Verifying that directory is compatible with Dallinger...")
     if not verify_package(verbose=verbose):
         raise AssertionError(
-            "This is not a valid Wallace app. " +
-            "Fix the errors and then try running 'wallace verify'.")
+            "This is not a valid Dallinger app. " +
+            "Fix the errors and then try running 'dallinger verify'.")
 
     # Verify that the Postgres server is running.
     try:
@@ -159,10 +159,10 @@ def setup_experiment(debug=True, verbose=False, app=None):
     if not os.path.exists("static/css"):
         os.makedirs("static/css")
 
-    # Rename experiment.py to wallace_experiment.py to aviod psiTurk conflict.
+    # Rename experiment.py to dallinger_experiment.py to aviod psiTurk conflict.
     os.rename(
         os.path.join(dst, "experiment.py"),
-        os.path.join(dst, "wallace_experiment.py"))
+        os.path.join(dst, "dallinger_experiment.py"))
 
     # Copy files into this experiment package.
     src = os.path.join(
@@ -196,10 +196,10 @@ def setup_experiment(debug=True, verbose=False, app=None):
         shutil.copy(src, os.path.join(dst, "Procfile"))
 
     frontend_files = [
-        "static/css/wallace.css",
-        "static/scripts/wallace.js",
+        "static/css/dallinger.css",
+        "static/scripts/dallinger.js",
         "static/scripts/reqwest.min.js",
-        "templates/error_wallace.html",
+        "templates/error_dallinger.html",
         "templates/launch.html",
         "templates/complete.html",
         "static/robots.txt"
@@ -219,7 +219,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
     return (id, dst)
 
 
-@wallace.command()
+@dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def summary(app):
     """Print a summary of a deployed app's status."""
@@ -235,7 +235,7 @@ def summary(app):
         click.echo("\nYield: {:.2%}".format(1.0 * num_101s / num_10xs))
 
 
-@wallace.command()
+@dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 def debug(verbose):
     """Run the experiment locally."""
@@ -261,10 +261,10 @@ def debug(verbose):
         os.path.join(cwd, config.get("Server Parameters", "logfile")))
 
     # Swap in the HotAirRecruiter
-    os.rename("wallace_experiment.py", "wallace_experiment_tmp.py")
-    with open("wallace_experiment_tmp.py", "r+") as f:
-        with open("wallace_experiment.py", "w+") as f2:
-            f2.write("from wallace.recruiters import HotAirRecruiter\n")
+    os.rename("dallinger_experiment.py", "dallinger_experiment_tmp.py")
+    with open("dallinger_experiment_tmp.py", "r+") as f:
+        with open("dallinger_experiment.py", "w+") as f2:
+            f2.write("from dallinger.recruiters import HotAirRecruiter\n")
             for idx, line in enumerate(f):
                 if re.search("\s*self.recruiter = (.*)", line):
                     p = line.partition("self.recruiter =")
@@ -272,7 +272,7 @@ def debug(verbose):
                 else:
                     f2.write(line)
 
-    os.remove("wallace_experiment_tmp.py")
+    os.remove("dallinger_experiment_tmp.py")
 
     # Set environment variables.
     aws_vars = ['aws_access_key_id', 'aws_secret_access_key', 'aws_region']
@@ -422,11 +422,11 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
         "heroku config:set auto_recruit=" +
         config.get('Experiment Configuration', 'auto_recruit'),
 
-        "heroku config:set wallace_email_username=" +
-        config.get('Email Access', 'wallace_email_address'),
+        "heroku config:set dallinger_email_username=" +
+        config.get('Email Access', 'dallinger_email_address'),
 
-        "heroku config:set wallace_email_key=" +
-        config.get('Email Access', 'wallace_email_password'),
+        "heroku config:set dallinger_email_key=" +
+        config.get('Email Access', 'dallinger_email_password'),
 
         "heroku config:set heroku_email_address=" +
         config.get('Heroku Access', 'heroku_email_address'),
@@ -487,7 +487,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     log("Completed deployment of experiment " + id + ".")
 
 
-@wallace.command()
+@dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='ID of the sandboxed experiment')
 def sandbox(verbose, app):
@@ -507,7 +507,7 @@ def sandbox(verbose, app):
     deploy_sandbox_shared_setup(verbose=verbose, app=app)
 
 
-@wallace.command()
+@dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def deploy(verbose, app):
@@ -527,7 +527,7 @@ def deploy(verbose, app):
     deploy_sandbox_shared_setup(verbose=verbose, app=app)
 
 
-@wallace.command()
+@dallinger.command()
 @click.option('--qualification')
 @click.option('--value')
 @click.option('--worker')
@@ -645,7 +645,7 @@ def backup(app):
     print(url)
 
 
-@wallace.command()
+@dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def hibernate(app):
     """Pause an experiment and remove costly resources."""
@@ -673,7 +673,7 @@ def hibernate(app):
         )
 
 
-@wallace.command()
+@dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option('--databaseurl', default=None, help='URL of the database')
 def awaken(app, databaseurl):
@@ -717,7 +717,7 @@ def awaken(app, databaseurl):
     scale_up_dynos(app)
 
 
-@wallace.command()
+@dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option('--local', is_flag=True, flag_value=True,
               help='Export local data')
@@ -762,7 +762,7 @@ def export(app, local):
         dump_path = dump_database(id)
 
         subprocess.call(
-            "pg_restore --verbose --clean -d wallace " +
+            "pg_restore --verbose --clean -d dallinger " +
             os.path.join("data", id) + "/data.dump",
             shell=True)
 
@@ -780,7 +780,7 @@ def export(app, local):
 
     for table in all_tables:
         subprocess.call(
-            "psql -d wallace --command=\"\\copy " + table + " to \'" +
+            "psql -d dallinger --command=\"\\copy " + table + " to \'" +
             os.path.join(subdata_path, table) + ".csv\' csv header\"",
             shell=True)
 
@@ -799,7 +799,7 @@ def export(app, local):
     log("Done. Data available in " + str(id) + ".zip")
 
 
-@wallace.command()
+@dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def logs(app):
     """Show the logs."""
@@ -810,7 +810,7 @@ def logs(app):
             "heroku addons:open papertrail --app " + app, shell=True)
 
 
-@wallace.command()
+@dallinger.command()
 @click.option('--example', default="bartlett1932", help='Name of the example')
 def create(example):
     """Create a copy of the given example."""
@@ -825,9 +825,9 @@ def create(example):
         click.echo("Example '{}' already exists here.".format(example))
 
 
-@wallace.command()
+@dallinger.command()
 def verify():
-    """Verify that app is compatible with Wallace."""
+    """Verify that app is compatible with Dallinger."""
     verify_package(verbose=True)
 
 
@@ -895,20 +895,20 @@ def verify_package(verbose=True):
         log("✗ templates/complete.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
             delay=0, chevrons=False, verbose=verbose)
         return False
-    elif os.path.exists("templates/error_wallace.html"):
-        log("✗ templates/error_wallace.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
+    elif os.path.exists("templates/error_dallinger.html"):
+        log("✗ templates/error_dallinger.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
             delay=0, chevrons=False, verbose=verbose)
         return False
     elif os.path.exists("templates/launch.html"):
         log("✗ templates/launch.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
             delay=0, chevrons=False, verbose=verbose)
         return False
-    elif os.path.exists("static/css/wallace.css"):
-        log("✗ static/css/wallace.css will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
+    elif os.path.exists("static/css/dallinger.css"):
+        log("✗ static/css/dallinger.css will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
             delay=0, chevrons=False, verbose=verbose)
         return False
-    elif os.path.exists("static/scripts/wallace.js"):
-        log("✗ static/scripts/wallace.js will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
+    elif os.path.exists("static/scripts/dallinger.js"):
+        log("✗ static/scripts/dallinger.js will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
             delay=0, chevrons=False, verbose=verbose)
         return False
     elif os.path.exists("static/scripts/reqwest.min.js"):

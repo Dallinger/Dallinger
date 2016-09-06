@@ -6,7 +6,7 @@ There are a number of ways that you can monitor a live experiment:
 Command line tools
 ------------------
 
-``wallace summary --app {#id}``, where ``{#id}`` is the id (``w...``) of
+``dallinger summary --app {#id}``, where ``{#id}`` is the id (``w...``) of
 the application.
 
 This will print a summary showing the number of participants with each

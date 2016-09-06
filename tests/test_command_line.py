@@ -17,6 +17,6 @@ class TestCommandLine(object):
         self.db.add_all(args)
         self.db.commit()
 
-    def test_wallace_help(self):
-        output = subprocess.check_output("wallace", shell=True)
-        assert("Usage: wallace [OPTIONS] COMMAND [ARGS]" in output)
+    def test_dallinger_help(self):
+        output = subprocess.check_output("dallinger", shell=True)
+        assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)

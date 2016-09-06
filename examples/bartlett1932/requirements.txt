@@ -1,1 +1,1 @@
-wallace-platform == 1.0.0
+dallinger == 1.0.0

@@ -1,4 +1,4 @@
-"""Define Wallace's core models."""
+"""Define Dallinger's core models."""
 
 from datetime import datetime
 
@@ -49,7 +49,7 @@ class SharedMixin(object):
     property5 = Column(String(256), nullable=True, default=None)
 
     #: boolean indicating whether the Network has failed which
-    #: prompts Wallace to ignore it unless specified otherwise. Objects are
+    #: prompts Dallinger to ignore it unless specified otherwise. Objects are
     #: usually failed to indicate something has gone wrong.
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
@@ -76,14 +76,14 @@ class Participant(Base, SharedMixin):
     #: A String, the assignment id of the participant.
     assignment_id = Column(String(50), nullable=False, index=True)
 
-    #: A String, a concatenation of :attr:`~wallace.models.Participant.worker_id`
-    #: and :attr:`~wallace.models.Participant.assignment_id`, used by psiTurk.
+    #: A String, a concatenation of :attr:`~dallinger.models.Participant.worker_id`
+    #: and :attr:`~dallinger.models.Participant.assignment_id`, used by psiTurk.
     unique_id = Column(String(50), nullable=False, index=True)
 
     #: A String, the id of the hit the participant is working on
     hit_id = Column(String(50), nullable=False)
 
-    #: A String, the mode in which Wallace is running: live,
+    #: A String, the mode in which Dallinger is running: live,
     #: sandbox or debug.
     mode = Column(String(50), nullable=False)
 
@@ -108,7 +108,7 @@ class Participant(Base, SharedMixin):
     #:      attention check
     #:    - ``bad_data`` - the participant finished, but their data was
     #:      malformed
-    #:    - ``missing notification`` - this indicates that Wallace has
+    #:    - ``missing notification`` - this indicates that Dallinger has
     #:      inferred that a Mechanical Turk notification corresponding to this
     #:      participant failed to arrive. This is an uncommon, but potentially
     #:      serious issue.
@@ -216,8 +216,8 @@ class Participant(Base, SharedMixin):
     def fail(self):
         """Fail a participant.
 
-        Set :attr:`~wallace.models.SharedMixin.failed` to ``True`` and
-        :attr:`~wallace.models.SharedMixin.time_of_death` to now. Instruct all
+        Set :attr:`~dallinger.models.SharedMixin.failed` to ``True`` and
+        :attr:`~dallinger.models.SharedMixin.time_of_death` to now. Instruct all
         not-failed nodes associated with the participant to fail.
 
         """
@@ -277,8 +277,8 @@ class Question(Base, SharedMixin):
     def fail(self):
         """Fail a question.
 
-        Set :attr:`~wallace.models.SharedMixin.failed` to True and
-        :attr:`~wallace.models.SharedMixin.time_of_death` to now.
+        Set :attr:`~dallinger.models.SharedMixin.failed` to True and
+        :attr:`~dallinger.models.SharedMixin.time_of_death` to now.
 
         """
         if self.failed is True:
@@ -329,7 +329,7 @@ class Network(Base, SharedMixin):
     #: Whether the network is currently full
     full = Column(Boolean, nullable=False, default=False, index=True)
 
-    #: The role of the network. By default wallace initializes all
+    #: The role of the network. By default dallinger initializes all
     #: networks as either "practice" or "experiment"
     role = Column(String(26), nullable=False, default="default", index=True)
 
@@ -424,7 +424,7 @@ class Network(Base, SharedMixin):
         type specifies the type of info (defaults to Info). failed { False,
         True, "all" } specifies the failed state of the infos. To get infos
         from a specific node, see the infos() method in class
-        :class:`~wallace.models.Node`.
+        :class:`~dallinger.models.Node`.
 
         """
         if type is None:
@@ -850,7 +850,7 @@ class Node(Base, SharedMixin):
     def infos(self, type=None, failed=False):
         """Get infos that originate from this node.
 
-        Type must be a subclass of :class:`~wallace.models.Info`, the default is
+        Type must be a subclass of :class:`~dallinger.models.Info`, the default is
         ``Info``. Failed can be True, False or "all".
 
         """
@@ -1009,7 +1009,7 @@ class Node(Base, SharedMixin):
         You cannot fail a node that has already failed, but you
         can fail a dead node.
 
-        Set node.failed to True and :attr:`~wallace.models.Node.time_of_death`
+        Set node.failed to True and :attr:`~dallinger.models.Node.time_of_death`
         to now. Instruct all not-failed vectors connected to this node, infos
         made by this node, transmissions to or from this node and
         transformations made by this node to fail.
@@ -1167,7 +1167,7 @@ class Node(Base, SharedMixin):
         """What to transmit if what is not specified.
 
         Return the default value of ``what`` for
-        :func:`~wallace.models.Node.transmit`. Should not return None or a list
+        :func:`~dallinger.models.Node.transmit`. Should not return None or a list
         containing None.
 
         """
@@ -1177,7 +1177,7 @@ class Node(Base, SharedMixin):
         """To whom to transmit if to_whom is not specified.
 
         Return the default value of ``to_whom`` for
-        :func:`~wallace.models.Node.transmit`. Should not return None or a list
+        :func:`~dallinger.models.Node.transmit`. Should not return None or a list
         containing None.
 
         """
@@ -1312,7 +1312,7 @@ class Vector(Base, SharedMixin):
                              .format(origin, destination, destination))
 
         # check the destination isnt a source
-        from wallace.nodes import Source
+        from dallinger.nodes import Source
         if isinstance(destination, Source):
             raise(TypeError("Cannot connect to {} as it is a Source."
                             .format(destination)))
@@ -1469,7 +1469,7 @@ class Info(Base, SharedMixin):
     def fail(self):
         """Fail an info.
 
-        Set info.failed to True and :attr:`~wallace.models.Info.time_of_death`
+        Set info.failed to True and :attr:`~dallinger.models.Info.time_of_death`
         to now. Instruct all transmissions and transformations involving this
         info to fail.
         """

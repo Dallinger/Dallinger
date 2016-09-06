@@ -1,8 +1,8 @@
 version 1.0
 @totalColumns 11
 /*
-Schema for Wallace's network table.
-http://cocosci.berkeley.edu/wallace
+Schema for Dallinger's network table.
+https://github.com/Dallinger/Dallinger
 */
 id: positiveInteger unique($id)
 type: length(1,*)

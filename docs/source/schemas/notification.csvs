@@ -1,8 +1,8 @@
 version 1.0
 @totalColumns 4
 /*
-Schema for Wallace's notification table.
-http://cocosci.berkeley.edu/wallace
+Schema for Dallinger's notification table.
+https://github.com/Dallinger/Dallinger
 */
 id: positiveInteger unique($id)
 assignment_id: length(1,*)

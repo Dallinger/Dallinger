@@ -1,4 +1,4 @@
-from wallace import db, models
+from dallinger import db, models
 
 
 class TestTransformations(object):

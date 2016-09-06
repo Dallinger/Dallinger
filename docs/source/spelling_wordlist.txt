@@ -9,6 +9,8 @@ Chatroom
 conda
 config
 css
+dallinger
+Dallinger
 et
 frontend
 Google
@@ -53,8 +55,7 @@ Ubuntu
 url
 walkthrough
 walkthroughs
-wallace
-Wallace
 Webhook
 webpage
+Wikipedia
 workflows

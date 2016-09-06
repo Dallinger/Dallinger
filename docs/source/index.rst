@@ -1,22 +1,22 @@
-Wallace
+Dallinger
 ~~~~~~~
 
-Wallace is a platform for conducting research on experimental cultural
-evolution. Its namesake is Alfred Russel Wallace, a British naturalist
+Dallinger is a platform for conducting research on experimental cultural
+evolution. Its namesake is Alfred Russel Dallinger, a British naturalist
 and the oft-ignored co-discoverer of evolution by natural selection. You
-can use Wallace to create new experiments or to reproduce existing
+can use Dallinger to create new experiments or to reproduce existing
 experiments.
 
 .. toctree::
     :maxdepth: 1
     :caption: User Documentation
 
-    installing_wallace_for_users
-    wallace_with_anaconda
-    developing_wallace_setup_guide
+    installing_dallinger_for_users
+    dallinger_with_anaconda
+    developing_dallinger_setup_guide
     aws_etc_keys
-    demoing_wallace
-    learning_to_use_wallace
+    demoing_dallinger
+    learning_to_use_dallinger
     required_experimental_files
     monitoring_a_live_experiment
     postico_and_postgres
@@ -45,4 +45,4 @@ experiments.
     :maxdepth: 1
     :caption: Miscellaneous
 
-    wallace_the_scientist
+    dallinger_the_scientist

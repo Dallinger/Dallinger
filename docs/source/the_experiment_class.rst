@@ -1,14 +1,14 @@
 The Experiment Class
 ====================
 
-Experiments are designed in Wallace by creating a custom subclass of the base
+Experiments are designed in Dallinger by creating a custom subclass of the base
 Experiment class. The code for the Experiment class is in experiments.py.
 Unlike the :doc:`other classes <classes>`, each experiment involves only a
 single Experiment object and it is not stored as an entry in a corresponding
 table, rather each Experiment is a set of instructions that tell the server
 what to do with the database when the server receives requests from outside.
 
-.. currentmodule:: wallace.experiments
+.. currentmodule:: dallinger.experiments
 
 .. autoclass:: Experiment
 

@@ -155,7 +155,7 @@ class PsiTurkRecruiter(Recruiter):
 
         if auto_recruit:
 
-            print "Starting Wallace's recruit_participants."
+            print "Starting Dallinger's recruit_participants."
 
             hit_id = str(
                 Participant.query.

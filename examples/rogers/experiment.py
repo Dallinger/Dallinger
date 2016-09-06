@@ -1,11 +1,11 @@
 """Replicate Rogers' paradox by simulating evolution with people."""
 
-from wallace.experiments import Experiment
-from wallace.information import Gene, Meme, State
-from wallace.nodes import Source, Agent, Environment
-from wallace.networks import DiscreteGenerational
-from wallace.models import Node, Network, Participant
-from wallace import transformations
+from dallinger.experiments import Experiment
+from dallinger.information import Gene, Meme, State
+from dallinger.nodes import Source, Agent, Environment
+from dallinger.networks import DiscreteGenerational
+from dallinger.models import Node, Network, Participant
+from dallinger import transformations
 from sqlalchemy import Integer, Float
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast

@@ -1,8 +1,8 @@
 """Coordination chatroom game."""
 
-from wallace.networks import FullyConnected
-from wallace.nodes import Agent
-from wallace.experiments import Experiment
+from dallinger.networks import FullyConnected
+from dallinger.nodes import Agent
+from dallinger.experiments import Experiment
 
 
 class CoordinationChatroom(Experiment):

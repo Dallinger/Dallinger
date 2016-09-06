@@ -1,13 +1,13 @@
-Wallace
+Dallinger
 =======
-[![Build Status](https://travis-ci.org/berkeley-cocosci/Wallace.svg?branch=master)](https://travis-ci.org/berkeley-cocosci/Wallace)
+[![Build Status](https://travis-ci.org/Dallinger/Dallinger.svg?branch=master)](https://travis-ci.org/Dallinger/Dallinger)
 [![codecov](https://codecov.io/gh/Dallinger/Dallinger/branch/master/graph/badge.svg)](https://codecov.io/gh/Dallinger/Dallinger)
-[![Code Climate](https://codeclimate.com/github/berkeley-cocosci/Wallace/badges/gpa.svg)](https://codeclimate.com/github/berkeley-cocosci/Wallace)
-[![License](https://img.shields.io/github/license/berkeley-cocosci/Wallace.svg)](http://en.wikipedia.org/wiki/MIT_License)
+[![Code Climate](https://codeclimate.com/github/Dallinger/Dallinger/badges/gpa.svg)](https://codeclimate.com/github/Dallinger/Dallinger)
+[![License](https://img.shields.io/github/license/Dallinger/Dallinger.svg)](http://en.wikipedia.org/wiki/MIT_License)
 
-<img src="portrait.jpg?raw=true" width="125" alt="Portrait of Alfred Russel Wallace">
+<img src="incubator.png?raw=true" width="125" alt="Dallinger's incubator">
 
-Wallace is a platform for conducting research on experimental cultural evolution. Its namesake is Alfred Russel Wallace, a British naturalist and the oft-ignored codiscoverer of evolution by natural selection. You can use Wallace to create new experiments or to reproduce existing experiments.
+Dallinger performs laboratory automation for the behavioral and social sciences.
 
 Features
 --------
@@ -17,21 +17,21 @@ Features
 
 Install
 -------
-To install Wallace, see [Developing Wallace (setup guide)](http://wallace.readthedocs.io/en/latest/developing_wallace_setup_guide.html).
+To install Dallinger, see [the instructions](http://dallinger.readthedocs.io/).
 
 Documentation
 -------------
-Documentation is available on the [documentation website](http://wallace.readthedocs.io/).
+Documentation is available on the [documentation website](http://dallinger.readthedocs.io/).
 
 Contribute
 ----------
-- Issue Tracker: http://github.com/berkeley-cocosci/Wallace/issues
-- Source Code: http://github.com/berkeley-cocosci/Wallace
+- Issue Tracker: http://github.com/Dallinger/Dallinger/issues
+- Source Code: http://github.com/Dallinger/Dallinger
 
 Support
 -------
-If you are having issues, please let us know.
-We run a users group at https://groups.google.com/d/forum/wallace-users
+If you are having issues, please [let us know](http://github.com/Dallinger/Dallinger/issues).
+We run a users group at https://groups.google.com/d/forum/dallinger.
 
 License
 -------
