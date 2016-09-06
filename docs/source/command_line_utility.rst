@@ -1,4 +1,4 @@
-Command Line Utility
+Command-Line Utility
 ====================
 
 Dallinger is executed from the command line within the experiment directory with the following commands:
