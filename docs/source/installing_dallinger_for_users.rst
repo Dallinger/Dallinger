@@ -1,9 +1,9 @@
 Installation
 ============
 
-*If you would like to contribute to Dallinger, please follow these
+If you would like to contribute to Dallinger, please follow these
 :doc:`alternative install
-instructions <developing_dallinger_setup_guide>`.*
+instructions <developing_dallinger_setup_guide>`.
 
 Install Python
 ^^^^^^^^^^^^^^

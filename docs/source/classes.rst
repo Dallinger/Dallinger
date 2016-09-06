@@ -1,6 +1,8 @@
 Database API
 ============
 
+.. _classes:
+
 The classes involved in a Dallinger experiment are:
 :class:`~dallinger.models.Network`, :class:`~dallinger.models.Node`,
 :class:`~dallinger.models.Vector`, :class:`~dallinger.models.Info`,

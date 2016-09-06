@@ -3,7 +3,7 @@ Web API
 
 The Dallinger API allows the experiment frontend to communicate with the
 backend. Many of these routes correspond to specific functions of
-Dallinger's :doc:`classes <classes>`__, particularly
+Dallinger's :ref:`classes <classes>`, particularly
 :class:`dallinger.models.Node`. For example,
 nodes have a ``connect`` method that creates new vectors between nodes
 and there is a corresponding ``connect/`` route that allows the frontend
