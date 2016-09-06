@@ -2,6 +2,7 @@ language: python
 sudo: required
 python:
 - '2.7'
+cache: pip
 env:
   matrix:
     - GROUP=docs
