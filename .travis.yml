@@ -51,3 +51,13 @@ deploy:
       secure: "A8nIC9tLyVV1X5020JbJwpBCSS7kQvuXP2pLIgu40CPB/ZfU3OOC5IyjfFWypIP/CCExM8o6Spb5UJccgLLUy7OLGMPaO/8Ne7BCyh75uvav5iX4KlP/j8eWih+CPGWPhO4pYsXnzpGi+GSQnwmhxdoPmllUbyLvmppsfI+vBf9pYGRpF8BgjIt0S3ffYRh030S6jFSQ1HCEz/JDIaHn4eh+nn/squVXKHMbejR8IaMnVc+Xus8mT7yzQhdIWn/jCV7GCq1uvBU1Jieh9lR18ohwT3FE51rnPZvVEGUmW0JaWmVYjwKRevXPfS9gbDSGBOAwMypVk5lPSoJlXhUpfuUEEbWvl/XpO+B9C3VGgtFSR3R+9zN7Vhg89FkVjxBIEVV6t5p+7RRtKYkyp08T9B72wzwG8Xq2XMFNb9/w1hJsx5YuZZVLQOHJlae64jstJOzAiQUXN0ZAsSU6lyH2MXJPLhgqc8Lfd05/5swnkrbj/PxchawbwwnmLps9DlyVVcxH8XdW3n8NYU4tzc+2NwM0/+AMhQQ7hQ5YTz1YSDiHNUTmFqFoawUzeDUT+5NDfy+DYk8SkIj8i6gWsEES1fPkckTvsuKrJUEy781Ff5dl/nb8xsX8UC3DhcEqYkYkr+3bgmKydMCOGGB9k+/2/p0AS67Rmu+/Vs5op6jGhp8="
     on:
       condition: $TRAVIS_PYTHON_VERSION = "2.7"
+    # production pypi
+  - provider: pypi
+    distributions: sdist
+    user: "suchow"
+    password:
+      secure: "A8nIC9tLyVV1X5020JbJwpBCSS7kQvuXP2pLIgu40CPB/ZfU3OOC5IyjfFWypIP/CCExM8o6Spb5UJccgLLUy7OLGMPaO/8Ne7BCyh75uvav5iX4KlP/j8eWih+CPGWPhO4pYsXnzpGi+GSQnwmhxdoPmllUbyLvmppsfI+vBf9pYGRpF8BgjIt0S3ffYRh030S6jFSQ1HCEz/JDIaHn4eh+nn/squVXKHMbejR8IaMnVc+Xus8mT7yzQhdIWn/jCV7GCq1uvBU1Jieh9lR18ohwT3FE51rnPZvVEGUmW0JaWmVYjwKRevXPfS9gbDSGBOAwMypVk5lPSoJlXhUpfuUEEbWvl/XpO+B9C3VGgtFSR3R+9zN7Vhg89FkVjxBIEVV6t5p+7RRtKYkyp08T9B72wzwG8Xq2XMFNb9/w1hJsx5YuZZVLQOHJlae64jstJOzAiQUXN0ZAsSU6lyH2MXJPLhgqc8Lfd05/5swnkrbj/PxchawbwwnmLps9DlyVVcxH8XdW3n8NYU4tzc+2NwM0/+AMhQQ7hQ5YTz1YSDiHNUTmFqFoawUzeDUT+5NDfy+DYk8SkIj8i6gWsEES1fPkckTvsuKrJUEy781Ff5dl/nb8xsX8UC3DhcEqYkYkr+3bgmKydMCOGGB9k+/2/p0AS67Rmu+/Vs5op6jGhp8="
+    on:
+      branch: master
+      tags: true
+      condition: $TRAVIS_PYTHON_VERSION = "2.7"
