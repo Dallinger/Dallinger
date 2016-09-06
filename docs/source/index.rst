@@ -1,11 +1,7 @@
 Dallinger
 ~~~~~~~
 
-Dallinger is a platform for conducting research on experimental cultural
-evolution. Its namesake is Alfred Russel Dallinger, a British naturalist
-and the oft-ignored co-discoverer of evolution by natural selection. You
-can use Dallinger to create new experiments or to reproduce existing
-experiments.
+Dallinger performs laboratory automation for the behavioral and social sciences.
 
 .. toctree::
     :maxdepth: 1
