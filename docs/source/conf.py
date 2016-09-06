@@ -152,7 +152,7 @@ html_theme_options = {
     'github_repo': 'Dallinger',
     'github_type': 'star',
     'github_button': True,
-    'description': 'A platform for experimental cultural evolution.',
+    'description': 'Laboratory automation for the behavioral and social sciences.',
     'show_powered_by': False,
 }
 

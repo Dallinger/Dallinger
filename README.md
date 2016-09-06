@@ -11,7 +11,7 @@ Dallinger performs laboratory automation for the behavioral and social sciences.
 
 Features
 --------
-- Runs experiments on experimental cultural evolution
+- Performs laboratory automation for the behavioral and social sciences
 - Coordinates participant recruitment using Mechanical Turk
 - Demos of common experimental paradigms
 
