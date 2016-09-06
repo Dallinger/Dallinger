@@ -144,25 +144,28 @@ transmissions are also passed to experiment method
 
     POST /node/<node_id>/transmit
 
-| Transmit to another node by calling ``node.transmit()``. The sender's
-  node id must be specified in the url. As with ``node.transmit()`` the
-  key parameters are ``what`` and ``to_whom`` and they should be passed
-  as data. However, the values these accept are more limited than for
-  the backend due to the necessity of serialization.
-| If ``what`` and ``to_whom`` are not specified they will default to
-  ``None``. Alternatively you can pass an int (e.g. '5') or a class name
-  (e.g. ``Info`` or ``Agent``). Passing an int will get that info/node,
-  passing a class name will pass the class. Note that if the class you
-  are specifying is a custom class it will need to be added to the
-  dictionary of known\_classes in your experiment code.
-| You may also pass the values property1, property2, property3,
-  property4 and property5. If passed this will fill in the relevant
-  values of the transmissions created with the values you specified.
-| The transmitting node and a list of created transmissions are sent to
-  experiment method ``transmission_post_request(node, transmissions)``.
-  This route returns a list of JSON descriptions of the created
-  transmissions as ``transmissions``. For example, to transmit all infos
-  of type Meme to the node with id 10:
+Transmit to another node by calling ``node.transmit()``. The sender's
+node id must be specified in the url. As with ``node.transmit()`` the
+key parameters are ``what`` and ``to_whom`` and they should be passed
+as data. However, the values these accept are more limited than for
+the backend due to the necessity of serialization.
+
+If ``what`` and ``to_whom`` are not specified they will default to
+``None``. Alternatively you can pass an int (e.g. '5') or a class name
+(e.g. ``Info`` or ``Agent``). Passing an int will get that info/node,
+passing a class name will pass the class. Note that if the class you
+are specifying is a custom class it will need to be added to the
+dictionary of known\_classes in your experiment code.
+
+You may also pass the values property1, property2, property3,
+property4 and property5. If passed this will fill in the relevant
+values of the transmissions created with the values you specified.
+
+The transmitting node and a list of created transmissions are sent to
+experiment method ``transmission_post_request(node, transmissions)``.
+This route returns a list of JSON descriptions of the created
+transmissions as ``transmissions``. For example, to transmit all infos
+of type Meme to the node with id 10:
 
 ::
 
