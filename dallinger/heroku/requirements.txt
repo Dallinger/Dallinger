@@ -1,4 +1,4 @@
--e git+https://github.com/Dallinger/Dallinger.git@v1.0.0#egg=dallinger
+-e git+https://github.com/Dallinger/Dallinger.git@v2.0.0#egg=dallinger
 APScheduler==3.0.5
 click==3.3
 coverage==3.7.1
