@@ -14,6 +14,14 @@ if git.commits.any? { |c| c.message =~ /^Merge branch/ }
 end
 
 # Require labels on PRs.
-has_enhancement_label = github.pr_labels.include?("enhancement")
-has_bug_label = github.pr_labels.include?("bug")
-warn("Please label as 'enhancement', 'bug', 'demo', or 'release'.", sticky: true) if !has_enhancement_label && !has_bug_label
+enhancement = github.pr_labels.include?("enhancement")
+bug = github.pr_labels.include?("bug")
+release = github.pr_labels.include?("release")
+demo = github.pr_labels.include?("demo")
+
+has_label = enhancement || bug || release || demo
+
+warn("Please label as 'enhancement', 'bug', 'demo', or 'release'.", sticky: true) if !has_label
+
+# Require change log entries on PRs with a release label.
+fail("Please update the change log for this release.") if release && !git.modified_files.include?("CHANGELOG.md")
