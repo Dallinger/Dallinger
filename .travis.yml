@@ -1,5 +1,7 @@
 language: python
 sudo: required
+rvm:
+- '2.2'
 python:
 - '2.7'
 cache: pip
@@ -19,6 +21,7 @@ install:
 - git config --global user.email "dallinger@mailinator.com"
 - git config --global user.name "William Henry Dallinger FRS"
 - gem install danger
+- gem install chandler
 before_script:
 - psql -c 'create database db;' -U postgres
 env:
@@ -36,6 +39,9 @@ script:
 # - nosetests tests._test_heroku --nocapture
 after_success:
 - bash <(curl -s https://codecov.io/bash)
+- if [ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
+    sh scripts/github_releases.sh;
+  fi
 notifications:
   email:
     recipients:

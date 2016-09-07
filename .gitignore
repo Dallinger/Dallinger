@@ -21,3 +21,4 @@ docs/build
 docs/source/demos
 .DS_Store
 README.rst
+.netrc
