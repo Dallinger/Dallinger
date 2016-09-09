@@ -84,3 +84,9 @@ a.reference {
     text-decoration: none;
     border-bottom: 1px solid #64d2e9;
 }
+
+a.reference:hover {
+    text-decoration: none;
+    color: #64d2e9;
+    border-bottom: 1px solid #f5861e;
+}
