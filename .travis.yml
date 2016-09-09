@@ -47,8 +47,7 @@ notifications:
 before_deploy:
 - pandoc --from=markdown --to=rst --output=README.rst README.md
 deploy:
-    # test pypi
-  - provider: pypi
+  - provider: pypi  # test pypi
     distributions: sdist
     server: https://testpypi.python.org/pypi
     user: "suchow"
@@ -57,9 +56,7 @@ deploy:
     on:
       condition: $TRAVIS_PYTHON_VERSION = "2.7"
     skip_cleanup: true
-
-    # production pypi
-  - provider: pypi
+  - provider: pypi  # production pypi
     distributions: sdist
     user: "suchow"
     password:
