@@ -1,12 +1,14 @@
 """Install Dallinger as a command line utility."""
 
-import pypandoc
 from setuptools import setup
 
-long_description = pypandoc.convert('README.md', 'rst', format='markdown')
-long_description = long_description.replace('\r', '')
-with open('README.rst', 'w') as outfile:
-    outfile.write(long_description)
+try:
+    with open('README.rst', 'r') as file:
+        long_description = file.read()
+
+except (OSError, IOError) as e:
+    with open('README.md', 'r') as file:
+        long_description = file.read()
 
 setup_args = dict(
     name='dallinger',
