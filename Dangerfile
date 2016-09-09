@@ -21,7 +21,12 @@ demo = github.pr_labels.include?("demo")
 
 has_label = enhancement || bug || release || demo
 
-warn("Please label as 'enhancement', 'bug', 'demo', or 'release'.", sticky: true) if !has_label
+if !has_label
+    warn("Please apply a label.")
+end
+
 
 # Require change log entries on PRs with a release label.
-fail("Please update the change log for this release.") if release && !git.modified_files.include?("CHANGELOG.md")
+if release && !git.modified_files.include?("CHANGELOG.md")
+    fail("Please update the change log for this release.")
+end
