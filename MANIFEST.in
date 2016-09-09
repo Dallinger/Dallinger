@@ -4,6 +4,6 @@ recursive-include docs *
 include requirements.txt
 include README.md
 include LICENSE
-include portrait.jpg
+include incubator.jpg
 
 prune *.pyc
