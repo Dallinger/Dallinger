@@ -1,4 +1,4 @@
-# Function Learning Demo
+# Transmitting functions
 
 Culturally transmitted knowledge changes as it is transmitted from person to person. Some of the most striking instances of this process come from cases of language acquisition. For example, in Nicaragua, a community of deaf children transformed a fragmentary pidgin into a language with rich grammatical structure by learning from each other (Kegl and Iwata, 1989; Senghas and Coppola, 2001). Languages, legends, and social norms are all shaped by the processes of cultural transmission (Cavalli-Sforza, 1981; Boyd and Richerson, 1988; Kirby, 1999, 2001; Briscoe, 2002).
 

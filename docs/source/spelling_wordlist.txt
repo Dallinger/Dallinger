@@ -5,6 +5,7 @@ boolean
 booleans
 Briscoe
 Cavalli
+chatroom
 Chatroom
 conda
 config
