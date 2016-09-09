@@ -6,18 +6,9 @@ create_agent = function() {
         type: 'json',
         success: function (resp) {
             my_node_id = resp.node.id;
-            $("#canvas").hide();
             $("#response-form").show();
             $("#submit-response").removeClass('disabled');
             $("#submit-response").html('Submit');
-            sketchpad = Raphael.sketchpad("editor", {
-                width: 300,
-                height: 300,
-                editing: true
-            });
-            pen = sketchpad.pen();
-            pen.width(2);
-            $("#editor").width(300).height(300);
         },
         error: function (err) {
             console.log(err);
@@ -34,19 +25,22 @@ create_agent = function() {
 
 submit_response = function() {
 
-    canvg('canvas', $("#editor").html());
-    console.log(canvas.toDataURL("image/png"));
-
     $("#submit-response").addClass('disabled');
     $("#submit-response").html('Sending...');
+
+    responses = {};
+    for (var i = 0; i < 8; i++) {
+        responses["Q" + (i + 1)] = $("#Q" + (i + 1)).val();
+    }
+
+    console.log(responses);
 
     reqwest({
         url: "/info/" + my_node_id,
         method: 'post',
         data: {
             contents: JSON.stringify({
-                "sketch": sketchpad.json(),
-                "image": canvas.toDataURL("image/png"),
+                "responses": responses
             }),
             info_type: "Info"
         },
