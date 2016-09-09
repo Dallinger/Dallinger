@@ -1,14 +1,19 @@
 # Change Log
 
+## [v2.1.0](https://github.com/dallinger/dallinger/tree/v2.1.0) (2016-09-08)
+
+**Enhancements**
+
+- Drawing demo [\#24](https://github.com/Dallinger/Dallinger/pull/24) ([suchow](https://github.com/suchow))
+- GitHub templates [\#22](https://github.com/Dallinger/Dallinger/pull/22) ([suchow](https://github.com/suchow))
+- Add code of conduct [\#20](https://github.com/Dallinger/Dallinger/pull/20) ([suchow](https://github.com/suchow))
+
+**Bugs squashed**
+
+- Install Dallinger via PyPi on Heroku [\#28](https://github.com/Dallinger/Dallinger/pull/28) ([suchow](https://github.com/suchow))
+- Add pypandoc 1.2.0 to reqs [\#26](https://github.com/Dallinger/Dallinger/pull/26) ([suchow](https://github.com/suchow))
+
 ## [v2.0.0](https://github.com/dallinger/dallinger/tree/v2.0.0) (2016-09-07)
-
-Dallinger 2.0.0 is the first release of Dallinger, which performs laboratory automation for the behavioral and social sciences.
-
-**Breaking changes:**
-
-The software is now called *Dallinger*. This rebranding is a breaking change that affects the name of the command-line utility (`dallinger`); the name of the Python module (`dallinger`); and the name of the configuration file (`.dallingerconfig`).
-
-- Rebrand as "Dallinger" [\#2](https://github.com/Dallinger/Dallinger/pull/2) ([suchow](https://github.com/suchow))
 
 **Enhancements:**
 
