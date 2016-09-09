@@ -90,3 +90,12 @@ a.reference:hover {
     color: #64d2e9;
     border-bottom: 1px solid #f5861e;
 }
+
+.caption {
+   font-weight: bold;
+}
+
+#searchbox h3 {
+    font-size: 14px;
+    margin-bottom: -10px;
+}
