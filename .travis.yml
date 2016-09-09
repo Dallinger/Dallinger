@@ -5,6 +5,8 @@ rvm:
 python:
 - '2.7'
 cache: pip
+cache:
+    apt: true
 env:
   matrix:
     - GROUP=docs
