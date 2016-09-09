@@ -32,6 +32,7 @@ Lewandowsky
 md
 neighbour
 Papertrail
+Populi
 Postgres
 PostgreSQL
 Postico
@@ -54,6 +55,7 @@ Ternate
 txt
 Ubuntu
 url
+Vox
 walkthrough
 walkthroughs
 Webhook
