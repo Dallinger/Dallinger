@@ -7,6 +7,7 @@
 - Drawing demo [\#24](https://github.com/Dallinger/Dallinger/pull/24) ([suchow](https://github.com/suchow))
 - GitHub templates [\#22](https://github.com/Dallinger/Dallinger/pull/22) ([suchow](https://github.com/suchow))
 - Add code of conduct [\#20](https://github.com/Dallinger/Dallinger/pull/20) ([suchow](https://github.com/suchow))
+## [2.1.1](https://github.com/dallinger/dallinger/tree/HEAD) (2016-09-09)
 
 **Bugs squashed**
 
@@ -38,3 +39,4 @@
 ## [v1.0.0](https://github.com/berkeley-cocosci/Wallace/tree/v1.0.0) (2016-09-02)
 
 Before Dallinger, there was [Wallace](https://github.com/berkeley-cocosci/Wallace), a platform for automating experiments on cultural transmission through crowdsourcing. Wallace was funded, in part, by the National Science Foundation (grant 1456709 to T.L.G).
+- Fix issue with installation on PyPi [\#31](https://github.com/Dallinger/Dallinger/pull/31) ([suchow](https://github.com/suchow))
