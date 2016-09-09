@@ -8,13 +8,13 @@ Dallinger
 
 <img src="incubator.png?raw=true" width="125" alt="Dallinger's incubator">
 
-Dallinger performs laboratory automation for the behavioral and social sciences.
+Laboratory automation for the behavioral and social sciences.
 
 Features
 --------
 - Performs laboratory automation for the behavioral and social sciences
 - Coordinates participant recruitment using Mechanical Turk
-- Demos of common experimental paradigms
+- Includes demos of common experimental paradigms
 
 Install
 -------
