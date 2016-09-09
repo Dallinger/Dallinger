@@ -48,7 +48,10 @@ notifications:
       - suchow@post.harvard.edu
     on_success: always
     on_failure: always
+before_deploy:
+- pandoc --from=markdown --to=rst --output=README.rst README.md
 deploy:
+  - skip_cleanup: true
     # test pypi
   - provider: pypi
     distributions: sdist
