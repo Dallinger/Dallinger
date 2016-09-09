@@ -17,9 +17,6 @@ addons:
 install:
 - pip install -r dev-requirements.txt
 - python setup.py develop
-- wget -O- https://toolbelt.heroku.com/install-ubuntu.sh | sh
-- git config --global user.email "dallinger@mailinator.com"
-- git config --global user.name "William Henry Dallinger FRS"
 - gem install danger
 - gem install chandler
 before_script:
@@ -36,7 +33,6 @@ script:
 - bundle exec danger
 - make -C docs html spelling
 - nosetests --with-coverage --cover-package dallinger
-# - nosetests tests._test_heroku --nocapture
 after_success:
 - bash <(curl -s https://codecov.io/bash)
 - if [ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
