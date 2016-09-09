@@ -174,7 +174,6 @@ def setup_experiment(debug=True, verbose=False, app=None):
 
     heroku_files = [
         "Procfile",
-        "requirements.txt",
         "psiturkapp.py",
         "worker.py",
         "clock.py",
