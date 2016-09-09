@@ -2,9 +2,9 @@ language: python
 sudo: required
 python:
 - '2.7'
-cache: pip
 cache:
-    apt: true
+  - apt
+  - pip
 env:
   matrix:
     - GROUP=docs
