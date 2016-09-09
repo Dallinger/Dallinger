@@ -20,12 +20,9 @@ Dallinger performs laboratory automation for the behavioral and social sciences.
 .. toctree::
     :maxdepth: 1
     :caption: Demos
+    :glob:
 
-    demos/bartlett1932
-    demos/chatroom
-    demos/function-learning
-    demos/mcmcp
-    demos/rogers
+    demos/*
 
 .. toctree::
     :maxdepth: 1
