@@ -63,7 +63,7 @@ submit_assignment = function() {
             });
         }
     });
-    
+
 };
 
 // make a new participant
@@ -83,3 +83,44 @@ create_participant = function() {
         });
     }
 };
+
+lock = false;
+
+submit_responses = function () {
+    submit_next_response(0);
+}
+
+submit_next_response = function (n) {
+
+    // Get all the ids.
+    ids = $("form .question select, input, textarea").map(
+        function (index) {
+            return $(this).attr('id');
+        }
+    );
+
+    // submit a request for the next one.
+    if (n === ids.length) {
+        submit_assignment();
+    } else {
+        reqwest({
+            url: "/question/" + participant_id,
+            method: 'post',
+            type: 'json',
+            data: {
+                question: $("#" + ids[n]).attr('name'),
+                number: n + 1,
+                response: $("#" + ids[n]).val()
+            },
+            success: function(resp) {
+                submit_next_response(n + 1);
+            },
+            error: function (err) {
+                err_response = JSON.parse(err.response);
+                if (err_response.hasOwnProperty('html')) {
+                    $('body').html(err_response.html);
+                }
+            }
+        });
+    }
+}
