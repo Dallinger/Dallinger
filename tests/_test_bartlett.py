@@ -8,11 +8,11 @@
 
 # class TestBartlett(object):
 
-#     sandbox_output = subprocess.check_output("cd examples/bartlett1932; dallinger sandbox", shell=True)
+#     sandbox_output = subprocess.check_output("cd demos/bartlett1932; dallinger sandbox", shell=True)
 #     exp_id = re.search('Running as experiment (.*)...', sandbox_output).group(1)
 #     exp_address = "http://" + exp_id + ".herokuapp.com"
 
-#     subprocess.call("cd examples/bartlett1932; dallinger logs --app " + exp_id, shell=True)
+#     subprocess.call("cd demos/bartlett1932; dallinger logs --app " + exp_id, shell=True)
 
 #     args = {'hitId': 'bartlett-test-hit', 'assignmentId': 1, 'workerId': 1, 'mode': 'sandbox'}
 #     participant = requests.get(exp_address + '/exp', params=args)

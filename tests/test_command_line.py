@@ -7,8 +7,8 @@ import subprocess
 class TestCommandLine(object):
 
     def setup(self):
-        """Set up the environment by moving to the examples directory."""
-        os.chdir("examples")
+        """Set up the environment by moving to the demos directory."""
+        os.chdir("demos")
 
     def teardown(self):
         os.chdir("..")
