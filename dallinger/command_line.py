@@ -812,21 +812,6 @@ def logs(app):
 
 
 @dallinger.command()
-@click.option('--example', default="bartlett1932", help='Name of the example')
-def create(example):
-    """Create a copy of the given example."""
-    try:
-        this_dir = os.path.dirname(os.path.realpath(__file__))
-        example_dir = os.path.join(this_dir, os.pardir, "examples", example)
-        shutil.copytree(example_dir, os.path.join(os.getcwd(), example))
-        log("Example created.", delay=0)
-    except TypeError:
-        click.echo("Example '{}' does not exist.".format(example))
-    except OSError:
-        click.echo("Example '{}' already exists here.".format(example))
-
-
-@dallinger.command()
 def verify():
     """Verify that app is compatible with Dallinger."""
     verify_package(verbose=True)

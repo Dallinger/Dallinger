@@ -50,4 +50,4 @@ name. The files are as follows:
 -  `reqwest.min.js <https://github.com/ded/reqwest>`__ - this is
    required for dallinger.js to work.
 -  dallinger.css - this contains several css classes that are used in the
-   examples.
+   demos.

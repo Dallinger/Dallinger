@@ -4,8 +4,8 @@ import shutil
 import subprocess as sp
 
 
-def make_example(name, src, dst):
-    print("Making '{}'' example...".format(name))
+def make_demo(name, src, dst):
+    print("Making '{}'' demo...".format(name))
 
     # convert and copy the README to the static location
     sp.call([
@@ -56,8 +56,8 @@ def build(root):
     if not os.path.exists(os.path.join(root, "demos")):
         os.makedirs(os.path.join(root, "demos"))
 
-    examples_dir = os.path.abspath(os.path.join(root, "..", "..", "examples"))
-    for example in os.listdir(examples_dir):
-        src = os.path.join(examples_dir, example)
+    demos_dir = os.path.abspath(os.path.join(root, "..", "..", "demos"))
+    for demo in os.listdir(demos_dir):
+        src = os.path.join(demos_dir, demo)
         if os.path.isdir(src):
-            make_example(example, src, root)
+            make_demo(demo, src, root)
