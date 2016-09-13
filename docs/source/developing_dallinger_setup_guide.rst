@@ -96,8 +96,7 @@ Set up a virtual environment
 
 **Note**: if you are using Anaconda, ignore this ``virtualenv``
 section; use ``conda`` to create your virtual environment. Or, see the
-special `Anaconda installation
-instructions <Dallinger-with-Anaconda.md>`__.
+special :doc:`Anaconda installation instructions <dallinger_with_anaconda>`.
 
 Set up a virtual environment by running the following commands:
 
