@@ -8,7 +8,7 @@ class TestExamples(object):
 
     def setup(self):
         """Set up the environment by resetting the tables."""
-        os.chdir("examples")
+        os.chdir("demos")
 
     def teardown(self):
         os.chdir("..")
@@ -17,14 +17,14 @@ class TestExamples(object):
         self.db.add_all(args)
         self.db.commit()
 
-    def verify_example(self, example):
-        os.chdir(example)
+    def verify_demo(self, demo):
+        os.chdir(demo)
         output = subprocess.check_output("dallinger verify", shell=True)
         assert "✗" not in output
         os.chdir("..")
 
-    def test_verify_example_bartlett1932(self):
-        self.verify_example("bartlett1932")
+    def test_verify_demo_bartlett1932(self):
+        self.verify_demo("bartlett1932")
 
-    def test_verify_example_function_learning(self):
-        self.verify_example("function-learning")
+    def test_verify_demo_function_learning(self):
+        self.verify_demo("function-learning")

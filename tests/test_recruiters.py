@@ -6,7 +6,7 @@ class TestRecruiters(object):
 
     def setup(self):
         self.db = db.init_db(drop_all=True)
-        os.chdir(os.path.join("examples", "bartlett1932"))
+        os.chdir(os.path.join("demos", "bartlett1932"))
 
     def teardown(self):
         self.db.rollback()

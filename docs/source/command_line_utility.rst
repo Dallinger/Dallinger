@@ -86,11 +86,3 @@ awaken
 
 | ``--app <app>``
 | Retore a hibernating app.
-
-create
-^^^^^^
-
-| ``--example <demo>``
-| Copies the ``<demo>`` experiment from the examples directory to the
-  command line location. ``<demo>`` must be the name of a directory with
-  the examples directory. The default is ``bartlett1932``.

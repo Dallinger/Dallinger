@@ -11,7 +11,7 @@ class TestHeroku(object):
     """The Heroku test class."""
 
     sandbox_output = subprocess.check_output(
-        "cd examples/bartlett1932; dallinger sandbox --verbose", shell=True)
+        "cd demos/bartlett1932; dallinger sandbox --verbose", shell=True)
 
     os.environ['app_id'] = re.search(
         'Running as experiment (.*)...', sandbox_output).group(1)
