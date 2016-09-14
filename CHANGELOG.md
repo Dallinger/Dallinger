@@ -1,5 +1,16 @@
 # Change Log
 
+## [v2.2.1](https://github.com/dallinger/dallinger/tree/v2.2.1) (2016-09-14)
+
+**Bugs squashed**
+
+- Fix issues with requirements [\#117](https://github.com/Dallinger/Dallinger/pull/117)
+
+**Merged pull requests:**
+
+- Rename "example" to "demo" [\#105](https://github.com/Dallinger/Dallinger/pull/105)
+- Minify StackBlur [\#99](https://github.com/Dallinger/Dallinger/pull/99)
+
 ## [v2.2.0](https://github.com/dallinger/dallinger/tree/v2.2.0) (2016-09-12)
 
 **New demos**
