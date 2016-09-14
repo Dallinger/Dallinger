@@ -1,0 +1,93 @@
+div.table {
+  float: left;
+  // border: 0px solid black;
+}
+
+#canvascontrols #clear {
+  color: red;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 16px;
+  padding: 0 5px 1px 20px;
+  margin-left: 0px;
+  background: url(../images/delete.png) no-repeat 2px 1px;
+  border: 1px solid gray;
+  -webkit-border-bottom-right-radius: 10px;
+  -moz-border-radius-bottomright: 10px;
+  border-bottom-right-radius: 10px;
+  -webkit-border-bottom-left-radius: 10px;
+  -moz-border-radius-bottomleft: 10px;
+  border-bottom-left-radius: 10px;
+}
+
+#canvascontrols #undo {
+  color: gray;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 16px;
+  padding: 0 5px 1px 20px;
+  margin-left: 0px;
+  background: url(../images/undo-gray.png) no-repeat 2px 1px;
+  border: 1px solid gray;
+  -webkit-border-bottom-right-radius: 10px;
+  -moz-border-radius-bottomright: 10px;
+  border-bottom-right-radius: 10px;
+  -webkit-border-bottom-left-radius: 10px;
+  -moz-border-radius-bottomleft: 10px;
+  border-bottom-left-radius: 10px;
+}
+
+#canvascontrols #redo {
+  color: gray;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 16px;
+  padding: 0 5px 1px 20px;
+  margin-left: 0px;
+  background: url(../images/redo-gray.png) no-repeat 2px 1px;
+  border: 1px solid gray;
+  -webkit-border-bottom-right-radius: 10px;
+  -moz-border-radius-bottomright: 10px;
+  border-bottom-right-radius: 10px;
+  -webkit-border-bottom-left-radius: 10px;
+  -moz-border-radius-bottomleft: 10px;
+  border-bottom-left-radius: 10px;
+}
+
+canvas {
+  border: 1px solid black;
+}
+
+.image_border {
+  border: 1px solid black;
+}
+
+.image_highlight {
+   border: 3px solid red;
+}
+
+.image_thick_border {
+  border: 3px solid white;
+}
+
+.image_correct {
+	border: 3px solid blue;
+}
+
+table.nospace {
+	border : 1px solid black;
+	border-collapse:collapse;
+}
+
+td.bordered_cell {
+	border : 1px solid black;
+}
+
+.cell_correct {
+	border : 1px solid black;
+	background-color: #FF0000;
+}
+
+.frozen_image {
+  border : 1px solid black;
+}

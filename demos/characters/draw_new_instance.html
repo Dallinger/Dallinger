@@ -1,0 +1,74 @@
+<html>                                                                  
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" type="text/css" href="css/canvas.css" />
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js" type="text/javascript"></script>
+<script type="text/javascript" src="jquery.url.js"></script>
+<script type="text/javascript" src="canvaslib.js"></script>
+<script type="text/javascript" src="canvasobj.js"></script>
+<script type="text/javascript" src="extend_jquery.js"></script>
+<script type="text/javascript" src="exclude.js"></script>
+<script type="text/javascript" src="taskutil.js"></script>
+<script type="text/javascript" src="image_preloader.js"></script>
+<script type="text/javascript" src="super_task.js"></script>
+<script type="text/javascript" src="draw_task.js"></script>
+<script type="text/javascript" src="draw_new_instance.js"></script>
+</head>
+<body>
+
+<!-- PREAMBLE -->
+<span id="pre"></span>
+
+<!-- INSTRUCTIONS -->
+<DIV id="instruct"  style="" class="task_section">
+<h3 align="center">Instructions</h3>
+
+<p> The rectangle below contains an image of a character from a foreign alphabet and an empty drawing pad. You will see a display of
+	<b><span class="ntrials">N</span></b> rectangles just like this one. Please <b>draw a new example</b> of each character in the drawing pad below each image.</p> 
+
+<p> Please ignore any differences in the thickness of the pen between the two images. 
+	If you make a mistake, you can click the 'clear' button, or the forward/backwards arrows.
+	You can draw with either your computer mouse, a tablet pen, or your finger on a touchpad.</p>	
+
+<div align="center" id="demo">
+</div>
+
+<div style="clear: both;">
+</div>
+
+<p>Images loaded: <span id="pload">0</span> percent.</p>
+<div align="center" id="toquiz" style="display:none;">
+<button onclick="task.start_quiz();">Proceed to task.</button>
+</div>
+</DIV>
+
+<!-- INSTRUCTIONS TEST -->
+<DIV id="instruct_test" style="display:none;" class="task_section">
+</FORM>
+
+<button onclick="task.check_quiz();">Proceed to task.</button>
+</DIV>
+
+<!-- EXPERIMENT SECTION -->
+<DIV id="exp"  style="display:none;" class="task_section">
+<p><b>Instructions:</b> The display below contains characters from foreign alphabets. 
+	Please <b>draw a new example</b> of each character in the drawing pad below each image.
+	Ignore any differences in the thickness of the pen between the two images. 
+	If you make a mistake, you can click the 'clear' button, or the forward/backwards arrows.
+	You can draw with either your computer mouse, a tablet pen, or your finger on a touchpad.
+	<button onclick="task.finished_drawing();">Finished drawing</button> </p>
+<div id="exp_body">
+</div>
+<div style="clear: both;">
+<button onclick="task.finished_drawing();">Finished drawing</button>
+</div>
+</DIV>
+
+<!-- SURVEY SECTION -->
+<DIV id="survey" style="display:none;" class="task_section">
+<div id="check_survey" style="">
+	<button onclick="task.survey_finished();">Extract data</button>	
+</div>
+</DIV>
+</body>
+</html>
