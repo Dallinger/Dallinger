@@ -1,6 +1,5 @@
 [Experiment Configuration]
-wallace_version = 0.12.4
-mode = sandbox
+mode = deploy
 auto_recruit = true
 
 [HIT Configuration]
@@ -9,7 +8,7 @@ description = Look at some handwritten characters and create new ones.
 amt_keywords = Psychology, drawing, images
 base_payment = 1.00
 lifetime = 24
-duration = 0.1
+duration = 0.25
 us_only = true
 approve_requirement = 95
 contact_email_on_error = wallace-characters@mailinator.com
@@ -19,20 +18,20 @@ organization_name = UC Berkeley
 browser_exclude_rule = MSIE, mobile, tablet
 
 [Database Parameters]
-database_url = postgresql://postgres@localhost/wallace
+database_url = postgresql://postgres@localhost/dallinger
 table_name = psiturk
 anonymize_data = false
 database_size = standard-0
 
 [Server Parameters]
-dyno_type = free
-num_dynos_web = 1
+dyno_type = standard-1x
+num_dynos_web = 2
 num_dynos_worker = 1
 host = 0.0.0.0
 notification_url = None
-clock_on = false
+clock_on = true
 logfile = -
 
 [Shell Parameters]
-launch_in_sandbox_mode = true
+launch_in_sandbox_mode = false
 
