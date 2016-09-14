@@ -1,9 +1,9 @@
+APScheduler==3.0.5
 click==6.6
 future==0.15.2
 pexpect==3.3
 psiturk-dallinger==3.0.0
-psycopg2>=2.5.4
-pypandoc==1.2.0
+psycopg2==2.5.4
 redis==2.10.3
 rq==0.5.5
 SQLAlchemy==0.8.3
