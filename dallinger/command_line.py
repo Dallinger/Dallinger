@@ -57,6 +57,11 @@ def ensure_heroku_logged_in():
     click.echo("")
 
 
+def heroku_id(id):
+    """Convert a UUID to a valid Heroku app name."""
+    return "dlgr-" + id[0:8]
+
+
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
 def dallinger():
@@ -83,7 +88,7 @@ def setup():
 
 
 def setup_experiment(debug=True, verbose=False, app=None):
-    """Check the app and, if it's compatible with Dallinger, freeze its state."""
+    """Check the app and, if compatible with Dallinger, freeze its state."""
     print_header()
 
     # Verify that the package is usable.
@@ -121,7 +126,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
         id_long = id
         id = str(app)
 
-    log("Running as experiment " + id + "...")
+    log("Experiment id is " + id + "")
 
     # Copy this directory into a temporary folder, ignoring .git
     dst = os.path.join(tempfile.mkdtemp(), id)
@@ -161,7 +166,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
     if not os.path.exists("static/css"):
         os.makedirs("static/css")
 
-    # Rename experiment.py to dallinger_experiment.py to aviod psiTurk conflict.
+    # Rename experiment.py to avoid psiTurk conflict.
     os.rename(
         os.path.join(dst, "experiment.py"),
         os.path.join(dst, "dallinger_experiment.py"))
@@ -224,7 +229,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def summary(app):
     """Print a summary of a deployed app's status."""
-    r = requests.get('https://{}.herokuapp.com/summary'.format(app))
+    r = requests.get('https://{}.herokuapp.com/summary'.format(heroku_id(app)))
     summary = r.json()['summary']
     click.echo("\nstatus \t| count")
     click.echo("----------------")
@@ -315,7 +320,7 @@ def debug(verbose):
     except Exception:
         click.echo("\nCouldn't open psiTurk shell. Internet connection okay?")
 
-    log("Completed debugging of experiment " + id + ".")
+    log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
 
 
@@ -332,16 +337,16 @@ def scale_up_dynos(id):
     log("Scaling up the dynos...")
     subprocess.call(
         "heroku ps:scale web=" + str(num_dynos_web) + ":" +
-        str(dyno_type) + " --app " + id, shell=True)
+        str(dyno_type) + " --app " + heroku_id(id), shell=True)
 
     subprocess.call(
         "heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
-        str(dyno_type) + " --app " + id, shell=True)
+        str(dyno_type) + " --app " + heroku_id(id), shell=True)
 
     clock_on = config.getboolean('Server Parameters', 'clock_on')
     if clock_on:
         subprocess.call(
-            "heroku ps:scale clock=1:" + dyno_type + " --app " + id,
+            "heroku ps:scale clock=1:" + dyno_type + " --app " + heroku_id(id),
             shell=True)
 
 
@@ -377,7 +382,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
     subprocess.call(
-        "heroku apps:create " + id +
+        "heroku apps:create " + heroku_id(id) +
         " --buildpack https://github.com/thenovices/heroku-buildpack-scipy",
         stdout=out,
         shell=True)
@@ -403,7 +408,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
         "heroku addons:create papertrail",
 
         "heroku config:set HOST=" +
-        id + ".herokuapp.com",
+        heroku_id(id) + ".herokuapp.com",
 
         "heroku config:set aws_access_key_id=" +
         config.get('AWS Access', 'aws_access_key_id'),
@@ -438,18 +443,19 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
         "heroku config:set whimsical=" + whimsical,
     ]
     for cmd in cmds:
-        subprocess.call(cmd + " --app " + id, stdout=out, shell=True)
+        subprocess.call(
+            cmd + " --app " + heroku_id(id), stdout=out, shell=True)
 
     # Set the notification URL in the cofig file to the notifications URL.
     config.set(
         "Server Parameters",
         "notification_url",
-        "http://" + id + ".herokuapp.com/notifications")
+        "http://" + heroku_id(id) + ".herokuapp.com/notifications")
 
     # Set the database URL in the config file to the newly generated one.
     log("Saving the URL of the postgres database...")
     db_url = subprocess.check_output(
-        "heroku config:get DATABASE_URL --app " + id, shell=True)
+        "heroku config:get DATABASE_URL --app " + heroku_id(id), shell=True)
     config.set("Database Parameters", "database_url", db_url.rstrip())
     subprocess.call("git add config.txt", stdout=out, shell=True),
     time.sleep(0.25)
@@ -471,13 +477,14 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     # Launch the experiment.
     log("Launching the experiment on MTurk...")
     subprocess.call(
-        'curl --data "" http://{}.herokuapp.com/launch'.format(id),
+        'curl --data "" http://{}.herokuapp.com/launch'.format(heroku_id(id)),
         shell=True)
 
     time.sleep(8)
 
-    url = subprocess.check_output("heroku logs --app " + id + " | sort | " +
-                                  "sed -n 's|.*URL:||p'", shell=True)
+    url = subprocess.check_output(
+        "heroku logs --app " + heroku_id(id) + " | sort | " +
+        "sed -n 's|.*URL:||p'", shell=True)
 
     log("URLs:")
     click.echo(url)
@@ -604,10 +611,11 @@ def dump_database(id):
     if not os.path.exists(dump_dir):
         os.makedirs(dump_dir)
 
-    subprocess.call("heroku pg:backups capture --app " + id, shell=True)
+    subprocess.call(
+        "heroku pg:backups capture --app " + heroku_id(id), shell=True)
 
     backup_url = subprocess.check_output(
-        "heroku pg:backups public-url --app " + id, shell=True)
+        "heroku pg:backups public-url --app " + heroku_id(id), shell=True)
     backup_url = backup_url.replace('"', '').rstrip()
     backup_url = re.search("https:.*", backup_url).group(0)
     print(backup_url)
@@ -653,9 +661,9 @@ def hibernate(app):
     backup(app)
 
     log("Scaling down the web servers...")
-    subprocess.call("heroku ps:scale web=0" + " --app " + app, shell=True)
-    subprocess.call("heroku ps:scale worker=0" + " --app " + app, shell=True)
-    subprocess.call("heroku ps:scale clock=0" + " --app " + app, shell=True)
+    subprocess.call("heroku ps:scale web=0" + " --app " + heroku_id(app), shell=True)
+    subprocess.call("heroku ps:scale worker=0" + " --app " + heroku_id(app), shell=True)
+    subprocess.call("heroku ps:scale clock=0" + " --app " + heroku_id(app), shell=True)
 
     log("Removing addons...")
     addons = [
@@ -667,11 +675,24 @@ def hibernate(app):
         subprocess.call(
             "heroku addons:destroy {} --app {} --confirm {}".format(
                 addon,
-                app,
-                app
+                heroku_id(app),
+                heroku_id(app)
             ),
             shell=True,
         )
+
+
+@dallinger.command()
+@click.option('--app', default=None, help='ID of the deployed experiment')
+def destroy(app):
+    """Tear down an experiment server."""
+    subprocess.call(
+        "heroku destroy --app {} --confirm {}".format(
+            heroku_id(app),
+            heroku_id(app)
+        ),
+        shell=True,
+    )
 
 
 @dallinger.command()
@@ -687,10 +708,12 @@ def awaken(app, databaseurl):
     subprocess.call(
         "heroku addons:create heroku-postgresql:{} --app {}".format(
             database_size,
-            app),
+            heroku_id(app)),
         shell=True)
 
-    subprocess.call("heroku pg:wait --app {}".format(app), shell=True)
+    subprocess.call(
+        "heroku pg:wait --app {}".format(heroku_id(app)),
+        shell=True)
 
     conn = boto.connect_s3(
         config.get('AWS Access', 'aws_access_key_id'),
@@ -706,12 +729,12 @@ def awaken(app, databaseurl):
         "{} '{}' DATABASE_URL --app {} --confirm {}".format(
             cmd,
             url,
-            app,
-            app),
+            heroku_id(app),
+            heroku_id(app)),
         shell=True)
 
     subprocess.call(
-        "heroku addons:create rediscloud:250 --app {}".format(app),
+        "heroku addons:create rediscloud:250 --app {}".format(heroku_id(app)),
         shell=True)
 
     # Scale up the dynos.
@@ -757,7 +780,7 @@ def export(app, local):
         subprocess.call(
             "heroku logs " +
             "-n 10000 > " + os.path.join("data", id, "server_logs.md") +
-            " --app " + id,
+            " --app " + heroku_id(id),
             shell=True)
 
         dump_path = dump_database(id)
@@ -808,7 +831,8 @@ def logs(app):
         raise TypeError("Select an experiment using the --app flag.")
     else:
         subprocess.call(
-            "heroku addons:open papertrail --app " + app, shell=True)
+            "heroku addons:open papertrail --app " + heroku_id(app),
+            shell=True)
 
 
 @dallinger.command()
