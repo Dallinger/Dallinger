@@ -684,6 +684,19 @@ def hibernate(app):
 
 @dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
+def destroy(app):
+    """Tear down an experiment server."""
+    subprocess.call(
+        "heroku destroy --app {} --confirm {}".format(
+            heroku_id(app),
+            heroku_id(app)
+        ),
+        shell=True,
+    )
+
+
+@dallinger.command()
+@click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option('--databaseurl', default=None, help='URL of the database')
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
