@@ -35,9 +35,9 @@ create_agent = function() {
         },
         error: function (err) {
             console.log(err);
-            err_response = JSON.parse(err.response);
-            if (err_response.hasOwnProperty('html')) {
-                $('body').html(err_response.html);
+            errorResponse = JSON.parse(err.response);
+            if (errorResponse.hasOwnProperty('html')) {
+                $('body').html(errorResponse.html);
             } else {
                 allow_exit();
                 go_to_page('questionnaire')
@@ -58,8 +58,8 @@ get_infos = function() {
         },
         error: function (err) {
             console.log(err);
-            err_response = JSON.parse(err.response);
-            $('body').html(err_response.html);
+            errorResponse = JSON.parse(err.response);
+            $('body').html(errorResponse.html);
         }
     });
 };
@@ -133,8 +133,8 @@ get_received_infos = function() {
         },
         error: function (err) {
             console.log(err);
-            err_response = JSON.parse(err.response);
-            $('body').html(err_response.html);
+            errorResponse = JSON.parse(err.response);
+            $('body').html(errorResponse.html);
         }
     });
 };
