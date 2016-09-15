@@ -114,7 +114,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
     pkg_resources.require(dependencies)
 
     # Generate a unique id for this experiment.
-    id = "w" + str(uuid.uuid4())[0:28]
+    id = str(uuid.uuid4())
 
     # If the user provided an app name, use it everywhere that's user-facing.
     if app:
