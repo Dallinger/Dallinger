@@ -1,5 +1,7 @@
 # Note contributors not in the organization.
-unless github.api.organization_member?('Dallinger', github.pr_author)
+is_member = github.api.organization_member?('Dallinger', github.pr_author)
+is_bot = (github.pr_author == "pyup-bot")
+unless is_member || is_bot
   message("@#{github.pr_author}, would you like to join the Dallinger org.?")
 end
 
