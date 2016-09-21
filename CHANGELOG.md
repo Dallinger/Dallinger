@@ -1,5 +1,12 @@
 # Change Log
 
+## [v2.2.2](https://github.com/dallinger/dallinger/tree/v2.2.2) (2016-09-21)
+
+**Bugs squashed**
+
+- Fix backwards incompatibility [\#201](https://github.com/Dallinger/Dallinger/pull/201)
+- We now use valid RFC 4122 UUIDs for experiment ids [\#185](https://github.com/Dallinger/Dallinger/pull/185)
+
 ## [v2.2.1](https://github.com/dallinger/dallinger/tree/v2.2.1) (2016-09-14)
 
 **Bugs squashed**
@@ -18,7 +25,7 @@
 - Vox populi, a replication of Sir Francis Galton's 1903 study of the wisdom of the crowd [\#45](https://github.com/Dallinger/Dallinger/pull/45)
 - The Sheep Market, drawing 10k sheep [\#27](https://github.com/Dallinger/Dallinger/pull/27)
 
-**Enhancements and bug fixes** 
+**Enhancements and bug fixes**
 
 - Faster Travis CI builds ([\#48](https://github.com/Dallinger/Dallinger/issues/48)), a README badge with the number of demos ([\#33](https://github.com/Dallinger/Dallinger/issues/33)), amongst    others.
 
