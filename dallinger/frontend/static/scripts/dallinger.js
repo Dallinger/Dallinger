@@ -63,7 +63,10 @@ submitAssignment = function() {
             });
         }
     });
+};
 
+submit_assignment = function () {
+    submitAssignment();
 };
 
 // make a new participant
@@ -88,6 +91,10 @@ lock = false;
 
 submitResponses = function () {
     submitNextResponse(0);
+};
+
+submit_responses = function () {
+    submitResponses();
 };
 
 submitNextResponse = function (n) {
