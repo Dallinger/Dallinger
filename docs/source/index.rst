@@ -1,7 +1,7 @@
 Dallinger
 ~~~~~~~
 
-Dallinger performs laboratory automation for the behavioral and social sciences.
+Laboratory automation for the behavioral and social sciences.
 
 .. toctree::
     :maxdepth: 1

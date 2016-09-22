@@ -8,81 +8,83 @@ Dallinger is executed from the command line within the experiment directory with
 verify
 ^^^^^^
 
-Verifies that a directory is a Dallinger-compatible app.
+Verify that a directory is a Dallinger-compatible app.
 
 debug
 ^^^^^
 
-| ``--verbose``
-| Runs the experiment locally. If ``--verbose`` is included more
-  detailed logs are printed to the command line.
+Run the experiment locally. An optional ``--verbose`` flag prints more detailed
+logs to the command line.
 
 sandbox
 ^^^^^^^
 
-| ``--verbose``
-| ``--app <name>``
-| Runs the experiment on MTurk's sandbox using Heroku as a server. If
-  ``--verbose`` is included more detailed logs are printed to the
-  command line. If ``--app`` is specified the app on heroku will have
-  that name.
+Runs the experiment on MTurk's sandbox using Heroku as a server. An optional
+``--verbose`` flag prints more detailed logs to the command line.
 
 deploy
 ^^^^^^
 
-| ``--verbose``
-| ``--app <name>``
-| Runs the experiment live on MTurk using Heroku as a server. If
-  ``--verbose`` is included more detailed logs are printed to the
-  command line. If ``--app`` is specified the app on heroku will have
-  that name.
+Runs the experiment live on MTurk using Heroku as a server. An optional
+``--verbose`` flag prints more detailed logs to the command line.
 
 logs
 ^^^^
 
-| ``--app <app>``
-| Opens the app's logs in Papertrail.
+Open the app's logs in Papertrail. A required ``--app <app>`` flag specifies
+the experiment by its id.
 
-status
+
+summary
 ^^^^^^
 
-Returns the status of an experiment.
+Return a summary of an experiment. A required ``--app <app>`` flag specifies
+the experiment by its id.
 
 export
 ^^^^^^
 
-Downloads the database and partial server logs to a zipped folder within
+Download the database and partial server logs to a zipped folder within
 the data directory of the experimental folder. Databases are stored in
-csv format.
+CSV format. A required ``--app <app>`` flag specifies
+the experiment by its id.
 
 summary
 ^^^^^^^
 
-| ``--app <app-id>``
-| Prints a summary of the participant table to the command line. You
-  must specify the app id.
+Print a summary of the participant table to the command line. A required
+``--app <app>`` flag specifies the experiment by its id.
 
 qualify
 ^^^^^^^
 
-| ``--qualification <qualification_id>``
-| ``--value <value>``
-| ``--worker <worker_id>``
-| Assigns qualification ``qualification_id`` with value ``value`` to
-  worker ``worker_id``. This is useful when compensating workers if
-  something goes wrong with the experiment.
+``--qualification <qualification_id>``
+
+``--value <value>``
+
+``--worker <worker_id>``
+
+Assign qualification a qualification to a worker. Requires a qualification id
+``qualification_id``, value ``value``, and worker id ``worker_id``. This is
+useful when compensating workers if something goes wrong with the experiment.
 
 hibernate
 ^^^^^^^^^
 
-| ``--app <app>``
-| Temporarily scales down the specified app to save money. All dynos are
-  removed and so are many of the add-ons. Hibernating apps are
-  non-functional. It is likely that the app will not be entirely free
-  while hibernating. To restore the app use ``awaken``.
+Temporarily scales down the specified app to save money. All dynos are
+removed and so are many of the add-ons. Hibernating apps are
+non-functional. It is likely that the app will not be entirely free
+while hibernating. To restore the app use ``awaken``. A required
+``--app <app>`` flag specifies the experiment by its id.
 
 awaken
 ^^^^^^
 
-| ``--app <app>``
-| Retore a hibernating app.
+Restore a hibernating app. A required ``--app <app>`` flag specifies the
+experiment by its id.
+
+destroy
+^^^^^^^
+
+Tear down an experiment server. A required ``--app <app>`` flag specifies
+the experiment by its id.

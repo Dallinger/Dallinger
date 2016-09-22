@@ -6,12 +6,10 @@ First, make sure you have Dallinger installed:
 -  :doc:`installing_dallinger_for_users`
 -  :doc:`developing_dallinger_setup_guide`
 
-To test out Dallinger, we'll run a demo experiment in debug mode. From
-a terminal within the Dallinger directory, run
+To test out Dallinger, we'll run a demo experiment in debug mode. First download the `Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932.html>`__ and unzip it. Then run Dallinger in debug mode from within that demo directory:
 
 ::
 
-    cd demos/bartlett1932
     dallinger debug
 
 You will see some output as Dallinger loads. When it is finished, you will
