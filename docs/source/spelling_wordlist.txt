@@ -12,6 +12,7 @@ config
 css
 dallinger
 Dallinger
+dynos
 et
 frontend
 Google
@@ -30,7 +31,9 @@ Kalish
 Kegl
 Lewandowsky
 md
+MTurk
 neighbour
+ons
 Papertrail
 Populi
 Postgres
