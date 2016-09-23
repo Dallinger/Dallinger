@@ -1,9 +1,9 @@
 """Recruiters manage the flow of participants to the experiment."""
 
-import os
-from psiturk.psiturk_config import PsiturkConfig
-from psiturk.models import Participant
 from boto.mturk.connection import MTurkConnection
+import os
+from psiturk.models import Participant
+from psiturk.psiturk_config import PsiturkConfig
 
 
 class Recruiter(object):

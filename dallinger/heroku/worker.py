@@ -4,7 +4,11 @@ from future.builtins import map
 
 import os
 import redis
-from rq import Worker, Queue, Connection
+from rq import (
+    Worker,
+    Queue,
+    Connection
+)
 
 listen = ['high', 'default', 'low']
 

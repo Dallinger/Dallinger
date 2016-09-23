@@ -1,34 +1,23 @@
 """A clock process."""
 
-from apscheduler.schedulers.blocking import BlockingScheduler
 from dallinger import db
-import os
-import imp
-import inspect
 from dallinger.models import Participant
-from datetime import datetime
-from psiturk.psiturk_config import PsiturkConfig
+
+from apscheduler.schedulers.blocking import BlockingScheduler
 from boto.mturk.connection import MTurkConnection
-import requests
-import smtplib
+from datetime import datetime
 from email.mime.text import MIMEText
 import json
+import os
+from psiturk.psiturk_config import PsiturkConfig
+import requests
+# import smtplib
 
 config = PsiturkConfig()
 config.load_config()
 
 # Import the experiment.
-try:
-    exp = imp.load_source('experiment', "dallinger_experiment.py")
-    classes = inspect.getmembers(exp, inspect.isclass)
-    exps = [c for c in classes
-            if (c[1].__bases__[0].__name__ in "Experiment")]
-    this_experiment = exps[0][0]
-    mod = __import__('dallinger_experiment', fromlist=[this_experiment])
-    experiment = getattr(mod, this_experiment)
-
-except ImportError:
-    print "Error: Could not import experiment."
+experiment = dallinger.experiments.load()
 
 session = db.session
 

@@ -1,5 +1,9 @@
 """Import custom routes into the experiment server."""
 
+import dallinger
+from dallinger import db
+from dallinger import models
+
 from flask import (
     Blueprint,
     request,
@@ -8,27 +12,21 @@ from flask import (
     render_template
 )
 
-from psiturk.psiturk_config import PsiturkConfig
-from psiturk.user_utils import PsiTurkAuthorization
-from psiturk.db import init_db
-from psiturk.db import db_session as session_psiturk
-
-from dallinger import db, models
-
-import imp
-import inspect
+from datetime import datetime
+from json import dumps
 import logging
 from operator import attrgetter
-from json import dumps
 import os
+from psiturk.db import db_session as session_psiturk
+from psiturk.db import init_db
+from psiturk.psiturk_config import PsiturkConfig
+from psiturk.user_utils import PsiTurkAuthorization
 import requests
-import traceback
-from datetime import datetime
-
-from rq import Queue, get_current_job
-from worker import conn
-
+from rq import get_current_job
+from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
+import traceback
+from worker import conn
 
 # Load the configuration options.
 config = PsiturkConfig()
@@ -59,9 +57,11 @@ if len(db.logger.handlers) == 0:
 
 # Explore the Blueprint.
 custom_code = Blueprint(
-    'custom_code', __name__,
+    'custom_code',
+    __name__,
     template_folder='templates',
-    static_folder='static')
+    static_folder='static'
+)
 
 # Initialize the Dallinger database.
 session = db.session
@@ -70,18 +70,7 @@ session = db.session
 q = Queue(connection=conn)
 
 # Load the experiment.
-try:
-    exp = imp.load_source('experiment', "dallinger_experiment.py")
-    classes = inspect.getmembers(exp, inspect.isclass)
-    exps = [c for c in classes
-            if (c[1].__bases__[0].__name__ in "Experiment")]
-    this_experiment = exps[0][0]
-    mod = __import__('dallinger_experiment', fromlist=[this_experiment])
-    experiment = getattr(mod, this_experiment)
-
-except ImportError:
-    print "Error: Could not import experiment."
-
+experiment = dallinger.experiments.load()
 
 """Define some canned response types."""
 
@@ -131,11 +120,11 @@ def return_page(page):
             worker_id=worker_id,
             mode=mode
         )
-    except:
+    except Exception:
         try:
             participant_id = request.args['participant_id']
             return render_template(page, participant_id=participant_id)
-        except:
+        except Exception:
             return error_response(error_type="{} args missing".format(page))
 
 
@@ -218,10 +207,14 @@ def compute_bonus():
 @custom_code.route('/summary', methods=['GET'])
 def summary():
     """Summarize the participants' status codes."""
-    exp = experiment(session)
-    return success_response(field="summary",
-                            data=exp.log_summary(),
-                            request_type="summary")
+    return Response(
+        dumps({
+            "status": "success",
+            "summary": experiment(session).log_summary()
+        }),
+        status=200,
+        mimetype='application/json'
+    )
 
 
 @custom_code.route('/quitter', methods=['POST'])
@@ -231,9 +224,12 @@ def quitter():
     exp.log("Quitter route was hit.")
 
     return Response(
-        dumps({"status": "success"}),
+        dumps({
+            "status": "success"
+        }),
         status=200,
-        mimetype='application/json')
+        mimetype='application/json'
+    )
 
 
 @custom_code.route('/experiment_property/<prop>', methods=['GET'])
@@ -264,7 +260,7 @@ def ad_address(mode, hit_id):
             req = requests.get(
                 'https://api.psiturk.org/api/ad/lookup/' + hit_id,
                 auth=(username, password))
-        except:
+        except Exception:
             raise ValueError('api_server_not_reachable')
         else:
             if req.status_code == 200:
@@ -390,7 +386,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     # check this worker hasn't already taken part
     parts = models.Participant.query.filter_by(worker_id=worker_id).all()
     if parts:
-        print "participant already exists!"
+        print("participant already exists!")
         return Response(status=200)
 
     # make the participant
@@ -471,8 +467,7 @@ def create_question(participant_id):
 
     question = request_parameter(parameter="question")
     response = request_parameter(parameter="response")
-    number = request_parameter(parameter="number",
-                                    parameter_type="int")
+    number = request_parameter(parameter="number", parameter_type="int")
     for x in [question, response, number]:
         if type(x) == Response:
             return x
@@ -482,7 +477,7 @@ def create_question(participant_id):
         models.Question(participant=ppt, question=question,
                         response=response, number=number)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/question POST server error",
                               status=403)
 
@@ -537,7 +532,7 @@ def node_neighbors(node_id):
             node=node,
             nodes=nodes)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="exp.node_get_request")
 
     return success_response(field="nodes",
@@ -596,7 +591,7 @@ def create_node(participant_id):
         # ping the experiment
         exp.node_post_request(participant=participant, node=node)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/node POST server error",
                               status=403,
                               participant=participant)
@@ -633,7 +628,7 @@ def node_vectors(node_id):
         vectors = node.vectors(direction=direction, failed=failed)
         exp.vector_get_request(node=node, vectors=vectors)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/node/vectors GET server error",
                               status=403,
                               participant=node.participant)
@@ -682,7 +677,7 @@ def connect(node_id, other_node_id):
             vectors=vectors)
 
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/vector POST server error",
                               status=403,
                               participant=node.participant)
@@ -722,7 +717,7 @@ def get_info(node_id, info_id):
         # ping the experiment
         exp.info_get_request(node=node, infos=info)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/info GET server error",
                               status=403,
                               participant=node.participant)
@@ -764,7 +759,7 @@ def node_infos(node_id):
             infos=infos)
 
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/node/infos GET server error",
                               status=403,
                               participant=node.participant)
@@ -805,7 +800,7 @@ def node_received_infos(node_id):
             infos=infos)
 
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="info_get_request error",
                               status=403,
                               participant=node.participant)
@@ -853,7 +848,7 @@ def info_post(node_id):
             info=info)
 
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/info POST server error",
                               status=403,
                               participant=node.participant)
@@ -897,7 +892,7 @@ def node_transmissions(node_id):
         # ping the experiment
         exp.transmission_get_request(node=node, transmissions=transmissions)
         session.commit()
-    except:
+    except Exception:
         return error_response(
             error_type="/node/transmissions GET server error",
             status=403,
@@ -960,10 +955,10 @@ def node_transmit(node_id):
                 return error_response(
                     error_type="/node/transmit POST, info does not exist",
                     participant=node.participant)
-        except:
+        except Exception:
             try:
                 what = exp.known_classes[what]
-            except:
+            except Exception:
                 return error_response(
                     error_type="/node/transmit POST, info does not exist",
                     participant=node.participant)
@@ -977,10 +972,10 @@ def node_transmit(node_id):
                 return error_response(
                     error_type="/node/transmit POST, info does not exist",
                     participant=node.participant)
-        except:
+        except Exception:
             try:
                 to_whom = exp.known_classes[to_whom]
-            except:
+            except Exception:
                 return error_response(
                     error_type="/node/transmit POST, info does not exist",
                     participant=node.participant)
@@ -996,7 +991,7 @@ def node_transmit(node_id):
             node=node,
             transmissions=transmissions)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/node/transmit POST, server error",
                               participant=node.participant)
 
@@ -1037,7 +1032,7 @@ def transformation_get(node_id):
         exp.transformation_get_request(node=node,
                                        transformations=transformations)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/node/tranaformations GET failed",
                               participant=node.participant)
 
@@ -1094,7 +1089,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
         exp.transformation_post_request(node=node,
                                         transformation=transformation)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/tranaformation POST failed",
                               participant=node.participant)
 

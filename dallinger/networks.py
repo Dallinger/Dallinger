@@ -2,8 +2,8 @@
 
 from .models import Network, Node
 from .nodes import Source
-import random
 from operator import attrgetter
+import random
 
 
 class Chain(Network):

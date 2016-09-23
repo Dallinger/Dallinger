@@ -6,11 +6,14 @@ from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
 from dallinger.transformations import Mutation, Replication
 from dallinger.networks import Empty
-from sqlalchemy import and_
-import random
-import sys
+
 from collections import Counter
+import imp
+import inspect
 from operator import itemgetter
+import random
+from sqlalchemy import and_
+import sys
 
 
 class Experiment(object):
@@ -340,3 +343,18 @@ class Experiment(object):
 
         """
         self.fail_participant(participant)
+
+
+def load():
+    """Load the active experiment."""
+    try:
+        exp = imp.load_source('experiment', "dallinger_experiment.py")
+        classes = inspect.getmembers(exp, inspect.isclass)
+        exps = [c for c in classes
+                if (c[1].__bases__[0].__name__ in "Experiment")]
+        this_experiment = exps[0][0]
+        mod = __import__('dallinger_experiment', fromlist=[this_experiment])
+        return getattr(mod, this_experiment)
+
+    except ImportError:
+        print("Error: Could not import experiment.")

@@ -5,8 +5,16 @@ from datetime import datetime
 from .db import Base
 
 from sqlalchemy import ForeignKey, or_, and_
-from sqlalchemy import (Column, String, Text, Enum, Integer, Boolean, DateTime,
-                        Float)
+from sqlalchemy import (
+    Column,
+    String,
+    Text,
+    Enum,
+    Integer,
+    Boolean,
+    DateTime,
+    Float
+)
 from sqlalchemy.orm import relationship, validates
 
 import inspect
@@ -558,25 +566,25 @@ class Network(Base, SharedMixin):
 
     def print_verbose(self):
         """Print a verbose representation of a network."""
-        print "Nodes: "
+        print("Nodes: ")
         for a in (self.nodes(failed="all")):
-            print a
+            print(a)
 
-        print "\nVectors: "
+        print("\nVectors: ")
         for v in (self.vectors(failed="all")):
-            print v
+            print(v)
 
-        print "\nInfos: "
+        print("\nInfos: ")
         for i in (self.infos(failed="all")):
-            print i
+            print(i)
 
-        print "\nTransmissions: "
+        print("\nTransmissions: ")
         for t in (self.transmissions(failed="all")):
-            print t
+            print(t)
 
-        print "\nTransformations: "
+        print("\nTransformations: ")
         for t in (self.transformations(failed="all")):
-            print t
+            print(t)
 
 
 class Node(Base, SharedMixin):

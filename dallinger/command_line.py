@@ -3,24 +3,25 @@
 
 """The Dallinger command-line utility."""
 
-import click
-import time
-import uuid
-from psiturk.psiturk_config import PsiturkConfig
-import os
-import subprocess
-import shutil
-import pexpect
-import tempfile
-import inspect
-import imp
-import pkg_resources
-import re
-import psycopg2
 from dallinger import db
 from dallinger.version import __version__
-import requests
+
 import boto
+import click
+import imp
+import inspect
+import os
+import pexpect
+import pkg_resources
+from psiturk.psiturk_config import PsiturkConfig
+import psycopg2
+import re
+import requests
+import shutil
+import subprocess
+import tempfile
+import time
+import uuid
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -281,15 +282,16 @@ def debug(verbose):
     os.remove("dallinger_experiment_tmp.py")
 
     # Set environment variables.
-    aws_vars = ['aws_access_key_id', 'aws_secret_access_key', 'aws_region']
-    for var in aws_vars:
-        if var not in os.environ:
-            os.environ[var] = config.get('AWS Access', var)
-
-    pt_vars = ['psiturk_access_key_id', 'psiturk_secret_access_id']
-    for var in pt_vars:
-        if var not in os.environ:
-            os.environ[var] = config.get('psiTurk Access', var)
+    vars = [
+        ("AWS Access", "aws_access_key_id"),
+        ("AWS Access", "aws_secret_access_key"),
+        ("AWS Access", "aws_region"),
+        ("psiTurk Access", "psiturk_access_key_id"),
+        ("psiTurk Access", "psiturk_secret_access_id"),
+    ]
+    for var in vars:
+        if var[0] not in os.environ:
+            os.environ[var[1]] = config.get(var[0], var[1])
 
     if "HOST" not in os.environ:
         os.environ["HOST"] = config.get('Server Parameters', 'host')
