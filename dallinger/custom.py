@@ -57,9 +57,11 @@ if len(db.logger.handlers) == 0:
 
 # Explore the Blueprint.
 custom_code = Blueprint(
-    'custom_code', __name__,
+    'custom_code',
+    __name__,
     template_folder='templates',
-    static_folder='static')
+    static_folder='static'
+)
 
 # Initialize the Dallinger database.
 session = db.session
@@ -205,10 +207,14 @@ def compute_bonus():
 @custom_code.route('/summary', methods=['GET'])
 def summary():
     """Summarize the participants' status codes."""
-    exp = experiment(session)
-    return success_response(field="summary",
-                            data=exp.log_summary(),
-                            request_type="summary")
+    return Response(
+        dumps({
+            "status": "success",
+            "summary": experiment(session).log_summary()
+        }),
+        status=200,
+        mimetype='application/json'
+    )
 
 
 @custom_code.route('/quitter', methods=['POST'])
@@ -218,9 +224,12 @@ def quitter():
     exp.log("Quitter route was hit.")
 
     return Response(
-        dumps({"status": "success"}),
+        dumps({
+            "status": "success"
+        }),
         status=200,
-        mimetype='application/json')
+        mimetype='application/json'
+    )
 
 
 @custom_code.route('/experiment_property/<prop>', methods=['GET'])
@@ -458,8 +467,7 @@ def create_question(participant_id):
 
     question = request_parameter(parameter="question")
     response = request_parameter(parameter="response")
-    number = request_parameter(parameter="number",
-                                    parameter_type="int")
+    number = request_parameter(parameter="number", parameter_type="int")
     for x in [question, response, number]:
         if type(x) == Response:
             return x
