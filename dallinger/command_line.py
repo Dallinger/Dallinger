@@ -282,15 +282,16 @@ def debug(verbose):
     os.remove("dallinger_experiment_tmp.py")
 
     # Set environment variables.
-    aws_vars = ['aws_access_key_id', 'aws_secret_access_key', 'aws_region']
-    for var in aws_vars:
-        if var not in os.environ:
-            os.environ[var] = config.get('AWS Access', var)
-
-    pt_vars = ['psiturk_access_key_id', 'psiturk_secret_access_id']
-    for var in pt_vars:
-        if var not in os.environ:
-            os.environ[var] = config.get('psiTurk Access', var)
+    vars = [
+        ("AWS Access", "aws_access_key_id"),
+        ("AWS Access", "aws_secret_access_key"),
+        ("AWS Access", "aws_region"),
+        ("psiTurk Access", "psiturk_access_key_id"),
+        ("psiTurk Access", "psiturk_secret_access_id"),
+    ]
+    for var in vars:
+        if var[0] not in os.environ:
+            os.environ[var[1]] = config.get(var[0], var[1])
 
     if "HOST" not in os.environ:
         os.environ["HOST"] = config.get('Server Parameters', 'host')
