@@ -5,8 +5,16 @@ from datetime import datetime
 from .db import Base
 
 from sqlalchemy import ForeignKey, or_, and_
-from sqlalchemy import (Column, String, Text, Enum, Integer, Boolean, DateTime,
-                        Float)
+from sqlalchemy import (
+    Column,
+    String,
+    Text,
+    Enum,
+    Integer,
+    Boolean,
+    DateTime,
+    Float
+)
 from sqlalchemy.orm import relationship, validates
 
 import inspect
