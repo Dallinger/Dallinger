@@ -119,11 +119,11 @@ def return_page(page):
             worker_id=worker_id,
             mode=mode
         )
-    except:
+    except Exception:
         try:
             participant_id = request.args['participant_id']
             return render_template(page, participant_id=participant_id)
-        except:
+        except Exception:
             return error_response(error_type="{} args missing".format(page))
 
 
@@ -252,7 +252,7 @@ def ad_address(mode, hit_id):
             req = requests.get(
                 'https://api.psiturk.org/api/ad/lookup/' + hit_id,
                 auth=(username, password))
-        except:
+        except Exception:
             raise ValueError('api_server_not_reachable')
         else:
             if req.status_code == 200:
@@ -378,7 +378,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     # check this worker hasn't already taken part
     parts = models.Participant.query.filter_by(worker_id=worker_id).all()
     if parts:
-        print "participant already exists!"
+        print("participant already exists!")
         return Response(status=200)
 
     # make the participant
@@ -470,7 +470,7 @@ def create_question(participant_id):
         models.Question(participant=ppt, question=question,
                         response=response, number=number)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/question POST server error",
                               status=403)
 
@@ -525,7 +525,7 @@ def node_neighbors(node_id):
             node=node,
             nodes=nodes)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="exp.node_get_request")
 
     return success_response(field="nodes",
@@ -584,7 +584,7 @@ def create_node(participant_id):
         # ping the experiment
         exp.node_post_request(participant=participant, node=node)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/node POST server error",
                               status=403,
                               participant=participant)
@@ -621,7 +621,7 @@ def node_vectors(node_id):
         vectors = node.vectors(direction=direction, failed=failed)
         exp.vector_get_request(node=node, vectors=vectors)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/node/vectors GET server error",
                               status=403,
                               participant=node.participant)
@@ -670,7 +670,7 @@ def connect(node_id, other_node_id):
             vectors=vectors)
 
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/vector POST server error",
                               status=403,
                               participant=node.participant)
@@ -710,7 +710,7 @@ def get_info(node_id, info_id):
         # ping the experiment
         exp.info_get_request(node=node, infos=info)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/info GET server error",
                               status=403,
                               participant=node.participant)
@@ -752,7 +752,7 @@ def node_infos(node_id):
             infos=infos)
 
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/node/infos GET server error",
                               status=403,
                               participant=node.participant)
@@ -793,7 +793,7 @@ def node_received_infos(node_id):
             infos=infos)
 
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="info_get_request error",
                               status=403,
                               participant=node.participant)
@@ -841,7 +841,7 @@ def info_post(node_id):
             info=info)
 
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/info POST server error",
                               status=403,
                               participant=node.participant)
@@ -885,7 +885,7 @@ def node_transmissions(node_id):
         # ping the experiment
         exp.transmission_get_request(node=node, transmissions=transmissions)
         session.commit()
-    except:
+    except Exception:
         return error_response(
             error_type="/node/transmissions GET server error",
             status=403,
@@ -948,10 +948,10 @@ def node_transmit(node_id):
                 return error_response(
                     error_type="/node/transmit POST, info does not exist",
                     participant=node.participant)
-        except:
+        except Exception:
             try:
                 what = exp.known_classes[what]
-            except:
+            except Exception:
                 return error_response(
                     error_type="/node/transmit POST, info does not exist",
                     participant=node.participant)
@@ -965,10 +965,10 @@ def node_transmit(node_id):
                 return error_response(
                     error_type="/node/transmit POST, info does not exist",
                     participant=node.participant)
-        except:
+        except Exception:
             try:
                 to_whom = exp.known_classes[to_whom]
-            except:
+            except Exception:
                 return error_response(
                     error_type="/node/transmit POST, info does not exist",
                     participant=node.participant)
@@ -984,7 +984,7 @@ def node_transmit(node_id):
             node=node,
             transmissions=transmissions)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/node/transmit POST, server error",
                               participant=node.participant)
 
@@ -1025,7 +1025,7 @@ def transformation_get(node_id):
         exp.transformation_get_request(node=node,
                                        transformations=transformations)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/node/tranaformations GET failed",
                               participant=node.participant)
 
@@ -1082,7 +1082,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
         exp.transformation_post_request(node=node,
                                         transformation=transformation)
         session.commit()
-    except:
+    except Exception:
         return error_response(error_type="/tranaformation POST failed",
                               participant=node.participant)
 
