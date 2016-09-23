@@ -13,10 +13,9 @@ from psiturk.user_utils import PsiTurkAuthorization
 from psiturk.db import init_db
 from psiturk.db import db_session as session_psiturk
 
+import dallinger
 from dallinger import db, models
 
-import imp
-import inspect
 import logging
 from operator import attrgetter
 from json import dumps
@@ -70,18 +69,7 @@ session = db.session
 q = Queue(connection=conn)
 
 # Load the experiment.
-try:
-    exp = imp.load_source('experiment', "dallinger_experiment.py")
-    classes = inspect.getmembers(exp, inspect.isclass)
-    exps = [c for c in classes
-            if (c[1].__bases__[0].__name__ in "Experiment")]
-    this_experiment = exps[0][0]
-    mod = __import__('dallinger_experiment', fromlist=[this_experiment])
-    experiment = getattr(mod, this_experiment)
-
-except ImportError:
-    print "Error: Could not import experiment."
-
+experiment = dallinger.experiments.load()
 
 """Define some canned response types."""
 
