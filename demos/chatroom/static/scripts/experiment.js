@@ -12,7 +12,7 @@ create_agent = function () {
             $("#send-message").removeClass('disabled');
             $("#send-message").html('Send');
             $("#reproduction").focus();
-            setInterval(function () { get_transmissions(my_node_id); }, 2000);
+            get_transmissions(my_node_id);
         },
         error: function (err) {
             console.log(err);
@@ -42,6 +42,7 @@ get_transmissions = function (my_node_id) {
                 console.log(transmissions[i]);
                 display_info(transmissions[i].info_id);
             }
+            get_transmissions(my_node_id);
         },
         error: function (err) {
             console.log(err);
@@ -122,9 +123,12 @@ waitForQuorum = function () {
         success: function (resp) {
             summary = resp.summary;
             if (numReady(resp.summary) >= quorum) {
-                go_to_page('exp');
+                allow_exit();
+                go_to_page("exp");
             } else {
-                waitForQuorum();
+                setTimeout(function(){
+                    waitForQuorum();
+                }, 1000);
             }
         }
     });
