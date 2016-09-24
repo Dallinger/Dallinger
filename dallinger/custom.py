@@ -106,28 +106,6 @@ def error_response(error_type="Internal server error",
     return Response(dumps(data), status=status, mimetype='application/json')
 
 
-def return_page(page):
-    """Return a rendered template."""
-    try:
-        hit_id = request.args['hit_id']
-        assignment_id = request.args['assignment_id']
-        worker_id = request.args['worker_id']
-        mode = request.args['mode']
-        return render_template(
-            page,
-            hit_id=hit_id,
-            assignment_id=assignment_id,
-            worker_id=worker_id,
-            mode=mode
-        )
-    except Exception:
-        try:
-            participant_id = request.args['participant_id']
-            return render_template(page, participant_id=participant_id)
-        except Exception:
-            return error_response(error_type="{} args missing".format(page))
-
-
 def error_page(participant=None, error_text=None, compensate=True,
                error_type="default"):
     """Render HTML for error page."""
@@ -283,13 +261,13 @@ def ad_address(mode, hit_id):
 @custom_code.route("/<page>", methods=["GET"])
 def get_page(page):
     """Return the requested page."""
-    return return_page(page + '.html')
+    return render_template(page + ".html")
 
 
 @custom_code.route("/<directory>/<page>", methods=["GET"])
 def get_page_from_directory(directory, page):
     """Get a page from a given directory."""
-    return return_page(directory + '/' + page + '.html')
+    return render_template(directory + '/' + page + '.html')
 
 
 """Routes for reading and writing to the database."""
