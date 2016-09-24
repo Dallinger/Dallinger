@@ -10,7 +10,11 @@ from . import (
     experiments
 )
 
+from localconfig import config
+config.read("config.txt")
+
 __all__ = (
+    "config",
     "models",
     "information",
     "nodes",
