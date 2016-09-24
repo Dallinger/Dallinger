@@ -105,3 +105,35 @@ $(document).keypress(function (e) {
   }
 });
 
+getQuorum = function () {
+    reqwest({
+        url: "/experiment/quorum",
+        method: 'get',
+        success: function (resp) {
+            quorum = resp.quorum;
+        }
+    });
+};
+
+waitForQuorum = function () {
+    reqwest({
+        url: "/summary",
+        method: 'get',
+        success: function (resp) {
+            summary = resp.summary;
+            if (numReady(resp.summary) >= quorum) {
+                go_to_page('exp');
+            } else {
+                waitForQuorum();
+            }
+        }
+    });
+};
+
+numReady = function(summary) {
+    for (var i = 0; i < summary.length; i++) {
+        if (summary[i][0] == "working") {
+            return summary[i][1];
+        }
+    }
+};

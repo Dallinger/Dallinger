@@ -10,8 +10,9 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         """Initialize the experiment."""
         super(CoordinationChatroom, self).__init__(session)
         self.experiment_repeats = 1
-        self.num_participants = dlgr.config.experiment_configuration.N
+        self.num_participants = dlgr.config.experiment_configuration.n
         self.initial_recruitment_size = self.num_participants
+        self.quorum = self.num_participants
         self.setup()
 
     def create_network(self):
