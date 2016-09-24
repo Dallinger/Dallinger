@@ -1,6 +1,8 @@
 [Experiment Configuration]
 mode = sandbox
 auto_recruit = true
+network = FullyConnected
+N = 2
 
 [HIT Configuration]
 title = Coordination game
@@ -32,4 +34,3 @@ notification_url = None
 
 [Shell Parameters]
 launch_in_sandbox_mode = true
-
