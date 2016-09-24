@@ -120,10 +120,22 @@ class Participant(Base, SharedMixin):
     #:      inferred that a Mechanical Turk notification corresponding to this
     #:      participant failed to arrive. This is an uncommon, but potentially
     #:      serious issue.
-    status = Column(Enum("working", "submitted", "approved", "rejected",
-                         "returned", "abandoned", "did_not_attend", "bad_data",
-                         "missing_notification", name="participant_status"),
-                    nullable=False, default="working", index=True)
+    status = Column(
+        Enum(
+            "working",
+            "submitted",
+            "approved",
+            "rejected",
+            "returned",
+            "abandoned",
+            "did_not_attend",
+            "bad_data",
+            "missing_notification",
+            name="participant_status"
+        ),
+        nullable=False,
+        default="working",
+        index=True)
 
     def __init__(self, worker_id, assignment_id, hit_id, mode):
         """Create a participant."""
