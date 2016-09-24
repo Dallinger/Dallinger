@@ -233,6 +233,7 @@ def quitter():
 
 
 @custom_code.route('/experiment_property/<prop>', methods=['GET'])
+@custom_code.route('/experiment/<prop>', methods=['GET'])
 def experiment_property(prop):
     """Get a property of the experiment by name."""
     exp = experiment(session)

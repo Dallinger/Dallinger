@@ -44,7 +44,7 @@ Experiment routes
 
 ::
 
-    GET /experiment_property/<property>
+    GET /experiment/<property>
 
 Returns the value of the requested property as a JSON ``<property>``.
 
