@@ -116,7 +116,7 @@ class Participant(Base, SharedMixin):
     #:      attention check
     #:    - ``bad_data`` - the participant finished, but their data was
     #:      malformed
-    #:    - ``missing notification`` - this indicates that Dallinger has
+    #:    - ``missing_notification`` - this indicates that Dallinger has
     #:      inferred that a Mechanical Turk notification corresponding to this
     #:      participant failed to arrive. This is an uncommon, but potentially
     #:      serious issue.
