@@ -193,7 +193,7 @@ class Experiment(object):
 
         Return a string that will be included in an email sent to the
         `participant` receiving a bonus. By default it is "Thank you for
-        participant! Here is your bonus."
+        participating! Here is your bonus."
 
         """
         return "Thank for participating! Here is your bonus."

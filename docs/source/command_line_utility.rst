@@ -58,13 +58,7 @@ Print a summary of the participant table to the command line. A required
 qualify
 ^^^^^^^
 
-``--qualification <qualification_id>``
-
-``--value <value>``
-
-``--worker <worker_id>``
-
-Assign qualification a qualification to a worker. Requires a qualification id
+Assign qualification to a worker. Requires a qualification id
 ``qualification_id``, value ``value``, and worker id ``worker_id``. This is
 useful when compensating workers if something goes wrong with the experiment.
 
