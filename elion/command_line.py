@@ -4,10 +4,8 @@
 """The Elion command-line utility."""
 
 import click
-import time
 from elion.version import __version__
-import subprocess
-import os
+import time
 import yaml
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
