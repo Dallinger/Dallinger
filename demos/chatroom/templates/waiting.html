@@ -11,9 +11,11 @@
     </head>
     <body>
         <div class="main_div">
-            <p>This is a multiplayer experiment.</p>
-            <div id="waiting-message">
-                <p>Waiting, ugh&hellip;</p>
+            <p>This is a multiplayer experiment and so you must wait for the other players to join.</p>
+            <div class="col-md-4">
+                <div class="progress progress-striped active">
+                  <div id="waiting-progress-bar" class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;"><span id="progress-percentage">0%</span></div>
+                </div>
             </div>
         </div>
         <script>

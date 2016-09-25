@@ -171,7 +171,11 @@ waitForQuorum = function () {
         method: "get",
         success: function (resp) {
             summary = resp.summary;
-            if (numReady(resp.summary) >= quorum) {
+            n = numReady(resp.summary);
+            percent = Math.round((n/quorum)*100.0) + "%";
+            $("#waiting-progress-bar").css("width", percent);
+            $("#progress-percentage").text(percent);
+            if (n >= quorum) {
                 allow_exit();
                 go_to_page("exp");
             } else {
