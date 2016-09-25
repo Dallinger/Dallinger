@@ -24,3 +24,11 @@ body {
 .right_div {
     text-align: right;
 }
+
+#consent {
+    float: left;
+}
+
+#no-consent {
+    float: right;
+}

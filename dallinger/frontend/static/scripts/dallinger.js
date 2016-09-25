@@ -71,12 +71,29 @@ submit_assignment = function () {
 
 // make a new participant
 create_participant = function() {
-    if (participant_id === undefined) {
+
+    // check if the local store is available, and if so, use it.
+    if (typeof store != "undefined") {
+        url = "/participant/" +
+            store.get("worker_id") + "/" +
+            store.get("hit_id") + "/" +
+            store.get("assignment_id") + "/" +
+            store.get("mode");
+    } else {
+        url = "/participant/" +
+            worker_id + "/" +
+            hit_id + "/" +
+            assignment_id + "/" +
+            mode;
+    }
+
+    if (participant_id === undefined || participant_id === "undefined") {
         reqwest({
-            url: "/participant/" + worker_id + "/" + hit_id + "/" + assignment_id + "/" + mode,
+            url: url,
             method: "post",
             type: "json",
             success: function(resp) {
+                console.log(resp);
                 participant_id = resp.participant.id;
             },
             error: function (err) {

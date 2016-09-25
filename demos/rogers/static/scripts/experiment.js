@@ -1,7 +1,7 @@
 trial = 0;
 lock = true;
 reqwest({
-    url: "/experiment_property/practice_repeats",
+    url: "/experiment/practice_repeats",
     method: "get",
     type: "json",
     success: function (resp) {
@@ -13,7 +13,7 @@ reqwest({
 });
 
 reqwest({
-    url: "/experiment_property/experiment_repeats",
+    url: "/experiment/experiment_repeats",
     method: "get",
     type: "json",
     success: function (resp) {
