@@ -1,5 +1,20 @@
 # Change Log
 
+## [v2.3.0](https://github.com/dallinger/dallinger/tree/v2.3.0) (2016-09-24)
+
+**New demos**
+
+- 2048 [\#207](https://github.com/Dallinger/Dallinger/pull/207)
+
+**Enhancements**
+
+- Upgrade some dependencies [\#203](https://github.com/Dallinger/Dallinger/pull/203), [\#205](https://github.com/Dallinger/Dallinger/pull/205)
+- Add a `dallinger.config` module that automatically loads variables from the experiment config file [\#213](https://github.com/Dallinger/Dallinger/pull/213)
+- Add waiting room to chatroom demo
+
+**Bug fixes**
+- Miscellaneous typo fixes
+
 ## [v2.2.2](https://github.com/dallinger/dallinger/tree/v2.2.2) (2016-09-21)
 
 **Bugs squashed**
