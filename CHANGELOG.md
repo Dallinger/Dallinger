@@ -1,5 +1,9 @@
 # Change Log
 
+## [v2.3.1](https://github.com/dallinger/dallinger/tree/v2.3.1) (2016-09-25)
+
+- Fix a regression in 2.3.0 where the consent form no longer receives the query parameters from the HIT advertisement.
+
 ## [v2.3.0](https://github.com/dallinger/dallinger/tree/v2.3.0) (2016-09-24)
 
 **New demos**
