@@ -270,6 +270,18 @@ def get_page_from_directory(directory, page):
     return render_template(directory + '/' + page + '.html')
 
 
+@custom_code.route("/consent")
+def consent():
+    """Return the consent form. Here for backwards-compatibility with 2.x."""
+    return render_template(
+        "consent.html",
+        hit_id=request.args['hit_id'],
+        assignment_id=request.args['assignment_id'],
+        worker_id=request.args['worker_id'],
+        mode=request.args['mode']
+    )
+
+
 """Routes for reading and writing to the database."""
 
 
