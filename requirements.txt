@@ -3,8 +3,8 @@ click==6.6
 future==0.15.2
 localconfig==0.4.2
 pexpect==4.2.1
-psiturk-dallinger==3.1.2
+psiturk-dallinger==3.1.3
 psycopg2==2.6.2
 redis==2.10.5
 rq==0.6.0
-SQLAlchemy==1.0.15
+SQLAlchemy==1.1.0
