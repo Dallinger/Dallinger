@@ -3,25 +3,26 @@
 
 """The Dallinger command-line utility."""
 
-from dallinger import db
-from dallinger.version import __version__
-
-import boto
-import click
 import imp
 import inspect
 import os
 import pexpect
 import pkg_resources
-from psiturk.psiturk_config import PsiturkConfig
-import psycopg2
 import re
-import requests
 import shutil
 import subprocess
 import tempfile
 import time
 import uuid
+
+import boto
+import click
+from psiturk.psiturk_config import PsiturkConfig
+import psycopg2
+import requests
+
+from dallinger import db
+from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 

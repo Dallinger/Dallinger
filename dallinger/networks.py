@@ -1,9 +1,11 @@
 """Network structures commonly used in simulations of evolution."""
 
-from .models import Network, Node
-from .nodes import Source
 from operator import attrgetter
 import random
+
+from .models import Network
+from .models import Node
+from .nodes import Source
 
 
 class Chain(Network):

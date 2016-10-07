@@ -1,8 +1,12 @@
 """Import custom routes into the experiment server."""
 
-import dallinger
-from dallinger import db
-from dallinger import models
+from datetime import datetime
+from json import dumps
+import logging
+from operator import attrgetter
+import os
+import requests
+import traceback
 
 from flask import (
     Blueprint,
@@ -11,22 +15,18 @@ from flask import (
     send_from_directory,
     render_template
 )
-
-from datetime import datetime
-from json import dumps
-import logging
-from operator import attrgetter
-import os
 from psiturk.db import db_session as session_psiturk
 from psiturk.db import init_db
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
-import requests
 from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
-import traceback
 from worker import conn
+
+import dallinger
+from dallinger import db
+from dallinger import models
 
 # Load the configuration options.
 config = PsiturkConfig()

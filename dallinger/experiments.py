@@ -1,19 +1,20 @@
 """The base experiment class."""
 
+from collections import Counter
+import imp
+import inspect
+from operator import itemgetter
+import random
+import sys
+
+from sqlalchemy import and_
+
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
 from dallinger.transformations import Mutation, Replication
 from dallinger.networks import Empty
-
-from collections import Counter
-import imp
-import inspect
-from operator import itemgetter
-import random
-from sqlalchemy import and_
-import sys
 
 
 class Experiment(object):

@@ -1,8 +1,7 @@
 """Define Dallinger's core models."""
 
 from datetime import datetime
-
-from .db import Base
+import inspect
 
 from sqlalchemy import ForeignKey, or_, and_
 from sqlalchemy import (
@@ -17,7 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship, validates
 
-import inspect
+from .db import Base
 
 DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
 
