@@ -1,8 +1,8 @@
 """Heroku web worker."""
 
 from future.builtins import map
-
 import os
+
 import redis
 from rq import (
     Worker,

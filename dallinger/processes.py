@@ -1,8 +1,9 @@
 """Processes manipulate networks and their parts."""
 
+import random
+
 from nodes import Agent
 from nodes import Source
-import random
 
 
 def random_walk(network):

@@ -1,17 +1,17 @@
 """A clock process."""
 
-from dallinger import db
-from dallinger.models import Participant
-
-from apscheduler.schedulers.blocking import BlockingScheduler
-from boto.mturk.connection import MTurkConnection
 from datetime import datetime
 from email.mime.text import MIMEText
 import json
 import os
+
+from apscheduler.schedulers.blocking import BlockingScheduler
+from boto.mturk.connection import MTurkConnection
 from psiturk.psiturk_config import PsiturkConfig
 import requests
-# import smtplib
+
+from dallinger import db
+from dallinger.models import Participant
 
 config = PsiturkConfig()
 config.load_config()
