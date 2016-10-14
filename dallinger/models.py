@@ -37,7 +37,7 @@ class SharedMixin(object):
 
     #: a generic column that can be used to store experiment-specific details in
     #: String form.
-    property1 = Column(String(256), nullable=True, default=None)
+    property1 = Column(Text, nullable=True, default=None)
 
     #: a generic column that can be used to store experiment-specific details in
     #: String form.
