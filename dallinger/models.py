@@ -41,19 +41,19 @@ class SharedMixin(object):
 
     #: a generic column that can be used to store experiment-specific details in
     #: String form.
-    property2 = Column(String(256), nullable=True, default=None)
+    property2 = Column(Text, nullable=True, default=None)
 
     #: a generic column that can be used to store experiment-specific details in
     #: String form.
-    property3 = Column(String(256), nullable=True, default=None)
+    property3 = Column(Text, nullable=True, default=None)
 
     #: a generic column that can be used to store experiment-specific details in
     #: String form.
-    property4 = Column(String(256), nullable=True, default=None)
+    property4 = Column(Text, nullable=True, default=None)
 
     #: a generic column that can be used to store experiment-specific details in
     #: String form.
-    property5 = Column(String(256), nullable=True, default=None)
+    property5 = Column(Text, nullable=True, default=None)
 
     #: boolean indicating whether the Network has failed which
     #: prompts Dallinger to ignore it unless specified otherwise. Objects are
