@@ -1,5 +1,10 @@
 # Change Log
 
+## [v2.4.0](https://github.com/dallinger/dallinger/tree/v2.4.0) (2016-10-17)
+
+- Allow property columns to be of arbitrary length
+- Add a demo of the game [Snake](https://en.m.wikipedia.org/wiki/Snake_(video_game))
+
 ## [v2.3.1](https://github.com/dallinger/dallinger/tree/v2.3.1) (2016-09-25)
 
 - Fix a regression in 2.3.0 where the consent form no longer receives the query parameters from the HIT advertisement.
