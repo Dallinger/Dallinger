@@ -1,5 +1,9 @@
 # Change Log
 
+## [v2.4.2](https://github.com/dallinger/dallinger/tree/v2.4.2) (2016-10-18)
+
+- Fix issue with clock processes
+
 ## [v2.4.1](https://github.com/dallinger/dallinger/tree/v2.4.1) (2016-10-17)
 
 - Fix issue with versioning
