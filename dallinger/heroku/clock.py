@@ -10,6 +10,7 @@ from boto.mturk.connection import MTurkConnection
 from psiturk.psiturk_config import PsiturkConfig
 import requests
 
+import dallinger
 from dallinger import db
 from dallinger.models import Participant
 
