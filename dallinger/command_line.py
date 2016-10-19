@@ -406,7 +406,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
         "heroku pg:wait",
 
-        "heroku addons:create rediscloud:250",
+        "heroku addons:create heroku-redis:premium-0",
 
         "heroku addons:create papertrail",
 
@@ -672,7 +672,7 @@ def hibernate(app):
     addons = [
         "heroku-postgresql",
         # "papertrail",
-        "rediscloud",
+        "heroku-redis",
     ]
     for addon in addons:
         subprocess.call(
@@ -737,7 +737,7 @@ def awaken(app, databaseurl):
         shell=True)
 
     subprocess.call(
-        "heroku addons:create rediscloud:250 --app {}".format(heroku_id(app)),
+        "heroku addons:create heroku-redis:premium-0 --app {}".format(heroku_id(app)),
         shell=True)
 
     # Scale up the dynos.
