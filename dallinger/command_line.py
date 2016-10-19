@@ -114,7 +114,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
     # Check that the demo-specific requirements are satisfied.
     try:
         with open("requirements.txt", "r") as f:
-            dependencies = f.readlines()
+            dependencies = [r for r in f.readlines() if r[:3] != "-e "]
     except:
         dependencies = []
 
