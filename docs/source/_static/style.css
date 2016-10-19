@@ -3,6 +3,15 @@ body {
     font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
 }
 
+p.caption {
+    padding-top: 10px;
+    padding-bottom: 0px;
+}
+
+/*div.bodywrapper {
+    margin: 0px 110px 0px 110px;
+}*/
+
 div.body p, div.body dd, div.body li {
     line-height: 1.6em;
 }
@@ -32,6 +41,10 @@ tt.xref, code.xref, a tt {
 
 pre {
     background: #ecf0f3;
+    padding-top: 10px;
+    border-radius: 5px;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
 }
 
 .injected {
@@ -80,6 +93,11 @@ div.sphinxsidebar input {
   font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
 }
 
+div.document {
+    padding-top: 100px;
+    margin-left: 0px;
+}
+
 a.reference {
     text-decoration: none;
     border-bottom: 1px solid #64d2e9;
@@ -98,4 +116,8 @@ a.reference:hover {
 #searchbox h3 {
     font-size: 14px;
     margin-bottom: -10px;
+}
+
+.github {
+    width: 100px;
 }

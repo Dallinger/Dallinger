@@ -151,7 +151,9 @@ html_theme_options = {
     'github_user': 'Dallinger',
     'github_repo': 'Dallinger',
     'github_type': 'star',
-    'github_button': True,
+    'github_button': False,
+    'github_banner': "corner.jpg",
+    'travis_button': False,
     'description': 'Laboratory automation for the behavioral and social sciences.',
     'show_powered_by': False,
 }
@@ -199,16 +201,16 @@ html_static_path = ['_static']
 # If true, SmartyPants will be used to convert quotes and dashes to
 # typographically correct entities.
 #
-# html_use_smartypants = True
+html_use_smartypants = True
 
 # Custom sidebar templates, maps document names to template names.
 #
 html_sidebars = {
     '**': [
-        'about.html',
+        # 'about.html',
         # 'navigation.html',
         'relations.html',
-        'searchbox.html',
+        # 'searchbox.html',
         'donate.html',
     ]
 }
