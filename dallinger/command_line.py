@@ -19,6 +19,7 @@ import boto
 import click
 from psiturk.psiturk_config import PsiturkConfig
 import psycopg2
+import redis
 import requests
 
 from dallinger import db
@@ -448,6 +449,21 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     for cmd in cmds:
         subprocess.call(
             cmd + " --app " + heroku_id(id), stdout=out, shell=True)
+
+    # Wait for Redis database to be ready.
+    log("Waiting for Redis...")
+    redis_URL = subprocess.check_output(
+        "heroku config:get REDIS_URL --app {}".format(heroku_id(id)),
+        shell=True
+    )
+    ready = False
+    while not ready:
+        r = redis.from_url(redis_URL)
+        try:
+            r.set("foo", "bar")
+            ready = True
+        except redis.exceptions.ConnectionError:
+            pass
 
     # Set the notification URL in the cofig file to the notifications URL.
     config.set(
