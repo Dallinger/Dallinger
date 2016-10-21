@@ -38,4 +38,5 @@ Laboratory automation for the behavioral and social sciences.
     :maxdepth: 1
     :caption: Miscellaneous
 
+    acknowledgments
     dallinger_the_scientist
