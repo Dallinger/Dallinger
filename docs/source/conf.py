@@ -376,6 +376,19 @@ texinfo_documents = [
 #
 # texinfo_no_detailmenu = False
 
+# -- Allow Markdown files -----------------------------------------
+
+from recommonmark.parser import CommonMarkParser
+
+source_parsers = {
+    '.md': CommonMarkParser
+}
+
+source_suffix = [
+    '.rst',
+    '.md'
+]
+
 # -- Install demo files -------------------------------------------
 
 import sys
