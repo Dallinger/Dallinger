@@ -7,6 +7,13 @@ import subprocess as sp
 def make_demo(name, src, dst):
     print("Making '{}'' demo...".format(name))
 
+    for file in os.listdir(src):
+        if file.endswith(".jpg") or file.endswith(".png"):
+            shutil.copy(
+                os.path.join(src, file),
+                os.path.join(dst, "demos", file)
+            )
+
     # convert and copy the README to the static location
     sp.call([
         "pandoc",
