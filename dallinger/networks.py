@@ -152,7 +152,7 @@ class DiscreteGenerational(Network):
                 source.connect(whom=node)
                 source.transmit(to_whom=node)
         else:
-            prev_agents = Node.query\
+            prev_agents = type(node).query\
                 .filter_by(failed=False,
                            network_id=self.id,
                            generation=(curr_generation - 1))\
