@@ -1,6 +1,6 @@
 APScheduler==3.2.0
 click==6.6
-future==0.15.2
+future==0.16.0
 localconfig==0.4.2
 pexpect==4.2.1
 psiturk-dallinger==3.1.3
