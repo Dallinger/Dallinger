@@ -21,7 +21,14 @@ setup_args = dict(
     maintainer_email='suchow@berkeley.edu',
     license='MIT',
     keywords=['science', 'cultural evolution', 'experiments', 'psychology'],
-    classifiers=[],
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: Science/Research',
+        'Topic :: Scientific/Engineering',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 2.6',
+        'Programming Language :: Python :: 2.7',
+    ],
     include_package_data=True,
     zip_safe=False,
     entry_points={
