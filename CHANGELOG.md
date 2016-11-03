@@ -1,5 +1,14 @@
 # Change Log
 
+## [v2.5.0](https://github.com/dallinger/dallinger/tree/v2.5.0) (2016-11-03)
+
+- Allow pip requirements specified by URL
+- Improve style of docs
+- Add GetSiteControl to docs
+- Use Heroku's Redis addon and wait until available
+- Upgrade pypandoc and future
+- Add PyPi classifiers
+
 ## [v2.4.2](https://github.com/dallinger/dallinger/tree/v2.4.2) (2016-10-18)
 
 - Fix issue with clock processes
