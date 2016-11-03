@@ -23,6 +23,7 @@ import redis
 import requests
 
 from dallinger import db
+from dallinger import heroku
 from dallinger.heroku import app_name
 from dallinger.version import __version__
 
@@ -52,13 +53,6 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
         else:
             click.echo(msg)
         time.sleep(delay)
-
-
-def ensure_heroku_logged_in():
-    """Ensure that the user is logged in to Heroku."""
-    p = pexpect.spawn("heroku auth:whoami")
-    p.interact()
-    click.echo("")
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -361,7 +355,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
-    ensure_heroku_logged_in()
+    heroku.log_in()
+    click.echo("")
 
     # Change to temporary directory.
     cwd = os.getcwd()
