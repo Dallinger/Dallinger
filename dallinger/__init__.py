@@ -7,7 +7,8 @@ from . import (
     networks,
     processes,
     transformations,
-    experiments
+    experiments,
+    heroku
 )
 
 from localconfig import config
@@ -21,5 +22,6 @@ __all__ = (
     "networks",
     "processes",
     "transformations",
-    "experiments"
+    "experiments",
+    "heroku",
 )
