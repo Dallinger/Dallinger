@@ -24,7 +24,10 @@ import requests
 
 from dallinger import db
 from dallinger import heroku
-from dallinger.heroku import app_name
+from dallinger.heroku import (
+    app_name,
+    scale_up_dynos
+)
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -318,32 +321,6 @@ def debug(verbose):
     os.chdir(cwd)
 
 
-def scale_up_dynos(id):
-    """Scale up the Heroku dynos."""
-    # Load psiTurk configuration.
-    config = PsiturkConfig()
-    config.load_config()
-
-    dyno_type = config.get('Server Parameters', 'dyno_type')
-    num_dynos_web = config.get('Server Parameters', 'num_dynos_web')
-    num_dynos_worker = config.get('Server Parameters', 'num_dynos_worker')
-
-    log("Scaling up the dynos...")
-    subprocess.call(
-        "heroku ps:scale web=" + str(num_dynos_web) + ":" +
-        str(dyno_type) + " --app " + app_name(id), shell=True)
-
-    subprocess.call(
-        "heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
-        str(dyno_type) + " --app " + app_name(id), shell=True)
-
-    clock_on = config.getboolean('Server Parameters', 'clock_on')
-    if clock_on:
-        subprocess.call(
-            "heroku ps:scale clock=1:" + dyno_type + " --app " + app_name(id),
-            shell=True)
-
-
 def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
@@ -480,7 +457,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     subprocess.call("git push heroku HEAD:master", stdout=out,
                     stderr=out, shell=True)
 
-    scale_up_dynos(id)
+    log("Scaling up the dynos...")
+    scale_up_dynos(app_name(id))
 
     time.sleep(8)
 
@@ -710,6 +688,7 @@ def destroy(app):
 @click.option('--databaseurl', default=None, help='URL of the database')
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
+    id = app
     config = PsiturkConfig()
     config.load_config()
 
@@ -718,11 +697,11 @@ def awaken(app, databaseurl):
     subprocess.call(
         "heroku addons:create heroku-postgresql:{} --app {}".format(
             database_size,
-            app_name(app)),
+            app_name(id)),
         shell=True)
 
     subprocess.call(
-        "heroku pg:wait --app {}".format(app_name(app)),
+        "heroku pg:wait --app {}".format(app_name(id)),
         shell=True)
 
     conn = boto.connect_s3(
@@ -730,7 +709,7 @@ def awaken(app, databaseurl):
         config.get('AWS Access', 'aws_secret_access_key'),
     )
 
-    bucket = conn.get_bucket(app)
+    bucket = conn.get_bucket(id)
     key = bucket.lookup('database.dump')
     url = key.generate_url(expires_in=300)
 
@@ -739,16 +718,17 @@ def awaken(app, databaseurl):
         "{} '{}' DATABASE_URL --app {} --confirm {}".format(
             cmd,
             url,
-            app_name(app),
-            app_name(app)),
+            app_name(id),
+            app_name(id)),
         shell=True)
 
     subprocess.call(
-        "heroku addons:create heroku-redis:premium-0 --app {}".format(app_name(app)),
+        "heroku addons:create heroku-redis:premium-0 --app {}".format(app_name(id)),
         shell=True)
 
     # Scale up the dynos.
-    scale_up_dynos(app)
+    log("Scaling up the dynos...")
+    scale_up_dynos(app_name(id))
 
 
 @dallinger.command()
