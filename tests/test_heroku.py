@@ -1,10 +1,11 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import os
-import subprocess
+
+from dallinger.heroku import app_name
 
 
-class TestCommandLine(object):
+class TestHeroku(object):
 
     def setup(self):
         """Set up the environment by moving to the demos directory."""
@@ -17,6 +18,6 @@ class TestCommandLine(object):
         self.db.add_all(args)
         self.db.commit()
 
-    def test_dallinger_help(self):
-        output = subprocess.check_output("dallinger", shell=True)
-        assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
+    def test_heroku_app_name(self):
+        id = "8fbe62f5-2e33-4274-8aeb-40fc3dd621a0"
+        assert(len(app_name(id)) < 30)
