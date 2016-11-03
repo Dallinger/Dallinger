@@ -1,8 +1,9 @@
 """Miscellaneous tools for Heroku."""
 
 import pexpect
-from psiturk.psiturk_config import PsiturkConfig
 import subprocess
+
+import dallinger as dlgr
 
 
 def app_name(id):
@@ -18,24 +19,27 @@ def log_in():
 
 def scale_up_dynos(app):
     """Scale up the Heroku dynos."""
-    # Load psiTurk configuration.
-    config = PsiturkConfig()
-    config.load_config()
+    dyno_type = dlgr.config.server_parameters.dyno_type
 
-    dyno_type = config.get('Server Parameters', 'dyno_type')
-    num_dynos_web = config.get('Server Parameters', 'num_dynos_web')
-    num_dynos_worker = config.get('Server Parameters', 'num_dynos_worker')
+    num_dynos = {
+        "web": dlgr.config.server_parameters.num_dynos_web,
+        "worker": dlgr.config.server_parameters.num_dynos_worker
+    }
 
-    subprocess.call(
-        "heroku ps:scale web=" + str(num_dynos_web) + ":" +
-        str(dyno_type) + " --app " + app, shell=True)
+    for process in ["web", "worker"]:
+        subprocess.call([
+            "heroku",
+            "ps:scale",
+            "{}={}:{}".format(process, num_dynos[process], dyno_type),
+            "--app",
+            app,
+        ])
 
-    subprocess.call(
-        "heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
-        str(dyno_type) + " --app " + app, shell=True)
-
-    clock_on = config.getboolean('Server Parameters', 'clock_on')
-    if clock_on:
-        subprocess.call(
-            "heroku ps:scale clock=1:" + dyno_type + " --app " + app,
-            shell=True)
+    if dlgr.config.server_parameters.clock_on:
+        subprocess.call([
+            "heroku",
+            "ps:scale",
+            "clock=1:{}".format(dyno_type),
+            "--app",
+            app,
+        ])
