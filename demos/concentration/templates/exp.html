@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+  <!-- meta -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="description" content="A memory game, built for fun with HTML, CSS, and JavaScript.">
+  <meta name="author" content="Nick Salloum">
+
+  <!-- title -->
+  <title>Memory Game!</title>
+
+  <!-- css -->
+  <link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Roboto+Slab">
+  <link rel="stylesheet" href="../static/css/memory.css">
+
+  <!-- og -->
+  <meta property="og:title" content="Memory Game!">
+  <meta property="og:url" content="http://callmenick.com/memory/">
+  <meta property="og:image" content="http://callmenick.com/memory/img/og-image.png">
+
+  <!-- js -->
+  <script src="/static/scripts/jquery-min.js" type="text/javascript"> </script>
+  <script src="../static/scripts/reqwest.min.js" type="text/javascript"> </script>
+  <script src="../static/scripts/dallinger.js" type="text/javascript"> </script>
+  <script src="../static/scripts/experiment.js" type="text/javascript"> </script>
+  <script src="../static/scripts/classList.min.js"></script>
+  <script src="../static/scripts/memory.js"></script>
+</head>
+<body>
+
+  <div class="wrapper">
+
+    <h1 class="header__title">Memory Game!</h1>
+
+    <div class="content">
+      <div class="container">
+
+        <div id="my-memory-game"></div>
+
+      </div>
+    </div><!-- /.content -->
+
+  </div><!-- /.wrapper -->
+
+  <!-- start memory! -->
+  <script>
+    create_participant();
+    create_agent();
+      var myMem = new Memory({
+        wrapperID : "my-memory-game",
+        cards : [
+          {
+            id : 1,
+            img: "../static/images/default/monsters-01.png"
+          },
+          {
+            id : 2,
+            img: "../static/images/default/monsters-02.png"
+          },
+          {
+            id : 3,
+            img: "../static/images/default/monsters-03.png"
+          },
+          {
+            id : 4,
+            img: "../static/images/default/monsters-04.png"
+          },
+          {
+            id : 5,
+            img: "../static/images/default/monsters-05.png"
+          },
+          {
+            id : 6,
+            img: "../static/images/default/monsters-06.png"
+          },
+          {
+            id : 7,
+            img: "../static/images/default/monsters-07.png"
+          },
+          {
+            id : 8,
+            img: "../static/images/default/monsters-08.png"
+          },
+          {
+            id : 9,
+            img: "../static/images/default/monsters-09.png"
+          },
+          {
+            id : 10,
+            img: "../static/images/default/monsters-10.png"
+          },
+          {
+            id : 11,
+            img: "../static/images/default/monsters-11.png"
+          },
+          {
+            id : 12,
+            img: "../static/images/default/monsters-12.png"
+          },
+          {
+            id : 13,
+            img: "../static/images/default/monsters-13.png"
+          },
+          {
+            id : 14,
+            img: "../static/images/default/monsters-14.png"
+          },
+          {
+            id : 15,
+            img: "../static/images/default/monsters-15.png"
+          },
+          {
+            id : 16,
+            img: "../static/images/default/monsters-16.png"
+          }
+        ],
+        onGameStart : function() { return false; },
+        onGameEnd : function() { return false; }
+      });
+  </script>
+
+  <div id="fb-root"></div>
+
+</body>
+</html>
