@@ -649,25 +649,28 @@ def hibernate(app):
     backup(app)
 
     log("Scaling down the web servers...")
-    subprocess.call("heroku ps:scale web=0" + " --app " + app_name(app), shell=True)
-    subprocess.call("heroku ps:scale worker=0" + " --app " + app_name(app), shell=True)
-    subprocess.call("heroku ps:scale clock=0" + " --app " + app_name(app), shell=True)
+
+    for process in ["web", "worker", "clock"]:
+        subprocess.call([
+            "heroku",
+            "ps:scale", "{}=0".format(process),
+            "--app", app_name(app)
+        ])
 
     log("Removing addons...")
+
     addons = [
         "heroku-postgresql",
         # "papertrail",
         "heroku-redis",
     ]
     for addon in addons:
-        subprocess.call(
-            "heroku addons:destroy {} --app {} --confirm {}".format(
-                addon,
-                app_name(app),
-                app_name(app)
-            ),
-            shell=True,
-        )
+        subprocess.call([
+            "heroku",
+            "addons:destroy", addon,
+            "--app", app_name(app),
+            "--confirm", app_name(app)
+        ])
 
 
 @dallinger.command()
