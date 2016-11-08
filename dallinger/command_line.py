@@ -23,6 +23,11 @@ import redis
 import requests
 
 from dallinger import db
+from dallinger import heroku
+from dallinger.heroku import (
+    app_name,
+    scale_up_dynos
+)
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -51,18 +56,6 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
         else:
             click.echo(msg)
         time.sleep(delay)
-
-
-def ensure_heroku_logged_in():
-    """Ensure that the user is logged in to Heroku."""
-    p = pexpect.spawn("heroku auth:whoami")
-    p.interact()
-    click.echo("")
-
-
-def heroku_id(id):
-    """Convert a UUID to a valid Heroku app name."""
-    return "dlgr-" + id[0:8]
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -134,7 +127,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
     # Copy this directory into a temporary folder, ignoring .git
     dst = os.path.join(tempfile.mkdtemp(), id)
     to_ignore = shutil.ignore_patterns(
-        ".git/*",
+        os.path.join(".git", "*"),
         "*.db",
         "snapshots",
         "data",
@@ -162,12 +155,12 @@ def setup_experiment(debug=True, verbose=False, app=None):
     os.chdir(dst)
 
     # Check directories.
-    if not os.path.exists("static/scripts"):
-        os.makedirs("static/scripts")
+    if not os.path.exists(os.path.join("static", "scripts")):
+        os.makedirs(os.path.join("static", "scripts"))
     if not os.path.exists("templates"):
         os.makedirs("templates")
-    if not os.path.exists("static/css"):
-        os.makedirs("static/css")
+    if not os.path.exists(os.path.join("static", "css")):
+        os.makedirs(os.path.join("static", "css"))
 
     # Rename experiment.py to avoid psiTurk conflict.
     os.rename(
@@ -205,13 +198,13 @@ def setup_experiment(debug=True, verbose=False, app=None):
         shutil.copy(src, os.path.join(dst, "Procfile"))
 
     frontend_files = [
-        "static/css/dallinger.css",
-        "static/scripts/dallinger.js",
-        "static/scripts/reqwest.min.js",
-        "templates/error_dallinger.html",
-        "templates/launch.html",
-        "templates/complete.html",
-        "static/robots.txt"
+        os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("templates", "error_dallinger.html"),
+        os.path.join("templates", "launch.html"),
+        os.path.join("templates", "complete.html"),
+        os.path.join("static", "robots.txt")
     ]
 
     for filename in frontend_files:
@@ -232,7 +225,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def summary(app):
     """Print a summary of a deployed app's status."""
-    r = requests.get('https://{}.herokuapp.com/summary'.format(heroku_id(app)))
+    r = requests.get('https://{}.herokuapp.com/summary'.format(app_name(app)))
     summary = r.json()['summary']
     click.echo("\nstatus \t| count")
     click.echo("----------------")
@@ -328,32 +321,6 @@ def debug(verbose):
     os.chdir(cwd)
 
 
-def scale_up_dynos(id):
-    """Scale up the Heroku dynos."""
-    # Load psiTurk configuration.
-    config = PsiturkConfig()
-    config.load_config()
-
-    dyno_type = config.get('Server Parameters', 'dyno_type')
-    num_dynos_web = config.get('Server Parameters', 'num_dynos_web')
-    num_dynos_worker = config.get('Server Parameters', 'num_dynos_worker')
-
-    log("Scaling up the dynos...")
-    subprocess.call(
-        "heroku ps:scale web=" + str(num_dynos_web) + ":" +
-        str(dyno_type) + " --app " + heroku_id(id), shell=True)
-
-    subprocess.call(
-        "heroku ps:scale worker=" + str(num_dynos_worker) + ":" +
-        str(dyno_type) + " --app " + heroku_id(id), shell=True)
-
-    clock_on = config.getboolean('Server Parameters', 'clock_on')
-    if clock_on:
-        subprocess.call(
-            "heroku ps:scale clock=1:" + dyno_type + " --app " + heroku_id(id),
-            shell=True)
-
-
 def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
@@ -365,7 +332,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
-    ensure_heroku_logged_in()
+    heroku.log_in()
+    click.echo("")
 
     # Change to temporary directory.
     cwd = os.getcwd()
@@ -386,7 +354,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
     subprocess.call(
-        "heroku apps:create " + heroku_id(id) +
+        "heroku apps:create " + app_name(id) +
         " --buildpack https://github.com/thenovices/heroku-buildpack-scipy",
         stdout=out,
         shell=True)
@@ -412,7 +380,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
         "heroku addons:create papertrail",
 
         "heroku config:set HOST=" +
-        heroku_id(id) + ".herokuapp.com",
+        app_name(id) + ".herokuapp.com",
 
         "heroku config:set aws_access_key_id=" +
         config.get('AWS Access', 'aws_access_key_id'),
@@ -448,12 +416,12 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     ]
     for cmd in cmds:
         subprocess.call(
-            cmd + " --app " + heroku_id(id), stdout=out, shell=True)
+            cmd + " --app " + app_name(id), stdout=out, shell=True)
 
     # Wait for Redis database to be ready.
     log("Waiting for Redis...")
     redis_URL = subprocess.check_output(
-        "heroku config:get REDIS_URL --app {}".format(heroku_id(id)),
+        "heroku config:get REDIS_URL --app {}".format(app_name(id)),
         shell=True
     )
     ready = False
@@ -469,12 +437,12 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     config.set(
         "Server Parameters",
         "notification_url",
-        "http://" + heroku_id(id) + ".herokuapp.com/notifications")
+        "http://" + app_name(id) + ".herokuapp.com/notifications")
 
     # Set the database URL in the config file to the newly generated one.
     log("Saving the URL of the postgres database...")
     db_url = subprocess.check_output(
-        "heroku config:get DATABASE_URL --app " + heroku_id(id), shell=True)
+        "heroku config:get DATABASE_URL --app " + app_name(id), shell=True)
     config.set("Database Parameters", "database_url", db_url.rstrip())
     subprocess.call("git add config.txt", stdout=out, shell=True),
     time.sleep(0.25)
@@ -489,20 +457,21 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     subprocess.call("git push heroku HEAD:master", stdout=out,
                     stderr=out, shell=True)
 
-    scale_up_dynos(id)
+    log("Scaling up the dynos...")
+    scale_up_dynos(app_name(id))
 
     time.sleep(8)
 
     # Launch the experiment.
     log("Launching the experiment on MTurk...")
     subprocess.call(
-        'curl --data "" http://{}.herokuapp.com/launch'.format(heroku_id(id)),
+        'curl --data "" http://{}.herokuapp.com/launch'.format(app_name(id)),
         shell=True)
 
     time.sleep(8)
 
     url = subprocess.check_output(
-        "heroku logs --app " + heroku_id(id) + " | sort | " +
+        "heroku logs --app " + app_name(id) + " | sort | " +
         "sed -n 's|.*URL:||p'", shell=True)
 
     log("URLs:")
@@ -631,10 +600,10 @@ def dump_database(id):
         os.makedirs(dump_dir)
 
     subprocess.call(
-        "heroku pg:backups capture --app " + heroku_id(id), shell=True)
+        "heroku pg:backups capture --app " + app_name(id), shell=True)
 
     backup_url = subprocess.check_output(
-        "heroku pg:backups public-url --app " + heroku_id(id), shell=True)
+        "heroku pg:backups public-url --app " + app_name(id), shell=True)
     backup_url = backup_url.replace('"', '').rstrip()
     backup_url = re.search("https:.*", backup_url).group(0)
     print(backup_url)
@@ -680,25 +649,28 @@ def hibernate(app):
     backup(app)
 
     log("Scaling down the web servers...")
-    subprocess.call("heroku ps:scale web=0" + " --app " + heroku_id(app), shell=True)
-    subprocess.call("heroku ps:scale worker=0" + " --app " + heroku_id(app), shell=True)
-    subprocess.call("heroku ps:scale clock=0" + " --app " + heroku_id(app), shell=True)
+
+    for process in ["web", "worker", "clock"]:
+        subprocess.call([
+            "heroku",
+            "ps:scale", "{}=0".format(process),
+            "--app", app_name(app)
+        ])
 
     log("Removing addons...")
+
     addons = [
         "heroku-postgresql",
         # "papertrail",
         "heroku-redis",
     ]
     for addon in addons:
-        subprocess.call(
-            "heroku addons:destroy {} --app {} --confirm {}".format(
-                addon,
-                heroku_id(app),
-                heroku_id(app)
-            ),
-            shell=True,
-        )
+        subprocess.call([
+            "heroku",
+            "addons:destroy", addon,
+            "--app", app_name(app),
+            "--confirm", app_name(app)
+        ])
 
 
 @dallinger.command()
@@ -707,8 +679,8 @@ def destroy(app):
     """Tear down an experiment server."""
     subprocess.call(
         "heroku destroy --app {} --confirm {}".format(
-            heroku_id(app),
-            heroku_id(app)
+            app_name(app),
+            app_name(app)
         ),
         shell=True,
     )
@@ -719,6 +691,7 @@ def destroy(app):
 @click.option('--databaseurl', default=None, help='URL of the database')
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
+    id = app
     config = PsiturkConfig()
     config.load_config()
 
@@ -727,11 +700,11 @@ def awaken(app, databaseurl):
     subprocess.call(
         "heroku addons:create heroku-postgresql:{} --app {}".format(
             database_size,
-            heroku_id(app)),
+            app_name(id)),
         shell=True)
 
     subprocess.call(
-        "heroku pg:wait --app {}".format(heroku_id(app)),
+        "heroku pg:wait --app {}".format(app_name(id)),
         shell=True)
 
     conn = boto.connect_s3(
@@ -739,7 +712,7 @@ def awaken(app, databaseurl):
         config.get('AWS Access', 'aws_secret_access_key'),
     )
 
-    bucket = conn.get_bucket(app)
+    bucket = conn.get_bucket(id)
     key = bucket.lookup('database.dump')
     url = key.generate_url(expires_in=300)
 
@@ -748,16 +721,17 @@ def awaken(app, databaseurl):
         "{} '{}' DATABASE_URL --app {} --confirm {}".format(
             cmd,
             url,
-            heroku_id(app),
-            heroku_id(app)),
+            app_name(id),
+            app_name(id)),
         shell=True)
 
     subprocess.call(
-        "heroku addons:create heroku-redis:premium-0 --app {}".format(heroku_id(app)),
+        "heroku addons:create heroku-redis:premium-0 --app {}".format(app_name(id)),
         shell=True)
 
     # Scale up the dynos.
-    scale_up_dynos(app)
+    log("Scaling up the dynos...")
+    scale_up_dynos(app_name(id))
 
 
 @dallinger.command()
@@ -799,14 +773,14 @@ def export(app, local):
         subprocess.call(
             "heroku logs " +
             "-n 10000 > " + os.path.join("data", id, "server_logs.md") +
-            " --app " + heroku_id(id),
+            " --app " + app_name(id),
             shell=True)
 
         dump_path = dump_database(id)
 
         subprocess.call(
             "pg_restore --verbose --clean -d dallinger " +
-            os.path.join("data", id) + "/data.dump",
+            os.path.join("data", id, "data.dump"),
             shell=True)
 
     all_tables = [
@@ -850,7 +824,7 @@ def logs(app):
         raise TypeError("Select an experiment using the --app flag.")
     else:
         subprocess.call(
-            "heroku addons:open papertrail --app " + heroku_id(app),
+            "heroku addons:open papertrail --app " + app_name(app),
             shell=True)
 
 
@@ -920,36 +894,22 @@ def verify_package(verbose=True):
             delay=0, chevrons=False, verbose=verbose)
 
     # Check front-end files do not exist
-    if os.path.exists("templates/complete.html"):
-        log("✗ templates/complete.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("templates/error_dallinger.html"):
-        log("✗ templates/error_dallinger.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("templates/launch.html"):
-        log("✗ templates/launch.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("static/css/dallinger.css"):
-        log("✗ static/css/dallinger.css will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("static/scripts/dallinger.js"):
-        log("✗ static/scripts/dallinger.js will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("static/scripts/reqwest.min.js"):
-        log("✗ static/scripts/reqwest.min.js will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("static/robots.txt"):
-        log("✗ static/robots.txt will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    else:
-        log("✓ no file conflicts",
-            delay=0, chevrons=False, verbose=verbose)
+    files = [
+        os.path.join("templates", "complete.html"),
+        os.path.join("templates", "error_dallinger.html"),
+        os.path.join("templates", "launch.html"),
+        os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("static", "robots.txt")
+    ]
+
+    for f in files:
+        if os.path.exists(f):
+            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, please delete or rename.".format(f),
+                delay=0, chevrons=False, verbose=verbose)
+            return False
+
+    log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
 
     return is_passing

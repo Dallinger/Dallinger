@@ -1,4 +1,4 @@
-APScheduler==3.2.0
+APScheduler==3.3.0
 click==6.6
 future==0.16.0
 localconfig==0.4.2
