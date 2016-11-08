@@ -891,36 +891,22 @@ def verify_package(verbose=True):
             delay=0, chevrons=False, verbose=verbose)
 
     # Check front-end files do not exist
-    if os.path.exists("templates/complete.html"):
-        log("✗ templates/complete.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("templates/error_dallinger.html"):
-        log("✗ templates/error_dallinger.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("templates/launch.html"):
-        log("✗ templates/launch.html will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("static/css/dallinger.css"):
-        log("✗ static/css/dallinger.css will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("static/scripts/dallinger.js"):
-        log("✗ static/scripts/dallinger.js will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("static/scripts/reqwest.min.js"):
-        log("✗ static/scripts/reqwest.min.js will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    elif os.path.exists("static/robots.txt"):
-        log("✗ static/robots.txt will CONFLICT with shared front-end files inserted at run-time, please delete or rename.",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
-    else:
-        log("✓ no file conflicts",
-            delay=0, chevrons=False, verbose=verbose)
+    files = [
+        "templates/complete.html",
+        "templates/error_dallinger.html",
+        "templates/launch.html",
+        "static/css/dallinger.css",
+        "static/scripts/dallinger.js",
+        "static/scripts/reqwest.min.js",
+        "static/robots.txt"
+    ]
+
+    for f in files:
+        if os.path.exists(f):
+            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, please delete or rename.".format(f),
+                delay=0, chevrons=False, verbose=verbose)
+            return False
+
+    log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
 
     return is_passing
