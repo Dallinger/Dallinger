@@ -127,7 +127,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
     # Copy this directory into a temporary folder, ignoring .git
     dst = os.path.join(tempfile.mkdtemp(), id)
     to_ignore = shutil.ignore_patterns(
-        ".git/*",
+        os.path.join(".git", "*"),
         "*.db",
         "snapshots",
         "data",
@@ -155,12 +155,12 @@ def setup_experiment(debug=True, verbose=False, app=None):
     os.chdir(dst)
 
     # Check directories.
-    if not os.path.exists("static/scripts"):
-        os.makedirs("static/scripts")
+    if not os.path.exists(os.path.join("static", "scripts")):
+        os.makedirs(os.path.join("static", "scripts"))
     if not os.path.exists("templates"):
         os.makedirs("templates")
-    if not os.path.exists("static/css"):
-        os.makedirs("static/css")
+    if not os.path.exists(os.path.join("static", "css")):
+        os.makedirs(os.path.join("static", "css"))
 
     # Rename experiment.py to avoid psiTurk conflict.
     os.rename(
@@ -198,13 +198,13 @@ def setup_experiment(debug=True, verbose=False, app=None):
         shutil.copy(src, os.path.join(dst, "Procfile"))
 
     frontend_files = [
-        "static/css/dallinger.css",
-        "static/scripts/dallinger.js",
-        "static/scripts/reqwest.min.js",
-        "templates/error_dallinger.html",
-        "templates/launch.html",
-        "templates/complete.html",
-        "static/robots.txt"
+        os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("templates", "error_dallinger.html"),
+        os.path.join("templates", "launch.html"),
+        os.path.join("templates", "complete.html"),
+        os.path.join("static", "robots.txt")
     ]
 
     for filename in frontend_files:
@@ -780,7 +780,7 @@ def export(app, local):
 
         subprocess.call(
             "pg_restore --verbose --clean -d dallinger " +
-            os.path.join("data", id) + "/data.dump",
+            os.path.join("data", id, "data.dump"),
             shell=True)
 
     all_tables = [
@@ -895,13 +895,13 @@ def verify_package(verbose=True):
 
     # Check front-end files do not exist
     files = [
-        "templates/complete.html",
-        "templates/error_dallinger.html",
-        "templates/launch.html",
-        "static/css/dallinger.css",
-        "static/scripts/dallinger.js",
-        "static/scripts/reqwest.min.js",
-        "static/robots.txt"
+        os.path.join("templates", "complete.html"),
+        os.path.join("templates", "error_dallinger.html"),
+        os.path.join("templates", "launch.html"),
+        os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("static", "robots.txt")
     ]
 
     for f in files:
