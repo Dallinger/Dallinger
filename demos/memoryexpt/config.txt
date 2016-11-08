@@ -1,0 +1,38 @@
+[Experiment Configuration]
+mode = deploy
+auto_recruit = true
+network = FullyConnected
+n = 2
+
+[HIT Configuration]
+title = Memory test
+description = Recall a list of words.
+amt_keywords = Memory, wordlist
+base_payment = 1.00
+lifetime = 24
+duration = 0.25
+us_only = true
+approve_requirement = 95
+contact_email_on_error = mgates@berkeley.edu
+ad_group = Memory
+psiturk_keywords = memory
+organization_name = UC Berkeley
+browser_exclude_rule = MSIE, mobile, tablet
+
+[Database Parameters]
+database_url = postgresql://postgres@localhost/dallinger
+table_name = psiturk
+anonymize_data = false
+database_size = standard-0
+
+[Server Parameters]
+dyno_type = standard-2x
+num_dynos_web = 2
+num_dynos_worker = 2
+host = 0.0.0.0
+clock_on = true
+notification_url = None
+logfile = -
+
+[Shell Parameters]
+launch_in_sandbox_mode = false
