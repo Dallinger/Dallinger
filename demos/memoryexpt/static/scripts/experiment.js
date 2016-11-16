@@ -306,34 +306,9 @@ numReady = function(summary) {
     }
 };
 
-submitNextResponse = function (n) {
-
-    // Get all the ids.
-    ids = $("form .question select, input, textarea").map(
-        function () {
-            return $(this).attr("id");
-        }
-    );
-
-    // submit a request for the next one.
-
-        reqwest({
-            url: "/question/" + participant_id,
-            method: "post",
-            type: "json",
-            data: {
-                question: $("#" + ids[n]).attr("name"),
-                number: n + 1,
-                response: $("#" + ids[n]).val()
-            },
-            success: function() {
-                submitNextResponse(n + 1);
-            },
-            error: function (err) {
-                errorResponse = JSON.parse(err.response);
-                if (errorResponse.hasOwnProperty("html")) {
-                    $("body").html(errorResponse.html);
-                }
-            }
-        });
-    };
+// hack for Dallinger 2.0
+submitResponses = function () {
+      submitNextResponse(0);
+      //submitAssignment();
+  };
+};
