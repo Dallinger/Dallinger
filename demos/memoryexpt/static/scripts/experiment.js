@@ -311,4 +311,3 @@ submitResponses = function () {
       submitNextResponse(0);
       //submitAssignment();
   };
-};
