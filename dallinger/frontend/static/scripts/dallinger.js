@@ -135,7 +135,9 @@ submitNextResponse = function (n) {
             response: $("#" + ids[n]).val()
         },
         success: function() {
-            submitNextResponse(n + 1);
+            if (n <= ids.length) {
+                submitNextResponse(n + 1);
+            }
         },
         error: function (err) {
             errorResponse = JSON.parse(err.response);
