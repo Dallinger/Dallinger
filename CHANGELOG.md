@@ -1,5 +1,12 @@
 # Change Log
 
+## [v2.6.0](https://github.com/dallinger/dallinger/tree/v2.6.0) (2016-11-19)
+
+- Add demo on Concentration memory game
+- Use CDN for jQuery
+- Refactor CLI
+- Misc. bugfixes
+
 ## [v2.5.0](https://github.com/dallinger/dallinger/tree/v2.5.0) (2016-11-03)
 
 - Allow pip requirements specified by URL
