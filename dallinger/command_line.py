@@ -779,7 +779,7 @@ def export(app, local):
         dump_path = dump_database(id)
 
         subprocess.call(
-            "pg_restore --verbose --clean -d dallinger " +
+            "pg_restore --verbose --no-owner --clean -d dallinger " +
             os.path.join("data", id, "data.dump"),
             shell=True)
 
