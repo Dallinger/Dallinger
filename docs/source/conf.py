@@ -397,4 +397,5 @@ root = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(root)
 
 import build_demo_docs
-build_demo_docs.build(root)
+static = build_demo_docs.build(root)
+html_static_path.extend(static)
