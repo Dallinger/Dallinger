@@ -21,7 +21,7 @@ Laboratory automation for the behavioral and social sciences.
     :caption: Demos
     :glob:
 
-    demos/*
+    demos/*/*
 
 .. toctree::
     :maxdepth: 1
