@@ -28,7 +28,8 @@ def make_demo(name, src, dst):
     # add a link to download the demo to the readme
     with open(os.path.join(dst, "index.rst"), "a") as fh:
         fh.write("\n\n")
-        fh.write("`Download the demo <../../_static/{}.zip>`__.\n".format(name))
+        fh.write(
+            "`Download the demo <../../_static/{}.zip>`__.\n".format(name))
 
     # create a temporary directory
     tempdir = tempfile.mkdtemp()
@@ -77,6 +78,7 @@ def build(root):
             if not os.path.exists(dst):
                 os.makedirs(dst)
             static = make_demo(demo, src, dst)
-            static_files.extend([os.path.join("demos", demo, x) for x in static])
+            static_files.extend(
+                [os.path.join("demos", demo, x) for x in static])
 
     return static_files
