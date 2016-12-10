@@ -1,5 +1,9 @@
 # Change Log
 
+## [v2.6.1](https://github.com/dallinger/dallinger/tree/v2.6.1) (2016-12-10)
+
+- Fix bug in waiting for Redis queue
+
 ## [v2.6.0](https://github.com/dallinger/dallinger/tree/v2.6.0) (2016-11-19)
 
 - Add demo on Concentration memory game
