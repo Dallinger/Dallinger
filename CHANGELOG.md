@@ -1,5 +1,9 @@
 # Change Log
 
+## [v2.7.0](https://github.com/dallinger/dallinger/tree/v2.7.0) (2016-12-10)
+
+- Support for Heroku teams [\#331](https://github.com/Dallinger/Dallinger/pull/331)
+
 ## [v2.6.1](https://github.com/dallinger/dallinger/tree/v2.6.1) (2016-12-10)
 
 - Fix bug in waiting for Redis queue
