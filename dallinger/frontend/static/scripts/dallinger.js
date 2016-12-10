@@ -1,3 +1,12 @@
+dallinger = (function() {
+
+    var dallinger = { };
+
+    dallinger.version = "2.7.0";
+
+  return dallinger;
+})();
+
 // load essential variables
 var getUrlParameter = function getUrlParameter(sParam) {
     var sPageURL = decodeURIComponent(window.location.search.substring(1)),
