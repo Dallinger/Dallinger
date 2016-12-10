@@ -359,6 +359,21 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
         stdout=out,
         shell=True)
 
+    # Transfer application to the correct team if necessary.
+    try:
+        team = config.get("Heroku Access", "team")
+        log("Trasferring to {} team...".format(team))
+        subprocess.call([
+            "heroku",
+            "apps:transfer",
+            team,
+            "--app",
+            app_name(id),
+        ])
+
+    except Exception as e:
+        pass
+
     database_size = config.get('Database Parameters', 'database_size')
 
     try:
