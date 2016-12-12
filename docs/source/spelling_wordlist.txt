@@ -1,5 +1,6 @@
 al
 app
+apps
 backend
 boolean
 booleans
@@ -16,6 +17,7 @@ Dallinger
 dynos
 et
 frontend
+GitHub
 Google
 Griffiths
 Heroku
@@ -32,9 +34,11 @@ Kalish
 Kegl
 Lewandowsky
 md
+Meme
 MTurk
 neighbour
 ons
+pandoc
 Papertrail
 Populi
 Postgres

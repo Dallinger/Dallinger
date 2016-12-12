@@ -1,26 +1,30 @@
 language: python
-sudo: required
-python:
-- '2.7'
+sudo: false
 cache:
   - apt
+  - bundler
   - pip
-env:
-  matrix:
-    - GROUP=docs
-    - GROUP=nosetests
+matrix:
+  include:
+  - python: 2.7
+    env: TOXENV=py27
+  - python: 2.7
+    env: TOXENV=docs
 addons:
   apt:
     packages:
     - pandoc
     - enchant
+before_install:
+- rvm install 2.1.5
+- pip install --upgrade setuptools pip
 install:
-- pip install -r dev-requirements.txt
-- python setup.py develop
+- pip install tox
 - gem install danger
 - gem install danger-commit_lint
 - gem install chandler
 before_script:
+- bundle exec danger
 - psql -c 'create database db;' -U postgres
 env:
   global:
@@ -31,9 +35,7 @@ env:
   - secure: fd4hFOH60UV8laBN4Mjva0w/EmVK3SVC5p/0O1oqPriPhUpoJ3eVVRvITbdvPctEJJgRR9t62rPk+Rv4EOXeRFfsjZK9gOfQqv/9VhJBebdQfOx2dwQLjDiGTrklkokDIDyfpyYOoJzZ/oP+6EneD403ilHnXC4fd/4EDQmaIRI=
   - secure: 3rnkGugv5Hp71gjwQMUj5tup7/xk94p5IXEh0VItSXTziKn0pBY+yrCzAuIzlylbrl0baLaZOFGEFn2K+Jf+tr9mmN23X+zOUNsIqC4swlLLJx6hzH5AZaRmqzGjURM2gLISUayXGT9flOXyOKzzCGFELJKG9KlVyEOJ4fk04wQ=
 script:
-- bundle exec danger
-- make -C docs html spelling
-- nosetests --with-coverage --cover-package dallinger
+- tox
 after_success:
 - bash <(curl -s https://codecov.io/bash)
 - if [ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ]; then

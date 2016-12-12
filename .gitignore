@@ -10,6 +10,7 @@
 *.db-journal
 *.zip
 .env
+.tox
 /snapshots/
 *-
 site/*
