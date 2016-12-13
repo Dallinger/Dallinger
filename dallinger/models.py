@@ -14,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     Float
 )
+from sqlalchemy.sql.expression import false
 from sqlalchemy.orm import relationship, validates
 
 from .db import Base
@@ -845,7 +846,7 @@ class Node(Base, SharedMixin):
 
             vectors = Vector.query\
                 .with_entities(Vector.origin_id, Vector.destination_id)\
-                .filter(and_(Vector.failed == False,
+                .filter(and_(Vector.failed == false(),
                              or_(Vector.destination_id == self.id,
                                  Vector.origin_id == self.id))).all()
 
@@ -957,13 +958,13 @@ class Node(Base, SharedMixin):
         if direction == "all":
             if status == "all":
                 return Transmission.query\
-                    .filter(and_(Transmission.failed == False,
+                    .filter(and_(Transmission.failed == false(),
                                  or_(Transmission.destination_id == self.id,
                                      Transmission.origin_id == self.id)))\
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.failed == False,
+                    .filter(and_(Transmission.failed == false(),
                                  Transmission.status == status,
                                  or_(Transmission.destination_id == self.id,
                                      Transmission.origin_id == self.id)))\
@@ -975,7 +976,7 @@ class Node(Base, SharedMixin):
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.failed == False,
+                    .filter(and_(Transmission.failed == false(),
                                  Transmission.destination_id == self.id,
                                  Transmission.status == status))\
                     .all()
@@ -986,7 +987,7 @@ class Node(Base, SharedMixin):
                     .all()
             else:
                 return Transmission.query\
-                    .filter(and_(Transmission.failed == False,
+                    .filter(and_(Transmission.failed == false(),
                                  Transmission.origin_id == self.id,
                                  Transmission.status == status))\
                     .all()
@@ -1547,7 +1548,7 @@ class Info(Base, SharedMixin):
         if relationship == "all":
             return Transformation\
                 .query\
-                .filter(and_(Transformation.failed == False,
+                .filter(and_(Transformation.failed == false(),
                              or_(Transformation.info_in == self,
                                  Transformation.info_out == self)))\
                 .all()

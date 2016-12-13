@@ -371,7 +371,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
             app_name(id),
         ])
 
-    except Exception as e:
+    except:
         pass
 
     database_size = config.get('Database Parameters', 'database_size')
@@ -445,10 +445,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
         try:
             r.set("foo", "bar")
             ready = True
-        except redis.exceptions.ConnectionError as e:
+        except redis.exceptions.ConnectionError:
             time.sleep(2)
 
-    # Set the notification URL in the cofig file to the notifications URL.
+    # Set the notification URL in the config file to the notifications URL.
     config.set(
         "Server Parameters",
         "notification_url",
@@ -469,8 +469,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
-    subprocess.check_call("git push heroku HEAD:master", stdout=out,
-                    stderr=out, shell=True)
+    subprocess.check_call(
+        "git push heroku HEAD:master", stdout=out, stderr=out, shell=True)
 
     log("Scaling up the dynos...")
     scale_up_dynos(app_name(id))
@@ -921,7 +921,8 @@ def verify_package(verbose=True):
 
     for f in files:
         if os.path.exists(f):
-            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, please delete or rename.".format(f),
+            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, "
+                "please delete or rename.".format(f),
                 delay=0, chevrons=False, verbose=verbose)
             return False
 

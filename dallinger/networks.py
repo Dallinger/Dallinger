@@ -4,7 +4,6 @@ from operator import attrgetter
 import random
 
 from .models import Network
-from .models import Node
 from .nodes import Source
 
 

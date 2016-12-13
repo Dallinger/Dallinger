@@ -51,9 +51,9 @@ def scoped_session_decorator(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         from dallinger.db import session as dallinger_session
-        with sessions_scope(dallinger_session) as session:
+        with sessions_scope(dallinger_session):
             from psiturk.db import db_session as psi_session
-            with sessions_scope(psi_session) as session_psiturk:
+            with sessions_scope(psi_session):
                 # The sessions used in func come from the funcs globals, but
                 # they will be proxied thread locals vars from the session
                 # registry, and will therefore be identical to those returned

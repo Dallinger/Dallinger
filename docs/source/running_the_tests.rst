@@ -35,4 +35,4 @@ To build documentation::
 
 To run flake8::
 
-	tox -e pep8
+	flake8
