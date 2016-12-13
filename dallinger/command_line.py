@@ -663,7 +663,7 @@ def hibernate(app):
     """Pause an experiment and remove costly resources."""
     backup(app)
 
-    log("Scaling down the web servers...")
+    log("Scaling down the web server...")
 
     for process in ["web", "worker", "clock"]:
         subprocess.call([
