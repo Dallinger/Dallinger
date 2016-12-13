@@ -1,5 +1,13 @@
 """Launch the experiment server."""
 
-import psiturk.experiment_server as exp
+from dallinger.experiment_server import app
 
-exp.launch()
+def run_webserver():
+    ''' Run web server '''
+    host = "0.0.0.0"
+    port = 5000
+    app.run(debug=True, host=host, port=port)
+
+if __name__ == '__main__':
+    run_webserver()
+
