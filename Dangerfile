@@ -15,6 +15,8 @@ if git.commits.any? { |c| c.message =~ /^Merge branch/ }
   fail('Please rebase to get rid of the merge commits.')
 end
 
+commit_lint.check warn: :all
+
 # Require labels on PRs.
 enhancement = github.pr_labels.include?("enhancement")
 bug = github.pr_labels.include?("bug")
