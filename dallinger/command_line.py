@@ -313,26 +313,11 @@ def debug(verbose):
 
     # Try opening the psiTurk shell.
     try:
-        p = pexpect.spawn("psiturk")
-        p.expect_exact("]$")
-        p.sendline("server on")
-        p.expect_exact("Experiment server launching...")
-
-        # Launche the experiment.
-        time.sleep(4)
-
-        host = config.get("Server Parameters", "host")
-        port = config.get("Server Parameters", "port")
-
-        subprocess.check_call(
-            'curl --data "" http://{}:{}/launch'.format(host, port),
-            shell=True)
-
-        log("Here's the psiTurk shell...")
+        p = pexpect.spawn("python", [os.path.realpath(os.path.join(__file__, '..', 'heroku', 'psiturkapp.py'))])
+        log("Here's the gunicorn app...")
         p.interact()
-
     except Exception:
-        click.echo("\nCouldn't open psiTurk shell. Internet connection okay?")
+        click.echo("\nCouldn't open gunicorn app. Internet connection okay?")
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
