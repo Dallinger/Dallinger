@@ -6,6 +6,7 @@ import inspect
 from operator import itemgetter
 import random
 import sys
+import traceback
 
 from sqlalchemy import and_
 
@@ -358,4 +359,5 @@ def load():
         return getattr(mod, this_experiment)
 
     except ImportError:
+        traceback.print_exc()
         print("Error: Could not import experiment.")
