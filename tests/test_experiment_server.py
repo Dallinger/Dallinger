@@ -1,24 +1,20 @@
-import os
 import unittest
 
 
 class FlaskAppTest(unittest.TestCase):
 
     def setUp(self, case=None):
-        # psiturk's experiment module assumes it is imported
-        # while in the experiment directory
-        os.chdir('tests/experiment')
-
-        from psiturk.experiment import app
+        from dallinger.experiment_server import app
         app.config['DEBUG'] = True
         app.config['TESTING'] = True
         self.app = app.test_client()
 
         import dallinger.db
-        dallinger.db.init_db()
+        self.db = dallinger.db.init_db()
 
     def tearDown(self):
-        os.chdir('../..')
+        self.db.rollback()
+        self.db.close()
 
 
 class TestExperimentServer(FlaskAppTest):
