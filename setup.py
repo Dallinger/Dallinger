@@ -1,6 +1,6 @@
 """Install Dallinger as a command line utility."""
 
-from setuptools import setup, find_packages
+from setuptools import setup
 
 try:
     with open('README.rst', 'r') as file:
@@ -12,7 +12,7 @@ except (OSError, IOError) as e:
 
 setup_args = dict(
     name='dallinger',
-    packages=find_packages(exclude=['ez_setup']),
+    packages=['dallinger', 'demos'],
     version="2.7.0",
     description='Laboratory automation for the behavioral and social sciences',
     long_description=long_description,
