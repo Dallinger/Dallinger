@@ -96,12 +96,20 @@ class TestRogers(object):
                     if working is True:
                         agent_id = agent.json()['node']['id']
                         args = {'info_type': "LearningGene"}
-                        information = session.get(url + '/node/' + str(agent_id) + '/infos', params=args, headers=headers)
+                        information = session.get(
+                            url + '/node/' + str(agent_id) + '/infos',
+                            params=args, headers=headers)
                         args = {'status': "pending", 'direction': "incoming"}
-                        transmission = session.get(url + '/node/' + str(agent_id) + '/transmissions', params=args, headers=headers)
-                        information2 = session.get(url + '/info/' + str(agent_id) + '/' + str(transmission.json()['transmissions'][0]['info_id']), headers=headers)
+                        transmission = session.get(
+                            url + '/node/' + str(agent_id) + '/transmissions',
+                            params=args, headers=headers)
+                        information2 = session.get(
+                            url + '/info/' + str(agent_id) + '/' +
+                            str(transmission.json()['transmissions'][0]['info_id']),
+                            headers=headers)
                         args = {'contents': 'blue', 'info_type': 'Meme'}
-                        information3 = session.post(url + '/info/' + str(agent_id), data=args, headers=headers)
+                        information3 = session.post(
+                            url + '/info/' + str(agent_id), data=args, headers=headers)
                 except:
                     working = False
                     print("critical error for bot {}".format(i))
@@ -181,17 +189,21 @@ class TestRogers(object):
                 num_completed_participants = len(exp.networks()[0].nodes(type=Agent))
 
                 if p_times:
-                    print("Running simulated experiment... participant {} of {}, {} participants failed. Prev time: {}".format(
-                        num_completed_participants+1,
-                        exp.networks()[0].max_size,
-                        len(exp.networks()[0].nodes(failed=True)),
-                        p_times[-1]),
+                    print(
+                        "Running simulated experiment... participant {} of {}, "
+                        "{} participants failed. Prev time: {}".format(
+                            num_completed_participants+1,
+                            exp.networks()[0].max_size,
+                            len(exp.networks()[0].nodes(failed=True)),
+                            p_times[-1]),
                         end="\r")
                 else:
-                    print("Running simulated experiment... participant {} of {}, {} participants failed.".format(
-                        num_completed_participants+1,
-                        exp.networks()[0].max_size,
-                        len(exp.networks()[0].nodes(failed=True))),
+                    print(
+                        "Running simulated experiment... participant {} of {}, "
+                        "{} participants failed.".format(
+                            num_completed_participants+1,
+                            exp.networks()[0].max_size,
+                            len(exp.networks()[0].nodes(failed=True))),
                         end="\r")
                 sys.stdout.flush()
 
@@ -227,7 +239,10 @@ class TestRogers(object):
                         process_start_time = timenow()
                         agent.receive()
                         from operator import attrgetter
-                        current_state = max(State.query.filter_by(network_id=agent.network_id).all(), key=attrgetter('creation_time')).contents
+                        current_state = max(
+                            State.query.filter_by(network_id=agent.network_id).all(),
+                            key=attrgetter('creation_time')
+                        ).contents
                         if float(current_state) >= 0.5:
                             right_answer = "blue"
                             wrong_answer = "yellow"
@@ -245,7 +260,8 @@ class TestRogers(object):
                         exp.info_post_request(
                             node=agent,
                             info=info)
-                        #print("state: {}, answer: {}, score: {}, fitness {}".format(current_state, info.contents, agent.score, agent.fitness))
+                        # print("state: {}, answer: {}, score: {}, fitness {}".format(
+                        #     current_state, info.contents, agent.score, agent.fitness))
                         process_stop_time = timenow()
                         process_time += (process_stop_time - process_start_time)
 
@@ -272,7 +288,7 @@ class TestRogers(object):
                 p_stop_time = timenow()
                 p_times.append(p_stop_time - p_start_time)
 
-            print("Running simulated experiment...      done!                                      ")
+            print("Running simulated experiment...      done!")
             sys.stdout.flush()
 
             overall_stop_time = timenow()
@@ -326,8 +342,12 @@ class TestRogers(object):
                         assert len(agent.vectors(direction="incoming")) in [2, 3]
                         assert not agent.is_connected(direction="from", whom=source)
                         assert agent.is_connected(direction="from", whom=environment)
-                        assert RogersAgent in [type(a) for a in agent.neighbors(direction="from")] or\
-                            RogersAgentFounder in [type(a) for a in agent.neighbors(direction="from")]
+                        assert (
+                            RogersAgent in [
+                                type(a) for a in agent.neighbors(direction="from")] or
+                            RogersAgentFounder in [
+                                type(a) for a in agent.neighbors(direction="from")]
+                        )
 
             print("Testing nodes...                     done!")
             sys.stdout.flush()
@@ -354,12 +374,17 @@ class TestRogers(object):
 
                 for agent in agents:
                     if agent.generation == 0:
-                        assert len(models.Vector.query.filter_by(origin_id=source.id, destination_id=agent.id).all()) == 1
+                        assert len(models.Vector.query.filter_by(
+                            origin_id=source.id, destination_id=agent.id).all()) == 1
                     else:
-                        assert len(models.Vector.query.filter_by(origin_id=source.id, destination_id=agent.id).all()) == 0
+                        assert len(models.Vector.query.filter_by(
+                            origin_id=source.id, destination_id=agent.id).all()) == 0
 
                 for agent in agents:
-                    assert len([v for v in vectors if v.origin_id == environment.id and v.destination_id == agent.id]) == 1
+                    assert len([
+                        v for v in vectors
+                        if v.origin_id == environment.id and v.destination_id == agent.id
+                    ]) == 1
 
                 for v in [v for v in vectors if v.origin_id == source.id]:
                     assert isinstance(v.destination, RogersAgentFounder)
@@ -384,9 +409,15 @@ class TestRogers(object):
 
                 for agent in agents:
                     assert len([i for i in infos if i.origin_id == agent.id]) == 2
-                    assert len([i for i in infos if i.origin_id == agent.id and isinstance(i, Gene)]) == 1
-                    assert len([i for i in infos if i.origin_id == agent.id and isinstance(i, LearningGene)]) == 1
-                    assert len([i for i in infos if i.origin_id == agent.id and isinstance(i, Meme)]) == 1
+                    assert len([
+                        i for i in infos if i.origin_id == agent.id and isinstance(i, Gene)
+                    ]) == 1
+                    assert len([
+                        i for i in infos if i.origin_id == agent.id and isinstance(i, LearningGene)
+                    ]) == 1
+                    assert len([
+                        i for i in infos if i.origin_id == agent.id and isinstance(i, Meme)
+                    ]) == 1
 
             print("Testing infos...                     done!")
             sys.stdout.flush()
@@ -412,9 +443,15 @@ class TestRogers(object):
                     types = [type(t.info) for t in in_ts]
 
                     assert len(in_ts) == 2
-                    assert len([t for t in transmissions if t.destination_id == agent.id and t.status == "pending"]) == 0
+                    assert len([
+                        t for t in transmissions
+                        if t.destination_id == agent.id and t.status == "pending"
+                    ]) == 0
 
-                    lg = [i for i in infos if i.origin_id == agent.id and isinstance(i, LearningGene)]
+                    lg = [
+                        i for i in infos
+                        if i.origin_id == agent.id and isinstance(i, LearningGene)
+                    ]
                     assert len(lg) == 1
                     lg = lg[0]
 
@@ -467,7 +504,8 @@ class TestRogers(object):
             print("Testing bonus payments...", end="\r")
             sys.stdout.flush()
 
-            assert exp.bonus(participant=Participant.query.filter_by(uniqueid=p_ids[0]).all()[0]) == exp.bonus_payment
+            assert exp.bonus(participant=Participant.query.filter_by(
+                uniqueid=p_ids[0]).all()[0]) == exp.bonus_payment
 
             print("Testing bonus payments...            done!")
             sys.stdout.flush()
@@ -490,5 +528,5 @@ class TestRogers(object):
                 print("Participant {}: {}, total: {}".format(i, p_times[i], total_time))
 
             print("#########")
-            test = [p.total_seconds() for p in p_times]
+            test = [p_time.total_seconds() for p_time in p_times]
             print(test)

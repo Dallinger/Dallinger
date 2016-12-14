@@ -40,7 +40,8 @@ class TestModels(object):
         net = models.Network.query.one()
 
         # create a participant
-        participant = models.Participant(worker_id=str(1), hit_id=str(1), assignment_id=str(1), mode="test")
+        participant = models.Participant(
+            worker_id=str(1), hit_id=str(1), assignment_id=str(1), mode="test")
         self.db.add(participant)
         self.db.commit()
 
@@ -83,7 +84,10 @@ class TestModels(object):
         assert net.role == "default"
 
         # test __repr__()
-        assert repr(net) == "<Network-1-network with 3 nodes, 3 vectors, 2 infos, 1 transmissions and 1 transformations>"
+        assert repr(net) == (
+            "<Network-1-network with 3 nodes, 3 vectors, 2 infos, "
+            "1 transmissions and 1 transformations>"
+        )
 
         # test __json__()
         assert net.__json__() == {
@@ -341,15 +345,15 @@ class TestModels(object):
         self.db.add(net)
         node1 = models.Node(network=net)
         node2 = models.Node(network=net)
-        #vector = models.Vector(origin=node1, destination=node2)
-        #self.add(node1, node2, vector)
+        # vector = models.Vector(origin=node1, destination=node2)
+        # self.add(node1, node2, vector)
         self.add(node1, node2)
         self.db.commit()
 
         node1.connect(whom=node2)
 
         self._check_single_connection(node1, node2)
-        #assert len(vector.transmissions) == 0
+        # assert len(vector.transmissions) == 0
 
     def test_kill_vector(self):
         net = models.Network()
@@ -492,8 +496,8 @@ class TestModels(object):
 
         info = models.Info(origin=node1)
         node1.transmit(what=node1.infos()[0], to_whom=node2)
-        #transmission = models.Transmission(info=info, destination=node2)
-        #self.add(node1, node2, vector, info, transmission)
+        # transmission = models.Transmission(info=info, destination=node2)
+        # self.add(node1, node2, vector, info, transmission)
 
         transmission = node1.transmissions()[0]
         vector = node1.vectors()[0]

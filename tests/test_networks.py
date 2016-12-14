@@ -203,7 +203,10 @@ class TestNetworks(object):
         source = nodes.RandomBinaryStringSource(network=net)
         source.connect(whom=net.nodes(type=nodes.Agent))
 
-        assert repr(net) == "<Network-" + str(net.id) + "-network with 3 nodes, 2 vectors, 0 infos, 0 transmissions and 0 transformations>"
+        assert repr(net) == (
+            "<Network-" + str(net.id) + "-network with 3 nodes, 2 vectors, "
+            "0 infos, 0 transmissions and 0 transformations>"
+        )
 
     def test_create_chain(self):
         net = networks.Chain()
@@ -236,7 +239,10 @@ class TestNetworks(object):
             net.add_node(agent)
         self.db.commit()
 
-        assert repr(net) == "<Network-" + str(net.id) + "-chain with 5 nodes, 4 vectors, 0 infos, 0 transmissions and 0 transformations>"
+        assert repr(net) == (
+            "<Network-" + str(net.id) + "-chain with 5 nodes, 4 vectors, "
+            "0 infos, 0 transmissions and 0 transformations>"
+        )
 
     def test_create_fully_connected(self):
         net = networks.FullyConnected()
@@ -249,7 +255,10 @@ class TestNetworks(object):
 
         assert len(net.nodes(type=nodes.Agent)) == 4
         assert len(net.vectors()) == 12
-        assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=nodes.Agent)] == [3, 3, 3, 3]
+        assert [
+            len(n.vectors(direction="outgoing"))
+            for n in net.nodes(type=nodes.Agent)
+        ] == [3, 3, 3, 3]
 
     def test_create_empty(self):
         """Empty networks should have nodes, but no edges."""
@@ -288,7 +297,10 @@ class TestNetworks(object):
             agent = nodes.Agent(network=net)
             net.add_node(agent)
 
-        assert repr(net) == "<Network-" + str(net.id) + "-fully-connected with 4 nodes, 12 vectors, 0 infos, 0 transmissions and 0 transformations>"
+        assert repr(net) == (
+            "<Network-" + str(net.id) + "-fully-connected with 4 nodes, 12 vectors, "
+            "0 infos, 0 transmissions and 0 transformations>"
+        )
 
     def test_create_scale_free(self):
         m0 = 4
@@ -323,7 +335,10 @@ class TestNetworks(object):
             agent = nodes.Agent(network=net)
             net.add_node(agent)
 
-        assert repr(net) == "<Network-" + str(net.id) + "-scale-free with 6 nodes, 28 vectors, 0 infos, 0 transmissions and 0 transformations>"
+        assert repr(net) == (
+            "<Network-" + str(net.id) + "-scale-free with 6 nodes, 28 vectors, "
+            "0 infos, 0 transmissions and 0 transformations>"
+        )
 
     def test_create_sequential_microsociety(self):
         """Create a sequential microsociety."""
@@ -367,7 +382,8 @@ class TestNetworks(object):
     #     n_gens = 4
     #     gen_size = 4
 
-    #     net = networks.DiscreteGenerational(generations=n_gens, generation_size=gen_size, initial_source=True)
+    #     net = networks.DiscreteGenerational(
+    #         generations=n_gens, generation_size=gen_size, initial_source=True)
 
     #     source = nodes.RandomBinaryStringSource()
     #     net.add(source)

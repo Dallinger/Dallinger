@@ -8,7 +8,8 @@
 
 # class TestBartlett(object):
 
-#     sandbox_output = subprocess.check_output("cd demos/bartlett1932; dallinger sandbox", shell=True)
+#     sandbox_output = subprocess.check_output(
+#         "cd demos/bartlett1932; dallinger sandbox", shell=True)
 #     exp_id = re.search('Running as experiment (.*)...', sandbox_output).group(1)
 #     exp_address = "http://" + exp_id + ".herokuapp.com"
 
@@ -30,9 +31,14 @@
 #             agent_id = agent.json()['agents']['id']
 #             args = {'destination_id': agent_id}
 #             transmission = requests.get(exp_address + '/transmissions', data=args)
-#             info = requests.get(exp_address + '/information/' + str(transmission.json()['transmissions'][0]['info_id']), data=args)
+#             info = requests.get(
+#                 exp_address + '/information/' +
+#                 str(transmission.json()['transmissions'][0]['info_id']),
+#                 data=args)
 #             args = {'origin_id': agent_id, 'contents': 'test test test', 'info_type': 'base'}
 #             requests.post(exp_address + '/information', data=args)
 
 #     #subprocess.call("heroku apps:destroy --app " + exp_id + " --confirm " + exp_id, shell=True)
-#     # for app in $(heroku apps | sed '/[pt]/ d'); do heroku apps:destroy --app $app --confirm $app; done
+#     # for app in $(heroku apps | sed '/[pt]/ d'); do
+#     #     heroku apps:destroy --app $app --confirm $app;
+#     # done

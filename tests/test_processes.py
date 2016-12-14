@@ -79,9 +79,18 @@ class TestProcesses(object):
 
         # Ensure that the process had reached fixation.
         from operator import attrgetter
-        assert max(agent1.infos(), key=attrgetter('creation_time')).contents == max(agent2.infos(), key=attrgetter('creation_time')).contents
-        assert max(agent2.infos(), key=attrgetter('creation_time')).contents == max(agent3.infos(), key=attrgetter('creation_time')).contents
-        assert max(agent3.infos(), key=attrgetter('creation_time')).contents == max(agent1.infos(), key=attrgetter('creation_time')).contents
+        assert (
+            max(agent1.infos(), key=attrgetter('creation_time')).contents ==
+            max(agent2.infos(), key=attrgetter('creation_time')).contents
+        )
+        assert (
+            max(agent2.infos(), key=attrgetter('creation_time')).contents ==
+            max(agent3.infos(), key=attrgetter('creation_time')).contents
+        )
+        assert (
+            max(agent3.infos(), key=attrgetter('creation_time')).contents ==
+            max(agent1.infos(), key=attrgetter('creation_time')).contents
+        )
 
     def test_moran_process_sexual(self):
 

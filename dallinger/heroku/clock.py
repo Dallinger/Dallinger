@@ -71,10 +71,10 @@ def check_db_for_missing_notifications():
             hit_id = p.hit_id
 
             # general email settings:
-            username = os.getenv('dallinger_email_username')
-            fromaddr = username + "@gmail.com"
-            email_password = os.getenv("dallinger_email_key")
-            toaddr = config.get('HIT Configuration', 'contact_email_on_error')
+            # username = os.getenv('dallinger_email_username')
+            # fromaddr = username + "@gmail.com"
+            # email_password = os.getenv("dallinger_email_key")
+            # toaddr = config.get('HIT Configuration', 'contact_email_on_error')
             whimsical = os.getenv("whimsical")
 
             if status == "Approved":
@@ -115,11 +115,11 @@ def check_db_for_missing_notifications():
  at your earliest convenience.\n\nI remain your faithful and obedient servant,
 \nWilliam H. Dallinger\n\n P.S. Please do not respond to this message, I am busy
  with other matters.""".format(
-                        datetime.now(),
-                        assignment_id,
-                        round(duration/60),
-                        round(p_time/60),
-                        round((p_time-duration)/60)))
+                            datetime.now(),
+                            assignment_id,
+                            round(duration/60),
+                            round(p_time/60),
+                            round((p_time-duration)/60)))
                     msg['Subject'] = "A matter of minor concern."
                 else:
                     msg = MIMEText(
@@ -132,9 +132,9 @@ def check_db_for_missing_notifications():
  Dallinger has auto-corrected the problem. Nonetheless you may wish to check the
  database.\n\nBest,\nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
 \nAllowed time: {}\nTime since participant started: {}""").format(
-                        assignment_id,
-                        round(duration/60),
-                        round(p_time/60))
+                            assignment_id,
+                            round(duration/60),
+                            round(p_time/60))
                     msg['Subject'] = "Dallinger automated email - minor error."
 
                 # This method commented out as gmail now blocks emails from
@@ -193,11 +193,11 @@ def check_db_for_missing_notifications():
  and intelligence for which I know you so well.\n\nI remain your faithful and
  obedient servant,\nWilliam H. Dallinger\n\nP.S. Please do not respond to this
  message, I am busy with other matters.""".format(
-                        datetime.now(),
-                        assignment_id,
-                        round(duration/60),
-                        round(p_time/60),
-                        round((p_time-duration)/60)))
+                            datetime.now(),
+                            assignment_id,
+                            round(duration/60),
+                            round(p_time/60),
+                            round((p_time-duration)/60)))
                     msg['Subject'] = "Most troubling news."
                 else:
                     msg = MIMEText(
@@ -216,9 +216,9 @@ def check_db_for_missing_notifications():
  emails this suggests something is wrong with your experiment code.\n\nBest,
 \nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
 \nAllowed time: {}\nTime since participant started: {}""").format(
-                        assignment_id,
-                        round(duration/60),
-                        round(p_time/60))
+                            assignment_id,
+                            round(duration/60),
+                            round(p_time/60))
                     msg['Subject'] = "Dallinger automated email - major error."
 
                 # This method commented out as gmail now blocks emails from
@@ -242,5 +242,6 @@ def check_db_for_missing_notifications():
                        "Experiment shut down. Please check database and then manually "
                        "resume experiment."
                        .format(p.id))
+
 
 scheduler.start()

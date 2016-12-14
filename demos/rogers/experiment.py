@@ -8,7 +8,7 @@ from dallinger.models import Node, Network, Participant
 from dallinger import transformations
 from sqlalchemy import Integer, Float
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.sql.expression import cast
+from sqlalchemy.sql.expression import cast, false
 from sqlalchemy import and_
 from operator import attrgetter
 import random
@@ -204,7 +204,7 @@ class RogersExperiment(Experiment):
         gene = node.infos(type=LearningGene)[0].contents
         if (gene == "social"):
             prev_agents = RogersAgent.query\
-                .filter(and_(RogersAgent.failed == False,
+                .filter(and_(RogersAgent.failed == false(),
                              RogersAgent.network_id == network.id,
                              RogersAgent.generation == node.generation - 1))\
                 .all()
