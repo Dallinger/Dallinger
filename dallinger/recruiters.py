@@ -1,9 +1,8 @@
 """Recruiters manage the flow of participants to the experiment."""
-
 import os
 
 from boto.mturk.connection import MTurkConnection
-from psiturk.models import Participant
+from dallinger.models import Participant
 from psiturk.psiturk_config import PsiturkConfig
 
 
