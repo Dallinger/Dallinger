@@ -9,12 +9,14 @@ import requests
 import traceback
 
 from flask import (
+    abort,
     Blueprint,
     request,
     Response,
     send_from_directory,
     render_template
 )
+from jinja2 import TemplateNotFound
 from psiturk.db import db_session as session_psiturk
 from psiturk.db import init_db
 from psiturk.psiturk_config import PsiturkConfig
@@ -22,11 +24,11 @@ from psiturk.user_utils import PsiTurkAuthorization
 from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
-from worker import conn
 
 import dallinger
 from dallinger import db
 from dallinger import models
+from dallinger.heroku.worker import conn
 
 # Load the configuration options.
 config = PsiturkConfig()
@@ -261,7 +263,10 @@ def ad_address(mode, hit_id):
 @custom_code.route("/<page>", methods=["GET"])
 def get_page(page):
     """Return the requested page."""
-    return render_template(page + ".html")
+    try:
+        return render_template(page + ".html")
+    except TemplateNotFound:
+        abort(404)
 
 
 @custom_code.route("/<directory>/<page>", methods=["GET"])
