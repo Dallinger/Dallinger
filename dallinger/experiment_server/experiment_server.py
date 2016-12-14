@@ -19,7 +19,6 @@ from flask import (
 from jinja2 import TemplateNotFound
 from psiturk.db import db_session as session_psiturk
 from psiturk.db import init_db
-from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
 from rq import get_current_job
 from rq import Queue
@@ -29,11 +28,17 @@ from dallinger import db
 from dallinger import experiments
 from dallinger import models
 from dallinger.heroku.worker import conn
+from dallinger.config import get_config
 
-# Load the configuration options.
-config = PsiturkConfig()
-config.load_config()
-myauth = PsiTurkAuthorization(config)
+
+from psiturk.psiturk_config import PsiturkConfig
+psiconfig = PsiturkConfig()
+psiconfig.load_config()
+myauth = PsiTurkAuthorization(psiconfig)
+
+config = get_config()
+if not config.ready:
+    config.load_config()
 
 # Set logging options.
 LOG_LEVELS = [
@@ -43,7 +48,7 @@ LOG_LEVELS = [
     logging.ERROR,
     logging.CRITICAL
 ]
-LOG_LEVEL = LOG_LEVELS[config.getint('Server Parameters', 'loglevel')]
+LOG_LEVEL = LOG_LEVELS[config.get('loglevel')]
 
 db.logger.setLevel(LOG_LEVEL)
 
@@ -158,8 +163,7 @@ def error_page(participant=None, error_text=None, compensate=True,
         'error_dallinger.html',
         error_text=error_text,
         compensate=compensate,
-        contact_address=config.get(
-            'HIT Configuration', 'contact_email_on_error'),
+        contact_address=config.get('contact_email_on_error'),
         error_type=error_type,
         hit_id=hit_id,
         assignment_id=assignment_id,
@@ -225,12 +229,8 @@ def ad_address(mode, hit_id):
     if mode == "debug":
         address = '/complete'
     elif mode in ["sandbox", "live"]:
-        username = os.getenv('psiturk_access_key_id',
-                             config.get("psiTurk Access",
-                                        "psiturk_access_key_id"))
-        password = os.getenv('psiturk_secret_access_id',
-                             config.get("psiTurk Access",
-                                        "psiturk_secret_access_id"))
+        username = config.get("psiturk_access_key_id")
+        password = config.get("psiturk_secret_access_id")
         try:
             req = requests.get(
                 'https://api.psiturk.org/api/ad/lookup/' + hit_id,
@@ -1201,8 +1201,7 @@ def worker_function(event_type, assignment_id, participant_id):
 
             # Approve the assignment.
             exp.recruiter().approve_hit(assignment_id)
-            participant.base_pay = config.get(
-                'HIT Configuration', 'base_payment')
+            participant.base_pay = config.get('base_payment')
 
             # Check that the participant's data is okay.
             worked = exp.data_check(participant=participant)
@@ -1256,3 +1255,4 @@ def worker_function(event_type, assignment_id, participant_id):
 def date_handler(obj):
     """Serialize dates."""
     return obj.isoformat() if hasattr(obj, 'isoformat') else obj
+

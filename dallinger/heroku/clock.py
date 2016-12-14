@@ -7,15 +7,12 @@ import os
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from boto.mturk.connection import MTurkConnection
-from psiturk.psiturk_config import PsiturkConfig
+from dallinger.config import get_config
 import requests
 
 import dallinger
 from dallinger import db
 from dallinger.models import Participant
-
-config = PsiturkConfig()
-config.load_config()
 
 # Import the experiment.
 experiment = dallinger.experiments.load()
@@ -28,9 +25,10 @@ scheduler = BlockingScheduler()
 @scheduler.scheduled_job('interval', minutes=0.5)
 def check_db_for_missing_notifications():
     """Check the database for missing notifications."""
+    config = get_config()
     aws_access_key_id = os.environ['aws_access_key_id']
     aws_secret_access_key = os.environ['aws_secret_access_key']
-    if config.getboolean('Shell Parameters', 'launch_in_sandbox_mode'):
+    if config.get('launch_in_sandbox_mode'):
         conn = MTurkConnection(
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
@@ -47,7 +45,7 @@ def check_db_for_missing_notifications():
     current_time = datetime.now()
 
     # get experiment duration in seconds
-    duration = float(config.get('HIT Configuration', 'duration')) * 60 * 60
+    duration = config.get('duration') * 60.0 * 60.0
 
     # for each participant, if current_time - start_time > duration + 5 mins
     for p in participants:
