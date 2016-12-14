@@ -138,12 +138,15 @@ NB: To stop working on the virtual environment, run ``deactivate``. To
 list all available virtual environments, run ``workon`` with no
 arguments.
 
-Install enchant
----------------
+Install prerequisites for building documentation
+------------------------------------------------
 
-To be able to build the documentation, you will need to have the Enchant
-library installed. Please follow the instructions `here
-<http://pythonhosted.org/pyenchant/download.html>`__ to install it.
+To be able to build the documentation, you will need:
+
+* pandoc. Please follow the instructions `here
+  <http://pandoc.org/installing.html>`__ to install it.
+* the Enchant library. Please follow the instructions `here
+  <http://pythonhosted.org/pyenchant/download.html>`__ to install it.
 
 Install Dallinger
 ---------------

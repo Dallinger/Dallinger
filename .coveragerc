@@ -1,0 +1,8 @@
+[run]
+branch = True
+source = dallinger
+
+[report]
+fail_under = 30
+show_missing = True
+skip_covered = True
