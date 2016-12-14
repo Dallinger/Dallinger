@@ -307,7 +307,7 @@ def debug(verbose):
         host = config.get("Server Parameters", "host")
         port = config.get("Server Parameters", "port")
 
-        subprocess.call(
+        subprocess.check_call(
             'curl --data "" http://{}:{}/launch'.format(host, port),
             shell=True)
 
@@ -344,7 +344,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
             "git add --all",
             'git commit -m "Experiment ' + id + '"']
     for cmd in cmds:
-        subprocess.call(cmd, stdout=out, shell=True)
+        subprocess.check_call(cmd, stdout=out, shell=True)
         time.sleep(0.5)
 
     # Load psiTurk configuration.
@@ -353,7 +353,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
-    subprocess.call(
+    subprocess.check_call(
         "heroku apps:create " + app_name(id) +
         " --buildpack https://github.com/thenovices/heroku-buildpack-scipy",
         stdout=out,
@@ -363,7 +363,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     try:
         team = config.get("Heroku Access", "team")
         log("Trasferring to {} team...".format(team))
-        subprocess.call([
+        subprocess.check_call([
             "heroku",
             "apps:transfer",
             team,
@@ -430,7 +430,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
         "heroku config:set whimsical=" + whimsical,
     ]
     for cmd in cmds:
-        subprocess.call(
+        subprocess.check_call(
             cmd + " --app " + app_name(id), stdout=out, shell=True)
 
     # Wait for Redis database to be ready.
@@ -459,9 +459,9 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
     db_url = subprocess.check_output(
         "heroku config:get DATABASE_URL --app " + app_name(id), shell=True)
     config.set("Database Parameters", "database_url", db_url.rstrip())
-    subprocess.call("git add config.txt", stdout=out, shell=True),
+    subprocess.check_call("git add config.txt", stdout=out, shell=True),
     time.sleep(0.25)
-    subprocess.call(
+    subprocess.check_call(
         'git commit -m "Save URLs for database and notifications"',
         stdout=out,
         shell=True)
@@ -469,7 +469,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
-    subprocess.call("git push heroku HEAD:master", stdout=out,
+    subprocess.check_call("git push heroku HEAD:master", stdout=out,
                     stderr=out, shell=True)
 
     log("Scaling up the dynos...")
@@ -479,7 +479,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
     # Launch the experiment.
     log("Launching the experiment on MTurk...")
-    subprocess.call(
+    subprocess.check_call(
         'curl --data "" http://{}.herokuapp.com/launch'.format(app_name(id)),
         shell=True)
 
@@ -614,7 +614,7 @@ def dump_database(id):
     if not os.path.exists(dump_dir):
         os.makedirs(dump_dir)
 
-    subprocess.call(
+    subprocess.check_call(
         "heroku pg:backups capture --app " + app_name(id), shell=True)
 
     backup_url = subprocess.check_output(
@@ -626,7 +626,7 @@ def dump_database(id):
     log("Downloading the backup...")
     dump_path = os.path.join(dump_dir, dump_filename)
     with open(dump_path, 'wb') as file:
-        subprocess.call(['curl', '-o', dump_path, backup_url], stdout=file)
+        subprocess.check_call(['curl', '-o', dump_path, backup_url], stdout=file)
 
     return dump_path
 
@@ -666,7 +666,7 @@ def hibernate(app):
     log("Scaling down the web servers...")
 
     for process in ["web", "worker", "clock"]:
-        subprocess.call([
+        subprocess.check_call([
             "heroku",
             "ps:scale", "{}=0".format(process),
             "--app", app_name(app)
@@ -680,7 +680,7 @@ def hibernate(app):
         "heroku-redis",
     ]
     for addon in addons:
-        subprocess.call([
+        subprocess.check_call([
             "heroku",
             "addons:destroy", addon,
             "--app", app_name(app),
@@ -692,7 +692,7 @@ def hibernate(app):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def destroy(app):
     """Tear down an experiment server."""
-    subprocess.call(
+    subprocess.check_call(
         "heroku destroy --app {} --confirm {}".format(
             app_name(app),
             app_name(app)
@@ -712,13 +712,13 @@ def awaken(app, databaseurl):
 
     database_size = config.get('Database Parameters', 'database_size')
 
-    subprocess.call(
+    subprocess.check_call(
         "heroku addons:create heroku-postgresql:{} --app {}".format(
             database_size,
             app_name(id)),
         shell=True)
 
-    subprocess.call(
+    subprocess.check_call(
         "heroku pg:wait --app {}".format(app_name(id)),
         shell=True)
 
@@ -732,7 +732,7 @@ def awaken(app, databaseurl):
     url = key.generate_url(expires_in=300)
 
     cmd = "heroku pg:backups restore"
-    subprocess.call(
+    subprocess.check_call(
         "{} '{}' DATABASE_URL --app {} --confirm {}".format(
             cmd,
             url,
@@ -740,7 +740,7 @@ def awaken(app, databaseurl):
             app_name(id)),
         shell=True)
 
-    subprocess.call(
+    subprocess.check_call(
         "heroku addons:create heroku-redis:premium-0 --app {}".format(app_name(id)),
         shell=True)
 
@@ -785,7 +785,7 @@ def export(app, local):
 
     if not local:
         # Export the logs
-        subprocess.call(
+        subprocess.check_call(
             "heroku logs " +
             "-n 10000 > " + os.path.join("data", id, "server_logs.md") +
             " --app " + app_name(id),
@@ -793,7 +793,7 @@ def export(app, local):
 
         dump_path = dump_database(id)
 
-        subprocess.call(
+        subprocess.check_call(
             "pg_restore --verbose --no-owner --clean -d dallinger " +
             os.path.join("data", id, "data.dump"),
             shell=True)
@@ -811,7 +811,7 @@ def export(app, local):
     ]
 
     for table in all_tables:
-        subprocess.call(
+        subprocess.check_call(
             "psql -d dallinger --command=\"\\copy " + table + " to \'" +
             os.path.join(subdata_path, table) + ".csv\' csv header\"",
             shell=True)
@@ -838,7 +838,7 @@ def logs(app):
     if app is None:
         raise TypeError("Select an experiment using the --app flag.")
     else:
-        subprocess.call(
+        subprocess.check_call(
             "heroku addons:open papertrail --app " + app_name(app),
             shell=True)
 

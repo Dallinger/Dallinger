@@ -27,7 +27,7 @@ def scale_up_dynos(app):
     }
 
     for process in ["web", "worker"]:
-        subprocess.call([
+        subprocess.check_call([
             "heroku",
             "ps:scale",
             "{}={}:{}".format(process, num_dynos[process], dyno_type),
@@ -36,7 +36,7 @@ def scale_up_dynos(app):
         ])
 
     if dlgr.config.server_parameters.clock_on:
-        subprocess.call([
+        subprocess.check_call([
             "heroku",
             "ps:scale",
             "clock=1:{}".format(dyno_type),
