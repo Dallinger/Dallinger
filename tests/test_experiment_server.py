@@ -1,9 +1,17 @@
+import os
 import unittest
 
 
 class FlaskAppTest(unittest.TestCase):
 
     def setUp(self, case=None):
+        # The flask app assumes it is imported
+        # while in an experiment directory.
+        # `tests/experiment` mimics the files that are put
+        # in place by dallinger.command_line.setup_experiment
+        # when running via the CLI
+        os.chdir('tests/experiment')
+
         from dallinger.experiment_server import app
         app.config['DEBUG'] = True
         app.config['TESTING'] = True
@@ -15,6 +23,7 @@ class FlaskAppTest(unittest.TestCase):
     def tearDown(self):
         self.db.rollback()
         self.db.close()
+        os.chdir('../..')
 
 
 class TestExperimentServer(FlaskAppTest):
