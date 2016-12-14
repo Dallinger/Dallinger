@@ -256,7 +256,7 @@ class Experiment(object):
     def log(self, text, key="?????", force=False):
         """Print a string to the logs."""
         if force or self.verbose:
-            print ">>>> {} {}".format(key, text)
+            print(">>>> {} {}".format(key, text))
             sys.stdout.flush()
 
     def log_summary(self):

@@ -37,15 +37,15 @@ class HotAirRecruiter(object):
 
     def open_recruitment(self):
         """Talk about opening recruitment."""
-        print "Opening recruitment."
+        print("Opening recruitment.")
 
     def recruit_participants(self, n=1):
         """Talk about recruiting participants."""
-        print "Recruiting a new participant."
+        print("Recruiting a new participant.")
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
-        print "Close recruitment."
+        print("Close recruitment.")
 
 
 class SimulatedRecruiter(object):
@@ -147,7 +147,7 @@ class PsiTurkRecruiter(Recruiter):
 
         else:
             # HIT was already created, no need to recreate it.
-            print "Reject recruitment reopening: experiment has started."
+            print("Reject recruitment reopening: experiment has started.")
 
     def recruit_participants(self, n=1):
         """Recruit n participants."""
@@ -156,13 +156,13 @@ class PsiTurkRecruiter(Recruiter):
 
         if auto_recruit:
 
-            print "Starting Dallinger's recruit_participants."
+            print("Starting Dallinger's recruit_participants.")
 
             hit_id = str(
                 Participant.query.
                 with_entities(Participant.hitid).first().hitid)
 
-            print "hit_id is {}.".format(hit_id)
+            print("hit_id is {}.".format(hit_id))
 
             is_sandbox = self.config.getboolean(
                 'Shell Parameters', 'launch_in_sandbox_mode')
