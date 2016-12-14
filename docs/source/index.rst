@@ -28,6 +28,7 @@ Laboratory automation for the behavioral and social sciences.
     :caption: Developer documentation
 
     developing_dallinger_setup_guide
+    running_the_tests
     required_experimental_files
     classes
     the_experiment_class
