@@ -5,7 +5,7 @@ class TestBartlett1932(object):
     """Tests for the Bartlett1932 demo class"""
 
     def _make_one(self):
-        from demos import Bartlett1932
+        from demos.bartlett1932 import Bartlett1932
         return Bartlett1932(self._db)
 
     def setup(self):
@@ -45,3 +45,12 @@ class TestBartlett1932DemoFactory(object):
 
         assert demo is not None
         assert isinstance(demo, Bartlett1932)
+
+
+class TestEntryPointImport(object):
+
+    def test_bartlett1932_entry_point(self):
+        from demos.bartlett1932.experiment import Bartlett1932 as OrigExp
+        from dallinger.experiment import Bartlett1932
+
+        assert Bartlett1932 is OrigExp
