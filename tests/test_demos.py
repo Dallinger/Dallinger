@@ -51,6 +51,6 @@ class TestEntryPointImport(object):
 
     def test_bartlett1932_entry_point(self):
         from demos.bartlett1932.experiment import Bartlett1932 as OrigExp
-        from dallinger.experiment import Bartlett1932
+        from dallinger.experiments import Bartlett1932
 
         assert Bartlett1932 is OrigExp
