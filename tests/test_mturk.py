@@ -490,8 +490,8 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.extend_hit(hit_id='hit1', number=2, duration_hours=1.0)
 
         with_mock.mturk.extend_hit.assert_has_calls([
+            mock.call('hit1', expiration_increment=3600),
             mock.call('hit1', assignments_increment=2),
-            mock.call('hit1', expiration_increment=3600)
         ])
 
     def test_disable_hit_simple_passthrough(self, with_mock):
