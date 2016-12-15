@@ -204,8 +204,8 @@ class MTurkService(object):
     def extend_hit(self, hit_id, number, duration_hours):
         """Extend an existing HIT and return an updated description"""
         duration_as_secs = int(duration_hours * 3600)
-        self.mturk.extend_hit(hit_id, assignments_increment=number)
         self.mturk.extend_hit(hit_id, expiration_increment=duration_as_secs)
+        self.mturk.extend_hit(hit_id, assignments_increment=number)
 
         updated_hit = self.mturk.get_hit(hit_id)[0]
 
