@@ -13,7 +13,7 @@ except (OSError, IOError) as e:
 setup_args = dict(
     name='dallinger',
     packages=['dallinger', 'demos'],
-    version="2.7.0",
+    version="3.0.0a1",
     description='Laboratory automation for the behavioral and social sciences',
     long_description=long_description,
     url='http://github.com/Dallinger/Dallinger',
@@ -34,6 +34,9 @@ setup_args = dict(
     entry_points={
         'console_scripts': [
             'dallinger = dallinger.command_line:dallinger',
+        ],
+        'dallinger.experiment': [
+            'Bartlett1932 = demos.bartlett1932.experiment:Bartlett1932',
         ],
     }
 )
