@@ -63,7 +63,9 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
 def dallinger():
     """Set up Dallinger as a name space."""
-    pass
+    from logging.config import fileConfig
+    fileConfig(os.path.join(os.path.dirname(__file__), 'logging.ini'),
+               disable_existing_loggers=False)
 
 
 @dallinger.command()
