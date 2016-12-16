@@ -6,7 +6,6 @@ import logging
 from operator import attrgetter
 import os
 import requests
-import sys
 import traceback
 
 from flask import (
