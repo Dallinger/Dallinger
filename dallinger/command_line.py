@@ -889,14 +889,19 @@ def verify_package(verbose=True):
     """Ensure the package has a config file and a valid experiment file."""
     is_passing = True
 
-    # Check the config file.
-    if os.path.exists("config.txt"):
-        log("✓ config.txt is OK",
-            delay=0, chevrons=False, verbose=verbose)
-    else:
-        log("✗ config.txt is MISSING",
-            delay=0, chevrons=False, verbose=verbose)
-        return False
+    # Check for existence of required files.
+    required_files = [
+        "config.txt",
+        "experiment.py",
+        "requirements.txt",
+    ]
+
+    for f in required_files:
+        if os.path.exists(f):
+            log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
+        else:
+            log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
+            is_passing = False
 
     # Check the experiment file.
     if os.path.exists("experiment.py"):
