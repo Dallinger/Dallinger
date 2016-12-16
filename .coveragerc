@@ -3,6 +3,6 @@ branch = True
 source = dallinger
 
 [report]
-fail_under = 38
+fail_under = 37
 show_missing = True
 skip_covered = True

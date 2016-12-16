@@ -193,15 +193,6 @@ def launch():
     return success_response(request_type="launch")
 
 
-@app.route('/compute_bonus', methods=['GET'])
-def compute_bonus():
-    """Overide the psiTurk compute_bonus route."""
-    data = {
-        "bonusComputed": "success"
-    }
-    return Response(dumps(data), status=200)
-
-
 @app.route('/summary', methods=['GET'])
 def summary():
     """Summarize the participants' status codes."""
@@ -209,21 +200,6 @@ def summary():
         dumps({
             "status": "success",
             "summary": experiment.log_summary()
-        }),
-        status=200,
-        mimetype='application/json'
-    )
-
-
-@app.route('/quitter', methods=['POST'])
-def quitter():
-    """Overide the psiTurk quitter route."""
-    exp = experiment
-    exp.log("Quitter route was hit.")
-
-    return Response(
-        dumps({
-            "status": "success"
         }),
         status=200,
         mimetype='application/json'
