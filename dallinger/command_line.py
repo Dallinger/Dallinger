@@ -192,12 +192,10 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join(dst, "experiment.py"),
         os.path.join(dst, "dallinger_experiment.py"))
 
-    # Copy files into this experiment package.
+    # Get dallinger package location.
     from pkg_resources import get_distribution
     dist = get_distribution('dallinger')
     src_base = os.path.join(dist.location, dist.project_name)
-    src = os.path.join(src_base, "custom.py")
-    shutil.copy(src, os.path.join(dst, "custom.py"))
 
     heroku_files = [
         "Procfile",
