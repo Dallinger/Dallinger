@@ -1,5 +1,6 @@
 """A home for all Dallinger Experiments. Experiments should be registered
-with a ``setuptools`` ``entry_point`` for the ``dallinger.experiments`` group."""
+with a ``setuptools`` ``entry_point`` for the ``dallinger.experiments`` group.
+"""
 import logging
 from pkg_resources import iter_entry_points
 from ..experiment import Experiment
