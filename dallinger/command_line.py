@@ -615,11 +615,25 @@ def dump_database(id):
     if not os.path.exists(dump_dir):
         os.makedirs(dump_dir)
 
-    subprocess.check_call(
-        "heroku pg:backups capture --app " + app_name(id), shell=True)
+    try:
+        subprocess.check_call([
+            "heroku",
+            "pg:backups",
+            "capture"
+            "--app",
+            app_name(id)
+        ])
+    except Exception:
+        pass
 
-    backup_url = subprocess.check_output(
-        "heroku pg:backups public-url --app " + app_name(id), shell=True)
+    backup_url = subprocess.check_output([
+        "heroku",
+        "pg:backups",
+        "public-url",
+        "--app",
+        app_name(id)
+    ])
+
     backup_url = backup_url.replace('"', '').rstrip()
     backup_url = re.search("https:.*", backup_url).group(0)
     print(backup_url)
@@ -627,7 +641,12 @@ def dump_database(id):
     log("Downloading the backup...")
     dump_path = os.path.join(dump_dir, dump_filename)
     with open(dump_path, 'wb') as file:
-        subprocess.check_call(['curl', '-o', dump_path, backup_url], stdout=file)
+        subprocess.check_call([
+            'curl',
+            '-o',
+            dump_path,
+            backup_url
+        ], stdout=file)
 
     return dump_path
 
@@ -801,10 +820,19 @@ def export(app, local):
 
         dump_path = dump_database(id)
 
-        subprocess.check_call(
-            "pg_restore --verbose --no-owner --clean -d dallinger " +
-            os.path.join("data", id, "data.dump"),
-            shell=True)
+        try:
+            subprocess.check_call([
+                "pg_restore",
+                "--verbose",
+                "--no-owner",
+                "--clean",
+                "-d",
+                "dallinger",
+                os.path.join("data", id, "data.dump")
+            ])
+
+        except Exception:
+            pass
 
     all_tables = [
         "node",
