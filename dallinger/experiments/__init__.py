@@ -14,6 +14,6 @@ for entry_point in iter_entry_points(group='dallinger.experiments'):
     try:
         globals()[entry_point.name] = entry_point.load()
     except ImportError:
-        logger.warn('Could not import registered entry point {}'.format(
+        logger.exception('Could not import registered entry point {}'.format(
             entry_point.name
         ))
