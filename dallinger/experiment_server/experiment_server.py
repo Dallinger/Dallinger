@@ -84,6 +84,7 @@ def static_robots_txt():
 def static_favicon():
     return send_from_directory('static', 'favicon.ico', mimetype='image/x-icon')
 
+
 """Define some canned response types."""
 
 
@@ -375,7 +376,7 @@ def assign_properties(thing):
 
 
 @app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
-                   methods=["POST"])
+           methods=["POST"])
 def create_participant(worker_id, hit_id, assignment_id, mode):
     """Create a participant.
 
