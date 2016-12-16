@@ -926,17 +926,12 @@ def verify_package(verbose=True):
                 delay=0, chevrons=False, verbose=verbose)
             is_passing = False
         elif len(exps) == 1:
-            log("✓ experiment.py is OK",
+            log("✓ experiment.py defines 1 experiment",
                 delay=0, chevrons=False, verbose=verbose)
         else:
             log("✗ experiment.py defines more than one experiment class.",
                 delay=0, chevrons=False, verbose=verbose)
         os.chdir(cwd)
-
-    else:
-        log("✗ experiment.py is MISSING",
-            delay=0, chevrons=False, verbose=verbose)
-        is_passing = False
 
     # Make sure there's a help file.
     is_txt_readme = os.path.exists("README.md")
