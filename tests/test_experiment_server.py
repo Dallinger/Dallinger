@@ -12,7 +12,7 @@ class FlaskAppTest(unittest.TestCase):
         # when running via the CLI
         os.chdir('tests/experiment')
 
-        from dallinger.experiment_server import app
+        from dallinger.experiment_server.experiment_server import app
         app.config['DEBUG'] = True
         app.config['TESTING'] = True
         self.app = app.test_client()
