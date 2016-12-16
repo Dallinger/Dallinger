@@ -3,6 +3,7 @@
 
 """The Dallinger command-line utility."""
 
+import errno
 import imp
 import inspect
 import os
@@ -763,8 +764,15 @@ def export(app, local):
 
     subdata_path = os.path.join("data", id, "data")
 
-    # Create the data package
-    os.makedirs(subdata_path)
+    # Create the data package if it doesn't already exist.
+    try:
+        os.makedirs(subdata_path)
+
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(subdata_path):
+            pass
+        else:
+            raise
 
     # Copy the experiment code into a code/ subdirectory
     try:
