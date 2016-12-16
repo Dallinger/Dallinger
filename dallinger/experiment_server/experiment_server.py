@@ -27,6 +27,7 @@ from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
 
 from dallinger import db
+from dallinger import experiments
 from dallinger import models
 from dallinger.heroku.worker import conn
 
@@ -63,20 +64,25 @@ session = db.session
 # Connect to the Redis queue for notifications.
 q = Queue(connection=conn)
 
-app = Flask("Experiment_Server")
+app = Flask('Experiment_Server')
+
+experiment = experiments.load()
+
+@app.route('/')
+def index():
+    """Index route"""
+    return render_template('default.html')
 
 
 @app.route('/robots.txt')
 def static_robots_txt():
     """Serve robots.txt from static file."""
-    return send_from_directory('dallinger/frontend/static', 'robots.txt')
+    return send_from_directory('static', 'robots.txt')
 
 
 @app.route('/favicon.ico')
 def static_favicon():
-    return send_from_directory('dallinger/frontend/static/images',
-                               'favicon.ico',
-                               mimetype='image/x-icon')
+    return send_from_directory('static', 'favicon.ico', mimetype='image/x-icon')
 
 """Define some canned response types."""
 
