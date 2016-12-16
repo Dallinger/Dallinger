@@ -311,9 +311,10 @@ def debug(verbose):
     # Start up the local server
     log("Starting up the server...")
 
-    # Try opening the psiTurk shell.
+    # Try running the flask app.
+    path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'psiturkapp.py'))
     try:
-        p = pexpect.spawn("python", [os.path.realpath(os.path.join(__file__, '..', 'heroku', 'psiturkapp.py'))])
+        p = pexpect.spawn("python", [path])
         log("Here's the gunicorn app...")
         p.interact()
     except Exception:
