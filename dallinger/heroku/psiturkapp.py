@@ -1,6 +1,6 @@
 """Launch the experiment server."""
 
-from dallinger.experiment_server import app
+from dallinger.experiment_server.experiment_server import app
 
 def run_webserver():
     ''' Run web server '''
