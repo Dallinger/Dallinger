@@ -10,8 +10,13 @@ class TestHeroku(object):
 
     """The Heroku test class."""
 
-    sandbox_output = subprocess.check_output(
-        "cd demos/bartlett1932; dallinger sandbox --verbose", shell=True)
+    sandbox_output = subprocess.check_output([
+        "cd",
+        "demos/bartlett1932;",
+        "dallinger",
+        "sandbox",
+        "--verbose"
+    ])
 
     os.environ['app_id'] = re.search(
         'Running as experiment (.*)...', sandbox_output).group(1)
@@ -20,9 +25,14 @@ class TestHeroku(object):
     def teardown_class(cls):
         """Remove the app from Heroku."""
         app_id = os.environ['app_id']
-        subprocess.call(
-            "heroku apps:destroy --app {} --confirm {}".format(app_id, app_id),
-            shell=True)
+        subprocess.call([
+            "heroku",
+            "apps:destroy",
+            "--app",
+            app_id,
+            "--confirm",
+            app_id
+        ])
 
     def test_summary(self):
         """Launch the experiment on Heroku."""

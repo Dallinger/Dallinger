@@ -39,18 +39,22 @@ class TestRogers(object):
 
         autobots = 36
 
-        sandbox_output = subprocess.check_output(
-            "dallinger sandbox",
-            shell=True)
+        sandbox_output = subprocess.check_output([
+            "dallinger",
+            "sandbox"
+        ])
 
         m = re.search('Running as experiment (.*)...', sandbox_output)
         exp_id = m.group(1)
         url = "http://" + exp_id + ".herokuapp.com"
 
         # Open the logs in the browser.
-        subprocess.call(
-            "dallinger logs --app " + exp_id,
-            shell=True)
+        subprocess.call([
+            "dallinger",
+            "logs",
+            "--app",
+            exp_id
+        ])
 
         def autobot(session, url, i):
             """Define the behavior of each worker."""
