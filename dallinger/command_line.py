@@ -18,6 +18,7 @@ import uuid
 
 import boto
 import click
+from localconfig import LocalConfig
 from psiturk.psiturk_config import PsiturkConfig
 import psycopg2
 import redis
@@ -86,7 +87,7 @@ def setup():
         shutil.copyfile(src, config_path)
 
 
-def setup_experiment(debug=True, verbose=False, app=None):
+def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
     print_header()
 
@@ -147,6 +148,24 @@ def setup_experiment(debug=True, verbose=False, app=None):
         else:
             file.write(id)
 
+    if exp_config:
+        # Read existing config, we can't use PsiturkConfig here because
+        # it doesn't allow setting a file write location
+        config_file = os.path.join(dst, 'config.txt')
+        local_config = LocalConfig(config_file, interpolation=True)
+        # Supplement and override settings with passed in values
+        for section_name in exp_config:
+            if getattr(exp_config, '_to_dot_key', None) is not None:
+                # We have a local config object
+                section_items = exp_config.items(exp_config._to_dot_key(section_name))
+            else:
+                # We have a dictionary key
+                section_items = exp_config.get(section_name).items()
+            for key, value in section_items:
+                local_config.set(section_name, key, value)
+        # Update experiment local config with passed in values
+        local_config.save(config_file)
+
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
         log("Freezing the experiment package...")
@@ -171,9 +190,10 @@ def setup_experiment(debug=True, verbose=False, app=None):
         os.path.join(dst, "dallinger_experiment.py"))
 
     # Copy files into this experiment package.
-    src = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        "custom.py")
+    from pkg_resources import get_distribution
+    dist = get_distribution('dallinger')
+    src_base = os.path.join(dist.location, dist.project_name)
+    src = os.path.join(src_base, "custom.py")
     shutil.copy(src, os.path.join(dst, "custom.py"))
 
     heroku_files = [
@@ -184,20 +204,14 @@ def setup_experiment(debug=True, verbose=False, app=None):
     ]
 
     for filename in heroku_files:
-        src = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
-            "heroku",
-            filename)
+        src = os.path.join(src_base, "heroku", filename)
         shutil.copy(src, os.path.join(dst, filename))
 
     clock_on = config.getboolean('Server Parameters', 'clock_on')
 
     # If the clock process has been disabled, overwrite the Procfile.
     if not clock_on:
-        src = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
-            "heroku",
-            "Procfile_no_clock")
+        src = os.path.join(src_base, "heroku", "Procfile_no_clock")
         shutil.copy(src, os.path.join(dst, "Procfile"))
 
     frontend_files = [
@@ -211,10 +225,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
     ]
 
     for filename in frontend_files:
-        src = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
-            "frontend",
-            filename)
+        src = os.path.join(src_base, "frontend", filename)
         shutil.copy(src, os.path.join(dst, filename))
 
     time.sleep(0.25)
@@ -324,14 +335,15 @@ def debug(verbose):
     os.chdir(cwd)
 
 
-def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
+def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
         out = None
     else:
         out = open(os.devnull, 'w')
 
-    (id, tmp) = setup_experiment(debug=False, verbose=verbose, app=app)
+    (id, tmp) = setup_experiment(debug=False, verbose=verbose, app=app,
+                                 exp_config=exp_config)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -425,8 +437,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
         "heroku config:set heroku_email_address=" +
         config.get('Heroku Access', 'heroku_email_address'),
 
-        "heroku config:set heroku_password=" +
-        config.get('Heroku Access', 'heroku_password'),
+        'heroku config:set heroku_password="' +
+        config.get('Heroku Access', 'heroku_password') + '"',
 
         "heroku config:set whimsical=" + whimsical,
     ]

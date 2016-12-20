@@ -4,8 +4,11 @@ from collections import Counter
 import imp
 import inspect
 from operator import itemgetter
+import os
 import random
 import sys
+import time
+import uuid
 
 from sqlalchemy import and_
 
@@ -17,10 +20,27 @@ from dallinger.transformations import Mutation, Replication
 from dallinger.networks import Empty
 
 
+def exp_class_working_dir(meth):
+    def new_meth(self, *args, **kwargs):
+        try:
+            orig_path = os.getcwd()
+            new_path = os.path.dirname(
+                sys.modules[self.__class__.__module__].__file__
+            )
+            os.chdir(new_path)
+            return meth(self, *args, **kwargs)
+        finally:
+            os.chdir(orig_path)
+    new_meth.__doc__ = meth.__doc__
+    return new_meth
+
+
 class Experiment(object):
     """Define the structure of an experiment."""
+    app_id = None
+    exp_config = None
 
-    def __init__(self, session):
+    def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
         from recruiters import PsiTurkRecruiter
 
@@ -345,6 +365,93 @@ class Experiment(object):
 
         """
         self.fail_participant(participant)
+
+    @exp_class_working_dir
+    def sandbox(self, exp_config=None, app_id=None):
+        """Deploys and runs an experiment in sandbox mode.
+        The exp_config object is either a dictionary or a
+        ``localconfig.LocalConfig`` object with experiment
+        run specific settings grouped by section.
+        """
+        import dallinger as dlgr
+        from psiturk.psiturk_config import PsiturkConfig
+        psiturk_config = PsiturkConfig()
+        psiturk_config.load_config()
+
+        # Set the mode.
+        psiturk_config.set("Experiment Configuration", "mode", "sandbox")
+        psiturk_config.set("Server Parameters", "logfile", "-")
+
+        # Ensure that psiTurk is in sandbox mode.
+        psiturk_config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
+
+        if app_id is None:
+            app_id = str(uuid.uuid4())
+
+        self.app_id = app_id
+        self.exp_config = exp_config
+
+        dlgr.command_line.deploy_sandbox_shared_setup(app=app_id,
+                                                      verbose=self.verbose,
+                                                      exp_config=exp_config)
+        return self._finish_experiment()
+
+    @exp_class_working_dir
+    def deploy(self, exp_config=None, app_id=None):
+        """Deploys and runs an experiment.
+        The exp_config object is either a dictionary or a
+        ``localconfig.LocalConfig`` object with experiment
+        run specific settings grouped by section.
+        """
+        import dallinger as dlgr
+        from psiturk.psiturk_config import PsiturkConfig
+        psiturk_config = PsiturkConfig()
+        psiturk_config.load_config()
+
+        # Set the mode.
+        psiturk_config.set("Experiment Configuration", "mode", "deploy")
+        psiturk_config.set("Server Parameters", "logfile", "-")
+
+        # Ensure that psiTurk is not in sandbox mode.
+        psiturk_config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
+
+        if app_id is None:
+            app_id = str(uuid.uuid4())
+
+        self.app_id = app_id
+        self.exp_config = exp_config
+
+        dlgr.command_line.deploy_sandbox_shared_setup(app=app_id,
+                                                      verbose=self.verbose,
+                                                      exp_config=exp_config)
+
+        return self._finish_experiment()
+
+    def _finish_experiment(self):
+        self.log("Waiting for experiment to complete.", "")
+        self.log("Experiment end detection is not currently implemented, "
+                 "press CTRL-C to end.", "")
+        while self.experiment_completed() is False:
+            time.sleep(30)
+        data = self.retrieve_data()
+        self.end_experiment()
+        return (self.app_id, data, self.exp_config)
+
+    def experiment_completed(self):
+        """Checks the current state of the experiment to see whether it has
+        completed"""
+        # Not implemented
+        return False
+
+    def retrieve_data(self):
+        """Retrieves and saves data from a running experiment"""
+        # Not implemented
+        return {}
+
+    def end_experiment(self):
+        """Terminates a running experiment"""
+        # Not implemented
+        return
 
 
 def load():
