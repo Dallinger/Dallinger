@@ -162,6 +162,8 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
                 # We have a dictionary key
                 section_items = exp_config.get(section_name).items()
             for key, value in section_items:
+                if getattr(local_config, local_config._to_dot_key(section_name)) is None:
+                    local_config.add_section(section_name)
                 local_config.set(section_name, key, value)
         # Update experiment local config with passed in values
         local_config.save(config_file)
