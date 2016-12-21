@@ -354,26 +354,24 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
-    subprocess.check_call(
-        "heroku apps:create " + app_name(id) +
-        " --buildpack https://github.com/thenovices/heroku-buildpack-scipy",
-        stdout=out,
-        shell=True)
 
-    # Transfer application to the correct team if necessary.
+    create_cmd = [
+        "heroku",
+        "apps:create",
+        app_name(id),
+        "--buildpack",
+        "https://github.com/thenovices/heroku-buildpack-scipy",
+    ]
+
+    # If a team is specified, assign the app to the team.
     try:
         team = config.get("Heroku Access", "team")
-        log("Trasferring to {} team...".format(team))
-        subprocess.check_call([
-            "heroku",
-            "apps:transfer",
-            team,
-            "--app",
-            app_name(id),
-        ])
-
-    except:
+        if team:
+            create_cmd.extend(["--org", team])
+    except Exception:
         pass
+
+    subprocess.check_call(create_cmd, stdout=out)
 
     database_size = config.get('Database Parameters', 'database_size')
 
