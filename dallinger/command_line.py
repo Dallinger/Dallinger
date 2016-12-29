@@ -106,8 +106,8 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
             raise RuntimeError("The Postgres server isn't running.")
 
     # Load psiTurk configuration.
-    config = PsiturkConfig()
-    config.load_config()
+    psi_config = PsiturkConfig()
+    psi_config.load_config()
 
     # Check that the demo-specific requirements are satisfied.
     try:
@@ -119,17 +119,16 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     pkg_resources.require(dependencies)
 
     # Generate a unique id for this experiment.
-    id = str(uuid.uuid4())
+    generated_uid = public_id = str(uuid.uuid4())
 
     # If the user provided an app name, use it everywhere that's user-facing.
     if app:
-        id_long = id
-        id = str(app)
+        public_id = str(app)
 
-    log("Experiment id is " + id + "")
+    log("Experiment id is " + public_id + "")
 
     # Copy this directory into a temporary folder, ignoring .git
-    dst = os.path.join(tempfile.mkdtemp(), id)
+    dst = os.path.join(tempfile.mkdtemp(), public_id)
     to_ignore = shutil.ignore_patterns(
         os.path.join(".git", "*"),
         "*.db",
@@ -143,10 +142,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
     # Save the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
-        if app:
-            file.write(id_long)
-        else:
-            file.write(id)
+        file.write(generated_uid)
 
     if exp_config:
         # Read existing config, we can't use PsiturkConfig here because
@@ -165,14 +161,14 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
                 if getattr(local_config, local_config._to_dot_key(section_name)) is None:
                     local_config.add_section(section_name)
                 local_config.set(section_name, key, value)
-        # Update experiment local config with passed in values
+        # Re-write the experiment's local config file with the results:
         local_config.save(config_file)
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
         log("Freezing the experiment package...")
         shutil.make_archive(
-            os.path.join("snapshots", id + "-code"), "zip", dst)
+            os.path.join("snapshots", public_id + "-code"), "zip", dst)
 
     # Change directory to the temporary folder.
     cwd = os.getcwd()
@@ -209,7 +205,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         src = os.path.join(src_base, "heroku", filename)
         shutil.copy(src, os.path.join(dst, filename))
 
-    clock_on = config.getboolean('Server Parameters', 'clock_on')
+    clock_on = psi_config.getboolean('Server Parameters', 'clock_on')
 
     # If the clock process has been disabled, overwrite the Procfile.
     if not clock_on:
@@ -234,7 +230,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
     os.chdir(cwd)
 
-    return (id, dst)
+    return (public_id, dst)
 
 
 @dallinger.command()
