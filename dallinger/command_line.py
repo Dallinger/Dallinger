@@ -151,6 +151,8 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         local_config = LocalConfig(config_file, interpolation=True)
         # Supplement and override settings with passed in values
         for section_name in exp_config:
+            if getattr(local_config, local_config._to_dot_key(section_name)) is None:
+                local_config.add_section(section_name)
             if getattr(exp_config, '_to_dot_key', None) is not None:
                 # We have a local config object
                 section_items = exp_config.items(exp_config._to_dot_key(section_name))
@@ -158,8 +160,6 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
                 # We have a dictionary key
                 section_items = exp_config.get(section_name).items()
             for key, value in section_items:
-                if getattr(local_config, local_config._to_dot_key(section_name)) is None:
-                    local_config.add_section(section_name)
                 local_config.set(section_name, key, value)
         # Re-write the experiment's local config file with the results:
         local_config.save(config_file)
