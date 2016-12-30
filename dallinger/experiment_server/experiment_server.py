@@ -1339,6 +1339,7 @@ def worker_function(event_type, assignment_id, participant_id):
         if participant.status == "working":
             participant.end_time = datetime.now()
             participant.status = "submitted"
+            session.commit()
 
             # Approve the assignment.
             exp.recruiter().approve_hit(assignment_id)
@@ -1351,6 +1352,7 @@ def worker_function(event_type, assignment_id, participant_id):
             if not worked:
                 participant.status = "bad_data"
                 exp.data_check_failed(participant=participant)
+                session.commit()
                 exp.recruiter().recruit_participants(n=1)
             else:
                 # If their data is ok, pay them a bonus.
@@ -1374,6 +1376,7 @@ def worker_function(event_type, assignment_id, participant_id):
                     exp.log("Attention check failed.", key)
                     participant.status = "did_not_attend"
                     exp.attention_check_failed(participant=participant)
+                    session.commit()
                     exp.recruiter().recruit_participants(n=1)
                 else:
                     # All good. Possibly recruit more participants.
