@@ -614,13 +614,22 @@ def dump_database(id):
         os.makedirs(dump_dir)
 
     try:
-        subprocess.check_call([
+        FNULL = open(os.devnull, 'w')
+        subprocess.call([
             "heroku",
             "pg:backups",
             "capture"
             "--app",
             app_name(id)
-        ])
+        ], stdout=FNULL, stderr=FNULL)
+
+        subprocess.call([  # for more recent versions of Heroku CLI.
+            "heroku",
+            "pg:backups:capture",
+            "--app",
+            app_name(id)
+        ], stdout=FNULL, stderr=FNULL)
+
     except Exception:
         pass
 
