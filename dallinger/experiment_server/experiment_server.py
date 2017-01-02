@@ -18,7 +18,6 @@ from flask import (
 from jinja2 import TemplateNotFound
 from psiturk.db import db_session as session_psiturk
 from psiturk.db import init_db
-from psiturk.user_utils import PsiTurkAuthorization
 from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
@@ -29,11 +28,6 @@ from dallinger import models
 from dallinger.heroku.worker import conn
 from dallinger.config import get_config
 
-
-from psiturk.psiturk_config import PsiturkConfig
-psiconfig = PsiturkConfig()
-psiconfig.load_config()
-myauth = PsiTurkAuthorization(psiconfig)
 
 config = get_config()
 if not config.ready:
