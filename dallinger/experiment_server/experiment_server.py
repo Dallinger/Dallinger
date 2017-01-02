@@ -4,7 +4,6 @@ from datetime import datetime
 from json import dumps
 import logging
 from operator import attrgetter
-import os
 import requests
 import traceback
 
@@ -1255,4 +1254,3 @@ def worker_function(event_type, assignment_id, participant_id):
 def date_handler(obj):
     """Serialize dates."""
     return obj.isoformat() if hasattr(obj, 'isoformat') else obj
-

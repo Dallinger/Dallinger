@@ -79,7 +79,7 @@ worldwide = false
             config.load_from_config_file(configfile.name)
         config.ready = True
         assert config.get('num_participants') == 10
-        assert config.get('deploy_worldwide') == False
+        assert config.get('deploy_worldwide') is False
 
     def test_loading_keys_from_environment_variables(self):
         config = Configuration()
