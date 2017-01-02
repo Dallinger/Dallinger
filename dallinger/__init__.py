@@ -7,12 +7,18 @@ from . import (
     networks,
     processes,
     transformations,
+    experiment,
     experiments,
     heroku
 )
 
+import logging
+from logging import NullHandler
 from localconfig import config
 config.read("config.txt")
+logger = logging.getLogger(__name__)
+logger.addHandler(NullHandler())
+
 
 __all__ = (
     "config",
@@ -22,6 +28,7 @@ __all__ = (
     "networks",
     "processes",
     "transformations",
-    "experiments",
     "heroku",
+    "experiment",
+    "experiments",
 )
