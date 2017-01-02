@@ -8,6 +8,11 @@ import threading
 
 marker = object()
 
+try:
+    unicode = unicode
+except NameError:  # Python 3
+    unicode = str
+
 
 class Configuration(object):
 
@@ -109,7 +114,9 @@ class Configuration(object):
             self.load_from_config_file(config_file)
         self.ready = True
 
+
 configurations = threading.local()
+
 
 def get_config():
     if hasattr(configurations, 'config'):
