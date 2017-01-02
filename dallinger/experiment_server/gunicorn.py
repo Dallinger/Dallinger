@@ -66,7 +66,9 @@ class StandaloneServer(Application):
             'limit_request_line': '0'
         }
 
+
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
+
 
 def launch():
     config = get_config()
