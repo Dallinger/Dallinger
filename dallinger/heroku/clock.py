@@ -247,5 +247,6 @@ def launch():
     config.load_config()
     scheduler.start()
 
+
 if __name__ == '__main__':
     launch()
