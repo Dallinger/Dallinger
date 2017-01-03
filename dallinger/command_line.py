@@ -110,7 +110,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         if "could not connect to server" in str(e):
             raise RuntimeError("The Postgres server isn't running.")
 
-    # Load psiTurk configuration.
+    # Load configuration.
     config = get_config()
     config.load_config()
 
@@ -220,7 +220,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
-        os.path.join("templates", "error_dallinger.html"),
+        os.path.join("templates", "error.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "complete.html"),
         os.path.join("static", "robots.txt")
@@ -332,7 +332,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         subprocess.check_call(cmd, stdout=out, shell=True)
         time.sleep(0.5)
 
-    # Load psiTurk configuration.
+    # Load configuration.
     config = get_config()
     config.load_config()
 
@@ -485,7 +485,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 @click.option('--app', default=None, help='ID of the sandboxed experiment')
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    # Load psiTurk configuration.
+    # Load configuration.
     config = get_config()
     config.load_config()
 
@@ -493,7 +493,7 @@ def sandbox(verbose, app):
     config.set("Experiment Configuration", "mode", "sandbox")
     config.set("Server Parameters", "logfile", "-")
 
-    # Ensure that psiTurk is in sandbox mode.
+    # Ensure that we launch in sandbox mode.
     config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
 
     # Do shared setup.
@@ -505,7 +505,7 @@ def sandbox(verbose, app):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
-    # Load psiTurk configuration.
+    # Load configuration.
     config = get_config()
     config.load_config()
 
@@ -513,7 +513,7 @@ def deploy(verbose, app):
     config.set("Experiment Configuration", "mode", "deploy")
     config.set("Server Parameters", "logfile", "-")
 
-    # Ensure that psiTurk is not in sandbox mode.
+    # Ensure that we do not launch in sandbox mode.
     config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
 
     # Do shared setup.
@@ -937,7 +937,7 @@ def verify_package(verbose=True):
     # Check front-end files do not exist
     files = [
         os.path.join("templates", "complete.html"),
-        os.path.join("templates", "error_dallinger.html"),
+        os.path.join("templates", "error.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
