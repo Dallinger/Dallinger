@@ -1,6 +1,7 @@
 """The base experiment class."""
 
 from collections import Counter
+from functools import wraps
 import imp
 import inspect
 from operator import itemgetter
@@ -21,6 +22,7 @@ from dallinger.networks import Empty
 
 
 def exp_class_working_dir(meth):
+    @wraps(meth)
     def new_meth(self, *args, **kwargs):
         try:
             orig_path = os.getcwd()
@@ -31,7 +33,6 @@ def exp_class_working_dir(meth):
             return meth(self, *args, **kwargs)
         finally:
             os.chdir(orig_path)
-    new_meth.__doc__ = meth.__doc__
     return new_meth
 
 
