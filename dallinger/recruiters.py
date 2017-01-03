@@ -2,7 +2,6 @@
 import os
 
 from boto.mturk.connection import MTurkConnection
-from dallinger.models import Participant
 from psiturk.psiturk_config import PsiturkConfig
 
 
@@ -135,6 +134,7 @@ class PsiTurkRecruiter(Recruiter):
                 'Shell Parameters', 'launch_in_sandbox_mode'))
 
         try:
+            from psiturk.models import Participant
             participants = Participant.query.all()
             assert(participants)
 
@@ -151,6 +151,7 @@ class PsiTurkRecruiter(Recruiter):
 
     def recruit_participants(self, n=1):
         """Recruit n participants."""
+        from psiturk.models import Participant
         auto_recruit = os.environ['auto_recruit'] == 'true'
 
         if auto_recruit:
