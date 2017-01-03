@@ -3,6 +3,7 @@ import unittest
 
 
 class FlaskAppTest(unittest.TestCase):
+    """Base test case class for tests of the flask app."""
 
     def setUp(self, case=None):
         # The flask app assumes it is imported
@@ -48,6 +49,11 @@ class TestExperimentServer(FlaskAppTest):
             'mode': 'debug',
         })
         assert 'Psychology Experiment' in resp.data
+
+    def test_ad_no_params(self):
+        resp = self.app.get('/ad')
+        assert resp.status_code == 500
+        assert 'Psychology Experiment - Error' in resp.data
 
     def test_consent(self):
         resp = self.app.get('/consent', query_string={

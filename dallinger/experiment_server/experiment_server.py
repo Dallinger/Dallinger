@@ -2,18 +2,21 @@
 
 from datetime import datetime
 from json import dumps
-import logging
 from operator import attrgetter
+import re
 import requests
 import traceback
+import user_agents
 
 from flask import (
     abort,
     Flask,
+    make_response,
     request,
     Response,
     send_from_directory,
-    render_template
+    render_template,
+    render_template_string,
 )
 from jinja2 import TemplateNotFound
 from psiturk.db import db_session as session_psiturk
@@ -21,6 +24,7 @@ from psiturk.db import init_db
 from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy import exc
 
 from dallinger import db
 from dallinger import experiments
@@ -28,32 +32,22 @@ from dallinger import models
 from dallinger.heroku.worker import conn
 from dallinger.config import get_config
 
+from .utils import nocache
+
+# Status codes
+NOT_ACCEPTED = 0
+ALLOCATED = 1
+STARTED = 2
+COMPLETED = 3
+SUBMITTED = 4
+CREDITED = 5
+QUITEARLY = 6
+BONUSED = 7
+
 
 config = get_config()
 if not config.ready:
     config.load_config()
-
-# Set logging options.
-LOG_LEVELS = [
-    logging.DEBUG,
-    logging.INFO,
-    logging.WARNING,
-    logging.ERROR,
-    logging.CRITICAL
-]
-LOG_LEVEL = LOG_LEVELS[config.get('loglevel')]
-
-db.logger.setLevel(LOG_LEVEL)
-
-if len(db.logger.handlers) == 0:
-    ch = logging.StreamHandler()
-    ch.setLevel(LOG_LEVEL)
-    ch.setFormatter(
-        logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-    )
-    db.logger.addHandler(ch)
 
 # Initialize the Dallinger database.
 session = db.session
@@ -152,16 +146,64 @@ def error_page(participant=None, error_text=None, compensate=True,
         assignment_id = 'unknown'
         worker_id = 'unknown'
 
-    return render_template(
-        'error_dallinger.html',
-        error_text=error_text,
-        compensate=compensate,
-        contact_address=config.get('contact_email_on_error'),
-        error_type=error_type,
-        hit_id=hit_id,
-        assignment_id=assignment_id,
-        worker_id=worker_id
+    return make_response(
+        render_template(
+            'error.html',
+            error_text=error_text,
+            compensate=compensate,
+            contact_address=config.get('contact_email_on_error'),
+            error_type=error_type,
+            hit_id=hit_id,
+            assignment_id=assignment_id,
+            worker_id=worker_id
+        ),
+        500,
     )
+
+
+class ExperimentError(Exception):
+    """
+    Error class for experimental errors, such as subject not being found in
+    the database.
+    """
+    def __init__(self, value):
+        experiment_errors = dict(
+            status_incorrectly_set=1000,
+            hit_assign_worker_id_not_set_in_mturk=1001,
+            hit_assign_worker_id_not_set_in_consent=1002,
+            hit_assign_worker_id_not_set_in_exp=1003,
+            hit_assign_appears_in_database_more_than_once=1004,
+            already_started_exp=1008,
+            already_started_exp_mturk=1009,
+            already_did_exp_hit=1010,
+            tried_to_quit=1011,
+            intermediate_save=1012,
+            improper_inputs=1013,
+            browser_type_not_allowed=1014,
+            api_server_not_reachable=1015,
+            ad_not_found=1016,
+            error_setting_worker_complete=1017,
+            hit_not_registered_with_ad_server=1018,
+            template_unsafe=1019,
+            insert_mode_failed=1020,
+            page_not_found=404,
+            in_debug=2005,
+            unknown_error=9999
+        )
+        self.value = value
+        self.errornum = experiment_errors[self.value]
+        self.template = "error.html"
+
+    def __str__(self):
+        return repr(self.value)
+
+
+@app.errorhandler(ExperimentError)
+def handle_exp_error(exception):
+    """Handle errors by sending an error page."""
+    app.logger.error(
+        "%s (%s) %s", exception.value, exception.errornum, str(dict(request.args)))
+    return error_page(error_type=exception.value)
 
 
 """Define functions for handling requests."""
@@ -188,6 +230,104 @@ def launch():
     session.commit()
 
     return success_response(request_type="launch")
+
+
+@app.route('/ad', methods=['GET'])
+@nocache
+def advertisement():
+    """
+    This is the url we give for the ad for our 'external question'.  The ad has
+    to display two different things: This page will be called from within
+    mechanical turk, with url arguments hitId, assignmentId, and workerId.
+    If the worker has not yet accepted the hit:
+        These arguments will have null values, we should just show an ad for
+        the experiment.
+    If the worker has accepted the hit:
+        These arguments will have appropriate values and we should enter the
+        person in the database and provide a link to the experiment popup.
+    """
+    user_agent_string = request.user_agent.string
+    user_agent_obj = user_agents.parse(user_agent_string)
+    browser_ok = True
+    for rule in config.get('browser_exclude_rule', '').split(','):
+        myrule = rule.strip()
+        if myrule in ["mobile", "tablet", "touchcapable", "pc", "bot"]:
+            if (myrule == "mobile" and user_agent_obj.is_mobile) or\
+               (myrule == "tablet" and user_agent_obj.is_tablet) or\
+               (myrule == "touchcapable" and user_agent_obj.is_touch_capable) or\
+               (myrule == "pc" and user_agent_obj.is_pc) or\
+               (myrule == "bot" and user_agent_obj.is_bot):
+                browser_ok = False
+        elif myrule in user_agent_string:
+            browser_ok = False
+
+    if not browser_ok:
+        # Handler for IE users if IE is not supported.
+        raise ExperimentError('browser_type_not_allowed')
+
+    if not ('hitId' in request.args and 'assignmentId' in request.args):
+        raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
+    hit_id = request.args['hitId']
+    assignment_id = request.args['assignmentId']
+    mode = request.args['mode']
+    if hit_id[:5] == "debug":
+        debug_mode = True
+    else:
+        debug_mode = False
+    already_in_db = False
+    if 'workerId' in request.args:
+        worker_id = request.args['workerId']
+        # First check if this workerId has completed the task before (v1).
+        nrecords = models.Participant.query.\
+            filter(models.Participant.assignment_id != assignment_id).\
+            filter(models.Participant.worker_id == worker_id).\
+            count()
+
+        if nrecords > 0:  # Already completed task
+            already_in_db = True
+    else:  # If worker has not accepted the hit
+        worker_id = None
+    try:
+        part = models.Participant.query.\
+            filter(models.Participant.hit_id == hit_id).\
+            filter(models.Participant.assignment_id == assignment_id).\
+            filter(models.Participant.worker_id == worker_id).\
+            one()
+        status = part.status
+    except exc.SQLAlchemyError:
+        status = None
+
+    if status == STARTED and not debug_mode:
+        # Once participants have finished the instructions, we do not allow
+        # them to start the task again.
+        raise ExperimentError('already_started_exp_mturk')
+    elif status == COMPLETED:
+        # They've done the debriefing but perhaps haven't submitted the HIT
+        # yet.. Turn asignmentId into original assignment id before sending it
+        # back to AMT
+        return render_template(
+            'thanks.html',
+            is_sandbox=(mode == "sandbox"),
+            hitid=hit_id,
+            assignmentid=assignment_id,
+            workerid=worker_id
+        )
+    elif already_in_db and not debug_mode:
+        raise ExperimentError('already_did_exp_hit')
+    elif status == ALLOCATED or not status or debug_mode:
+        # Participant has not yet agreed to the consent. They might not
+        # even have accepted the HIT.
+        with open('templates/ad.html', 'r') as temp_file:
+            ad_string = temp_file.read()
+        ad_string = insert_mode(ad_string, mode)
+        return render_template_string(
+            ad_string,
+            hitid=hit_id,
+            assignmentid=assignment_id,
+            workerid=worker_id
+        )
+    else:
+        raise ExperimentError('status_incorrectly_set')
 
 
 @app.route('/summary', methods=['GET'])
@@ -1248,3 +1388,20 @@ def worker_function(event_type, assignment_id, participant_id):
 def date_handler(obj):
     """Serialize dates."""
     return obj.isoformat() if hasattr(obj, 'isoformat') else obj
+
+
+# Insert "mode" into pages so it's carried from page to page done server-side
+# to avoid breaking backwards compatibility with old templates.
+def insert_mode(page_html, mode):
+    ''' Insert mode '''
+    match_found = False
+    matches = re.finditer('workerId={{ workerid }}', page_html)
+    match = None
+    for match in matches:
+        match_found = True
+    if match_found:
+        new_html = page_html[:match.end()] + "&mode=" + mode +\
+            page_html[match.end():]
+        return new_html
+    else:
+        raise ExperimentError("insert_mode_failed")

@@ -460,6 +460,9 @@ class Experiment(object):
 
 def load():
     """Load the active experiment."""
+    if os.getcwd() not in sys.path:
+        sys.path.append(os.getcwd())
+
     try:
         exp = imp.load_source('experiment', "dallinger_experiment.py")
         classes = inspect.getmembers(exp, inspect.isclass)
