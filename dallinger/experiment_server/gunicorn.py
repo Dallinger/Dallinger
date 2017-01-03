@@ -7,25 +7,31 @@ from dallinger.config import get_config
 import os
 import logging
 
+logger = logging.getLogger(__file__)
+
 
 class StandaloneServer(Application):
+    loglevels = ["debug", "info", "warning", "error", "critical"]
+
     def __init__(self):
         '''__init__ method
         Load the base config and assign some core attributes.
         '''
-        self.load_user_config()
         self.usage = None
+        self.cfg = None
         self.callable = None
         self.prog = None
-        self.logger = logging.getLogger()
-        self.logger.setLevel(logging.DEBUG)
+        self.logger = None
+
+        self.load_user_config()
         self.do_load_config()
+
         if 'OPENSHIFT_SECRET_TOKEN' in os.environ:
             my_ip = os.environ['OPENSHIFT_APP_DNS']
             public_interface = my_ip
         else:
             public_interface = self.options["bind"]
-        self.logger.info("Now serving on {}".format(public_interface))
+        logger.info("Now serving on {}".format(public_interface))
 
     def init(self, *args):
         '''init method
@@ -50,8 +56,6 @@ class StandaloneServer(Application):
         if workers == "auto":
             workers = str(multiprocessing.cpu_count() * 2 + 1)
 
-        self.loglevels = ["debug", "info", "warning", "error", "critical"]
-
         host = config.get("host")
         port = config.get("port")
         bind_address = "{}:{}".format(host, port)
@@ -60,24 +64,26 @@ class StandaloneServer(Application):
             'workers': workers,
             'loglevels': self.loglevels,
             'loglevel': self.loglevels[config.get("loglevel")],
-            'accesslog': config.get("Server Parameters", "logfile"),
-            'errorlog': config.get("Server Parameters", "logfile"),
+            'accesslog': config.get("logfile"),
+            'errorlog': config.get("logfile"),
             'proc_name': 'psiturk_experiment_server',
             'limit_request_line': '0'
         }
 
 
-logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
-
-
 def launch():
     config = get_config()
     config.load_config()
-    # Setup logging
     LOG_LEVELS = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR,
                   logging.CRITICAL]
     LOG_LEVEL = LOG_LEVELS[config.get('loglevel')]
     logging.basicConfig(format='%(asctime)s %(message)s', level=LOG_LEVEL)
+
+    # Avoid duplicate logging to stderr
+    if config.get('logfile') == '-':
+        logging.getLogger('gunicorn.error').propagate = False
+        logging.getLogger('gunicorn.access').propagate = False
+
     StandaloneServer().run()
 
 

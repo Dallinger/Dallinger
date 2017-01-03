@@ -4,6 +4,7 @@ from collections import Counter
 from functools import wraps
 import imp
 import inspect
+import logging
 from operator import itemgetter
 import os
 import random
@@ -19,6 +20,8 @@ from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
 from dallinger.transformations import Mutation, Replication
 from dallinger.networks import Empty
+
+logger = logging.getLogger(__file__)
 
 
 def exp_class_working_dir(meth):
@@ -467,4 +470,5 @@ def load():
         return getattr(mod, this_experiment)
 
     except ImportError:
-        print("Error: Could not import experiment.")
+        logger.error('Could not import experiment.')
+        raise
