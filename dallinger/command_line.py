@@ -296,10 +296,10 @@ def debug(verbose):
     path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'psiturkapp.py'))
     try:
         p = pexpect.spawn("python", [path])
-        log("Here's the gunicorn app...")
+        log("Press Ctrl+C to exit.")
         p.interact()
     except Exception:
-        click.echo("\nCouldn't open gunicorn app. Internet connection okay?")
+        click.echo("\nCouldn't start app server. Internet connection okay?")
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
