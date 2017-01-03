@@ -26,8 +26,8 @@ scheduler = BlockingScheduler()
 def check_db_for_missing_notifications():
     """Check the database for missing notifications."""
     config = get_config()
-    aws_access_key_id = os.environ['aws_access_key_id']
-    aws_secret_access_key = os.environ['aws_secret_access_key']
+    aws_access_key_id = config.get('aws_access_key_id')
+    aws_secret_access_key = config.get('aws_secret_access_key')
     if config.get('launch_in_sandbox_mode'):
         conn = MTurkConnection(
             aws_access_key_id=aws_access_key_id,
@@ -73,7 +73,7 @@ def check_db_for_missing_notifications():
             # fromaddr = username + "@gmail.com"
             # email_password = os.getenv("dallinger_email_key")
             # toaddr = config.get('HIT Configuration', 'contact_email_on_error')
-            whimsical = os.getenv("whimsical")
+            whimsical = config.get("whimsical")
 
             if status == "Approved":
                 # if its been approved, set the status accordingly
@@ -92,7 +92,7 @@ def check_db_for_missing_notifications():
                     'Event.1.AssignmentId': assignment_id
                 }
                 requests.post(
-                    "http://" + os.environ['HOST'] + '/notifications',
+                    "http://" + config.get('host') + '/notifications',
                     data=args)
 
                 # send the researcher an email to let them know
@@ -148,7 +148,7 @@ def check_db_for_missing_notifications():
             else:
                 # if it has not been submitted shut everything down
                 # first turn off autorecruit
-                host = os.environ['HOST']
+                host = config.get('host')
                 host = host[:-len(".herokuapp.com")]
                 args = json.dumps({"auto_recruit": "false"})
                 headers = {
@@ -233,7 +233,7 @@ def check_db_for_missing_notifications():
                     'Event.1.AssignmentId': assignment_id
                 }
                 requests.post(
-                    "http://" + os.environ['HOST'] + '/notifications',
+                    "http://" + config.get('host') + '/notifications',
                     data=args)
 
                 print ("Error - abandoned/returned notification for participant {} missed. "
@@ -242,4 +242,10 @@ def check_db_for_missing_notifications():
                        .format(p.id))
 
 
-scheduler.start()
+def launch():
+    config = get_config()
+    config.load_config()
+    scheduler.start()
+
+if __name__ == '__main__':
+    launch()
