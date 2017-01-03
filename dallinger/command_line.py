@@ -10,6 +10,11 @@ import os
 import pexpect
 import pkg_resources
 import re
+try:
+    from pipes import quote
+except ImportError:
+    # Python >= 3.3
+    from shlex import quote
 import shutil
 import subprocess
 import tempfile
@@ -397,7 +402,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
     # Set up postgres database and AWS/psiTurk environment variables.
     cmds = [
-        "heroku addons:create heroku-postgresql:{}".format(database_size),
+        "heroku addons:create heroku-postgresql:{}".format(quote(database_size)),
 
         "heroku pg:wait",
 
@@ -409,34 +414,34 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         app_name(id) + ".herokuapp.com",
 
         "heroku config:set aws_access_key_id=" +
-        config.get('AWS Access', 'aws_access_key_id'),
+        quote(config.get('AWS Access', 'aws_access_key_id')),
 
         "heroku config:set aws_secret_access_key=" +
-        config.get('AWS Access', 'aws_secret_access_key'),
+        quote(config.get('AWS Access', 'aws_secret_access_key')),
 
         "heroku config:set aws_region=" +
-        config.get('AWS Access', 'aws_region'),
+        quote(config.get('AWS Access', 'aws_region')),
 
         "heroku config:set psiturk_access_key_id=" +
-        config.get('psiTurk Access', 'psiturk_access_key_id'),
+        quote(config.get('psiTurk Access', 'psiturk_access_key_id')),
 
         "heroku config:set psiturk_secret_access_id=" +
-        config.get('psiTurk Access', 'psiturk_secret_access_id'),
+        quote(config.get('psiTurk Access', 'psiturk_secret_access_id')),
 
         "heroku config:set auto_recruit=" +
-        config.get('Experiment Configuration', 'auto_recruit'),
+        quote(config.get('Experiment Configuration', 'auto_recruit')),
 
         "heroku config:set dallinger_email_username=" +
-        config.get('Email Access', 'dallinger_email_address'),
+        quote(config.get('Email Access', 'dallinger_email_address')),
 
         "heroku config:set dallinger_email_key=" +
-        config.get('Email Access', 'dallinger_email_password'),
+        quote(config.get('Email Access', 'dallinger_email_password')),
 
         "heroku config:set heroku_email_address=" +
-        config.get('Heroku Access', 'heroku_email_address'),
+        quote(config.get('Heroku Access', 'heroku_email_address')),
 
-        'heroku config:set heroku_password="' +
-        config.get('Heroku Access', 'heroku_password') + '"',
+        'heroku config:set heroku_password=' +
+        quote(config.get('Heroku Access', 'heroku_password')),
 
         "heroku config:set whimsical=" + whimsical,
     ]
