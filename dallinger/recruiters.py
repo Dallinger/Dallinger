@@ -322,7 +322,6 @@ class MTurkRecruiter(object):
             return
 
         ad_html = self.load_ad_html()
-        # register with the ad server (psiturk.org/ad/register) using POST
         size_of_ad = sys.getsizeof(ad_html)
         if size_of_ad >= self.ad_file_max_bytes:
             error = '\n'.join([
