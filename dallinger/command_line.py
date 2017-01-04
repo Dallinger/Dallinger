@@ -10,6 +10,11 @@ import os
 import pexpect
 import pkg_resources
 import re
+try:
+    from pipes import quote
+except ImportError:
+    # Python >= 3.3
+    from shlex import quote
 import shutil
 import subprocess
 import tempfile
@@ -18,6 +23,7 @@ import uuid
 
 import boto
 import click
+from localconfig import LocalConfig
 from psiturk.psiturk_config import PsiturkConfig
 import psycopg2
 import redis
@@ -63,7 +69,9 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
 def dallinger():
     """Set up Dallinger as a name space."""
-    pass
+    from logging.config import fileConfig
+    fileConfig(os.path.join(os.path.dirname(__file__), 'logging.ini'),
+               disable_existing_loggers=False)
 
 
 @dallinger.command()
@@ -84,7 +92,7 @@ def setup():
         shutil.copyfile(src, config_path)
 
 
-def setup_experiment(debug=True, verbose=False, app=None):
+def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
     print_header()
 
@@ -103,8 +111,8 @@ def setup_experiment(debug=True, verbose=False, app=None):
             raise RuntimeError("The Postgres server isn't running.")
 
     # Load psiTurk configuration.
-    config = PsiturkConfig()
-    config.load_config()
+    psi_config = PsiturkConfig()
+    psi_config.load_config()
 
     # Check that the demo-specific requirements are satisfied.
     try:
@@ -116,17 +124,16 @@ def setup_experiment(debug=True, verbose=False, app=None):
     pkg_resources.require(dependencies)
 
     # Generate a unique id for this experiment.
-    id = str(uuid.uuid4())
+    generated_uid = public_id = str(uuid.uuid4())
 
     # If the user provided an app name, use it everywhere that's user-facing.
     if app:
-        id_long = id
-        id = str(app)
+        public_id = str(app)
 
-    log("Experiment id is " + id + "")
+    log("Experiment id is " + public_id + "")
 
     # Copy this directory into a temporary folder, ignoring .git
-    dst = os.path.join(tempfile.mkdtemp(), id)
+    dst = os.path.join(tempfile.mkdtemp(), public_id)
     to_ignore = shutil.ignore_patterns(
         os.path.join(".git", "*"),
         "*.db",
@@ -140,16 +147,33 @@ def setup_experiment(debug=True, verbose=False, app=None):
 
     # Save the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
-        if app:
-            file.write(id_long)
-        else:
-            file.write(id)
+        file.write(generated_uid)
+
+    if exp_config:
+        # Read existing config, we can't use PsiturkConfig here because
+        # it doesn't allow setting a file write location
+        config_file = os.path.join(dst, 'config.txt')
+        local_config = LocalConfig(config_file, interpolation=True)
+        # Supplement and override settings with passed in values
+        for section_name in exp_config:
+            if getattr(local_config, local_config._to_dot_key(section_name)) is None:
+                local_config.add_section(section_name)
+            if getattr(exp_config, '_to_dot_key', None) is not None:
+                # We have a local config object
+                section_items = exp_config.items(exp_config._to_dot_key(section_name))
+            else:
+                # We have a dictionary key
+                section_items = exp_config.get(section_name).items()
+            for key, value in section_items:
+                local_config.set(section_name, key, value)
+        # Re-write the experiment's local config file with the results:
+        local_config.save(config_file)
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
         log("Freezing the experiment package...")
         shutil.make_archive(
-            os.path.join("snapshots", id + "-code"), "zip", dst)
+            os.path.join("snapshots", public_id + "-code"), "zip", dst)
 
     # Change directory to the temporary folder.
     cwd = os.getcwd()
@@ -169,9 +193,10 @@ def setup_experiment(debug=True, verbose=False, app=None):
         os.path.join(dst, "dallinger_experiment.py"))
 
     # Copy files into this experiment package.
-    src = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        "custom.py")
+    from pkg_resources import get_distribution
+    dist = get_distribution('dallinger')
+    src_base = os.path.join(dist.location, dist.project_name)
+    src = os.path.join(src_base, "custom.py")
     shutil.copy(src, os.path.join(dst, "custom.py"))
 
     heroku_files = [
@@ -182,20 +207,14 @@ def setup_experiment(debug=True, verbose=False, app=None):
     ]
 
     for filename in heroku_files:
-        src = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
-            "heroku",
-            filename)
+        src = os.path.join(src_base, "heroku", filename)
         shutil.copy(src, os.path.join(dst, filename))
 
-    clock_on = config.getboolean('Server Parameters', 'clock_on')
+    clock_on = psi_config.getboolean('Server Parameters', 'clock_on')
 
     # If the clock process has been disabled, overwrite the Procfile.
     if not clock_on:
-        src = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
-            "heroku",
-            "Procfile_no_clock")
+        src = os.path.join(src_base, "heroku", "Procfile_no_clock")
         shutil.copy(src, os.path.join(dst, "Procfile"))
 
     frontend_files = [
@@ -209,17 +228,14 @@ def setup_experiment(debug=True, verbose=False, app=None):
     ]
 
     for filename in frontend_files:
-        src = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
-            "frontend",
-            filename)
+        src = os.path.join(src_base, "frontend", filename)
         shutil.copy(src, os.path.join(dst, filename))
 
     time.sleep(0.25)
 
     os.chdir(cwd)
 
-    return (id, dst)
+    return (public_id, dst)
 
 
 @dallinger.command()
@@ -322,14 +338,15 @@ def debug(verbose):
     os.chdir(cwd)
 
 
-def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
+def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
         out = None
     else:
         out = open(os.devnull, 'w')
 
-    (id, tmp) = setup_experiment(debug=False, verbose=verbose, app=app)
+    (id, tmp) = setup_experiment(debug=False, verbose=verbose, app=app,
+                                 exp_config=exp_config)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -385,7 +402,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
 
     # Set up postgres database and AWS/psiTurk environment variables.
     cmds = [
-        "heroku addons:create heroku-postgresql:{}".format(database_size),
+        "heroku addons:create heroku-postgresql:{}".format(quote(database_size)),
 
         "heroku pg:wait",
 
@@ -397,34 +414,34 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1):
         app_name(id) + ".herokuapp.com",
 
         "heroku config:set aws_access_key_id=" +
-        config.get('AWS Access', 'aws_access_key_id'),
+        quote(config.get('AWS Access', 'aws_access_key_id')),
 
         "heroku config:set aws_secret_access_key=" +
-        config.get('AWS Access', 'aws_secret_access_key'),
+        quote(config.get('AWS Access', 'aws_secret_access_key')),
 
         "heroku config:set aws_region=" +
-        config.get('AWS Access', 'aws_region'),
+        quote(config.get('AWS Access', 'aws_region')),
 
         "heroku config:set psiturk_access_key_id=" +
-        config.get('psiTurk Access', 'psiturk_access_key_id'),
+        quote(config.get('psiTurk Access', 'psiturk_access_key_id')),
 
         "heroku config:set psiturk_secret_access_id=" +
-        config.get('psiTurk Access', 'psiturk_secret_access_id'),
+        quote(config.get('psiTurk Access', 'psiturk_secret_access_id')),
 
         "heroku config:set auto_recruit=" +
-        config.get('Experiment Configuration', 'auto_recruit'),
+        quote(config.get('Experiment Configuration', 'auto_recruit')),
 
         "heroku config:set dallinger_email_username=" +
-        config.get('Email Access', 'dallinger_email_address'),
+        quote(config.get('Email Access', 'dallinger_email_address')),
 
         "heroku config:set dallinger_email_key=" +
-        config.get('Email Access', 'dallinger_email_password'),
+        quote(config.get('Email Access', 'dallinger_email_password')),
 
         "heroku config:set heroku_email_address=" +
-        config.get('Heroku Access', 'heroku_email_address'),
+        quote(config.get('Heroku Access', 'heroku_email_address')),
 
-        "heroku config:set heroku_password=" +
-        config.get('Heroku Access', 'heroku_password'),
+        'heroku config:set heroku_password=' +
+        quote(config.get('Heroku Access', 'heroku_password')),
 
         "heroku config:set whimsical=" + whimsical,
     ]
