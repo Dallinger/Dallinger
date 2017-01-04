@@ -294,6 +294,7 @@ class MTurkRecruiter(object):
     ad_file_max_bytes = 1048576
     production_mturk_server = 'mechanicalturk.amazonaws.com'
     sandbox_mturk_server = 'mechanicalturk.sandbox.amazonaws.com'
+    ad_url = 'do we need this? what is this?'
 
     @classmethod
     def from_current_config(cls):
@@ -311,14 +312,11 @@ class MTurkRecruiter(object):
 
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
+        max_assignments = n
         if self.have_participants():
             # Already started... do nothing.
             return
 
-        return self.create_hit(n)
-
-    def create_hit(self, workers):
-        # Check server location
         if self.config.get('server') in ['localhost', '127.0.0.1']:
             print "Can't run real HIT from localhost"
             return
@@ -328,49 +326,27 @@ class MTurkRecruiter(object):
             print 'Invalid AWS credentials.'
             return
 
-        ad_html = self.load_ad_html()
-        size_of_ad = sys.getsizeof(ad_html)
-        if size_of_ad >= self.ad_file_max_bytes:
-            error = '\n'.join([
-                '*****************************',
-                '  Sorry, there was an error registering ad.',
-                '  Your local ad.html is %s byes, but the maximum',
-                '  template size uploadable to the Ad server is',
-                '  %d bytes!' % (self.ad_file_max_bytes, size_of_ad)
-            ])
-            raise MTurkRecruiterException(error)
-
-        ad_content = self.ad_configuration(ad_html)
-        ad_info = self.create_ad(ad_content)
-        if not ad_info:
-            print 'Unable to create Ad.'
-            return
-
         hit_config = {
-            "ad_location": ad_info['url'],
+            "ad_location": self.ad_url,
             "approve_requirement": self.config.get('approve_requirement'),
             "us_only": self.config.get('us_only'),
             "lifetime": self.config.get('lifetime'),
-            "max_assignments": workers,
+            "max_assignments": max_assignments,
             "title": self.config.get('experiment_title'),
             "description": self.config.get('description'),
             "keywords": self.config.get('amt_keywords'),
             "reward": self.reward,
             "duration": self.duration
         }
-        hit_id = self.create_actual_hit(hit_config)
+        hit_id = self.create_hit(hit_config)
         if hit_id is False:
             print "Unable to create HIT on Amazon Mechanical Turk."
-            return
-
-        if not self.update_ad_with_hit_id(ad_info['id'], hit_id):
-            print "Unable to update Ad on http://ad.psiturk.org to point at HIT."
             return
 
         report = {
             'hit_id': hit_id,
             'duration': self.duration,
-            'workers': self.workers,
+            'workers': max_assignments,
             'reward': self.reward,
             'environment': self.is_sandbox and 'sandbox' or 'live'
         }
@@ -387,41 +363,7 @@ class MTurkRecruiter(object):
         from dallinger.models import Participant
         return bool(Participant.query.all())
 
-    def load_ad_html(self):
-        if os.path.exists('templates/ad.html'):
-            ad_html = open('templates/ad.html').read()
-        else:
-            error = '\n'.join([
-                '*****************************',
-                '  Sorry, there was an error registering ad.',
-                '  Both ad.html is required to be in the templates folder',
-                '  of your project so that these Ad can be served!'
-            ])
-            raise MTurkRecruiterException(error)
-        return ad_html
-
-    def ad_configuration(self, ad_html):
-        ad_content = {
-            'psiturk_external': True,
-            'server': self.config.get('server'),
-            'port': 80,
-            'browser_exclude_rule': self.config.get('browser_exclude_rule'),
-            'is_sandbox': int(self.is_sandbox),
-            'ad_html': ad_html,
-            'organization_name': self.config.get('organization_name'),
-            'experiment_name': self.config.get('experiment_title'),
-            'contact_email_on_error': self.config.get('contact_email_on_error'),
-            'ad_group': self.config.get('ad_group'),
-            'keywords': self.config.get('psiturk_keywords')
-        }
-
-        return ad_content
-
-    def create_ad(self, ad_content):
-        # Replicate PsiturkOrgServices.create_ad does
-        return {'id': 'some id', 'url': 'http://mturkrecruiter/ad-foo.tml'}
-
-    def create_actual_hit(self, hit_confg):
+    def create_hit(self, hit_confg):
         # Replicate psiturk.amt_services.MTurkServices.create_hit()
         return 'some HIT ID'
 
