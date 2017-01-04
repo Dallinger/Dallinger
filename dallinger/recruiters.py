@@ -430,5 +430,20 @@ class MTurkRecruiter(object):
         return True
 
     def check_aws_credentials(self):
-        # Replicate amt_services.MTurkServices.verify_aws_login()
-        return True
+        """Verifies key/secret/host combination by making a balance inquiry"""
+        if not self.aws_access_key_id or not self.aws_secret_access_key:
+            raise MTurkRecruiterException('AWS access key and secret not set.')
+
+        mturkparams = {
+            'aws_access_key_id': self.aws_access_key_id,
+            'aws_secret_access_key': self.aws_secret_access_key,
+            'host': self.host
+        }
+        self.mtc = MTurkConnection(**mturkparams)
+        try:
+            self.mtc.get_account_balance()
+        except MTurkRequestError as exception:
+            print exception.error_message
+            return False
+        else:
+            return True
