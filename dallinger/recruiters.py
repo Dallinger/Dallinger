@@ -167,7 +167,7 @@ class PsiTurkRecruiter(Recruiter):
         auto_recruit = config.get('auto_recruit')
 
         if auto_recruit:
-
+            from psiturk.models import Participant
             print("Starting Dallinger's recruit_participants.")
 
             hit_id = str(
@@ -384,6 +384,7 @@ class MTurkRecruiter(object):
         return self.production_mturk_server
 
     def have_participants(self):
+        from dallinger.models import Participant
         return bool(Participant.query.all())
 
     def load_ad_html(self):
