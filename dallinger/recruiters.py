@@ -293,8 +293,13 @@ class MTurkRecruiter(object):
     production_mturk_server = 'mechanicalturk.amazonaws.com'
     sandbox_mturk_server = 'mechanicalturk.sandbox.amazonaws.com'
 
-    def __init__(self):
-        self.config = ConfigurationWrapper()
+    @classmethod
+    def from_current_config(cls):
+        config = ConfigurationWrapper()
+        return cls(config)
+
+    def __init__(self, config):
+        self.config = config
         self.aws_access_key_id = self.config.get('aws_access_key_id')
         self.aws_secret_access_key = self.config.get('aws_secret_access_key')
         self.aws_region = self.config.get('aws_region')
