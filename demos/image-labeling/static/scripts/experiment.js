@@ -35,13 +35,6 @@ $(document).ready(function() {
         submitResponses();
     });
 
-    $("#finish-reading").click(function() {
-        $("#stimulus").hide();
-        $("#response-form").show();
-        $("#submit-response").removeClass('disabled');
-        $("#submit-response").html('Submit');
-    });
-
     $("#submit-response").click(function() {
         $("#submit-response").addClass('disabled');
         $("#submit-response").html('Sending...');
@@ -98,12 +91,12 @@ get_info = function() {
         method: 'get',
         type: 'json',
         success: function (resp) {
-            story = resp.infos[0].contents;
-            storyHTML = markdown.toHTML(story);
-            $("#story").html(storyHTML);
+            document.getElementById('photograph').setAttribute(
+                'src',
+                'data:image/jpeg;charset=utf-8;base64,' + resp.infos[0].contents
+            );
             $("#stimulus").show();
-            $("#response-form").hide();
-            $("#finish-reading").show();
+            $("#response-form").show();
         },
         error: function (err) {
             console.log(err);
