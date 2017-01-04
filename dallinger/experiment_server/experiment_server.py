@@ -46,8 +46,13 @@ BONUSED = 7
 
 
 config = get_config()
-if not config.ready:
-    config.load_config()
+try:
+    from dallinger_experiment import extra_settings
+except ImportError:
+    pass
+else:
+    extra_settings()
+config.load_config()
 
 # Initialize the Dallinger database.
 session = db.session
