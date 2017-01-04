@@ -7,7 +7,6 @@ import errno
 import imp
 import inspect
 import os
-import pexpect
 import pkg_resources
 import re
 try:
@@ -17,6 +16,7 @@ except ImportError:
     from shlex import quote
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -291,15 +291,26 @@ def debug(verbose):
 
     # Start up the local server
     log("Starting up the server...")
-
-    # Try running the flask app.
     path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'psiturkapp.py'))
+    p = subprocess.Popen([sys.executable, path])
+
+    host = config.get('host')
+    port = config.get('port')
+    public_interface = "{}:{}".format(host, port)
+
+    log("Launching the experiment...")
+    time.sleep(4)
+    subprocess.check_call(
+        'curl --data "" http://{}/launch'.format(public_interface),
+        shell=True)
+
+    log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
+
+    # Wait for server process to end
     try:
-        p = pexpect.spawn("python", [path])
-        log("Press Ctrl+C to exit.")
-        p.interact()
-    except Exception:
-        click.echo("\nCouldn't start app server. Internet connection okay?")
+        p.wait()
+    except (KeyboardInterrupt, OSError):
+        p.terminate()
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
