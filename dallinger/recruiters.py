@@ -417,7 +417,7 @@ class MTurkRecruiter(object):
 
         return ad_content
 
-    def create_add(self, ad_content):
+    def create_ad(self, ad_content):
         # Replicate PsiturkOrgServices.create_ad does
         return {'id': 'some id', 'url': 'http://mturkrecruiter/ad-foo.tml'}
 
