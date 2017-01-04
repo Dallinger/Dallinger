@@ -8,6 +8,8 @@ import logging
 
 logger = logging.getLogger(__file__)
 
+app = util.import_app("dallinger.experiment_server.experiment_server:app")
+
 
 class StandaloneServer(Application):
     loglevels = ["debug", "info", "warning", "error", "critical"]
@@ -37,10 +39,8 @@ class StandaloneServer(Application):
         return cfg
 
     def load(self):
-        '''load method
-        Imports our application and returns it to be run.
-        '''
-        return util.import_app("dallinger.experiment_server.experiment_server:app")
+        '''Return our application to be run.'''
+        return app
 
     def load_user_config(self):
         config = get_config()
@@ -65,7 +65,6 @@ class StandaloneServer(Application):
 
 def launch():
     config = get_config()
-    config.load_config()
     LOG_LEVELS = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR,
                   logging.CRITICAL]
     LOG_LEVEL = LOG_LEVELS[config.get('loglevel')]
