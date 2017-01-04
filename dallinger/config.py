@@ -153,6 +153,8 @@ def get_config():
         ('num_dynos_worker', int, []),
         ('num_participants', int, []),
         ('organization_name', unicode, []),
+        ('psiturk_access_key_id', unicode, []),
+        ('psiturk_secret_access_id', unicode, []),
         ('psiturk_keywords', unicode, []),
         ('table_name', unicode, []),
         ('threads', unicode, []),
