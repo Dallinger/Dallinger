@@ -4,7 +4,6 @@ from gunicorn.app.base import Application
 from gunicorn import util
 import multiprocessing
 from dallinger.config import get_config
-import os
 import logging
 
 logger = logging.getLogger(__file__)
@@ -25,13 +24,6 @@ class StandaloneServer(Application):
 
         self.load_user_config()
         self.do_load_config()
-
-        if 'OPENSHIFT_SECRET_TOKEN' in os.environ:
-            my_ip = os.environ['OPENSHIFT_APP_DNS']
-            public_interface = my_ip
-        else:
-            public_interface = self.options["bind"]
-        logger.info("Now serving on {}".format(public_interface))
 
     def init(self, *args):
         '''init method
@@ -67,7 +59,7 @@ class StandaloneServer(Application):
             'accesslog': config.get("logfile"),
             'errorlog': config.get("logfile"),
             'proc_name': 'psiturk_experiment_server',
-            'limit_request_line': '0'
+            'limit_request_line': '0',
         }
 
 
