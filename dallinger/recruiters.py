@@ -381,9 +381,9 @@ class MTurkRecruiter(object):
             'aws_secret_access_key': self.aws_secret_access_key,
             'host': self.host
         }
-        self.mtc = MTurkConnection(**mturkparams)
+        mtc = MTurkConnection(**mturkparams)
         try:
-            self.mtc.get_account_balance()
+            mtc.get_account_balance()
         except MTurkRequestError as exception:
             print exception.error_message
             return False
