@@ -273,8 +273,7 @@ class ConfigurationWrapper(object):
         self._data['approve_requirement'] = self.config.get(
             'HIT Configuration', 'Approve_Requirement')
         self._data['us_only'] = self.config.getboolean('HIT Configuration', 'US_only')
-        self._data['lifetime'] = datetime.timedelta(
-            hours=self.config.getfloat('HIT Configuration', 'lifetime'))
+        self._data['lifetime'] = self.config.getfloat('HIT Configuration', 'lifetime')
         self._data['description'] = self.config.get('HIT Configuration', 'description')
         self._data['keywords'] = self.config.get('HIT Configuration', 'amt_keywords')
 
