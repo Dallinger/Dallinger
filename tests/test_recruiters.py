@@ -103,6 +103,30 @@ class TestMTurkRecruiter(object):
         config = stub_config()
         assert recruiter.aws_region == config.get('aws_region')
 
+    def test_check_aws_credentials_good_credentials(self):
+        recruiter = self.make_one(**creds_from_environment())
+        is_authenticated = recruiter.check_aws_credentials()
+        assert is_authenticated
+
+    def test_check_aws_credentials_bad_credentials(self):
+        recruiter = self.make_one()
+        is_authenticated = recruiter.check_aws_credentials()
+        assert not is_authenticated
+
+    def test_check_aws_credentials_no_creds_set_raises(self):
+        from dallinger.recruiters import MTurkRecruiterException
+        empty_creds = {
+            'aws_access_key_id': '',
+            'aws_secret_access_key': ''
+        }
+        recruiter = self.make_one(**empty_creds)
+        try:
+            recruiter.check_aws_credentials()
+        except MTurkRecruiterException:
+            pass
+        else:
+            assert False
+
     def test_open_recruitment(self):
         recruiter = self.make_one(**creds_from_environment())
         hit_info = recruiter.open_recruitment(n=1)
