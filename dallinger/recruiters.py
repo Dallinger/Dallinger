@@ -1,7 +1,6 @@
 """Recruiters manage the flow of participants to the experiment."""
 
 from boto.mturk.connection import MTurkConnection
-from psiturk.models import Participant
 from dallinger.config import get_config
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
@@ -164,7 +163,7 @@ class PsiTurkRecruiter(Recruiter):
         auto_recruit = config.get('auto_recruit')
 
         if auto_recruit:
-
+            from psiturk.models import Participant
             print("Starting Dallinger's recruit_participants.")
 
             hit_id = str(
@@ -381,6 +380,7 @@ class MTurkRecruiter(object):
         return self.production_mturk_server
 
     def have_participants(self):
+        from dallinger.models import Participant
         return bool(Participant.query.all())
 
     def load_ad_html(self):
