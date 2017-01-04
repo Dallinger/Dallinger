@@ -1,5 +1,7 @@
 from dallinger import db
+import datetime
 import os
+from boto.mturk.price import Price
 
 
 class TestRecruiters(object):
@@ -43,6 +45,7 @@ def stub_config(**kwargs):
         'browser_exclude_rule': 'fakebrowser1, fakebrowser2',
         'organization_name': 'fake org name',
         'experiment_name': 'fake expermiment name',
+        'notification_url': 'fake notification url',
         'contact_email_on_error': 'fake@fake.com',
         'ad_group': 'fake ad group',
         'approve_requirement': 'no idea what this is',
@@ -127,7 +130,14 @@ class TestMTurkRecruiter(object):
         else:
             assert False
 
-    def test_open_recruitment(self):
+    def test_register_hit_type(self):
+        config = {
+            "title": 'Test Title',
+            "description": 'Test Description',
+            "keywords": ['testkw1', 'testkw1'],
+            "reward": Price(.01),
+            "duration": datetime.timedelta(hours=.25)
+        }
         recruiter = self.make_one(**creds_from_environment())
-        hit_info = recruiter.open_recruitment(n=1)
-        assert 'hit_id' in hit_info
+        hit_type = recruiter.register_hit_type(config)
+        assert hasattr(hit_type, 'HITTypeId')
