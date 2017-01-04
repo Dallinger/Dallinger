@@ -57,7 +57,7 @@ q = Queue(connection=conn)
 
 app = Flask('Experiment_Server')
 
-experiment = experiments.load()
+Experiment = experiments.load()
 
 
 """Load the experiment's extra routes, if any."""
@@ -222,8 +222,8 @@ def shutdown_session(_=None):
 @app.route('/launch', methods=['POST'])
 def launch():
     """Launch the experiment."""
-    exp = experiment
-    experiment.log("Launching experiment...", "-----")
+    exp = Experiment(db.init_db(drop_all=False))
+    exp.log("Launching experiment...", "-----")
     init_db()
     exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
     session_psiturk.commit()
@@ -336,7 +336,7 @@ def summary():
     return Response(
         dumps({
             "status": "success",
-            "summary": experiment.log_summary()
+            "summary": Experiment(session).log_summary()
         }),
         status=200,
         mimetype='application/json'
@@ -347,7 +347,7 @@ def summary():
 @app.route('/experiment/<prop>', methods=['GET'])
 def experiment_property(prop):
     """Get a property of the experiment by name."""
-    exp = experiment
+    exp = Experiment(session)
     p = getattr(exp, prop)
     return success_response(field=prop, data=p, request_type=prop)
 
@@ -429,7 +429,7 @@ def request_parameter(parameter, parameter_type=None, default=None,
     or if the parameter is found but is of the wrong type
     then a Response object is returned
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # get the parameter
     try:
@@ -621,7 +621,7 @@ def node_neighbors(node_id):
     After getting the neighbours it also calls
     exp.node_get_request()
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # get the parameters
     node_type = request_parameter(parameter="node_type",
@@ -673,7 +673,7 @@ def create_node(participant_id):
         3. exp.add_node_to_network
         4. exp.node_post_request
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # Get the participant.
     try:
@@ -733,7 +733,7 @@ def node_vectors(node_id):
     You can pass direction (incoming/outgoing/all) and failed
     (True/False/all).
     """
-    exp = experiment
+    exp = Experiment(session)
     # get the parameters
     direction = request_parameter(parameter="direction", default="all")
     failed = request_parameter(parameter="failed",
@@ -770,7 +770,7 @@ def connect(node_id, other_node_id):
     The ids of both nodes must be speficied in the url.
     You can also pass direction (to/from/both) as an argument.
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # get the parameters
     direction = request_parameter(parameter="direction", default="to")
@@ -816,7 +816,7 @@ def get_info(node_id, info_id):
 
     Both the node and info id must be specified in the url.
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # check the node exists
     node = models.Node.query.get(node_id)
@@ -858,7 +858,7 @@ def node_infos(node_id):
     The node id must be specified in the url.
     You can also pass info_type.
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # get the parameters
     info_type = request_parameter(parameter="info_type",
@@ -899,7 +899,7 @@ def node_received_infos(node_id):
     You must specify the node id in the url.
     You can also pass the info type.
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # get the parameters
     info_type = request_parameter(parameter="info_type",
@@ -944,7 +944,7 @@ def info_post(node_id):
     If info_type is a custom subclass of Info it must be
     added to the known_classes of the experiment class.
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # get the parameters
     info_type = request_parameter(parameter="info_type",
@@ -990,7 +990,7 @@ def node_transmissions(node_id):
     You can also pass direction (to/from/all) or status (all/pending/received)
     as arguments.
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # get the parameters
     direction = request_parameter(parameter="direction", default="incoming")
@@ -1059,7 +1059,7 @@ def node_transmit(node_id):
         },
     });
     """
-    exp = experiment
+    exp = Experiment(session)
 
     what = request_parameter(parameter="what", optional=True)
     to_whom = request_parameter(parameter="to_whom", optional=True)
@@ -1132,7 +1132,7 @@ def transformation_get(node_id):
 
     You can also pass transformation_type.
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # get the parameters
     transformation_type = request_parameter(parameter="transformation_type",
@@ -1174,7 +1174,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
     The ids of the node, info in and info out must all be in the url.
     You can also pass transformation_type.
     """
-    exp = experiment
+    exp = Experiment(session)
 
     # Get the parameters.
     transformation_type = request_parameter(parameter="transformation_type",
@@ -1259,7 +1259,7 @@ def worker_function(event_type, assignment_id, participant_id):
     db.logger.debug('rq: Received Queue Length: %d (%s)', len(q),
                     ', '.join(q.job_ids))
 
-    exp = experiment
+    exp = Experiment(session)
     key = "-----"
 
     exp.log("Received an {} notification for assignment {}, participant {}"
