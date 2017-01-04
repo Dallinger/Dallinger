@@ -1,78 +1,52 @@
-"""Bartlett's trasmission chain experiment from Remembering (1932)."""
+"""Image-labeling task."""
 
-from dallinger.networks import Chain
-from dallinger.nodes import Source
-from dallinger.experiments import Experiment
-import random
+import base64
+import os
+
+import dallinger as dlgr
 
 
-class Bartlett1932(Experiment):
+class ImageLabeling(dlgr.experiments.Experiment):
     """Define the structure of the experiment."""
 
     def __init__(self, session):
-        """Call the same function in the super (see experiments.py in dallinger).
-
-        A few properties are then overwritten.
-        Finally, setup() is called.
-        """
-        super(Bartlett1932, self).__init__(session)
+        """Initialize the experiment."""
+        super(ImageLabeling, self).__init__(session)
         self.experiment_repeats = 1
+        self.initial_recruitment_size = dlgr.config.num_participants
         self.setup()
 
     def setup(self):
-        """Setup the networks.
-
-        Setup only does stuff if there are no networks, this is so it only
-        runs once at the start of the experiment. It first calls the same
-        function in the super (see experiments.py in dallinger). Then it adds a
-        source to each network.
-        """
+        """Setup the networks."""
         if not self.networks():
-            super(Bartlett1932, self).setup()
+            super(ImageLabeling, self).setup()
             for net in self.networks():
-                WarOfTheGhostsSource(network=net)
-
-    def create_network(self):
-        """Return a new network."""
-        return Chain(max_size=3)
+                ObjectPhotographSource(network=net)
 
     def add_node_to_network(self, node, network):
-        """Add node to the chain and receive transmissions."""
+        """Add node to the network and receive transmissions."""
         network.add_node(node)
-        parent = node.neighbors(direction="from")[0]
-        parent.transmit()
+        source = dlgr.nodes.Source.query.one()
+        source.connect(direction="to", whom=node)
+        source.transmit()
         node.receive()
 
     def recruit(self):
-        """Recruit one participant at a time until all networks are full."""
-        if self.networks(full=False):
-            self.recruiter().recruit_participants(n=1)
-        else:
-            self.recruiter().close_recruitment()
+        """Don't recruit new participants."""
+        pass
 
 
-class WarOfTheGhostsSource(Source):
-    """A Source that reads in a random story from a file and transmits it."""
+class ObjectPhotographSource(dlgr.nodes.Source):
+    """Transmits a photograph of an object."""
 
     __mapper_args__ = {
-        "polymorphic_identity": "war_of_the_ghosts_source"
+        "polymorphic_identity": "object_photograph_source"
     }
 
     def _contents(self):
-        """Define the contents of new Infos.
-
-        transmit() -> _what() -> create_information() -> _contents().
-        """
-        stories = [
-            "ghosts.md",
-            "cricket.md",
-            "moochi.md",
-            "outwit.md",
-            "raid.md",
-            "species.md",
-            "tennis.md",
-            "vagabond.md"
-        ]
-        story = random.choice(stories)
-        with open("static/stimuli/{}".format(story), "r") as f:
-            return f.read()
+        """Return an image."""
+        stimuli_dir = os.path.join("static", "stimuli")
+        for i in os.listdir(stimuli_dir):
+            if i.endswith(".jpg"):
+                with open(os.path.join(stimuli_dir, i), "rb") as f:
+                    return base64.b64encode(f.read())
