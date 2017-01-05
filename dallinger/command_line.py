@@ -269,26 +269,15 @@ def debug(verbose):
 
     # Set the mode to debug.
     config = get_config()
-    logfile = os.path.join(cwd, config.get("logfile"))
+    logfile = config.get('logfile')
+    if logfile != '-':
+        logfile = os.path.join(cwd, logfile)
     config.extend({
         "mode": u"debug",
         "launch_in_sandbox_mode": True,
         "logfile": logfile
     })
-
-    # Swap in the HotAirRecruiter
-    os.rename("dallinger_experiment.py", "dallinger_experiment_tmp.py")
-    with open("dallinger_experiment_tmp.py", "r+") as f:
-        with open("dallinger_experiment.py", "w+") as f2:
-            f2.write("from dallinger.recruiters import HotAirRecruiter\n")
-            for idx, line in enumerate(f):
-                if re.search("\s*self.recruiter = (.*)", line):
-                    p = line.partition("self.recruiter =")
-                    f2.write(p[0] + p[1] + ' HotAirRecruiter\n')
-                else:
-                    f2.write(line)
-
-    os.remove("dallinger_experiment_tmp.py")
+    config.write_config()
 
     # Start up the local server
     log("Starting up the server...")
