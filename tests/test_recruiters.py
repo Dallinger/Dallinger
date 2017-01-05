@@ -1,8 +1,9 @@
-from dallinger import db
-from dallinger.config import get_config
 import datetime
 import os
 from boto.mturk.price import Price
+from dallinger import db
+from dallinger.config import get_config
+from nose.tools import assert_raises
 
 
 class TestRecruiters(object):
@@ -39,7 +40,7 @@ def stub_config(**kwargs):
         'aws_access_key_id': 'fake key',
         'aws_secret_access_key': 'fake secret',
         'aws_region': 'fake region',
-        'is_sandbox': True,
+        'launch_in_sandbox_mode': True,
         'base_payment': 0.01,
         'duration': 1.0,
         'server': '0.0.0.0',
@@ -49,11 +50,11 @@ def stub_config(**kwargs):
         'notification_url': 'fake notification url',
         'contact_email_on_error': 'fake@fake.com',
         'ad_group': 'fake ad group',
-        'approve_requirement': 'no idea what this is',
+        'approve_requirement': 95,
         'us_only': True,
         'lifetime': 1.0,
         'description': 'fake HIT description',
-        'keywords': 'kw1, kw2, kw3'
+        'keywords': 'kw1, kw2, kw3',
     }
     defaults.update(kwargs)
 
@@ -124,12 +125,9 @@ class TestMTurkRecruiter(object):
             'aws_secret_access_key': ''
         }
         recruiter = self.make_one(**empty_creds)
-        try:
+
+        with assert_raises(MTurkRecruiterException):
             recruiter.check_aws_credentials()
-        except MTurkRecruiterException:
-            pass
-        else:
-            assert False
 
     def test_register_hit_type(self):
         config = {
