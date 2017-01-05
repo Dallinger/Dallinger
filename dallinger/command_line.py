@@ -210,7 +210,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         shutil.copy(src, os.path.join(dst, filename))
 
     config = get_config()
-    clock_on = config.get('clock_on')
+    clock_on = config.get('clock_on', False)
 
     # If the clock process has been disabled, overwrite the Procfile.
     if not clock_on:
@@ -361,7 +361,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
     # If a team is specified, assign the app to the team.
     try:
-        team = config.get("Heroku Access", "team")
+        team = config.get("heroku_team", None)
         if team:
             create_cmd.extend(["--org", team])
     except Exception:
