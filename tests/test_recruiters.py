@@ -1,4 +1,5 @@
 from dallinger import db
+from dallinger.config import get_config
 import datetime
 import os
 from boto.mturk.price import Price
@@ -70,12 +71,12 @@ def creds_from_environment():
 class TestMTurkRecruiterAssumesConfigFileInCWD(object):
 
     def setup(self):
-        # XXX Ugh.
+        config = get_config()
+        config.ready = False
         self.db = db.init_db(drop_all=True)
         os.chdir(os.path.join("demos", "bartlett1932"))
 
     def teardown(self):
-        # XXX Ugh.
         self.db.rollback()
         self.db.close()
         os.chdir("..")
