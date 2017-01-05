@@ -11,6 +11,11 @@ logger = logging.getLogger(__file__)
 app = util.import_app("dallinger.experiment_server.experiment_server:app")
 
 
+def when_ready(arbiter):
+    # Signal to parent process that server has started.
+    print('Ready.')
+
+
 class StandaloneServer(Application):
     loglevels = ["debug", "info", "warning", "error", "critical"]
 
@@ -60,6 +65,7 @@ class StandaloneServer(Application):
             'errorlog': config.get("logfile"),
             'proc_name': 'psiturk_experiment_server',
             'limit_request_line': '0',
+            'when_ready': when_ready,
         }
 
 
