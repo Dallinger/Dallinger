@@ -306,7 +306,7 @@ class MTurkRecruiter(object):
         self.aws_access_key_id = self.config.get('aws_access_key_id')
         self.aws_secret_access_key = self.config.get('aws_secret_access_key')
         self.aws_region = self.config.get('aws_region')
-        self.is_sandbox = self.config.get('is_sandbox')
+        self.is_sandbox = self.config.get('launch_in_sandbox_mode')
         self.reward = Price(self.config.get('base_payment'))
         self.duration = datetime.timedelta(hours=self.config.get('duration'))
 
