@@ -112,7 +112,8 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
     # Load configuration.
     config = get_config()
-    config.load_config()
+    if not config.ready:
+        config.load_config()
 
     # Check that the demo-specific requirements are satisfied.
     try:

@@ -27,7 +27,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import exc
 
 from dallinger import db
-from dallinger import experiments
+from dallinger import experiment
 from dallinger import models
 from dallinger.heroku.worker import conn
 from dallinger.config import get_config
@@ -63,7 +63,7 @@ q = Queue(connection=conn)
 
 app = Flask('Experiment_Server')
 
-Experiment = experiments.load()
+Experiment = experiment.load()
 
 
 """Load the experiment's extra routes, if any."""
