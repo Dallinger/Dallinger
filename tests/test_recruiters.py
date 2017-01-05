@@ -39,20 +39,19 @@ def stub_config(**kwargs):
     defaults = {
         'aws_access_key_id': 'fake key',
         'aws_secret_access_key': 'fake secret',
-        'aws_region': 'fake region',
         'launch_in_sandbox_mode': True,
         'base_payment': 0.01,
         'duration': 1.0,
         'server': '0.0.0.0',
         'browser_exclude_rule': 'fakebrowser1, fakebrowser2',
         'organization_name': 'fake org name',
-        'experiment_name': 'fake expermiment name',
         'notification_url': 'fake notification url',
         'contact_email_on_error': 'fake@fake.com',
         'ad_group': 'fake ad group',
         'approve_requirement': 95,
         'us_only': True,
         'lifetime': 1.0,
+        'title': 'fake experiment title',
         'description': 'fake HIT description',
         'keywords': 'kw1, kw2, kw3',
     }
@@ -86,7 +85,7 @@ class TestMTurkRecruiterAssumesConfigFileInCWD(object):
     def test_instantiation_from_current_config(self):
         from dallinger.recruiters import MTurkRecruiter
         recruiter = MTurkRecruiter.from_current_config()
-        assert recruiter.aws_region == 'us-east-1'
+        assert recruiter.config.get('title') == 'War of the Ghosts'
 
 
 class TestMTurkRecruiter(object):
@@ -105,8 +104,7 @@ class TestMTurkRecruiter(object):
 
     def test_config_passed_to_constructor(self):
         recruiter = self.make_one()
-        config = stub_config()
-        assert recruiter.aws_region == config.get('aws_region')
+        assert recruiter.config.get('title') == 'fake experiment title'
 
     def test_check_aws_credentials_good_credentials(self):
         recruiter = self.make_one(**creds_from_environment())
