@@ -464,7 +464,7 @@ def load():
         sys.path.append(os.getcwd())
 
     try:
-        exp = imp.load_source('experiment', "dallinger_experiment.py")
+        exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
         classes = inspect.getmembers(exp, inspect.isclass)
         exps = [c for c in classes
                 if (c[1].__bases__[0].__name__ in "Experiment")]

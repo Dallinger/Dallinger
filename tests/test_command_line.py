@@ -62,7 +62,7 @@ class TestSetupExperiment(object):
         assert(os.path.exists(os.path.join("static", "scripts", "dallinger.js")) is True)
         assert(os.path.exists(os.path.join("static", "scripts", "reqwest.min.js")) is True)
         assert(os.path.exists(os.path.join("static", "robots.txt")) is True)
-        assert(os.path.exists(os.path.join("templates", "error_dallinger.html")) is True)
+        assert(os.path.exists(os.path.join("templates", "error.html")) is True)
         assert(os.path.exists(os.path.join("templates", "launch.html")) is True)
         assert(os.path.exists(os.path.join("templates", "complete.html")) is True)
 
