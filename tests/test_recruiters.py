@@ -141,3 +141,42 @@ class TestMTurkRecruiter(object):
         recruiter = self.make_one(**creds_from_environment())
         hit_type = recruiter.register_hit_type(config)
         assert hasattr(hit_type, 'HITTypeId')
+
+    def test_register_notification_url(self):
+        config = {
+            "title": 'Test Title',
+            "description": 'Test Description',
+            "keywords": ['testkw1', 'testkw1'],
+            "reward": Price(.01),
+            "duration": datetime.timedelta(hours=.25)
+        }
+        url = 'https://url-of-real-ad-route'
+        recruiter = self.make_one(**creds_from_environment())
+        hit_type = recruiter.register_hit_type(config)
+
+        result = recruiter.register_notification_url(url, hit_type.HITTypeId)
+
+        assert 'NONSENSE' in result
+
+    def test_create_hit(self):
+        hit_config = {
+            "ad_url": 'https://www.google.com/',  # ???
+            "approve_requirement": 95,
+            "us_only": True,
+            "lifetime": datetime.timedelta(hours=1),
+            "max_assignments": 1,
+            "notification_url": 'fake notification url',
+            "title": 'Test Title',
+            "description": 'Test Description',
+            "keywords": ['testkw1', 'testkw1'],
+            "reward": Price(.01),
+            "duration": datetime.timedelta(hours=.25)
+        }
+        recruiter = self.make_one(**creds_from_environment())
+        hit = recruiter.create_hit(hit_config)
+        assert 'hit_id' in hit
+
+    # def test_open_recruitment(self):
+    #     recruiter = self.make_one(**creds_from_environment())
+    #     hit_info = recruiter.open_recruitment(n=1)
+    #     assert 'hit_id' in hit_info
