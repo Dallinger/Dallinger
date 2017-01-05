@@ -52,7 +52,8 @@ except ImportError:
     pass
 else:
     extra_settings()
-config.load_config()
+if not config.ready:
+    config.load_config()
 
 # Initialize the Dallinger database.
 session = db.session
