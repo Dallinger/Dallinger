@@ -1,3 +1,4 @@
+import os
 from dallinger import db
 
 
@@ -10,10 +11,13 @@ class TestBartlett1932(object):
 
     def setup(self):
         self._db = db.init_db(drop_all=True)
+        # This is only needed for Psiturk Config, which loads on import
+        os.chdir('demos/bartlett1932')
 
     def teardown(self):
         self._db.rollback()
         self._db.close()
+        os.chdir('../..')
 
     def test_instantiation(self):
         demo = self._make_one()

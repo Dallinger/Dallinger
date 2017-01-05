@@ -15,7 +15,7 @@ from dallinger import db
 from dallinger.models import Participant
 
 # Import the experiment.
-experiment = dallinger.experiments.load()
+experiment = dallinger.experiment.load()
 
 session = db.session
 
