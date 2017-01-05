@@ -114,9 +114,10 @@ class TestMTurkRecruiter(object):
         assert is_authenticated
 
     def test_check_aws_credentials_bad_credentials(self):
+        from boto.mturk.connection import MTurkRequestError
         recruiter = self.make_one()
-        is_authenticated = recruiter.check_aws_credentials()
-        assert not is_authenticated
+        with assert_raises(MTurkRequestError):
+            recruiter.check_aws_credentials()
 
     def test_check_aws_credentials_no_creds_set_raises(self):
         from dallinger.recruiters import MTurkRecruiterException
