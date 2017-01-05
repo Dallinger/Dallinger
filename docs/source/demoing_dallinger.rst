@@ -17,11 +17,12 @@ see something that looks like:
 
 ::
 
-    ❯❯ Server is running on 0.0.0.0:5000. Press Ctrl+C to exit.
+    New participant requested: http://0.0.0.0:5000/ad?assignmentId=debug9TXPFF&hitId=P8UTMZ&workerId=SP7HJ4&mode=debug
 
-This indicates that the server is running.
+and your browser should automatically open to this URL.
+You can start interacting as the first participant in the experiment.
 
-@@@ Add instructions on how to open in browser once we've done story 136.
+In the terminal, press Ctrl+C to exit the server.
 
 **Help, the experiment page is blank!** This may happen if you are using
 an ad-blocker. Try disabling your ad-blocker and refresh the page.

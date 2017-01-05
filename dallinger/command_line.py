@@ -20,6 +20,7 @@ import sys
 import tempfile
 import time
 import uuid
+import webbrowser
 
 import boto
 import click
@@ -282,25 +283,42 @@ def debug(verbose):
     # Start up the local server
     log("Starting up the server...")
     path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'psiturkapp.py'))
-    p = subprocess.Popen([sys.executable, path])
+    p = subprocess.Popen(
+        [sys.executable, '-u', path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
 
-    host = config.get('host')
-    port = config.get('port')
-    public_interface = "{}:{}".format(host, port)
+    # Wait for server to start
+    ready = False
+    for line in iter(p.stdout.readline, ''):
+        if re.match('^Ready.$', line):
+            ready = True
+            break
+        sys.stdout.write(line)
 
-    log("Launching the experiment...")
-    time.sleep(4)
-    subprocess.check_call(
-        'curl --data "" http://{}/launch'.format(public_interface),
-        shell=True)
+    if ready:
+        host = config.get('host')
+        port = config.get('port')
+        public_interface = "{}:{}".format(host, port)
+        log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
 
-    log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
+        # Call endpoint to launch the experiment
+        log("Launching the experiment...")
+        time.sleep(4)
+        subprocess.check_call(
+            'curl --data "" http://{}/launch'.format(public_interface),
+            shell=True)
 
-    # Wait for server process to end
-    try:
-        p.wait()
-    except (KeyboardInterrupt, OSError):
-        p.terminate()
+        # Monitor output from server process
+        for line in iter(p.stdout.readline, ''):
+            sys.stdout.write(line)
+
+            # Open browser for new participants
+            match = re.search('New participant requested: (.*)$', line)
+            if match:
+                url = match.group(1)
+                webbrowser.open(url, new=1, autoraise=True)
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
