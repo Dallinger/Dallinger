@@ -95,18 +95,15 @@ worldwide = false
 
     def test_experiment_defined_parameters(self):
         os.chdir('tests/experiment')
-        python = pexpect.spawn("python")
         try:
+            python = pexpect.spawn("python")
             python.read_nonblocking(10000)
             python.setecho(False)
             python.sendline('from dallinger.experiment_server import experiment_server')
             python.sendline('from dallinger.config import get_config')
             python.sendline('config = get_config()')
-            python.read_nonblocking(10000)
             python.sendline('print config.types')
-            python.read_nonblocking(10000)
-            types = python.read_nonblocking(10000)
-            assert "'custom_parameter': <type 'int'>" in types
+            python.expect_exact("custom_parameter': <type 'int'>")
         finally:
             python.close()
             os.chdir('../..')

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import filecmp
 import os
+import pexpect
 import subprocess
 
 
@@ -13,10 +14,6 @@ class TestCommandLine(object):
 
     def teardown(self):
         os.chdir("..")
-
-    def add(self, *args):
-        self.db.add_all(args)
-        self.db.commit()
 
     def test_dallinger_help(self):
         output = subprocess.check_output("dallinger", shell=True)
@@ -113,3 +110,20 @@ class TestSetupExperiment(object):
         assert(deploy_config.get('Server Parameters', 'num_dynos_web') == 2)
         assert(deploy_config.get('Server Parameters', 'bogus_entry') is True)
         assert(deploy_config.get('New Group', 'something') == 'nothing')
+
+
+class TestDebugServer(object):
+
+    def setup(self):
+        """Set up the environment by moving to the demos directory."""
+        self.orig_dir = os.getcwd()
+        os.chdir("demos/bartlett1932")
+
+    def teardown(self):
+        os.chdir(self.orig_dir)
+
+    def test_startup(self):
+        # Make sure debug server starts without error
+        p = pexpect.spawn('dallinger', ['debug'])
+        p.expect_exact('Server is running on 0.0.0.0:5000. Press Ctrl+C to exit.')
+        p.terminate()
