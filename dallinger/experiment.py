@@ -18,8 +18,6 @@ from dallinger.config import get_config
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
-from dallinger.recruiters import HotAirRecruiter
-from dallinger.recruiters import PsiTurkRecruiter
 from dallinger.transformations import Compression, Response
 from dallinger.transformations import Mutation, Replication
 from dallinger.networks import Empty
@@ -50,6 +48,8 @@ class Experiment(object):
 
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
+        from dallinger.recruiters import HotAirRecruiter
+        from dallinger.recruiters import PsiTurkRecruiter
 
         #: Boolean, determines whether the experiment logs output when
         #: running. Default is True.
