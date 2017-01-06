@@ -121,6 +121,7 @@ class Configuration(object):
             self.load_from_config_file(config_file)
         self.ready = True
 
+
 configurations = threading.local()
 
 
