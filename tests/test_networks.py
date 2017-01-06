@@ -1,6 +1,6 @@
 from dallinger import networks, nodes, db, models
 import random
-from nose.tools import assert_raises, raises
+from pytest import raises
 
 
 class TestNetworks(object):
@@ -47,7 +47,6 @@ class TestNetworks(object):
         assert net.nodes(type=nodes.Agent) == [agent]
         assert isinstance(net, models.Network)
 
-    @raises(NotImplementedError)
     def test_network_base_add_node_not_implemented(self):
         net = models.Network()
         self.db.add(net)
@@ -55,7 +54,8 @@ class TestNetworks(object):
         node = models.Node(network=net)
         self.db.add(net)
         self.db.commit()
-        net.add_node(node)
+        with raises(NotImplementedError):
+            net.add_node(node)
 
     def test_network_sources(self):
         net = networks.Network()
@@ -181,7 +181,7 @@ class TestNetworks(object):
 
         node1.connect(whom=[node2, agent1, agent2])
 
-        assert_raises(TypeError, node1.connect, whom=source1)
+        raises(TypeError, node1.connect, whom=source1)
 
         assert set(node1.neighbors(direction="to")) == set([node2, agent1, agent2])
         assert len(node1.vectors(direction="outgoing")) == 3
@@ -190,7 +190,7 @@ class TestNetworks(object):
         agent1.fail()
         agent2.fail()
 
-        assert_raises(ValueError, node1.neighbors, direction="ghbhfgjd")
+        raises(ValueError, node1.neighbors, direction="ghbhfgjd")
 
     def test_network_repr(self):
         net = networks.Network()
