@@ -25,6 +25,8 @@ from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import exc
+from sqlalchemy import func
+from sqlalchemy.sql.expression import true
 
 from dallinger import db
 from dallinger import experiment
@@ -1242,6 +1244,34 @@ def api_notifications():
                     ', '.join(q.job_ids))
 
     return success_response(request_type="notification")
+
+
+@app.route("/experiment_status", methods=["GET"])
+def experiment_status():
+    """Return Experiment Status.
+
+    Checks that all networks are full and no Participants are currently
+    working.
+    """
+    state = {'completed': False}
+    unfilled_nets = models.Network.query.filter(models.Network.full != true()).all()
+    working = models.Participant.query.filter_by(
+        status='working'
+    ).with_entities(func.count(models.Participant.id)).scalar()
+    state['unfilled_networks'] = len(unfilled_nets)
+    state['working_participants'] = working
+    nodes_remaining = 0
+    if state['unfilled_networks'] == 0:
+        if working == 0:
+            state['completed'] = True
+    else:
+        for net in unfilled_nets:
+            node_count = models.Node.query.filter_by(
+                network_id=net.id
+            ).with_entities(func.count(models.Node.id)).scalar()
+            nodes_remaining += net.max_size - node_count
+    state['nodes_remaining'] = nodes_remaining
+    return success_response(field="state", data=state)
 
 
 def check_for_duplicate_assignments(participant):
