@@ -31,7 +31,7 @@ class Configuration(object):
         self.ready = False
 
     def extend(self, mapping, cast_types=False):
-        normalised_mapping = {}
+        normalized_mapping = {}
         for key, value in mapping.items():
             key = self.synonyms.get(key, key)
             if key not in self.types:
@@ -54,8 +54,8 @@ class Configuration(object):
                         expected_type=expected_type,
                     )
                 )
-            normalised_mapping[key] = value
-        self.data.extendleft([normalised_mapping])
+            normalized_mapping[key] = value
+        self.data.extendleft([normalized_mapping])
 
     def get(self, key, default=marker):
         if not self.ready:
