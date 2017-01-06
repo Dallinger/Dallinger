@@ -31,7 +31,7 @@ To run just the Python tests::
 
 To build documentation::
 
-	tox -e docs
+	tox -e py27-docs
 
 To run flake8::
 
