@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from collections import deque
 from ConfigParser import SafeConfigParser
 import distutils.util
+import imp
 import os
 import threading
 
@@ -102,6 +103,10 @@ class Configuration(object):
     def load_config(self):
         if self.ready:
             raise ValueError("Already loaded")
+
+        # Apply extra settings before loading the configs
+        self.apply_extra_settings()
+
         globalConfigName = ".dallingerconfig"
         if 'OPENSHIFT_SECRET_TOKEN' in os.environ:
             globalConfig = os.path.join(os.environ['OPENSHIFT_DATA_DIR'], globalConfigName)
@@ -120,6 +125,26 @@ class Configuration(object):
         for config_file in [global_defaults_file, local_defaults_file, globalConfig, localConfig]:
             self.load_from_config_file(config_file)
         self.ready = True
+
+    def apply_extra_settings(self):
+        extra_settings = None
+        try:
+            from dallinger_experiment import extra_settings
+        except ImportError:
+            try:
+                exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
+                extra_settings = getattr(exp, 'extra_settings', None)
+            except (ImportError, IOError):
+                pass
+            if extra_settings is None:
+                try:
+                    # We may be in the original source directory, try experiment.py
+                    exp = imp.load_source('dallinger_experiment', "experiment.py")
+                    extra_settings = getattr(exp, 'extra_settings', None)
+                except (ImportError, IOError):
+                    pass
+        if extra_settings is not None:
+            extra_settings()
 
 
 configurations = threading.local()

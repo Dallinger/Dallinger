@@ -47,12 +47,6 @@ BONUSED = 7
 
 
 config = get_config()
-try:
-    from dallinger_experiment import extra_settings
-except ImportError:
-    pass
-else:
-    extra_settings()
 if not config.ready:
     config.load_config()
 
