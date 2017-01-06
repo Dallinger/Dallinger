@@ -7,7 +7,6 @@ import errno
 import imp
 import inspect
 import os
-import pexpect
 import pkg_resources
 import re
 try:
@@ -17,6 +16,7 @@ except ImportError:
     from shlex import quote
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -24,7 +24,7 @@ import uuid
 import boto
 import click
 from localconfig import LocalConfig
-from psiturk.psiturk_config import PsiturkConfig
+from dallinger.config import get_config
 import psycopg2
 import redis
 import requests
@@ -106,13 +106,14 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     # Verify that the Postgres server is running.
     try:
         psycopg2.connect(database="x", user="postgres", password="nada")
-    except psycopg2.OperationalError, e:
+    except psycopg2.OperationalError as e:
         if "could not connect to server" in str(e):
             raise RuntimeError("The Postgres server isn't running.")
 
-    # Load psiTurk configuration.
-    psi_config = PsiturkConfig()
-    psi_config.load_config()
+    # Load configuration.
+    config = get_config()
+    if not config.ready:
+        config.load_config()
 
     # Check that the demo-specific requirements are satisfied.
     try:
@@ -192,12 +193,10 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join(dst, "experiment.py"),
         os.path.join(dst, "dallinger_experiment.py"))
 
-    # Copy files into this experiment package.
+    # Get dallinger package location.
     from pkg_resources import get_distribution
     dist = get_distribution('dallinger')
     src_base = os.path.join(dist.location, dist.project_name)
-    src = os.path.join(src_base, "custom.py")
-    shutil.copy(src, os.path.join(dst, "custom.py"))
 
     heroku_files = [
         "Procfile",
@@ -210,7 +209,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         src = os.path.join(src_base, "heroku", filename)
         shutil.copy(src, os.path.join(dst, filename))
 
-    clock_on = psi_config.getboolean('Server Parameters', 'clock_on')
+    clock_on = config.get('clock_on', False)
 
     # If the clock process has been disabled, overwrite the Procfile.
     if not clock_on:
@@ -221,7 +220,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
-        os.path.join("templates", "error_dallinger.html"),
+        os.path.join("templates", "error.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "complete.html"),
         os.path.join("static", "robots.txt")
@@ -267,17 +266,14 @@ def debug(verbose):
     cwd = os.getcwd()
     os.chdir(tmp)
 
-    # Load psiTurk configuration.
-    config = PsiturkConfig()
-    config.load_config()
-
     # Set the mode to debug.
-    config.set("Experiment Configuration", "mode", "debug")
-    config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
-    config.set(
-        "Server Parameters",
-        "logfile",
-        os.path.join(cwd, config.get("Server Parameters", "logfile")))
+    config = get_config()
+    logfile = os.path.join(cwd, config.get("logfile"))
+    config.extend({
+        "mode": u"debug",
+        "launch_in_sandbox_mode": True,
+        "logfile": logfile
+    })
 
     # Swap in the HotAirRecruiter
     os.rename("dallinger_experiment.py", "dallinger_experiment_tmp.py")
@@ -293,46 +289,28 @@ def debug(verbose):
 
     os.remove("dallinger_experiment_tmp.py")
 
-    # Set environment variables.
-    vars = [
-        ("AWS Access", "aws_access_key_id"),
-        ("AWS Access", "aws_secret_access_key"),
-        ("AWS Access", "aws_region"),
-        ("psiTurk Access", "psiturk_access_key_id"),
-        ("psiTurk Access", "psiturk_secret_access_id"),
-    ]
-    for var in vars:
-        if var[0] not in os.environ:
-            os.environ[var[1]] = config.get(var[0], var[1])
-
-    if "HOST" not in os.environ:
-        os.environ["HOST"] = config.get('Server Parameters', 'host')
-
     # Start up the local server
     log("Starting up the server...")
+    path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'psiturkapp.py'))
+    p = subprocess.Popen([sys.executable, path])
 
-    # Try opening the psiTurk shell.
+    host = config.get('host')
+    port = config.get('port')
+    public_interface = "{}:{}".format(host, port)
+
+    log("Launching the experiment...")
+    time.sleep(4)
+    subprocess.check_call(
+        'curl --data "" http://{}/launch'.format(public_interface),
+        shell=True)
+
+    log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
+
+    # Wait for server process to end
     try:
-        p = pexpect.spawn("psiturk")
-        p.expect_exact("]$")
-        p.sendline("server on")
-        p.expect_exact("Experiment server launching...")
-
-        # Launche the experiment.
-        time.sleep(4)
-
-        host = config.get("Server Parameters", "host")
-        port = config.get("Server Parameters", "port")
-
-        subprocess.check_call(
-            'curl --data "" http://{}:{}/launch'.format(host, port),
-            shell=True)
-
-        log("Here's the psiTurk shell...")
-        p.interact()
-
-    except Exception:
-        click.echo("\nCouldn't open psiTurk shell. Internet connection okay?")
+        p.wait()
+    except (KeyboardInterrupt, OSError):
+        p.terminate()
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
@@ -365,8 +343,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         subprocess.check_call(cmd, stdout=out, shell=True)
         time.sleep(0.5)
 
-    # Load psiTurk configuration.
-    config = PsiturkConfig()
+    # Load configuration.
+    config = get_config()
     config.load_config()
 
     # Initialize the app on Heroku.
@@ -382,18 +360,17 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
     # If a team is specified, assign the app to the team.
     try:
-        team = config.get("Heroku Access", "team")
+        team = config.get("heroku_team", None)
         if team:
             create_cmd.extend(["--org", team])
     except Exception:
         pass
 
     subprocess.check_call(create_cmd, stdout=out)
-
-    database_size = config.get('Database Parameters', 'database_size')
+    database_size = config.get('database_size')
 
     try:
-        if config.getboolean('Easter eggs', 'whimsical'):
+        if config.get('whimsical'):
             whimsical = "true"
         else:
             whimsical = "false"
@@ -414,34 +391,34 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         app_name(id) + ".herokuapp.com",
 
         "heroku config:set aws_access_key_id=" +
-        quote(config.get('AWS Access', 'aws_access_key_id')),
+        quote(config.get('aws_access_key_id')),
 
         "heroku config:set aws_secret_access_key=" +
-        quote(config.get('AWS Access', 'aws_secret_access_key')),
+        quote(config.get('aws_secret_access_key')),
 
         "heroku config:set aws_region=" +
-        quote(config.get('AWS Access', 'aws_region')),
+        quote(config.get('aws_region')),
 
         "heroku config:set psiturk_access_key_id=" +
-        quote(config.get('psiTurk Access', 'psiturk_access_key_id')),
+        quote(config.get('psiturk_access_key_id')),
 
         "heroku config:set psiturk_secret_access_id=" +
-        quote(config.get('psiTurk Access', 'psiturk_secret_access_id')),
+        quote(config.get('psiturk_secret_access_id')),
 
         "heroku config:set auto_recruit=" +
-        quote(config.get('Experiment Configuration', 'auto_recruit')),
+        quote(config.get('auto_recruit')),
 
         "heroku config:set dallinger_email_username=" +
-        quote(config.get('Email Access', 'dallinger_email_address')),
+        quote(config.get('dallinger_email_address')),
 
         "heroku config:set dallinger_email_key=" +
-        quote(config.get('Email Access', 'dallinger_email_password')),
+        quote(config.get('dallinger_email_password')),
 
         "heroku config:set heroku_email_address=" +
-        quote(config.get('Heroku Access', 'heroku_email_address')),
+        quote(config.get('heroku_email_address')),
 
-        'heroku config:set heroku_password=' +
-        quote(config.get('Heroku Access', 'heroku_password')),
+        "heroku config:set heroku_password=" +
+        quote(config.get('heroku_password')),
 
         "heroku config:set whimsical=" + whimsical,
     ]
@@ -519,15 +496,15 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 @click.option('--app', default=None, help='ID of the sandboxed experiment')
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    # Load psiTurk configuration.
-    config = PsiturkConfig()
+    # Load configuration.
+    config = get_config()
     config.load_config()
 
     # Set the mode.
     config.set("Experiment Configuration", "mode", "sandbox")
     config.set("Server Parameters", "logfile", "-")
 
-    # Ensure that psiTurk is in sandbox mode.
+    # Ensure that we launch in sandbox mode.
     config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
 
     # Do shared setup.
@@ -539,15 +516,15 @@ def sandbox(verbose, app):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
-    # Load psiTurk configuration.
-    config = PsiturkConfig()
+    # Load configuration.
+    config = get_config()
     config.load_config()
 
     # Set the mode.
     config.set("Experiment Configuration", "mode", "deploy")
     config.set("Server Parameters", "logfile", "-")
 
-    # Ensure that psiTurk is not in sandbox mode.
+    # Ensure that we do not launch in sandbox mode.
     config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
 
     # Do shared setup.
@@ -562,10 +539,10 @@ def qualify(qualification, value, worker):
     """Assign a qualification to a worker."""
     # create connection to AWS
     from boto.mturk.connection import MTurkConnection
-    config = PsiturkConfig()
+    config = get_config()
     config.load_config()
-    aws_access_key_id = config.get('AWS Access', 'aws_access_key_id')
-    aws_secret_access_key = config.get('AWS Access', 'aws_secret_access_key')
+    aws_access_key_id = config.get('aws_access_key_id')
+    aws_secret_access_key = config.get('aws_secret_access_key')
     conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
 
     def get_workers_with_qualification(qualification):
@@ -679,12 +656,12 @@ def backup(app):
     """Dump the database."""
     dump_path = dump_database(app)
 
-    config = PsiturkConfig()
+    config = get_config()
     config.load_config()
 
     conn = boto.connect_s3(
-        config.get('AWS Access', 'aws_access_key_id'),
-        config.get('AWS Access', 'aws_secret_access_key'),
+        config.get('aws_access_key_id'),
+        config.get('aws_secret_access_key'),
     )
 
     bucket = conn.create_bucket(
@@ -751,10 +728,10 @@ def destroy(app):
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
     id = app
-    config = PsiturkConfig()
+    config = get_config()
     config.load_config()
 
-    database_size = config.get('Database Parameters', 'database_size')
+    database_size = config.get('database_size')
 
     subprocess.check_call(
         "heroku addons:create heroku-postgresql:{} --app {}".format(
@@ -767,8 +744,8 @@ def awaken(app, databaseurl):
         shell=True)
 
     conn = boto.connect_s3(
-        config.get('AWS Access', 'aws_access_key_id'),
-        config.get('AWS Access', 'aws_secret_access_key'),
+        config.get('aws_access_key_id'),
+        config.get('aws_secret_access_key'),
     )
 
     bucket = conn.get_bucket(id)
@@ -971,7 +948,7 @@ def verify_package(verbose=True):
     # Check front-end files do not exist
     files = [
         os.path.join("templates", "complete.html"),
-        os.path.join("templates", "error_dallinger.html"),
+        os.path.join("templates", "error.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),

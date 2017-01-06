@@ -5,6 +5,7 @@
 *.psiturk_history
 *.egg-info
 /.coverage
+/coverage.xml
 /cover/
 *.egg-info/
 *.db-journal

@@ -4,9 +4,11 @@ from collections import Counter
 from functools import wraps
 import imp
 import inspect
+import logging
 from operator import itemgetter
 import os
 import random
+import requests
 import sys
 import time
 import uuid
@@ -14,11 +16,14 @@ import uuid
 from sqlalchemy import and_
 
 from dallinger.models import Network, Node, Info, Transformation, Participant
+from dallinger.heroku import app_name
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
 from dallinger.transformations import Mutation, Replication
 from dallinger.networks import Empty
+
+logger = logging.getLogger(__file__)
 
 
 def exp_class_working_dir(meth):
@@ -256,7 +261,7 @@ class Experiment(object):
     def log(self, text, key="?????", force=False):
         """Print a string to the logs."""
         if force or self.verbose:
-            print ">>>> {} {}".format(key, text)
+            print(">>>> {} {}".format(key, text))
             sys.stdout.flush()
 
     def log_summary(self):
@@ -430,8 +435,6 @@ class Experiment(object):
 
     def _finish_experiment(self):
         self.log("Waiting for experiment to complete.", "")
-        self.log("Experiment end detection is not currently implemented, "
-                 "press CTRL-C to end.", "")
         while self.experiment_completed() is False:
             time.sleep(30)
         data = self.retrieve_data()
@@ -441,8 +444,17 @@ class Experiment(object):
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
         completed"""
-        # Not implemented
-        return False
+        status_url = 'https://{}.herokuapp.com/summary'.format(
+            app_name(self.app_id)
+        )
+        data = {}
+        try:
+            resp = requests.get(status_url)
+            data = resp.json()
+        except (ValueError, requests.exceptions.RequestException):
+            logger.exception('Error fetching experiment status.')
+        logger.debug('Current application state: {}'.format(data))
+        return data.get('completed', False)
 
     def retrieve_data(self):
         """Retrieves and saves data from a running experiment"""
@@ -457,8 +469,11 @@ class Experiment(object):
 
 def load():
     """Load the active experiment."""
+    if os.getcwd() not in sys.path:
+        sys.path.append(os.getcwd())
+
     try:
-        exp = imp.load_source('experiment', "dallinger_experiment.py")
+        exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
         classes = inspect.getmembers(exp, inspect.isclass)
         exps = [c for c in classes
                 if (c[1].__bases__[0].__name__ in "Experiment")]
@@ -467,4 +482,5 @@ def load():
         return getattr(mod, this_experiment)
 
     except ImportError:
-        print("Error: Could not import experiment.")
+        logger.error('Could not import experiment.')
+        raise

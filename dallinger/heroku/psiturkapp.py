@@ -1,5 +1,7 @@
 """Launch the experiment server."""
 
-import psiturk.experiment_server as exp
+from dallinger.experiment_server.gunicorn import launch
 
-exp.launch()
+
+if __name__ == '__main__':
+    launch()

@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Psychology Experiment - Error</title>
+        <link rel=stylesheet href="/static/css/bootstrap.min.css" type="text/css">
+        <link rel=stylesheet href="/static/css/dallinger.css" type="text/css">
+    </head>
+    <body>
+        <div class="container">
+            <div>
+                <h1>Error!</h1>
+                <hr>
+                <div>
+                    <p>{{ error_text }}</p>
+                    {% if compensate == True %}
+                    <p>To enquire about compensation, please contact the researcher at <a href="mailto:{{contact_address}}">{{contact_address}}</a> and quote the following information.</p>
+                    <p>
+                        Error type: {{ error_type }}<br>
+                        HIT id: {{ hit_id }}<br>
+                        Assignment id: {{ assignment_id }}<br>
+                        Worker id: {{ worker_id }}<br>
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

@@ -1,4 +1,4 @@
-"""Bartlett's trasmission chain experiment from Remembering (1932)."""
+"""Bartlett's transmission chain experiment from Remembering (1932)."""
 
 from dallinger.networks import Chain
 from dallinger.nodes import Source
