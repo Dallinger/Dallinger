@@ -4,7 +4,7 @@ from __future__ import print_function
 import sys
 from datetime import datetime
 from dallinger import models, db, nodes
-from nose.tools import raises, assert_raises
+from pytest import raises
 from dallinger.nodes import Agent, Source
 from dallinger.information import Gene
 from dallinger.transformations import Mutation
@@ -258,12 +258,12 @@ class TestModels(object):
             assert n in [node3, node4]
         assert node3.neighbors(direction="from") == [node2]
 
-        assert_raises(ValueError, node1.connect, whom=node1)
+        raises(ValueError, node1.connect, whom=node1)
 
         net = models.Network()
         self.add(net)
 
-        assert_raises(TypeError, node1.connect, whom=net)
+        raises(TypeError, node1.connect, whom=net)
 
     def test_node_outdegree(self):
         net = models.Network()
@@ -467,7 +467,6 @@ class TestModels(object):
 
         assert repr(info).split("-") == ["Info", str(info.id), "info"]
 
-    @raises(ValueError)
     def test_info_write_twice(self):
         """Overwrite an info's contents."""
         net = models.Network()
@@ -478,7 +477,8 @@ class TestModels(object):
         self.add(node, info)
 
         assert info.contents == "foo"
-        info.contents = "ofo"
+        with raises(ValueError):
+            info.contents = "ofo"
 
     ##################################################################
     # Transmission

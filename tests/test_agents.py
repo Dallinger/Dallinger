@@ -2,7 +2,7 @@
 
 from dallinger import nodes, information, db, models
 from dallinger.information import Meme, Gene
-from nose.tools import raises
+from pytest import raises
 
 
 class TestAgents(object):
@@ -84,16 +84,15 @@ class TestAgents(object):
         assert transmission.origin_id == agent1.id
         assert transmission.destination_id == agent2.id
 
-    @raises(ValueError)
     def test_agent_transmit_no_connection(self):
         net = models.Network()
         self.db.add(net)
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
         info = models.Info(origin=agent1, contents="foo")
-        agent1.transmit(what=info, to_whom=agent2)
+        with raises(ValueError):
+            agent1.transmit(what=info, to_whom=agent2)
 
-    @raises(ValueError)
     def test_agent_transmit_invalid_info(self):
         net = models.Network()
         self.db.add(net)
@@ -103,7 +102,8 @@ class TestAgents(object):
         agent1.connect(direction="to", whom=agent2)
         info = models.Info(origin=agent2, contents="foo")
 
-        agent1.transmit(what=info, to_whom=agent2)
+        with raises(ValueError):
+            agent1.transmit(what=info, to_whom=agent2)
 
     def test_agent_transmit_everything_to_everyone(self):
         net = models.Network()
