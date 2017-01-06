@@ -341,11 +341,36 @@ def advertisement():
 @app.route('/summary', methods=['GET'])
 def summary():
     """Summarize the participants' status codes."""
+    state = {
+        "status": "success",
+        "summary": Experiment(session).log_summary(),
+        "completed": False,
+    }
+    unfilled_nets = models.Network.query.filter(
+        models.Network.full != true()
+    ).with_entities(models.Network.id, models.Network.max_size).all()
+    working = models.Participant.query.filter_by(
+        status='working'
+    ).with_entities(func.count(models.Participant.id)).scalar()
+    state['unfilled_networks'] = len(unfilled_nets)
+    nodes_remaining = 0
+    required_nodes = 0
+    if state['unfilled_networks'] == 0:
+        if working == 0:
+            state['completed'] = True
+    else:
+        for net in unfilled_nets:
+            node_count = models.Node.query.filter_by(
+                network_id=net.id
+            ).with_entities(func.count(models.Node.id)).scalar()
+            net_size = net.max_size
+            required_nodes += net_size
+            nodes_remaining += net_size - node_count
+    state['nodes_remaining'] = nodes_remaining
+    state['required_nodes'] = required_nodes
+
     return Response(
-        dumps({
-            "status": "success",
-            "summary": Experiment(session).log_summary()
-        }),
+        dumps(state),
         status=200,
         mimetype='application/json'
     )
@@ -1244,34 +1269,6 @@ def api_notifications():
                     ', '.join(q.job_ids))
 
     return success_response(request_type="notification")
-
-
-@app.route("/experiment_status", methods=["GET"])
-def experiment_status():
-    """Return Experiment Status.
-
-    Checks that all networks are full and no Participants are currently
-    working.
-    """
-    state = {'completed': False}
-    unfilled_nets = models.Network.query.filter(models.Network.full != true()).all()
-    working = models.Participant.query.filter_by(
-        status='working'
-    ).with_entities(func.count(models.Participant.id)).scalar()
-    state['unfilled_networks'] = len(unfilled_nets)
-    state['working_participants'] = working
-    nodes_remaining = 0
-    if state['unfilled_networks'] == 0:
-        if working == 0:
-            state['completed'] = True
-    else:
-        for net in unfilled_nets:
-            node_count = models.Node.query.filter_by(
-                network_id=net.id
-            ).with_entities(func.count(models.Node.id)).scalar()
-            nodes_remaining += net.max_size - node_count
-    state['nodes_remaining'] = nodes_remaining
-    return success_response(field="state", data=state)
 
 
 def check_for_duplicate_assignments(participant):
