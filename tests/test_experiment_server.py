@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 
@@ -63,6 +64,17 @@ class TestExperimentServer(FlaskAppTest):
             'mode': 'debug',
         })
         assert 'Informed Consent Form' in resp.data
+
+    def test_experiment_status(self):
+        resp = self.app.get('/experiment_status')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data.get('status', 'success')
+        state = data.get('state', {})
+        assert state.get('completed') is True
+        assert state.get('unfilled_networks') == 0
+        assert state.get('working_participants') == 0
+        assert state.get('nodes_remaining') == 0
 
     def test_not_found(self):
         resp = self.app.get('/BOGUS')
