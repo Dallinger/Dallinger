@@ -121,7 +121,6 @@ class Configuration(object):
             self.load_from_config_file(config_file)
         self.ready = True
 
-
 configurations = threading.local()
 
 
@@ -143,11 +142,16 @@ def get_config():
         ('browser_exclude_rule', unicode, []),
         ('clock_on', bool, []),
         ('contact_email_on_error', unicode, []),
+        ('dallinger_email_address', unicode, []),
+        ('dallinger_email_password', unicode, []),
         ('database_size', unicode, []),
         ('database_url', unicode, []),
         ('description', unicode, []),
         ('duration', float, []),
         ('dyno_type', unicode, []),
+        ('heroku_email_address', unicode, []),
+        ('heroku_password', unicode, []),
+        ('heroku_team', unicode, []),
         ('host', unicode, ['HOST']),
         ('port', int, ['PORT']),
         ('launch_in_sandbox_mode', bool, []),
@@ -166,7 +170,8 @@ def get_config():
         ('table_name', unicode, []),
         ('threads', unicode, []),
         ('title', unicode, []),
-        ('us_only', bool, [])
+        ('us_only', bool, []),
+        ('whimsical', bool, []),
     ):
         configurations.config.register(key, type_, synonyms)
     return configurations.config

@@ -1,6 +1,10 @@
 """Coordination chatroom game."""
 
 import dallinger as dlgr
+try:
+    unicode = unicode
+except NameError:  # Python 3
+    unicode = str
 
 
 class CoordinationChatroom(dlgr.experiments.Experiment):
@@ -14,12 +18,16 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         self.initial_recruitment_size = self.num_participants
         self.quorum = self.num_participants
         self.setup()
+        self.config = dlgr.config.get_config()
+        self.config.register('network', unicode)
+        if not self.config.ready:
+            self.config.load_config()
 
     def create_network(self):
         """Create a new network by reading the configuration file."""
         class_ = getattr(
             dlgr.networks,
-            dlgr.config.experiment_configuration.network
+            self.config.get('network')
         )
         return class_(max_size=self.num_participants)
 
