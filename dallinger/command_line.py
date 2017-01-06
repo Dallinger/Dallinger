@@ -210,7 +210,6 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         src = os.path.join(src_base, "heroku", filename)
         shutil.copy(src, os.path.join(dst, filename))
 
-    config = get_config()
     clock_on = config.get('clock_on', False)
 
     # If the clock process has been disabled, overwrite the Procfile.
