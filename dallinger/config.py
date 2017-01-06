@@ -72,6 +72,8 @@ class Configuration(object):
         return default
 
     def register(self, key, type_, synonyms=set()):
+        if key in self.types:
+            raise KeyError('Config key {} is already registered'.format(key))
         if type_ not in self.SUPPORTED_TYPES:
             raise ValueError(
                 '{type} is not a supported type'.format(
