@@ -444,7 +444,7 @@ class Experiment(object):
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
         completed"""
-        status_url = 'https://{}.herokuapp.com/experiment_status'.format(
+        status_url = 'https://{}.herokuapp.com/summary'.format(
             app_name(self.app_id)
         )
         data = {}
@@ -453,8 +453,8 @@ class Experiment(object):
             data = resp.json()
         except (ValueError, requests.exceptions.RequestException):
             logger.exception('Error fetching experiment status.')
-        logger.debug('Current application state: {}'.format(data.get('state', {})))
-        return data.get('state', {}).get('completed', False)
+        logger.debug('Current application state: {}'.format(data))
+        return data.get('completed', False)
 
     def retrieve_data(self):
         """Retrieves and saves data from a running experiment"""
