@@ -131,7 +131,7 @@ class MTurkService(object):
         }
 
         hit = self.mturk.create_hit(**params)[0]
-        if not hit.IsValid == 'True':
+        if hit.IsValid != 'True':
             raise MTurkServiceException("HIT request was invalid for unknown reason.")
 
         translated = {
