@@ -26,10 +26,6 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         if not self.config.ready:
             self.config.load_config()
         self.setup()
-        self.config = dlgr.config.get_config()
-        self.config.register('network', unicode)
-        if not self.config.ready:
-            self.config.load_config()
 
     def create_network(self):
         """Create a new network by reading the configuration file."""
