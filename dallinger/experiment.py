@@ -15,7 +15,7 @@ import uuid
 
 from sqlalchemy import and_
 
-from dallinger.config import get_config
+from dallinger.config import get_config, LOCAL_CONFIG
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.heroku import app_name
 from dallinger.information import Gene, Meme, State
@@ -37,6 +37,8 @@ def exp_class_working_dir(meth):
                 sys.modules[self.__class__.__module__].__file__
             )
             os.chdir(new_path)
+            # Override configs
+            config.load_from_config_file(LOCAL_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
             os.chdir(orig_path)
@@ -50,8 +52,6 @@ class Experiment(object):
 
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
-        from dallinger.recruiters import HotAirRecruiter
-        from dallinger.recruiters import PsiTurkRecruiter
 
         #: Boolean, determines whether the experiment logs output when
         #: running. Default is True.
@@ -71,13 +71,6 @@ class Experiment(object):
         #: int, the number of non practice networks (see
         #: :attr:`~dallinger.models.Network.role`). Default is 0.
         self.experiment_repeats = 0
-
-        #: Recruiter, the Dallinger class that recruits participants.
-        #: Default is HotAirRecruiter in debug mode and PsiTurkRecruiter in other modes.
-        if config.get('mode') == 'debug':
-            self.recruiter = HotAirRecruiter
-        else:
-            self.recruiter = PsiTurkRecruiter
 
         #: int, the number of participants
         #: requested when the experiment first starts. Default is 1.
@@ -101,6 +94,24 @@ class Experiment(object):
             "State": State,
             "Transformation": Transformation,
         }
+
+    @property
+    def recruiter(self):
+        """Recruiter, the Dallinger class that recruits participants.
+        Default is HotAirRecruiter in debug mode and PsiTurkRecruiter in other modes.
+        """
+        from dallinger.recruiters import HotAirRecruiter
+        from dallinger.recruiters import PsiTurkRecruiter
+
+        try:
+            debug_mode = config.get('mode') == 'debug'
+        except RuntimeError:
+            # Config not yet loaded
+            debug_mode = False
+
+        if debug_mode:
+            return HotAirRecruiter
+        return PsiTurkRecruiter
 
     def setup(self):
         """Create the networks if they don't already exist."""
@@ -386,16 +397,13 @@ class Experiment(object):
         run specific settings grouped by section.
         """
         import dallinger as dlgr
-        from psiturk.psiturk_config import PsiturkConfig
-        psiturk_config = PsiturkConfig()
-        psiturk_config.load_config()
-
-        # Set the mode.
-        psiturk_config.set("Experiment Configuration", "mode", "sandbox")
-        psiturk_config.set("Server Parameters", "logfile", "-")
 
         # Ensure that psiTurk is in sandbox mode.
-        psiturk_config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
+        config.extend({
+            "mode": u"sandbox",
+            "logfile": u"-",
+            "launch_in_sandbox_mode": True,
+        })
 
         if app_id is None:
             app_id = str(uuid.uuid4())
@@ -420,12 +428,12 @@ class Experiment(object):
         psiturk_config = PsiturkConfig()
         psiturk_config.load_config()
 
-        # Set the mode.
-        psiturk_config.set("Experiment Configuration", "mode", "deploy")
-        psiturk_config.set("Server Parameters", "logfile", "-")
-
         # Ensure that psiTurk is not in sandbox mode.
-        psiturk_config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
+        config.extend({
+            "mode": u"sandbox",
+            "logfile": u"-",
+            "launch_in_sandbox_mode": False,
+        })
 
         if app_id is None:
             app_id = str(uuid.uuid4())

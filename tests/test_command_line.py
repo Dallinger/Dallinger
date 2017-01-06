@@ -4,7 +4,8 @@ import filecmp
 import os
 import pexpect
 import subprocess
-from dallinger.config import get_config
+from ConfigParser import SafeConfigParser
+from dallinger.config import get_config, LOCAL_CONFIG
 
 
 class TestCommandLine(object):
@@ -27,6 +28,8 @@ class TestSetupExperiment(object):
         """Set up the environment by moving to the demos directory."""
         self.orig_dir = os.getcwd()
         os.chdir("demos/bartlett1932")
+        config = get_config()
+        config.load_from_config_file(LOCAL_CONFIG)
 
     def teardown(self):
         os.chdir(self.orig_dir)
@@ -69,48 +72,18 @@ class TestSetupExperiment(object):
 
     def test_setup_with_custom_dict_config(self):
         from dallinger.command_line import setup_experiment
-        from localconfig import LocalConfig
-        # Baseline config
-        orig_config = LocalConfig('config.txt')
-        assert(orig_config.get('Server Parameters', 'num_dynos_web') == 1)
-        assert(orig_config.get('Server Parameters', 'bogus_entry') is None)
-        assert(orig_config.get('New Group', 'something') is None)
+        config = get_config()
+        assert(config.get('num_dynos_web') == 1)
 
-        exp_id, dst = setup_experiment(exp_config={
-            'Server Parameters': {'num_dynos_web': 2, 'bogus_entry': True},
-            'New Group': {'something': 'nothing'}
-        })
+        exp_id, dst = setup_experiment(exp_config={'num_dynos_web': 2})
+        # Config is updated
+        assert(config.get('num_dynos_web') == 2)
+
         # There should be a modified configuration in the temp dir
         os.chdir(dst)
-        deploy_config = LocalConfig('config.txt')
-        assert(deploy_config.get('Server Parameters', 'num_dynos_web') == 2)
-        assert(deploy_config.get('Server Parameters', 'bogus_entry') is True)
-        assert(deploy_config.get('New Group', 'something') == 'nothing')
-
-    def test_setup_with_custom_localconfig(self):
-        from dallinger.command_line import setup_experiment
-        from localconfig import LocalConfig
-        # Baseline config
-        orig_config = LocalConfig('config.txt')
-        assert(orig_config.get('Server Parameters', 'num_dynos_web') == 1)
-        assert(orig_config.get('Server Parameters', 'bogus_entry') is None)
-        assert(orig_config.get('New Group', 'something') is None)
-
-        new_config = LocalConfig('bogus.txt')
-        new_config.add_section('Experiment Configuration')
-        new_config.add_section('Server Parameters')
-        new_config.add_section('New Group')
-        new_config.set('Server Parameters', 'num_dynos_web', 2)
-        new_config.set('Server Parameters', 'bogus_entry', True)
-        new_config.set('New Group', 'something', 'nothing')
-
-        exp_id, dst = setup_experiment(exp_config=new_config)
-        # There should be a modified configuration in the temp dir
-        os.chdir(dst)
-        deploy_config = LocalConfig('config.txt')
-        assert(deploy_config.get('Server Parameters', 'num_dynos_web') == 2)
-        assert(deploy_config.get('Server Parameters', 'bogus_entry') is True)
-        assert(deploy_config.get('New Group', 'something') == 'nothing')
+        deploy_config = SafeConfigParser()
+        deploy_config.read('config.txt')
+        assert(int(deploy_config.get('Parameters', 'num_dynos_web')) == 2)
 
 
 class TestDebugServer(object):

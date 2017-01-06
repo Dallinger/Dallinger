@@ -24,7 +24,6 @@ import webbrowser
 
 import boto
 import click
-from localconfig import LocalConfig
 from dallinger.config import get_config
 import psycopg2
 import redis
@@ -151,26 +150,6 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
         file.write(generated_uid)
 
-    if exp_config:
-        # Read existing config, we can't use PsiturkConfig here because
-        # it doesn't allow setting a file write location
-        config_file = os.path.join(dst, 'config.txt')
-        local_config = LocalConfig(config_file, interpolation=True)
-        # Supplement and override settings with passed in values
-        for section_name in exp_config:
-            if getattr(local_config, local_config._to_dot_key(section_name)) is None:
-                local_config.add_section(section_name)
-            if getattr(exp_config, '_to_dot_key', None) is not None:
-                # We have a local config object
-                section_items = exp_config.items(exp_config._to_dot_key(section_name))
-            else:
-                # We have a dictionary key
-                section_items = exp_config.get(section_name).items()
-            for key, value in section_items:
-                local_config.set(section_name, key, value)
-        # Re-write the experiment's local config file with the results:
-        local_config.save(config_file)
-
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
         log("Freezing the experiment package...")
@@ -180,6 +159,11 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     # Change directory to the temporary folder.
     cwd = os.getcwd()
     os.chdir(dst)
+
+    # Write the custom config
+    if exp_config:
+        config.extend(exp_config)
+        config.write_config()
 
     # Check directories.
     if not os.path.exists(os.path.join("static", "scripts")):
@@ -352,7 +336,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
     # Load configuration.
     config = get_config()
-    config.load_config()
+    if not config.ready:
+        config.load_config()
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
@@ -412,8 +397,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         "heroku config:set psiturk_secret_access_id=" +
         quote(config.get('psiturk_secret_access_id')),
 
-        "heroku config:set auto_recruit=" +
-        quote(config.get('auto_recruit')),
+        "heroku config:set auto_recruit={}".format(config.get('auto_recruit')),
 
         "heroku config:set dallinger_email_username=" +
         quote(config.get('dallinger_email_address')),
@@ -427,7 +411,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         "heroku config:set heroku_password=" +
         quote(config.get('heroku_password')),
 
-        "heroku config:set whimsical=" + whimsical,
+        "heroku config:set whimsical={}".format(whimsical),
     ]
     for cmd in cmds:
         subprocess.check_call(
@@ -448,17 +432,16 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         except redis.exceptions.ConnectionError:
             time.sleep(2)
 
-    # Set the notification URL in the config file to the notifications URL.
-    config.set(
-        "Server Parameters",
-        "notification_url",
-        "http://" + app_name(id) + ".herokuapp.com/notifications")
-
-    # Set the database URL in the config file to the newly generated one.
     log("Saving the URL of the postgres database...")
     db_url = subprocess.check_output(
         "heroku config:get DATABASE_URL --app " + app_name(id), shell=True)
-    config.set("Database Parameters", "database_url", db_url.rstrip())
+    # Set the notification URL and database URL in the config file.
+    config.extend({
+        "notification_url": u"http://" + app_name(id) + ".herokuapp.com/notifications",
+        "database_url": db_url.rstrip().decode('utf8'),
+    })
+    config.write_config()
+
     subprocess.check_call("git add config.txt", stdout=out, shell=True),
     time.sleep(0.25)
     subprocess.check_call(
@@ -508,11 +491,9 @@ def sandbox(verbose, app):
     config.load_config()
 
     # Set the mode.
-    config.set("Experiment Configuration", "mode", "sandbox")
-    config.set("Server Parameters", "logfile", "-")
-
-    # Ensure that we launch in sandbox mode.
-    config.set("Shell Parameters", "launch_in_sandbox_mode", "true")
+    config.extend({"mode": u"sandbox",
+                   "logfile": u"-",
+                   "launch_in_sandbox_mode": True})
 
     # Do shared setup.
     deploy_sandbox_shared_setup(verbose=verbose, app=app)
@@ -528,11 +509,9 @@ def deploy(verbose, app):
     config.load_config()
 
     # Set the mode.
-    config.set("Experiment Configuration", "mode", "deploy")
-    config.set("Server Parameters", "logfile", "-")
-
-    # Ensure that we do not launch in sandbox mode.
-    config.set("Shell Parameters", "launch_in_sandbox_mode", "false")
+    config.extend({"mode": u"sandbox",
+                   "logfile": u"-",
+                   "launch_in_sandbox_mode": False})
 
     # Do shared setup.
     deploy_sandbox_shared_setup(verbose=verbose, app=app)
