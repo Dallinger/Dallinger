@@ -8,6 +8,7 @@ import logging
 from operator import itemgetter
 import os
 import random
+import requests
 import sys
 import time
 import uuid
@@ -15,6 +16,7 @@ import uuid
 from sqlalchemy import and_
 
 from dallinger.models import Network, Node, Info, Transformation, Participant
+from dallinger.heroku import app_name
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
@@ -433,8 +435,6 @@ class Experiment(object):
 
     def _finish_experiment(self):
         self.log("Waiting for experiment to complete.", "")
-        self.log("Experiment end detection is not currently implemented, "
-                 "press CTRL-C to end.", "")
         while self.experiment_completed() is False:
             time.sleep(30)
         data = self.retrieve_data()
@@ -444,8 +444,17 @@ class Experiment(object):
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
         completed"""
-        # Not implemented
-        return False
+        status_url = 'https://{}.herokuapp.com/summary'.format(
+            app_name(self.app_id)
+        )
+        data = {}
+        try:
+            resp = requests.get(status_url)
+            data = resp.json()
+        except (ValueError, requests.exceptions.RequestException):
+            logger.exception('Error fetching experiment status.')
+        logger.debug('Current application state: {}'.format(data))
+        return data.get('completed', False)
 
     def retrieve_data(self):
         """Retrieves and saves data from a running experiment"""

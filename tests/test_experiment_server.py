@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 
@@ -19,7 +20,7 @@ class FlaskAppTest(unittest.TestCase):
         self.app = app.test_client()
 
         import dallinger.db
-        self.db = dallinger.db.init_db()
+        self.db = dallinger.db.init_db(drop_all=True)
 
     def tearDown(self):
         self.db.rollback()
@@ -28,6 +29,30 @@ class FlaskAppTest(unittest.TestCase):
 
 
 class TestExperimentServer(FlaskAppTest):
+    worker_counter = 0
+    hit_counter = 0
+    assignment_counter = 0
+
+    def _create_participant(self):
+        worker_id = self.worker_counter
+        hit_id = self.hit_counter
+        assignment_id = self.assignment_counter
+        self.worker_counter += 1
+        self.hit_counter += 1
+        self.assignment_counter += 1
+        resp = self.app.post('/participant/{}/{}/{}/debug'.format(
+            worker_id, hit_id, assignment_id
+        ))
+        return json.loads(resp.data).get('participant', {}).get('id')
+
+    def _create_node(self, participant_id):
+        resp = self.app.post('/node/{}'.format(participant_id))
+        return json.loads(resp.data).get('node', {}).get('id')
+
+    def _update_participant_status(self, participant_id, status):
+        from dallinger.models import Participant
+        participant = Participant.query.get(participant_id)
+        participant.status = status
 
     def test_default(self):
         resp = self.app.get('/')
@@ -63,6 +88,71 @@ class TestExperimentServer(FlaskAppTest):
             'mode': 'debug',
         })
         assert 'Informed Consent Form' in resp.data
+
+    def test_participant_info(self):
+        p_id = self._create_participant()
+        resp = self.app.get('/participant/{}'.format(p_id))
+        data = json.loads(resp.data)
+        assert data.get('status') == 'success'
+        assert data.get('participant').get('status') == u'working'
+
+    def test_node_vectors(self):
+        p_id = self._create_participant()
+        n_id = self._create_node(p_id)
+        resp = self.app.get('/node/{}/vectors'.format(n_id))
+        data = json.loads(resp.data)
+        assert data.get('status') == 'success'
+        assert data.get('vectors') == []
+
+    def test_node_infos(self):
+        p_id = self._create_participant()
+        n_id = self._create_node(p_id)
+        resp = self.app.get('/node/{}/infos'.format(n_id))
+        data = json.loads(resp.data)
+        assert data.get('status') == 'success'
+        assert data.get('infos') == []
+
+    def test_summary(self):
+        resp = self.app.get('/summary')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data.get('status') == 'success'
+        assert data.get('completed') is False
+        assert data.get('unfilled_networks') == 1
+        assert data.get('required_nodes') == 2
+        assert data.get('nodes_remaining') == 2
+        assert data.get('summary') == []
+
+        p1_id = self._create_participant()
+        self._create_node(p1_id)
+        resp = self.app.get('/summary')
+        data = json.loads(resp.data)
+        assert data.get('completed') is False
+        assert data.get('nodes_remaining') == 1
+        worker_summary = data.get('summary')
+        assert len(worker_summary) == 1
+        assert worker_summary[0] == [u'working', 1]
+
+        p2_id = self._create_participant()
+        self._create_node(p2_id)
+        resp = self.app.get('/summary')
+        data = json.loads(resp.data)
+        assert data.get('completed') is False
+        assert data.get('nodes_remaining') == 0
+        worker_summary = data.get('summary')
+        assert len(worker_summary) == 1
+        assert worker_summary[0] == [u'working', 2]
+
+        self._update_participant_status(p1_id, 'submitted')
+        self._update_participant_status(p2_id, 'approved')
+
+        resp = self.app.get('/summary')
+        data = json.loads(resp.data)
+        assert data.get('completed') is True
+        worker_summary = data.get('summary')
+        assert len(worker_summary) == 2
+        assert worker_summary[0] == [u'approved', 1]
+        assert worker_summary[1] == [u'submitted', 1]
 
     def test_not_found(self):
         resp = self.app.get('/BOGUS')

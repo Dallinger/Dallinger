@@ -25,6 +25,8 @@ from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import exc
+from sqlalchemy import func
+from sqlalchemy.sql.expression import true
 
 from dallinger import db
 from dallinger import experiment
@@ -339,11 +341,36 @@ def advertisement():
 @app.route('/summary', methods=['GET'])
 def summary():
     """Summarize the participants' status codes."""
+    state = {
+        "status": "success",
+        "summary": Experiment(session).log_summary(),
+        "completed": False,
+    }
+    unfilled_nets = models.Network.query.filter(
+        models.Network.full != true()
+    ).with_entities(models.Network.id, models.Network.max_size).all()
+    working = models.Participant.query.filter_by(
+        status='working'
+    ).with_entities(func.count(models.Participant.id)).scalar()
+    state['unfilled_networks'] = len(unfilled_nets)
+    nodes_remaining = 0
+    required_nodes = 0
+    if state['unfilled_networks'] == 0:
+        if working == 0:
+            state['completed'] = True
+    else:
+        for net in unfilled_nets:
+            node_count = models.Node.query.filter_by(
+                network_id=net.id
+            ).with_entities(func.count(models.Node.id)).scalar()
+            net_size = net.max_size
+            required_nodes += net_size
+            nodes_remaining += net_size - node_count
+    state['nodes_remaining'] = nodes_remaining
+    state['required_nodes'] = required_nodes
+
     return Response(
-        dumps({
-            "status": "success",
-            "summary": Experiment(session).log_summary()
-        }),
+        dumps(state),
         status=200,
         mimetype='application/json'
     )
@@ -525,14 +552,6 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
                                      mode=mode)
     session.add(participant)
     session.commit()
-
-    # make a psiturk participant too, for now
-    from psiturk.models import Participant as PsiturkParticipant
-    psiturk_participant = PsiturkParticipant(workerid=worker_id,
-                                             assignmentid=assignment_id,
-                                             hitid=hit_id)
-    session_psiturk.add(psiturk_participant)
-    session_psiturk.commit()
 
     # return the data
     return success_response(field="participant",
