@@ -22,6 +22,11 @@ class FlaskAppTest(unittest.TestCase):
         import dallinger.db
         self.db = dallinger.db.init_db(drop_all=True)
 
+        # For now, clear and init the psiturk db too
+        import psiturk.db
+        psiturk.db.Base.metadata.drop_all(bind=psiturk.db.engine)
+        psiturk.db.init_db()
+
     def tearDown(self):
         self.db.rollback()
         self.db.close()
