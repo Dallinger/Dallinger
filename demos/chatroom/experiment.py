@@ -1,11 +1,8 @@
 """Coordination chatroom game."""
 
 import dallinger as dlgr
+from dallinger.compat import unicode
 from dallinger.config import get_config
-try:
-    unicode = unicode
-except NameError:  # Python 3
-    unicode = str
 
 config = get_config()
 
