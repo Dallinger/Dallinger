@@ -14,19 +14,19 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         super(CoordinationChatroom, self).__init__(session)
         # for running an experiment with individuals three times
         # (also in config.txt, change to n = 1)
-        self.experiment_repeats = 5 #1
-        self.num_participants = dlgr.config.experiment_configuration.n
-        self.initial_recruitment_size = self.experiment_repeats #self.num_participants*2 #recruit more people than are needed for expt
-        self.quorum = self.num_participants
-        self.setup()
+        #self.experiment_repeats = 5 #1
+        #self.num_participants = dlgr.config.experiment_configuration.n
+        #self.initial_recruitment_size = self.experiment_repeats #self.num_participants*2 #recruit more people than are needed for expt
+        #self.quorum = self.num_participants
+        #self.setup()
 
         # for normal experiment
         # (also in config.txt, change to n = whatever)
-        #self.experiment_repeats = 1
-        #self.num_participants = dlgr.config.experiment_configuration.n
-        #self.initial_recruitment_size = self.num_participants*2 #recruit more people than are needed for expt
-        #self.quorum = self.num_participants
-        #self.setup()
+        self.experiment_repeats = 1
+        self.num_participants = dlgr.config.experiment_configuration.n
+        self.initial_recruitment_size = self.num_participants*2 #recruit more people than are needed for expt
+        self.quorum = self.num_participants
+        self.setup()
 
     def recruit(self):
         """Recruit one participant at a time until all networks are full."""
@@ -88,30 +88,30 @@ class FreeRecallListSource(Source):
         # but presents lists by categories
 
         # load in the wordlists
-        wordlist = [
-            "animals.md",
-            "dwelling.md",
-            "earth.md",
-            "gardener.md",
-            "profession.md",
-            "reading.md"
-        ]
-        full_wordlist = []
+        #wordlist = [
+        #    "animals.md",
+        #    "dwelling.md",
+        #    "earth.md",
+        #    "gardener.md",
+        #    "profession.md",
+        #    "reading.md"
+        #]
+        #full_wordlist = []
 
-        categ = list(range(6))  # walk through categories
-        random.shuffle(categ)
-        for x in categ:  # categories are randomly shuffled
-            with open("static/stimuli/{}".format(wordlist[x]), "r") as f:
-                wordlist_temp = f.read().splitlines()
-                random.shuffle(wordlist_temp)  # words within categories are randomly shuffled
-            full_wordlist.extend(wordlist_temp)  # add on words to the end
-        return json.dumps(full_wordlist)
+        #categ = list(range(6))  # walk through categories
+        #random.shuffle(categ)
+        #for x in categ:  # categories are randomly shuffled
+        #    with open("static/stimuli/{}".format(wordlist[x]), "r") as f:
+        #        wordlist_temp = f.read().splitlines()
+        #        random.shuffle(wordlist_temp)  # words within categories are randomly shuffled
+        #    full_wordlist.extend(wordlist_temp)  # add on words to the end
+        #return json.dumps(full_wordlist)
 
         # shuffles all words
 
-        #wordlist = "60words.md" #random.choice(wordlists)
-        #with open("static/stimuli/{}".format(wordlist), "r") as f:
-        #    wordlist =  f.read().splitlines()
+        wordlist = "60words.md" #random.choice(wordlists)
+        with open("static/stimuli/{}".format(wordlist), "r") as f:
+            wordlist =  f.read().splitlines()
         #    return json.dumps(random.sample(wordlist,60))
-        #    #random.shuffle(wordlist)
-        #    #return json.dumps(wordlist)
+            random.shuffle(wordlist)
+            return json.dumps(wordlist)

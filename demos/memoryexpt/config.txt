@@ -1,8 +1,8 @@
 [Experiment Configuration]
-mode = deploy
+mode = sandbox
 auto_recruit = true
 network = FullyConnected
-n = 2
+n = 4
 
 [HIT Configuration]
 title = Memory test
@@ -10,7 +10,7 @@ description = Recall a list of words.
 amt_keywords = Memory, wordlist
 base_payment = 1.00
 lifetime = 24
-duration = 0.25
+duration = 2
 us_only = true
 approve_requirement = 95
 contact_email_on_error = mgates@berkeley.edu
@@ -35,4 +35,5 @@ notification_url = None
 logfile = -
 
 [Shell Parameters]
-launch_in_sandbox_mode = false
+launch_in_sandbox_mode = true
+
