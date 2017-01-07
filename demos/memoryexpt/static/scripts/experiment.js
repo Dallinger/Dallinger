@@ -203,16 +203,16 @@ send_message = function() {
     response = $("#reproduction").val(); //typing box
 
       // don't let people submit an empty response
-      if (response.length == 0){
+      if (response.length === 0){
       return;
-      };
+      }
 
       // let people submit only if word doesn't have a space
       if (response.indexOf(' ') >= 0) {
         $("#send-message").removeClass("disabled");
         $("#send-message").html("Send");
         return;
-      };
+      }
 
       // will not let you add a word that is non-unique
       if (uniqueWords.indexOf(response.toLowerCase())=== -1){
