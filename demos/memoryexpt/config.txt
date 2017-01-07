@@ -2,7 +2,7 @@
 mode = sandbox
 auto_recruit = true
 network = FullyConnected
-n = 4
+n = 2
 
 [HIT Configuration]
 title = Memory test
