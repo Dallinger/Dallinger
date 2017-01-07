@@ -30,6 +30,7 @@ from dallinger import db
 from dallinger import experiment
 from dallinger import models
 from dallinger.heroku.worker import conn
+from dallinger.compat import unicode
 from dallinger.config import get_config
 
 from .utils import nocache
@@ -125,7 +126,7 @@ def error_response(error_type="Internal server error",
 
     data = {
         "status": "error",
-        "html": page
+        "html": unicode(page)
     }
     return Response(dumps(data), status=status, mimetype='application/json')
 
@@ -367,6 +368,9 @@ def ad_address(mode, hit_id):
     """
     if mode == "debug":
         address = '/complete'
+        participant = models.Participant.query.filter_by(hit_id=hit_id).one()
+        _debug_notify(assignment_id=participant.assignment_id,
+                      participant_id=participant.id)
     elif mode in ["sandbox", "live"]:
         username = config.get("psiturk_access_key_id")
         password = config.get("psiturk_secret_access_id")
@@ -588,8 +592,8 @@ def create_question(participant_id):
         return error_response(error_type="/question POST no participant found",
                               status=403)
 
-    # Make sure the participant status is "working"
-    if ppt.status != "working":
+    # Make sure the participant status is "working" or we're in debug mode
+    if ppt.status != "working" and config.get('mode', None) != 'debug':
         error_type = "/question POST, status = {}".format(ppt.status)
         return error_response(error_type=error_type,
                               participant=ppt)
@@ -1244,6 +1248,11 @@ def api_notifications():
     return success_response(request_type="notification")
 
 
+def _debug_notify(assignment_id, participant_id=None,
+                  event_type='AssignmentSubmitted'):
+    return worker_function(event_type, assignment_id, participant_id)
+
+
 def check_for_duplicate_assignments(participant):
     """Check that the assignment_id of the participant is unique.
 
@@ -1260,10 +1269,13 @@ def check_for_duplicate_assignments(participant):
 @db.scoped_session_decorator
 def worker_function(event_type, assignment_id, participant_id):
     """Process the notification."""
-    db.logger.debug("rq: worker_function working on job id: %s",
-                    get_current_job().id)
-    db.logger.debug('rq: Received Queue Length: %d (%s)', len(q),
-                    ', '.join(q.job_ids))
+    try:
+        db.logger.debug("rq: worker_function working on job id: %s",
+                        get_current_job().id)
+        db.logger.debug('rq: Received Queue Length: %d (%s)', len(q),
+                        ', '.join(q.job_ids))
+    except AttributeError:
+        db.logger.debug('Debug worker_function called synchronously')
 
     exp = Experiment(session)
     key = "-----"

@@ -61,6 +61,10 @@ class HotAirRecruiter(object):
         """Talk about closing recruitment."""
         logger.info("Close recruitment.")
 
+    def approve_hit(self, assignment_id):
+        """Approve the HIT."""
+        return True
+
 
 class SimulatedRecruiter(object):
     """A recruiter that recruits simulated participants."""
