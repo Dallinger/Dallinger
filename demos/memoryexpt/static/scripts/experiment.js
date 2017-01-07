@@ -161,16 +161,16 @@ get_transmissions = function (my_node_id) {
             display_info(transmissions[i].info_id);
 
             }
-            //get_transmissions(my_node_id);
-            setTimeout(function(){
-                get_transmissions(my_node_id);
-            }, 200);
-           },
-
+        },
         error: function (err) {
             console.log(err);
-            errorResponse = JSON.parse(err.response);
-            $("body").html(errorResponse.html);
+            // errorResponse = JSON.parse(err.response);
+            // $("body").html(errorResponse.html);
+        },
+        complete: function (err) {
+            setTimeout(function(){
+                get_transmissions(my_node_id);
+            }, 1000);
         }
     });
 };
