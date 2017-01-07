@@ -161,16 +161,16 @@ get_transmissions = function (my_node_id) {
             display_info(transmissions[i].info_id);
 
             }
-            //get_transmissions(my_node_id);
-            setTimeout(function(){
-                get_transmissions(my_node_id);
-            }, 200);
-           },
-
+        },
         error: function (err) {
             console.log(err);
-            errorResponse = JSON.parse(err.response);
-            $("body").html(errorResponse.html);
+            // errorResponse = JSON.parse(err.response);
+            // $("body").html(errorResponse.html);
+        },
+        complete: function (err) {
+            setTimeout(function(){
+                get_transmissions(my_node_id);
+            }, 1000);
         }
     });
 };
@@ -203,16 +203,16 @@ send_message = function() {
     response = $("#reproduction").val(); //typing box
 
       // don't let people submit an empty response
-      if (response.length == 0){
+      if (response.length === 0){
       return;
-      };
+      }
 
       // let people submit only if word doesn't have a space
       if (response.indexOf(' ') >= 0) {
         $("#send-message").removeClass("disabled");
         $("#send-message").html("Send");
         return;
-      };
+      }
 
       // will not let you add a word that is non-unique
       if (uniqueWords.indexOf(response.toLowerCase())=== -1){
@@ -266,7 +266,7 @@ getQuorum = function () {
     });
 };
 
-// sends participants to the end if there are any infos
+// Send participants to the end if there are any infos.
 killIfAnyInfos = function () {
     reqwest({
       url: "/info",
@@ -291,33 +291,29 @@ waitForQuorum = function () {
             percent = Math.round((n/quorum)*100.0) + "%";
             $("#waiting-progress-bar").css("width", percent);
             $("#progress-percentage").text(percent);
-            killIfAnyInfos(); // in case it didn't get it first time
             if (n >= quorum) {
-                allow_exit();
                 function doSetTimeout(i) {
                     setTimeout(function(){
 
-                        if (i==-1){
-                          // do nothing
-                        } else {
+                        if (i > -1){
                           $("#wordlist").html(wordlist[i]);
                         }
 
-                         // show finish-reading button when done
-                         if (i==wordlist.length-1){
-                           $("#finish-reading").show();
-                         }
+                        // show finish-reading button when done
+                        if (i == wordlist.length-1){
+                          $("#finish-reading").show();
+                        }
 
-                     }, (i+1)*2000);
+                    }, (i+1)*2000);
                 }
-
-
+                allow_exit();
                 go_to_page("exp");
-            } else {
-                setTimeout(function(){
-                    waitForQuorum();
-                }, 200);
             }
+        },
+        complete: function (resp) {
+            setTimeout(function(){
+                waitForQuorum();
+            }, 1000);
         }
     });
 };
