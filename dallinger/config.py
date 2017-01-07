@@ -6,12 +6,9 @@ import distutils.util
 import os
 import threading
 
-marker = object()
+from .compat import unicode
 
-try:
-    unicode = unicode
-except NameError:  # Python 3
-    unicode = str
+marker = object()
 
 LOCAL_CONFIG = 'config.txt'
 
