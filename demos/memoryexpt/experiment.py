@@ -14,7 +14,7 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         super(CoordinationChatroom, self).__init__(session)
         # for running an experiment with individuals three times
         # (also in config.txt, change to n = 1)
-        self.experiment_repeats = 5 #1
+        self.experiment_repeats = 1  #1
         self.num_participants = dlgr.config.experiment_configuration.n
         self.initial_recruitment_size = self.experiment_repeats #self.num_participants*2 #recruit more people than are needed for expt
         self.quorum = self.num_participants
