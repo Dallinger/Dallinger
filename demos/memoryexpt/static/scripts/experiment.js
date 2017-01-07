@@ -266,7 +266,7 @@ getQuorum = function () {
     });
 };
 
-// sends participants to the end if there are any infos
+// Send participants to the end if there are any infos.
 killIfAnyInfos = function () {
     reqwest({
       url: "/info",
@@ -292,31 +292,28 @@ waitForQuorum = function () {
             $("#waiting-progress-bar").css("width", percent);
             $("#progress-percentage").text(percent);
             if (n >= quorum) {
-                allow_exit();
                 function doSetTimeout(i) {
                     setTimeout(function(){
 
-                        if (i==-1){
-                          // do nothing
-                        } else {
+                        if (i > -1){
                           $("#wordlist").html(wordlist[i]);
                         }
 
-                         // show finish-reading button when done
-                         if (i==wordlist.length-1){
-                           $("#finish-reading").show();
-                         }
+                        // show finish-reading button when done
+                        if (i == wordlist.length-1){
+                          $("#finish-reading").show();
+                        }
 
-                     }, (i+1)*2000);
+                    }, (i+1)*2000);
                 }
-
-
+                allow_exit();
                 go_to_page("exp");
-            } else {
-                setTimeout(function(){
-                    waitForQuorum();
-                }, 200);
             }
+        },
+        complete: function (resp) {
+            setTimeout(function(){
+                waitForQuorum();
+            }, 1000);
         }
     });
 };
