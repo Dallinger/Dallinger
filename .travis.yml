@@ -43,12 +43,6 @@ after_success:
 - if [ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
     sh scripts/github_releases.sh;
   fi
-notifications:
-  email:
-    recipients:
-      - suchow@post.harvard.edu
-    on_success: always
-    on_failure: always
 before_deploy:
 - pandoc --from=markdown --to=rst --output=README.rst README.md
 deploy:
