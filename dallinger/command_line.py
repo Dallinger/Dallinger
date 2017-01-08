@@ -765,9 +765,15 @@ def export(app, local):
     """Export the data."""
     print_header()
 
-    log("Preparing to export the data...")
-
     id = str(app)
+
+    export_data(id, local)
+
+
+def export_data(id, local=False):
+    """Allow calling export from experiments"""
+
+    log("Preparing to export the data...")
 
     subdata_path = os.path.join("data", id, "data")
 
@@ -853,6 +859,10 @@ def export(app, local):
     shutil.rmtree(os.path.join("data", id))
 
     log("Done. Data available in " + str(id) + ".zip")
+
+    cwd = os.getcwd()
+    export_filename = os.path.join(cwd, "data", str(id) + ".zip")
+    return export_filename
 
 
 @dallinger.command()
