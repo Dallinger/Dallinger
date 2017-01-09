@@ -15,6 +15,7 @@ import uuid
 
 from sqlalchemy import and_
 
+from dallinger.config import get_config
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.heroku import app_name
 from dallinger.information import Gene, Meme, State
@@ -24,6 +25,7 @@ from dallinger.transformations import Mutation, Replication
 from dallinger.networks import Empty
 
 logger = logging.getLogger(__file__)
+config = get_config()
 
 
 def exp_class_working_dir(meth):
@@ -48,7 +50,8 @@ class Experiment(object):
 
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
-        from recruiters import PsiTurkRecruiter
+        from dallinger.recruiters import HotAirRecruiter
+        from dallinger.recruiters import PsiTurkRecruiter
 
         #: Boolean, determines whether the experiment logs output when
         #: running. Default is True.
@@ -70,8 +73,11 @@ class Experiment(object):
         self.experiment_repeats = 0
 
         #: Recruiter, the Dallinger class that recruits participants.
-        #: Default is PsiTurkRecruiter.
-        self.recruiter = PsiTurkRecruiter
+        #: Default is HotAirRecruiter in debug mode and PsiTurkRecruiter in other modes.
+        if config.get('mode') == 'debug':
+            self.recruiter = HotAirRecruiter
+        else:
+            self.recruiter = PsiTurkRecruiter
 
         #: int, the number of participants
         #: requested when the experiment first starts. Default is 1.

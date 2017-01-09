@@ -6,12 +6,11 @@ import distutils.util
 import os
 import threading
 
+from .compat import unicode
+
 marker = object()
 
-try:
-    unicode = unicode
-except NameError:  # Python 3
-    unicode = str
+LOCAL_CONFIG = 'config.txt'
 
 
 class Configuration(object):
@@ -90,6 +89,15 @@ class Configuration(object):
             data.update(dict(parser.items(section)))
         self.extend(data, cast_types=True)
 
+    def write_config(self):
+        parser = SafeConfigParser()
+        parser.add_section('Parameters')
+        for layer in reversed(self.data):
+            for k, v in layer.items():
+                parser.set('Parameters', k, str(v))
+        with open(LOCAL_CONFIG, 'w') as fp:
+            parser.write(fp)
+
     def load_from_environment(self):
         self.extend(os.environ, cast_types=True)
 
@@ -97,12 +105,11 @@ class Configuration(object):
         if self.ready:
             raise ValueError("Already loaded")
         globalConfigName = ".dallingerconfig"
-        localConfigName = "config.txt"
         if 'OPENSHIFT_SECRET_TOKEN' in os.environ:
             globalConfig = os.path.join(os.environ['OPENSHIFT_DATA_DIR'], globalConfigName)
         else:
             globalConfig = os.path.expanduser(os.path.join("~/", globalConfigName))
-        localConfig = os.path.join(os.getcwd(), localConfigName)
+        localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
 
         defaults_folder = os.path.join(os.path.dirname(__file__), "default_configs")
         local_defaults_file = os.path.join(defaults_folder, "local_config_defaults.txt")

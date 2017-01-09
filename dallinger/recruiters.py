@@ -3,6 +3,17 @@
 from boto.mturk.connection import MTurkConnection
 from psiturk.models import Participant
 from dallinger.config import get_config
+from dallinger.utils import get_base_url
+from dallinger.utils import generate_random_id
+import logging
+
+logger = logging.getLogger(__file__)
+
+
+def generate_debug_ad_url():
+    return "{}?assignmentId=debug{}&hitId={}&workerId={}&mode=debug".format(
+        get_base_url(), generate_random_id(), generate_random_id(), generate_random_id(),
+    )
 
 
 class Recruiter(object):
@@ -35,17 +46,24 @@ class HotAirRecruiter(object):
         """Create a hot air recruiter."""
         super(HotAirRecruiter, self).__init__()
 
-    def open_recruitment(self):
+    def open_recruitment(self, n=1):
         """Talk about opening recruitment."""
-        print("Opening recruitment.")
+        logger.info("Opening recruitment.")
+        self.recruit_participants(n)
 
     def recruit_participants(self, n=1):
         """Talk about recruiting participants."""
-        print("Recruiting a new participant.")
+        for i in range(n):
+            ad_url = generate_debug_ad_url()
+            logger.info('New participant requested: {}'.format(ad_url))
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
-        print("Close recruitment.")
+        logger.info("Close recruitment.")
+
+    def approve_hit(self, assignment_id):
+        """Approve the HIT."""
+        return True
 
 
 class SimulatedRecruiter(object):
@@ -61,7 +79,7 @@ class SimulatedRecruiter(object):
 
     def recruit_participants(self, n=1, exp=None):
         """Recruit n participants."""
-        for i in xrange(n):
+        for i in range(n):
             newcomer = exp.agent_type()
             exp.newcomer_arrival_trigger(newcomer)
 

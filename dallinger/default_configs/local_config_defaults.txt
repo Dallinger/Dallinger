@@ -1,3 +1,6 @@
+[Experiment Configuration]
+mode = debug
+
 [HIT Configuration]
 title = Stroop task
 description = Judge the color of a series of words.

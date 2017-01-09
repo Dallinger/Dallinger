@@ -20,6 +20,7 @@ import sys
 import tempfile
 import time
 import uuid
+import webbrowser
 
 import boto
 import click
@@ -268,49 +269,55 @@ def debug(verbose):
 
     # Set the mode to debug.
     config = get_config()
-    logfile = os.path.join(cwd, config.get("logfile"))
+    logfile = config.get('logfile')
+    if logfile != '-':
+        logfile = os.path.join(cwd, logfile)
     config.extend({
         "mode": u"debug",
         "launch_in_sandbox_mode": True,
         "logfile": logfile
     })
-
-    # Swap in the HotAirRecruiter
-    os.rename("dallinger_experiment.py", "dallinger_experiment_tmp.py")
-    with open("dallinger_experiment_tmp.py", "r+") as f:
-        with open("dallinger_experiment.py", "w+") as f2:
-            f2.write("from dallinger.recruiters import HotAirRecruiter\n")
-            for idx, line in enumerate(f):
-                if re.search("\s*self.recruiter = (.*)", line):
-                    p = line.partition("self.recruiter =")
-                    f2.write(p[0] + p[1] + ' HotAirRecruiter\n')
-                else:
-                    f2.write(line)
-
-    os.remove("dallinger_experiment_tmp.py")
+    config.write_config()
 
     # Start up the local server
     log("Starting up the server...")
     path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'psiturkapp.py'))
-    p = subprocess.Popen([sys.executable, path])
+    p = subprocess.Popen(
+        [sys.executable, '-u', path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
 
-    host = config.get('host')
-    port = config.get('port')
-    public_interface = "{}:{}".format(host, port)
+    # Wait for server to start
+    ready = False
+    for line in iter(p.stdout.readline, ''):
+        if re.match('^Ready.$', line):
+            ready = True
+            break
+        sys.stdout.write(line)
 
-    log("Launching the experiment...")
-    time.sleep(4)
-    subprocess.check_call(
-        'curl --data "" http://{}/launch'.format(public_interface),
-        shell=True)
+    if ready:
+        host = config.get('host')
+        port = config.get('port')
+        public_interface = "{}:{}".format(host, port)
+        log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
 
-    log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
+        # Call endpoint to launch the experiment
+        log("Launching the experiment...")
+        time.sleep(4)
+        subprocess.check_call(
+            'curl --data "" http://{}/launch'.format(public_interface),
+            shell=True)
 
-    # Wait for server process to end
-    try:
-        p.wait()
-    except (KeyboardInterrupt, OSError):
-        p.terminate()
+        # Monitor output from server process
+        for line in iter(p.stdout.readline, ''):
+            sys.stdout.write(line)
+
+            # Open browser for new participants
+            match = re.search('New participant requested: (.*)$', line)
+            if match:
+                url = match.group(1)
+                webbrowser.open(url, new=1, autoraise=True)
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
