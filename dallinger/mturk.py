@@ -62,7 +62,7 @@ class MTurkService(object):
         result = self.mturk.set_rest_notification(
             hit_type_id, url, event_types=all_events
         )
-        # [] seems to be the return value when all goes well.
+        # An empty ResultSet is the return value when all goes well.
         return result == []
 
     def register_hit_type(self, title, description, reward, duration, keywords):
@@ -129,7 +129,6 @@ class MTurkService(object):
                 'HITAssignmentSummary'
             ]
         }
-
         hit = self.mturk.create_hit(**params)[0]
         if hit.IsValid != 'True':
             raise MTurkServiceException("HIT request was invalid for unknown reason.")
