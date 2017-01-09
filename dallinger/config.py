@@ -107,7 +107,7 @@ class Configuration(object):
             raise ValueError("Already loaded")
 
         # Apply extra settings before loading the configs
-        self.apply_extra_settings()
+        self.register_extra_settings()
 
         globalConfigName = ".dallingerconfig"
         if 'OPENSHIFT_SECRET_TOKEN' in os.environ:
@@ -128,7 +128,7 @@ class Configuration(object):
             self.load_from_config_file(config_file)
         self.ready = True
 
-    def apply_extra_settings(self):
+    def register_extra_settings(self):
         extra_settings = None
         try:
             from dallinger_experiment import extra_settings
