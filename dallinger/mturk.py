@@ -69,7 +69,7 @@ class MTurkService(object):
         """Register HIT Type for this HIT and return the type's ID, which
         is required for creating a HIT.
         """
-        reward = Price(reward)
+        reward = reward
         duration = datetime.timedelta(hours=duration)
         hit_type = self.mturk.register_hit_type(
             title,
