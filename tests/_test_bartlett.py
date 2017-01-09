@@ -1,6 +1,5 @@
 # from dallinger import nodes, information, db, models
 # from dallinger.information import Meme, Gene
-# from nose.tools import raises
 # import subprocess
 # import re
 # import requests

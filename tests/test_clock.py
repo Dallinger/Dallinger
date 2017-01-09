@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 
-from nose.tools import assert_raises
+from pytest import raises
 
 from dallinger.config import get_config
 
@@ -26,9 +26,9 @@ class TestClock(object):
     def test_clock_expects_config_to_be_ready(self):
         assert not get_config().ready
         jobs = self.clock.scheduler.get_jobs()
-        with assert_raises(RuntimeError) as assertion:
+        with raises(RuntimeError) as excinfo:
             jobs[0].func()
-        assert assertion.exception.message == 'Config loading not finished'
+        assert excinfo.value.message == 'Config loading not finished'
 
     def test_launch_loads_config(self):
         original_start = self.clock.scheduler.start

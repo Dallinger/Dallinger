@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 import os
 from tempfile import NamedTemporaryFile
 
-from nose.tools import assert_raises
+from pytest import raises
 import pexpect
 
 from dallinger.config import Configuration
@@ -21,7 +21,7 @@ class TestConfiguration(object):
     def test_type_mismatch(self):
         config = Configuration()
         config.register('num_participants', int)
-        with assert_raises(ValueError):
+        with raises(ValueError):
             config.extend({'num_participants': 1.0})
 
     def test_type_mismatch_with_cast_types(self):
@@ -35,7 +35,7 @@ class TestConfiguration(object):
         config = Configuration()
         config.register('num_participants', int)
         config.extend({'num_participants': 1})
-        with assert_raises(RuntimeError):
+        with raises(RuntimeError):
             config.get('num_participants', 1)
 
     def test_layering_of_configs(self):
