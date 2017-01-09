@@ -15,7 +15,7 @@ The tests include:
 * Making sure that a source distribution of the Python package can be created.
 * Running `flake8 <https://flake8.readthedocs.io>`_ to make sure Python code
   conforms to the `PEP 8 <https://www.python.org/dev/peps/pep-0008/>`_ style guide.
-* Running the tests for the Python code using `nose <http://nose.readthedocs.io/>`_
+* Running the tests for the Python code using `pytest <http://doc.pytest.org/>`_
   and making sure they pass in Python 2.7.
 * Making sure that `code coverage <https://coverage.readthedocs.io/>`_
   for the Python code is above the desired threshold.
@@ -27,7 +27,7 @@ You can also run all these tests locally, simply by running::
 
 To run just the Python tests::
 
-	nosetests
+	pytest
 
 To build documentation::
 
