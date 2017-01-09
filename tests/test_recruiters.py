@@ -1,7 +1,7 @@
+import mock
 import os
 from dallinger import db
 from dallinger.config import get_config
-from tests.test_mturk import creds_from_environment
 
 
 class TestRecruiters(object):
@@ -88,20 +88,36 @@ class TestMTurkRecruiter(object):
         self.db.close()
 
     def make_one(self, **kwargs):
+        from dallinger.mturk import MTurkService
         from dallinger.recruiters import MTurkRecruiter
-        config = stub_config(**kwargs)
-        return MTurkRecruiter(config)
+        mockservice = mock.create_autospec(MTurkService)
+        r = MTurkRecruiter(stub_config(**kwargs))
+        r.mturkservice = mockservice('fake key', 'fake secret')
+        r.mturkservice.check_credentials.return_value = True
+        return r
 
     def test_config_passed_to_constructor(self):
         recruiter = self.make_one()
         assert recruiter.config.get('title') == 'fake experiment title'
 
-    def test_open_recruitment_single_recruitee(self):
-        recruiter = self.make_one(**creds_from_environment())
-        hit_info = recruiter.open_recruitment(n=1)
-        assert hit_info['assignments_available'] == 1
+    def test_open_recruitment_check_creds_before_calling_create_hit(self):
+        recruiter = self.make_one()
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.check_credentials.assert_called_once()
 
-    def test_open_recruitment_two_recruitees(self):
-        recruiter = self.make_one(**creds_from_environment())
-        hit_info = recruiter.open_recruitment(n=2)
-        assert hit_info['assignments_available'] == 2
+    def test_open_recruitment_single_recruitee(self):
+        recruiter = self.make_one()
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_hit.assert_called_once_with(
+            ad_url='https://url-of-ad-route',
+            approve_requirement=95,
+            description='fake HIT description',
+            duration=1.0,
+            keywords=['kw1', 'kw2', 'kw3'],
+            lifetime=1.0,
+            max_assignments=1,
+            notification_url='https://url-of-notification-route',
+            reward=0.01,
+            title='fake experiment title',
+            us_only=True
+        )
