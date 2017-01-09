@@ -242,7 +242,7 @@ class TestMTurkServiceWithFakeConnection(object):
         service._connection.register_hit_type.assert_called_once_with(
             'Test Title',
             'Test Description',
-            Price(.01),
+            .01,
             datetime.timedelta(hours=.25),
             keywords=['testkw1', 'testkw2'],
             approval_delay=None,
