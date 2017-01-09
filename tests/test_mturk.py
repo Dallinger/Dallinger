@@ -47,7 +47,8 @@ def fake_hit_response():
         'NumberOfAssignmentsCompleted': u'0',
         'NumberOfAssignmentsPending': u'0',
         'Question': (
-            u'<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
+            u'<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
+            u'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
             u'<ExternalURL>https://url-of-ad-route</ExternalURL>'
             u'<FrameHeight>600</FrameHeight></ExternalQuestion>'
         ),
