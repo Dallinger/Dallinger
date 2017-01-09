@@ -1,5 +1,5 @@
 import os
-from nose.tools import assert_raises
+from pytest import raises
 
 
 def creds_from_environment():
@@ -25,7 +25,7 @@ class TestMTurkService(object):
     def test_check_credentials_bad_credentials(self):
         from boto.mturk.connection import MTurkRequestError
         service = self.make_one(aws_access_key_id='bad', aws_secret_access_key='bad')
-        with assert_raises(MTurkRequestError):
+        with raises(MTurkRequestError):
             service.check_credentials()
 
     def test_check_credentials_no_creds_set_raises(self):
@@ -36,7 +36,7 @@ class TestMTurkService(object):
         }
         service = self.make_one(**empty_creds)
 
-        with assert_raises(MTurkServiceException):
+        with raises(MTurkServiceException):
             service.check_credentials()
 
     def test_register_hit_type(self):
