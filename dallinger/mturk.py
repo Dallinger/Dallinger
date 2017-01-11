@@ -65,17 +65,17 @@ class MTurkService(object):
         # An empty ResultSet is the return value when all goes well.
         return result == []
 
-    def register_hit_type(self, title, description, reward, duration, keywords):
+    def register_hit_type(self, title, description, reward, duration_hours, keywords):
         """Register HIT Type for this HIT and return the type's ID, which
         is required for creating a HIT.
         """
         reward = reward
-        duration = datetime.timedelta(hours=duration)
+        duration_hours = datetime.timedelta(hours=duration_hours)
         hit_type = self.mturk.register_hit_type(
             title,
             description,
             reward,
-            duration,
+            duration_hours,
             keywords=keywords,
             approval_delay=None,
             qual_req=None)[0]
@@ -95,9 +95,9 @@ class MTurkService(object):
 
         return quals
 
-    def create_hit(self, title, description, keywords, reward, duration, lifetime,
-                   ad_url, notification_url, approve_requirement, max_assignments,
-                   us_only):
+    def create_hit(self, title, description, keywords, reward, duration_hours,
+                   lifetime_days, ad_url, notification_url, approve_requirement,
+                   max_assignments, us_only):
         """Create the actual HIT and return a dict with its useful properties."""
         frame_height = 600
         mturk_question = ExternalQuestion(ad_url, frame_height)
@@ -105,20 +105,20 @@ class MTurkService(object):
             approve_requirement, us_only
         )
         hit_type_id = self.register_hit_type(
-            title, description, reward, duration, keywords
+            title, description, reward, duration_hours, keywords
         )
         self.set_rest_notification(notification_url, hit_type_id)
 
         params = {
             'hit_type': hit_type_id,
             'question': mturk_question,
-            'lifetime': datetime.timedelta(days=lifetime),
+            'lifetime': datetime.timedelta(days=lifetime_days),
             'max_assignments': max_assignments,
             'title': title,
             'description': description,
             'keywords': keywords,
             'reward': Price(reward),
-            'duration': datetime.timedelta(hours=duration),
+            'duration': datetime.timedelta(hours=duration_hours),
             'approval_delay': None,
             'qualifications': qualifications,
             'response_groups': [
