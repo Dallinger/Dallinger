@@ -99,9 +99,8 @@ class MTurkService(object):
                    ad_url, notification_url, approve_requirement, max_assignments,
                    us_only):
         """Create the actual HIT and return a dict with its useful properties."""
-        experiment_url = ad_url
         frame_height = 600
-        mturk_question = ExternalQuestion(experiment_url, frame_height)
+        mturk_question = ExternalQuestion(ad_url, frame_height)
         qualifications = self.build_hit_qualifications(
             approve_requirement, us_only
         )
