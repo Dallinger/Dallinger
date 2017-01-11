@@ -249,10 +249,13 @@ class MTurkRecruiter(object):
         config = get_config()
         if not config.ready:
             config.load_config()
-        return cls(config)
+        ad_url = get_base_url()
 
-    def __init__(self, config):
+        return cls(config, ad_url)
+
+    def __init__(self, config, ad_url):
         self.config = config
+        self.ad_url = ad_url
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
             self.config.get('aws_secret_access_key'),
@@ -278,7 +281,7 @@ class MTurkRecruiter(object):
             'reward': self.config.get('base_payment'),
             'duration': self.config.get('duration'),
             'lifetime': self.config.get('lifetime'),
-            'ad_url': self.config.get('ad_url'),
+            'ad_url': self.ad_url,
             'notification_url': self.config.get('notification_url'),
             'approve_requirement': self.config.get('approve_requirement'),
             'us_only': self.config.get('us_only'),
