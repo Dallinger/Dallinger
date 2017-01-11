@@ -35,7 +35,6 @@ class TestRecruiters(object):
 
 def stub_config(**kwargs):
     defaults = {
-        'ad_url': 'https://url-of-ad-route',
         'aws_access_key_id': 'fake key',
         'aws_secret_access_key': 'fake secret',
         'launch_in_sandbox_mode': True,
@@ -91,7 +90,7 @@ class TestMTurkRecruiter(object):
         from dallinger.mturk import MTurkService
         from dallinger.recruiters import MTurkRecruiter
         mockservice = mock.create_autospec(MTurkService)
-        r = MTurkRecruiter(stub_config(**kwargs))
+        r = MTurkRecruiter(stub_config(**kwargs), 'http://fake-domain/ad')
         r.mturkservice = mockservice('fake key', 'fake secret')
         r.mturkservice.check_credentials.return_value = True
         return r
@@ -109,7 +108,7 @@ class TestMTurkRecruiter(object):
         recruiter = self.make_one()
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url='https://url-of-ad-route',
+            ad_url='http://fake-domain/ad',
             approve_requirement=95,
             description='fake HIT description',
             duration=1.0,
