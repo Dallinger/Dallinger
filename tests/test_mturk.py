@@ -1,29 +1,25 @@
 import datetime
 import mock
-import os
 import pytest
 from boto.resultset import ResultSet
 from boto.mturk.price import Price
 from boto.mturk.connection import HITTypeId
 from boto.mturk.connection import HIT
-# from conftest import creds_from_environment
 from .conftest import creds_from_environment
-from .conftest import skip_if_no_aws_credentials
+from .conftest import skip_if_no_mturk_requestor
 
 
 def fake_account_balance():
     result = ResultSet()
     result.append(Price(1.00))
-
     return result
 
 
-def fake_register_hit_type(*args, **kwargs):
+def fake_hit_type():
     result = ResultSet()
     htid = HITTypeId(None)
     htid.HITTypeId = u'fake HITTypeId'
     result.append(htid)
-
     return result
 
 
@@ -64,17 +60,11 @@ def fake_hit_response():
         hit.endElement(k, v, None)
     result = ResultSet()
     result.append(hit)
-
     return result
 
 
-@skip_if_no_aws_credentials
+@skip_if_no_mturk_requestor
 class TestMTurkService(object):
-    """To run this set of tests you must have a network connection, plus valid
-    settings for 'aws_access_key_id' and 'aws_secret_access_key' stored in
-    os environment variables. The referenced AWS account must also be registered
-    as a Mechanical Turk "requestor"
-    """
 
     def make_one(self, **kwargs):
         from dallinger.mturk import MTurkService
@@ -231,7 +221,7 @@ class TestMTurkServiceWithFakeConnection(object):
         service = self.make_one()
         mock_config = {
             'get_account_balance.return_value': fake_account_balance(),
-            'register_hit_type.return_value': fake_register_hit_type(),
+            'register_hit_type.return_value': fake_hit_type(),
         }
         mock_mtc = mock.Mock(**mock_config)
         service._connection = mock_mtc
@@ -277,7 +267,7 @@ class TestMTurkServiceWithFakeConnection(object):
         }
         service = self.make_one()
         mock_config = {
-            'register_hit_type.return_value': fake_register_hit_type(),
+            'register_hit_type.return_value': fake_hit_type(),
             'set_rest_notification.return_value': ResultSet(),
             'create_hit.return_value': fake_hit_response()
         }
@@ -303,7 +293,7 @@ class TestMTurkServiceWithFakeConnection(object):
         }
         service = self.make_one()
         mock_config = {
-            'register_hit_type.return_value': fake_register_hit_type(),
+            'register_hit_type.return_value': fake_hit_type(),
             'set_rest_notification.return_value': ResultSet(),
             'create_hit.return_value': fake_hit_response()
         }
