@@ -11,7 +11,7 @@ matrix:
   - python: 2.7
     env: TOXENV=style
   - python: 2.7
-    env: TOXENV=py27-docs
+    env: TOXENV=docs
 addons:
   apt:
     packages:
