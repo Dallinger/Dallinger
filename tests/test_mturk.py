@@ -101,7 +101,7 @@ class TestMTurkService(object):
             'description': 'Test Description',
             'keywords': ['testkw1', 'testkw1'],
             'reward': .01,
-            'duration': .25
+            'duration_hours': .25
         }
         service = self.make_one()
         hit_type_id = service.register_hit_type(**config)
@@ -114,7 +114,7 @@ class TestMTurkService(object):
             'description': 'Test Description',
             'keywords': ['testkw1', 'testkw1'],
             'reward': .01,
-            'duration': .25
+            'duration_hours': .25
         }
         url = 'https://url-of-notification-route'
         service = self.make_one()
@@ -127,14 +127,14 @@ class TestMTurkService(object):
             'ad_url': 'https://url-of-ad-route',
             'approve_requirement': 95,
             'us_only': True,
-            'lifetime': 0.1,
+            'lifetime_days': 0.1,
             'max_assignments': 1,
             'notification_url': 'https://url-of-notification-route',
             'title': 'Test Title',
             'description': 'Test Description',
             'keywords': ['testkw1', 'testkw1'],
             'reward': .01,
-            'duration': .25
+            'duration_hours': .25
         }
         service = self.make_one()
         hit = service.create_hit(**hit_config)
@@ -145,14 +145,14 @@ class TestMTurkService(object):
             'ad_url': 'https://url-of-ad-route',
             'approve_requirement': 95,
             'us_only': True,
-            'lifetime': 0.1,
+            'lifetime_days': 0.1,
             'max_assignments': 2,
             'notification_url': 'https://url-of-notification-route',
             'title': 'Test Title',
             'description': 'Test Description',
             'keywords': ['testkw1', 'testkw1'],
             'reward': .01,
-            'duration': .25
+            'duration_hours': .25
         }
         service = self.make_one()
         hit = service.create_hit(**hit_config)
@@ -216,7 +216,7 @@ class TestMTurkServiceWithFakeConnection(object):
             'description': 'Test Description',
             'keywords': ['testkw1', 'testkw2'],
             'reward': .01,
-            'duration': .25
+            'duration_hours': .25
         }
         service = self.make_one()
         mock_config = {
@@ -256,14 +256,14 @@ class TestMTurkServiceWithFakeConnection(object):
             'ad_url': 'https://url-of-ad-route',
             'approve_requirement': 95,
             'us_only': True,
-            'lifetime': 0.1,
+            'lifetime_days': 0.1,
             'max_assignments': 1,
             'notification_url': 'https://url-of-notification-route',
             'title': 'Test Title',
             'description': 'Test Description',
             'keywords': ['testkw1', 'testkw1'],
             'reward': .01,
-            'duration': .25
+            'duration_hours': .25
         }
         service = self.make_one()
         mock_config = {
@@ -282,14 +282,14 @@ class TestMTurkServiceWithFakeConnection(object):
             'ad_url': 'https://url-of-ad-route',
             'approve_requirement': 95,
             'us_only': True,
-            'lifetime': 0.1,
+            'lifetime_days': 0.1,
             'max_assignments': 1,
             'notification_url': 'https://url-of-notification-route',
             'title': 'Test Title',
             'description': 'Test Description',
             'keywords': ['testkw1', 'testkw1'],
             'reward': .01,
-            'duration': .25
+            'duration_hours': .25
         }
         service = self.make_one()
         mock_config = {
