@@ -6,6 +6,9 @@ from boto.resultset import ResultSet
 from boto.mturk.price import Price
 from boto.mturk.connection import HITTypeId
 from boto.mturk.connection import HIT
+# from conftest import creds_from_environment
+from .conftest import creds_from_environment
+from .conftest import skip_if_no_aws_credentials
 
 
 def fake_account_balance():
@@ -65,15 +68,7 @@ def fake_hit_response():
     return result
 
 
-def creds_from_environment():
-    creds = {
-        'aws_access_key_id': os.getenv('aws_access_key_id'),
-        'aws_secret_access_key': os.getenv('aws_secret_access_key')
-    }
-    return creds
-
-
-@pytest.mark.network_and_creds
+@skip_if_no_aws_credentials
 class TestMTurkService(object):
     """To run this set of tests you must have a network connection, plus valid
     settings for 'aws_access_key_id' and 'aws_secret_access_key' stored in
@@ -83,10 +78,12 @@ class TestMTurkService(object):
 
     def make_one(self, **kwargs):
         from dallinger.mturk import MTurkService
-        return MTurkService(**kwargs)
+        creds = creds_from_environment()
+        creds.update(kwargs)
+        return MTurkService(**creds)
 
     def test_check_credentials_good_credentials(self):
-        service = self.make_one(**creds_from_environment())
+        service = self.make_one()
         is_authenticated = service.check_credentials()
 
         assert is_authenticated
@@ -116,7 +113,7 @@ class TestMTurkService(object):
             'reward': .01,
             'duration': .25
         }
-        service = self.make_one(**creds_from_environment())
+        service = self.make_one()
         hit_type_id = service.register_hit_type(**config)
 
         assert isinstance(hit_type_id, unicode)
@@ -130,7 +127,7 @@ class TestMTurkService(object):
             'duration': .25
         }
         url = 'https://url-of-notification-route'
-        service = self.make_one(**creds_from_environment())
+        service = self.make_one()
         hit_type_id = service.register_hit_type(**config)
 
         assert service.set_rest_notification(url, hit_type_id) is True
@@ -149,7 +146,7 @@ class TestMTurkService(object):
             'reward': .01,
             'duration': .25
         }
-        service = self.make_one(**creds_from_environment())
+        service = self.make_one()
         hit = service.create_hit(**hit_config)
         assert hit['status'] == 'Assignable'
 
@@ -167,7 +164,7 @@ class TestMTurkService(object):
             'reward': .01,
             'duration': .25
         }
-        service = self.make_one(**creds_from_environment())
+        service = self.make_one()
         hit = service.create_hit(**hit_config)
         assert hit['status'] == 'Assignable'
         assert hit['assignments_available'] == 2
