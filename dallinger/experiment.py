@@ -472,6 +472,7 @@ class Experiment(object):
 
     def retrieve_data(self):
         """Retrieves and saves data from a running experiment"""
+        import dallinger as dlgr
         filename = dlgr.command_line.export_data(self.app_id)
         logger.debug('Data exported to %s' % filename)
         return {"export_filename": filename}
