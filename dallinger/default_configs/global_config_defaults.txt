@@ -6,3 +6,11 @@ aws_region = us-east-1
 [psiTurk Access]
 psiturk_access_key_id = YourAccessKeyId
 psiturk_secret_access_id = YourSecretAccessKey
+
+[Email Access]
+dallinger_email_address = dallinger@mailinator.com
+dallinger_email_password = ???
+
+[Heroku Access]
+heroku_email_address = dallinger@mailinator.com
+heroku_password = ???
