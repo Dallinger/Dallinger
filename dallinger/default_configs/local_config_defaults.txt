@@ -15,8 +15,8 @@ organization_name = New Great University
 browser_exclude_rule = MSIE, mobile, tablet
 
 [Database Parameters]
-database_url = sqlite:///participants.db
-table_name = turkdemo
+database_url = postgresql://postgres@localhost/dallinger
+table_name = psiturk
 
 [Server Parameters]
 host = localhost
