@@ -2,9 +2,11 @@ from __future__ import absolute_import
 
 from gunicorn.app.base import Application
 from gunicorn import util
-import multiprocessing
-from dallinger.config import get_config
 import logging
+import multiprocessing
+import os
+
+from dallinger.config import get_config
 
 logger = logging.getLogger(__file__)
 
@@ -54,7 +56,7 @@ class StandaloneServer(Application):
             workers = str(multiprocessing.cpu_count() * 2 + 1)
 
         host = config.get("host")
-        port = config.get("port")
+        port = os.getenv('PORT', config.get("port"))
         bind_address = "{}:{}".format(host, port)
         self.options = {
             'bind': bind_address,
