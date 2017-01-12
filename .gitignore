@@ -25,3 +25,4 @@ docs/source/demos
 README.rst
 .netrc
 .vagrant/
+.cache/*
