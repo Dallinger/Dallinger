@@ -1,8 +1,8 @@
 """Recruiters manage the flow of participants to the experiment."""
 
 from boto.mturk.connection import MTurkConnection
-from psiturk.models import Participant
 from dallinger.config import get_config
+from dallinger.models import Participant
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 import logging
@@ -142,7 +142,6 @@ class PsiTurkRecruiter(Recruiter):
         )
 
         try:
-            from psiturk.models import Participant
             participants = Participant.query.all()
             assert(participants)
 
