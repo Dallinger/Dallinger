@@ -19,8 +19,6 @@ from flask import (
     render_template_string,
 )
 from jinja2 import TemplateNotFound
-from psiturk.db import db_session as session_psiturk
-from psiturk.db import init_db
 from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
@@ -227,9 +225,7 @@ def launch():
     """Launch the experiment."""
     exp = Experiment(db.init_db(drop_all=False))
     exp.log("Launching experiment...", "-----")
-    init_db()
     exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
-    session_psiturk.commit()
     session.commit()
 
     return success_response(request_type="launch")
@@ -556,8 +552,6 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     psiturk_participant = PsiturkParticipant(workerid=worker_id,
                                              assignmentid=assignment_id,
                                              hitid=hit_id)
-    session_psiturk.add(psiturk_participant)
-    session_psiturk.commit()
 
     # return the data
     return success_response(field="participant",
