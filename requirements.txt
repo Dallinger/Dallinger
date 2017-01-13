@@ -7,6 +7,7 @@ pexpect==4.2.1
 -e git://github.com/Dallinger/psiTurk.git@dallinger2#egg=psiturk
 psycopg2==2.6.2
 redis==2.10.5
+requests==2.2.1
 rq==0.7.1
 SQLAlchemy==1.1.4
 user-agents==0.2.0
