@@ -1,6 +1,7 @@
 APScheduler==3.3.0
 boto==2.15.0
 click==6.6
+Flask==0.10.1
 future==0.16.0
 gunicorn==18.0
 localconfig==0.4.2
