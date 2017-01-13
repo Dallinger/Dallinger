@@ -60,8 +60,6 @@ def stub_config(**kwargs):
 class TestMTurkRecruiterAssumesConfigFileInCWD(object):
 
     def setup(self):
-        config = get_config()
-        config.ready = False
         self.db = db.init_db(drop_all=True)
         os.chdir(os.path.join("demos", "bartlett1932"))
 
