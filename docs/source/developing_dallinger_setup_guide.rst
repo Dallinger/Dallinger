@@ -91,6 +91,23 @@ If you get the following error...
 
 ...then you probably did not start the app.
 
+If you get the following error...
+
+::
+
+    dyld: Library not loaded: /usr/local/opt/readline/lib/libreadline.6.dylib
+        Referenced from: /usr/local/bin/psql
+        Reason: image not found
+    Abort trap: 6
+
+... then type the following command into the command line:
+
+::
+
+    createdb -U postgres dallinger
+    
+(This error may arise if you are running Python 2.7 with Anaconda within a virtual environment.)
+
 Set up a virtual environment
 ----------------------------
 
