@@ -18,6 +18,17 @@ class TestConfiguration(object):
         config.ready = True
         assert config.get('num_participants', 1)
 
+    def test_register_duplicate_variable_raises(self):
+        config = Configuration()
+        config.register('num_participants', int)
+        with raises(KeyError):
+            config.register('num_participants', int)
+
+    def test_register_unknown_type_raises(self):
+        config = Configuration()
+        with raises(ValueError):
+            config.register('num_participants', object)
+
     def test_type_mismatch(self):
         config = Configuration()
         config.register('num_participants', int)
@@ -30,6 +41,13 @@ class TestConfiguration(object):
         config.ready = True
         config.extend({'num_participants': 1.0}, cast_types=True)
         assert config.get('num_participants', 1) == 1
+
+    def test_type_cast_types_failure_raises(self):
+        config = Configuration()
+        config.register('num_participants', int)
+        config.ready = True
+        with raises(ValueError):
+            config.extend({'num_participants': 'A NUMBER'}, cast_types=True)
 
     def test_get_before_ready_is_not_possible(self):
         config = Configuration()
@@ -53,11 +71,32 @@ class TestConfiguration(object):
         config.extend({'num_participants': 1})
         config.get('num_participants', None)
 
+    def test_get_without_default_raises(self):
+        config = Configuration()
+        config.register('num_participants', int)
+        config.ready = True
+        with raises(KeyError):
+            config.get('num_participants')
+
     def test_get_has_default_value(self):
         config = Configuration()
         config.register('num_participants', int)
         config.ready = True
         assert config.get('num_participants', 10) == 10
+
+    def test_dict_access(self):
+        config = Configuration()
+        config.register('num_participants', int)
+        config.ready = True
+        config.extend({'num_participants': 1})
+        assert config['num_participants'] == 1
+
+    def test_strict_extending_blocks_unknown_keys(self):
+        config = Configuration()
+        config.register('num_participants', int)
+        config.ready = True
+        with raises(KeyError):
+            config.extend({'unknown_key': 1}, strict=True)
 
     def test_setting_values_supports_synonyms(self):
         config = Configuration()

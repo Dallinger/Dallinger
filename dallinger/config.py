@@ -32,13 +32,16 @@ class Configuration(object):
         self.sensitive = set()
         self.ready = False
 
-    def extend(self, mapping, cast_types=False):
+    def extend(self, mapping, cast_types=False, strict=False):
         normalized_mapping = {}
         for key, value in mapping.items():
             key = self.synonyms.get(key, key)
             if key not in self.types:
                 # This key hasn't been registered, we ignore it
-                continue
+                if strict:
+                    raise KeyError('{} is not a valid configuration key'.format(key))
+                else:
+                    continue
             expected_type = self.types.get(key)
             if cast_types:
                 try:
@@ -70,6 +73,9 @@ class Configuration(object):
         if default is marker:
             raise KeyError(key)
         return default
+
+    def __getitem__(self, key):
+        return self.get(key)
 
     def register(self, key, type_, synonyms=set(), sensitive=False):
         if key in self.types:
@@ -134,6 +140,7 @@ class Configuration(object):
         # any field not in the user's files will be set to the default value.
         for config_file in [global_defaults_file, local_defaults_file, globalConfig, localConfig]:
             self.load_from_config_file(config_file)
+        self.load_from_environment()
         self.ready = True
 
     def register_extra_settings(self):
