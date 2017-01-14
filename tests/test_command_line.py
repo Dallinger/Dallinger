@@ -4,7 +4,9 @@ import filecmp
 import os
 import pexpect
 import subprocess
-from ConfigParser import SafeConfigParser
+from pytest import raises
+from ConfigParser import SafeConfigParser, NoOptionError
+from dallinger.compat import unicode
 from dallinger.config import get_config, LOCAL_CONFIG
 
 
@@ -79,11 +81,42 @@ class TestSetupExperiment(object):
         # Config is updated
         assert(config.get('num_dynos_web') == 2)
 
+        # Code snapshot is saved
+        os.path.exists(os.path.join('snapshots', exp_id + '-code.zip'))
+
         # There should be a modified configuration in the temp dir
         os.chdir(dst)
         deploy_config = SafeConfigParser()
         deploy_config.read('config.txt')
         assert(int(deploy_config.get('Parameters', 'num_dynos_web')) == 2)
+
+    def test_setup_excludes_sensitive_config(self):
+        from dallinger.command_line import setup_experiment
+        config = get_config()
+        # Auto detected as sensitive
+        config.register('a_password', unicode)
+        # Manually registered as sensitive
+        config.register('something_sensitive', unicode, sensitive=True)
+        # Not sensitive at all
+        config.register('something_normal', unicode)
+
+        config.extend({'a_password': u'secret thing',
+                       'something_sensitive': u'hide this',
+                       'something_normal': u'show this'})
+
+        exp_id, dst = setup_experiment()
+
+        # The temp dir should have a config with the sensitive variables missing
+        os.chdir(dst)
+        deploy_config = SafeConfigParser()
+        deploy_config.read('config.txt')
+        assert(deploy_config.get(
+            'Parameters', 'something_normal') == u'show this'
+        )
+        with raises(NoOptionError):
+            deploy_config.get('Parameters', 'a_password')
+        with raises(NoOptionError):
+            deploy_config.get('Parameters', 'something_sensitive')
 
 
 class TestDebugServer(object):

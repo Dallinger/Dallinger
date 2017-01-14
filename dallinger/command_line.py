@@ -150,12 +150,6 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
         file.write(generated_uid)
 
-    # Zip up the temporary directory and place it in the cwd.
-    if not debug:
-        log("Freezing the experiment package...")
-        shutil.make_archive(
-            os.path.join("snapshots", public_id + "-code"), "zip", dst)
-
     # Change directory to the temporary folder.
     cwd = os.getcwd()
     os.chdir(dst)
@@ -163,7 +157,14 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     # Write the custom config
     if exp_config:
         config.extend(exp_config)
-        config.write_config()
+
+    config.write_config(filter_sensitive=True)
+
+    # Zip up the temporary directory and place it in the cwd.
+    if not debug:
+        log("Freezing the experiment package...")
+        shutil.make_archive(
+            os.path.join(cwd, "snapshots", public_id + "-code"), "zip", dst)
 
     # Check directories.
     if not os.path.exists(os.path.join("static", "scripts")):
