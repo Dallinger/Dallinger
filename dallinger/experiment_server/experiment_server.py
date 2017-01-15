@@ -1336,7 +1336,7 @@ def worker_function(event_type, assignment_id, participant_id):
             exp.assignment_returned(participant=participant)
 
     elif event_type == 'AssignmentSubmitted':
-        if participant.status == "working":
+        if participant.status in ["working", "returned", "abandoned"]:
             participant.end_time = datetime.now()
             participant.status = "submitted"
             session.commit()
