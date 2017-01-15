@@ -389,6 +389,18 @@ class Experiment(object):
         """
         self.fail_participant(participant)
 
+    def assignment_reassigned(self, participant):
+        """What to do if the assignment assigned to a participant is
+        reassigned to another participant while the first participant
+        is still working.
+
+        This runs when a participant is created with the same assignment_id
+        as another participant if the earlier participant still has the status
+        "working". Calls :func:`~dallinger.experiments.Experiment.fail_participant`.
+
+        """
+        self.fail_participant(participant)
+
     @exp_class_working_dir
     def sandbox(self, exp_config=None, app_id=None):
         """Deploys and runs an experiment in sandbox mode.
