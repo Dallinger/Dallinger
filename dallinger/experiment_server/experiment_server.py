@@ -491,16 +491,16 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     # check this worker hasn't already taken part
     parts = models.Participant.query.filter_by(worker_id=worker_id).all()
     if parts:
-        print("participant already exists!")
-        return Response(status=200)
-
-    # make the participant
-    participant = models.Participant(worker_id=worker_id,
-                                     assignment_id=assignment_id,
-                                     hit_id=hit_id,
-                                     mode=mode)
-    session.add(participant)
-    session.commit()
+        participant = parts[0]
+        print("Error: Warning: request received to create participant with non-unqiue worker_id. Creation aborted.")
+    else:
+        # make the participant
+        participant = models.Participant(worker_id=worker_id,
+                                         assignment_id=assignment_id,
+                                         hit_id=hit_id,
+                                         mode=mode)
+        session.add(participant)
+        session.commit()
 
     # return the data
     return success_response(field="participant",
