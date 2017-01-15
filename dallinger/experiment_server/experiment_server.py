@@ -1383,6 +1383,7 @@ def worker_function(event_type, assignment_id, participant_id):
                     exp.log("All checks passed.", key)
                     participant.status = "approved"
                     exp.submission_successful(participant=participant)
+                    session.commit()
                     exp.recruit()
 
     elif event_type == "NotificationMissing":
