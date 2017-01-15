@@ -131,6 +131,7 @@ class Participant(Base, SharedMixin):
             "did_not_attend",
             "bad_data",
             "missing_notification",
+            "replaced",
             name="participant_status"
         ),
         nullable=False,

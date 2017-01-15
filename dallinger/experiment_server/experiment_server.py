@@ -484,28 +484,49 @@ def assign_properties(thing):
 def create_participant(worker_id, hit_id, assignment_id, mode):
     """Create a participant.
 
-    This route will be hit very early on as any nodes the participant creates
-    will be defined in reference to the participant object.
-    You must specify the worker_id, hit_id, assignment_id and mode in the url.
+    This route is hit early on. Any nodes the participant creates will be
+    defined in reference to the participant object. You must specify the
+    worker_id, hit_id, assignment_id, and mode in the url.
     """
-    # check this worker hasn't already taken part
-    parts = models.Participant.query.filter_by(worker_id=worker_id).all()
-    if parts:
-        participant = parts[0]
-        print("Error: Warning: request received to create participant with non-unqiue worker_id. Creation aborted.")
-    else:
-        # make the participant
-        participant = models.Participant(worker_id=worker_id,
-                                         assignment_id=assignment_id,
-                                         hit_id=hit_id,
-                                         mode=mode)
-        session.add(participant)
-        session.commit()
+    already_participated = models.Participant.query.\
+        filter_by(worker_id=worker_id).one_or_none()
+
+    if already_participated:
+        db.logger.warning("Worker has already participated.")
+        return error_response(
+            error_type="/participant POST: worker has already participated.",
+            status=403)
+
+    duplicate = models.Participant.query.\
+        filter_by(
+            assignment_id=assignment_id,
+            status="working")\
+        .one_or_none()
+
+    if duplicate:
+        msg = """
+            AWS has reused assignment_id while existing participant is
+            working. Replacing older participant {}.
+        """
+        app.logger.warning(msg.format(duplicate.id))
+        q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
+
+    # Create the new participant.
+    participant = models.Participant(
+        worker_id=worker_id,
+        assignment_id=assignment_id,
+        hit_id=hit_id,
+        mode=mode
+    )
+    session.add(participant)
+    session.commit()
 
     # return the data
-    return success_response(field="participant",
-                            data=participant.__json__(),
-                            request_type="participant post")
+    return success_response(
+        field="participant",
+        data=participant.__json__(),
+        request_type="participant post"
+    )
 
 
 @app.route("/participant/<participant_id>", methods=["GET"])
@@ -656,9 +677,6 @@ def create_node(participant_id):
     except NoResultFound:
         return error_response(error_type="/node POST no participant found",
                               status=403)
-
-    # replace any duplicate assignments
-    check_for_duplicate_assignments(participant)
 
     # Make sure the participant status is working
     if participant.status != "working":
@@ -1286,29 +1304,16 @@ def worker_function(event_type, assignment_id, participant_id):
             .filter_by(assignment_id=assignment_id)\
             .all()
 
-        # if there are multiple participants select the most recent
-        if len(participants) > 1:
-            if event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
-                participants = [p for p in participants if
-                                p.status == "working"]
-                if participants:
-                    participant = min(participants,
-                                      key=attrgetter('creation_time'))
-                else:
-                    return None
-            else:
-                participant = max(participants,
-                                  key=attrgetter('creation_time'))
+        # if there are one or more participants select the most recent
+        if participants:
+            participant = max(participants,
+                              key=attrgetter('creation_time'))
 
-        # if there are none (this is also bad news) print an error
-        elif len(participants) == 0:
+        # if there are none print an error
+        else:
             exp.log("Warning: No participants associated with this "
                     "assignment_id. Notification will not be processed.", key)
             return None
-
-        # if theres only one participant (this is good) select them
-        else:
-            participant = participants[0]
 
     elif participant_id is not None:
         participant = models.Participant.query\
@@ -1390,6 +1395,11 @@ def worker_function(event_type, assignment_id, participant_id):
         if participant.status == "working":
             participant.end_time = datetime.now()
             participant.status = "missing_notification"
+
+    elif event_type == "AssignmentReassigned":
+        participant.end_time = datetime.now()
+        participant.status = "replaced"
+        exp.assignment_reassigned(participant=participant)
 
     else:
         exp.log("Error: unknown event_type {}".format(event_type), key)
