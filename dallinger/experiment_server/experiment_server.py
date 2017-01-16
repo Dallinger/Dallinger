@@ -19,6 +19,7 @@ from flask import (
     render_template_string,
 )
 from jinja2 import TemplateNotFound
+from psiturk.models import Participant  # noqa: necessary to register model
 from psiturk.db import db_session as session_psiturk
 from psiturk.db import init_db
 from rq import get_current_job
