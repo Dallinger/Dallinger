@@ -111,7 +111,7 @@ class Experiment(object):
 
         if debug_mode:
             return HotAirRecruiter
-        return MTurkRecruiter.from_current_config()
+        return MTurkRecruiter.from_current_config
 
     def setup(self):
         """Create the networks if they don't already exist."""
