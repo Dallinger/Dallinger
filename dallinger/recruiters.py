@@ -1,8 +1,8 @@
 """Recruiters manage the flow of participants to the experiment."""
-
 from boto.mturk.connection import MTurkConnection
-from psiturk.models import Participant
 from dallinger.config import get_config
+from dallinger.models import Participant
+from dallinger.mturk import MTurkService
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 import logging
@@ -100,6 +100,9 @@ class PsiTurkRecruiter(Recruiter):
                 return 'yes'
 
         config = get_config()
+        if not config.ready:
+            config.load_config()
+
         self.server = FakeExperimentServerController()
 
         # Get keys from environment variables or config file.
@@ -164,7 +167,7 @@ class PsiTurkRecruiter(Recruiter):
         auto_recruit = config.get('auto_recruit')
 
         if auto_recruit:
-
+            from psiturk.models import Participant
             print("Starting Dallinger's recruit_participants.")
 
             hit_id = str(
@@ -228,3 +231,61 @@ class PsiTurkRecruiter(Recruiter):
     def close_recruitment(self):
         """Close recruitment."""
         pass
+
+
+class MTurkRecruiterException(Exception):
+    """Custom exception for MTurkRecruiter"""
+
+
+class MTurkRecruiter(object):
+    """Recruit participants from Amazon Mechanical Turk"""
+
+    @classmethod
+    def from_current_config(cls):
+        config = get_config()
+        if not config.ready:
+            config.load_config()
+        ad_url = get_base_url()
+
+        return cls(config, ad_url)
+
+    def __init__(self, config, ad_url):
+        self.config = config
+        self.ad_url = ad_url
+        self.mturkservice = MTurkService(
+            self.config.get('aws_access_key_id'),
+            self.config.get('aws_secret_access_key'),
+            self.config.get('launch_in_sandbox_mode')
+        )
+
+    def open_recruitment(self, n=1):
+        """Open a connection to AWS MTurk and create a HIT."""
+        if self.is_in_progress:
+            # Already started... do nothing.
+            return
+
+        if self.config.get('server') in ['localhost', '127.0.0.1']:
+            raise MTurkRecruiterException("Can't run a HIT from localhost")
+
+        self.mturkservice.check_credentials()
+
+        hit_request = {
+            'max_assignments': n,
+            'title': self.config.get('title'),
+            'description': self.config.get('description'),
+            'keywords': self.config.get('keywords'),
+            'reward': self.config.get('base_payment'),
+            'duration_hours': self.config.get('duration'),
+            'lifetime_days': self.config.get('lifetime'),
+            'ad_url': self.ad_url,
+            'notification_url': self.config.get('notification_url'),
+            'approve_requirement': self.config.get('approve_requirement'),
+            'us_only': self.config.get('us_only'),
+        }
+        hit_info = self.mturkservice.create_hit(**hit_request)
+
+        return hit_info
+
+    @property
+    def is_in_progress(self):
+        return bool(Participant.query.all())

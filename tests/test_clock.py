@@ -26,9 +26,8 @@ class TestClock(object):
     def test_clock_expects_config_to_be_ready(self):
         assert not get_config().ready
         jobs = self.clock.scheduler.get_jobs()
-        with raises(RuntimeError) as excinfo:
+        with raises(RuntimeError, message='Config loading not finished'):
             jobs[0].func()
-        assert excinfo.value.message == 'Config loading not finished'
 
     def test_launch_loads_config(self):
         original_start = self.clock.scheduler.start
