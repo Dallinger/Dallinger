@@ -68,6 +68,16 @@ def expire_hit():
     conn.expire_hit(hit_id)
 
 
+def send_notification(event_type, assignment_id):
+    args = {
+        'Event.1.EventType': event_type,
+        'Event.1.AssignmentId': assignment_id
+    }
+    requests.post(
+        "http://" + os.environ['HOST'] + '/notifications',
+        data=args)
+
+
 def check_for_missed_notifications():
     """Check the database for missing notifications."""
     # get all working participants
@@ -107,13 +117,7 @@ def check_for_missed_notifications():
                 session.commit()
             elif status == "Submitted":
                 # if it has been submitted then resend a submitted notification
-                args = {
-                    'Event.1.EventType': 'AssignmentSubmitted',
-                    'Event.1.AssignmentId': assignment_id
-                }
-                requests.post(
-                    "http://" + os.environ['HOST'] + '/notifications',
-                    data=args)
+                send_notification(event_type='AssignmentSubmitted', assignment_id=p.assignment_id)
 
                 print ("Error - submitted notification for participant {} missed. "
                        "Database automatically corrected, but proceed with caution."
@@ -127,13 +131,7 @@ def check_for_missed_notifications():
                 expire_hit()
 
                 # send a notificationmissing notification
-                args = {
-                    'Event.1.EventType': 'NotificationMissing',
-                    'Event.1.AssignmentId': assignment_id
-                }
-                requests.post(
-                    "http://" + os.environ['HOST'] + '/notifications',
-                    data=args)
+                send_notification(event_type='NotificationMissing', assignment_id=p.assignment_id)
 
                 print ("Error - abandoned/returned notification for participant {} missed. "
                        "Experiment shut down. Please check database and then manually "
