@@ -8,12 +8,13 @@ from dallinger.mturk import MTurkService
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 import logging
+import os
 
 logger = logging.getLogger(__file__)
 
 
 def generate_debug_ad_url():
-    return "{}?assignmentId=debug{}&hitId={}&workerId={}&mode=debug".format(
+    return "{}/ad?assignmentId=debug{}&hitId={}&workerId={}&mode=debug".format(
         get_base_url(), generate_random_id(), generate_random_id(), generate_random_id(),
     )
 
@@ -249,8 +250,7 @@ class MTurkRecruiter(object):
         config = get_config()
         if not config.ready:
             config.load_config()
-        ad_url = get_base_url()
-
+        ad_url = '{}/ad'.format(get_base_url())
         return cls(config, ad_url)
 
     def __init__(self, config, ad_url):
@@ -268,7 +268,7 @@ class MTurkRecruiter(object):
             # Already started... do nothing.
             return
 
-        if self.config.get('server') in ['localhost', '127.0.0.1']:
+        if not os.getenv('HOST'):
             raise MTurkRecruiterException("Can't run a HIT from localhost")
 
         self.mturkservice.check_credentials()
