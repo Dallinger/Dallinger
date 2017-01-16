@@ -195,7 +195,7 @@ def get_config():
         ('heroku_email_address', unicode, [], True),
         ('heroku_password', unicode, [], True),
         ('heroku_team', unicode, []),
-        ('host', unicode, ['HOST']),
+        ('host', unicode, []),
         ('port', int, ['PORT']),
         ('launch_in_sandbox_mode', bool, []),
         ('lifetime', int, []),
