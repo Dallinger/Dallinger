@@ -63,6 +63,11 @@ def set_autorecruit(autorecruit):
         headers=headers)
 
 
+def expire_hit():
+    hit_id = Participant.query.get(1).hit_id
+    conn.expire_hit(hit_id)
+
+
 def check_for_missed_notifications():
     """Check the database for missing notifications."""
     # get all working participants
@@ -118,8 +123,8 @@ def check_for_missed_notifications():
                 # first turn off autorecruit
                 set_autorecruit(False)
 
-                # then force expire the hit via boto
-                conn.expire_hit(hit_id)
+                # then force expire the hit
+                expire_hit()
 
                 # send a notificationmissing notification
                 args = {
