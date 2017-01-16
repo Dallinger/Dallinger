@@ -27,6 +27,7 @@ def creds_from_environment():
     }
     return creds
 
+
 # decorator for test methods or classes which should be skipped if there
 # are no aws credentials set in the environment
 skip_if_no_mturk_requestor = pytest.mark.skipif(
