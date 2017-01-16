@@ -80,16 +80,11 @@ def send_notification(event_type, assignment_id):
 
 def check_for_missed_notifications():
     """Check the database for missing notifications."""
-    # get all working participants
     participants = Participant.query.filter_by(status="working").all()
-
-    # get current time
     current_time = datetime.now()
-
-    # get experiment duration in seconds
     duration = float(config.get('HIT Configuration', 'duration')) * 60 * 60
 
-    # for each participant, if current_time - start_time > duration + 5 mins
+    # for each participant, if current_time - start_time > duration + 2 mins
     for p in participants:
         p_time = (current_time - p.creation_time).total_seconds()
 
@@ -98,21 +93,16 @@ def check_for_missed_notifications():
                    "long and no notification has arrived - "
                    "running emergency code".format(p.id, p.status))
 
-            # get their assignment
-            assignment_id = p.assignment_id
-
             # ask amazon for the status of the assignment
             try:
-                assignment = conn.get_assignment(assignment_id)[0]
+                assignment = conn.get_assignment(p.assignment_id)[0]
                 status = assignment.AssignmentStatus
             except:
                 status = None
-            print "assignment status from AWS is {}".format(status)
-            hit_id = p.hit_id
 
             if status in ["Approved", "Rejected"]:
                 # if its been approved/rejected, set the status accordingly
-                print "status set to {}".format(status)
+                print "status set to {}".format(status.lower())
                 p.status = status.lower()
                 session.commit()
             elif status == "Submitted":
@@ -124,13 +114,8 @@ def check_for_missed_notifications():
                        .format(p.id))
             else:
                 # if it has not been submitted shut everything down
-                # first turn off autorecruit
                 set_autorecruit(False)
-
-                # then force expire the hit
                 expire_hit()
-
-                # send a notificationmissing notification
                 send_notification(event_type='NotificationMissing', assignment_id=p.assignment_id)
 
                 print ("Error - abandoned/returned notification for participant {} missed. "
