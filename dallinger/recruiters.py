@@ -1,6 +1,7 @@
 """Recruiters manage the flow of participants to the experiment."""
 
 from boto.mturk.connection import MTurkConnection
+from psiturk.config import PsiturkConfig
 from psiturk.models import Participant
 from dallinger.config import get_config
 from dallinger.utils import get_base_url
@@ -135,8 +136,10 @@ class PsiTurkRecruiter(Recruiter):
             config.get('launch_in_sandbox_mode')
         )
 
+        psiturk_config = PsiturkConfig()
+        psiturk_config.load_config()
         self.shell = PsiturkNetworkShell(
-            config, self.amt_services, aws_rds_services, web_services,
+            psiturk_config, self.amt_services, aws_rds_services, web_services,
             self.server,
             config.get('launch_in_sandbox_mode')
         )
