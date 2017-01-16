@@ -1,7 +1,6 @@
 import mock
 import os
 from dallinger import db
-from dallinger.config import get_config
 
 
 class TestRecruiters(object):
