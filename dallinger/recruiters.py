@@ -150,8 +150,8 @@ class PsiTurkRecruiter(Recruiter):
             # Create the first HIT.
             self.shell.hit_create(
                 n,
-                config.get('base_payment'),
-                config.get('duration')
+                str(config.get('base_payment')),
+                str(config.get('duration')),
             )
 
         else:
