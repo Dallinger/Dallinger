@@ -1,5 +1,6 @@
 import mock
 import os
+import pytest
 from dallinger import db
 
 
@@ -87,7 +88,11 @@ class TestMTurkRecruiter(object):
         from dallinger.mturk import MTurkService
         from dallinger.recruiters import MTurkRecruiter
         mockservice = mock.create_autospec(MTurkService)
-        r = MTurkRecruiter(stub_config(**kwargs), 'http://fake-domain/ad')
+        r = MTurkRecruiter(
+            config=stub_config(**kwargs),
+            hit_domain='fake-domain',
+            ad_url='http://fake-domain/ad'
+        )
         r.mturkservice = mockservice('fake key', 'fake secret')
         r.mturkservice.check_credentials.return_value = True
         return r
@@ -95,6 +100,13 @@ class TestMTurkRecruiter(object):
     def test_config_passed_to_constructor(self):
         recruiter = self.make_one()
         assert recruiter.config.get('title') == 'fake experiment title'
+
+    def test_open_recruitment_raises_if_no_external_hit_domain_configured(self):
+        from dallinger.recruiters import MTurkRecruiterException
+        recruiter = self.make_one()
+        recruiter.hit_domain = None
+        with pytest.raises(MTurkRecruiterException):
+            recruiter.open_recruitment(n=1)
 
     def test_open_recruitment_check_creds_before_calling_create_hit(self):
         recruiter = self.make_one()
