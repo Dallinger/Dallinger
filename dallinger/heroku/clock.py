@@ -42,6 +42,7 @@ else:
 def check_database():
     """Run automated checks over the database."""
     check_for_missed_notifications()
+    check_for_bad_data()
 
 
 def set_autorecruit(autorecruit):
@@ -124,6 +125,19 @@ def check_for_missed_notifications():
                        "Experiment shut down. Please check database and then manually "
                        "resume experiment."
                        .format(p.id))
+
+
+def check_for_bad_data():
+    threshold = int(config.get('Clock Parameters', 'bad_data_threshold'))
+    participants = Participant.query.filter(Participant.status != "working").all()
+    participants.sort(key=lambda x: x.end_time)
+    participants = participants[-threshold:]
+
+    if all([p.status == "bad_data" for p in participants]):
+        set_autorecruit(False)
+        expire_hit()
+        print ("Error: {} most recent participants to finish all have bad_data. \
+                Shutting experiment down as a precaution.".format(threshold))
 
 
 scheduler.start()
