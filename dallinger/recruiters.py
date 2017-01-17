@@ -247,11 +247,13 @@ class MTurkRecruiter(object):
         if not config.ready:
             config.load_config()
         ad_url = '{}/ad'.format(get_base_url())
-        return cls(config, ad_url)
+        hit_domain = os.getenv('HOST')
+        return cls(config, hit_domain, ad_url)
 
-    def __init__(self, config, ad_url):
+    def __init__(self, config, hit_domain, ad_url):
         self.config = config
         self.ad_url = ad_url
+        self.hit_domain = hit_domain
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
             self.config.get('aws_secret_access_key'),
@@ -264,7 +266,7 @@ class MTurkRecruiter(object):
             # Already started... do nothing.
             return
 
-        if not os.getenv('HOST'):
+        if self.hit_domain is None:
             raise MTurkRecruiterException("Can't run a HIT from localhost")
 
         self.mturkservice.check_credentials()
