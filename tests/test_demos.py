@@ -11,7 +11,7 @@ class TestBartlett1932(object):
 
     def setup(self):
         self._db = db.init_db(drop_all=True)
-        # This is only needed for Psiturk Config, which loads on import
+        # This is only needed for config, which loads on import
         os.chdir('demos/bartlett1932')
 
     def teardown(self):

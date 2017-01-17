@@ -27,7 +27,7 @@ Or, if you use Anaconda, install using ``conda``, not Homebrew.
 
 If you have Python 3.\ *x* installed and and symlinked to the command
 ``python``, you will need to create a ``virtualenv`` that interprets the
-code as ``python2.7`` (for compatibility with the ``psiturk`` module).
+code as ``python2.7``.
 Fortunately, we will be creating a virtual environment anyway, so as
 long as you run ``brew install python`` and you don't run into any
 errors because of your symlinks, then you can proceed with the

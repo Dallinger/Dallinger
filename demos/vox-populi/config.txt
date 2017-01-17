@@ -13,7 +13,6 @@ us_only = true
 approve_requirement = 95
 contact_email_on_error = the-sheep-market@mailinator.com
 ad_group = Estimation
-psiturk_keywords = estimation
 organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 

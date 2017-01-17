@@ -20,9 +20,6 @@ from flask import (
     send_from_directory,
 )
 from jinja2 import TemplateNotFound
-from psiturk.models import Participant  # noqa: necessary to register model
-from psiturk.db import db_session as session_psiturk
-from psiturk.db import init_db
 from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
@@ -229,69 +226,10 @@ def launch():
     """Launch the experiment."""
     exp = Experiment(db.init_db(drop_all=False))
     exp.log("Launching experiment...", "-----")
-    init_db()
     exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
-    session_psiturk.commit()
     session.commit()
 
     return success_response(request_type="launch")
-
-
-@app.route('/check_worker_status', methods=['GET'])
-def check_worker_status():
-    """Check worker status
-
-    This is called by Psiturk.
-    """
-    if 'workerId' not in request.args:
-        resp = {"status": "bad request"}
-        return jsonify(**resp)
-    else:
-        worker_id = request.args['workerId']
-        try:
-            part = Participant.query.\
-                filter(Participant.workerid == worker_id).one()
-            status = part.status
-        except exc.SQLAlchemyError:
-            status = NOT_ACCEPTED
-        resp = {"status": status}
-        return jsonify(**resp)
-
-
-@app.route('/worker_complete', methods=['GET'])
-def worker_complete():
-    """Complete worker.
-
-    Called by psiturk.
-    """
-    if 'uniqueId' not in request.args:
-        resp = {"status": "bad request"}
-        return jsonify(**resp)
-    else:
-        unique_id = request.args['uniqueId']
-        app.logger.info("Completed experiment %s" % unique_id)
-        try:
-            user = Participant.query.\
-                filter(Participant.uniqueid == unique_id).one()
-            user.status = COMPLETED
-            user.endhit = datetime.now()
-            session_psiturk.add(user)
-            session_psiturk.commit()
-            status = "success"
-        except exc.SQLAlchemyError:
-            status = "database error"
-    resp = {"status": status}
-    return jsonify(**resp)
-
-
-@app.route('/worker_submitted', methods=['GET'])
-def worker_submitted():
-    """Submit worker
-
-    Called by psiturk
-    """
-    resp = {"status": "success"}
-    return jsonify(**resp)
 
 
 @app.route('/ad', methods=['GET'])
@@ -609,14 +547,6 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
                                      mode=mode)
     session.add(participant)
     session.commit()
-
-    # make a psiturk participant too, for now
-    from psiturk.models import Participant as PsiturkParticipant
-    psiturk_participant = PsiturkParticipant(workerid=worker_id,
-                                             assignmentid=assignment_id,
-                                             hitid=hit_id)
-    session_psiturk.add(psiturk_participant)
-    session_psiturk.commit()
 
     # return the data
     return success_response(field="participant",
