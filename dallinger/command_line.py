@@ -174,7 +174,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     if not os.path.exists(os.path.join("static", "css")):
         os.makedirs(os.path.join("static", "css"))
 
-    # Rename experiment.py to avoid psiTurk conflict.
+    # Rename experiment.py for backwards compatibility.
     os.rename(
         os.path.join(dst, "experiment.py"),
         os.path.join(dst, "dallinger_experiment.py"))

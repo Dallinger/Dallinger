@@ -2,8 +2,6 @@ import json
 import os
 import unittest
 
-import pytest
-
 
 class FlaskAppTest(unittest.TestCase):
     """Base test case class for tests of the flask app."""
@@ -23,11 +21,6 @@ class FlaskAppTest(unittest.TestCase):
 
         import dallinger.db
         self.db = dallinger.db.init_db(drop_all=True)
-
-        # For now, clear and init the psiturk db too
-        import psiturk.db
-        psiturk.db.Base.metadata.drop_all(bind=psiturk.db.engine)
-        psiturk.db.init_db()
 
     def tearDown(self):
         self.db.rollback()
@@ -96,7 +89,6 @@ class TestExperimentServer(FlaskAppTest):
         })
         assert 'Informed Consent Form' in resp.data
 
-    @pytest.mark.xfail(reason="#411")
     def test_participant_info(self):
         p_id = self._create_participant()
         resp = self.app.get('/participant/{}'.format(p_id))
@@ -104,7 +96,6 @@ class TestExperimentServer(FlaskAppTest):
         assert data.get('status') == 'success'
         assert data.get('participant').get('status') == u'working'
 
-    @pytest.mark.xfail(reason="#411")
     def test_node_vectors(self):
         p_id = self._create_participant()
         n_id = self._create_node(p_id)
@@ -113,7 +104,6 @@ class TestExperimentServer(FlaskAppTest):
         assert data.get('status') == 'success'
         assert data.get('vectors') == []
 
-    @pytest.mark.xfail(reason="#411")
     def test_node_infos(self):
         p_id = self._create_participant()
         n_id = self._create_node(p_id)
@@ -122,7 +112,6 @@ class TestExperimentServer(FlaskAppTest):
         assert data.get('status') == 'success'
         assert data.get('infos') == []
 
-    @pytest.mark.xfail(reason="#411")
     def test_summary(self):
         resp = self.app.get('/summary')
         assert resp.status_code == 200
