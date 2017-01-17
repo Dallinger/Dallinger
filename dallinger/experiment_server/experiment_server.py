@@ -274,7 +274,7 @@ def worker_complete():
             user = Participant.query.\
                 filter(Participant.uniqueid == unique_id).one()
             user.status = COMPLETED
-            user.endhit = datetime.datetime.now()
+            user.endhit = datetime.now()
             session_psiturk.add(user)
             session_psiturk.commit()
             status = "success"
