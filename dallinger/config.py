@@ -224,7 +224,6 @@ def get_config():
         ('organization_name', unicode, []),
         ('psiturk_access_key_id', unicode, [], True),
         ('psiturk_secret_access_id', unicode, [], True),
-        ('psiturk_keywords', unicode, []),
         ('table_name', unicode, []),
         ('threads', unicode, []),
         ('title', unicode, []),
