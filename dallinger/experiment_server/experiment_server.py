@@ -11,12 +11,13 @@ import user_agents
 from flask import (
     abort,
     Flask,
+    jsonify,
     make_response,
+    render_template,
+    render_template_string,
     request,
     Response,
     send_from_directory,
-    render_template,
-    render_template_string,
 )
 from jinja2 import TemplateNotFound
 from psiturk.models import Participant  # noqa: necessary to register model
@@ -234,6 +235,27 @@ def launch():
     session.commit()
 
     return success_response(request_type="launch")
+
+
+@app.route('/check_worker_status', methods=['GET'])
+def check_worker_status():
+    """Check worker status
+
+    This is called by Psiturk.
+    """
+    if 'workerId' not in request.args:
+        resp = {"status": "bad request"}
+        return jsonify(**resp)
+    else:
+        worker_id = request.args['workerId']
+        try:
+            part = Participant.query.\
+                filter(Participant.workerid == worker_id).one()
+            status = part.status
+        except exc.SQLAlchemyError:
+            status = NOT_ACCEPTED
+        resp = {"status": status}
+        return jsonify(**resp)
 
 
 @app.route('/ad', methods=['GET'])
