@@ -47,20 +47,18 @@ def sessions_scope(local_session, commit=False):
 
 
 def scoped_session_decorator(func):
-    """Manage contexts and add debugging to psiTurk sessions."""
+    """Manage contexts and add debugging to db sessions."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         from dallinger.db import session as dallinger_session
         with sessions_scope(dallinger_session):
-            from psiturk.db import db_session as psi_session
-            with sessions_scope(psi_session):
-                # The sessions used in func come from the funcs globals, but
-                # they will be proxied thread locals vars from the session
-                # registry, and will therefore be identical to those returned
-                # by the context managers above.
-                logger.debug('Running worker %s in scoped DB sessions',
-                             func.__name__)
-                return func(*args, **kwargs)
+            # The session used in func comes from the funcs globals, but
+            # it will be a proxied thread local var from the session
+            # registry, and will therefore be identical to the one returned
+            # by the context manager above.
+            logger.debug('Running worker %s in scoped DB session',
+                         func.__name__)
+            return func(*args, **kwargs)
     return wrapper
 
 

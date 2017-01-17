@@ -63,7 +63,7 @@ class StandaloneServer(Application):
             'loglevel': self.loglevels[config.get("loglevel")],
             'accesslog': config.get("logfile"),
             'errorlog': config.get("logfile"),
-            'proc_name': 'psiturk_experiment_server',
+            'proc_name': 'dallinger_experiment_server',
             'limit_request_line': '0',
             'when_ready': when_ready,
         }
