@@ -258,6 +258,43 @@ def check_worker_status():
         return jsonify(**resp)
 
 
+@app.route('/worker_complete', methods=['GET'])
+def worker_complete():
+    """Complete worker.
+
+    Called by psiturk.
+    """
+    if 'uniqueId' not in request.args:
+        resp = {"status": "bad request"}
+        return jsonify(**resp)
+    else:
+        unique_id = request.args['uniqueId']
+        app.logger.info("Completed experiment %s" % unique_id)
+        try:
+            user = Participant.query.\
+                filter(Participant.uniqueid == unique_id).one()
+            user.status = COMPLETED
+            user.endhit = datetime.datetime.now()
+            session_psiturk.add(user)
+            session_psiturk.commit()
+            status = "success"
+        except exc.SQLAlchemyError:
+            status = "database error"
+    resp = {"status": status}
+    return jsonify(**resp)
+
+
+@app.route('/worker_submitted', methods=['GET'])
+def worker_submitted():
+    """Submit worker
+
+    Called by psiturk
+    """
+    resp = {"status": "success"}
+    return jsonify(**resp)
+
+
+
 @app.route('/ad', methods=['GET'])
 @nocache
 def advertisement():
