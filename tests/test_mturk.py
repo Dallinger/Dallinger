@@ -172,6 +172,14 @@ class TestMTurkServiceWithFakeConnection(object):
         service = MTurkService(**creds)
         return service
 
+    def test_is_sandbox_by_default(self):
+        service = self.make_one()
+        assert service.is_sandbox
+
+    def test_host_server_is_sandbox_by_default(self):
+        service = self.make_one()
+        assert 'sandbox' in service.host
+
     def test_check_credentials_converts_response_to_boolean_true(self):
         service = self.make_one()
         mock_mtc = mock.Mock(
