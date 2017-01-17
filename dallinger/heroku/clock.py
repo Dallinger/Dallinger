@@ -13,7 +13,9 @@ import dallinger
 from dallinger import db
 from dallinger.models import Participant
 
-from dallinger import config
+from psiturk.psiturk_config import PsiturkConfig
+config = PsiturkConfig()
+config.load_config()
 
 # Import the experiment.
 experiment = dallinger.experiments.load()
