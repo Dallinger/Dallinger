@@ -116,7 +116,7 @@ class Configuration(object):
         for key in ('database_url', 'table_name', 'anonymize_data', 'database_size'):
             parser.set('Database Parameters', key, str(self.get(key)))
         parser.add_section('Server Parameters')
-        for key in ('host', 'port'):
+        for key in ('host', 'port', 'notification_url'):
             parser.set('Server Parameters', key, str(self.get(key)))
         parser.add_section('HIT Configuration')
         for key in (
