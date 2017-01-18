@@ -153,6 +153,23 @@ class TestMTurkService(object):
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 2
 
+    def test_extend_hit_with_valid_hit_id(self):
+        service = self.make_one()
+        hit = service.create_hit(**standard_hit_config())
+
+        updated = service.extend_hit(hit['id'], number=1, duration_hours=.25)
+
+        assert updated['max_assignments'] == 2
+        clock_skew = .01
+        expected_extension = datetime.timedelta(hours=.25 - clock_skew)
+        assert updated['expiration'] >= hit['expiration'] + expected_extension
+
+    def test_extend_hit_with_invalid_hit_id_raises(self):
+        from boto.mturk.connection import MTurkRequestError
+        service = self.make_one()
+        with pytest.raises(MTurkRequestError):
+            service.extend_hit('dud', number=1, duration_hours=.25)
+
 
 
 class TestMTurkServiceWithFakeConnection(object):
