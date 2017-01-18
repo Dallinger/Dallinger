@@ -149,8 +149,13 @@ class MTurkRecruiter(object):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
 
+        hit_id = self.current_hit_id()
+        if hit_id is None:
+            logger.info('no HIT in progress: recruitment aborted')
+            return
+
         return self.mturkservice.extend_hit(
-            self.current_hit_id(),
+            hit_id,
             number=n,
             duration_hours=self.config.get('duration')
         )
