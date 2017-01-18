@@ -463,18 +463,13 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
     # Launch the experiment.
     log("Launching the experiment on MTurk...")
-    subprocess.check_call(
-        'curl --data "" http://{}.herokuapp.com/launch'.format(app_name(id)),
-        shell=True)
 
-    time.sleep(8)
-
-    url = subprocess.check_output(
-        "heroku logs --app " + app_name(id) + " | sort | " +
-        "sed -n 's|.*URL:||p'", shell=True)
+    launch_request = requests.post('https://{}.herokuapp.com/launch'.format(app_name(id)))
+    launch_data = launch_request.json()
 
     log("URLs:")
-    click.echo(url)
+    log("App home: https://{}.herokuapp.com/launch".format(app_name(id)))
+    log("Initial recruitment: {}".format(launch_data.get('recruitment_url', None)))
 
     # Return to the branch whence we came.
     os.chdir(cwd)
