@@ -225,7 +225,8 @@ def launch():
     """Launch the experiment."""
     exp = Experiment(db.init_db(drop_all=False))
     exp.log("Launching experiment...", "-----")
-    exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+    hit_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+    exp.log(hit_info)
     session.commit()
 
     return success_response(request_type="launch")
