@@ -7,6 +7,10 @@ from boto.mturk.qualification import Qualifications
 from boto.mturk.question import ExternalQuestion
 
 
+def timestr_to_dt(timestr):
+    return datetime.datetime.strptime(timestr, '%Y-%m-%dT%H:%M:%SZ')
+
+
 class MTurkServiceException(Exception):
     """Custom exception type"""
 
@@ -132,10 +136,13 @@ class MTurkService(object):
         if hit.IsValid != 'True':
             raise MTurkServiceException("HIT request was invalid for unknown reason.")
 
+        return self._translate_hit(hit)
+    def _translate_hit(self, hit):
         translated = {
             'id': hit.HITId,
             'type_id': hit.HITTypeId,
-            'expiration': hit.Expiration,
+            'created': timestr_to_dt(hit.CreationTime),
+            'expiration': timestr_to_dt(hit.Expiration),
             'max_assignments': int(hit.MaxAssignments),
             'title': hit.Title,
             'description': hit.Description,
