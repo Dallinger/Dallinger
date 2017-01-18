@@ -177,3 +177,8 @@ class TestMTurkRecruiter(object):
         recruiter.approve_hit(fake_id)
 
         recruiter.mturkservice.approve_assignment.assert_called_once_with(fake_id)
+
+    def test_close_recruitment(self):
+        recruiter = self.make_one()
+        recruiter.close_recruitment()
+        # This test is for coverage; the method doesn't do anything.
