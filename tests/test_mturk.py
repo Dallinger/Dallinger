@@ -9,13 +9,13 @@ from .conftest import creds_from_environment
 from .conftest import skip_if_no_mturk_requestor
 
 
-def fake_account_balance():
+def fake_balance_response():
     result = ResultSet()
     result.append(Price(1.00))
     return result
 
 
-def fake_hit_type():
+def fake_hit_type_response():
     result = ResultSet()
     htid = HITTypeId(None)
     htid.HITTypeId = u'fake HITTypeId'
@@ -61,6 +61,25 @@ def fake_hit_response():
     result = ResultSet()
     result.append(hit)
     return result
+
+
+def standard_hit_config(**kwargs):
+    defaults = {
+        'ad_url': 'https://url-of-ad-route',
+        'approve_requirement': 95,
+        'us_only': True,
+        'lifetime_days': 0.1,
+        'max_assignments': 1,
+        'notification_url': 'https://url-of-notification-route',
+        'title': 'Test Title',
+        'description': 'Test Description',
+        'keywords': ['testkw1', 'testkw1'],
+        'reward': .01,
+        'duration_hours': .25
+    }
+    defaults.update(**kwargs)
+
+    return defaults
 
 
 @skip_if_no_mturk_requestor
@@ -123,41 +142,17 @@ class TestMTurkService(object):
         assert service.set_rest_notification(url, hit_type_id) is True
 
     def test_create_hit(self):
-        hit_config = {
-            'ad_url': 'https://url-of-ad-route',
-            'approve_requirement': 95,
-            'us_only': True,
-            'lifetime_days': 0.1,
-            'max_assignments': 1,
-            'notification_url': 'https://url-of-notification-route',
-            'title': 'Test Title',
-            'description': 'Test Description',
-            'keywords': ['testkw1', 'testkw1'],
-            'reward': .01,
-            'duration_hours': .25
-        }
         service = self.make_one()
-        hit = service.create_hit(**hit_config)
+        hit = service.create_hit(**standard_hit_config())
         assert hit['status'] == 'Assignable'
+        assert hit['max_assignments'] == 1
 
     def test_create_hit_two_assignments(self):
-        hit_config = {
-            'ad_url': 'https://url-of-ad-route',
-            'approve_requirement': 95,
-            'us_only': True,
-            'lifetime_days': 0.1,
-            'max_assignments': 2,
-            'notification_url': 'https://url-of-notification-route',
-            'title': 'Test Title',
-            'description': 'Test Description',
-            'keywords': ['testkw1', 'testkw1'],
-            'reward': .01,
-            'duration_hours': .25
-        }
         service = self.make_one()
-        hit = service.create_hit(**hit_config)
+        hit = service.create_hit(**standard_hit_config(max_assignments=2))
         assert hit['status'] == 'Assignable'
-        assert hit['assignments_available'] == 2
+        assert hit['max_assignments'] == 2
+
 
 
 class TestMTurkServiceWithFakeConnection(object):
@@ -183,7 +178,7 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_check_credentials_converts_response_to_boolean_true(self):
         service = self.make_one()
         mock_mtc = mock.Mock(
-            **{'get_account_balance.return_value': fake_account_balance()}
+            **{'get_account_balance.return_value': fake_balance_response()}
         )
         service._connection = mock_mtc
         assert service.check_credentials() is True
@@ -191,7 +186,7 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_check_credentials_calls_get_account_balance(self):
         service = self.make_one()
         mock_mtc = mock.Mock(
-            **{'get_account_balance.return_value': fake_account_balance()}
+            **{'get_account_balance.return_value': fake_balance_response()}
         )
         service._connection = mock_mtc
         service.check_credentials()
@@ -228,8 +223,8 @@ class TestMTurkServiceWithFakeConnection(object):
         }
         service = self.make_one()
         mock_config = {
-            'get_account_balance.return_value': fake_account_balance(),
-            'register_hit_type.return_value': fake_hit_type(),
+            'get_account_balance.return_value': fake_balance_response(),
+            'register_hit_type.return_value': fake_hit_type_response(),
         }
         mock_mtc = mock.Mock(**mock_config)
         service._connection = mock_mtc
@@ -260,56 +255,29 @@ class TestMTurkServiceWithFakeConnection(object):
         service._connection.set_rest_notification.assert_called_once()
 
     def test_create_hit_calls_underlying_mturk_method(self):
-        hit_config = {
-            'ad_url': 'https://url-of-ad-route',
-            'approve_requirement': 95,
-            'us_only': True,
-            'lifetime_days': 0.1,
-            'max_assignments': 1,
-            'notification_url': 'https://url-of-notification-route',
-            'title': 'Test Title',
-            'description': 'Test Description',
-            'keywords': ['testkw1', 'testkw1'],
-            'reward': .01,
-            'duration_hours': .25
-        }
         service = self.make_one()
         mock_config = {
-            'register_hit_type.return_value': fake_hit_type(),
+            'register_hit_type.return_value': fake_hit_type_response(),
             'set_rest_notification.return_value': ResultSet(),
             'create_hit.return_value': fake_hit_response()
         }
         mock_mtc = mock.Mock(**mock_config)
         service._connection = mock_mtc
-        service.create_hit(**hit_config)
+        service.create_hit(**standard_hit_config())
 
         service._connection.create_hit.assert_called_once()
 
     def test_create_hit_translates_response_back_from_mturk(self):
-        hit_config = {
-            'ad_url': 'https://url-of-ad-route',
-            'approve_requirement': 95,
-            'us_only': True,
-            'lifetime_days': 0.1,
-            'max_assignments': 1,
-            'notification_url': 'https://url-of-notification-route',
-            'title': 'Test Title',
-            'description': 'Test Description',
-            'keywords': ['testkw1', 'testkw1'],
-            'reward': .01,
-            'duration_hours': .25
-        }
         service = self.make_one()
         mock_config = {
-            'register_hit_type.return_value': fake_hit_type(),
+            'register_hit_type.return_value': fake_hit_type_response(),
             'set_rest_notification.return_value': ResultSet(),
             'create_hit.return_value': fake_hit_response()
         }
         mock_mtc = mock.Mock(**mock_config)
         service._connection = mock_mtc
-        hit = service.create_hit(**hit_config)
+        hit = service.create_hit(**standard_hit_config())
         assert hit['max_assignments'] == 1
-        assert hit['assignments_available'] == 1
         assert hit['reward'] == .01
         assert hit['keywords'] == ['testkw1', 'testkw2']
         assert isinstance(hit['created'], datetime.datetime)
