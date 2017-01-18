@@ -6,27 +6,56 @@ from dallinger import db
 
 class TestRecruiters(object):
 
-    def setup(self):
-        self.db = db.init_db(drop_all=True)
-        os.chdir(os.path.join("demos", "bartlett1932"))
-
-    def teardown(self):
-        self.db.rollback()
-        self.db.close()
-        os.chdir("..")
-        os.chdir("..")
-
-    def add(self, *args):
-        self.db.add_all(args)
-        self.db.commit()
-
-    def test_recruiter_generic(self):
+    @pytest.fixture
+    def recruiter(self):
         from dallinger.recruiters import Recruiter
-        assert Recruiter()
+        return Recruiter()
 
-    def test_recruiter_simulated(self):
+    def test_open_recruitment(self, recruiter):
+        with pytest.raises(NotImplementedError):
+            recruiter.open_recruitment()
+
+    def test_recruit_participants(self, recruiter):
+        with pytest.raises(NotImplementedError):
+            recruiter.recruit_participants()
+
+    def test_close_recruitment(self, recruiter):
+        with pytest.raises(NotImplementedError):
+            recruiter.close_recruitment()
+
+
+class TestHotAirRecruiter(object):
+
+    @pytest.fixture
+    def recruiter(self):
+        from dallinger.recruiters import HotAirRecruiter
+        return HotAirRecruiter()
+
+    def test_open_recruitment(self, recruiter):
+        recruiter.open_recruitment()
+
+    def test_recruit_participants(self, recruiter):
+        recruiter.recruit_participants()
+
+    def test_close_recruitment(self, recruiter):
+        recruiter.close_recruitment()
+
+
+class TestSimulatedRecruiter(object):
+
+    @pytest.fixture
+    def recruiter(self):
         from dallinger.recruiters import SimulatedRecruiter
-        assert SimulatedRecruiter()
+        return SimulatedRecruiter()
+
+    def test_open_recruitment(self, recruiter):
+        recruiter.open_recruitment()
+
+    def test_recruit_participants(self, recruiter):
+        recruiter.recruit_participants()
+
+    def test_close_recruitment(self, recruiter):
+        recruiter.close_recruitment()
 
 
 def stub_config(**kwargs):

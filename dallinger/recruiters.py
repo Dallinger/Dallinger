@@ -11,12 +11,6 @@ import os
 logger = logging.getLogger(__file__)
 
 
-def generate_debug_ad_url():
-    return "{}/ad?assignmentId=debug{}&hitId={}&workerId={}&mode=debug".format(
-        get_base_url(), generate_random_id(), generate_random_id(), generate_random_id(),
-    )
-
-
 class Recruiter(object):
     """The base recruiter."""
 
@@ -55,7 +49,9 @@ class HotAirRecruiter(object):
     def recruit_participants(self, n=1):
         """Talk about recruiting participants."""
         for i in range(n):
-            ad_url = generate_debug_ad_url()
+            ad_url = "{}/ad?assignmentId=debug{}&hitId={}&workerId={}&mode=debug".format(
+                get_base_url(), generate_random_id(), generate_random_id(), generate_random_id(),
+            )
             logger.info('New participant requested: {}'.format(ad_url))
 
     def close_recruitment(self):
@@ -74,15 +70,13 @@ class SimulatedRecruiter(object):
         """Create a simulated recruiter."""
         super(SimulatedRecruiter, self).__init__()
 
-    def open_recruitment(self, exp=None):
-        """Open recruitment with a single participant."""
-        self.recruit_participants(exp, n=1)
+    def open_recruitment(self, n=1):
+        """Open recruitment."""
+        self.recruit_participants(n)
 
-    def recruit_participants(self, n=1, exp=None):
+    def recruit_participants(self, n=1):
         """Recruit n participants."""
-        for i in range(n):
-            newcomer = exp.agent_type()
-            exp.newcomer_arrival_trigger(newcomer)
+        pass
 
     def close_recruitment(self):
         """Do nothing."""
