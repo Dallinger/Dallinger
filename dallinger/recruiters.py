@@ -184,3 +184,11 @@ class MTurkRecruiter(object):
 
     def approve_hit(self, assignment_id):
         return self.mturkservice.approve_assignment(assignment_id)
+
+    def close_recruitment(self):
+        """Clean up once the experiment is complete.
+
+        This does nothing, because the fact that this is called means
+        that all MTurk HITs that were created were already completed.
+        """
+        pass
