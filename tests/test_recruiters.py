@@ -146,3 +146,10 @@ class TestMTurkRecruiter(object):
         recruiter.recruit_participants()
 
         assert not recruiter.mturkservice.extend_hit.called
+
+    def test_recruit_participants_no_current_hit_does_not_extend_hit(self):
+        recruiter = self.make_one()
+        recruiter.current_hit_id = mock.Mock(return_value=None)
+        recruiter.recruit_participants()
+
+        assert not recruiter.mturkservice.extend_hit.called
