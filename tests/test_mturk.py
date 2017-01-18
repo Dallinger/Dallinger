@@ -319,3 +319,11 @@ class TestMTurkServiceWithFakeConnection(object):
         assert hit['keywords'] == ['testkw1', 'testkw2']
         assert isinstance(hit['created'], datetime.datetime)
         assert isinstance(hit['expiration'], datetime.datetime)
+
+    def test_approve_assignment(self):
+        service = self.make_one()
+        mock_config = {
+            'approve_assignment.returns': ResultSet(),
+        }
+        service._connection = mock.Mock(**mock_config)
+        assert service.approve_assignment('fake id') is True

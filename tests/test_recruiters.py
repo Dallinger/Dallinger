@@ -156,3 +156,10 @@ class TestMTurkRecruiter(object):
         recruiter.recruit_participants()
 
         assert not recruiter.mturkservice.extend_hit.called
+
+    def test_approve_hit(self):
+        recruiter = self.make_one()
+        fake_id = 'fake assignment id'
+        recruiter.approve_hit(fake_id)
+
+        recruiter.mturkservice.approve_assignment.assert_called_once_with(fake_id)

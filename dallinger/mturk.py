@@ -173,3 +173,7 @@ class MTurkService(object):
         }
 
         return translated
+
+    def approve_assignment(self, assignment_id):
+        self.mturk.approve_assignment(assignment_id, feedback=None)
+        return True
