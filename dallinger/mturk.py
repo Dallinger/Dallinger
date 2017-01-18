@@ -150,9 +150,6 @@ class MTurkService(object):
             'reward': float(hit.Amount),
             'review_status': hit.HITReviewStatus,
             'status': hit.HITStatus,
-            'assignments_available': int(hit.NumberOfAssignmentsAvailable),
-            'assignments_completed': int(hit.NumberOfAssignmentsCompleted),
-            'assignments_pending': int(hit.NumberOfAssignmentsPending),
         }
 
         return translated
