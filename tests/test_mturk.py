@@ -170,6 +170,16 @@ class TestMTurkService(object):
         with pytest.raises(MTurkRequestError):
             service.extend_hit('dud', number=1, duration_hours=.25)
 
+    def test_disable_hit_with_valid_hit_id(self):
+        service = self.make_one()
+        hit = service.create_hit(**standard_hit_config())
+        assert service.disable_hit(hit['id'])
+
+    def test_disable_hit_with_invalid_hit_id_raises(self):
+        from boto.mturk.connection import MTurkRequestError
+        service = self.make_one()
+        with pytest.raises(MTurkRequestError):
+            service.disable_hit('dud')
 
 
 class TestMTurkServiceWithFakeConnection(object):
