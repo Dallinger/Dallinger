@@ -148,6 +148,11 @@ class MTurkService(object):
 
         return self._translate_hit(updated_hit)
 
+    def disable_hit(self, hit_id):
+        turk = self.mturk
+        # Empty ResultSet marks success
+        return turk.disable_hit(hit_id) == []
+
     def _translate_hit(self, hit):
         translated = {
             'id': hit.HITId,
