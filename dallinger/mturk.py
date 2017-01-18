@@ -188,3 +188,7 @@ class MTurkService(object):
 
     def _is_ok(self, mturk_response):
         return mturk_response == []
+
+    def approve_assignment(self, assignment_id):
+        self.mturk.approve_assignment(assignment_id, feedback=None)
+        return True

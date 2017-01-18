@@ -170,3 +170,10 @@ class TestMTurkRecruiter(object):
             amount=2.99,
             reason='well done!'
         )
+
+    def test_approve_hit(self):
+        recruiter = self.make_one()
+        fake_id = 'fake assignment id'
+        recruiter.approve_hit(fake_id)
+
+        recruiter.mturkservice.approve_assignment.assert_called_once_with(fake_id)
