@@ -137,6 +137,17 @@ class MTurkService(object):
             raise MTurkServiceException("HIT request was invalid for unknown reason.")
 
         return self._translate_hit(hit)
+
+    def extend_hit(self, hit_id, number, duration_hours):
+        """Extend an existing HIT and return an updated description"""
+        duration_as_secs = int(duration_hours * 3600)
+        self.mturk.extend_hit(hit_id, assignments_increment=number)
+        self.mturk.extend_hit(hit_id, expiration_increment=duration_as_secs)
+
+        updated_hit = self.mturk.get_hit(hit_id)[0]
+
+        return self._translate_hit(updated_hit)
+
     def _translate_hit(self, hit):
         translated = {
             'id': hit.HITId,
