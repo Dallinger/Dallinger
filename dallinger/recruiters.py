@@ -145,4 +145,4 @@ class MTurkRecruiter(object):
 
     @property
     def is_in_progress(self):
-        return bool(Participant.query.all())
+        return bool(Participant.query.first())
