@@ -312,3 +312,5 @@ class TestMTurkServiceWithFakeConnection(object):
         assert hit['assignments_available'] == 1
         assert hit['reward'] == .01
         assert hit['keywords'] == ['testkw1', 'testkw2']
+        assert isinstance(hit['created'], datetime.datetime)
+        assert isinstance(hit['expiration'], datetime.datetime)
