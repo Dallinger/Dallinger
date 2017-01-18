@@ -143,6 +143,25 @@ class MTurkRecruiter(object):
 
         return hit_info
 
+    def recruit_participants(self, n=1):
+        """Recruit n new participants to an existing HIT"""
+        if not self.config.get('auto_recruit', False):
+            logger.info('auto_recruit is False: recruitment suppressed')
+            return
+
+        return self.mturkservice.extend_hit(
+            self.current_hit_id(),
+            number=n,
+            duration_hours=self.config.get('duration')
+        )
+
     @property
     def is_in_progress(self):
         return bool(Participant.query.first())
+
+    def current_hit_id(self):
+        any_participant_record = Participant.query.with_entities(
+            Participant.hit_id).first()
+
+        if any_participant_record is not None:
+            return str(any_participant_record.hit_id)

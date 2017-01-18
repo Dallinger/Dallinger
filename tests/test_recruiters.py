@@ -31,6 +31,7 @@ class TestRecruiters(object):
 
 def stub_config(**kwargs):
     defaults = {
+        'auto_recruit': True,
         'aws_access_key_id': 'fake key',
         'aws_secret_access_key': 'fake secret',
         'launch_in_sandbox_mode': True,
@@ -125,3 +126,23 @@ class TestMTurkRecruiter(object):
             title='fake experiment title',
             us_only=True
         )
+
+    def test_recruit_participants_auto_recruit_on_recruits_for_current_hit(self):
+        recruiter = self.make_one()
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.recruit_participants()
+
+        recruiter.mturkservice.extend_hit.assert_called_once_with(
+            fake_hit_id,
+            number=1,
+            duration_hours=1.0
+        )
+
+    def test_recruit_participants_auto_recruit_off_does_not_extend_hit(self):
+        recruiter = self.make_one(auto_recruit=False)
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.recruit_participants()
+
+        assert not recruiter.mturkservice.extend_hit.called
