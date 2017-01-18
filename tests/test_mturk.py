@@ -207,7 +207,7 @@ class TestMTurkServiceWithFakeConnection(object):
         mock_mtc = mock.Mock(
             **{'get_account_balance.return_value': fake_balance_response()}
         )
-        service._connection = mock_mtc
+        service.mturk = mock_mtc
         assert service.check_credentials() is True
 
     def test_check_credentials_calls_get_account_balance(self):
@@ -215,9 +215,9 @@ class TestMTurkServiceWithFakeConnection(object):
         mock_mtc = mock.Mock(
             **{'get_account_balance.return_value': fake_balance_response()}
         )
-        service._connection = mock_mtc
+        service.mturk = mock_mtc
         service.check_credentials()
-        service._connection.get_account_balance.assert_called_once()
+        service.mturk.get_account_balance.assert_called_once()
 
     def test_check_credentials_bad_credentials(self):
         from boto.mturk.connection import MTurkRequestError
@@ -225,7 +225,7 @@ class TestMTurkServiceWithFakeConnection(object):
         mock_mtc = mock.Mock(
             **{'get_account_balance.side_effect': MTurkRequestError(1, 'ouch')}
         )
-        service._connection = mock_mtc
+        service.mturk = mock_mtc
         with pytest.raises(MTurkRequestError):
             service.check_credentials()
 
@@ -254,10 +254,10 @@ class TestMTurkServiceWithFakeConnection(object):
             'register_hit_type.return_value': fake_hit_type_response(),
         }
         mock_mtc = mock.Mock(**mock_config)
-        service._connection = mock_mtc
+        service.mturk = mock_mtc
         service.register_hit_type(**config)
 
-        service._connection.register_hit_type.assert_called_once_with(
+        service.mturk.register_hit_type.assert_called_once_with(
             'Test Title',
             'Test Description',
             .01,
@@ -275,11 +275,11 @@ class TestMTurkServiceWithFakeConnection(object):
             'set_rest_notification.return_value': ResultSet(),
         }
         mock_mtc = mock.Mock(**mock_config)
-        service._connection = mock_mtc
+        service.mturk = mock_mtc
 
         service.set_rest_notification(url, hit_type_id)
 
-        service._connection.set_rest_notification.assert_called_once()
+        service.mturk.set_rest_notification.assert_called_once()
 
     def test_create_hit_calls_underlying_mturk_method(self):
         service = self.make_one()
@@ -289,10 +289,10 @@ class TestMTurkServiceWithFakeConnection(object):
             'create_hit.return_value': fake_hit_response()
         }
         mock_mtc = mock.Mock(**mock_config)
-        service._connection = mock_mtc
+        service.mturk = mock_mtc
         service.create_hit(**standard_hit_config())
 
-        service._connection.create_hit.assert_called_once()
+        service.mturk.create_hit.assert_called_once()
 
     def test_create_hit_translates_response_back_from_mturk(self):
         service = self.make_one()
@@ -302,7 +302,7 @@ class TestMTurkServiceWithFakeConnection(object):
             'create_hit.return_value': fake_hit_response()
         }
         mock_mtc = mock.Mock(**mock_config)
-        service._connection = mock_mtc
+        service.mturk = mock_mtc
         hit = service.create_hit(**standard_hit_config())
         assert hit['max_assignments'] == 1
         assert hit['reward'] == .01
