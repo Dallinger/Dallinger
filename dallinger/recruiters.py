@@ -119,7 +119,7 @@ class MTurkRecruiter(object):
         """Open a connection to AWS MTurk and create a HIT."""
         if self.is_in_progress:
             # Already started... do nothing.
-            return
+            return None
 
         if self.hit_domain is None:
             raise MTurkRecruiterException("Can't run a HIT from localhost")
@@ -140,8 +140,12 @@ class MTurkRecruiter(object):
             'us_only': self.config.get('us_only'),
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
+        if self.config.get('launch_in_sandbox_mode'):
+            lookup_url = "https://workersandbox.mturk.com/mturk/preview?groupId={type_id}"
+        else:
+            lookup_url = "https://worker.mturk.com/mturk/preview?groupId={type_id}"
 
-        return hit_info
+        return lookup_url.format(**hit_info)
 
     def recruit_participants(self, n=1):
         """Recruit n new participants to an existing HIT"""
