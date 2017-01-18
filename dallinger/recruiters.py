@@ -176,3 +176,12 @@ class MTurkRecruiter(object):
 
         if any_participant_record is not None:
             return str(any_participant_record.hit_id)
+        return bool(Participant.query.all())
+
+    def close_recruitment(self):
+        """Clean up once the experiment is complete.
+
+        This does nothing, because the fact that this is called means
+        that all MTurk HITs that were created were already completed.
+        """
+        pass

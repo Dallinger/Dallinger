@@ -156,3 +156,8 @@ class TestMTurkRecruiter(object):
         recruiter.recruit_participants()
 
         assert not recruiter.mturkservice.extend_hit.called
+
+    def test_close_recruitment(self):
+        recruiter = self.make_one()
+        recruiter.close_recruitment()
+        # This test is for coverage; the method doesn't do anything.
