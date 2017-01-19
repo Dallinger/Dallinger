@@ -4,7 +4,6 @@ from datetime import datetime
 from json import dumps
 from operator import attrgetter
 import re
-import requests
 import traceback
 import user_agents
 
@@ -373,44 +372,6 @@ def experiment_property(prop):
     exp = Experiment(session)
     p = getattr(exp, prop)
     return success_response(field=prop, data=p, request_type=prop)
-
-
-@app.route("/ad_address/<mode>/<hit_id>", methods=["GET"])
-def ad_address(mode, hit_id):
-    """Get the address of the ad on AWS.
-
-    This is used at the end of the experiment to send participants
-    back to AWS where they can complete and submit the HIT.
-    """
-    if mode == "debug":
-        address = '/complete'
-        participant = models.Participant.query.filter_by(hit_id=hit_id).one()
-        _debug_notify(assignment_id=participant.assignment_id,
-                      participant_id=participant.id)
-    elif mode in ["sandbox", "live"]:
-        username = config.get("psiturk_access_key_id")
-        password = config.get("psiturk_secret_access_id")
-        try:
-            req = requests.get(
-                'https://api.psiturk.org/api/ad/lookup/' + hit_id,
-                auth=(username, password))
-        except Exception:
-            raise ValueError('api_server_not_reachable')
-        else:
-            if req.status_code == 200:
-                hit_address = req.json()['ad_id']
-            else:
-                raise ValueError("something here")
-        if mode == "sandbox":
-            address = ('https://sandbox.ad.psiturk.org/complete/' +
-                       str(hit_address))
-        elif mode == "live":
-            address = 'https://ad.psiturk.org/complete/' + str(hit_address)
-    else:
-        raise ValueError("Unknown mode: {}".format(mode))
-    return success_response(field="address",
-                            data=address,
-                            request_type="ad_address")
 
 
 @app.route("/<page>", methods=["GET"])
