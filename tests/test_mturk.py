@@ -5,8 +5,11 @@ from boto.resultset import ResultSet
 from boto.mturk.price import Price
 from boto.mturk.connection import HITTypeId
 from boto.mturk.connection import HIT
+from boto.mturk.connection import MTurkRequestError
 from .conftest import creds_from_environment
 from .conftest import skip_if_no_mturk_requestor
+from dallinger.mturk import MTurkService
+from dallinger.mturk import MTurkServiceException
 
 
 TEST_HIT_DESCRIPTION = '***TEST SUITE HIT***'
@@ -87,7 +90,6 @@ def standard_hit_config(**kwargs):
 
 @pytest.fixture
 def mturk():
-    from dallinger.mturk import MTurkService
     creds = creds_from_environment()
     service = MTurkService(**creds)
     return service
@@ -95,21 +97,18 @@ def mturk():
 
 @pytest.fixture
 def mturk_bad_creds():
-    from dallinger.mturk import MTurkService
     service = MTurkService(aws_access_key_id='bad', aws_secret_access_key='bad')
     return service
 
 
 @pytest.fixture
 def mturk_empty_creds():
-    from dallinger.mturk import MTurkService
     service = MTurkService(aws_access_key_id='', aws_secret_access_key='')
     return service
 
 
 @pytest.fixture
 def mturk_with_cleanup():
-    from dallinger.mturk import MTurkService
     creds = creds_from_environment()
     service = MTurkService(**creds)
     yield service
@@ -130,12 +129,10 @@ class TestMTurkService(object):
         assert is_authenticated
 
     def test_check_credentials_bad_credentials(self, mturk_bad_creds):
-        from boto.mturk.connection import MTurkRequestError
         with pytest.raises(MTurkRequestError):
             mturk_bad_creds.check_credentials()
 
     def test_check_credentials_no_creds_set_raises(self, mturk_empty_creds):
-        from dallinger.mturk import MTurkServiceException
         with pytest.raises(MTurkServiceException):
             mturk_empty_creds.check_credentials()
 
@@ -188,7 +185,6 @@ class TestMTurkService(object):
         assert updated['expiration'] >= hit['expiration'] + expected_extension
 
     def test_extend_hit_with_invalid_hit_id_raises(self, mturk):
-        from boto.mturk.connection import MTurkRequestError
         service = mturk
         with pytest.raises(MTurkRequestError):
             service.extend_hit('dud', number=1, duration_hours=.25)
@@ -199,7 +195,6 @@ class TestMTurkService(object):
         assert service.disable_hit(hit['id'])
 
     def test_disable_hit_with_invalid_hit_id_raises(self, mturk):
-        from boto.mturk.connection import MTurkRequestError
         service = mturk
         with pytest.raises(MTurkRequestError):
             service.disable_hit('dud')
@@ -224,7 +219,6 @@ class TestMTurkService(object):
 class TestMTurkServiceWithFakeConnection(object):
 
     def make_one(self, **kwargs):
-        from dallinger.mturk import MTurkService
         creds = {
             'aws_access_key_id': 'fake key id',
             'aws_secret_access_key': 'fake secret'
@@ -259,7 +253,6 @@ class TestMTurkServiceWithFakeConnection(object):
         service.mturk.get_account_balance.assert_called_once()
 
     def test_check_credentials_bad_credentials(self):
-        from boto.mturk.connection import MTurkRequestError
         service = self.make_one()
         mock_mtc = mock.Mock(
             **{'get_account_balance.side_effect': MTurkRequestError(1, 'ouch')}
@@ -269,7 +262,6 @@ class TestMTurkServiceWithFakeConnection(object):
             service.check_credentials()
 
     def test_check_credentials_no_creds_set_raises(self):
-        from dallinger.mturk import MTurkServiceException
         empty_creds = {
             'aws_access_key_id': '',
             'aws_secret_access_key': ''
