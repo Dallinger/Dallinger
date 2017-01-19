@@ -294,7 +294,6 @@ def worker_submitted():
     return jsonify(**resp)
 
 
-
 @app.route('/ad', methods=['GET'])
 @nocache
 def advertisement():
