@@ -86,7 +86,7 @@ def standard_hit_config(**kwargs):
 
 
 @pytest.fixture
-def mturk(request):
+def mturk():
     from dallinger.mturk import MTurkService
     creds = creds_from_environment()
     service = MTurkService(**creds)
@@ -94,21 +94,21 @@ def mturk(request):
 
 
 @pytest.fixture
-def mturk_bad_creds(request):
+def mturk_bad_creds():
     from dallinger.mturk import MTurkService
     service = MTurkService(aws_access_key_id='bad', aws_secret_access_key='bad')
     return service
 
 
 @pytest.fixture
-def mturk_empty_creds(request):
+def mturk_empty_creds():
     from dallinger.mturk import MTurkService
     service = MTurkService(aws_access_key_id='', aws_secret_access_key='')
     return service
 
 
 @pytest.fixture
-def mturk_with_cleanup(request):
+def mturk_with_cleanup():
     from dallinger.mturk import MTurkService
     creds = creds_from_environment()
     service = MTurkService(**creds)
