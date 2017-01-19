@@ -61,11 +61,9 @@ class MTurkService(object):
             "HITExpired",
         )
 
-        result = self.mturk.set_rest_notification(
-            hit_type_id, url, event_types=all_events
+        return self._is_ok(
+            self.mturk.set_rest_notification(hit_type_id, url, event_types=all_events)
         )
-        # An empty ResultSet is the return value when all goes well.
-        return result == []
 
     def register_hit_type(self, title, description, reward, duration_hours, keywords):
         """Register HIT Type for this HIT and return the type's ID, which
@@ -149,13 +147,29 @@ class MTurkService(object):
     def disable_hit(self, hit_id):
         turk = self.mturk
         # Empty ResultSet marks success
-        return turk.disable_hit(hit_id) == []
+        return self._is_ok(turk.disable_hit(hit_id))
 
     def get_hits(self, hit_filter=lambda x: True):
         for hit in self.mturk.get_all_hits():
             translated = self._translate_hit(hit)
             if hit_filter(translated):
                 yield translated
+
+    def grant_bonus(self, assignment_id, amount, reason):
+        """Grant a bonus to the MTurk Worker.
+        Issues a payment of money from your account to a Worker.  To
+        be eligible for a bonus, the Worker must have submitted
+        results for one of your HITs, and have had those results
+        approved or rejected. This payment happens separately from the
+        reward you pay to the Worker when you approve the Worker's
+        assignment.
+        """
+        amount = Price(amount)
+        assignment = self.mturk.get_assignment(assignment_id)[0]
+        worker_id = assignment.WorkerId
+        return self._is_ok(
+            self.mturk.grant_bonus(worker_id, assignment_id, amount, reason)
+        )
 
     def _translate_hit(self, hit):
         translated = {
@@ -173,3 +187,6 @@ class MTurkService(object):
         }
 
         return translated
+
+    def _is_ok(self, mturk_response):
+        return mturk_response == []
