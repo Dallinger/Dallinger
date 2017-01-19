@@ -6,7 +6,6 @@ from boto.mturk.price import Price
 from boto.mturk.connection import HITTypeId
 from boto.mturk.connection import HIT
 from boto.mturk.connection import MTurkRequestError
-from .conftest import creds_from_environment
 from .conftest import skip_if_no_mturk_requestor
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
@@ -89,15 +88,19 @@ def standard_hit_config(**kwargs):
 
 
 @pytest.fixture
-def mturk():
-    creds = creds_from_environment()
+def mturk(creds_from_environment):
+    creds = creds_from_environment
     service = MTurkService(**creds)
     return service
 
 
 @pytest.fixture
-def mturk_bad_creds():
-    service = MTurkService(aws_access_key_id='bad', aws_secret_access_key='bad')
+def mturk_fake_creds():
+    creds = {
+        'aws_access_key_id': 'fake key id',
+        'aws_secret_access_key': 'fake secret'
+    }
+    service = MTurkService(**creds)
     return service
 
 
@@ -108,8 +111,8 @@ def mturk_empty_creds():
 
 
 @pytest.fixture
-def mturk_with_cleanup():
-    creds = creds_from_environment()
+def mturk_with_cleanup(creds_from_environment):
+    creds = creds_from_environment
     service = MTurkService(**creds)
     yield service
 
@@ -128,9 +131,9 @@ class TestMTurkService(object):
         is_authenticated = mturk.check_credentials()
         assert is_authenticated
 
-    def test_check_credentials_bad_credentials(self, mturk_bad_creds):
+    def test_check_credentials_bad_credentials(self, mturk_fake_creds):
         with pytest.raises(MTurkRequestError):
-            mturk_bad_creds.check_credentials()
+            mturk_fake_creds.check_credentials()
 
     def test_check_credentials_no_creds_set_raises(self, mturk_empty_creds):
         with pytest.raises(MTurkServiceException):
@@ -218,60 +221,40 @@ class TestMTurkService(object):
 
 class TestMTurkServiceWithFakeConnection(object):
 
-    def make_one(self, **kwargs):
-        creds = {
-            'aws_access_key_id': 'fake key id',
-            'aws_secret_access_key': 'fake secret'
-        }
-        creds.update(kwargs)
-        service = MTurkService(**creds)
-        return service
+    def test_is_sandbox_by_default(self, mturk_fake_creds):
+        assert mturk_fake_creds.is_sandbox
 
-    def test_is_sandbox_by_default(self):
-        service = self.make_one()
-        assert service.is_sandbox
+    def test_host_server_is_sandbox_by_default(self, mturk_fake_creds):
+        assert 'sandbox' in mturk_fake_creds.host
 
-    def test_host_server_is_sandbox_by_default(self):
-        service = self.make_one()
-        assert 'sandbox' in service.host
-
-    def test_check_credentials_converts_response_to_boolean_true(self):
-        service = self.make_one()
+    def test_check_credentials_converts_response_to_boolean_true(self, mturk_fake_creds):
         mock_mtc = mock.Mock(
             **{'get_account_balance.return_value': fake_balance_response()}
         )
-        service.mturk = mock_mtc
-        assert service.check_credentials() is True
+        mturk_fake_creds.mturk = mock_mtc
+        assert mturk_fake_creds.check_credentials() is True
 
-    def test_check_credentials_calls_get_account_balance(self):
-        service = self.make_one()
+    def test_check_credentials_calls_get_account_balance(self, mturk_fake_creds):
         mock_mtc = mock.Mock(
             **{'get_account_balance.return_value': fake_balance_response()}
         )
-        service.mturk = mock_mtc
-        service.check_credentials()
-        service.mturk.get_account_balance.assert_called_once()
+        mturk_fake_creds.mturk = mock_mtc
+        mturk_fake_creds.check_credentials()
+        mturk_fake_creds.mturk.get_account_balance.assert_called_once()
 
-    def test_check_credentials_bad_credentials(self):
-        service = self.make_one()
+    def test_check_credentials_bad_credentials(self, mturk_fake_creds):
         mock_mtc = mock.Mock(
             **{'get_account_balance.side_effect': MTurkRequestError(1, 'ouch')}
         )
-        service.mturk = mock_mtc
+        mturk_fake_creds.mturk = mock_mtc
         with pytest.raises(MTurkRequestError):
-            service.check_credentials()
+            mturk_fake_creds.check_credentials()
 
-    def test_check_credentials_no_creds_set_raises(self):
-        empty_creds = {
-            'aws_access_key_id': '',
-            'aws_secret_access_key': ''
-        }
-        service = self.make_one(**empty_creds)
-
+    def test_check_credentials_no_creds_set_raises(self, mturk_empty_creds):
         with pytest.raises(MTurkServiceException):
-            service.check_credentials()
+            mturk_empty_creds.check_credentials()
 
-    def test_register_hit_type(self):
+    def test_register_hit_type(self, mturk_fake_creds):
         config = {
             'title': 'Test Title',
             'description': 'Test Description',
@@ -279,16 +262,15 @@ class TestMTurkServiceWithFakeConnection(object):
             'reward': .01,
             'duration_hours': .25
         }
-        service = self.make_one()
         mock_config = {
             'get_account_balance.return_value': fake_balance_response(),
             'register_hit_type.return_value': fake_hit_type_response(),
         }
         mock_mtc = mock.Mock(**mock_config)
-        service.mturk = mock_mtc
-        service.register_hit_type(**config)
+        mturk_fake_creds.mturk = mock_mtc
+        mturk_fake_creds.register_hit_type(**config)
 
-        service.mturk.register_hit_type.assert_called_once_with(
+        mturk_fake_creds.mturk.register_hit_type.assert_called_once_with(
             'Test Title',
             'Test Description',
             .01,
@@ -298,43 +280,40 @@ class TestMTurkServiceWithFakeConnection(object):
             qual_req=None
         )
 
-    def test_set_rest_notification(self):
+    def test_set_rest_notification(self, mturk_fake_creds):
         url = 'https://url-of-notification-route'
         hit_type_id = 'fake hittype id'
-        service = self.make_one()
         mock_config = {
             'set_rest_notification.return_value': ResultSet(),
         }
         mock_mtc = mock.Mock(**mock_config)
-        service.mturk = mock_mtc
+        mturk_fake_creds.mturk = mock_mtc
 
-        service.set_rest_notification(url, hit_type_id)
+        mturk_fake_creds.set_rest_notification(url, hit_type_id)
 
-        service.mturk.set_rest_notification.assert_called_once()
+        mturk_fake_creds.mturk.set_rest_notification.assert_called_once()
 
-    def test_create_hit_calls_underlying_mturk_method(self):
-        service = self.make_one()
+    def test_create_hit_calls_underlying_mturk_method(self, mturk_fake_creds):
         mock_config = {
             'register_hit_type.return_value': fake_hit_type_response(),
             'set_rest_notification.return_value': ResultSet(),
             'create_hit.return_value': fake_hit_response()
         }
         mock_mtc = mock.Mock(**mock_config)
-        service.mturk = mock_mtc
-        service.create_hit(**standard_hit_config())
+        mturk_fake_creds.mturk = mock_mtc
+        mturk_fake_creds.create_hit(**standard_hit_config())
 
-        service.mturk.create_hit.assert_called_once()
+        mturk_fake_creds.mturk.create_hit.assert_called_once()
 
-    def test_create_hit_translates_response_back_from_mturk(self):
-        service = self.make_one()
+    def test_create_hit_translates_response_back_from_mturk(self, mturk_fake_creds):
         mock_config = {
             'register_hit_type.return_value': fake_hit_type_response(),
             'set_rest_notification.return_value': ResultSet(),
             'create_hit.return_value': fake_hit_response()
         }
         mock_mtc = mock.Mock(**mock_config)
-        service.mturk = mock_mtc
-        hit = service.create_hit(**standard_hit_config())
+        mturk_fake_creds.mturk = mock_mtc
+        hit = mturk_fake_creds.create_hit(**standard_hit_config())
         assert hit['max_assignments'] == 1
         assert hit['reward'] == .01
         assert hit['keywords'] == ['testkw1', 'testkw2']
