@@ -3,6 +3,7 @@ import mock
 import pytest
 from boto.resultset import ResultSet
 from boto.mturk.price import Price
+from boto.mturk.connection import Assignment
 from boto.mturk.connection import HITTypeId
 from boto.mturk.connection import HIT
 from boto.mturk.connection import MTurkRequestError
@@ -14,18 +15,20 @@ from dallinger.mturk import MTurkServiceException
 TEST_HIT_DESCRIPTION = '***TEST SUITE HIT***'
 
 
-def fake_balance_response():
+def as_resultset(thing):
     result = ResultSet()
-    result.append(Price(1.00))
+    result.append(thing)
     return result
+
+
+def fake_balance_response():
+    return as_resultset(Price(1.00))
 
 
 def fake_hit_type_response():
-    result = ResultSet()
     htid = HITTypeId(None)
     htid.HITTypeId = u'fake HITTypeId'
-    result.append(htid)
-    return result
+    return as_resultset(htid)
 
 
 def fake_hit_response():
@@ -63,9 +66,8 @@ def fake_hit_response():
     hit = HIT(None)
     for k, v in canned_response.items():
         hit.endElement(k, v, None)
-    result = ResultSet()
-    result.append(hit)
-    return result
+
+    return as_resultset(hit)
 
 
 def standard_hit_config(**kwargs):
@@ -319,3 +321,30 @@ class TestMTurkServiceWithFakeConnection(object):
         assert hit['keywords'] == ['testkw1', 'testkw2']
         assert isinstance(hit['created'], datetime.datetime)
         assert isinstance(hit['expiration'], datetime.datetime)
+
+    def test_grant_bonus_translates_values_and_calls_wrapped_mturk(self, mturk_fake_creds):
+        fake_assignment = Assignment(None)
+        fake_assignment.WorkerId = 'some worker id'
+        mock_config = {
+            'grant_bonus.return_value': ResultSet(),
+            'get_assignment.return_value': as_resultset(fake_assignment)
+        }
+        mock_mtc = mock.Mock(**mock_config)
+        mturk_fake_creds.mturk = mock_mtc
+
+        mturk_fake_creds.grant_bonus(
+            assignment_id='some assignment id',
+            amount=2.99,
+            reason='above and beyond'
+        )
+
+        # Price objects don't implement __eq__ and __ne__, so we can't compare
+        # them. :-(
+        # mock_mtc.grant_bonus.assert_called_once_with(
+        #     'some worker id',
+        #     'some assignment id',
+        #     Price(2.99),
+        #     'above and beyond'
+        # )
+
+        mock_mtc.grant_bonus.assert_called()
