@@ -20,6 +20,7 @@ def cwd():
 
 # For tests that actually log into Amazon Mechanical Turk, get the credentials
 # from environment variables.
+@pytest.fixture
 def creds_from_environment():
     creds = {
         'aws_access_key_id': os.getenv('aws_access_key_id'),
