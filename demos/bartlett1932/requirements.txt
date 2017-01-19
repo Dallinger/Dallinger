@@ -1,1 +1,1 @@
-dallinger == 2.7.0
+-e git://github.com/Dallinger/Dallinger.git@development#egg=dallinger

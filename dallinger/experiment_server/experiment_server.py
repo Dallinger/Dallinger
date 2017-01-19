@@ -268,7 +268,6 @@ def advertisement():
         raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
     hit_id = request.args['hitId']
     assignment_id = request.args['assignmentId']
-    mode = request.args['mode']
     if hit_id[:5] == "debug":
         debug_mode = True
     else:
@@ -306,7 +305,7 @@ def advertisement():
         # back to AMT
         return render_template(
             'thanks.html',
-            is_sandbox=(mode == "sandbox"),
+            is_sandbox=(config.get('mode') == "sandbox"),
             hitid=hit_id,
             assignmentid=assignment_id,
             workerid=worker_id
@@ -318,7 +317,7 @@ def advertisement():
         # even have accepted the HIT.
         with open('templates/ad.html', 'r') as temp_file:
             ad_string = temp_file.read()
-        ad_string = insert_mode(ad_string, mode)
+        ad_string = insert_mode(ad_string, config.get('mode'))
         return render_template_string(
             ad_string,
             hitid=hit_id,
@@ -437,7 +436,7 @@ def consent():
         hit_id=request.args['hit_id'],
         assignment_id=request.args['assignment_id'],
         worker_id=request.args['worker_id'],
-        mode=request.args['mode']
+        mode=config.get('mode')
     )
 
 
