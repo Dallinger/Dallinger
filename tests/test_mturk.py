@@ -9,6 +9,9 @@ from .conftest import creds_from_environment
 from .conftest import skip_if_no_mturk_requestor
 
 
+TEST_HIT_DESCRIPTION = '***TEST SUITE HIT***'
+
+
 def fake_balance_response():
     result = ResultSet()
     result.append(Price(1.00))
@@ -72,7 +75,7 @@ def standard_hit_config(**kwargs):
         'max_assignments': 1,
         'notification_url': 'https://url-of-notification-route',
         'title': 'Test Title',
-        'description': 'Test Description',
+        'description': TEST_HIT_DESCRIPTION,
         'keywords': ['testkw1', 'testkw1'],
         'reward': .01,
         'duration_hours': .25
@@ -80,6 +83,43 @@ def standard_hit_config(**kwargs):
     defaults.update(**kwargs)
 
     return defaults
+
+
+@pytest.fixture
+def mturk(request):
+    from dallinger.mturk import MTurkService
+    creds = creds_from_environment()
+    service = MTurkService(**creds)
+    return service
+
+
+@pytest.fixture
+def mturk_bad_creds(request):
+    from dallinger.mturk import MTurkService
+    service = MTurkService(aws_access_key_id='bad', aws_secret_access_key='bad')
+    return service
+
+
+@pytest.fixture
+def mturk_empty_creds(request):
+    from dallinger.mturk import MTurkService
+    service = MTurkService(aws_access_key_id='', aws_secret_access_key='')
+    return service
+
+
+@pytest.fixture
+def mturk_with_cleanup(request):
+    from dallinger.mturk import MTurkService
+    creds = creds_from_environment()
+    service = MTurkService(**creds)
+    yield service
+
+    # tear-down: clean up all specially-marked HITs:
+    def test_hits_only(hit):
+        return hit['description'] == TEST_HIT_DESCRIPTION
+
+    for hit in service.get_hits(test_hits_only):
+        service.disable_hit(hit['id'])
 
 
 @skip_if_no_mturk_requestor
@@ -180,6 +220,22 @@ class TestMTurkService(object):
         service = self.make_one()
         with pytest.raises(MTurkRequestError):
             service.disable_hit('dud')
+
+    def test_get_hits_returns_all_by_default(self, mturk_with_cleanup):
+        service = mturk_with_cleanup
+        hit = service.create_hit(**standard_hit_config())
+        hits = service.get_hits()
+
+        assert hit in hits
+
+    def test_get_hits_excludes_based_on_filter(self, mturk_with_cleanup):
+        service = mturk_with_cleanup
+        hit1 = service.create_hit(**standard_hit_config())
+        hit2 = service.create_hit(**standard_hit_config(title='HIT Two'))
+        hits = list(service.get_hits(lambda h: 'Two' in h['title']))
+
+        assert hit1 not in hits
+        assert hit2 in hits
 
 
 class TestMTurkServiceWithFakeConnection(object):
