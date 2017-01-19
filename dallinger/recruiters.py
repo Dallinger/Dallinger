@@ -166,6 +166,10 @@ class MTurkRecruiter(object):
             duration_hours=self.config.get('duration')
         )
 
+    def reward_bonus(self, assignment_id, amount, reason):
+        """Reward the Turker for a specified assignment with a bonus."""
+        return self.mturkservice.grant_bonus(assignment_id, amount, reason)
+
     @property
     def is_in_progress(self):
         return bool(Participant.query.first())
