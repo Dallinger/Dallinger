@@ -151,6 +151,12 @@ class MTurkService(object):
         # Empty ResultSet marks success
         return turk.disable_hit(hit_id) == []
 
+    def get_hits(self, hit_filter=lambda x: True):
+        for hit in self.mturk.get_all_hits():
+            translated = self._translate_hit(hit)
+            if hit_filter(translated):
+                yield translated
+
     def _translate_hit(self, hit):
         translated = {
             'id': hit.HITId,
