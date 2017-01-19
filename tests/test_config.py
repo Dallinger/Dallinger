@@ -144,5 +144,6 @@ worldwide = false
             python.sendline('print config.types')
             python.expect_exact("custom_parameter': <type 'int'>")
         finally:
-            python.sendcontrol('c')
+            python.sendcontrol('d')
+            python.read()
             os.chdir('../..')

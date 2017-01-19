@@ -131,7 +131,7 @@ class TestDebugServer(object):
 
     def test_startup(self):
         # Make sure debug server starts without error
-        port = get_config().get('port')
         p = pexpect.spawn('dallinger', ['debug'])
-        p.expect_exact('Server is running on 0.0.0.0:{}. Press Ctrl+C to exit.'.format(port))
+        p.expect_exact('Server is running')
         p.sendcontrol('c')
+        p.read()
