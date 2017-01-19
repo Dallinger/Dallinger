@@ -125,36 +125,21 @@ def mturk_with_cleanup(request):
 @skip_if_no_mturk_requestor
 class TestMTurkService(object):
 
-    def make_one(self, **kwargs):
-        from dallinger.mturk import MTurkService
-        creds = creds_from_environment()
-        creds.update(kwargs)
-        return MTurkService(**creds)
-
-    def test_check_credentials_good_credentials(self):
-        service = self.make_one()
-        is_authenticated = service.check_credentials()
-
+    def test_check_credentials_good_credentials(self, mturk):
+        is_authenticated = mturk.check_credentials()
         assert is_authenticated
 
-    def test_check_credentials_bad_credentials(self):
+    def test_check_credentials_bad_credentials(self, mturk_bad_creds):
         from boto.mturk.connection import MTurkRequestError
-        service = self.make_one(aws_access_key_id='bad', aws_secret_access_key='bad')
         with pytest.raises(MTurkRequestError):
-            service.check_credentials()
+            mturk_bad_creds.check_credentials()
 
-    def test_check_credentials_no_creds_set_raises(self):
+    def test_check_credentials_no_creds_set_raises(self, mturk_empty_creds):
         from dallinger.mturk import MTurkServiceException
-        empty_creds = {
-            'aws_access_key_id': '',
-            'aws_secret_access_key': ''
-        }
-        service = self.make_one(**empty_creds)
-
         with pytest.raises(MTurkServiceException):
-            service.check_credentials()
+            mturk_empty_creds.check_credentials()
 
-    def test_register_hit_type(self):
+    def test_register_hit_type(self, mturk):
         config = {
             'title': 'Test Title',
             'description': 'Test Description',
@@ -162,12 +147,11 @@ class TestMTurkService(object):
             'reward': .01,
             'duration_hours': .25
         }
-        service = self.make_one()
-        hit_type_id = service.register_hit_type(**config)
+        hit_type_id = mturk.register_hit_type(**config)
 
         assert isinstance(hit_type_id, unicode)
 
-    def test_register_notification_url(self):
+    def test_register_notification_url(self, mturk):
         config = {
             'title': 'Test Title',
             'description': 'Test Description',
@@ -176,25 +160,24 @@ class TestMTurkService(object):
             'duration_hours': .25
         }
         url = 'https://url-of-notification-route'
-        service = self.make_one()
-        hit_type_id = service.register_hit_type(**config)
+        hit_type_id = mturk.register_hit_type(**config)
 
-        assert service.set_rest_notification(url, hit_type_id) is True
+        assert mturk.set_rest_notification(url, hit_type_id) is True
 
-    def test_create_hit(self):
-        service = self.make_one()
+    def test_create_hit(self, mturk_with_cleanup):
+        service = mturk_with_cleanup
         hit = service.create_hit(**standard_hit_config())
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 1
 
-    def test_create_hit_two_assignments(self):
-        service = self.make_one()
+    def test_create_hit_two_assignments(self, mturk_with_cleanup):
+        service = mturk_with_cleanup
         hit = service.create_hit(**standard_hit_config(max_assignments=2))
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 2
 
-    def test_extend_hit_with_valid_hit_id(self):
-        service = self.make_one()
+    def test_extend_hit_with_valid_hit_id(self, mturk_with_cleanup):
+        service = mturk_with_cleanup
         hit = service.create_hit(**standard_hit_config())
 
         updated = service.extend_hit(hit['id'], number=1, duration_hours=.25)
@@ -204,20 +187,20 @@ class TestMTurkService(object):
         expected_extension = datetime.timedelta(hours=.25 - clock_skew)
         assert updated['expiration'] >= hit['expiration'] + expected_extension
 
-    def test_extend_hit_with_invalid_hit_id_raises(self):
+    def test_extend_hit_with_invalid_hit_id_raises(self, mturk):
         from boto.mturk.connection import MTurkRequestError
-        service = self.make_one()
+        service = mturk
         with pytest.raises(MTurkRequestError):
             service.extend_hit('dud', number=1, duration_hours=.25)
 
-    def test_disable_hit_with_valid_hit_id(self):
-        service = self.make_one()
+    def test_disable_hit_with_valid_hit_id(self, mturk_with_cleanup):
+        service = mturk_with_cleanup
         hit = service.create_hit(**standard_hit_config())
         assert service.disable_hit(hit['id'])
 
-    def test_disable_hit_with_invalid_hit_id_raises(self):
+    def test_disable_hit_with_invalid_hit_id_raises(self, mturk):
         from boto.mturk.connection import MTurkRequestError
-        service = self.make_one()
+        service = mturk
         with pytest.raises(MTurkRequestError):
             service.disable_hit('dud')
 
