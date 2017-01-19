@@ -156,3 +156,17 @@ class TestMTurkRecruiter(object):
         recruiter.recruit_participants()
 
         assert not recruiter.mturkservice.extend_hit.called
+
+    def test_reward_bonus_is_simple_passthrough(self):
+        recruiter = self.make_one()
+        recruiter.reward_bonus(
+            assignment_id='fake assignment id',
+            amount=2.99,
+            reason='well done!'
+        )
+
+        recruiter.mturkservice.grant_bonus.assert_called_once_with(
+            assignment_id='fake assignment id',
+            amount=2.99,
+            reason='well done!'
+        )
