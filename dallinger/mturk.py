@@ -145,9 +145,7 @@ class MTurkService(object):
         return self._translate_hit(updated_hit)
 
     def disable_hit(self, hit_id):
-        turk = self.mturk
-        # Empty ResultSet marks success
-        return self._is_ok(turk.disable_hit(hit_id))
+        return self._is_ok(self.mturk.disable_hit(hit_id))
 
     def get_hits(self, hit_filter=lambda x: True):
         for hit in self.mturk.get_all_hits():
