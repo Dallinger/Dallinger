@@ -1,5 +1,6 @@
 alabaster==0.7.9
 coverage==4.3.1
+coverage_pth==0.0.1
 codecov==2.0.5
 flake8==3.2.1
 pypandoc==1.3.3
