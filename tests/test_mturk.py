@@ -15,9 +15,12 @@ from dallinger.mturk import MTurkServiceException
 TEST_HIT_DESCRIPTION = '***TEST SUITE HIT***'
 
 
-def as_resultset(thing):
+def as_resultset(things):
+    if not isinstance(things, (list, tuple)):
+        things = [things]
     result = ResultSet()
-    result.append(thing)
+    for thing in things:
+        result.append(thing)
     return result
 
 
@@ -31,7 +34,7 @@ def fake_hit_type_response():
     return as_resultset(htid)
 
 
-def fake_hit_response():
+def fake_hit_response(**kwargs):
     canned_response = {
         'Amount': u'0.01',
         'AssignmentDurationInSeconds': u'900',
@@ -63,6 +66,7 @@ def fake_hit_response():
         'Reward': '',
         'Title': u'Fake Title',
     }
+    canned_response.update(**kwargs)
     hit = HIT(None)
     for k, v in canned_response.items():
         hit.endElement(k, v, None)
@@ -229,6 +233,10 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_host_server_is_sandbox_by_default(self, mturk_fake_creds):
         assert 'sandbox' in mturk_fake_creds.host
 
+    def test_host_server_is_production_if_sandbox_false(self, mturk_fake_creds):
+        mturk_fake_creds.is_sandbox = False
+        assert 'sandbox' not in mturk_fake_creds.host
+
     def test_check_credentials_converts_response_to_boolean_true(self, mturk_fake_creds):
         mock_mtc = mock.Mock(
             **{'get_account_balance.return_value': fake_balance_response()}
@@ -321,6 +329,64 @@ class TestMTurkServiceWithFakeConnection(object):
         assert hit['keywords'] == ['testkw1', 'testkw2']
         assert isinstance(hit['created'], datetime.datetime)
         assert isinstance(hit['expiration'], datetime.datetime)
+
+    def test_create_hit_raises_if_returned_hit_not_valid(self, mturk_fake_creds):
+        mock_config = {
+            'register_hit_type.return_value': fake_hit_type_response(),
+            'set_rest_notification.return_value': ResultSet(),
+            'create_hit.return_value': fake_hit_response(IsValid='False')
+        }
+        mock_mtc = mock.Mock(**mock_config)
+        mturk_fake_creds.mturk = mock_mtc
+        with pytest.raises(MTurkServiceException):
+            mturk_fake_creds.create_hit(**standard_hit_config())
+
+    def test_extend_hit(self, mturk_fake_creds):
+        mock_config = {
+            'extend_hit.return_value': None,
+            'get_hit.return_value': fake_hit_response()
+        }
+        mock_mtc = mock.Mock(**mock_config)
+        mturk_fake_creds.mturk = mock_mtc
+        mturk_fake_creds.extend_hit(hit_id='hit1', number=2, duration_hours=1.0)
+
+        mturk_fake_creds.mturk.extend_hit.assert_has_calls([
+            mock.call('hit1', assignments_increment=2),
+            mock.call('hit1', expiration_increment=3600)
+        ])
+
+    def test_disable_hit_simple_passthrough(self, mturk_fake_creds):
+        mock_config = {
+            'disable_hit.return_value': ResultSet(),
+        }
+        mock_mtc = mock.Mock(**mock_config)
+        mturk_fake_creds.mturk = mock_mtc
+        mturk_fake_creds.disable_hit('some hit')
+
+        mturk_fake_creds.mturk.disable_hit.assert_called_once_with('some hit')
+
+    def test_get_hits_returns_all_by_default(self, mturk_fake_creds):
+        hr1 = fake_hit_response(Title='One')[0]
+        ht2 = fake_hit_response(Title='Two')[0]
+        mock_config = {
+            'get_all_hits.return_value': as_resultset([hr1, ht2]),
+        }
+        mock_mtc = mock.Mock(**mock_config)
+        mturk_fake_creds.mturk = mock_mtc
+        assert len(list(mturk_fake_creds.get_hits())) == 2
+
+    def test_get_hits_excludes_based_on_filter(self, mturk_fake_creds):
+        hr1 = fake_hit_response(Title='HIT One')[0]
+        ht2 = fake_hit_response(Title='HIT Two')[0]
+        mock_config = {
+            'get_all_hits.return_value': as_resultset([hr1, ht2]),
+        }
+        mock_mtc = mock.Mock(**mock_config)
+        mturk_fake_creds.mturk = mock_mtc
+        hits = list(mturk_fake_creds.get_hits(lambda h: 'Two' in h['title']))
+
+        assert len(hits) == 1
+        assert hits[0]['title'] == 'HIT Two'
 
     def test_grant_bonus_translates_values_and_calls_wrapped_mturk(self, mturk_fake_creds):
         fake_assignment = Assignment(None)
