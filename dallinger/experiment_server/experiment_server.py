@@ -294,24 +294,31 @@ def advertisement():
     except exc.SQLAlchemyError:
         status = None
 
-    if status == STARTED and not debug_mode:
-        # Once participants have finished the instructions, we do not allow
-        # them to start the task again.
-        raise ExperimentError('already_started_exp_mturk')
-    elif status == COMPLETED:
+    if status == 'working' and part.end_time is not None:
         # They've done the debriefing but perhaps haven't submitted the HIT
         # yet.. Turn asignmentId into original assignment id before sending it
         # back to AMT
+        is_sandbox = config.get('mode') == "sandbox"
+        if is_sandbox:
+            external_submit_url = "https://workersandbox.mturk.com/mturk/externalSubmit"
+        else:
+            external_submit_url = "https://www.mturk.com/mturk/externalSubmit"
         return render_template(
             'thanks.html',
-            is_sandbox=(config.get('mode') == "sandbox"),
+            is_sandbox=is_sandbox,
             hitid=hit_id,
             assignmentid=assignment_id,
-            workerid=worker_id
+            workerid=worker_id,
+            mode=config.get('mode'),
+            external_submit_url=external_submit_url,
         )
+    if status == 'working':
+        # Once participants have finished the instructions, we do not allow
+        # them to start the task again.
+        raise ExperimentError('already_started_exp_mturk')
     elif already_in_db and not debug_mode:
         raise ExperimentError('already_did_exp_hit')
-    elif status == ALLOCATED or not status or debug_mode:
+    elif not status or debug_mode:
         # Participant has not yet agreed to the consent. They might not
         # even have accepted the HIT.
         with open('templates/ad.html', 'r') as temp_file:
@@ -1233,6 +1240,25 @@ def check_for_duplicate_assignments(participant):
                                               p.status == "working")]
     for d in duplicates:
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
+
+
+@app.route('/worker_complete', methods=['GET'])
+@db.scoped_session_decorator
+def worker_complete():
+    ''' Complete worker. '''
+    if 'uniqueId' not in request.args:
+        status = "bad request"
+    else:
+        participant = models.Participant.query.filter_by(
+            unique_id=request.args['uniqueId'],
+        ).all()[0]
+        participant.end_time = datetime.now()
+        session.add(participant)
+        session.commit()
+        status = "success"
+    return success_response(field="status",
+                            data=status,
+                            request_type="worker complete")
 
 
 @db.scoped_session_decorator
