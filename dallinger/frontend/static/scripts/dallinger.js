@@ -47,17 +47,17 @@ submitAssignment = function() {
             hit_id = resp.participant.hit_id;
             assignment_id = resp.participant.assignment_id;
             worker_id = resp.participant.worker_id;
-            externalSubmit = 'https://workersandbox.mturk.com/mturk/externalSubmit';
+            worker_complete = '/worker_complete';
             reqwest({
-                url: externalSubmit,
-                method: "post",
-                type: "jsonp",
+                url: worker_complete,
+                method: "get",
+                type: "json",
                 data: {
-                    "assignmentId": assignment_id
+                    "uniqueId": worker_id + ":" + assignment_id
                 },
                 success: function (resp) {
                     allow_exit();
-                    window.location = "/complete?uniqueId=" + worker_id + ":" + assignment_id;
+                    window.location = "/complete";
                 },
                 error: function (err) {
                     console.log(err);
