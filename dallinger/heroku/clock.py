@@ -22,36 +22,16 @@ session = db.session
 scheduler = BlockingScheduler()
 
 
-@scheduler.scheduled_job('interval', minutes=0.5)
-def check_db_for_missing_notifications():
-    """Check the database for missing notifications."""
-    config = get_config()
-    aws_access_key_id = config.get('aws_access_key_id')
-    aws_secret_access_key = config.get('aws_secret_access_key')
-    if config.get('launch_in_sandbox_mode'):
-        conn = MTurkConnection(
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-            host='mechanicalturk.sandbox.amazonaws.com')
-    else:
-        conn = MTurkConnection(
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key)
-
-    # get all participants with status < 100
-    participants = Participant.query.filter_by(status="working").all()
-
-    # get current time
-    current_time = datetime.now()
+def _run_notifications_check(config, mturk, participants, session, current_time):
 
     # get experiment duration in seconds
-    duration = config.get('duration') * 60.0 * 60.0
+    duration_seconds = config.get('duration_seconds') * 60.0 * 60.0
 
-    # for each participant, if current_time - start_time > duration + 5 mins
+    # for each participant, if current_time - start_time > duration_seconds + 5 mins
     for p in participants:
         p_time = (current_time - p.creation_time).total_seconds()
 
-        if p_time > (duration + 120):
+        if p_time > (duration_seconds + 120):
             print ("Error: participant {} with status {} has been playing for too "
                    "long and no notification has arrived - "
                    "running emergency code".format(p.id, p.status))
@@ -61,7 +41,7 @@ def check_db_for_missing_notifications():
 
             # ask amazon for the status of the assignment
             try:
-                assignment = conn.get_assignment(assignment_id)[0]
+                assignment = mturk.get_assignment(assignment_id)[0]
                 status = assignment.AssignmentStatus
             except:
                 status = None
@@ -115,9 +95,9 @@ def check_db_for_missing_notifications():
  with other matters.""".format(
                             datetime.now(),
                             assignment_id,
-                            round(duration/60),
+                            round(duration_seconds/60),
                             round(p_time/60),
-                            round((p_time-duration)/60)))
+                            round((p_time-duration_seconds)/60)))
                     msg['Subject'] = "A matter of minor concern."
                 else:
                     msg = MIMEText(
@@ -131,7 +111,7 @@ def check_db_for_missing_notifications():
  database.\n\nBest,\nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
 \nAllowed time: {}\nTime since participant started: {}""").format(
                             assignment_id,
-                            round(duration/60),
+                            round(duration_seconds/60),
                             round(p_time/60))
                     msg['Subject'] = "Dallinger automated email - minor error."
 
@@ -164,7 +144,7 @@ def check_db_for_missing_notifications():
                     headers=headers)
 
                 # then force expire the hit via boto
-                conn.expire_hit(hit_id)
+                mturk.expire_hit(hit_id)
 
                 # send the researcher an email to let them know
                 if whimsical:
@@ -193,9 +173,9 @@ def check_db_for_missing_notifications():
  message, I am busy with other matters.""".format(
                             datetime.now(),
                             assignment_id,
-                            round(duration/60),
+                            round(duration_seconds/60),
                             round(p_time/60),
-                            round((p_time-duration)/60)))
+                            round((p_time-duration_seconds)/60)))
                     msg['Subject'] = "Most troubling news."
                 else:
                     msg = MIMEText(
@@ -215,7 +195,7 @@ def check_db_for_missing_notifications():
 \nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
 \nAllowed time: {}\nTime since participant started: {}""").format(
                             assignment_id,
-                            round(duration/60),
+                            round(duration_seconds/60),
                             round(p_time/60))
                     msg['Subject'] = "Dallinger automated email - major error."
 
@@ -240,6 +220,29 @@ def check_db_for_missing_notifications():
                        "Experiment shut down. Please check database and then manually "
                        "resume experiment."
                        .format(p.id))
+
+
+@scheduler.scheduled_job('interval', minutes=0.5)
+def check_db_for_missing_notifications():
+    """Check the database for missing notifications."""
+    config = get_config()
+    aws_access_key_id = config.get('aws_access_key_id')
+    aws_secret_access_key = config.get('aws_secret_access_key')
+    if config.get('launch_in_sandbox_mode'):
+        mturk = MTurkConnection(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            host='mechanicalturk.sandbox.amazonaws.com')
+    else:
+        mturk = MTurkConnection(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key)
+
+    # get all participants with status < 100
+    participants = Participant.query.filter_by(status="working").all()
+    current_time = datetime.now()
+
+    _run_notifications_check(config, mturk, participants, session, current_time)
 
 
 def launch():
