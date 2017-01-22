@@ -443,8 +443,8 @@ class Experiment(object):
 
     def end_experiment(self):
         """Terminates a running experiment"""
-        # Not implemented
-        return
+        import dallinger as dlgr
+        dlgr.command_line.destroy_server(self.app_id)
 
 
 def load():
