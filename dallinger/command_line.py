@@ -30,6 +30,7 @@ import redis
 import requests
 
 from dallinger import db
+from dallinger import data
 from dallinger import heroku
 from dallinger.heroku import (
     app_name,
@@ -835,19 +836,7 @@ def export_data(id, local=False):
         app_name(id),
     ])
 
-    all_tables = [
-        "node",
-        "network",
-        "vector",
-        "info",
-        "transformation",
-        "transmission",
-        "participant",
-        "notification",
-        "question"
-    ]
-
-    for table in all_tables:
+    for table in data.table_names:
         subprocess.check_call(
             "psql -d " + app_name(id) +
             " --command=\"\\copy " + table + " to \'" +
