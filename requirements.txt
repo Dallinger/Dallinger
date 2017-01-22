@@ -2,10 +2,12 @@ APScheduler==3.3.0
 click==6.6
 future==0.16.0
 localconfig==0.4.2
+odo==0.5.0
 pexpect==4.2.1
 psiturk-dallinger==3.1.4
 psycopg2==2.6.2
 redis==2.10.5
 rq==0.7.1
 SQLAlchemy==1.1.4
+tablib==0.11.3
 user-agents==0.2.0
