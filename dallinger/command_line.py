@@ -666,13 +666,19 @@ def hibernate(app):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def destroy(app):
     """Tear down an experiment server."""
-    subprocess.check_call(
-        "heroku destroy --app {} --confirm {}".format(
-            app_name(app),
-            app_name(app)
-        ),
-        shell=True,
-    )
+    destroy_server(app)
+
+
+def destroy_server(app):
+    """Tear down an experiment server."""
+    subprocess.check_call([
+        "heroku",
+        "destroy",
+        "--app",
+        app_name(app),
+        "--confirm",
+        app_name(app),
+    ])
 
 
 @dallinger.command()
