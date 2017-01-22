@@ -402,33 +402,7 @@ class Experiment(object):
         self.fail_participant(participant)
 
     @exp_class_working_dir
-    def sandbox(self, exp_config=None, app_id=None):
-        """Deploys and runs an experiment in sandbox mode.
-        The exp_config object is either a dictionary or a
-        ``localconfig.LocalConfig`` object with parameters
-        specific to the experiment run grouped by section.
-        """
-        import dallinger as dlgr
-
-        # Ensure that experiment runs in sandbox mode.
-        config.extend({
-            "mode": u"sandbox",
-            "logfile": u"-",
-        })
-
-        if app_id is None:
-            app_id = str(uuid.uuid4())
-
-        self.app_id = app_id
-        self.exp_config = exp_config
-
-        dlgr.command_line.deploy_sandbox_shared_setup(app=app_id,
-                                                      verbose=self.verbose,
-                                                      exp_config=exp_config)
-        return self._finish_experiment()
-
-    @exp_class_working_dir
-    def deploy(self, exp_config=None, app_id=None):
+    def run(self, exp_config=None, app_id=None):
         """Deploy and run an experiment.
 
         The exp_config object is either a dictionary or a
@@ -437,22 +411,17 @@ class Experiment(object):
         """
         import dallinger as dlgr
 
-        # Ensure that experiment is not in sandbox mode.
-        config.extend({
-            "mode": u"sandbox",
-            "logfile": u"-",
-        })
-
         if app_id is None:
             app_id = str(uuid.uuid4())
 
         self.app_id = app_id
         self.exp_config = exp_config
 
-        dlgr.command_line.deploy_sandbox_shared_setup(app=app_id,
-                                                      verbose=self.verbose,
-                                                      exp_config=exp_config)
-
+        dlgr.command_line.deploy_sandbox_shared_setup(
+            app=app_id,
+            verbose=self.verbose,
+            exp_config=exp_config
+        )
         return self._finish_experiment()
 
     def _finish_experiment(self):
