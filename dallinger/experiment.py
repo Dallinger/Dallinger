@@ -16,6 +16,7 @@ import uuid
 from sqlalchemy import and_
 
 from dallinger.config import get_config, LOCAL_CONFIG
+from dallinger.data import Data
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.heroku import app_name
 from dallinger.information import Gene, Meme, State
@@ -452,7 +453,7 @@ class Experiment(object):
         import dallinger as dlgr
         filename = dlgr.command_line.export_data(self.app_id)
         logger.debug('Data exported to %s' % filename)
-        return {"export_filename": filename}
+        return Data(filename)
 
     def end_experiment(self):
         """Terminates a running experiment"""
