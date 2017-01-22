@@ -832,7 +832,7 @@ def export_data(id, local=False):
     log("Done. Data available in {}.zip".format(id))
 
     cwd = os.getcwd()
-    export_filename = os.path.join(cwd, "data", '{}.zip'.format(id))
+    export_filename = os.path.join(cwd, "data", '{}-data.zip'.format(id))
     return export_filename
 
 
