@@ -7,6 +7,8 @@ import dallinger.db
 import datetime
 from dallinger.config import get_config
 from dallinger.heroku import app_name
+from dallinger.heroku.messages import EmailingHITMessager
+from dallinger.heroku.messages import NullHITMessager
 from dallinger.models import Participant
 
 
@@ -33,6 +35,7 @@ class TestHeroku(object):
 
 
 class TestHerokuClock(object):
+class TestHerokuClockTasks(object):
 
     class a(object):
 
@@ -121,7 +124,7 @@ class TestHerokuClock(object):
                 }
             )
 
-    def test_builds_non_whimsical_email_message_without_error(self, run_check):
+    def test_sends_notification_if_resubmitted(self, run_check):
         # Include whimsical set to True to avoid error in the False code branch:
         config = {
             'duration': 1.0,
@@ -134,10 +137,15 @@ class TestHerokuClock(object):
         session = None
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        with mock.patch('dallinger.heroku.clock.requests'):
+        mock_messager = mock.Mock(spec=NullHITMessager)
+        with mock.patch.multiple('dallinger.heroku.clock',
+                                 requests=mock.DEFAULT,
+                                 NullHITMessager=mock.DEFAULT) as mocks:
+            mocks['NullHITMessager'].return_value = mock_messager
             run_check(config, mturk, participants, session, reference_time)
+            mock_messager.send_resubmitted_msg.assert_called()
 
-    def test_shuts_hit_down_if_mturk_doesnt_have_assignment(self, run_check):
+    def test_no_assignment_on_mturk_shuts_down_hit(self, run_check):
         # Include whimsical set to True to avoid error in the False code branch:
         config = {
             'duration': 1.0,
@@ -172,7 +180,7 @@ class TestHerokuClock(object):
                 }
             )
 
-    def test_no_assignement_builds_non_whimsical_email_message_without_error(self, run_check):
+    def test_no_assignement_on_mturk_sends_hit_cancelled_message(self, run_check):
         # Include whimsical set to True to avoid error in the False code branch:
         config = {
             'duration': 1.0,
@@ -184,5 +192,84 @@ class TestHerokuClock(object):
         session = None
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        with mock.patch('dallinger.heroku.clock.requests'):
+        mock_messager = mock.Mock(spec=NullHITMessager)
+        with mock.patch.multiple('dallinger.heroku.clock',
+                                 requests=mock.DEFAULT,
+                                 NullHITMessager=mock.DEFAULT) as mocks:
+            mocks['NullHITMessager'].return_value = mock_messager
             run_check(config, mturk, participants, session, reference_time)
+            mock_messager.send_hit_cancelled_msg.assert_called()
+
+
+def emailing_messager(whimsical):
+    from smtplib import SMTP
+    config = {
+        'whimsical': whimsical,
+        'dallinger_email_username': 'test',
+        'contact_email_on_error': 'contact@example.com',
+        'dallinger_email_key': 'email secret key'
+    }
+    mock_smtp = mock.create_autospec(SMTP)
+    messager = EmailingHITMessager(
+        when='the time',
+        assignment_id='some assignment id',
+        hit_duration=60,
+        time_active=120,
+        config=config,
+        server=mock_smtp
+    )
+
+    return messager
+
+
+@pytest.fixture
+def whimsical():
+    return emailing_messager(whimsical=True)
+
+
+@pytest.fixture
+def nonwhimsical():
+    return emailing_messager(whimsical=False)
+
+
+class TestEmailingHITMessager(object):
+
+    def test_send_resubmitted_msg_whimsical(self, whimsical):
+        data = whimsical.send_resubmitted_msg()
+
+        whimsical.server.starttls.assert_called()
+        whimsical.server.login.assert_called_once_with('test', 'email secret key')
+        whimsical.server.sendmail.assert_called()
+        whimsical.server.quit.assert_called()
+        assert data['subject'] == 'A matter of minor concern.'
+        assert 'a full 1.0 minutes over' in data['message']
+
+    def test_send_resubmitted_msg_nonwhimsical(self, nonwhimsical):
+        data = nonwhimsical.send_resubmitted_msg()
+
+        nonwhimsical.server.starttls.assert_called()
+        nonwhimsical.server.login.assert_called_once_with('test', 'email secret key')
+        nonwhimsical.server.sendmail.assert_called()
+        nonwhimsical.server.quit.assert_called()
+        assert data['subject'] == 'Dallinger automated email - minor error.'
+        assert 'Allowed time: 1.0' in data['message']
+
+    def test_send_hit_cancelled_msg_whimsical(self, whimsical):
+        data = whimsical.send_hit_cancelled_msg()
+
+        whimsical.server.starttls.assert_called()
+        whimsical.server.login.assert_called_once_with('test', 'email secret key')
+        whimsical.server.sendmail.assert_called()
+        whimsical.server.quit.assert_called()
+        assert data['subject'] == 'Most troubling news.'
+        assert 'a full 1.0 minutes over' in data['message']
+
+    def test_send_hit_cancelled_msg_nonwhimsical(self, nonwhimsical):
+        data = nonwhimsical.send_hit_cancelled_msg()
+
+        nonwhimsical.server.starttls.assert_called()
+        nonwhimsical.server.login.assert_called_once_with('test', 'email secret key')
+        nonwhimsical.server.sendmail.assert_called()
+        nonwhimsical.server.quit.assert_called()
+        assert data['subject'] == 'Dallinger automated email - major error.'
+        assert 'Allowed time: 1.0' in data['message']
