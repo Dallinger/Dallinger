@@ -110,10 +110,10 @@ def run_check(config, mturk, participants, session, reference_time):
  participant has finished the experiment). This is a non-fatal error and so
  Dallinger has auto-corrected the problem. Nonetheless you may wish to check the
  database.\n\nBest,\nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
-\nAllowed time: {}\nTime since participant started: {}""").format(
+\nAllowed time: {}\nTime since participant started: {}""".format(
                             assignment_id,
                             round(duration_seconds/60),
-                            round(p_time/60))
+                            round(p_time/60)))
                     msg['Subject'] = "Dallinger automated email - minor error."
 
                 # This method commented out as gmail now blocks emails from
@@ -194,10 +194,10 @@ def run_check(config, mturk, participants, session, reference_time):
  additional problems before resuming.\nIf you are receiving a lot of these
  emails this suggests something is wrong with your experiment code.\n\nBest,
 \nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
-\nAllowed time: {}\nTime since participant started: {}""").format(
+\nAllowed time: {}\nTime since participant started: {}""".format(
                             assignment_id,
                             round(duration_seconds/60),
-                            round(p_time/60))
+                            round(p_time/60)))
                     msg['Subject'] = "Dallinger automated email - major error."
 
                 # This method commented out as gmail now blocks emails from
