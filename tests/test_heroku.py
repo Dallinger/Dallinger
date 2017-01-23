@@ -11,13 +11,15 @@ from dallinger.models import Participant
 
 
 @pytest.fixture
-def setup():
+def run_check():
     db = dallinger.db.init_db(drop_all=True)
     os.chdir('tests/experiment')
     config = get_config()
     if not config.ready:
         config.load_config()
-    yield config
+    # Import the FUT here, after config load, and return it
+    from dallinger.heroku.clock import run_check
+    yield run_check
     db.rollback()
     db.close()
     os.chdir('../..')
@@ -48,7 +50,7 @@ class TestHerokuClock(object):
 
             return part
 
-    def test_check_db_for_missing_notifications_assembles_resources(self, setup):
+    def test_check_db_for_missing_notifications_assembles_resources(self, run_check):
         # Can't import until after config is loaded:
         from dallinger.heroku.clock import check_db_for_missing_notifications
         with mock.patch.multiple('dallinger.heroku.clock',
@@ -59,8 +61,7 @@ class TestHerokuClock(object):
 
             mocks['run_check'].assert_called()
 
-    def test_run_check_does_nothing_if_assignment_still_current(self, setup):
-        from dallinger.heroku.clock import run_check
+    def test_does_nothing_if_assignment_still_current(self, run_check):
         config = {'duration': 1.0}
         mturk = mock.Mock(**{'get_assignment.return_value': ['fake']})
         participants = [self.a.participant()]
@@ -70,8 +71,7 @@ class TestHerokuClock(object):
 
         mturk.get_assignment.assert_not_called()
 
-    def test_run_check_sets_participant_status_if_mturk_reports_approved(self, setup):
-        from dallinger.heroku.clock import run_check
+    def test_sets_participant_status_if_mturk_reports_approved(self, run_check):
         config = {'duration': 1.0}
         fake_assignment = mock.Mock(AssignmentStatus='Approved')
         mturk = mock.Mock(**{'get_assignment.return_value': [fake_assignment]})
@@ -84,8 +84,7 @@ class TestHerokuClock(object):
         assert participants[0].status == 'approved'
         session.commit.assert_called()
 
-    def test_run_check_sets_participant_status_if_mturk_reports_rejected(self, setup):
-        from dallinger.heroku.clock import run_check
+    def test_sets_participant_status_if_mturk_reports_rejected(self, run_check):
         config = {'duration': 1.0}
         fake_assignment = mock.Mock(AssignmentStatus='Rejected')
         mturk = mock.Mock(**{'get_assignment.return_value': [fake_assignment]})
@@ -98,8 +97,7 @@ class TestHerokuClock(object):
         assert participants[0].status == 'rejected'
         session.commit.assert_called()
 
-    def test_run_check_resubmits_notification_if_mturk_reports_submitted(self, setup):
-        from dallinger.heroku.clock import run_check
+    def test_resubmits_notification_if_mturk_reports_submitted(self, run_check):
         # Include whimsical set to True to avoid error in the False code branch:
         config = {
             'duration': 1.0,
@@ -123,8 +121,7 @@ class TestHerokuClock(object):
                 }
             )
 
-    def test_run_check_builds_non_whimsical_email_message_without_error(self, setup):
-        from dallinger.heroku.clock import run_check
+    def test_builds_non_whimsical_email_message_without_error(self, run_check):
         # Include whimsical set to True to avoid error in the False code branch:
         config = {
             'duration': 1.0,
@@ -140,8 +137,7 @@ class TestHerokuClock(object):
         with mock.patch('dallinger.heroku.clock.requests'):
             run_check(config, mturk, participants, session, reference_time)
 
-    def test_run_check_shuts_hit_down_if_mturk_doesnt_have_assignment(self, setup):
-        from dallinger.heroku.clock import run_check
+    def test_shuts_hit_down_if_mturk_doesnt_have_assignment(self, run_check):
         # Include whimsical set to True to avoid error in the False code branch:
         config = {
             'duration': 1.0,
@@ -176,8 +172,7 @@ class TestHerokuClock(object):
                 }
             )
 
-    def test_run_check_no_assignement_builds_non_whimsical_email_message_without_error(self, setup):
-        from dallinger.heroku.clock import run_check
+    def test_no_assignement_builds_non_whimsical_email_message_without_error(self, run_check):
         # Include whimsical set to True to avoid error in the False code branch:
         config = {
             'duration': 1.0,
