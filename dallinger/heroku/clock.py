@@ -30,9 +30,9 @@ def run_check(config, mturk, participants, session, reference_time):
     # for each participant, if they've been active for longer than the
     # experiment duration + 5 minutes, we take action.
     for p in participants:
-        p_time = (reference_time - p.creation_time).total_seconds()
+        time_active = (reference_time - p.creation_time).total_seconds()
 
-        if p_time > (duration_seconds + 120):
+        if time_active > (duration_seconds + 120):
             print ("Error: participant {} with status {} has been playing for too "
                    "long and no notification has arrived - "
                    "running emergency code".format(p.id, p.status))
@@ -96,9 +96,9 @@ def run_check(config, mturk, participants, session, reference_time):
  with other matters.""".format(
                             datetime.now(),
                             assignment_id,
-                            round(duration_seconds/60),
-                            round(p_time/60),
-                            round((p_time-duration_seconds)/60)))
+                            round(duration_seconds / 60),
+                            round(time_active / 60),
+                            round((time_active - duration_seconds) / 60)))
                     msg['Subject'] = "A matter of minor concern."
                 else:
                     msg = MIMEText(
@@ -112,8 +112,8 @@ def run_check(config, mturk, participants, session, reference_time):
  database.\n\nBest,\nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
 \nAllowed time: {}\nTime since participant started: {}""".format(
                             assignment_id,
-                            round(duration_seconds/60),
-                            round(p_time/60)))
+                            round(duration_seconds / 60),
+                            round(time_active / 60)))
                     msg['Subject'] = "Dallinger automated email - minor error."
 
                 # This method commented out as gmail now blocks emails from
@@ -174,9 +174,9 @@ def run_check(config, mturk, participants, session, reference_time):
  message, I am busy with other matters.""".format(
                             datetime.now(),
                             assignment_id,
-                            round(duration_seconds/60),
-                            round(p_time/60),
-                            round((p_time-duration_seconds)/60)))
+                            round(duration_seconds / 60),
+                            round(time_active / 60),
+                            round((time_active - duration_seconds) / 60)))
                     msg['Subject'] = "Most troubling news."
                 else:
                     msg = MIMEText(
@@ -196,8 +196,8 @@ def run_check(config, mturk, participants, session, reference_time):
 \nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
 \nAllowed time: {}\nTime since participant started: {}""".format(
                             assignment_id,
-                            round(duration_seconds/60),
-                            round(p_time/60)))
+                            round(duration_seconds / 60),
+                            round(time_active / 60)))
                     msg['Subject'] = "Dallinger automated email - major error."
 
                 # This method commented out as gmail now blocks emails from
