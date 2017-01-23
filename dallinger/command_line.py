@@ -765,9 +765,15 @@ def export(app, local):
     """Export the data."""
     print_header()
 
-    log("Preparing to export the data...")
-
     id = str(app)
+
+    export_data(id, local)
+
+
+def export_data(id, local=False):
+    """Allow calling export from experiments"""
+
+    log("Preparing to export the data...")
 
     subdata_path = os.path.join("data", id, "data")
 
@@ -806,21 +812,22 @@ def export(app, local):
             " --app " + app_name(id),
             shell=True)
 
-        dump_path = dump_database(id)
+    try:
+        subprocess.call([
+            "dropdb",
+            app_name(id),
+        ])
+    except Exception:
+        pass
 
-        try:
-            subprocess.check_call([
-                "pg_restore",
-                "--verbose",
-                "--no-owner",
-                "--clean",
-                "-d",
-                "dallinger",
-                os.path.join("data", id, "data.dump")
-            ])
-
-        except Exception:
-            pass
+    subprocess.call([
+        "heroku",
+        "pg:pull",
+        "DATABASE_URL",
+        app_name(id),
+        "--app",
+        app_name(id),
+    ])
 
     all_tables = [
         "node",
@@ -836,12 +843,10 @@ def export(app, local):
 
     for table in all_tables:
         subprocess.check_call(
-            "psql -d dallinger --command=\"\\copy " + table + " to \'" +
+            "psql -d " + app_name(id) +
+            " --command=\"\\copy " + table + " to \'" +
             os.path.join(subdata_path, table) + ".csv\' csv header\"",
             shell=True)
-
-    if not local:
-        os.remove(dump_path)
 
     log("Zipping up the package...")
     shutil.make_archive(
@@ -853,6 +858,10 @@ def export(app, local):
     shutil.rmtree(os.path.join("data", id))
 
     log("Done. Data available in " + str(id) + ".zip")
+
+    cwd = os.getcwd()
+    export_filename = os.path.join(cwd, "data", str(id) + ".zip")
+    return export_filename
 
 
 @dallinger.command()
