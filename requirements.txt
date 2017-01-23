@@ -7,4 +7,4 @@ psiturk-dallinger==3.1.4
 psycopg2==2.6.2
 redis==2.10.5
 rq==0.7.1
-SQLAlchemy==1.1.4
+SQLAlchemy==1.1.5
