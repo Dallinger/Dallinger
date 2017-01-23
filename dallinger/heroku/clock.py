@@ -229,15 +229,14 @@ def check_db_for_missing_notifications():
     config = get_config()
     aws_access_key_id = config.get('aws_access_key_id')
     aws_secret_access_key = config.get('aws_secret_access_key')
-    if config.get('launch_in_sandbox_mode'):
-        mturk = MTurkConnection(
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-            host='mechanicalturk.sandbox.amazonaws.com')
-    else:
-        mturk = MTurkConnection(
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key)
+    host_by_sandbox_setting = {
+        True: 'mechanicalturk.sandbox.amazonaws.com',
+        False: 'mechanicalturk.amazonaws.com'
+    }
+    mturk = MTurkConnection(
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        host=host_by_sandbox_setting[config.get('launch_in_sandbox_mode')])
 
     # get all participants with status < 100
     participants = Participant.query.filter_by(status="working").all()
