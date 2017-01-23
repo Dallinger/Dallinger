@@ -22,14 +22,14 @@ session = db.session
 scheduler = BlockingScheduler()
 
 
-def _run_notifications_check(config, mturk, participants, session, current_time):
+def run_check(config, mturk, participants, session, reference_time):
 
     # get experiment duration in seconds
     duration_seconds = config.get('duration_seconds') * 60.0 * 60.0
 
     # for each participant, if current_time - start_time > duration_seconds + 5 mins
     for p in participants:
-        p_time = (current_time - p.creation_time).total_seconds()
+        p_time = (reference_time - p.creation_time).total_seconds()
 
         if p_time > (duration_seconds + 120):
             print ("Error: participant {} with status {} has been playing for too "
@@ -240,9 +240,9 @@ def check_db_for_missing_notifications():
 
     # get all participants with status < 100
     participants = Participant.query.filter_by(status="working").all()
-    current_time = datetime.now()
+    reference_time = datetime.now()
 
-    _run_notifications_check(config, mturk, participants, session, current_time)
+    run_check(config, mturk, participants, session, reference_time)
 
 
 def launch():
