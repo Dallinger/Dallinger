@@ -25,7 +25,7 @@ scheduler = BlockingScheduler()
 def run_check(config, mturk, participants, session, reference_time):
 
     # get experiment duration in seconds
-    duration_seconds = config.get('duration_seconds') * 60.0 * 60.0
+    duration_seconds = config.get('duration') * 60.0 * 60.0
 
     # for each participant, if current_time - start_time > duration_seconds + 5 mins
     for p in participants:
