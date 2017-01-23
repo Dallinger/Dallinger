@@ -1,7 +1,6 @@
 """A clock process."""
 
 from datetime import datetime
-from email.mime.text import MIMEText
 import json
 import os
 
@@ -13,6 +12,7 @@ import requests
 import dallinger
 from dallinger import db
 from dallinger.models import Participant
+from dallinger.heroku.messages import NullHITMessager
 
 # Import the experiment.
 experiment = dallinger.experiment.load()
@@ -48,13 +48,15 @@ def run_check(config, mturk, participants, session, reference_time):
                 status = None
             print "assignment status from AWS is {}".format(status)
             hit_id = p.hit_id
-
-            # general email settings:
-            # username = os.getenv('dallinger_email_username')
-            # fromaddr = username + "@gmail.com"
-            # email_password = os.getenv("dallinger_email_key")
-            # toaddr = config.get('HIT Configuration', 'contact_email_on_error')
-            whimsical = config.get("whimsical")
+            # Use a null handler for now since Gmail is blocking outgoing email
+            # from random servers:
+            messager = NullHITMessager(
+                when=reference_time,
+                assignment_id=assignment_id,
+                hit_duration=duration_seconds,
+                time_active=time_active,
+                config=config
+            )
 
             if status == "Approved":
                 # if its been approved, set the status accordingly
@@ -76,53 +78,9 @@ def run_check(config, mturk, participants, session, reference_time):
                     "http://" + config.get('host') + '/notifications',
                     data=args)
 
-                # send the researcher an email to let them know
-                if whimsical:
-                    msg = MIMEText(
-                        """Dearest Friend,\n\nI am writing to let you know that at
- {}, during my regular (and thoroughly enjoyable) perousal of the most charming
-  participant data table, I happened to notice that assignment {} has been
- taking longer than we were expecting. I recall you had suggested {} minutes as
- an upper limit for what was an acceptable length of time for each assignement
- , however this assignment had been underway for a shocking {} minutes, a full
- {} minutes over your allowance. I immediately dispatched a telegram to our
- mutual friends at AWS and they were able to assure me that although the
- notification had failed to be correctly processed, the assignment had in fact
- been completed. Rather than trouble you, I dealt with this myself and I can
- assure you there is no immediate cause for concern. Nonetheless, for my own
- peace of mind, I would appreciate you taking the time to look into this matter
- at your earliest convenience.\n\nI remain your faithful and obedient servant,
-\nWilliam H. Dallinger\n\n P.S. Please do not respond to this message, I am busy
- with other matters.""".format(
-                            datetime.now(),
-                            assignment_id,
-                            round(duration_seconds / 60),
-                            round(time_active / 60),
-                            round((time_active - duration_seconds) / 60)))
-                    msg['Subject'] = "A matter of minor concern."
-                else:
-                    msg = MIMEText(
-                        """Dear experimenter,\n\nThis is an automated email from
- Dallinger. You are receiving this email because the Dallinger platform has
- discovered evidence that a notification from Amazon Web Services failed to
- arrive at the server. Dallinger has automatically contacted AWS and has
- determined the dropped notification was a submitted notification (i.e. the
- participant has finished the experiment). This is a non-fatal error and so
- Dallinger has auto-corrected the problem. Nonetheless you may wish to check the
- database.\n\nBest,\nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
-\nAllowed time: {}\nTime since participant started: {}""".format(
-                            assignment_id,
-                            round(duration_seconds / 60),
-                            round(time_active / 60)))
-                    msg['Subject'] = "Dallinger automated email - minor error."
+                # message the researcher:
+                messager.send_resubmitted_msg()
 
-                # This method commented out as gmail now blocks emails from
-                # new locations
-                # server = smtplib.SMTP('smtp.gmail.com:587')
-                # server.starttls()
-                # server.login(username, email_password)
-                # server.sendmail(fromaddr, toaddr, msg.as_string())
-                # server.quit()
                 print ("Error - submitted notification for participant {} missed. "
                        "Database automatically corrected, but proceed with caution."
                        .format(p.id))
@@ -147,66 +105,8 @@ def run_check(config, mturk, participants, session, reference_time):
                 # then force expire the hit via boto
                 mturk.expire_hit(hit_id)
 
-                # send the researcher an email to let them know
-                if whimsical:
-                    msg = MIMEText(
-                        """Dearest Friend,\n\nI am afraid I write to you with most
- grave tidings. At {}, during a routine check of the usually most delightful
- participant data table, I happened to notice that assignment {} has been
- taking longer than we were expecting. I recall you had suggested {} minutes as
- an upper limit for what was an acceptable length of time for each assignment,
- however this assignment had been underway for a shocking {} minutes, a full {}
- minutes over your allowance. I immediately dispatched a telegram to our mutual
- friends at AWS and they infact informed me that they had already sent us a
- notification which we must have failed to process, implying that the
- assignment had not been successfully completed. Of course when the seriousness
- of this scenario dawned on me I had to depend on my trusting walking stick for
- support: without the notification I didn't know to remove the old assignment's
- data from the tables and AWS will have already sent their replacement, meaning
- that the tables may already be in a most unsound state!\n\nI am sorry to
- trouble you with this, however, I do not know how to proceed so rather than
- trying to remedy the scenario myself, I have instead temporarily ceased
- operations by expiring the HIT with the fellows at AWS and have refrained from
- posting any further invitations myself. Once you see fit I would be most
- appreciative if you could attend to this issue with the caution, sensitivity
- and intelligence for which I know you so well.\n\nI remain your faithful and
- obedient servant,\nWilliam H. Dallinger\n\nP.S. Please do not respond to this
- message, I am busy with other matters.""".format(
-                            datetime.now(),
-                            assignment_id,
-                            round(duration_seconds / 60),
-                            round(time_active / 60),
-                            round((time_active - duration_seconds) / 60)))
-                    msg['Subject'] = "Most troubling news."
-                else:
-                    msg = MIMEText(
-                        """Dear experimenter,\n\nThis is an automated email from
- Dallinger. You are receiving this email because the Dallinger platform has
- discovered evidence that a notification from Amazon Web Services failed to
- arrive at the server. Dallinger has automatically contacted AWS and has
- determined the dropped notification was an abandoned/returned notification
- (i.e. the participant had returned the experiment or had run out of time).
- This is a serious error and so Dallinger has paused the experiment - expiring
- the HIT on MTurk and setting auto_recruit to false. Participants currently
- playing will be able to finish, however no further participants will be
- recruited until you do so manually. We strongly suggest you use the details
- below to check the database to make sure the missing notification has not caused
- additional problems before resuming.\nIf you are receiving a lot of these
- emails this suggests something is wrong with your experiment code.\n\nBest,
-\nThe Dallinger dev. team.\n\n Error details:\nAssignment: {}
-\nAllowed time: {}\nTime since participant started: {}""".format(
-                            assignment_id,
-                            round(duration_seconds / 60),
-                            round(time_active / 60)))
-                    msg['Subject'] = "Dallinger automated email - major error."
-
-                # This method commented out as gmail now blocks emails from
-                # new locations
-                # server = smtplib.SMTP('smtp.gmail.com:587')
-                # server.starttls()
-                # server.login(username, email_password)
-                # server.sendmail(fromaddr, toaddr, msg.as_string())
-                # server.quit()
+                # message the researcher
+                messager.send_hit_cancelled_msg()
 
                 # send a notificationmissing notification
                 args = {
