@@ -857,10 +857,10 @@ def export_data(id, local=False):
 
     shutil.rmtree(os.path.join("data", id))
 
-    log("Done. Data available in " + str(id) + ".zip")
+    log("Done. Data available in {}.zip".format(id))
 
     cwd = os.getcwd()
-    export_filename = os.path.join(cwd, "data", str(id) + ".zip")
+    export_filename = os.path.join(cwd, "data", '{}.zip'.format(id))
     return export_filename
 
 
