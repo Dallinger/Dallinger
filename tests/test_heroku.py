@@ -39,6 +39,8 @@ class TestClockScheduler(object):
     def setup(self):
         """Set up the environment by moving to the demos directory."""
         os.chdir('tests/experiment')
+        config = get_config()
+        config.ready = False
         from dallinger.heroku import clock
         self.clock = clock
 
