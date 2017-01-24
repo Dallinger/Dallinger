@@ -27,8 +27,10 @@ table_names = [
 
 
 def user_s3_bucket():
+    """Get the user's S3 bucket."""
     config = get_config()
-    config.load_config()
+    if not config.ready:
+        config.load_config()
 
     conn = boto.connect_s3(
         config.get('aws_access_key_id'),
@@ -47,6 +49,7 @@ def user_s3_bucket():
         bucket = conn.get_bucket(s3_bucket_name)
 
     return bucket
+
 
 class Data(object):
     """Dallinger data object."""
