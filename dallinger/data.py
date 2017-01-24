@@ -27,6 +27,7 @@ table_names = [
 
 
 def user_s3_bucket():
+    """Get the user's S3 bucket."""
     config = get_config()
     config.load_config()
 
@@ -47,6 +48,7 @@ def user_s3_bucket():
         bucket = conn.get_bucket(s3_bucket_name)
 
     return bucket
+
 
 class Data(object):
     """Dallinger data object."""
