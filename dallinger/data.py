@@ -8,6 +8,7 @@ import tempfile
 from zipfile import ZipFile
 
 import boto
+from boto.s3.key import Key
 import hashlib
 import odo
 import pandas as pd
@@ -59,6 +60,16 @@ def dump_database(id):
     os.chdir(current_dir)
 
     return os.path.join(tmp_dir, "database.dump")
+
+
+def backup(id):
+    """Backup the database to S3."""
+    k = Key(user_s3_bucket())
+    k.key = '{}.dump'.format(id)
+    filename = dump_database(id)
+    k.set_contents_from_filename(filename)
+    url = k.generate_url(expires_in=0, query_auth=False)
+    return url
 
 
 def user_s3_bucket():
