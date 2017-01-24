@@ -4,6 +4,7 @@
 """The Dallinger command-line utility."""
 
 import errno
+import hashlib
 import imp
 import inspect
 import os
@@ -652,7 +653,8 @@ def backup(app):
         config.get('aws_secret_access_key'),
     )
 
-    s3_bucket_name = "dallinger"
+    s3_bucket_name = "dallinger-{}".format(
+        hashlib.sha256(conn.get_canonical_user_id()).hexdigest()[0:8])
 
     if not conn.lookup(s3_bucket_name):
         bucket = conn.create_bucket(
@@ -747,7 +749,10 @@ def awaken(app, databaseurl):
         config.get('aws_secret_access_key'),
     )
 
-    bucket = conn.get_bucket("dallinger")
+    s3_bucket_name = "dallinger-{}".format(
+        hashlib.sha256(conn.get_canonical_user_id()).hexdigest()[0:8])
+
+    bucket = conn.get_bucket(s3_bucket_name)
     key = bucket.lookup('{}.dump'.format(id))
     url = key.generate_url(expires_in=300)
 
