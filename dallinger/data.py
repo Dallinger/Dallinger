@@ -3,6 +3,7 @@
 from config import get_config
 
 import os
+import subprocess
 import tempfile
 from zipfile import ZipFile
 
@@ -11,6 +12,8 @@ import hashlib
 import odo
 import pandas as pd
 import tablib
+
+from dallinger import heroku
 
 
 table_names = [
@@ -24,6 +27,38 @@ table_names = [
     "transmission",
     "vector",
 ]
+
+
+def dump_database(id):
+    """Dump the database to a temporary directory."""
+
+    tmp_dir = tempfile.mkdtemp()
+    current_dir = os.getcwd()
+    os.chdir(tmp_dir)
+
+    FNULL = open(os.devnull, 'w')
+
+    subprocess.call([
+        "heroku",
+        "pg:backups:capture",
+        "--app",
+        heroku.app_name(id)
+    ], stdout=FNULL, stderr=FNULL)
+
+    subprocess.call([
+        "heroku",
+        "pg:backups:download",
+        "--app",
+        heroku.app_name(id)
+    ], stdout=FNULL, stderr=FNULL)
+
+    for filename in os.listdir(tmp_dir):
+        if filename.startswith("latest.dump"):
+            os.rename(filename, "database.dump")
+
+    os.chdir(current_dir)
+
+    return os.path.join(tmp_dir, "database.dump")
 
 
 def user_s3_bucket():
