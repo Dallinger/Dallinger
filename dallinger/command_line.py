@@ -584,66 +584,11 @@ def qualify(qualification, value, worker):
             v))
 
 
-def dump_database(id):
-    """Backup the Postgres database locally."""
-    log("Generating a backup of the database on Heroku...")
-
-    dump_filename = "data.dump"
-    data_directory = "data"
-    dump_dir = os.path.join(data_directory, id)
-    if not os.path.exists(dump_dir):
-        os.makedirs(dump_dir)
-
-    try:
-        FNULL = open(os.devnull, 'w')
-        subprocess.call([
-            "heroku",
-            "pg:backups",
-            "capture"
-            "--app",
-            app_name(id)
-        ], stdout=FNULL, stderr=FNULL)
-
-        subprocess.call([  # for more recent versions of Heroku CLI.
-            "heroku",
-            "pg:backups:capture",
-            "--app",
-            app_name(id)
-        ], stdout=FNULL, stderr=FNULL)
-
-    except Exception:
-        pass
-
-    backup_url = subprocess.check_output([
-        "heroku",
-        "pg:backups",
-        "public-url",
-        "--app",
-        app_name(id)
-    ])
-
-    backup_url = backup_url.replace('"', '').rstrip()
-    backup_url = re.search("https:.*", backup_url).group(0)
-    print(backup_url)
-
-    log("Downloading the backup...")
-    dump_path = os.path.join(dump_dir, dump_filename)
-    with open(dump_path, 'wb') as file:
-        subprocess.check_call([
-            'curl',
-            '-o',
-            dump_path,
-            backup_url
-        ], stdout=file)
-
-    return dump_path
-
-
 def backup(app):
     """Dump the database."""
     k = boto.s3.key.Key(data.user_s3_bucket())
     k.key = '{}.dump'.format(app)
-    dump_path = dump_database(app)
+    dump_path = data.dump_database(app)
     k.set_contents_from_filename(dump_path)
     url = k.generate_url(expires_in=0, query_auth=False)
     log("The database backup URL is...")
