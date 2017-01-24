@@ -2,7 +2,9 @@
 
 from config import get_config
 
+import errno
 import os
+import shutil
 import subprocess
 import tempfile
 from zipfile import ZipFile
@@ -69,6 +71,85 @@ def backup(id):
     k.set_contents_from_filename(filename)
     url = k.generate_url(expires_in=0, query_auth=False)
     return url
+
+
+def export(id, local=False):
+    """Export data from an experiment."""
+
+    print("Preparing to export the data...")
+
+    subdata_path = os.path.join("data", id, "data")
+
+    # Create the data package if it doesn't already exist.
+    try:
+        os.makedirs(subdata_path)
+
+    except OSError as e:
+        if e.errno != errno.EEXIST or not os.path.isdir(subdata_path):
+            raise
+
+    # Copy the experiment code into a code/ subdirectory
+    try:
+        shutil.copyfile(
+            os.path.join("snapshots", id + "-code.zip"),
+            os.path.join("data", id, id + "-code.zip")
+        )
+
+    except Exception:
+        pass
+
+    # Copy in the DATA readme.
+    # open(os.path.join(id, "README.txt"), "a").close()
+
+    # Save the experiment id.
+    with open(os.path.join("data", id, "experiment_id.md"), "a+") as file:
+        file.write(id)
+
+    if not local:
+        # Export the logs
+        subprocess.check_call(
+            "heroku logs " +
+            "-n 10000 > " + os.path.join("data", id, "server_logs.md") +
+            " --app " + heroku.app_name(id),
+            shell=True)
+
+    try:
+        subprocess.call([
+            "dropdb",
+            heroku.app_name(id),
+        ])
+    except Exception:
+        pass
+
+    subprocess.call([
+        "heroku",
+        "pg:pull",
+        "DATABASE_URL",
+        heroku.app_name(id),
+        "--app",
+        heroku.app_name(id),
+    ])
+
+    for table in table_names:
+        subprocess.check_call(
+            "psql -d " + heroku.app_name(id) +
+            " --command=\"\\copy " + table + " to \'" +
+            os.path.join(subdata_path, table) + ".csv\' csv header\"",
+            shell=True)
+
+    print("Zipping up the package...")
+    shutil.make_archive(
+        os.path.join("data", id + "-data"),
+        "zip",
+        os.path.join("data", id)
+    )
+
+    shutil.rmtree(os.path.join("data", id))
+
+    print("Done. Data available in {}.zip".format(id))
+
+    cwd = os.getcwd()
+    return os.path.join(cwd, "data", '{}-data.zip'.format(id))
 
 
 def user_s3_bucket():
