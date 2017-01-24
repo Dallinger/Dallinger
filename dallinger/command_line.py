@@ -23,7 +23,6 @@ import time
 import uuid
 import webbrowser
 
-import boto
 import click
 from dallinger.config import get_config
 import psycopg2

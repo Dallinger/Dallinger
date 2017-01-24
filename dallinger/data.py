@@ -1,9 +1,13 @@
 """Data-handling tools."""
 
+from config import get_config
+
 import os
 import tempfile
 from zipfile import ZipFile
 
+import boto
+import hashlib
 import odo
 import pandas as pd
 import tablib
@@ -21,6 +25,28 @@ table_names = [
     "vector",
 ]
 
+
+def user_s3_bucket():
+    config = get_config()
+    config.load_config()
+
+    conn = boto.connect_s3(
+        config.get('aws_access_key_id'),
+        config.get('aws_secret_access_key'),
+    )
+
+    s3_bucket_name = "dallinger-{}".format(
+        hashlib.sha256(conn.get_canonical_user_id()).hexdigest()[0:8])
+
+    if not conn.lookup(s3_bucket_name):
+        bucket = conn.create_bucket(
+            s3_bucket_name,
+            location=boto.s3.connection.Location.DEFAULT
+        )
+    else:
+        bucket = conn.get_bucket(s3_bucket_name)
+
+    return bucket
 
 class Data(object):
     """Dallinger data object."""
