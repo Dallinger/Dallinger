@@ -3,7 +3,6 @@
 
 """The Dallinger command-line utility."""
 
-import errno
 import imp
 import inspect
 import os
@@ -550,22 +549,13 @@ def qualify(qualification, value, worker):
         click.echo("{} with value {}".format(count, score))
 
 
-def backup(app):
-    """Dump the database."""
-    k = boto.s3.key.Key(data.user_s3_bucket())
-    k.key = '{}.dump'.format(app)
-    dump_path = data.dump_database(app)
-    k.set_contents_from_filename(dump_path)
-    url = k.generate_url(expires_in=0, query_auth=False)
-    log("The database backup URL is...")
-    print(url)
-
-
 @dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def hibernate(app):
     """Pause an experiment and remove costly resources."""
-    backup(app)
+    log("The database backup URL is...")
+    backup_url = data.backup(app)
+    log(backup_url)
 
     log("Scaling down the web servers...")
 
