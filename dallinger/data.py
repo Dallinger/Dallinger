@@ -61,6 +61,16 @@ def dump_database(id):
     return os.path.join(tmp_dir, "database.dump")
 
 
+def backup(id):
+    """Backup the database to S3."""
+    k = boto.s3.key.Key(user_s3_bucket())
+    k.key = '{}.dump'.format(id)
+    filename = dump_database(id)
+    k.set_contents_from_filename(filename)
+    url = k.generate_url(expires_in=0, query_auth=False)
+    return url
+
+
 def user_s3_bucket():
     """Get the user's S3 bucket."""
     config = get_config()
