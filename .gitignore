@@ -26,3 +26,4 @@ README.rst
 .netrc
 .vagrant/
 .cache/*
+htmlcov/*
