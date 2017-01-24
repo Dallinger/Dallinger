@@ -651,13 +651,18 @@ def backup(app):
         config.get('aws_secret_access_key'),
     )
 
-    bucket = conn.create_bucket(
-        app,
-        location=boto.s3.connection.Location.DEFAULT
-    )
+    s3_bucket_name = "dallinger"
+
+    if not conn.lookup(s3_bucket_name):
+        bucket = conn.create_bucket(
+            s3_bucket_name,
+            location=boto.s3.connection.Location.DEFAULT
+        )
+    else:
+        bucket = conn.get_bucket(s3_bucket_name)
 
     k = boto.s3.key.Key(bucket)
-    k.key = 'database.dump'
+    k.key = '{}.dump'.format(app)
     k.set_contents_from_filename(dump_path)
     url = k.generate_url(expires_in=0, query_auth=False)
 
@@ -735,8 +740,8 @@ def awaken(app, databaseurl):
         config.get('aws_secret_access_key'),
     )
 
-    bucket = conn.get_bucket(id)
-    key = bucket.lookup('database.dump')
+    bucket = conn.get_bucket("dallinger")
+    key = bucket.lookup('{}.dump'.format(id))
     url = key.generate_url(expires_in=300)
 
     cmd = "heroku pg:backups restore"
