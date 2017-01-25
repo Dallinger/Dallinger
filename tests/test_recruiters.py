@@ -92,6 +92,9 @@ class TestMTurkRecruiter(object):
         )
         r.mturkservice = mockservice('fake key', 'fake secret')
         r.mturkservice.check_credentials.return_value = True
+        r.mturkservice.create_hit.return_value = {
+            'type_id': 'fake type id'
+        }
         return r
 
     def test_config_passed_to_constructor(self):
