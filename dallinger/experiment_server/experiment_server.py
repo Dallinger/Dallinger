@@ -11,7 +11,6 @@ import user_agents
 from flask import (
     abort,
     Flask,
-    jsonify,
     make_response,
     render_template,
     render_template_string,
