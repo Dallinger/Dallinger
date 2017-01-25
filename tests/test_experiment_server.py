@@ -47,7 +47,7 @@ class TestExperimentServer(FlaskAppTest):
 
     def _create_node(self, participant_id):
         resp = self.app.post('/node/{}'.format(participant_id))
-        return json.loads(resp.data).get('node', {}).get('id')
+        return json.loads(resp.data)['node']['id']
 
     def _update_participant_status(self, participant_id, status):
         from dallinger.models import Participant
