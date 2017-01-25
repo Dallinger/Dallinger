@@ -121,6 +121,8 @@ class MTurkRecruiter(object):
             # Already started... do nothing.
             return None
 
+        if self.config.get('mode') == 'debug':
+            raise MTurkRecruiterException("Can't run a HIT in debug mode")
         if self.hit_domain is None:
             raise MTurkRecruiterException("Can't run a HIT from localhost")
 
