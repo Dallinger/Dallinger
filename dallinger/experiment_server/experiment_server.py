@@ -267,10 +267,6 @@ def advertisement():
         raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
     hit_id = request.args['hitId']
     assignment_id = request.args['assignmentId']
-    if hit_id[:5] == "debug":
-        debug_mode = True
-    else:
-        debug_mode = False
     already_in_db = False
     if 'workerId' in request.args:
         worker_id = request.args['workerId']
@@ -294,7 +290,9 @@ def advertisement():
     except exc.SQLAlchemyError:
         status = None
 
-    if status == 'working' and part.end_time is not None:
+    debug_mode = config.get('mode') == 'debug'
+    if ((status == 'working' and part.end_time is not None) or
+            (debug_mode and status in ('submitted', 'approved'))):
         # They've done the debriefing but perhaps haven't submitted the HIT
         # yet.. Turn asignmentId into original assignment id before sending it
         # back to AMT
@@ -1256,6 +1254,13 @@ def worker_complete():
         session.add(participant)
         session.commit()
         status = "success"
+    if config.get('mode') == "debug":
+        # Trigger notification directly in debug mode,
+        # because there won't be one from MTurk
+        _debug_notify(
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+        )
     return success_response(field="status",
                             data=status,
                             request_type="worker complete")
