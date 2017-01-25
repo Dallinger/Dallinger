@@ -14,7 +14,7 @@ def get_base_url():
         base_url = "https://{}".format(host)
     else:
         # debug mode
-        base_url = "http://{}:{}/ad".format(
+        base_url = "http://{}:{}".format(
             host, config.get("port")
         )
     return base_url
