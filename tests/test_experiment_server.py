@@ -74,6 +74,17 @@ class TestExperimentServer(FlaskAppTest):
             'mode': 'debug',
         })
         assert 'Psychology Experiment' in resp.data
+        assert 'Please click the "Accept HIT" button on the Amazon site' not in resp.data
+        assert 'Begin Experiment' in resp.data
+
+    def test_ad_before_acceptance(self):
+        resp = self.app.get('/ad', query_string={
+            'hitId': 'debug',
+            'assignmentId': 'ASSIGNMENT_ID_NOT_AVAILABLE',
+            'mode': 'debug',
+        })
+        assert 'Please click the "Accept HIT" button on the Amazon site' in resp.data
+        assert 'Begin Experiment' not in resp.data
 
     def test_ad_no_params(self):
         resp = self.app.get('/ad')
