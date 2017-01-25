@@ -32,6 +32,18 @@ table_names = [
 ]
 
 
+def load(id):
+    """Load the data from wherever it is found."""
+    # First check the user's S3 bucket.
+    k = Key(user_s3_bucket())
+    data_filename = '{}-data.zip'.format(id)
+    k.key = data_filename
+    path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
+    k.get_contents_to_filename(path_to_data)
+
+    return Data(path_to_data)
+
+
 def dump_database(id):
     """Dump the database to a temporary directory."""
 
