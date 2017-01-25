@@ -2,6 +2,7 @@
 
 from config import get_config
 
+import csv
 import errno
 import os
 import shutil
@@ -96,45 +97,8 @@ def backup(id):
     return url
 
 
-def export(id, local=False):
-    """Export data from an experiment."""
-
-    print("Preparing to export the data...")
-
-    subdata_path = os.path.join("data", id, "data")
-
-    # Create the data package if it doesn't already exist.
-    try:
-        os.makedirs(subdata_path)
-
-    except OSError as e:
-        if e.errno != errno.EEXIST or not os.path.isdir(subdata_path):
-            raise
-
-    # Copy the experiment code into a code/ subdirectory
-    try:
-        shutil.copyfile(
-            os.path.join("snapshots", id + "-code.zip"),
-            os.path.join("data", id, id + "-code.zip")
-        )
-
-    except Exception:
-        pass
-
-    # Copy in the DATA readme.
-    # open(os.path.join(id, "README.txt"), "a").close()
-
-    # Save the experiment id.
-    with open(os.path.join("data", id, "experiment_id.md"), "a+") as file:
-        file.write(id)
-
-    if not local:
-        # Export the logs
-        subprocess.check_call(
-            "heroku logs " +
-            "-n 10000 > " + os.path.join("data", id, "server_logs.md") +
-            " --app " + heroku.app_name(id),
-            shell=True)
+def copy_heroku_to_local(id):
+    """Copy a Heroku database locally."""
 
     try:
         subprocess.call([
@@ -153,12 +117,70 @@ def export(id, local=False):
         heroku.app_name(id),
     ])
 
+
+def copy_local_to_csv(local_db, path, scrub_pii=False):
+    """Copy a local database to a set of CSV files."""
     for table in table_names:
+        csv_path = os.path.join(path, "{}.csv".format(table))
         subprocess.check_call(
-            "psql -d " + heroku.app_name(id) +
+            "psql -d " + local_db +
             " --command=\"\\copy " + table + " to \'" +
-            os.path.join(subdata_path, table) + ".csv\' csv header\"",
+            csv_path + "\' csv header\"",
             shell=True)
+
+        if table is "participant" and scrub_pii:
+            with open(csv_path, 'rb') as input:
+                with open("{}.new".format(csv_path), 'wb') as output:
+                    writer = csv.writer(output)
+                    reader = csv.reader(input)
+                    headers = reader.next()
+                    writer.writerow(headers)
+                    for i, row in enumerate(reader):
+                        row[headers.index("worker_id")] = i + 1
+                        row[headers.index("unique_id")] = "{}:{}".format(
+                            i + 1,
+                            row[headers.index("assignment_id")]
+                        )
+                        writer.writerow(row)
+
+            os.rename("{}.new".format(csv_path), csv_path)
+
+
+def export(id, local=False, scrub_pii=False):
+    """Export data from an experiment."""
+
+    print("Preparing to export the data...")
+
+    copy_heroku_to_local(id)
+
+    # Create the data package if it doesn't already exist.
+    subdata_path = os.path.join("data", id, "data")
+    try:
+        os.makedirs(subdata_path)
+
+    except OSError as e:
+        if e.errno != errno.EEXIST or not os.path.isdir(subdata_path):
+            raise
+
+    # Copy in the data.
+    copy_local_to_csv(heroku.app_name(id), subdata_path, scrub_pii=scrub_pii)
+
+    # Copy the experiment code into a code/ subdirectory.
+    try:
+        shutil.copyfile(
+            os.path.join("snapshots", id + "-code.zip"),
+            os.path.join("data", id, id + "-code.zip")
+        )
+
+    except Exception:
+        pass
+
+    # Copy in the DATA readme.
+    # open(os.path.join(id, "README.txt"), "a").close()
+
+    # Save the experiment id.
+    with open(os.path.join("data", id, "experiment_id.md"), "a+") as file:
+        file.write(id)
 
     print("Zipping up the package...")
     shutil.make_archive(
