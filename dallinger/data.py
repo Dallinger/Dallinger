@@ -34,14 +34,24 @@ table_names = [
 
 def load(id):
     """Load the data from wherever it is found."""
-    # First check the user's S3 bucket.
-    k = Key(user_s3_bucket())
     data_filename = '{}-data.zip'.format(id)
-    k.key = data_filename
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
-    k.get_contents_to_filename(path_to_data)
 
-    return Data(path_to_data)
+    buckets = [
+        user_s3_bucket(),
+        dallinger_s3_bucket(),
+    ]
+
+    for bucket in buckets:
+        k = Key(bucket)
+        k.key = data_filename
+        try:
+            k.get_contents_to_filename(path_to_data)
+            return Data(path_to_data)
+        except boto.exception.S3ResponseError:
+            pass
+
+    raise IOError("Dataset {} could not be found.".format(id))
 
 
 def dump_database(id):
@@ -175,15 +185,7 @@ def export(id, local=False):
 
 def user_s3_bucket():
     """Get the user's S3 bucket."""
-    config = get_config()
-    if not config.ready:
-        config.load_config()
-
-    conn = boto.connect_s3(
-        config.get('aws_access_key_id'),
-        config.get('aws_secret_access_key'),
-    )
-
+    conn = _s3_connection()
     s3_bucket_name = "dallinger-{}".format(
         hashlib.sha256(conn.get_canonical_user_id()).hexdigest()[0:8])
 
@@ -196,6 +198,24 @@ def user_s3_bucket():
         bucket = conn.get_bucket(s3_bucket_name)
 
     return bucket
+
+
+def dallinger_s3_bucket():
+    """The public `dallinger` S3 bucket."""
+    conn = _s3_connection()
+    return conn.get_bucket("dallinger")
+
+
+def _s3_connection():
+    """An S3 connection using the AWS keys in the config."""
+    config = get_config()
+    if not config.ready:
+        config.load_config()
+
+    return boto.connect_s3(
+        config.get('aws_access_key_id'),
+        config.get('aws_secret_access_key'),
+    )
 
 
 class Data(object):
