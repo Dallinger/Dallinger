@@ -676,10 +676,12 @@ def awaken(app, databaseurl):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option('--local', is_flag=True, flag_value=True,
               help='Export local data')
-def export(app, local):
+@click.option('--no-scrub', is_flag=True, flag_value=False,
+              help='Scrub PII')
+def export(app, local, no_scrub):
     """Export the data."""
     print_header()
-    data.export(str(app), local)
+    data.export(str(app), local=local, scrub_pii=(not no_scrub))
 
 
 @dallinger.command()
