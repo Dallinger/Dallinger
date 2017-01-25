@@ -18,6 +18,21 @@ def cwd():
     os.chdir(root)
 
 
+@pytest.fixture(scope='class', autouse=True)
+def reset_config():
+    yield
+
+    # Make sure dallinger_experiment module isn't kept between tests
+    import sys
+    if 'dallinger_experiment' in sys.modules:
+        del sys.modules['dallinger_experiment']
+
+    # Make sure extra settings aren't kept between tests
+    from dallinger.config import configurations
+    if hasattr(configurations, 'config'):
+        del configurations.config
+
+
 # For tests that actually log into Amazon Mechanical Turk, get the credentials
 # from environment variables.
 @pytest.fixture
