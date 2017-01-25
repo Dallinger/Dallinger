@@ -290,10 +290,7 @@ def debug(verbose):
 
         # Call endpoint to launch the experiment
         log("Launching the experiment...")
-        time.sleep(4)
-        subprocess.check_call(
-            'curl --data "" http://{}/launch'.format(public_interface),
-            shell=True)
+        requests.post('http://{}/launch'.format(public_interface))
 
         # Monitor output from server process
         for line in iter(p.stdout.readline, ''):
