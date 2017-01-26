@@ -9,7 +9,9 @@
 /cover/
 *.egg-info/
 *.db-journal
-*.zip
+demos/*/data/*
+demos/*/snapshots/*
+docs/source/_static/*.zip
 .env
 .tox
 /snapshots/
@@ -26,3 +28,4 @@ README.rst
 .netrc
 .vagrant/
 .cache/*
+htmlcov/*
