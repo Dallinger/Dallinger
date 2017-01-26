@@ -415,10 +415,13 @@ class TestMTurkServiceWithFakeConnection(object):
 
         mock_mtc.grant_bonus.assert_called()
 
-    def test_approve_assignment(self):
-        service = self.make_one()
+    def test_approve_assignment(self, mturk_fake_creds):
         mock_config = {
             'approve_assignment.returns': ResultSet(),
         }
-        service._connection = mock.Mock(**mock_config)
-        assert service.approve_assignment('fake id') is True
+        mock_mtc = mock.Mock(**mock_config)
+        mturk_fake_creds.mturk = mock_mtc
+        assert mturk_fake_creds.approve_assignment('fake id') is True
+        mturk_fake_creds.mturk.approve_assignment.assert_called_once_with(
+            'fake id', feedback=None
+        )
