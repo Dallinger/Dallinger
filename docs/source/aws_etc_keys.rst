@@ -15,7 +15,7 @@ through
 
 ::
 
-    dallinger setup 
+    dallinger setup
 
 which will prepopulate a hidden file ``.dallingerconfig`` in your home
 directory. Alternatively, you can create this file yourself and fill it
@@ -110,6 +110,23 @@ And fill in the appropriate section of ``.dallingerconfig``:
     [Heroku Access]
     heroku_email_address = ???
     heroku_password = ???
+
+
+Open Science Framework (optional)
+---------------------------------
+
+There is an optional integration that uses the `Open Science Framework
+<https://osf.io/>`__ (OSF) to register experiments. First, create an account
+on the OSF. Next create a new OSF personal access token on the `OSF settings
+page <https://osf.io/settings/tokens/>`__.
+
+Finally, fill in the appropriate section of ``.dallingerconfig``:
+
+::
+
+    [OSF]
+    osf_access_token = ???
+
 
 Done?
 -----
