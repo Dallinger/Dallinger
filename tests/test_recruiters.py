@@ -29,7 +29,13 @@ class TestHotAirRecruiter(object):
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import HotAirRecruiter
-        return HotAirRecruiter()
+        from dallinger.config import get_config
+        os.chdir('tests/experiment')
+        config = get_config()
+        if not config.ready:
+            config.load_config()
+        yield HotAirRecruiter()
+        os.chdir('../..')
 
     def test_open_recruitment(self, recruiter):
         recruiter.open_recruitment()
