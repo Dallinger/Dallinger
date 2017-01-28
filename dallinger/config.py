@@ -148,13 +148,18 @@ class Configuration(object):
         defaults_folder = os.path.join(os.path.dirname(__file__), "default_configs")
         local_defaults_file = os.path.join(defaults_folder, "local_config_defaults.txt")
         global_defaults_file = os.path.join(defaults_folder, "global_config_defaults.txt")
-        if not os.path.exists(localConfig):
-            raise ValueError("No config.txt in the current directory")
 
-        # read default global and local, then user's global and local. This way
-        # any field not in the user's files will be set to the default value.
-        for config_file in [global_defaults_file, local_defaults_file, globalConfig, localConfig]:
+        # Load the configuration, with local settings overriding global ones.
+        for config_file in [
+            global_defaults_file,
+            local_defaults_file,
+            globalConfig,
+        ]:
             self.load_from_config_file(config_file)
+
+        if os.path.exists(localConfig):
+            self.load_from_config_file(localConfig)
+
         self.load_from_environment()
         self.ready = True
 
