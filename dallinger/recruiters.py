@@ -174,7 +174,6 @@ class MTurkRecruiter(object):
 
         if any_participant_record is not None:
             return str(any_participant_record.hit_id)
-        return bool(Participant.query.all())
 
     def approve_hit(self, assignment_id):
         return self.mturkservice.approve_assignment(assignment_id)
