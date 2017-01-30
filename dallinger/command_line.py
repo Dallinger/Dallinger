@@ -466,8 +466,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     launch_data = launch_request.json()
 
     log("URLs:")
-    log("App home: https://{}.herokuapp.com/".format(app_name(id)))
-    log("Initial recruitment: {}".format(launch_data.get('recruitment_url', None)))
+    log("App home: https://{}.herokuapp.com/".format(app_name(id)), chevrons=False)
+    log("Initial recruitment: {}".format(launch_data.get('recruitment_url', None)), chevrons=False)
 
     # Return to the branch whence we came.
     os.chdir(cwd)
