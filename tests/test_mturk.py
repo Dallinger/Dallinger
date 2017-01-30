@@ -6,6 +6,7 @@ from boto.mturk.price import Price
 from boto.mturk.connection import Assignment
 from boto.mturk.connection import HITTypeId
 from boto.mturk.connection import HIT
+from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
 from .conftest import skip_if_no_mturk_requestor
 from dallinger.mturk import MTurkService
@@ -225,6 +226,14 @@ class TestMTurkService(object):
         assert hit2 in hits
 
 
+def mock_mtc(**kwargs):
+    mock_config = {
+        'spec': MTurkConnection,
+    }
+    mock_config.update(**kwargs)
+    return mock.Mock(**mock_config)
+
+
 class TestMTurkServiceWithFakeConnection(object):
 
     def test_is_sandbox_by_default(self, mturk_fake_creds):
@@ -238,25 +247,22 @@ class TestMTurkServiceWithFakeConnection(object):
         assert 'sandbox' not in mturk_fake_creds.host
 
     def test_check_credentials_converts_response_to_boolean_true(self, mturk_fake_creds):
-        mock_mtc = mock.Mock(
+        mturk_fake_creds.mturk = mock_mtc(
             **{'get_account_balance.return_value': fake_balance_response()}
         )
-        mturk_fake_creds.mturk = mock_mtc
         assert mturk_fake_creds.check_credentials() is True
 
     def test_check_credentials_calls_get_account_balance(self, mturk_fake_creds):
-        mock_mtc = mock.Mock(
+        mturk_fake_creds.mturk = mock_mtc(
             **{'get_account_balance.return_value': fake_balance_response()}
         )
-        mturk_fake_creds.mturk = mock_mtc
         mturk_fake_creds.check_credentials()
         mturk_fake_creds.mturk.get_account_balance.assert_called_once()
 
     def test_check_credentials_bad_credentials(self, mturk_fake_creds):
-        mock_mtc = mock.Mock(
+        mturk_fake_creds.mturk = mock_mtc(
             **{'get_account_balance.side_effect': MTurkRequestError(1, 'ouch')}
         )
-        mturk_fake_creds.mturk = mock_mtc
         with pytest.raises(MTurkRequestError):
             mturk_fake_creds.check_credentials()
 
@@ -272,12 +278,11 @@ class TestMTurkServiceWithFakeConnection(object):
             'reward': .01,
             'duration_hours': .25
         }
-        mock_config = {
+        mturk_fake_creds.mturk = mock_mtc(**{
             'get_account_balance.return_value': fake_balance_response(),
             'register_hit_type.return_value': fake_hit_type_response(),
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+        })
+
         mturk_fake_creds.register_hit_type(**config)
 
         mturk_fake_creds.mturk.register_hit_type.assert_called_once_with(
@@ -293,37 +298,34 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_set_rest_notification(self, mturk_fake_creds):
         url = 'https://url-of-notification-route'
         hit_type_id = 'fake hittype id'
-        mock_config = {
+        mturk_fake_creds.mturk = mock_mtc(**{
             'set_rest_notification.return_value': ResultSet(),
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+        })
 
         mturk_fake_creds.set_rest_notification(url, hit_type_id)
 
         mturk_fake_creds.mturk.set_rest_notification.assert_called_once()
 
     def test_create_hit_calls_underlying_mturk_method(self, mturk_fake_creds):
-        mock_config = {
+        mturk_fake_creds.mturk = mock_mtc(**{
             'register_hit_type.return_value': fake_hit_type_response(),
             'set_rest_notification.return_value': ResultSet(),
-            'create_hit.return_value': fake_hit_response()
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+            'create_hit.return_value': fake_hit_response(),
+        })
+
         mturk_fake_creds.create_hit(**standard_hit_config())
 
         mturk_fake_creds.mturk.create_hit.assert_called_once()
 
     def test_create_hit_translates_response_back_from_mturk(self, mturk_fake_creds):
-        mock_config = {
+        mturk_fake_creds.mturk = mock_mtc(**{
             'register_hit_type.return_value': fake_hit_type_response(),
             'set_rest_notification.return_value': ResultSet(),
-            'create_hit.return_value': fake_hit_response()
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+            'create_hit.return_value': fake_hit_response(),
+        })
+
         hit = mturk_fake_creds.create_hit(**standard_hit_config())
+
         assert hit['max_assignments'] == 1
         assert hit['reward'] == .01
         assert hit['keywords'] == ['testkw1', 'testkw2']
@@ -331,23 +333,20 @@ class TestMTurkServiceWithFakeConnection(object):
         assert isinstance(hit['expiration'], datetime.datetime)
 
     def test_create_hit_raises_if_returned_hit_not_valid(self, mturk_fake_creds):
-        mock_config = {
+        mturk_fake_creds.mturk = mock_mtc(**{
             'register_hit_type.return_value': fake_hit_type_response(),
             'set_rest_notification.return_value': ResultSet(),
-            'create_hit.return_value': fake_hit_response(IsValid='False')
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+            'create_hit.return_value': fake_hit_response(IsValid='False'),
+        })
         with pytest.raises(MTurkServiceException):
             mturk_fake_creds.create_hit(**standard_hit_config())
 
     def test_extend_hit(self, mturk_fake_creds):
-        mock_config = {
+        mturk_fake_creds.mturk = mock_mtc(**{
             'extend_hit.return_value': None,
-            'get_hit.return_value': fake_hit_response()
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+            'get_hit.return_value': fake_hit_response(),
+        })
+
         mturk_fake_creds.extend_hit(hit_id='hit1', number=2, duration_hours=1.0)
 
         mturk_fake_creds.mturk.extend_hit.assert_has_calls([
@@ -356,11 +355,10 @@ class TestMTurkServiceWithFakeConnection(object):
         ])
 
     def test_disable_hit_simple_passthrough(self, mturk_fake_creds):
-        mock_config = {
+        mturk_fake_creds.mturk = mock_mtc(**{
             'disable_hit.return_value': ResultSet(),
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+        })
+
         mturk_fake_creds.disable_hit('some hit')
 
         mturk_fake_creds.mturk.disable_hit.assert_called_once_with('some hit')
@@ -368,21 +366,20 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_get_hits_returns_all_by_default(self, mturk_fake_creds):
         hr1 = fake_hit_response(Title='One')[0]
         ht2 = fake_hit_response(Title='Two')[0]
-        mock_config = {
+
+        mturk_fake_creds.mturk = mock_mtc(**{
             'get_all_hits.return_value': as_resultset([hr1, ht2]),
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+        })
+
         assert len(list(mturk_fake_creds.get_hits())) == 2
 
     def test_get_hits_excludes_based_on_filter(self, mturk_fake_creds):
         hr1 = fake_hit_response(Title='HIT One')[0]
         ht2 = fake_hit_response(Title='HIT Two')[0]
-        mock_config = {
+        mturk_fake_creds.mturk = mock_mtc(**{
             'get_all_hits.return_value': as_resultset([hr1, ht2]),
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+        })
+
         hits = list(mturk_fake_creds.get_hits(lambda h: 'Two' in h['title']))
 
         assert len(hits) == 1
@@ -391,12 +388,10 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_grant_bonus_translates_values_and_calls_wrapped_mturk(self, mturk_fake_creds):
         fake_assignment = Assignment(None)
         fake_assignment.WorkerId = 'some worker id'
-        mock_config = {
+        mturk_fake_creds.mturk = mock_mtc(**{
             'grant_bonus.return_value': ResultSet(),
-            'get_assignment.return_value': as_resultset(fake_assignment)
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+            'get_assignment.return_value': as_resultset(fake_assignment),
+        })
 
         mturk_fake_creds.grant_bonus(
             assignment_id='some assignment id',
@@ -404,23 +399,18 @@ class TestMTurkServiceWithFakeConnection(object):
             reason='above and beyond'
         )
 
-        # Price objects don't implement __eq__ and __ne__, so we can't compare
-        # them. :-(
-        # mock_mtc.grant_bonus.assert_called_once_with(
-        #     'some worker id',
-        #     'some assignment id',
-        #     Price(2.99),
-        #     'above and beyond'
-        # )
-
-        mock_mtc.grant_bonus.assert_called()
+        mturk_fake_creds.mturk.grant_bonus.assert_called_once_with(
+            'some worker id',
+            'some assignment id',
+            mock.ANY,  # can't compare Price objects :-(
+            'above and beyond'
+        )
 
     def test_approve_assignment(self, mturk_fake_creds):
-        mock_config = {
+        mturk_fake_creds.mturk = mock_mtc(**{
             'approve_assignment.returns': ResultSet(),
-        }
-        mock_mtc = mock.Mock(**mock_config)
-        mturk_fake_creds.mturk = mock_mtc
+        })
+
         assert mturk_fake_creds.approve_assignment('fake id') is True
         mturk_fake_creds.mturk.approve_assignment.assert_called_once_with(
             'fake id', feedback=None
