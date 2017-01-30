@@ -4,7 +4,7 @@ source = dallinger
 parallel = True
 
 [report]
-fail_under = 56
+fail_under = 59
 show_missing = True
 skip_covered = True
 
