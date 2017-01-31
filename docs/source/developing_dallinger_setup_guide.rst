@@ -201,7 +201,7 @@ Next run ``setup.py`` with the argument ``develop``:
 
 ::
 
-    python setup.py develop
+    pip install -e .[data]
 
 Test that your installation works by running:
 

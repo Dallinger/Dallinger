@@ -69,7 +69,7 @@ Install Dallinger from the terminal by running
 
 ::
 
-    pip install dallinger
+    pip install dallinger[data]
 
 Test that your installation works by running:
 
