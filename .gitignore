@@ -29,3 +29,4 @@ README.rst
 .cache/*
 htmlcov/*
 tests/config.py
+*.ipynb_checkpoints/
