@@ -38,6 +38,12 @@ setup_args = dict(
         'dallinger.experiments': [
             'Bartlett1932 = demos.bartlett1932.experiment:Bartlett1932',
         ],
+    },
+    extras_require={
+        'data': [
+            "odo==0.5.0",
+            "tablib==0.11.3"
+        ],
     }
 )
 
