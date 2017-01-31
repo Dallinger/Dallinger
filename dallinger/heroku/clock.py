@@ -6,7 +6,6 @@ import os
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from boto.mturk.connection import MTurkConnection
-from dallinger.config import get_config
 import requests
 
 import dallinger
@@ -20,6 +19,7 @@ experiment = dallinger.experiment.load()
 session = db.session
 
 scheduler = BlockingScheduler()
+config = dallinger.config.get_config()
 
 
 def run_check(config, mturk, participants, session, reference_time):
@@ -126,7 +126,6 @@ def run_check(config, mturk, participants, session, reference_time):
 @scheduler.scheduled_job('interval', minutes=0.5)
 def check_db_for_missing_notifications():
     """Check the database for missing notifications."""
-    config = get_config()
     aws_access_key_id = config.get('aws_access_key_id')
     aws_secret_access_key = config.get('aws_secret_access_key')
     host_by_sandbox_setting = {
@@ -146,8 +145,8 @@ def check_db_for_missing_notifications():
 
 
 def launch():
-    config = get_config()
-    config.load_config()
+    if not config.ready:
+        config.load_config()
     scheduler.start()
 
 

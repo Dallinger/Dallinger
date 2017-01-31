@@ -4,10 +4,13 @@ from collections import deque
 from ConfigParser import SafeConfigParser
 import distutils.util
 import imp
+import logging
 import os
 import threading
 
 from .compat import unicode
+
+logger = logging.getLogger(__file__)
 
 marker = object()
 
@@ -40,8 +43,8 @@ class Configuration(object):
                 # This key hasn't been registered, we ignore it
                 if strict:
                     raise KeyError('{} is not a valid configuration key'.format(key))
-                else:
-                    continue
+                logger.warn('{} is not a valid configuration key'.format(key))
+                continue
             expected_type = self.types.get(key)
             if cast_types:
                 try:
@@ -64,7 +67,7 @@ class Configuration(object):
 
     def get(self, key, default=marker):
         if not self.ready:
-            raise RuntimeError('Config loading not finished')
+            raise RuntimeError('Config not loaded')
         for layer in self.data:
             try:
                 return layer[key]
@@ -180,8 +183,9 @@ class Configuration(object):
                     extra_settings = getattr(exp, 'extra_settings', None)
                 except (ImportError, IOError):
                     pass
-        if extra_settings is not None:
+        if extra_settings is not None and getattr(extra_settings, 'loaded', None) is None:
             extra_settings()
+            extra_settings.loaded = True
 
 
 configurations = threading.local()

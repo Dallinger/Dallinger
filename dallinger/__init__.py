@@ -2,6 +2,7 @@
 
 from . import (
     command_line,
+    config,
     models,
     information,
     nodes,
@@ -15,11 +16,6 @@ from . import (
 
 import logging
 from logging import NullHandler
-from localconfig import LocalConfig
-# Read directory local config last
-config = LocalConfig("config.txt", interpolation=True)
-# Read global config first
-config.read('~/.dallingerconfig')
 logger = logging.getLogger(__name__)
 logger.addHandler(NullHandler())
 
