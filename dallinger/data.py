@@ -13,9 +13,13 @@ from zipfile import ZipFile
 import boto
 from boto.s3.key import Key
 import hashlib
-import odo
-import pandas as pd
-import tablib
+
+try:
+    import odo
+    import pandas as pd
+    import tablib
+except ImportError:
+    pass
 
 from dallinger import heroku
 
