@@ -247,7 +247,6 @@ def _s3_connection():
 class Data(object):
     """Dallinger data object."""
     def __init__(self, URL):
-        super(Data, self).__init__()
 
         self.source = URL
 
@@ -268,7 +267,6 @@ class Data(object):
 class Table(object):
     """Dallinger data-table object."""
     def __init__(self, path):
-        super(Table, self).__init__()
 
         self.odo_resource = odo.resource(path)
         self.tablib_dataset = tablib.Dataset().load(open(path).read())
