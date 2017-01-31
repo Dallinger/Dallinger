@@ -15,6 +15,7 @@ Laboratory automation for the behavioral and social sciences.
     monitoring_a_live_experiment
     postico_and_postgres
     command_line_utility
+    python_module
     registration_on_OSF
 
 .. toctree::
