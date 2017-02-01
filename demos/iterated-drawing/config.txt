@@ -20,7 +20,6 @@ browser_exclude_rule = MSIE, mobile, tablet
 [Database Parameters]
 database_url = postgresql://postgres@localhost/dallinger
 table_name = psiturk
-anonymize_data = false
 database_size = standard-0
 
 [Server Parameters]
@@ -34,4 +33,3 @@ logfile = -
 
 [Shell Parameters]
 launch_in_sandbox_mode = true
-
