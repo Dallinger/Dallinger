@@ -142,10 +142,7 @@ class Configuration(object):
         self.register_extra_settings()
 
         globalConfigName = ".dallingerconfig"
-        if 'OPENSHIFT_SECRET_TOKEN' in os.environ:
-            globalConfig = os.path.join(os.environ['OPENSHIFT_DATA_DIR'], globalConfigName)
-        else:
-            globalConfig = os.path.expanduser(os.path.join("~/", globalConfigName))
+        globalConfig = os.path.expanduser(os.path.join("~/", globalConfigName))
         localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
 
         defaults_folder = os.path.join(os.path.dirname(__file__), "default_configs")
