@@ -1,3 +1,3 @@
-web: python psiturkapp.py
+web: python launch.py
 worker: python worker.py
 clock: python clock.py
