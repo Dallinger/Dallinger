@@ -116,7 +116,7 @@ class Configuration(object):
 
         # @@@ Temporary workaround until we remove use of psiturk recruiter
         parser.add_section('Database Parameters')
-        for key in ('database_url', 'table_name', 'anonymize_data', 'database_size'):
+        for key in ('database_url', 'table_name', 'database_size'):
             parser.set('Database Parameters', key, str(self.get(key)))
         parser.add_section('Server Parameters')
         for key in ('host', 'port', 'notification_url'):
@@ -199,7 +199,6 @@ def get_config():
     default_keys = (
         ('ad_group', unicode, []),
         ('amt_keywords', unicode, []),
-        ('anonymize_data', bool, []),
         ('approve_requirement', int, []),
         ('auto_recruit', bool, []),
         ('aws_access_key_id', unicode, [], True),
