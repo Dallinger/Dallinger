@@ -186,7 +186,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
     heroku_files = [
         "Procfile",
-        "psiturkapp.py",
+        "launch.py",
         "worker.py",
         "clock.py",
     ]
@@ -267,7 +267,7 @@ def debug(verbose):
 
     # Start up the local server
     log("Starting up the server...")
-    path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'psiturkapp.py'))
+    path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'launch.py'))
     p = subprocess.Popen(
         [sys.executable, '-u', path],
         stdout=subprocess.PIPE,

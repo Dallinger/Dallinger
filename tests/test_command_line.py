@@ -44,7 +44,7 @@ class TestSetupExperiment(object):
         assert(os.path.exists('dallinger_experiment.py') is False)
         assert(os.path.exists('experiment_id.txt') is False)
         assert(os.path.exists('Procfile') is False)
-        assert(os.path.exists('psiturkapp.py') is False)
+        assert(os.path.exists('launch.py') is False)
         assert(os.path.exists('worker.py') is False)
         assert(os.path.exists('clock.py') is False)
 
@@ -61,7 +61,7 @@ class TestSetupExperiment(object):
                            os.path.join(exp_dir, 'experiment.py')) is True)
 
         assert(os.path.exists('Procfile') is True)
-        assert(os.path.exists('psiturkapp.py') is True)
+        assert(os.path.exists('launch.py') is True)
         assert(os.path.exists('worker.py') is True)
         assert(os.path.exists('clock.py') is True)
         assert(os.path.exists(os.path.join("static", "css", "dallinger.css")) is True)
