@@ -36,7 +36,7 @@ go_to_page = function(page) {
     window.location = "/" + page + "?participant_id=" + participant_id;
 };
 
-// go back to psiturk
+// report assignment complete
 submitAssignment = function() {
     reqwest({
         url: "/participant/" + participant_id,

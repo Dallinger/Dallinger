@@ -368,7 +368,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     except:
         whimsical = "false"
 
-    # Set up postgres database and AWS/psiTurk environment variables.
+    # Set up postgres database and AWS environment variables.
     cmds = [
         "heroku addons:create heroku-postgresql:{}".format(quote(database_size)),
 
@@ -389,12 +389,6 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
         "heroku config:set aws_region=" +
         quote(config.get('aws_region')),
-
-        "heroku config:set psiturk_access_key_id=" +
-        quote(config.get('psiturk_access_key_id')),
-
-        "heroku config:set psiturk_secret_access_id=" +
-        quote(config.get('psiturk_secret_access_id')),
 
         "heroku config:set auto_recruit={}".format(config.get('auto_recruit')),
 

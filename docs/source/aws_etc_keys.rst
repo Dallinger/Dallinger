@@ -1,9 +1,9 @@
-Setting Up AWS, psiTurk, and Heroku
-===================================
+Setting Up AWS, Mechanical Turk, and Heroku
+===========================================
 
 Before you can use Dallinger, you will need accounts with Amazon Web
-Services, Amazon Mechanical Turk, Heroku, and psiTurk. You will then
-need to create a configuration file and set up your environment so that
+Services, Amazon Mechanical Turk, and Heroku. You will then need to
+create a configuration file and set up your environment so that
 Dallinger can access your accounts.
 
 Create the configuration file
@@ -27,10 +27,6 @@ in like so:
     aws_access_key_id = ???
     aws_secret_access_key = ???
     aws_region = us-east-1
-
-    [psiTurk Access]
-    psiturk_access_key_id = ???
-    psiturk_secret_access_id = ???
 
     [Heroku Access]
     heroku_email_address = ???
@@ -96,30 +92,6 @@ test and monitor experiments. You should also sign in to each sandbox,
 `worker <https://workersandbox.mturk.com/mturk/welcome>`__ using the
 same account. Store this account and password somewhere, but you don't
 need to tell it to Dallinger.
-
-psiTurk
--------
-
-Next, create an account on `psiTurk <http://psiturk.org/>`__, which will
-require a valid email address. Once you confirm your account, click on
-`**API Keys** <https://psiturk.org/dashboard/api_credentials>`__, which
-will allow you to access your API keys as seen in the image below:
-
-.. figure:: http://note.io/145nfz4
-   :alt: Don't even try to use these API Keys, they've been reissued!
-
-   Don't even try to use these API Keys, they've been reissued!
-
-Place these credential in the ``.dallingerconfig`` file:
-
-Then fill in the following lines of ``.dallingerconfig``, replacing
-``???`` with your keys:
-
-::
-
-    [psiTurk Access]
-    psiturk_access_key_id = ???
-    psiturk_secret_access_id = ???
 
 Heroku
 ------
