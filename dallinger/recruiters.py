@@ -63,24 +63,24 @@ class HotAirRecruiter(object):
         return True
 
 
-class SimulatedRecruiter(object):
-    """A recruiter that recruits simulated participants."""
+class BotRecruiter(Recruiter):
+    """The base recruiter."""
 
     def __init__(self):
-        """Create a simulated recruiter."""
-        super(SimulatedRecruiter, self).__init__()
+        """Create a recruiter."""
+        super(Recruiter, self).__init__()
 
-    def open_recruitment(self, n=1):
-        """Open recruitment."""
-        self.recruit_participants(n)
+    def open_recruitment(self):
+        """Throw an error."""
+        raise NotImplementedError
 
     def recruit_participants(self, n=1):
-        """Recruit n participants."""
-        pass
+        """Throw an error."""
+        raise NotImplementedError
 
     def close_recruitment(self):
-        """Do nothing."""
-        pass
+        """Throw an error."""
+        raise NotImplementedError
 
 
 class MTurkRecruiterException(Exception):
