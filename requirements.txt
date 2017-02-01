@@ -3,7 +3,7 @@ boto==2.45.0
 click==6.6
 Flask==0.12
 future==0.16.0
-gunicorn=19.6.0
+gunicorn==19.6.0
 localconfig==0.4.2
 pexpect==4.2.1
 psycopg2==2.6.2
