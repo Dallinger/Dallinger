@@ -365,6 +365,13 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         pass
 
     subprocess.check_call(create_cmd, stdout=out)
+
+    subprocess.check_call([
+        "heroku",
+        "buildpacks:add",
+        "https://github.com/stomita/heroku-buildpack-phantomjs",
+    ])
+
     database_size = config.get('database_size')
 
     try:
