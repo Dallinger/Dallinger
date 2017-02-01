@@ -8,9 +8,7 @@ import string
 def get_base_url():
     config = get_config()
     host = os.getenv('HOST', config.get('host'))
-    if 'OPENSHIFT_SECRET_TOKEN' in os.environ:
-        base_url = "http://{}".format(host)
-    elif 'herokuapp.com' in host:
+    if 'herokuapp.com' in host:
         base_url = "https://{}".format(host)
     else:
         # debug mode
