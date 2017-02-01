@@ -46,7 +46,6 @@ Postgres
 PostgreSQL
 Postico
 prepopulate
-psiTurk
 Psychonomic
 py
 Richerson
