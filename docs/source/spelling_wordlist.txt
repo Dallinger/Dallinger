@@ -49,7 +49,6 @@ Postgres
 PostgreSQL
 Postico
 prepopulate
-psiTurk
 Psychonomic
 py
 pytest
