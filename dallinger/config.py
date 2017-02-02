@@ -114,20 +114,6 @@ class Configuration(object):
                     continue
                 parser.set('Parameters', k, str(v))
 
-        # @@@ Temporary workaround until we remove use of psiturk recruiter
-        parser.add_section('Database Parameters')
-        for key in ('database_url', 'table_name', 'database_size'):
-            parser.set('Database Parameters', key, str(self.get(key)))
-        parser.add_section('Server Parameters')
-        for key in ('host', 'port', 'notification_url'):
-            parser.set('Server Parameters', key, str(self.get(key)))
-        parser.add_section('HIT Configuration')
-        for key in (
-                'organization_name', 'title', 'contact_email_on_error', 'ad_group',
-                'psiturk_keywords', 'browser_exclude_rule', 'approve_requirement',
-                'us_only', 'lifetime', 'description', 'amt_keywords'):
-            parser.set('HIT Configuration', key, str(self.get(key)))
-
         with open(LOCAL_CONFIG, 'w') as fp:
             parser.write(fp)
 
