@@ -46,6 +46,9 @@ class TestHotAirRecruiter(object):
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
 
+    def test_approve_hit(self, recruiter):
+        assert recruiter.approve_hit('any assignment id')
+
 
 class TestSimulatedRecruiter(object):
 
@@ -143,6 +146,12 @@ class TestMTurkRecruiter(object):
         with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment(n=1)
 
+    def test_open_recruitment_raises_in_debug_mode(self):
+        from dallinger.recruiters import MTurkRecruiterException
+        recruiter = self.make_one(mode='debug')
+        with pytest.raises(MTurkRecruiterException):
+            recruiter.open_recruitment()
+
     def test_open_recruitment_check_creds_before_calling_create_hit(self):
         recruiter = self.make_one()
         recruiter.open_recruitment(n=1)
@@ -164,6 +173,30 @@ class TestMTurkRecruiter(object):
             title='fake experiment title',
             us_only=True
         )
+
+    def test_open_recruitment_is_noop_if_experiment_in_progress(self):
+        from dallinger.models import Participant
+        participant = Participant(
+            worker_id='1', hit_id='1', assignment_id='1', mode="test")
+        self.db.add(participant)
+        recruiter = self.make_one()
+        recruiter.open_recruitment()
+
+        recruiter.mturkservice.check_credentials.assert_not_called()
+
+    def test_current_hit_id_with_active_experiment(self):
+        from dallinger.models import Participant
+        participant = Participant(
+            worker_id='1', hit_id='the hit!', assignment_id='1', mode="test")
+        self.db.add(participant)
+        recruiter = self.make_one()
+
+        assert recruiter.current_hit_id() == 'the hit!'
+
+    def test_current_hit_id_with_no_active_experiment(self):
+        recruiter = self.make_one()
+
+        assert recruiter.current_hit_id() is None
 
     def test_recruit_participants_auto_recruit_on_recruits_for_current_hit(self):
         recruiter = self.make_one()
