@@ -28,6 +28,7 @@ from dallinger.config import get_config
 import psycopg2
 import redis
 import requests
+from collections import Counter
 
 from dallinger import db
 from dallinger import heroku
@@ -35,6 +36,7 @@ from dallinger.heroku import (
     app_name,
     scale_up_dynos
 )
+from dallinger.mturk import MTurkService
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -511,64 +513,33 @@ def deploy(verbose, app):
 @click.option('--worker')
 def qualify(qualification, value, worker):
     """Assign a qualification to a worker."""
-    # create connection to AWS
-    from boto.mturk.connection import MTurkConnection
     config = get_config()
     config.load_config()
-    aws_access_key_id = config.get('aws_access_key_id')
-    aws_secret_access_key = config.get('aws_secret_access_key')
-    conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
+    mturk = MTurkService(
+        aws_access_key_id=config.get('aws_access_key_id'),
+        aws_secret_access_key=config.get('aws_secret_access_key'),
+        sandbox=config.get('launch_in_sandbox_mode')
+    )
 
-    def get_workers_with_qualification(qualification):
-        """Get workers with the given qualification."""
-        results = []
-        continue_flag = True
-        page = 1
-        while(continue_flag):
-            new_results = conn.get_qualifications_for_qualification_type(
-                qualification,
-                page_size=100,
-                page_number=page)
-
-            if(len(new_results) == 0):
-                continue_flag = False
-            else:
-                results.extend(new_results)
-                page = page + 1
-
-        return results
-
-    results = get_workers_with_qualification(qualification)
-    workers = [x.SubjectId for x in results]
-
-    # assign the qualification
     click.echo(
         "Assigning qualification {} with value {} to worker {}".format(
             qualification,
             value,
-            worker))
+            worker)
+    )
 
-    if worker in workers:
-        result = conn.update_qualification_score(qualification, worker, value)
-    else:
-        result = conn.assign_qualification(qualification, worker, value)
-
-    if result:
-        click.echo(result)
+    if mturk.set_qualification_score(qualification, worker, value):
+        click.echo('OK')
 
     # print out the current set of workers with the qualification
-    results = get_workers_with_qualification(qualification)
+    results = list(mturk.get_workers_with_qualification(qualification))
 
     click.echo("{} workers with qualification {}:".format(
         len(results),
         qualification))
 
-    values = [r.IntegerValue for r in results]
-    unique_values = list(set([r.IntegerValue for r in results]))
-    for v in unique_values:
-        click.echo("{} with value {}".format(
-            len([val for val in values if val == v]),
-            v))
+    for score, count in Counter([r['score'] for r in results]).items():
+        click.echo("{} with value {}".format(count, score))
 
 
 def dump_database(id):
