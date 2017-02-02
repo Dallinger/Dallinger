@@ -95,6 +95,73 @@ class MTurkService(object):
 
         return quals
 
+    def create_qualification_type(self, name, description, status):
+        """Passthrough. Create a new qualification Workers can be scored for.
+        """
+        qtype = self.mturk.create_qualification_type(name, description, status)[0]
+        if qtype.IsValid != 'True':
+            raise MTurkServiceException(
+                "Qualification creation request was invalid for unknown reason.")
+
+        return {
+            'id': qtype.QualificationTypeId,
+            'created': timestr_to_dt(qtype.CreationTime),
+            'name': qtype.Name,
+            'description': qtype.Description,
+            'status': qtype.QualificationTypeStatus,
+        }
+
+    def assign_qualification(self, qualification_id, worker_id, score, notify=True):
+        """Score a worker for a specific qualification"""
+        return self._is_ok(self.mturk.assign_qualification(
+            qualification_id,
+            worker_id,
+            score,
+            notify
+        ))
+
+    def update_qualification_score(self, qualification_id, worker_id, score):
+        """Score a worker for a specific qualification"""
+        return self._is_ok(self.mturk.update_qualification_score(
+            qualification_id,
+            worker_id,
+            score,
+        ))
+
+    def dispose_qualification_type(self, qualification_id):
+        """Remove a qualification type we created"""
+        return self._is_ok(
+            self.mturk.dispose_qualification_type(qualification_id)
+        )
+
+    def get_workers_with_qualification(self, qualification_id):
+        """Get workers with the given qualification."""
+        done = False
+        page = 1
+        while not done:
+            res = self.mturk.get_qualifications_for_qualification_type(
+                qualification_id,
+                page_size=100,
+                page_number=page
+            )
+            if res:
+                for r in res:
+                    yield {'id': r.SubjectId, 'score': r.IntegerValue}
+                page = page + 1
+            else:
+                done = True
+
+    def set_qualification_score(self, qualification_id, worker_id, score, notify=True):
+        """Convenience method will set a qualification score regardless of
+        whether the worker already has a score for the specified qualification.
+        """
+        existing_workers = [
+            w['id'] for w in self.get_workers_with_qualification(qualification_id)
+        ]
+        if worker_id in existing_workers:
+            return self.update_qualification_score(qualification_id, worker_id, score)
+        return self.assign_qualification(qualification_id, worker_id, score, notify)
+
     def create_hit(self, title, description, keywords, reward, duration_hours,
                    lifetime_days, ad_url, notification_url, approve_requirement,
                    max_assignments, us_only):
