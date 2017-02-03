@@ -1243,7 +1243,7 @@ def check_for_duplicate_assignments(participant):
 @app.route('/worker_complete', methods=['GET'])
 @db.scoped_session_decorator
 def worker_complete():
-    ''' Complete worker. '''
+    """Complete worker."""
     if 'uniqueId' not in request.args:
         status = "bad request"
     else:
