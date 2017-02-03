@@ -10,8 +10,8 @@ from boto.mturk.connection import Qualification
 from boto.mturk.connection import QualificationType
 from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
-from .conftest import skip_if_not_mturk_requestor
-from .conftest import skip_if_not_mturk_requestor_and_worker
+from .conftest import skip_if_not_mturk_requester
+from .conftest import skip_if_not_mturk_requester_and_worker
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
 
@@ -175,7 +175,7 @@ def mturk_with_cleanup(creds_from_environment, request):
         service.dispose_qualification_type(qtype_id)
 
 
-@skip_if_not_mturk_requestor
+@skip_if_not_mturk_requester
 class TestMTurkService(object):
 
     def test_check_credentials_good_credentials(self, mturk):
@@ -281,8 +281,8 @@ class TestMTurkService(object):
         assert mturk_with_cleanup.dispose_qualification_type(result['id'])
 
 
-@skip_if_not_mturk_requestor_and_worker
-class TestMTurkServiceWithRequestorAndWorker(object):
+@skip_if_not_mturk_requester_and_worker
+class TestMTurkServiceWithRequesterAndWorker(object):
 
     def _make_qtype(self, mturk):
         qtype = mturk.create_qualification_type(
