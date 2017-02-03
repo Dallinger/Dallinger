@@ -46,17 +46,17 @@ def creds_from_environment():
 
 # decorator for test methods or classes which should be skipped if there
 # are no aws credentials set in the environment
-skip_if_not_mturk_requestor = pytest.mark.skipif(
-    not os.getenv('is_aws_mturk_requestor') and
+skip_if_not_mturk_requester = pytest.mark.skipif(
+    not os.getenv('is_aws_mturk_requester') and
     creds_from_environment().values(),
     reason="Not configured to run Amazon MTurk system tests."
 )
 
-skip_if_not_mturk_requestor_and_worker = pytest.mark.skipif(
+skip_if_not_mturk_requester_and_worker = pytest.mark.skipif(
     not (
-        os.getenv('is_aws_mturk_requestor') and
+        os.getenv('is_aws_mturk_requester') and
         os.getenv('mturk_worker_id') and
         creds_from_environment().values()
     ),
-    reason="Not configured to run Amazon MTurk requestor/worker tests."
+    reason="Not configured to run Amazon MTurk requester/worker tests."
 )
