@@ -31,7 +31,7 @@ management & direction:
     Mike Pacer
     Alex Paxton
     Pyup bot
-    Jess Snyder
+    Jesse Snyder
     Jordan Suchow
     Matthew Wilkes
 
