@@ -142,23 +142,7 @@ def mturk(creds_from_environment):
 
 
 @pytest.fixture
-def mturk_fake_creds():
-    creds = {
-        'aws_access_key_id': 'fake key id',
-        'aws_secret_access_key': 'fake secret'
-    }
-    service = MTurkService(**creds)
-    return service
-
-
-@pytest.fixture
-def mturk_empty_creds():
-    service = MTurkService(aws_access_key_id='', aws_secret_access_key='')
-    return service
-
-
-@pytest.fixture
-def mturk_with_cleanup(creds_from_environment, request):
+def with_cleanup(creds_from_environment, request):
     creds = creds_from_environment
     service = MTurkService(**creds)
     request.instance._qtypes_to_purge = []
@@ -171,6 +155,7 @@ def mturk_with_cleanup(creds_from_environment, request):
     for hit in service.get_hits(test_hits_only):
         service.disable_hit(hit['id'])
 
+    # remove QualificationTypes we may have added:
     for qtype_id in request.instance._qtypes_to_purge:
         service.dispose_qualification_type(qtype_id)
 
@@ -182,13 +167,17 @@ class TestMTurkService(object):
         is_authenticated = mturk.check_credentials()
         assert is_authenticated
 
-    def test_check_credentials_bad_credentials(self, mturk_fake_creds):
+    def test_check_credentials_bad_credentials(self, mturk):
+        mturk.aws_access_key_id = 'fake key id'
+        mturk.aws_secret_access_key = 'fake secret'
         with pytest.raises(MTurkRequestError):
-            mturk_fake_creds.check_credentials()
+            mturk.check_credentials()
 
-    def test_check_credentials_no_creds_set_raises(self, mturk_empty_creds):
+    def test_check_credentials_no_creds_set_raises(self, mturk):
+        mturk.aws_access_key_id = ''
+        mturk.aws_secret_access_key = ''
         with pytest.raises(MTurkServiceException):
-            mturk_empty_creds.check_credentials()
+            mturk.check_credentials()
 
     def test_register_hit_type(self, mturk):
         config = {
@@ -215,23 +204,20 @@ class TestMTurkService(object):
 
         assert mturk.set_rest_notification(url, hit_type_id) is True
 
-    def test_create_hit(self, mturk_with_cleanup):
-        service = mturk_with_cleanup
-        hit = service.create_hit(**standard_hit_config())
+    def test_create_hit(self, with_cleanup):
+        hit = with_cleanup.create_hit(**standard_hit_config())
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 1
 
-    def test_create_hit_two_assignments(self, mturk_with_cleanup):
-        service = mturk_with_cleanup
-        hit = service.create_hit(**standard_hit_config(max_assignments=2))
+    def test_create_hit_two_assignments(self, with_cleanup):
+        hit = with_cleanup.create_hit(**standard_hit_config(max_assignments=2))
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 2
 
-    def test_extend_hit_with_valid_hit_id(self, mturk_with_cleanup):
-        service = mturk_with_cleanup
-        hit = service.create_hit(**standard_hit_config())
+    def test_extend_hit_with_valid_hit_id(self, with_cleanup):
+        hit = with_cleanup.create_hit(**standard_hit_config())
 
-        updated = service.extend_hit(hit['id'], number=1, duration_hours=.25)
+        updated = with_cleanup.extend_hit(hit['id'], number=1, duration_hours=.25)
 
         assert updated['max_assignments'] == 2
         clock_skew = .01
@@ -239,38 +225,32 @@ class TestMTurkService(object):
         assert updated['expiration'] >= hit['expiration'] + expected_extension
 
     def test_extend_hit_with_invalid_hit_id_raises(self, mturk):
-        service = mturk
         with pytest.raises(MTurkRequestError):
-            service.extend_hit('dud', number=1, duration_hours=.25)
+            mturk.extend_hit('dud', number=1, duration_hours=.25)
 
-    def test_disable_hit_with_valid_hit_id(self, mturk_with_cleanup):
-        service = mturk_with_cleanup
-        hit = service.create_hit(**standard_hit_config())
-        assert service.disable_hit(hit['id'])
+    def test_disable_hit_with_valid_hit_id(self, with_cleanup):
+        hit = with_cleanup.create_hit(**standard_hit_config())
+        assert with_cleanup.disable_hit(hit['id'])
 
     def test_disable_hit_with_invalid_hit_id_raises(self, mturk):
-        service = mturk
         with pytest.raises(MTurkRequestError):
-            service.disable_hit('dud')
+            mturk.disable_hit('dud')
 
-    def test_get_hits_returns_all_by_default(self, mturk_with_cleanup):
-        service = mturk_with_cleanup
-        hit = service.create_hit(**standard_hit_config())
-        hits = service.get_hits()
+    def test_get_hits_returns_all_by_default(self, with_cleanup):
+        hit = with_cleanup.create_hit(**standard_hit_config())
 
-        assert hit in hits
+        assert hit in with_cleanup.get_hits()
 
-    def test_get_hits_excludes_based_on_filter(self, mturk_with_cleanup):
-        service = mturk_with_cleanup
-        hit1 = service.create_hit(**standard_hit_config())
-        hit2 = service.create_hit(**standard_hit_config(title='HIT Two'))
-        hits = list(service.get_hits(lambda h: 'Two' in h['title']))
+    def test_get_hits_excludes_based_on_filter(self, with_cleanup):
+        hit1 = with_cleanup.create_hit(**standard_hit_config())
+        hit2 = with_cleanup.create_hit(**standard_hit_config(title='HIT Two'))
+        hits = list(with_cleanup.get_hits(lambda h: 'Two' in h['title']))
 
         assert hit1 not in hits
         assert hit2 in hits
 
-    def test_create_and_dispose_qualification_type(self, mturk_with_cleanup):
-        result = mturk_with_cleanup.create_qualification_type(
+    def test_create_and_dispose_qualification_type(self, with_cleanup):
+        result = with_cleanup.create_qualification_type(
             name='Test Qualifiction',
             description=TEST_QUALIFICATION_DESCRIPTION,
             status='Active',
@@ -278,7 +258,7 @@ class TestMTurkService(object):
 
         assert isinstance(result['id'], unicode)
         assert result['status'] == u'Active'
-        assert mturk_with_cleanup.dispose_qualification_type(result['id'])
+        assert with_cleanup.dispose_qualification_type(result['id'])
 
 
 @skip_if_not_mturk_requester_and_worker
@@ -298,112 +278,122 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         import os
         return os.getenv('mturk_worker_id')
 
-    def test_assign_and_revoke_qualification(self, mturk_with_cleanup):
-        qtype = mturk_with_cleanup.create_qualification_type(
+    def test_assign_and_revoke_qualification(self, with_cleanup):
+        qtype = with_cleanup.create_qualification_type(
             name='Test Qualifiction',
             description=TEST_QUALIFICATION_DESCRIPTION,
             status='Active',
         )
 
-        assert mturk_with_cleanup.assign_qualification(
+        assert with_cleanup.assign_qualification(
             qtype['id'], self.worker_id, score=2, notify=False)
-        assert mturk_with_cleanup.dispose_qualification_type(qtype['id'])
+        assert with_cleanup.dispose_qualification_type(qtype['id'])
 
-    def test_assign_already_granted_qualification_raises(self, mturk_with_cleanup):
-        service = mturk_with_cleanup
-        qtype = self._make_qtype(service)
-        service.assign_qualification(qtype['id'], self.worker_id, score=2, notify=False)
+    def test_assign_already_granted_qualification_raises(self, with_cleanup):
+        qtype = self._make_qtype(with_cleanup)
+        with_cleanup.assign_qualification(
+            qtype['id'], self.worker_id, score=2, notify=False
+        )
 
         with pytest.raises(MTurkRequestError):
-            service.assign_qualification(qtype['id'], self.worker_id, score=2, notify=False)
+            with_cleanup.assign_qualification(
+                qtype['id'], self.worker_id, score=2, notify=False)
 
-    def test_update_qualification_score(self, mturk_with_cleanup):
-        qtype = self._make_qtype(mturk_with_cleanup)
-        mturk_with_cleanup.assign_qualification(
+    def test_update_qualification_score(self, with_cleanup):
+        qtype = self._make_qtype(with_cleanup)
+        with_cleanup.assign_qualification(
             qtype['id'], self.worker_id, score=2, notify=False)
 
-        mturk_with_cleanup.update_qualification_score(qtype['id'], self.worker_id, score=3)
-        new_score = mturk_with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id)[0].IntegerValue
+        with_cleanup.update_qualification_score(qtype['id'], self.worker_id, score=3)
 
+        new_score = with_cleanup.mturk.get_qualification_score(
+            qtype['id'], self.worker_id)[0].IntegerValue
         assert new_score == '3'
 
-    def test_get_workers_with_qualification(self, mturk_with_cleanup):
-        qtype = self._make_qtype(mturk_with_cleanup)
-        mturk_with_cleanup.assign_qualification(
+    def test_get_workers_with_qualification(self, with_cleanup):
+        qtype = self._make_qtype(with_cleanup)
+        with_cleanup.assign_qualification(
             qtype['id'], self.worker_id, score=2, notify=False)
 
-        workers = mturk_with_cleanup.get_workers_with_qualification(qtype['id'])
+        workers = with_cleanup.get_workers_with_qualification(qtype['id'])
+
         assert self.worker_id in [w['id'] for w in workers]
 
-    def test_set_qualification_score_with_new_qualification(self, mturk_with_cleanup):
-        service = mturk_with_cleanup
-        qtype = self._make_qtype(service)
+    def test_set_qualification_score_with_new_qualification(self, with_cleanup):
+        qtype = self._make_qtype(with_cleanup)
 
-        service.set_qualification_score(qtype['id'], self.worker_id, score=2, notify=False)
-        new_score = mturk_with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id)[0].IntegerValue
-
-        assert new_score == '2'
-
-    def test_set_qualification_score_with_existing_qualification(self, mturk_with_cleanup):
-        service = mturk_with_cleanup
-        qtype = self._make_qtype(service)
-        mturk_with_cleanup.assign_qualification(
+        with_cleanup.set_qualification_score(
             qtype['id'], self.worker_id, score=2, notify=False)
 
-        service.set_qualification_score(qtype['id'], self.worker_id, score=3, notify=False)
-        new_score = mturk_with_cleanup.mturk.get_qualification_score(
+        new_score = with_cleanup.mturk.get_qualification_score(
             qtype['id'], self.worker_id)[0].IntegerValue
+        assert new_score == '2'
 
+    def test_set_qualification_score_with_existing_qualification(self, with_cleanup):
+        qtype = self._make_qtype(with_cleanup)
+        with_cleanup.assign_qualification(
+            qtype['id'], self.worker_id, score=2, notify=False)
+
+        with_cleanup.set_qualification_score(qtype['id'], self.worker_id, score=3, notify=False)
+
+        new_score = with_cleanup.mturk.get_qualification_score(
+            qtype['id'], self.worker_id)[0].IntegerValue
         assert new_score == '3'
 
 
-def mock_mtc(**kwargs):
-    mock_config = {
-        'spec': MTurkConnection,
+@pytest.fixture
+def with_mock():
+    creds = {
+        'aws_access_key_id': '',
+        'aws_secret_access_key': ''
     }
-    mock_config.update(**kwargs)
-    return mock.Mock(**mock_config)
+    service = MTurkService(**creds)
+    service.mturk = mock.Mock(spec=MTurkConnection)
+    return service
 
 
 class TestMTurkServiceWithFakeConnection(object):
 
-    def test_is_sandbox_by_default(self, mturk_fake_creds):
-        assert mturk_fake_creds.is_sandbox
+    def test_is_sandbox_by_default(self, with_mock):
+        assert with_mock.is_sandbox
 
-    def test_host_server_is_sandbox_by_default(self, mturk_fake_creds):
-        assert 'sandbox' in mturk_fake_creds.host
+    def test_host_server_is_sandbox_by_default(self, with_mock):
+        assert 'sandbox' in with_mock.host
 
-    def test_host_server_is_production_if_sandbox_false(self, mturk_fake_creds):
-        mturk_fake_creds.is_sandbox = False
-        assert 'sandbox' not in mturk_fake_creds.host
+    def test_host_server_is_production_if_sandbox_false(self, with_mock):
+        with_mock.is_sandbox = False
+        assert 'sandbox' not in with_mock.host
 
-    def test_check_credentials_converts_response_to_boolean_true(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(
+    def test_check_credentials_converts_response_to_boolean_true(self, with_mock):
+        with_mock.mturk.configure_mock(
             **{'get_account_balance.return_value': fake_balance_response()}
         )
-        assert mturk_fake_creds.check_credentials() is True
+        assert with_mock.check_credentials() is True
 
-    def test_check_credentials_calls_get_account_balance(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(
+    def test_check_credentials_calls_get_account_balance(self, with_mock):
+        with_mock.mturk.configure_mock(
             **{'get_account_balance.return_value': fake_balance_response()}
         )
-        mturk_fake_creds.check_credentials()
-        mturk_fake_creds.mturk.get_account_balance.assert_called_once()
+        with_mock.check_credentials()
+        with_mock.mturk.get_account_balance.assert_called_once()
 
-    def test_check_credentials_bad_credentials(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(
+    def test_check_credentials_bad_credentials(self, with_mock):
+        with_mock.mturk.configure_mock(
             **{'get_account_balance.side_effect': MTurkRequestError(1, 'ouch')}
         )
         with pytest.raises(MTurkRequestError):
-            mturk_fake_creds.check_credentials()
+            with_mock.check_credentials()
 
-    def test_check_credentials_no_creds_set_raises(self, mturk_empty_creds):
+    def test_check_credentials_no_creds_set_raises(self, with_mock):
+        creds = {
+            'aws_access_key_id': '',
+            'aws_secret_access_key': ''
+        }
+        service = MTurkService(**creds)
         with pytest.raises(MTurkServiceException):
-            mturk_empty_creds.check_credentials()
+            service.check_credentials()
 
-    def test_register_hit_type(self, mturk_fake_creds):
+    def test_register_hit_type(self, with_mock):
         config = {
             'title': 'Test Title',
             'description': 'Test Description',
@@ -411,14 +401,14 @@ class TestMTurkServiceWithFakeConnection(object):
             'reward': .01,
             'duration_hours': .25
         }
-        mturk_fake_creds.mturk = mock_mtc(**{
+        with_mock.mturk.configure_mock(**{
             'get_account_balance.return_value': fake_balance_response(),
             'register_hit_type.return_value': fake_hit_type_response(),
         })
 
-        mturk_fake_creds.register_hit_type(**config)
+        with_mock.register_hit_type(**config)
 
-        mturk_fake_creds.mturk.register_hit_type.assert_called_once_with(
+        with_mock.mturk.register_hit_type.assert_called_once_with(
             'Test Title',
             'Test Description',
             .01,
@@ -428,36 +418,36 @@ class TestMTurkServiceWithFakeConnection(object):
             qual_req=None
         )
 
-    def test_set_rest_notification(self, mturk_fake_creds):
+    def test_set_rest_notification(self, with_mock):
         url = 'https://url-of-notification-route'
         hit_type_id = 'fake hittype id'
-        mturk_fake_creds.mturk = mock_mtc(**{
+        with_mock.mturk.configure_mock(**{
             'set_rest_notification.return_value': ResultSet(),
         })
 
-        mturk_fake_creds.set_rest_notification(url, hit_type_id)
+        with_mock.set_rest_notification(url, hit_type_id)
 
-        mturk_fake_creds.mturk.set_rest_notification.assert_called_once()
+        with_mock.mturk.set_rest_notification.assert_called_once()
 
-    def test_create_hit_calls_underlying_mturk_method(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_create_hit_calls_underlying_mturk_method(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'register_hit_type.return_value': fake_hit_type_response(),
             'set_rest_notification.return_value': ResultSet(),
             'create_hit.return_value': fake_hit_response(),
         })
 
-        mturk_fake_creds.create_hit(**standard_hit_config())
+        with_mock.create_hit(**standard_hit_config())
 
-        mturk_fake_creds.mturk.create_hit.assert_called_once()
+        with_mock.mturk.create_hit.assert_called_once()
 
-    def test_create_hit_translates_response_back_from_mturk(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_create_hit_translates_response_back_from_mturk(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'register_hit_type.return_value': fake_hit_type_response(),
             'set_rest_notification.return_value': ResultSet(),
             'create_hit.return_value': fake_hit_response(),
         })
 
-        hit = mturk_fake_creds.create_hit(**standard_hit_config())
+        hit = with_mock.create_hit(**standard_hit_config())
 
         assert hit['max_assignments'] == 1
         assert hit['reward'] == .01
@@ -465,138 +455,138 @@ class TestMTurkServiceWithFakeConnection(object):
         assert isinstance(hit['created'], datetime.datetime)
         assert isinstance(hit['expiration'], datetime.datetime)
 
-    def test_create_hit_raises_if_returned_hit_not_valid(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_create_hit_raises_if_returned_hit_not_valid(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'register_hit_type.return_value': fake_hit_type_response(),
             'set_rest_notification.return_value': ResultSet(),
             'create_hit.return_value': fake_hit_response(IsValid='False'),
         })
         with pytest.raises(MTurkServiceException):
-            mturk_fake_creds.create_hit(**standard_hit_config())
+            with_mock.create_hit(**standard_hit_config())
 
-    def test_extend_hit(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_extend_hit(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'extend_hit.return_value': None,
             'get_hit.return_value': fake_hit_response(),
         })
 
-        mturk_fake_creds.extend_hit(hit_id='hit1', number=2, duration_hours=1.0)
+        with_mock.extend_hit(hit_id='hit1', number=2, duration_hours=1.0)
 
-        mturk_fake_creds.mturk.extend_hit.assert_has_calls([
+        with_mock.mturk.extend_hit.assert_has_calls([
             mock.call('hit1', assignments_increment=2),
             mock.call('hit1', expiration_increment=3600)
         ])
 
-    def test_disable_hit_simple_passthrough(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_disable_hit_simple_passthrough(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'disable_hit.return_value': ResultSet(),
         })
 
-        mturk_fake_creds.disable_hit('some hit')
+        with_mock.disable_hit('some hit')
 
-        mturk_fake_creds.mturk.disable_hit.assert_called_once_with('some hit')
+        with_mock.mturk.disable_hit.assert_called_once_with('some hit')
 
-    def test_get_hits_returns_all_by_default(self, mturk_fake_creds):
+    def test_get_hits_returns_all_by_default(self, with_mock):
         hr1 = fake_hit_response(Title='One')[0]
         ht2 = fake_hit_response(Title='Two')[0]
 
-        mturk_fake_creds.mturk = mock_mtc(**{
+        with_mock.mturk.configure_mock(**{
             'get_all_hits.return_value': as_resultset([hr1, ht2]),
         })
 
-        assert len(list(mturk_fake_creds.get_hits())) == 2
+        assert len(list(with_mock.get_hits())) == 2
 
-    def test_get_hits_excludes_based_on_filter(self, mturk_fake_creds):
+    def test_get_hits_excludes_based_on_filter(self, with_mock):
         hr1 = fake_hit_response(Title='HIT One')[0]
         ht2 = fake_hit_response(Title='HIT Two')[0]
-        mturk_fake_creds.mturk = mock_mtc(**{
+        with_mock.mturk.configure_mock(**{
             'get_all_hits.return_value': as_resultset([hr1, ht2]),
         })
 
-        hits = list(mturk_fake_creds.get_hits(lambda h: 'Two' in h['title']))
+        hits = list(with_mock.get_hits(lambda h: 'Two' in h['title']))
 
         assert len(hits) == 1
         assert hits[0]['title'] == 'HIT Two'
 
-    def test_grant_bonus_translates_values_and_calls_wrapped_mturk(self, mturk_fake_creds):
+    def test_grant_bonus_translates_values_and_calls_wrapped_mturk(self, with_mock):
         fake_assignment = Assignment(None)
         fake_assignment.WorkerId = 'some worker id'
-        mturk_fake_creds.mturk = mock_mtc(**{
+        with_mock.mturk.configure_mock(**{
             'grant_bonus.return_value': ResultSet(),
             'get_assignment.return_value': as_resultset(fake_assignment),
         })
 
-        mturk_fake_creds.grant_bonus(
+        with_mock.grant_bonus(
             assignment_id='some assignment id',
             amount=2.99,
             reason='above and beyond'
         )
 
-        mturk_fake_creds.mturk.grant_bonus.assert_called_once_with(
+        with_mock.mturk.grant_bonus.assert_called_once_with(
             'some worker id',
             'some assignment id',
             mock.ANY,  # can't compare Price objects :-(
             'above and beyond'
         )
 
-    def test_approve_assignment(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_approve_assignment(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'approve_assignment.return_value': ResultSet(),
         })
 
-        assert mturk_fake_creds.approve_assignment('fake id') is True
-        mturk_fake_creds.mturk.approve_assignment.assert_called_once_with(
+        assert with_mock.approve_assignment('fake id') is True
+        with_mock.mturk.approve_assignment.assert_called_once_with(
             'fake id', feedback=None
         )
 
-    def test_create_qualification_type(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_create_qualification_type(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'create_qualification_type.return_value': fake_qualification_type_response(),
         })
-        result = mturk_fake_creds.create_qualification_type('name', 'desc', 'status')
-        mturk_fake_creds.mturk.create_qualification_type.assert_called_once_with(
+        result = with_mock.create_qualification_type('name', 'desc', 'status')
+        with_mock.mturk.create_qualification_type.assert_called_once_with(
             'name', 'desc', 'status'
         )
         assert isinstance(result['created'], datetime.datetime)
 
-    def test_create_qualification_type_raises_if_invalid(self, mturk_fake_creds):
+    def test_create_qualification_type_raises_if_invalid(self, with_mock):
         response = fake_qualification_type_response()
         response[0].IsValid = 'False'
-        mturk_fake_creds.mturk = mock_mtc(**{
+        with_mock.mturk.configure_mock(**{
             'create_qualification_type.return_value': response,
         })
         with pytest.raises(MTurkServiceException):
-            mturk_fake_creds.create_qualification_type('name', 'desc', 'status')
+            with_mock.create_qualification_type('name', 'desc', 'status')
 
-    def test_assign_qualification(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_assign_qualification(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'assign_qualification.return_value': ResultSet(),
         })
-        assert mturk_fake_creds.assign_qualification('qid', 'worker', 'score')
-        mturk_fake_creds.mturk.assign_qualification.assert_called_once_with(
+        assert with_mock.assign_qualification('qid', 'worker', 'score')
+        with_mock.mturk.assign_qualification.assert_called_once_with(
             'qid', 'worker', 'score', True
         )
 
-    def test_update_qualification_score(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_update_qualification_score(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'update_qualification_score.return_value': ResultSet(),
         })
-        assert mturk_fake_creds.update_qualification_score('qid', 'worker', 'score')
-        mturk_fake_creds.mturk.update_qualification_score.assert_called_once_with(
+        assert with_mock.update_qualification_score('qid', 'worker', 'score')
+        with_mock.mturk.update_qualification_score.assert_called_once_with(
             'qid', 'worker', 'score'
         )
 
-    def test_dispose_qualification_type(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_dispose_qualification_type(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'dispose_qualification_type.return_value': ResultSet(),
         })
-        assert mturk_fake_creds.dispose_qualification_type('qid')
-        mturk_fake_creds.mturk.dispose_qualification_type.assert_called_once_with(
+        assert with_mock.dispose_qualification_type('qid')
+        with_mock.mturk.dispose_qualification_type.assert_called_once_with(
             'qid'
         )
 
-    def test_get_workers_with_qualification(self, mturk_fake_creds):
-        mturk_fake_creds.mturk = mock_mtc(**{
+    def test_get_workers_with_qualification(self, with_mock):
+        with_mock.mturk.configure_mock(**{
             'get_qualifications_for_qualification_type.side_effect': [
                 fake_qualification_response(), ResultSet()
             ],
@@ -606,32 +596,32 @@ class TestMTurkServiceWithFakeConnection(object):
             mock.call('qid', page_number=2, page_size=100)
         ]
         # need to unroll the iterator:
-        list(mturk_fake_creds.get_workers_with_qualification('qid'))
-        calls = mturk_fake_creds.mturk.get_qualifications_for_qualification_type.call_args_list
+        list(with_mock.get_workers_with_qualification('qid'))
+        calls = with_mock.mturk.get_qualifications_for_qualification_type.call_args_list
         assert calls == expected
 
-    def test_set_qualification_score_with_existing_qualification(self, mturk_fake_creds):
-        mturk_fake_creds.get_workers_with_qualification = mock.Mock(
+    def test_set_qualification_score_with_existing_qualification(self, with_mock):
+        with_mock.get_workers_with_qualification = mock.Mock(
             return_value=[{'id': 'workerid', 'score': 2}]
         )
-        mturk_fake_creds.update_qualification_score = mock.Mock(
+        with_mock.update_qualification_score = mock.Mock(
             return_value=True
         )
-        assert mturk_fake_creds.set_qualification_score('qid', 'workerid', 4)
-        mturk_fake_creds.get_workers_with_qualification.assert_called_once_with('qid')
-        mturk_fake_creds.update_qualification_score.assert_called_once_with(
+        assert with_mock.set_qualification_score('qid', 'workerid', 4)
+        with_mock.get_workers_with_qualification.assert_called_once_with('qid')
+        with_mock.update_qualification_score.assert_called_once_with(
             'qid', 'workerid', 4
         )
 
-    def test_set_qualification_score_with_new_qualification(self, mturk_fake_creds):
-        mturk_fake_creds.get_workers_with_qualification = mock.Mock(
+    def test_set_qualification_score_with_new_qualification(self, with_mock):
+        with_mock.get_workers_with_qualification = mock.Mock(
             return_value=[]
         )
-        mturk_fake_creds.assign_qualification = mock.Mock(
+        with_mock.assign_qualification = mock.Mock(
             return_value=True
         )
-        assert mturk_fake_creds.set_qualification_score('qid', 'workerid', 4)
-        mturk_fake_creds.get_workers_with_qualification.assert_called_once_with('qid')
-        mturk_fake_creds.assign_qualification.assert_called_once_with(
+        assert with_mock.set_qualification_score('qid', 'workerid', 4)
+        with_mock.get_workers_with_qualification.assert_called_once_with('qid')
+        with_mock.assign_qualification.assert_called_once_with(
             'qid', 'workerid', 4, True
         )
