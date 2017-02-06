@@ -232,6 +232,9 @@ def launch():
         pass
     else:
         socketio.init_app(app)
+        for task in exp.background_tasks:
+            socketio.start_background_task(task)
+
     session.commit()
 
     return success_response("recruitment_url", url_info, request_type="launch")
