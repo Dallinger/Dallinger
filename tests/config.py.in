@@ -1,0 +1,9 @@
+"""
+Constants used in tests only. Save a copy of this file as config.py and
+replace empty strings with values for testing. The filename config.py is set
+to be ignored by version control so your values will not be pushed to a remote
+repository.
+"""
+
+# AWS MTurk Worker Id
+mturk_worker_id = ''

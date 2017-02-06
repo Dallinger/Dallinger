@@ -281,12 +281,18 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         return qtype
 
     def worker_id(self):
-        __tracebackhide__ = True
+        # Get a worker ID from the environment or tests/config.py
         import os
         workerid = os.getenv('mturk_worker_id')
         if not workerid:
+            try:
+                from . import config
+                workerid = config.mturk_worker_id
+            except Exception:
+                pass
+        if not workerid:
             raise FixtureConfigurationError(
-                'No "mturk_worker_id" environment variable set. '
+                'No "mturk_worker_id" value found. '
                 'Either set this value or skip these tests with '
                 '`pytest -m "not mturkworker"`'
             )
