@@ -8,7 +8,6 @@ import re
 import traceback
 import user_agents
 
-import eventlet
 from flask import (
     abort,
     Flask,
