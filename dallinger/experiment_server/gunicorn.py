@@ -1,11 +1,13 @@
 from __future__ import absolute_import
 
+import eventlet
 from gunicorn.app.base import Application
 from gunicorn import util
 import multiprocessing
 from dallinger.config import get_config
 import logging
 
+eventlet.monkey_patch()
 logger = logging.getLogger(__file__)
 
 app = util.import_app("dallinger.experiment_server.experiment_server:app")
@@ -58,7 +60,8 @@ class StandaloneServer(Application):
         bind_address = "{}:{}".format(host, port)
         self.options = {
             'bind': bind_address,
-            'workers': workers,
+            'workers': 1,
+            'worker_class': 'eventlet',
             'loglevels': self.loglevels,
             'loglevel': self.loglevels[config.get("loglevel")],
             'accesslog': config.get("logfile"),
