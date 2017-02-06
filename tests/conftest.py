@@ -33,30 +33,14 @@ def reset_config():
         del configurations.config
 
 
-# For tests that actually log into Amazon Mechanical Turk, get the credentials
-# from environment variables.
 @pytest.fixture
-def creds_from_environment():
+def aws_creds():
+    from dallinger.config import get_config
+    config = get_config()
+    if not config.ready:
+        config.load_config()
     creds = {
-        'aws_access_key_id': os.getenv('aws_access_key_id'),
-        'aws_secret_access_key': os.getenv('aws_secret_access_key')
+        'aws_access_key_id': config.get('aws_access_key_id'),
+        'aws_secret_access_key': config.get('aws_secret_access_key')
     }
     return creds
-
-
-# decorator for test methods or classes which should be skipped if there
-# are no aws credentials set in the environment
-skip_if_not_mturk_requester = pytest.mark.skipif(
-    not os.getenv('is_aws_mturk_requester') and
-    creds_from_environment().values(),
-    reason="Not configured to run Amazon MTurk system tests."
-)
-
-skip_if_not_mturk_requester_and_worker = pytest.mark.skipif(
-    not (
-        os.getenv('is_aws_mturk_requester') and
-        os.getenv('mturk_worker_id') and
-        creds_from_environment().values()
-    ),
-    reason="Not configured to run Amazon MTurk requester/worker tests."
-)

@@ -101,8 +101,7 @@ class TestMTurkRecruiterAssumesConfigFileInCWD(object):
     def teardown(self):
         self.db.rollback()
         self.db.close()
-        os.chdir("..")
-        os.chdir("..")
+        os.chdir("../..")
 
     def test_instantiation_from_current_config(self):
         from dallinger.recruiters import MTurkRecruiter
