@@ -26,3 +26,4 @@ README.rst
 .vagrant/
 .cache/*
 htmlcov/*
+tests/config.py
