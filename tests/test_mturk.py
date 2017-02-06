@@ -10,14 +10,18 @@ from boto.mturk.connection import Qualification
 from boto.mturk.connection import QualificationType
 from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
-from .conftest import skip_if_not_mturk_requester
-from .conftest import skip_if_not_mturk_requester_and_worker
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
 
 
 TEST_HIT_DESCRIPTION = '***TEST SUITE HIT***'
 TEST_QUALIFICATION_DESCRIPTION = '***TEST SUITE QUALIFICATION***'
+
+
+class FixtureConfigurationError(Exception):
+    """To clarify that the error is with test configuration,
+    not production code.
+    """
 
 
 def as_resultset(things):
@@ -135,32 +139,34 @@ def standard_hit_config(**kwargs):
 
 
 @pytest.fixture
-def mturk(creds_from_environment):
-    creds = creds_from_environment
-    service = MTurkService(**creds)
+def mturk(aws_creds):
+    service = MTurkService(**aws_creds)
     return service
 
 
 @pytest.fixture
-def with_cleanup(creds_from_environment, request):
-    creds = creds_from_environment
-    service = MTurkService(**creds)
-    request.instance._qtypes_to_purge = []
-    yield service
+def with_cleanup(aws_creds, request):
 
     # tear-down: clean up all specially-marked HITs:
     def test_hits_only(hit):
         return hit['description'] == TEST_HIT_DESCRIPTION
 
-    for hit in service.get_hits(test_hits_only):
-        service.disable_hit(hit['id'])
+    service = MTurkService(**aws_creds)
+    request.instance._qtypes_to_purge = []
+    try:
+        yield service
+    except Exception as e:
+        raise e
+    finally:
+        for hit in service.get_hits(test_hits_only):
+            service.disable_hit(hit['id'])
 
-    # remove QualificationTypes we may have added:
-    for qtype_id in request.instance._qtypes_to_purge:
-        service.dispose_qualification_type(qtype_id)
+        # remove QualificationTypes we may have added:
+        for qtype_id in request.instance._qtypes_to_purge:
+            service.dispose_qualification_type(qtype_id)
 
 
-@skip_if_not_mturk_requester
+@pytest.mark.mturk
 class TestMTurkService(object):
 
     def test_check_credentials_good_credentials(self, mturk):
@@ -261,7 +267,8 @@ class TestMTurkService(object):
         assert with_cleanup.dispose_qualification_type(result['id'])
 
 
-@skip_if_not_mturk_requester_and_worker
+@pytest.mark.mturk
+@pytest.mark.mturkworker
 class TestMTurkServiceWithRequesterAndWorker(object):
 
     def _make_qtype(self, mturk):
@@ -273,71 +280,74 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         self._qtypes_to_purge.append(qtype['id'])
         return qtype
 
-    @property
     def worker_id(self):
+        __tracebackhide__ = True
         import os
-        return os.getenv('mturk_worker_id')
+        workerid = os.getenv('mturk_worker_id')
+        if not workerid:
+            raise FixtureConfigurationError(
+                'No "mturk_worker_id" environment variable set. '
+                'Either set this value or skip these tests with '
+                '`pytest -m "not mturkworker"`'
+            )
+        return workerid
 
-    def test_assign_and_revoke_qualification(self, with_cleanup):
-        qtype = with_cleanup.create_qualification_type(
-            name='Test Qualifiction',
-            description=TEST_QUALIFICATION_DESCRIPTION,
-            status='Active',
-        )
-
+    def test_assign_qualification(self, with_cleanup):
+        qtype = self._make_qtype(with_cleanup)
         assert with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id, score=2, notify=False)
-        assert with_cleanup.dispose_qualification_type(qtype['id'])
+            qtype['id'], self.worker_id(), score=2, notify=False)
 
     def test_assign_already_granted_qualification_raises(self, with_cleanup):
         qtype = self._make_qtype(with_cleanup)
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id, score=2, notify=False
+            qtype['id'], self.worker_id(), score=2, notify=False
         )
 
         with pytest.raises(MTurkRequestError):
             with_cleanup.assign_qualification(
-                qtype['id'], self.worker_id, score=2, notify=False)
+                qtype['id'], self.worker_id(), score=2, notify=False)
 
     def test_update_qualification_score(self, with_cleanup):
         qtype = self._make_qtype(with_cleanup)
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id, score=2, notify=False)
+            qtype['id'], self.worker_id(), score=2, notify=False)
 
-        with_cleanup.update_qualification_score(qtype['id'], self.worker_id, score=3)
+        with_cleanup.update_qualification_score(
+            qtype['id'], self.worker_id(), score=3)
 
         new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id)[0].IntegerValue
+            qtype['id'], self.worker_id())[0].IntegerValue
         assert new_score == '3'
 
     def test_get_workers_with_qualification(self, with_cleanup):
         qtype = self._make_qtype(with_cleanup)
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id, score=2, notify=False)
+            qtype['id'], self.worker_id(), score=2, notify=False)
 
         workers = with_cleanup.get_workers_with_qualification(qtype['id'])
 
-        assert self.worker_id in [w['id'] for w in workers]
+        assert self.worker_id() in [w['id'] for w in workers]
 
     def test_set_qualification_score_with_new_qualification(self, with_cleanup):
         qtype = self._make_qtype(with_cleanup)
 
         with_cleanup.set_qualification_score(
-            qtype['id'], self.worker_id, score=2, notify=False)
+            qtype['id'], self.worker_id(), score=2, notify=False)
 
         new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id)[0].IntegerValue
+            qtype['id'], self.worker_id())[0].IntegerValue
         assert new_score == '2'
 
     def test_set_qualification_score_with_existing_qualification(self, with_cleanup):
         qtype = self._make_qtype(with_cleanup)
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id, score=2, notify=False)
+            qtype['id'], self.worker_id(), score=2, notify=False)
 
-        with_cleanup.set_qualification_score(qtype['id'], self.worker_id, score=3, notify=False)
+        with_cleanup.set_qualification_score(
+            qtype['id'], self.worker_id(), score=3, notify=False)
 
         new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id)[0].IntegerValue
+            qtype['id'], self.worker_id())[0].IntegerValue
         assert new_score == '3'
 
 
