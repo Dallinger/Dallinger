@@ -244,7 +244,9 @@ def summary(app):
 
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def debug(verbose):
+@click.option('--bot', is_flag=True, flag_value=True,
+              help='Use bot to complete experiment')
+def debug(verbose, bot):
     """Run the experiment locally."""
     (id, tmp) = setup_experiment(debug=True, verbose=verbose)
 
@@ -301,7 +303,18 @@ def debug(verbose):
             match = re.search('New participant requested: (.*)$', line)
             if match:
                 url = match.group(1)
-                webbrowser.open(url, new=1, autoraise=True)
+                if bot:
+                    log("Using a bot to simulate participant...")
+                    try:
+                        from dallinger_experiment import Bot
+                        participant = Bot(url)
+                        participant.sign_up()
+                        participant.participate()
+                        participant.sign_off()
+                    except ImportError:
+                        log("This experiment does not have a bot.")
+                else:
+                    webbrowser.open(url, new=1, autoraise=True)
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
