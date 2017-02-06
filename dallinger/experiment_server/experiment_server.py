@@ -219,6 +219,12 @@ def launch():
     exp = Experiment(db.init_db(drop_all=False))
     exp.log("Launching experiment...", "-----")
     url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+
+    """Inject the experiment variable into the template context."""
+    @app.context_processor
+    def inject_experiment():
+        return dict(experiment=exp)
+
     """Initialize a Socket.IO server if appropriate."""
     try:
         from dallinger_experiment import socketio
