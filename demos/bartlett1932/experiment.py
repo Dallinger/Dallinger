@@ -80,7 +80,8 @@ class Bot(BotBase):
             ready.click()
             submit = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.ID, 'submit-response')))
-            textarea = self.driver.find_element_by_id('reproduction')
+            textarea = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.ID, 'reproduction')))
             textarea.clear()
             text = self.transform_text(story)
             logger.info("Transformed text:")
