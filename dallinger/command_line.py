@@ -692,7 +692,7 @@ def bot(app):
         (id, tmp) = setup_experiment()
         from dallinger_experiment import Bot
         host = app_name(app)
-        worker = host.split('-')[1]
+        worker = generate_random_id()
         hit = generate_random_id()
         assignment = generate_random_id()
         ad_url = 'https://{}.herokuapp.com/ad'.format(host)
