@@ -15,6 +15,7 @@ css
 Ctrl
 dallinger
 Dallinger
+dallingerconfig
 dynos
 et
 frontend
