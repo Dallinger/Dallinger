@@ -39,8 +39,10 @@ You can also run all these tests locally, with some additional requirements:
   excluded from version control, so your Id will not be pushed to a remote
   repository.
 
+Commands
+--------
 
-You can also run all these tests locally, simply by running::
+You can run all tests locally, simply by running::
 
 	tox
 
