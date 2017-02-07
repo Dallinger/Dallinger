@@ -1411,7 +1411,7 @@ def date_handler(obj):
 # Insert "mode" into pages so it's carried from page to page done server-side
 # to avoid breaking backwards compatibility with old templates.
 def insert_mode(page_html, mode):
-    ''' Insert mode '''
+    """Insert mode."""
     match_found = False
     matches = re.finditer('workerId={{ workerid }}', page_html)
     match = None
