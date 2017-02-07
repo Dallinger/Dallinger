@@ -1,17 +1,17 @@
 Learning to Use Dallinger
-=======================
+=========================
 
 Beginner
 ~~~~~~~~
 
 Key concepts in Dallinger
-'''''''''''''''''''''''
+'''''''''''''''''''''''''
 
 -  :doc:`classes`
 -  :doc:`the_experiment_class`
 
 Dallinger as a web app
-''''''''''''''''''''
+''''''''''''''''''''''
 
 -  :doc:`communicating_with_the_server`
 -  :doc:`web_api`

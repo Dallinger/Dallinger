@@ -166,7 +166,7 @@ To be able to build the documentation, you will need:
   <http://pythonhosted.org/pyenchant/download.html>`__ to install it.
 
 Install Dallinger
----------------
+-----------------
 
 Next, navigate to the directory where you want to house your development
 work on Dallinger. Once there, clone the Git repository using:
