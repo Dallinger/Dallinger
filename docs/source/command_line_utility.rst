@@ -36,7 +36,7 @@ the experiment by its id.
 
 
 summary
-^^^^^^
+^^^^^^^
 
 Return a summary of an experiment. A required ``--app <app>`` flag specifies
 the experiment by its id.

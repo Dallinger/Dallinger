@@ -1,5 +1,5 @@
 Demoing Dallinger
-===============
+=================
 
 First, make sure you have Dallinger installed:
 

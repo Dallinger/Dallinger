@@ -1,5 +1,5 @@
 Installing Dallinger with Anaconda
-================================
+==================================
 
 If you are interested in Dallinger and use
 `Anaconda <https://www.continuum.io/downloads>`__, you'll need to adapt
@@ -17,14 +17,14 @@ you will be endlessly frustrated.
     conda install psycopg2
 
 Install Dallinger
----------------
+-----------------
 
 You'll follow all of the :doc:`Dallinger development installation
 instructions <developing_dallinger_setup_guide>`,
 **with the exception of the virtual environment step**.  Then return here.
 
 Confirm Dallinger works
----------------------
+-----------------------
 
 Now, we need to make sure that Dallinger and Anaconda play nice with one
 another. At this point, we'd check to make sure that Dallinger is properly
