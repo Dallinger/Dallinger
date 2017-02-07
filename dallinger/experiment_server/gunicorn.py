@@ -20,9 +20,9 @@ class StandaloneServer(Application):
     loglevels = ["debug", "info", "warning", "error", "critical"]
 
     def __init__(self):
-        '''__init__ method
+        """__init__ method
         Load the base config and assign some core attributes.
-        '''
+        """
         self.usage = None
         self.cfg = None
         self.callable = None
@@ -33,10 +33,10 @@ class StandaloneServer(Application):
         self.do_load_config()
 
     def init(self, *args):
-        '''init method
+        """init method
         Takes our custom options from self.options and creates a config
         dict which specifies custom settings.
-        '''
+        """
         cfg = {}
         for k, v in self.options.items():
             if k.lower() in self.cfg.settings and v is not None:
@@ -44,7 +44,7 @@ class StandaloneServer(Application):
         return cfg
 
     def load(self):
-        '''Return our application to be run.'''
+        """Return our application to be run."""
         return app
 
     def load_user_config(self):
