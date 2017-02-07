@@ -5,7 +5,7 @@ from boto.mturk.qualification import LocaleRequirement
 from boto.mturk.qualification import PercentAssignmentsApprovedRequirement
 from boto.mturk.qualification import Qualifications
 from boto.mturk.question import ExternalQuestion
-from dallinger.utils import reify
+from cached_property import cached_property
 
 
 def timestr_to_dt(timestr):
@@ -28,7 +28,7 @@ class MTurkService(object):
         self.aws_secret_access_key = aws_secret_access_key
         self.is_sandbox = sandbox
 
-    @reify
+    @cached_property
     def mturk(self):
         """Cached MTurkConnection"""
         if not self.aws_access_key_id or not self.aws_secret_access_key:
