@@ -67,3 +67,8 @@ class BotBase(object):
         except TimeoutException:
             logger.error("Error during experiment sign off.")
             return False
+
+    def run_experiment(self):
+        self.sign_up()
+        self.participate()
+        self.sign_off()
