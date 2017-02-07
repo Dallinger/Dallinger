@@ -28,6 +28,7 @@ from dallinger.config import get_config
 import psycopg2
 import redis
 import requests
+from collections import Counter
 
 from dallinger import db
 from dallinger import heroku
@@ -35,6 +36,7 @@ from dallinger.heroku import (
     app_name,
     scale_up_dynos
 )
+from dallinger.mturk import MTurkService
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -174,7 +176,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     if not os.path.exists(os.path.join("static", "css")):
         os.makedirs(os.path.join("static", "css"))
 
-    # Rename experiment.py to avoid psiTurk conflict.
+    # Rename experiment.py for backwards compatibility.
     os.rename(
         os.path.join(dst, "experiment.py"),
         os.path.join(dst, "dallinger_experiment.py"))
@@ -186,7 +188,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
     heroku_files = [
         "Procfile",
-        "psiturkapp.py",
+        "launch.py",
         "worker.py",
         "clock.py",
     ]
@@ -209,6 +211,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("templates", "error.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "complete.html"),
+        os.path.join("templates", "thanks.html"),
         os.path.join("static", "robots.txt")
     ]
 
@@ -266,7 +269,7 @@ def debug(verbose):
 
     # Start up the local server
     log("Starting up the server...")
-    path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'psiturkapp.py'))
+    path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'launch.py'))
     p = subprocess.Popen(
         [sys.executable, '-u', path],
         stdout=subprocess.PIPE,
@@ -289,10 +292,7 @@ def debug(verbose):
 
         # Call endpoint to launch the experiment
         log("Launching the experiment...")
-        time.sleep(4)
-        subprocess.check_call(
-            'curl --data "" http://{}/launch'.format(public_interface),
-            shell=True)
+        requests.post('http://{}/launch'.format(public_interface))
 
         # Monitor output from server process
         for line in iter(p.stdout.readline, ''):
@@ -370,7 +370,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     except:
         whimsical = "false"
 
-    # Set up postgres database and AWS/psiTurk environment variables.
+    # Set up postgres database and AWS environment variables.
     cmds = [
         "heroku addons:create heroku-postgresql:{}".format(quote(database_size)),
 
@@ -391,12 +391,6 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
         "heroku config:set aws_region=" +
         quote(config.get('aws_region')),
-
-        "heroku config:set psiturk_access_key_id=" +
-        quote(config.get('psiturk_access_key_id')),
-
-        "heroku config:set psiturk_secret_access_id=" +
-        quote(config.get('psiturk_secret_access_id')),
 
         "heroku config:set auto_recruit={}".format(config.get('auto_recruit')),
 
@@ -463,18 +457,13 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
     # Launch the experiment.
     log("Launching the experiment on MTurk...")
-    subprocess.check_call(
-        'curl --data "" http://{}.herokuapp.com/launch'.format(app_name(id)),
-        shell=True)
 
-    time.sleep(8)
-
-    url = subprocess.check_output(
-        "heroku logs --app " + app_name(id) + " | sort | " +
-        "sed -n 's|.*URL:||p'", shell=True)
+    launch_request = requests.post('https://{}.herokuapp.com/launch'.format(app_name(id)))
+    launch_data = launch_request.json()
 
     log("URLs:")
-    click.echo(url)
+    log("App home: https://{}.herokuapp.com/".format(app_name(id)), chevrons=False)
+    log("Initial recruitment: {}".format(launch_data.get('recruitment_url', None)), chevrons=False)
 
     # Return to the branch whence we came.
     os.chdir(cwd)
@@ -524,64 +513,33 @@ def deploy(verbose, app):
 @click.option('--worker')
 def qualify(qualification, value, worker):
     """Assign a qualification to a worker."""
-    # create connection to AWS
-    from boto.mturk.connection import MTurkConnection
     config = get_config()
     config.load_config()
-    aws_access_key_id = config.get('aws_access_key_id')
-    aws_secret_access_key = config.get('aws_secret_access_key')
-    conn = MTurkConnection(aws_access_key_id, aws_secret_access_key)
+    mturk = MTurkService(
+        aws_access_key_id=config.get('aws_access_key_id'),
+        aws_secret_access_key=config.get('aws_secret_access_key'),
+        sandbox=config.get('launch_in_sandbox_mode')
+    )
 
-    def get_workers_with_qualification(qualification):
-        """Get workers with the given qualification."""
-        results = []
-        continue_flag = True
-        page = 1
-        while(continue_flag):
-            new_results = conn.get_qualifications_for_qualification_type(
-                qualification,
-                page_size=100,
-                page_number=page)
-
-            if(len(new_results) == 0):
-                continue_flag = False
-            else:
-                results.extend(new_results)
-                page = page + 1
-
-        return results
-
-    results = get_workers_with_qualification(qualification)
-    workers = [x.SubjectId for x in results]
-
-    # assign the qualification
     click.echo(
         "Assigning qualification {} with value {} to worker {}".format(
             qualification,
             value,
-            worker))
+            worker)
+    )
 
-    if worker in workers:
-        result = conn.update_qualification_score(qualification, worker, value)
-    else:
-        result = conn.assign_qualification(qualification, worker, value)
-
-    if result:
-        click.echo(result)
+    if mturk.set_qualification_score(qualification, worker, value):
+        click.echo('OK')
 
     # print out the current set of workers with the qualification
-    results = get_workers_with_qualification(qualification)
+    results = list(mturk.get_workers_with_qualification(qualification))
 
     click.echo("{} workers with qualification {}:".format(
         len(results),
         qualification))
 
-    values = [r.IntegerValue for r in results]
-    unique_values = list(set([r.IntegerValue for r in results]))
-    for v in unique_values:
-        click.echo("{} with value {}".format(
-            len([val for val in values if val == v]),
-            v))
+    for score, count in Counter([r['score'] for r in results]).items():
+        click.echo("{} with value {}".format(count, score))
 
 
 def dump_database(id):
@@ -946,6 +904,7 @@ def verify_package(verbose=True):
         os.path.join("templates", "complete.html"),
         os.path.join("templates", "error.html"),
         os.path.join("templates", "launch.html"),
+        os.path.join("templates", "thanks.html"),
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),

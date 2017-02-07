@@ -15,13 +15,11 @@ us_only = true
 approve_requirement = 95
 contact_email_on_error = bartlett1932@mailinator.com
 ad_group = Coordination
-psiturk_keywords = coordination
 organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
 [Database Parameters]
 database_url = postgresql://postgres@localhost/dallinger
-table_name = psiturk
 database_size = hobby-dev
 
 [Server Parameters]

@@ -98,10 +98,10 @@ class Experiment(object):
     @property
     def recruiter(self):
         """Recruiter, the Dallinger class that recruits participants.
-        Default is HotAirRecruiter in debug mode and PsiTurkRecruiter in other modes.
+        Default is HotAirRecruiter in debug mode and MTurkRecruiter in other modes.
         """
         from dallinger.recruiters import HotAirRecruiter
-        from dallinger.recruiters import PsiTurkRecruiter
+        from dallinger.recruiters import MTurkRecruiter
 
         try:
             debug_mode = config.get('mode') == 'debug'
@@ -111,7 +111,7 @@ class Experiment(object):
 
         if debug_mode:
             return HotAirRecruiter
-        return PsiTurkRecruiter
+        return MTurkRecruiter.from_current_config
 
     def setup(self):
         """Create the networks if they don't already exist."""
@@ -398,7 +398,7 @@ class Experiment(object):
         """
         import dallinger as dlgr
 
-        # Ensure that psiTurk is in sandbox mode.
+        # Ensure that experiment runs in sandbox mode.
         config.extend({
             "mode": u"sandbox",
             "logfile": u"-",
@@ -424,11 +424,8 @@ class Experiment(object):
         run specific settings grouped by section.
         """
         import dallinger as dlgr
-        from psiturk.psiturk_config import PsiturkConfig
-        psiturk_config = PsiturkConfig()
-        psiturk_config.load_config()
 
-        # Ensure that psiTurk is not in sandbox mode.
+        # Ensure that experiment is not in sandbox mode.
         config.extend({
             "mode": u"sandbox",
             "logfile": u"-",

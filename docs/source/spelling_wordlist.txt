@@ -15,6 +15,7 @@ css
 Ctrl
 dallinger
 Dallinger
+dallingerconfig
 dynos
 et
 frontend
@@ -46,7 +47,6 @@ Postgres
 PostgreSQL
 Postico
 prepopulate
-psiTurk
 Psychonomic
 py
 Richerson

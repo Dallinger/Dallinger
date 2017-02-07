@@ -63,7 +63,7 @@ experiments to use. Run the following command from the command line:
     psql -c 'create database dallinger;' -U postgres
 
 Install Dallinger
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 Install Dallinger from the terminal by running
 

@@ -4,14 +4,12 @@ from datetime import datetime
 from json import dumps
 from operator import attrgetter
 import re
-import requests
 import traceback
 import user_agents
 
 from flask import (
     abort,
     Flask,
-    jsonify,
     make_response,
     render_template,
     render_template_string,
@@ -20,9 +18,6 @@ from flask import (
     send_from_directory,
 )
 from jinja2 import TemplateNotFound
-from psiturk.models import Participant  # noqa: necessary to register model
-from psiturk.db import db_session as session_psiturk
-from psiturk.db import init_db
 from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
@@ -229,69 +224,10 @@ def launch():
     """Launch the experiment."""
     exp = Experiment(db.init_db(drop_all=False))
     exp.log("Launching experiment...", "-----")
-    init_db()
-    exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
-    session_psiturk.commit()
+    url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
     session.commit()
 
-    return success_response(request_type="launch")
-
-
-@app.route('/check_worker_status', methods=['GET'])
-def check_worker_status():
-    """Check worker status
-
-    This is called by Psiturk.
-    """
-    if 'workerId' not in request.args:
-        resp = {"status": "bad request"}
-        return jsonify(**resp)
-    else:
-        worker_id = request.args['workerId']
-        try:
-            part = Participant.query.\
-                filter(Participant.workerid == worker_id).one()
-            status = part.status
-        except exc.SQLAlchemyError:
-            status = NOT_ACCEPTED
-        resp = {"status": status}
-        return jsonify(**resp)
-
-
-@app.route('/worker_complete', methods=['GET'])
-def worker_complete():
-    """Complete worker.
-
-    Called by psiturk.
-    """
-    if 'uniqueId' not in request.args:
-        resp = {"status": "bad request"}
-        return jsonify(**resp)
-    else:
-        unique_id = request.args['uniqueId']
-        app.logger.info("Completed experiment %s" % unique_id)
-        try:
-            user = Participant.query.\
-                filter(Participant.uniqueid == unique_id).one()
-            user.status = COMPLETED
-            user.endhit = datetime.now()
-            session_psiturk.add(user)
-            session_psiturk.commit()
-            status = "success"
-        except exc.SQLAlchemyError:
-            status = "database error"
-    resp = {"status": status}
-    return jsonify(**resp)
-
-
-@app.route('/worker_submitted', methods=['GET'])
-def worker_submitted():
-    """Submit worker
-
-    Called by psiturk
-    """
-    resp = {"status": "success"}
-    return jsonify(**resp)
+    return success_response("recruitment_url", url_info, request_type="launch")
 
 
 @app.route('/ad', methods=['GET'])
@@ -331,11 +267,6 @@ def advertisement():
         raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
     hit_id = request.args['hitId']
     assignment_id = request.args['assignmentId']
-    mode = request.args['mode']
-    if hit_id[:5] == "debug":
-        debug_mode = True
-    else:
-        debug_mode = False
     already_in_db = False
     if 'workerId' in request.args:
         worker_id = request.args['workerId']
@@ -359,29 +290,38 @@ def advertisement():
     except exc.SQLAlchemyError:
         status = None
 
-    if status == STARTED and not debug_mode:
-        # Once participants have finished the instructions, we do not allow
-        # them to start the task again.
-        raise ExperimentError('already_started_exp_mturk')
-    elif status == COMPLETED:
+    debug_mode = config.get('mode') == 'debug'
+    if ((status == 'working' and part.end_time is not None) or
+            (debug_mode and status in ('submitted', 'approved'))):
         # They've done the debriefing but perhaps haven't submitted the HIT
         # yet.. Turn asignmentId into original assignment id before sending it
         # back to AMT
+        is_sandbox = config.get('mode') == "sandbox"
+        if is_sandbox:
+            external_submit_url = "https://workersandbox.mturk.com/mturk/externalSubmit"
+        else:
+            external_submit_url = "https://www.mturk.com/mturk/externalSubmit"
         return render_template(
             'thanks.html',
-            is_sandbox=(mode == "sandbox"),
+            is_sandbox=is_sandbox,
             hitid=hit_id,
             assignmentid=assignment_id,
-            workerid=worker_id
+            workerid=worker_id,
+            mode=config.get('mode'),
+            external_submit_url=external_submit_url,
         )
+    if status == 'working':
+        # Once participants have finished the instructions, we do not allow
+        # them to start the task again.
+        raise ExperimentError('already_started_exp_mturk')
     elif already_in_db and not debug_mode:
         raise ExperimentError('already_did_exp_hit')
-    elif status == ALLOCATED or not status or debug_mode:
+    elif not status or debug_mode:
         # Participant has not yet agreed to the consent. They might not
         # even have accepted the HIT.
         with open('templates/ad.html', 'r') as temp_file:
             ad_string = temp_file.read()
-        ad_string = insert_mode(ad_string, mode)
+        ad_string = insert_mode(ad_string, config.get('mode'))
         return render_template_string(
             ad_string,
             hitid=hit_id,
@@ -439,44 +379,6 @@ def experiment_property(prop):
     return success_response(field=prop, data=p, request_type=prop)
 
 
-@app.route("/ad_address/<mode>/<hit_id>", methods=["GET"])
-def ad_address(mode, hit_id):
-    """Get the address of the ad on AWS.
-
-    This is used at the end of the experiment to send participants
-    back to AWS where they can complete and submit the HIT.
-    """
-    if mode == "debug":
-        address = '/complete'
-        participant = models.Participant.query.filter_by(hit_id=hit_id).one()
-        _debug_notify(assignment_id=participant.assignment_id,
-                      participant_id=participant.id)
-    elif mode in ["sandbox", "live"]:
-        username = config.get("psiturk_access_key_id")
-        password = config.get("psiturk_secret_access_id")
-        try:
-            req = requests.get(
-                'https://api.psiturk.org/api/ad/lookup/' + hit_id,
-                auth=(username, password))
-        except Exception:
-            raise ValueError('api_server_not_reachable')
-        else:
-            if req.status_code == 200:
-                hit_address = req.json()['ad_id']
-            else:
-                raise ValueError("something here")
-        if mode == "sandbox":
-            address = ('https://sandbox.ad.psiturk.org/complete/' +
-                       str(hit_address))
-        elif mode == "live":
-            address = 'https://ad.psiturk.org/complete/' + str(hit_address)
-    else:
-        raise ValueError("Unknown mode: {}".format(mode))
-    return success_response(field="address",
-                            data=address,
-                            request_type="ad_address")
-
-
 @app.route("/<page>", methods=["GET"])
 def get_page(page):
     """Return the requested page."""
@@ -500,7 +402,7 @@ def consent():
         hit_id=request.args['hit_id'],
         assignment_id=request.args['assignment_id'],
         worker_id=request.args['worker_id'],
-        mode=request.args['mode']
+        mode=config.get('mode')
     )
 
 
@@ -609,14 +511,6 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
                                      mode=mode)
     session.add(participant)
     session.commit()
-
-    # make a psiturk participant too, for now
-    from psiturk.models import Participant as PsiturkParticipant
-    psiturk_participant = PsiturkParticipant(workerid=worker_id,
-                                             assignmentid=assignment_id,
-                                             hitid=hit_id)
-    session_psiturk.add(psiturk_participant)
-    session_psiturk.commit()
 
     # return the data
     return success_response(field="participant",
@@ -1344,6 +1238,32 @@ def check_for_duplicate_assignments(participant):
                                               p.status == "working")]
     for d in duplicates:
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
+
+
+@app.route('/worker_complete', methods=['GET'])
+@db.scoped_session_decorator
+def worker_complete():
+    """Complete worker."""
+    if 'uniqueId' not in request.args:
+        status = "bad request"
+    else:
+        participant = models.Participant.query.filter_by(
+            unique_id=request.args['uniqueId'],
+        ).all()[0]
+        participant.end_time = datetime.now()
+        session.add(participant)
+        session.commit()
+        status = "success"
+    if config.get('mode') == "debug":
+        # Trigger notification directly in debug mode,
+        # because there won't be one from MTurk
+        _debug_notify(
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+        )
+    return success_response(field="status",
+                            data=status,
+                            request_type="worker complete")
 
 
 @db.scoped_session_decorator

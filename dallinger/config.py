@@ -114,20 +114,6 @@ class Configuration(object):
                     continue
                 parser.set('Parameters', k, str(v))
 
-        # @@@ Temporary workaround until we remove use of psiturk recruiter
-        parser.add_section('Database Parameters')
-        for key in ('database_url', 'table_name', 'database_size'):
-            parser.set('Database Parameters', key, str(self.get(key)))
-        parser.add_section('Server Parameters')
-        for key in ('host', 'port', 'notification_url'):
-            parser.set('Server Parameters', key, str(self.get(key)))
-        parser.add_section('HIT Configuration')
-        for key in (
-                'organization_name', 'title', 'contact_email_on_error', 'ad_group',
-                'psiturk_keywords', 'browser_exclude_rule', 'approve_requirement',
-                'us_only', 'lifetime', 'description', 'amt_keywords'):
-            parser.set('HIT Configuration', key, str(self.get(key)))
-
         with open(LOCAL_CONFIG, 'w') as fp:
             parser.write(fp)
 
@@ -142,10 +128,7 @@ class Configuration(object):
         self.register_extra_settings()
 
         globalConfigName = ".dallingerconfig"
-        if 'OPENSHIFT_SECRET_TOKEN' in os.environ:
-            globalConfig = os.path.join(os.environ['OPENSHIFT_DATA_DIR'], globalConfigName)
-        else:
-            globalConfig = os.path.expanduser(os.path.join("~/", globalConfigName))
+        globalConfig = os.path.expanduser(os.path.join("~/", globalConfigName))
         localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
 
         defaults_folder = os.path.join(os.path.dirname(__file__), "default_configs")
@@ -230,10 +213,6 @@ def get_config():
         ('num_dynos_worker', int, []),
         ('num_participants', int, []),
         ('organization_name', unicode, []),
-        ('psiturk_access_key_id', unicode, [], True),
-        ('psiturk_secret_access_id', unicode, [], True),
-        ('psiturk_keywords', unicode, []),
-        ('table_name', unicode, []),
         ('threads', unicode, []),
         ('title', unicode, []),
         ('us_only', bool, []),

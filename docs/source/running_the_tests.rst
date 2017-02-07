@@ -21,6 +21,25 @@ The tests include:
   for the Python code is above the desired threshold.
 * Making sure the docs build without error.
 
+Amazon Mechanical Turk Integration Tests
+----------------------------------------
+
+You can also run all these tests locally, with some additional requirements:
+
+* The Amazon Web Services credentials set in .dallingerconfig must correspond
+  to a valid MTurk Sandbox 
+  `Requester <https://requester.mturk.com/mturk/beginsignin>`__ account.  
+* Some tests require access to an MTurk Sandbox 
+  `Worker <https://workersandbox.mturk.com/mturk/welcome>`__ account, so you 
+  should create this account (probably using the same AWS account as above). 
+* The Worker ID from the Worker account (visible on the 
+  `dashboard <https://workersandbox.mturk.com/mturk/dashboard>`__) needs to be 
+  set in ``tests/config.py``, which should be created by making a copy of
+  ``tests/config.py.in`` before setting the value. ``tests/config.py`` is 
+  excluded from version control, so your Id will not be pushed to a remote
+  repository.
+
+
 You can also run all these tests locally, simply by running::
 
 	tox
@@ -28,6 +47,15 @@ You can also run all these tests locally, simply by running::
 To run just the Python tests::
 
 	pytest
+
+To run the Python tests excluding those that interact with Amazon Mechanical 
+Turk, run::
+
+	pytest -m "not mturk"
+
+To run all tests except those that require a MTurk Worker ID, run::
+
+	pytest -m "not mturkworker"
 
 To build documentation::
 

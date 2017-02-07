@@ -36,7 +36,7 @@ go_to_page = function(page) {
     window.location = "/" + page + "?participant_id=" + participant_id;
 };
 
-// go back to psiturk
+// report assignment complete
 submitAssignment = function() {
     reqwest({
         url: "/participant/" + participant_id,
@@ -47,13 +47,17 @@ submitAssignment = function() {
             hit_id = resp.participant.hit_id;
             assignment_id = resp.participant.assignment_id;
             worker_id = resp.participant.worker_id;
+            worker_complete = '/worker_complete';
             reqwest({
-                url: "/ad_address/" + mode + "/" + hit_id,
+                url: worker_complete,
                 method: "get",
                 type: "json",
+                data: {
+                    "uniqueId": worker_id + ":" + assignment_id
+                },
                 success: function (resp) {
                     allow_exit();
-                    window.location = resp.address + "?uniqueId=" + worker_id + ":" + assignment_id;
+                    window.location = "/complete";
                 },
                 error: function (err) {
                     console.log(err);
