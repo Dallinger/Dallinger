@@ -37,6 +37,7 @@ from dallinger.heroku import (
 )
 from dallinger.mturk import MTurkService
 from dallinger import registration
+from dallinger.utils import generate_random_id
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -326,9 +327,7 @@ def debug(verbose, bot):
                     try:
                         from dallinger_experiment import Bot
                         participant = Bot(url)
-                        participant.sign_up()
-                        participant.participate()
-                        participant.sign_off()
+                        participant.run_experiment()
                     except ImportError:
                         log("This experiment does not have a bot.")
                 else:
@@ -681,6 +680,27 @@ def logs(app):
         subprocess.check_call([
             "heroku", "addons:open", "papertrail", "--app", app_name(app)
         ])
+
+
+@dallinger.command()
+@click.option('--app', default=None, help='ID of the deployed experiment')
+def bot(app):
+    """Run the experiment bot."""
+    if app is None:
+        raise TypeError("Select an experiment using the --app flag.")
+    else:
+        (id, tmp) = setup_experiment()
+        from dallinger_experiment import Bot
+        host = app_name(app)
+        worker = host.split('-')[1]
+        hit = generate_random_id()
+        assignment = generate_random_id()
+        ad_url = 'https://{}.herokuapp.com/ad'.format(host)
+        ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
+        ad_parameters = ad_parameters.format(assignment, hit, worker)
+        url = '{}?{}'.format(ad_url, ad_parameters)
+        bot = Bot(url)
+        bot.run_experiment()
 
 
 @dallinger.command()
