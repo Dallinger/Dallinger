@@ -34,16 +34,6 @@ from dallinger.config import get_config
 
 from .utils import nocache
 
-# Status codes
-NOT_ACCEPTED = 0
-ALLOCATED = 1
-STARTED = 2
-COMPLETED = 3
-SUBMITTED = 4
-CREDITED = 5
-QUITEARLY = 6
-BONUSED = 7
-
 
 config = get_config()
 if not config.ready:
