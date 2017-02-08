@@ -22,6 +22,4 @@ cutoff_time = 30
 logfile = server.log
 loglevel = 2
 debug = true
-login_username = examplename
-login_pw = examplepassword
 threads = auto
