@@ -2,7 +2,7 @@
 mode = sandbox
 auto_recruit = true
 
-[HIT Configuration]
+[MTurk]
 title = The Sheep Market
 description = Draw an image of a sheep
 amt_keywords = Psychology, drawing, images

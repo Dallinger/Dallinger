@@ -2,7 +2,7 @@
 mode = sandbox
 auto_recruit = true
 
-[HIT Configuration]
+[MTurk]
 title = Judge the dots
 description = Look at some dots and determine if there are more blue or yellow ones
 amt_keywords = Psychology, vision, dots

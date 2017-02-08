@@ -4,7 +4,7 @@ auto_recruit = true
 network = FullyConnected
 n = 2
 
-[HIT Configuration]
+[MTurk]
 title = Coordination game
 description = Coordinate with other players.
 amt_keywords = Coordination, chat
