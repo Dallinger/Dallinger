@@ -1,6 +1,7 @@
 """Bartlett's transmission chain experiment from Remembering (1932)."""
 
 import logging
+import time
 
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
@@ -10,6 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from dallinger.bots import BotBase
 from dallinger.networks import Chain
 from dallinger.experiments import Experiment
+
 
 logger = logging.getLogger(__file__)
 
@@ -71,6 +73,9 @@ class Bot(BotBase):
     def participate(self):
         """Finish reading and send text"""
         try:
+            time.sleep(5)
+            self.driver.execute_script("create_agent_failsafe")
+            logger.info("Entering participate method")
             ready = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.ID, 'finish-reading')))
             stimulus = self.driver.find_element_by_id('stimulus')

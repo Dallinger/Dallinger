@@ -112,3 +112,9 @@ get_info = function() {
         }
     });
 };
+
+create_agent_failsafe = function() {
+    if ($("#story").html == '<< loading >>') {
+        create_agent();
+    }
+};
