@@ -36,11 +36,6 @@ in like so:
     dallinger_email_address = ???
     dallinger_email_password = ???
 
-    [Task Parameters]
-    experiment_code_version = 1.0
-    num_conds = 1
-    num_counters = 1
-
     [Server Parameters]
     port = 5000
     cutoff_time = 30
