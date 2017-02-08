@@ -166,7 +166,7 @@ def with_cleanup(aws_creds, request):
             # remove QualificationTypes we may have added:
             for qtype_id in request.instance._qtypes_to_purge:
                 service.dispose_qualification_type(qtype_id)
-        except Exception:
+        except MTurkRequestError:
             pass
 
 
