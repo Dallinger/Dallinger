@@ -203,7 +203,6 @@ def get_config():
         ('heroku_team', unicode, []),
         ('host', unicode, []),
         ('port', int, ['PORT']),
-        ('launch_in_sandbox_mode', bool, []),
         ('lifetime', int, []),
         ('logfile', unicode, []),
         ('loglevel', int, []),

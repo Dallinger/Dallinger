@@ -28,6 +28,3 @@ host = 0.0.0.0
 notification_url = None
 clock_on = false
 logfile = -
-
-[Shell Parameters]
-launch_in_sandbox_mode = true
