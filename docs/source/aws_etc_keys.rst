@@ -42,8 +42,6 @@ in like so:
     logfile = -
     loglevel = 0
     debug = true
-    login_username = examplename
-    login_pw = examplepassword
     threads = 1
     clock_on = true
 
