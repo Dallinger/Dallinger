@@ -14,6 +14,6 @@ class TwentyFortyEight(dallinger.experiments.Experiment):
 
         super(TwentyFortyEight, self).__init__(session)
         self.experiment_repeats = 1
-        N = config.get("Experiment Configuration", "num_participants")
+        N = config.get("Experiment", "num_participants")
         self.initial_recruitment_size = N
         self.setup()

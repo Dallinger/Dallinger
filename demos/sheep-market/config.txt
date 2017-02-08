@@ -1,4 +1,4 @@
-[Experiment Configuration]
+[Experiment]
 mode = sandbox
 auto_recruit = true
 
