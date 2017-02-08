@@ -107,6 +107,25 @@ class TestExperimentServer(FlaskAppTest):
         assert data.get('status') == 'success'
         assert data.get('participant').get('status') == u'working'
 
+    def test_prevent_duplicate_participant_for_worker(self):
+        worker_id = self.worker_counter
+        hit_id = self.hit_counter
+        assignment_id = self.assignment_counter
+        self.worker_counter += 1
+        self.hit_counter += 1
+        self.assignment_counter += 1
+        resp = self.app.post('/participant/{}/{}/{}/debug'.format(
+            worker_id, hit_id, assignment_id
+        ))
+
+        assert resp.status_code == 200
+
+        resp = self.app.post('/participant/{}/{}/{}/debug'.format(
+            worker_id, hit_id, assignment_id
+        ))
+
+        assert resp.status_code == 403
+
     def test_node_vectors(self):
         p_id = self._create_participant()
         n_id = self._create_node(p_id)
