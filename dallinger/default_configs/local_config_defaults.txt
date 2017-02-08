@@ -25,6 +25,3 @@ debug = true
 login_username = examplename
 login_pw = examplepassword
 threads = auto
-
-[Shell Parameters]
-launch_in_sandbox_mode = true

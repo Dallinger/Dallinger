@@ -414,7 +414,6 @@ class Experiment(object):
         config.extend({
             "mode": u"sandbox",
             "logfile": u"-",
-            "launch_in_sandbox_mode": True,
         })
 
         if app_id is None:
@@ -441,7 +440,6 @@ class Experiment(object):
         config.extend({
             "mode": u"sandbox",
             "logfile": u"-",
-            "launch_in_sandbox_mode": False,
         })
 
         if app_id is None:
