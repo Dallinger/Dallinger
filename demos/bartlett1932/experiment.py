@@ -46,7 +46,7 @@ class Bartlett1932(Experiment):
 
     def create_network(self):
         """Return a new network."""
-        return Chain(max_size=3)
+        return Chain(max_size=5)
 
     def add_node_to_network(self, node, network):
         """Add node to the chain and receive transmissions."""
@@ -96,13 +96,12 @@ class Bot(BotBase):
     def participate(self):
         """Finish reading and send text"""
         try:
-            time.sleep(5)
-            self.driver.execute_script("create_agent_failsafe")
             logger.info("Entering participate method")
+            self.driver.execute_script("create_agent")
+            time.sleep(10)
             ready = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.ID, 'finish-reading')))
             stimulus = self.driver.find_element_by_id('stimulus')
-            WebDriverWait(self.driver, 10).until( EC.visibility_of(stimulus))
             story = stimulus.find_element_by_id('story')
             story_text = story.text
             logger.info("Stimulus text:")
