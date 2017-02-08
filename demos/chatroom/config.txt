@@ -18,7 +18,7 @@ ad_group = Coordination
 organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
-[Database Parameters]
+[Database]
 database_url = postgresql://postgres@localhost/dallinger
 database_size = hobby-dev
 
