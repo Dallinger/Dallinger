@@ -72,3 +72,4 @@ class BotBase(object):
         self.sign_up()
         self.participate()
         self.sign_off()
+        self.driver.quit()
