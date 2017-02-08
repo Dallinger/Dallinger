@@ -159,12 +159,15 @@ def with_cleanup(aws_creds, request):
     except Exception as e:
         raise e
     finally:
-        for hit in service.get_hits(test_hits_only):
-            service.disable_hit(hit['id'])
+        try:
+            for hit in service.get_hits(test_hits_only):
+                service.disable_hit(hit['id'])
 
-        # remove QualificationTypes we may have added:
-        for qtype_id in request.instance._qtypes_to_purge:
-            service.dispose_qualification_type(qtype_id)
+            # remove QualificationTypes we may have added:
+            for qtype_id in request.instance._qtypes_to_purge:
+                service.dispose_qualification_type(qtype_id)
+        except Exception:
+            pass
 
 
 @pytest.mark.mturk
