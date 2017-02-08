@@ -12,6 +12,7 @@ from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
+from dallinger.utils import generate_random_id
 
 
 TEST_HIT_DESCRIPTION = '***TEST SUITE HIT***'
@@ -86,7 +87,7 @@ def fake_hit_response(**kwargs):
 def fake_qualification_response():
     canned_response = {
         'Status': u'Granted',
-        'QualificationTypeId': u'3J48J1M4J7MXEAEO66XD9Q4JQ851VA',
+        'QualificationTypeId': generate_random_id(size=32),
         'SubjectId': u'A2ZTO3X61UKR1G',
         'Qualification': '',
         'GrantTime': u'2017-02-02T13:06:13.000-08:00',
@@ -104,7 +105,7 @@ def fake_qualification_type_response():
         'AutoGranted': u'0',
         'QualificationType': '',
         'Description': u'***TEST SUITE QUALIFICATION***',
-        'QualificationTypeId': u'37RZXPVRUD8UI52US2V7MH6HZA2L1A',
+        'QualificationTypeId': generate_random_id(size=32),
         'IsValid': u'True',
         'Request': '',
         'QualificationTypeStatus': u'Active',
@@ -257,7 +258,7 @@ class TestMTurkService(object):
 
     def test_create_and_dispose_qualification_type(self, with_cleanup):
         result = with_cleanup.create_qualification_type(
-            name='Test Qualifiction',
+            name=generate_random_id(size=32),
             description=TEST_QUALIFICATION_DESCRIPTION,
             status='Active',
         )
@@ -273,7 +274,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 
     def _make_qtype(self, mturk):
         qtype = mturk.create_qualification_type(
-            name='Test Qualifiction',
+            name=generate_random_id(size=32),
             description=TEST_QUALIFICATION_DESCRIPTION,
             status='Active',
         )
