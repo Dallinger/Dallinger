@@ -2,7 +2,7 @@
 mode = sandbox
 auto_recruit = true
 
-[HIT Configuration]
+[MTurk]
 title = Remember the drawing
 description = View an image and then try to recreate it
 amt_keywords = Psychology, drawing, images

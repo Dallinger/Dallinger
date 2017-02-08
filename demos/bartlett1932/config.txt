@@ -2,7 +2,7 @@
 mode = sandbox
 auto_recruit = true
 
-[HIT Configuration]
+[MTurk]
 title = War of the Ghosts
 description = Read a brief story and answer some questions about it.
 amt_keywords = Psychology, reading, text

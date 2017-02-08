@@ -2,7 +2,7 @@
 auto_recruit = true
 mode = sandbox
 
-[HIT Configuration]
+[MTurk]
 title = Function learning
 description = Learn the relationship between the sizes of two objects.
 amt_keywords = Psychology, game, learning

@@ -3,7 +3,7 @@ mode = sandbox
 auto_recruit = true
 num_participants = 10
 
-[HIT Configuration]
+[MTurk]
 title = Concentration game
 description = Play a round of the game Concentration.
 amt_keywords = game, videogame, play

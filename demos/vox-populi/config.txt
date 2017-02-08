@@ -2,7 +2,7 @@
 mode = sandbox
 auto_recruit = true
 
-[HIT Configuration]
+[MTurk]
 title = Estimate these almanac facts
 description = Estimate a few values
 amt_keywords = Psychology, drawing, images

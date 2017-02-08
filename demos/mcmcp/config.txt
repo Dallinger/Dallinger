@@ -2,7 +2,7 @@
 mode = sandbox
 auto_recruit = true
 
-[HIT Configuration]
+[MTurk]
 title = Select the image
 description = Decide which image is a better match to a given category.
 amt_keywords = vision, categorization, images

@@ -1,7 +1,7 @@
 [Experiment Configuration]
 mode = debug
 
-[HIT Configuration]
+[MTurk]
 title = Stroop task
 description = Judge the color of a series of words.
 amt_keywords = Perception, Psychology
