@@ -20,7 +20,7 @@ browser_exclude_rule = MSIE, mobile, tablet
 database_url = postgresql://postgres@localhost/dallinger
 database_size = standard-0
 
-[Server Parameters]
+[Server]
 dyno_type = free
 num_dynos_web = 1
 num_dynos_worker = 1
