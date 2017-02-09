@@ -1,5 +1,6 @@
 import datetime
 import mock
+import os
 import pytest
 from boto.resultset import ResultSet
 from boto.mturk.price import Price
@@ -129,7 +130,7 @@ def standard_hit_config(**kwargs):
         'max_assignments': 1,
         'notification_url': 'https://url-of-notification-route',
         'title': 'Test Title',
-        'description': TEST_HIT_DESCRIPTION,
+        'description': TEST_HIT_DESCRIPTION + str(os.getpid()),
         'keywords': ['testkw1', 'testkw1'],
         'reward': .01,
         'duration_hours': .25
@@ -150,7 +151,7 @@ def with_cleanup(aws_creds, request):
 
     # tear-down: clean up all specially-marked HITs:
     def test_hits_only(hit):
-        return hit['description'] == TEST_HIT_DESCRIPTION
+        return hit['description'] == TEST_HIT_DESCRIPTION + str(os.getpid())
 
     service = MTurkService(**aws_creds)
     request.instance._qtypes_to_purge = []
