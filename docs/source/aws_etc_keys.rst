@@ -36,7 +36,7 @@ in like so:
     dallinger_email_address = ???
     dallinger_email_password = ???
 
-    [Server Parameters]
+    [Server]
     port = 5000
     cutoff_time = 30
     logfile = -

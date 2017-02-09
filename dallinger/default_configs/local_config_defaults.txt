@@ -15,7 +15,7 @@ browser_exclude_rule = MSIE, mobile, tablet
 
 [Database]
 database_url = postgresql://postgres@localhost/dallinger
-[Server Parameters]
+[Server]
 host = localhost
 port = 22362
 cutoff_time = 30
