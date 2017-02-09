@@ -1,19 +1,19 @@
 """The game Snake."""
+import dallinger as dlgr
 
-import ConfigParser
-import dallinger
+config = dlgr.config.get_config()
 
 
-class SnakeGame(dallinger.experiments.Experiment):
+def extra_settings():
+    config.register('n', int)
+
+
+class SnakeGame(dlgr.experiments.Experiment):
     """Define the structure of the experiment."""
 
     def __init__(self, session):
         """Initialize the experiment."""
-        config = ConfigParser.ConfigParser()
-        config.read("config.txt")
-
         super(SnakeGame, self).__init__(session)
         self.experiment_repeats = 1
-        N = config.get("Experiment", "num_participants")
-        self.initial_recruitment_size = N
+        self.initial_recruitment_size = config.get("n")
         self.setup()

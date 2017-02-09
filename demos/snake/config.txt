@@ -1,7 +1,7 @@
 [Experiment]
 mode = sandbox
 auto_recruit = true
-num_participants = 10
+n = 10
 
 [MTurk]
 title = Snake game
