@@ -7,6 +7,7 @@ import re
 import traceback
 import user_agents
 
+from boto.mturk.connection import MTurkConnection
 from flask import (
     abort,
     Flask,
@@ -520,6 +521,19 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     )
     session.add(participant)
     session.commit()
+
+    # Assign a qualification to the worker.
+    if mode in ['sandbox','live']:
+        conn = MTurkConnection(
+            config.get('aws_access_key_id'),
+            config.get('aws_secret_access_key'),
+        )
+        result = conn.assign_qualification(
+            config.get('id'),
+            worker_id,
+            value=1,
+            send_notification=False,
+        )
 
     # return the data
     return success_response(

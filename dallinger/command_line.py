@@ -21,6 +21,7 @@ import time
 import uuid
 import webbrowser
 
+from boto.mturk.connection import MTurkConnection
 import click
 from dallinger.config import get_config
 import psycopg2
@@ -167,6 +168,9 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         log("Freezing the experiment package...")
         shutil.make_archive(
             os.path.join(cwd, "snapshots", public_id + "-code"), "zip", dst)
+
+    # Save the experiment ID.
+    config.set("id", id)
 
     # Check directories.
     if not os.path.exists(os.path.join("static", "scripts")):
@@ -322,6 +326,17 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     if config.get("mode") == u"live":
         log("Registering the experiment on configured services...")
         registration.register(id, snapshot=None)
+
+    conn = MTurkConnection(
+        config.get('aws_access_key_id'),
+        config.get('aws_secret_access_key'),
+    )
+
+    conn.create_qualification_type(
+        id,
+        "Participated in experiment {}".format(id),
+        "Active",
+    )
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
