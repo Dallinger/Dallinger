@@ -11,6 +11,7 @@ Chatroom
 Cirulli
 conda
 config
+crowdsourced
 css
 dallinger
 Dallinger
@@ -20,6 +21,7 @@ frontend
 GitHub
 Google
 Griffiths
+GSoC
 Heroku
 Homebrew
 html
@@ -35,6 +37,7 @@ Kegl
 Lewandowsky
 md
 Meme
+microfluidics
 MTurk
 neighbour
 ons
@@ -48,6 +51,8 @@ prepopulate
 psiTurk
 Psychonomic
 py
+pytest
+Redis
 Richerson
 Sanborn
 Senghas
@@ -69,4 +74,5 @@ walkthroughs
 Webhook
 webpage
 Wikipedia
+workflow
 workflows
