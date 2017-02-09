@@ -4,7 +4,7 @@ import dallinger
 config = dallinger.config.get_config()
 
 
-def extra_settings():
+def extra_parameters():
     config.register('n', int)
 
 

@@ -124,8 +124,8 @@ class Configuration(object):
         if self.ready:
             raise ValueError("Already loaded")
 
-        # Apply extra settings before loading the configs
-        self.register_extra_settings()
+        # Apply extra parameters before loading the configs
+        self.register_extra_parameters()
 
         globalConfigName = ".dallingerconfig"
         globalConfig = os.path.expanduser(os.path.join("~/", globalConfigName))
@@ -135,7 +135,7 @@ class Configuration(object):
         local_defaults_file = os.path.join(defaults_folder, "local_config_defaults.txt")
         global_defaults_file = os.path.join(defaults_folder, "global_config_defaults.txt")
 
-        # Load the configuration, with local settings overriding global ones.
+        # Load the configuration, with local parameters overriding global ones.
         for config_file in [
             global_defaults_file,
             local_defaults_file,
@@ -149,26 +149,26 @@ class Configuration(object):
         self.load_from_environment()
         self.ready = True
 
-    def register_extra_settings(self):
-        extra_settings = None
+    def register_extra_parameters(self):
+        extra_parameters = None
         try:
-            from dallinger_experiment import extra_settings
+            from dallinger_experiment import extra_parameters
         except ImportError:
             try:
                 exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
-                extra_settings = getattr(exp, 'extra_settings', None)
+                extra_parameters = getattr(exp, 'extra_parameters', None)
             except (ImportError, IOError):
                 pass
-            if extra_settings is None:
+            if extra_parameters is None:
                 try:
                     # We may be in the original source directory, try experiment.py
                     exp = imp.load_source('dallinger_experiment', "experiment.py")
-                    extra_settings = getattr(exp, 'extra_settings', None)
+                    extra_parameters = getattr(exp, 'extra_parameters', None)
                 except (ImportError, IOError):
                     pass
-        if extra_settings is not None and getattr(extra_settings, 'loaded', None) is None:
-            extra_settings()
-            extra_settings.loaded = True
+        if extra_parameters is not None and getattr(extra_parameters, 'loaded', None) is None:
+            extra_parameters()
+            extra_parameters.loaded = True
 
 
 configurations = threading.local()
