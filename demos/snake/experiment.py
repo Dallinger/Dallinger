@@ -4,7 +4,7 @@ import dallinger as dlgr
 config = dlgr.config.get_config()
 
 
-def extra_settings():
+def extra_parameters():
     config.register('n', int)
 
 
