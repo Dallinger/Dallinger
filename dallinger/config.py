@@ -15,7 +15,52 @@ logger = logging.getLogger(__file__)
 marker = object()
 
 LOCAL_CONFIG = 'config.txt'
-SENSITIVE_KEY_NAMES = ('secret', 'access_key', 'access_id', 'password', 'token')
+SENSITIVE_KEY_NAMES = (
+    'access_id',
+    'access_key',
+    'password',
+    'secret',
+    'token',
+)
+
+default_keys = (
+    ('ad_group', unicode, []),
+    ('amt_keywords', unicode, []),
+    ('approve_requirement', int, []),
+    ('auto_recruit', bool, []),
+    ('aws_access_key_id', unicode, [], True),
+    ('aws_region', unicode, []),
+    ('aws_secret_access_key', unicode, [], True),
+    ('base_payment', float, []),
+    ('browser_exclude_rule', unicode, []),
+    ('clock_on', bool, []),
+    ('contact_email_on_error', unicode, []),
+    ('dallinger_email_address', unicode, []),
+    ('dallinger_email_password', unicode, [], True),
+    ('database_size', unicode, []),
+    ('database_url', unicode, []),
+    ('description', unicode, []),
+    ('duration', float, []),
+    ('dyno_type', unicode, []),
+    ('heroku_email_address', unicode, [], True),
+    ('heroku_password', unicode, [], True),
+    ('heroku_team', unicode, []),
+    ('host', unicode, []),
+    ('port', int, ['PORT']),
+    ('lifetime', int, []),
+    ('logfile', unicode, []),
+    ('loglevel', int, []),
+    ('mode', unicode, []),
+    ('notification_url', unicode, []),
+    ('num_dynos_web', int, []),
+    ('num_dynos_worker', int, []),
+    ('num_participants', int, []),
+    ('organization_name', unicode, []),
+    ('threads', unicode, []),
+    ('title', unicode, []),
+    ('us_only', bool, []),
+    ('whimsical', bool, []),
+)
 
 
 class Configuration(object):
@@ -79,6 +124,12 @@ class Configuration(object):
 
     def __getitem__(self, key):
         return self.get(key)
+
+    def __getattr__(self, key):
+        try:
+            return self.get(key)
+        except KeyError:
+            raise AttributeError
 
     def register(self, key, type_, synonyms=set(), sensitive=False):
         if key in self.types:
@@ -178,45 +229,6 @@ def get_config():
     if hasattr(configurations, 'config'):
         return configurations.config
     configurations.config = Configuration()
-
-    default_keys = (
-        ('ad_group', unicode, []),
-        ('amt_keywords', unicode, []),
-        ('approve_requirement', int, []),
-        ('auto_recruit', bool, []),
-        ('aws_access_key_id', unicode, [], True),
-        ('aws_region', unicode, []),
-        ('aws_secret_access_key', unicode, [], True),
-        ('base_payment', float, []),
-        ('browser_exclude_rule', unicode, []),
-        ('clock_on', bool, []),
-        ('contact_email_on_error', unicode, []),
-        ('dallinger_email_address', unicode, []),
-        ('dallinger_email_password', unicode, [], True),
-        ('database_size', unicode, []),
-        ('database_url', unicode, []),
-        ('description', unicode, []),
-        ('duration', float, []),
-        ('dyno_type', unicode, []),
-        ('heroku_email_address', unicode, [], True),
-        ('heroku_password', unicode, [], True),
-        ('heroku_team', unicode, []),
-        ('host', unicode, []),
-        ('port', int, ['PORT']),
-        ('lifetime', int, []),
-        ('logfile', unicode, []),
-        ('loglevel', int, []),
-        ('mode', unicode, []),
-        ('notification_url', unicode, []),
-        ('num_dynos_web', int, []),
-        ('num_dynos_worker', int, []),
-        ('num_participants', int, []),
-        ('organization_name', unicode, []),
-        ('threads', unicode, []),
-        ('title', unicode, []),
-        ('us_only', bool, []),
-        ('whimsical', bool, []),
-    )
 
     for registration in default_keys:
         configurations.config.register(*registration)
