@@ -1,0 +1,10 @@
+engineer
+doctor
+carpenter
+secretary
+manager
+student
+teacher
+cook
+athlete
+dentist 

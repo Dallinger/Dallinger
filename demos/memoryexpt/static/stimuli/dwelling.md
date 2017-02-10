@@ -1,0 +1,10 @@
+house
+mansion
+shack
+cabin
+tent
+dorm
+hotel
+apartment
+hut
+trailer

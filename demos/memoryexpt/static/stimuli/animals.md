@@ -1,0 +1,10 @@
+horse
+pig
+dog
+cat
+deer
+moose
+lion
+bear
+wolf
+cow 

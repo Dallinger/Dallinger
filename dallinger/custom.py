@@ -210,6 +210,21 @@ def quitter():
     )
 
 
+@custom_code.route("/info", methods=["GET"])
+def get_info_all():
+    """Get all the infos"""
+    exp = experiment(session)
+
+    num_infos = models.Info.query.count()
+
+    # return the data
+    return success_response(
+        field="info",
+        data={"count": num_infos},
+        request_type="info get",
+    )
+
+
 @custom_code.route('/experiment_property/<prop>', methods=['GET'])
 @custom_code.route('/experiment/<prop>', methods=['GET'])
 def experiment_property(prop):
