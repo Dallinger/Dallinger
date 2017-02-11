@@ -44,7 +44,7 @@ default_keys = (
     ('dyno_type', unicode, []),
     ('heroku_email_address', unicode, [], True),
     ('heroku_password', unicode, [], True),
-    ('heroku_team', unicode, []),
+    ('heroku_team', unicode, ['team']),
     ('host', unicode, []),
     ('port', int, ['PORT']),
     ('lifetime', int, []),
