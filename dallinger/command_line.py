@@ -37,6 +37,7 @@ from dallinger.heroku import (
     scale_up_dynos
 )
 from dallinger.mturk import MTurkService
+from dallinger import registration
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -317,6 +318,12 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     (id, tmp) = setup_experiment(debug=False, verbose=verbose, app=app,
                                  exp_config=exp_config)
 
+    # Register the experiment using all configured registration services.
+    config = get_config()
+    if config.get("mode") == u"live":
+        log("Registering the experiment on configured services...")
+        registration.register(id, snapshot=None)
+
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
     heroku.log_in()
@@ -500,7 +507,7 @@ def deploy(verbose, app):
 
     # Set the mode.
     config.extend({
-        "mode": u"sandbox",
+        "mode": u"live",
         "logfile": u"-",
     })
 

@@ -11,7 +11,8 @@ from . import (
     transformations,
     experiment,
     experiments,
-    heroku
+    heroku,
+    registration
 )
 
 import logging
@@ -32,4 +33,5 @@ __all__ = (
     "heroku",
     "experiment",
     "experiments",
+    "registration",
 )
