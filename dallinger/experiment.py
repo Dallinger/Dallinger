@@ -405,8 +405,8 @@ class Experiment(object):
     def sandbox(self, exp_config=None, app_id=None):
         """Deploys and runs an experiment in sandbox mode.
         The exp_config object is either a dictionary or a
-        ``localconfig.LocalConfig`` object with experiment
-        run specific settings grouped by section.
+        ``localconfig.LocalConfig`` object with parameters
+        specific to the experiment run grouped by section.
         """
         import dallinger as dlgr
 
@@ -414,7 +414,6 @@ class Experiment(object):
         config.extend({
             "mode": u"sandbox",
             "logfile": u"-",
-            "launch_in_sandbox_mode": True,
         })
 
         if app_id is None:
@@ -430,10 +429,11 @@ class Experiment(object):
 
     @exp_class_working_dir
     def deploy(self, exp_config=None, app_id=None):
-        """Deploys and runs an experiment.
+        """Deploy and run an experiment.
+
         The exp_config object is either a dictionary or a
-        ``localconfig.LocalConfig`` object with experiment
-        run specific settings grouped by section.
+        ``localconfig.LocalConfig`` object with parameters
+        specific to the experiment run grouped by section.
         """
         import dallinger as dlgr
 
@@ -441,7 +441,6 @@ class Experiment(object):
         config.extend({
             "mode": u"sandbox",
             "logfile": u"-",
-            "launch_in_sandbox_mode": False,
         })
 
         if app_id is None:

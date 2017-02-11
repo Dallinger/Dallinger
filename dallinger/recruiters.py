@@ -106,7 +106,7 @@ class MTurkRecruiter(object):
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
             self.config.get('aws_secret_access_key'),
-            self.config.get('launch_in_sandbox_mode')
+            (self.config.get('mode') == "sandbox")
         )
 
     def open_recruitment(self, n=1):
@@ -136,7 +136,7 @@ class MTurkRecruiter(object):
             'us_only': self.config.get('us_only'),
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
-        if self.config.get('launch_in_sandbox_mode'):
+        if self.config.get('mode') == "sandbox":
             lookup_url = "https://workersandbox.mturk.com/mturk/preview?groupId={type_id}"
         else:
             lookup_url = "https://worker.mturk.com/mturk/preview?groupId={type_id}"

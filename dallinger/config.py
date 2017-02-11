@@ -15,7 +15,52 @@ logger = logging.getLogger(__file__)
 marker = object()
 
 LOCAL_CONFIG = 'config.txt'
-SENSITIVE_KEY_NAMES = ('secret', 'access_key', 'access_id', 'password', 'token')
+SENSITIVE_KEY_NAMES = (
+    'access_id',
+    'access_key',
+    'password',
+    'secret',
+    'token',
+)
+
+default_keys = (
+    ('ad_group', unicode, []),
+    ('amt_keywords', unicode, []),
+    ('approve_requirement', int, []),
+    ('auto_recruit', bool, []),
+    ('aws_access_key_id', unicode, [], True),
+    ('aws_region', unicode, []),
+    ('aws_secret_access_key', unicode, [], True),
+    ('base_payment', float, []),
+    ('browser_exclude_rule', unicode, []),
+    ('clock_on', bool, []),
+    ('contact_email_on_error', unicode, []),
+    ('dallinger_email_address', unicode, []),
+    ('dallinger_email_password', unicode, [], True),
+    ('database_size', unicode, []),
+    ('database_url', unicode, []),
+    ('description', unicode, []),
+    ('duration', float, []),
+    ('dyno_type', unicode, []),
+    ('heroku_email_address', unicode, [], True),
+    ('heroku_password', unicode, [], True),
+    ('heroku_team', unicode, ['team']),
+    ('host', unicode, []),
+    ('port', int, ['PORT']),
+    ('lifetime', int, []),
+    ('logfile', unicode, []),
+    ('loglevel', int, []),
+    ('mode', unicode, []),
+    ('notification_url', unicode, []),
+    ('num_dynos_web', int, []),
+    ('num_dynos_worker', int, []),
+    ('num_participants', int, []),
+    ('organization_name', unicode, []),
+    ('threads', unicode, []),
+    ('title', unicode, []),
+    ('us_only', bool, []),
+    ('whimsical', bool, []),
+)
 
 
 class Configuration(object):
@@ -43,7 +88,7 @@ class Configuration(object):
                 # This key hasn't been registered, we ignore it
                 if strict:
                     raise KeyError('{} is not a valid configuration key'.format(key))
-                logger.warn('{} is not a valid configuration key'.format(key))
+                logger.debug('{} is not a valid configuration key'.format(key))
                 continue
             expected_type = self.types.get(key)
             if cast_types:
@@ -80,6 +125,12 @@ class Configuration(object):
     def __getitem__(self, key):
         return self.get(key)
 
+    def __getattr__(self, key):
+        try:
+            return self.get(key)
+        except KeyError:
+            raise AttributeError
+
     def register(self, key, type_, synonyms=set(), sensitive=False):
         if key in self.types:
             raise KeyError('Config key {} is already registered'.format(key))
@@ -102,7 +153,7 @@ class Configuration(object):
         data = {}
         for section in parser.sections():
             data.update(dict(parser.items(section)))
-        self.extend(data, cast_types=True)
+        self.extend(data, cast_types=True, strict=True)
 
     def write_config(self, filter_sensitive=False):
         parser = SafeConfigParser()
@@ -124,8 +175,8 @@ class Configuration(object):
         if self.ready:
             raise ValueError("Already loaded")
 
-        # Apply extra settings before loading the configs
-        self.register_extra_settings()
+        # Apply extra parameters before loading the configs
+        self.register_extra_parameters()
 
         globalConfigName = ".dallingerconfig"
         globalConfig = os.path.expanduser(os.path.join("~/", globalConfigName))
@@ -135,7 +186,7 @@ class Configuration(object):
         local_defaults_file = os.path.join(defaults_folder, "local_config_defaults.txt")
         global_defaults_file = os.path.join(defaults_folder, "global_config_defaults.txt")
 
-        # Load the configuration, with local settings overriding global ones.
+        # Load the configuration, with local parameters overriding global ones.
         for config_file in [
             global_defaults_file,
             local_defaults_file,
@@ -149,26 +200,26 @@ class Configuration(object):
         self.load_from_environment()
         self.ready = True
 
-    def register_extra_settings(self):
-        extra_settings = None
+    def register_extra_parameters(self):
+        extra_parameters = None
         try:
-            from dallinger_experiment import extra_settings
+            from dallinger_experiment import extra_parameters
         except ImportError:
             try:
                 exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
-                extra_settings = getattr(exp, 'extra_settings', None)
+                extra_parameters = getattr(exp, 'extra_parameters', None)
             except (ImportError, IOError):
                 pass
-            if extra_settings is None:
+            if extra_parameters is None:
                 try:
                     # We may be in the original source directory, try experiment.py
                     exp = imp.load_source('dallinger_experiment', "experiment.py")
-                    extra_settings = getattr(exp, 'extra_settings', None)
+                    extra_parameters = getattr(exp, 'extra_parameters', None)
                 except (ImportError, IOError):
                     pass
-        if extra_settings is not None and getattr(extra_settings, 'loaded', None) is None:
-            extra_settings()
-            extra_settings.loaded = True
+        if extra_parameters is not None and getattr(extra_parameters, 'loaded', None) is None:
+            extra_parameters()
+            extra_parameters.loaded = True
 
 
 configurations = threading.local()
@@ -178,46 +229,6 @@ def get_config():
     if hasattr(configurations, 'config'):
         return configurations.config
     configurations.config = Configuration()
-
-    default_keys = (
-        ('ad_group', unicode, []),
-        ('amt_keywords', unicode, []),
-        ('approve_requirement', int, []),
-        ('auto_recruit', bool, []),
-        ('aws_access_key_id', unicode, [], True),
-        ('aws_region', unicode, []),
-        ('aws_secret_access_key', unicode, [], True),
-        ('base_payment', float, []),
-        ('browser_exclude_rule', unicode, []),
-        ('clock_on', bool, []),
-        ('contact_email_on_error', unicode, []),
-        ('dallinger_email_address', unicode, []),
-        ('dallinger_email_password', unicode, [], True),
-        ('database_size', unicode, []),
-        ('database_url', unicode, []),
-        ('description', unicode, []),
-        ('duration', float, []),
-        ('dyno_type', unicode, []),
-        ('heroku_email_address', unicode, [], True),
-        ('heroku_password', unicode, [], True),
-        ('heroku_team', unicode, []),
-        ('host', unicode, []),
-        ('port', int, ['PORT']),
-        ('launch_in_sandbox_mode', bool, []),
-        ('lifetime', int, []),
-        ('logfile', unicode, []),
-        ('loglevel', int, []),
-        ('mode', unicode, []),
-        ('notification_url', unicode, []),
-        ('num_dynos_web', int, []),
-        ('num_dynos_worker', int, []),
-        ('num_participants', int, []),
-        ('organization_name', unicode, []),
-        ('threads', unicode, []),
-        ('title', unicode, []),
-        ('us_only', bool, []),
-        ('whimsical', bool, []),
-    )
 
     for registration in default_keys:
         configurations.config.register(*registration)
