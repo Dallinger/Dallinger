@@ -262,7 +262,6 @@ def debug(verbose):
         logfile = os.path.join(cwd, logfile)
     config.extend({
         "mode": u"debug",
-        "launch_in_sandbox_mode": True,
         "logfile": logfile
     })
     config.write_config()
@@ -481,9 +480,10 @@ def sandbox(verbose, app):
     config.load_config()
 
     # Set the mode.
-    config.extend({"mode": u"sandbox",
-                   "logfile": u"-",
-                   "launch_in_sandbox_mode": True})
+    config.extend({
+        "mode": u"sandbox",
+        "logfile": u"-",
+    })
 
     # Do shared setup.
     deploy_sandbox_shared_setup(verbose=verbose, app=app)
@@ -499,9 +499,10 @@ def deploy(verbose, app):
     config.load_config()
 
     # Set the mode.
-    config.extend({"mode": u"sandbox",
-                   "logfile": u"-",
-                   "launch_in_sandbox_mode": False})
+    config.extend({
+        "mode": u"sandbox",
+        "logfile": u"-",
+    })
 
     # Do shared setup.
     deploy_sandbox_shared_setup(verbose=verbose, app=app)
@@ -518,7 +519,7 @@ def qualify(qualification, value, worker):
     mturk = MTurkService(
         aws_access_key_id=config.get('aws_access_key_id'),
         aws_secret_access_key=config.get('aws_secret_access_key'),
-        sandbox=config.get('launch_in_sandbox_mode')
+        sandbox=(config.get('mode') == "sandbox"),
     )
 
     click.echo(

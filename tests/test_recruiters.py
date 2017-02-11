@@ -72,7 +72,6 @@ def stub_config(**kwargs):
         'auto_recruit': True,
         'aws_access_key_id': 'fake key',
         'aws_secret_access_key': 'fake secret',
-        'launch_in_sandbox_mode': True,
         'base_payment': 0.01,
         'duration': 1.0,
         'server': '0.0.0.0',

@@ -17,5 +17,5 @@ class TestExperiment(Experiment):
         return Star(max_size=2)
 
 
-def extra_settings():
+def extra_parameters():
     config.register('custom_parameter', int, [])

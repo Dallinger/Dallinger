@@ -1,10 +1,10 @@
-[Experiment Configuration]
+[Experiment]
 mode = sandbox
 auto_recruit = true
 network = FullyConnected
 n = 2
 
-[HIT Configuration]
+[MTurk]
 title = Coordination game
 description = Coordinate with other players.
 amt_keywords = Coordination, chat
@@ -18,16 +18,13 @@ ad_group = Coordination
 organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
-[Database Parameters]
+[Database]
 database_url = postgresql://postgres@localhost/dallinger
 database_size = hobby-dev
 
-[Server Parameters]
+[Server]
 dyno_type = free
 num_dynos_web = 1
 num_dynos_worker = 1
 host = 0.0.0.0
 notification_url = None
-
-[Shell Parameters]
-launch_in_sandbox_mode = true
