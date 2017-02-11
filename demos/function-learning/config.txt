@@ -1,8 +1,8 @@
-[Experiment]
+[Experiment Configuration]
 auto_recruit = true
 mode = sandbox
 
-[MTurk]
+[HIT Configuration]
 title = Function learning
 description = Learn the relationship between the sizes of two objects.
 amt_keywords = Psychology, game, learning
@@ -16,13 +16,16 @@ ad_group = Function learning
 organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
-[Database]
+[Database Parameters]
 database_url = postgresql://postgres@localhost/dallinger
 database_size = standard-0
 
-[Server]
+[Server Parameters]
 dyno_type = standard-1x
 num_dynos_web = 2
 num_dynos_worker = 1
 host = 0.0.0.0
 notification_url = None
+
+[Shell Parameters]
+launch_in_sandbox_mode = true

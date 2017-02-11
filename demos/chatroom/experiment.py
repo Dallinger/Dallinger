@@ -7,7 +7,7 @@ from dallinger.config import get_config
 config = get_config()
 
 
-def extra_parameters():
+def extra_settings():
     config.register('network', unicode)
     config.register('n', int)
 

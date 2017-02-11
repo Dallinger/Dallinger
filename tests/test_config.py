@@ -91,20 +91,6 @@ class TestConfiguration(object):
         config.extend({'num_participants': 1})
         assert config['num_participants'] == 1
 
-    def test_attribute_access(self):
-        config = Configuration()
-        config.register('num_participants', int)
-        config.ready = True
-        config.extend({'num_participants': 1})
-        assert config.num_participants == 1
-
-    def test_attribute_setting(self):
-        config = Configuration()
-        config.register('num_participants', int)
-        config.ready = True
-        config.num_participants = 1
-        assert config.num_participants == 1
-
     def test_strict_extending_blocks_unknown_keys(self):
         config = Configuration()
         config.register('num_participants', int)

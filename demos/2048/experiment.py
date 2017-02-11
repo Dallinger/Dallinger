@@ -1,11 +1,7 @@
 """The game 2048."""
+
+import ConfigParser
 import dallinger
-
-config = dallinger.config.get_config()
-
-
-def extra_parameters():
-    config.register('n', int)
 
 
 class TwentyFortyEight(dallinger.experiments.Experiment):
@@ -13,8 +9,11 @@ class TwentyFortyEight(dallinger.experiments.Experiment):
 
     def __init__(self, session):
         """Initialize the experiment."""
+        config = ConfigParser.ConfigParser()
+        config.read("config.txt")
+
         super(TwentyFortyEight, self).__init__(session)
         self.experiment_repeats = 1
-        N = config.get("n")
+        N = config.get("Experiment Configuration", "num_participants")
         self.initial_recruitment_size = N
         self.setup()

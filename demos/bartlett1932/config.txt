@@ -1,8 +1,8 @@
-[Experiment]
+[Experiment Configuration]
 mode = sandbox
 auto_recruit = true
 
-[MTurk]
+[HIT Configuration]
 title = War of the Ghosts
 description = Read a brief story and answer some questions about it.
 amt_keywords = Psychology, reading, text
@@ -16,11 +16,11 @@ ad_group = War of the Ghosts
 organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
-[Database]
+[Database Parameters]
 database_url = postgresql://postgres@localhost/dallinger
 database_size = standard-0
 
-[Server]
+[Server Parameters]
 dyno_type = free
 num_dynos_web = 1
 num_dynos_worker = 1
@@ -28,3 +28,6 @@ host = 0.0.0.0
 notification_url = None
 clock_on = false
 logfile = -
+
+[Shell Parameters]
+launch_in_sandbox_mode = true

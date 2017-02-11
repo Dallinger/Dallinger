@@ -34,7 +34,6 @@ Laboratory automation for the behavioral and social sciences.
     the_experiment_class
     web_api
     communicating_with_the_server
-    configuration
 
 .. toctree::
     :maxdepth: 1

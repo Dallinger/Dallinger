@@ -36,10 +36,19 @@ in like so:
     dallinger_email_address = ???
     dallinger_email_password = ???
 
-    [Server]
+    [Task Parameters]
+    experiment_code_version = 1.0
+    num_conds = 1
+    num_counters = 1
+
+    [Server Parameters]
     port = 5000
+    cutoff_time = 30
     logfile = -
     loglevel = 0
+    debug = true
+    login_username = examplename
+    login_pw = examplepassword
     threads = 1
     clock_on = true
 

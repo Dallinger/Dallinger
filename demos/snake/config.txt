@@ -1,9 +1,9 @@
-[Experiment]
+[Experiment Configuration]
 mode = sandbox
 auto_recruit = true
-n = 10
+num_participants = 10
 
-[MTurk]
+[HIT Configuration]
 title = Snake game
 description = Play a round of the snake game.
 amt_keywords = game, videogame, play
@@ -17,11 +17,11 @@ ad_group = snakegame
 organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
-[Database]
+[Database Parameters]
 database_url = postgresql://postgres@localhost/dallinger
 database_size = standard-0
 
-[Server]
+[Server Parameters]
 dyno_type = free
 num_dynos_web = 1
 num_dynos_worker = 1

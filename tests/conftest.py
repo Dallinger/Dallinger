@@ -27,7 +27,7 @@ def reset_config():
     if 'dallinger_experiment' in sys.modules:
         del sys.modules['dallinger_experiment']
 
-    # Make sure extra parameters aren't kept between tests
+    # Make sure extra settings aren't kept between tests
     from dallinger.config import configurations
     if hasattr(configurations, 'config'):
         del configurations.config
