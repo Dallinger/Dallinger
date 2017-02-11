@@ -38,10 +38,8 @@ in like so:
 
     [Server]
     port = 5000
-    cutoff_time = 30
     logfile = -
     loglevel = 0
-    debug = true
     threads = 1
     clock_on = true
 
