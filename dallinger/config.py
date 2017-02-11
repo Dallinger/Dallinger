@@ -88,7 +88,7 @@ class Configuration(object):
                 # This key hasn't been registered, we ignore it
                 if strict:
                     raise KeyError('{} is not a valid configuration key'.format(key))
-                logger.warn('{} is not a valid configuration key'.format(key))
+                logger.debug('{} is not a valid configuration key'.format(key))
                 continue
             expected_type = self.types.get(key)
             if cast_types:
@@ -153,7 +153,7 @@ class Configuration(object):
         data = {}
         for section in parser.sections():
             data.update(dict(parser.items(section)))
-        self.extend(data, cast_types=True)
+        self.extend(data, cast_types=True, strict=True)
 
     def write_config(self, filter_sensitive=False):
         parser = SafeConfigParser()
