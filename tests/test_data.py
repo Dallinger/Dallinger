@@ -42,6 +42,10 @@ class TestData(object):
         data = dallinger.data.Data(self.data_path)
         assert data.networks.csv[0:3] == "id,"
 
+    def test_tsv_conversion(self):
+        data = dallinger.data.Data(self.data_path)
+        assert data.networks.tsv[0:3] == "id\t"
+
     def test_data_loading(self):
         data = dallinger.data.load("3b9c2aeb-0eb7-4432-803e-bc437e17b3bb")
         assert data
