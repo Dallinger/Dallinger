@@ -279,7 +279,7 @@ class Table(object):
     @property
     def dict(self):
         """A Python dictionary."""
-        return self.tablib_dataset.dict
+        return self.tablib_dataset.dict[0]
 
     @property
     def df(self):

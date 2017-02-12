@@ -1,5 +1,6 @@
 """Tests for the data module."""
 
+from collections import OrderedDict
 import os
 
 import dallinger
@@ -49,6 +50,10 @@ class TestData(object):
     def test_list_conversion(self):
         data = dallinger.data.Data(self.data_path)
         assert type(data.networks.list) is list
+
+    def test_dict_conversion(self):
+        data = dallinger.data.Data(self.data_path)
+        assert type(data.networks.dict) is OrderedDict
 
     def test_data_loading(self):
         data = dallinger.data.load("3b9c2aeb-0eb7-4432-803e-bc437e17b3bb")
