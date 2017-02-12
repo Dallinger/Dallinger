@@ -3,7 +3,6 @@
 
 """The Dallinger command-line utility."""
 
-import errno
 import imp
 import inspect
 import os
@@ -22,7 +21,6 @@ import time
 import uuid
 import webbrowser
 
-import boto
 import click
 from dallinger.config import get_config
 import psycopg2
@@ -30,6 +28,7 @@ import redis
 import requests
 from collections import Counter
 
+from dallinger import data
 from dallinger import db
 from dallinger import heroku
 from dallinger.heroku import (
@@ -550,92 +549,13 @@ def qualify(qualification, value, worker):
         click.echo("{} with value {}".format(count, score))
 
 
-def dump_database(id):
-    """Backup the Postgres database locally."""
-    log("Generating a backup of the database on Heroku...")
-
-    dump_filename = "data.dump"
-    data_directory = "data"
-    dump_dir = os.path.join(data_directory, id)
-    if not os.path.exists(dump_dir):
-        os.makedirs(dump_dir)
-
-    try:
-        FNULL = open(os.devnull, 'w')
-        subprocess.call([
-            "heroku",
-            "pg:backups",
-            "capture"
-            "--app",
-            app_name(id)
-        ], stdout=FNULL, stderr=FNULL)
-
-        subprocess.call([  # for more recent versions of Heroku CLI.
-            "heroku",
-            "pg:backups:capture",
-            "--app",
-            app_name(id)
-        ], stdout=FNULL, stderr=FNULL)
-
-    except Exception:
-        pass
-
-    backup_url = subprocess.check_output([
-        "heroku",
-        "pg:backups",
-        "public-url",
-        "--app",
-        app_name(id)
-    ])
-
-    backup_url = backup_url.replace('"', '').rstrip()
-    backup_url = re.search("https:.*", backup_url).group(0)
-    print(backup_url)
-
-    log("Downloading the backup...")
-    dump_path = os.path.join(dump_dir, dump_filename)
-    with open(dump_path, 'wb') as file:
-        subprocess.check_call([
-            'curl',
-            '-o',
-            dump_path,
-            backup_url
-        ], stdout=file)
-
-    return dump_path
-
-
-def backup(app):
-    """Dump the database."""
-    dump_path = dump_database(app)
-
-    config = get_config()
-    config.load_config()
-
-    conn = boto.connect_s3(
-        config.get('aws_access_key_id'),
-        config.get('aws_secret_access_key'),
-    )
-
-    bucket = conn.create_bucket(
-        app,
-        location=boto.s3.connection.Location.DEFAULT
-    )
-
-    k = boto.s3.key.Key(bucket)
-    k.key = 'database.dump'
-    k.set_contents_from_filename(dump_path)
-    url = k.generate_url(expires_in=0, query_auth=False)
-
-    log("The database backup URL is...")
-    print(url)
-
-
 @dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def hibernate(app):
     """Pause an experiment and remove costly resources."""
-    backup(app)
+    log("The database backup URL is...")
+    backup_url = data.backup(app)
+    log(backup_url)
 
     log("Scaling down the web servers...")
 
@@ -666,13 +586,19 @@ def hibernate(app):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def destroy(app):
     """Tear down an experiment server."""
-    subprocess.check_call(
-        "heroku destroy --app {} --confirm {}".format(
-            app_name(app),
-            app_name(app)
-        ),
-        shell=True,
-    )
+    destroy_server(app)
+
+
+def destroy_server(app):
+    """Tear down an experiment server."""
+    subprocess.check_call([
+        "heroku",
+        "destroy",
+        "--app",
+        app_name(app),
+        "--confirm",
+        app_name(app),
+    ])
 
 
 @dallinger.command()
@@ -696,13 +622,8 @@ def awaken(app, databaseurl):
         "heroku pg:wait --app {}".format(app_name(id)),
         shell=True)
 
-    conn = boto.connect_s3(
-        config.get('aws_access_key_id'),
-        config.get('aws_secret_access_key'),
-    )
-
-    bucket = conn.get_bucket(id)
-    key = bucket.lookup('database.dump')
+    bucket = data.user_s3_bucket()
+    key = bucket.lookup('{}.dump'.format(id))
     url = key.generate_url(expires_in=300)
 
     cmd = "heroku pg:backups restore"
@@ -727,107 +648,12 @@ def awaken(app, databaseurl):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option('--local', is_flag=True, flag_value=True,
               help='Export local data')
-def export(app, local):
+@click.option('--no-scrub', is_flag=True, flag_value=False,
+              help='Scrub PII')
+def export(app, local, no_scrub):
     """Export the data."""
     print_header()
-
-    id = str(app)
-
-    export_data(id, local)
-
-
-def export_data(id, local=False):
-    """Allow calling export from experiments"""
-
-    log("Preparing to export the data...")
-
-    subdata_path = os.path.join("data", id, "data")
-
-    # Create the data package if it doesn't already exist.
-    try:
-        os.makedirs(subdata_path)
-
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(subdata_path):
-            pass
-        else:
-            raise
-
-    # Copy the experiment code into a code/ subdirectory
-    try:
-        shutil.copyfile(
-            os.path.join("snapshots", id + "-code.zip"),
-            os.path.join("data", id, id + "-code.zip")
-        )
-
-    except:
-        pass
-
-    # Copy in the DATA readme.
-    # open(os.path.join(id, "README.txt"), "a").close()
-
-    # Save the experiment id.
-    with open(os.path.join("data", id, "experiment_id.md"), "a+") as file:
-        file.write(id)
-
-    if not local:
-        # Export the logs
-        subprocess.check_call(
-            "heroku logs " +
-            "-n 10000 > " + os.path.join("data", id, "server_logs.md") +
-            " --app " + app_name(id),
-            shell=True)
-
-    try:
-        subprocess.call([
-            "dropdb",
-            app_name(id),
-        ])
-    except Exception:
-        pass
-
-    subprocess.call([
-        "heroku",
-        "pg:pull",
-        "DATABASE_URL",
-        app_name(id),
-        "--app",
-        app_name(id),
-    ])
-
-    all_tables = [
-        "node",
-        "network",
-        "vector",
-        "info",
-        "transformation",
-        "transmission",
-        "participant",
-        "notification",
-        "question"
-    ]
-
-    for table in all_tables:
-        subprocess.check_call(
-            "psql -d " + app_name(id) +
-            " --command=\"\\copy " + table + " to \'" +
-            os.path.join(subdata_path, table) + ".csv\' csv header\"",
-            shell=True)
-
-    log("Zipping up the package...")
-    shutil.make_archive(
-        os.path.join("data", id + "-data"),
-        "zip",
-        os.path.join("data", id)
-    )
-
-    shutil.rmtree(os.path.join("data", id))
-
-    log("Done. Data available in {}.zip".format(id))
-
-    cwd = os.getcwd()
-    export_filename = os.path.join(cwd, "data", '{}.zip'.format(id))
-    return export_filename
+    data.export(str(app), local=local, scrub_pii=(not no_scrub))
 
 
 @dallinger.command()
