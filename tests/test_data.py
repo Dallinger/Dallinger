@@ -3,6 +3,8 @@
 from collections import OrderedDict
 import os
 
+import pandas as pd
+
 import dallinger
 from dallinger.config import get_config
 
@@ -54,6 +56,10 @@ class TestData(object):
     def test_dict_conversion(self):
         data = dallinger.data.Data(self.data_path)
         assert type(data.networks.dict) is OrderedDict
+
+    def test_df_conversion(self):
+        data = dallinger.data.Data(self.data_path)
+        assert type(data.networks.df) is pd.DataFrame
 
     def test_data_loading(self):
         data = dallinger.data.load("3b9c2aeb-0eb7-4432-803e-bc437e17b3bb")
