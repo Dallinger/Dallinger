@@ -1,9 +1,9 @@
-[Experiment Configuration]
+[Experiment]
 mode = sandbox
 auto_recruit = true
-num_participants = 10
+n = 10
 
-[HIT Configuration]
+[MTurk]
 title = Snake game
 description = Play a round of the snake game.
 amt_keywords = game, videogame, play
@@ -14,17 +14,14 @@ us_only = true
 approve_requirement = 95
 contact_email_on_error = dallinger-snake@mailinator.com
 ad_group = snakegame
-psiturk_keywords = snake
 organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
-[Database Parameters]
+[Database]
 database_url = postgresql://postgres@localhost/dallinger
-table_name = psiturk
-anonymize_data = false
 database_size = standard-0
 
-[Server Parameters]
+[Server]
 dyno_type = free
 num_dynos_web = 1
 num_dynos_worker = 1

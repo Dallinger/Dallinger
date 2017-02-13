@@ -67,6 +67,7 @@ pre {
 div.body h1 {
   font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
   font-weight: bold;
+  padding-bottom: 15px;
 }
 
 div.body h2 {

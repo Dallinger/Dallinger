@@ -1,6 +1,15 @@
 """Coordination chatroom game."""
 
 import dallinger as dlgr
+from dallinger.compat import unicode
+from dallinger.config import get_config
+
+config = get_config()
+
+
+def extra_parameters():
+    config.register('network', unicode)
+    config.register('n', int)
 
 
 class CoordinationChatroom(dlgr.experiments.Experiment):
@@ -10,16 +19,19 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         """Initialize the experiment."""
         super(CoordinationChatroom, self).__init__(session)
         self.experiment_repeats = 1
-        self.num_participants = dlgr.config.experiment_configuration.n
+        self.num_participants = config.get('n')
         self.initial_recruitment_size = self.num_participants
         self.quorum = self.num_participants
+        self.config = config
+        if not self.config.ready:
+            self.config.load_config()
         self.setup()
 
     def create_network(self):
         """Create a new network by reading the configuration file."""
         class_ = getattr(
             dlgr.networks,
-            dlgr.config.experiment_configuration.network
+            self.config.get('network')
         )
         return class_(max_size=self.num_participants)
 

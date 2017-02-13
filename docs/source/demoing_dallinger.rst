@@ -1,5 +1,5 @@
 Demoing Dallinger
-===============
+=================
 
 First, make sure you have Dallinger installed:
 
@@ -17,27 +17,12 @@ see something that looks like:
 
 ::
 
-    Now serving on http://0.0.0.0:5000
-    [psiTurk server:on mode:sdbx #HITs:4]$
+    New participant requested: http://0.0.0.0:5000/ad?assignmentId=debug9TXPFF&hitId=P8UTMZ&workerId=SP7HJ4&mode=debug
 
-This is the psiTurk prompt. Into that prompt type:
+and your browser should automatically open to this URL.
+You can start interacting as the first participant in the experiment.
 
-::
-
-    debug
-
-This will cause the experiment to open in a new window in your browser.
-Alternatively, type
-
-::
-
-    debug --print-only
-
-to get the URL of the experiment so that you can view it on a different
-machine than the one you are serving it on.
-
-Once you have finished running through the experiment as a participant,
-you can type ``debug`` again to play as the next participant.
+In the terminal, press Ctrl+C to exit the server.
 
 **Help, the experiment page is blank!** This may happen if you are using
 an ad-blocker. Try disabling your ad-blocker and refresh the page.

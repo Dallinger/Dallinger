@@ -1,9 +1,9 @@
-Setting Up AWS, psiTurk, and Heroku
-===================================
+Setting Up AWS, Mechanical Turk, and Heroku
+===========================================
 
 Before you can use Dallinger, you will need accounts with Amazon Web
-Services, Amazon Mechanical Turk, Heroku, and psiTurk. You will then
-need to create a configuration file and set up your environment so that
+Services, Amazon Mechanical Turk, and Heroku. You will then need to
+create a configuration file and set up your environment so that
 Dallinger can access your accounts.
 
 Create the configuration file
@@ -15,7 +15,7 @@ through
 
 ::
 
-    dallinger setup 
+    dallinger setup
 
 which will prepopulate a hidden file ``.dallingerconfig`` in your home
 directory. Alternatively, you can create this file yourself and fill it
@@ -28,10 +28,6 @@ in like so:
     aws_secret_access_key = ???
     aws_region = us-east-1
 
-    [psiTurk Access]
-    psiturk_access_key_id = ???
-    psiturk_secret_access_id = ???
-
     [Heroku Access]
     heroku_email_address = ???
     heroku_password = ???
@@ -40,19 +36,10 @@ in like so:
     dallinger_email_address = ???
     dallinger_email_password = ???
 
-    [Task Parameters]
-    experiment_code_version = 1.0
-    num_conds = 1
-    num_counters = 1
-
-    [Server Parameters]
+    [Server]
     port = 5000
-    cutoff_time = 30
     logfile = -
     loglevel = 0
-    debug = true
-    login_username = examplename
-    login_pw = examplepassword
     threads = 1
     clock_on = true
 
@@ -97,30 +84,6 @@ test and monitor experiments. You should also sign in to each sandbox,
 same account. Store this account and password somewhere, but you don't
 need to tell it to Dallinger.
 
-psiTurk
--------
-
-Next, create an account on `psiTurk <http://psiturk.org/>`__, which will
-require a valid email address. Once you confirm your account, click on
-`**API Keys** <https://psiturk.org/dashboard/api_credentials>`__, which
-will allow you to access your API keys as seen in the image below:
-
-.. figure:: http://note.io/145nfz4
-   :alt: Don't even try to use these API Keys, they've been reissued!
-
-   Don't even try to use these API Keys, they've been reissued!
-
-Place these credential in the ``.dallingerconfig`` file:
-
-Then fill in the following lines of ``.dallingerconfig``, replacing
-``???`` with your keys:
-
-::
-
-    [psiTurk Access]
-    psiturk_access_key_id = ???
-    psiturk_secret_access_id = ???
-
 Heroku
 ------
 
@@ -147,6 +110,23 @@ And fill in the appropriate section of ``.dallingerconfig``:
     [Heroku Access]
     heroku_email_address = ???
     heroku_password = ???
+
+
+Open Science Framework (optional)
+---------------------------------
+
+There is an optional integration that uses the `Open Science Framework
+<https://osf.io/>`__ (OSF) to register experiments. First, create an account
+on the OSF. Next create a new OSF personal access token on the `OSF settings
+page <https://osf.io/settings/tokens/>`__.
+
+Finally, fill in the appropriate section of ``.dallingerconfig``:
+
+::
+
+    [OSF]
+    osf_access_token = ???
+
 
 Done?
 -----

@@ -1,8 +1,14 @@
 [run]
 branch = True
 source = dallinger
+parallel = True
 
 [report]
-fail_under = 30
+fail_under = 61
 show_missing = True
 skip_covered = True
+
+[paths]
+source =
+    dallinger
+    .tox/py27/lib/python2.7/site-packages/dallinger

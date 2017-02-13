@@ -1,0 +1,12 @@
+[AWS Access]
+aws_access_key_id = YourAccessKeyId
+aws_secret_access_key = YourSecretAccessKey
+aws_region = us-east-1
+
+[Email Access]
+dallinger_email_address = dallinger@mailinator.com
+dallinger_email_password = ???
+
+[Heroku Access]
+heroku_email_address = dallinger@mailinator.com
+heroku_password = ???

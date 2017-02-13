@@ -3,7 +3,7 @@
 import pexpect
 import subprocess
 
-import dallinger as dlgr
+from dallinger.config import get_config
 
 
 def app_name(id):
@@ -19,11 +19,15 @@ def log_in():
 
 def scale_up_dynos(app):
     """Scale up the Heroku dynos."""
-    dyno_type = dlgr.config.server_parameters.dyno_type
+    config = get_config()
+    if not config.ready:
+        config.load_config()
+
+    dyno_type = config.get('dyno_type')
 
     num_dynos = {
-        "web": dlgr.config.server_parameters.num_dynos_web,
-        "worker": dlgr.config.server_parameters.num_dynos_worker
+        "web": config.get('num_dynos_web'),
+        "worker": config.get('num_dynos_worker'),
     }
 
     for process in ["web", "worker"]:
@@ -35,7 +39,7 @@ def scale_up_dynos(app):
             app,
         ])
 
-    if dlgr.config.server_parameters.clock_on:
+    if config.get('clock_on'):
         subprocess.check_call([
             "heroku",
             "ps:scale",

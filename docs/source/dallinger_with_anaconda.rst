@@ -1,9 +1,37 @@
 Installing Dallinger with Anaconda
-================================
+==================================
 
 If you are interested in Dallinger and use
 `Anaconda <https://www.continuum.io/downloads>`__, you'll need to adapt
 the standard instructions slightly.
+
+Getting Python 2.7 started if you have Anaconda 3
+----------------
+
+If you have Anaconda 3 (i.e., Anaconda running Python 3), you'll need to create a virtual environment for Python 2.7.
+
+To initialize the new environment, type the following command into the command line:
+
+::
+
+    conda create -n py27 python=2.7 anaconda
+
+You can customize the name of your Python 2.7 environment by changing the ``py27`` to your environment name of choice. Once it's created, then activate your new environment at the command line:
+
+::
+
+    source activate py27
+
+If you didn't choose to stick with the ``py27`` name, make sure that you change that to reflect your environment name. Once you've activated the environment, you can proceed with the rest of the instructions below.
+
+Whenever you want to leave the environment, you can deactivate it at the command line:
+
+::
+    source deactivate py27
+
+Again, be sure to change ``py27`` to whatever you called your environment.
+
+For more information about creating virtual environments within Anaconda, check out [http://conda.pydata.org/docs/using/envs.html].
 
 Install psycopg2
 ----------------
@@ -17,14 +45,14 @@ you will be endlessly frustrated.
     conda install psycopg2
 
 Install Dallinger
----------------
+-----------------
 
 You'll follow all of the :doc:`Dallinger development installation
 instructions <developing_dallinger_setup_guide>`,
 **with the exception of the virtual environment step**.  Then return here.
 
 Confirm Dallinger works
----------------------
+-----------------------
 
 Now, we need to make sure that Dallinger and Anaconda play nice with one
 another. At this point, we'd check to make sure that Dallinger is properly

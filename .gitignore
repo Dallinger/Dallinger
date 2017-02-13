@@ -2,13 +2,15 @@
 *.pyc
 *.log
 *.db
-*.psiturk_history
 *.egg-info
-/.coverage
+/.coverage*
+/coverage.xml
 /cover/
 *.egg-info/
 *.db-journal
-*.zip
+demos/*/data/*
+demos/*/snapshots/*
+docs/source/_static/*.zip
 .env
 .tox
 /snapshots/
@@ -23,3 +25,8 @@ docs/source/demos
 .DS_Store
 README.rst
 .netrc
+.vagrant/
+.cache/*
+htmlcov/*
+tests/config.py
+*.ipynb_checkpoints/

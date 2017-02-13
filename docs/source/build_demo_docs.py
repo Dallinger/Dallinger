@@ -40,7 +40,7 @@ def make_demo(name, src, dst):
         shutil.copytree(src, os.path.join(tempdir, name))
 
         # remove unnecessary files
-        extra = [".psiturk_history", "snapshots", "server.log"]
+        extra = ["snapshots", "server.log"]
         for filename in extra:
             path = os.path.join(tempdir, name, filename)
             if os.path.exists(path):

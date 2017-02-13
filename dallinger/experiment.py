@@ -1,28 +1,58 @@
 """The base experiment class."""
 
 from collections import Counter
+from functools import wraps
 import imp
 import inspect
+import logging
 from operator import itemgetter
+import os
 import random
+import requests
 import sys
+import time
+import uuid
 
 from sqlalchemy import and_
 
+from dallinger.config import get_config, LOCAL_CONFIG
+from dallinger.data import Data
 from dallinger.models import Network, Node, Info, Transformation, Participant
+from dallinger.heroku import app_name
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
 from dallinger.transformations import Mutation, Replication
 from dallinger.networks import Empty
 
+logger = logging.getLogger(__file__)
+config = get_config()
+
+
+def exp_class_working_dir(meth):
+    @wraps(meth)
+    def new_meth(self, *args, **kwargs):
+        try:
+            orig_path = os.getcwd()
+            new_path = os.path.dirname(
+                sys.modules[self.__class__.__module__].__file__
+            )
+            os.chdir(new_path)
+            # Override configs
+            config.load_from_config_file(LOCAL_CONFIG)
+            return meth(self, *args, **kwargs)
+        finally:
+            os.chdir(orig_path)
+    return new_meth
+
 
 class Experiment(object):
     """Define the structure of an experiment."""
+    app_id = None
+    exp_config = None
 
-    def __init__(self, session):
+    def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
-        from recruiters import PsiTurkRecruiter
 
         #: Boolean, determines whether the experiment logs output when
         #: running. Default is True.
@@ -42,10 +72,6 @@ class Experiment(object):
         #: int, the number of non practice networks (see
         #: :attr:`~dallinger.models.Network.role`). Default is 0.
         self.experiment_repeats = 0
-
-        #: Recruiter, the Dallinger class that recruits participants.
-        #: Default is PsiTurkRecruiter.
-        self.recruiter = PsiTurkRecruiter
 
         #: int, the number of participants
         #: requested when the experiment first starts. Default is 1.
@@ -69,6 +95,24 @@ class Experiment(object):
             "State": State,
             "Transformation": Transformation,
         }
+
+    @property
+    def recruiter(self):
+        """Recruiter, the Dallinger class that recruits participants.
+        Default is HotAirRecruiter in debug mode and MTurkRecruiter in other modes.
+        """
+        from dallinger.recruiters import HotAirRecruiter
+        from dallinger.recruiters import MTurkRecruiter
+
+        try:
+            debug_mode = config.get('mode') == 'debug'
+        except RuntimeError:
+            # Config not yet loaded
+            debug_mode = False
+
+        if debug_mode:
+            return HotAirRecruiter
+        return MTurkRecruiter.from_current_config
 
     def setup(self):
         """Create the networks if they don't already exist."""
@@ -235,7 +279,7 @@ class Experiment(object):
     def log(self, text, key="?????", force=False):
         """Print a string to the logs."""
         if force or self.verbose:
-            print ">>>> {} {}".format(key, text)
+            print(">>>> {} {}".format(key, text))
             sys.stdout.flush()
 
     def log_summary(self):
@@ -346,11 +390,84 @@ class Experiment(object):
         """
         self.fail_participant(participant)
 
+    def assignment_reassigned(self, participant):
+        """What to do if the assignment assigned to a participant is
+        reassigned to another participant while the first participant
+        is still working.
+
+        This runs when a participant is created with the same assignment_id
+        as another participant if the earlier participant still has the status
+        "working". Calls :func:`~dallinger.experiments.Experiment.fail_participant`.
+
+        """
+        self.fail_participant(participant)
+
+    @exp_class_working_dir
+    def run(self, exp_config=None, app_id=None):
+        """Deploy and run an experiment.
+
+        The exp_config object is either a dictionary or a
+        ``localconfig.LocalConfig`` object with parameters
+        specific to the experiment run grouped by section.
+        """
+        import dallinger as dlgr
+
+        if app_id is None:
+            app_id = str(uuid.uuid4())
+
+        self.app_id = app_id
+        self.exp_config = exp_config
+
+        dlgr.command_line.deploy_sandbox_shared_setup(
+            app=app_id,
+            verbose=self.verbose,
+            exp_config=exp_config
+        )
+        return self._finish_experiment()
+
+    def _finish_experiment(self):
+        self.log("Waiting for experiment to complete.", "")
+        while self.experiment_completed() is False:
+            time.sleep(30)
+        data = self.retrieve_data()
+        self.end_experiment()
+        return (self.app_id, data, self.exp_config)
+
+    def experiment_completed(self):
+        """Checks the current state of the experiment to see whether it has
+        completed"""
+        status_url = 'https://{}.herokuapp.com/summary'.format(
+            app_name(self.app_id)
+        )
+        data = {}
+        try:
+            resp = requests.get(status_url)
+            data = resp.json()
+        except (ValueError, requests.exceptions.RequestException):
+            logger.exception('Error fetching experiment status.')
+        logger.debug('Current application state: {}'.format(data))
+        return data.get('completed', False)
+
+    def retrieve_data(self):
+        """Retrieves and saves data from a running experiment"""
+        import dallinger as dlgr
+        filename = dlgr.command_line.export_data(self.app_id)
+        logger.debug('Data exported to %s' % filename)
+        return Data(filename)
+
+    def end_experiment(self):
+        """Terminates a running experiment"""
+        import dallinger as dlgr
+        dlgr.command_line.destroy_server(self.app_id)
+
 
 def load():
     """Load the active experiment."""
+    if os.getcwd() not in sys.path:
+        sys.path.append(os.getcwd())
+
     try:
-        exp = imp.load_source('experiment', "dallinger_experiment.py")
+        exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
         classes = inspect.getmembers(exp, inspect.isclass)
         exps = [c for c in classes
                 if (c[1].__bases__[0].__name__ in "Experiment")]
@@ -359,4 +476,5 @@ def load():
         return getattr(mod, this_experiment)
 
     except ImportError:
-        print("Error: Could not import experiment.")
+        logger.error('Could not import experiment.')
+        raise

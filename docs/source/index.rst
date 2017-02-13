@@ -1,5 +1,5 @@
 Dallinger
-~~~~~~~
+~~~~~~~~~
 
 Laboratory automation for the behavioral and social sciences.
 
@@ -15,6 +15,8 @@ Laboratory automation for the behavioral and social sciences.
     monitoring_a_live_experiment
     postico_and_postgres
     command_line_utility
+    python_module
+    registration_on_OSF
 
 .. toctree::
     :maxdepth: 1
@@ -34,6 +36,7 @@ Laboratory automation for the behavioral and social sciences.
     the_experiment_class
     web_api
     communicating_with_the_server
+    configuration
 
 .. toctree::
     :maxdepth: 1

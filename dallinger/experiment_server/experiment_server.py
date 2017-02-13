@@ -1,67 +1,43 @@
-"""Import custom routes into the experiment server."""
+""" This module provides the backend Flask server that serves an experiment. """
 
 from datetime import datetime
 from json import dumps
-import logging
 from operator import attrgetter
-import os
-import requests
+import re
 import traceback
+import user_agents
 
 from flask import (
-    Blueprint,
+    abort,
+    Flask,
+    make_response,
+    render_template,
+    render_template_string,
     request,
     Response,
     send_from_directory,
-    render_template
 )
-from psiturk.db import db_session as session_psiturk
-from psiturk.db import init_db
-from psiturk.psiturk_config import PsiturkConfig
-from psiturk.user_utils import PsiTurkAuthorization
+from jinja2 import TemplateNotFound
 from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
-from worker import conn
+from sqlalchemy import exc
+from sqlalchemy import func
+from sqlalchemy.sql.expression import true
 
-import dallinger
 from dallinger import db
+from dallinger import experiment
 from dallinger import models
+from dallinger.heroku.worker import conn
+from dallinger.compat import unicode
+from dallinger.config import get_config
 
-# Load the configuration options.
-config = PsiturkConfig()
-config.load_config()
-myauth = PsiTurkAuthorization(config)
+from .utils import nocache
 
-# Set logging options.
-LOG_LEVELS = [
-    logging.DEBUG,
-    logging.INFO,
-    logging.WARNING,
-    logging.ERROR,
-    logging.CRITICAL
-]
-LOG_LEVEL = LOG_LEVELS[config.getint('Server Parameters', 'loglevel')]
 
-db.logger.setLevel(LOG_LEVEL)
-
-if len(db.logger.handlers) == 0:
-    ch = logging.StreamHandler()
-    ch.setLevel(LOG_LEVEL)
-    ch.setFormatter(
-        logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-    )
-    db.logger.addHandler(ch)
-
-# Explore the Blueprint.
-custom_code = Blueprint(
-    'custom_code',
-    __name__,
-    template_folder='templates',
-    static_folder='static'
-)
+config = get_config()
+if not config.ready:
+    config.load_config()
 
 # Initialize the Dallinger database.
 session = db.session
@@ -69,8 +45,40 @@ session = db.session
 # Connect to the Redis queue for notifications.
 q = Queue(connection=conn)
 
-# Load the experiment.
-experiment = dallinger.experiments.load()
+app = Flask('Experiment_Server')
+
+Experiment = experiment.load()
+
+
+"""Load the experiment's extra routes, if any."""
+
+try:
+    from dallinger_experiment import extra_routes
+except ImportError:
+    pass
+else:
+    app.register_blueprint(extra_routes)
+
+
+"""Basic routes."""
+
+
+@app.route('/')
+def index():
+    """Index route"""
+    abort(404)
+
+
+@app.route('/robots.txt')
+def static_robots_txt():
+    """Serve robots.txt from static file."""
+    return send_from_directory('static', 'robots.txt')
+
+
+@app.route('/favicon.ico')
+def static_favicon():
+    return send_from_directory('static', 'favicon.ico', mimetype='image/x-icon')
+
 
 """Define some canned response types."""
 
@@ -101,7 +109,7 @@ def error_response(error_type="Internal server error",
 
     data = {
         "status": "error",
-        "html": page
+        "html": unicode(page)
     }
     return Response(dumps(data), status=status, mimetype='application/json')
 
@@ -128,23 +136,70 @@ def error_page(participant=None, error_text=None, compensate=True,
         assignment_id = 'unknown'
         worker_id = 'unknown'
 
-    return render_template(
-        'error_dallinger.html',
-        error_text=error_text,
-        compensate=compensate,
-        contact_address=config.get(
-            'HIT Configuration', 'contact_email_on_error'),
-        error_type=error_type,
-        hit_id=hit_id,
-        assignment_id=assignment_id,
-        worker_id=worker_id
+    return make_response(
+        render_template(
+            'error.html',
+            error_text=error_text,
+            compensate=compensate,
+            contact_address=config.get('contact_email_on_error'),
+            error_type=error_type,
+            hit_id=hit_id,
+            assignment_id=assignment_id,
+            worker_id=worker_id
+        ),
+        500,
     )
+
+
+class ExperimentError(Exception):
+    """
+    Error class for experimental errors, such as subject not being found in
+    the database.
+    """
+    def __init__(self, value):
+        experiment_errors = dict(
+            status_incorrectly_set=1000,
+            hit_assign_worker_id_not_set_in_mturk=1001,
+            hit_assign_worker_id_not_set_in_consent=1002,
+            hit_assign_worker_id_not_set_in_exp=1003,
+            hit_assign_appears_in_database_more_than_once=1004,
+            already_started_exp=1008,
+            already_started_exp_mturk=1009,
+            already_did_exp_hit=1010,
+            tried_to_quit=1011,
+            intermediate_save=1012,
+            improper_inputs=1013,
+            browser_type_not_allowed=1014,
+            api_server_not_reachable=1015,
+            ad_not_found=1016,
+            error_setting_worker_complete=1017,
+            hit_not_registered_with_ad_server=1018,
+            template_unsafe=1019,
+            insert_mode_failed=1020,
+            page_not_found=404,
+            in_debug=2005,
+            unknown_error=9999
+        )
+        self.value = value
+        self.errornum = experiment_errors[self.value]
+        self.template = "error.html"
+
+    def __str__(self):
+        return repr(self.value)
+
+
+@app.errorhandler(ExperimentError)
+def handle_exp_error(exception):
+    """Handle errors by sending an error page."""
+    app.logger.error(
+        "%s (%s) %s", exception.value, exception.errornum, str(dict(request.args)))
+    return error_page(error_type=exception.value)
 
 
 """Define functions for handling requests."""
 
 
-@custom_code.teardown_request
+@app.teardown_request
 def shutdown_session(_=None):
     """Rollback and close session at end of a request."""
     session.remove()
@@ -154,123 +209,182 @@ def shutdown_session(_=None):
 """Define routes for managing an experiment and the participants."""
 
 
-@custom_code.route('/robots.txt')
-def static_from_root():
-    """"Serve robots.txt from static file."""
-    return send_from_directory('static', request.path[1:])
-
-
-@custom_code.route('/launch', methods=['POST'])
+@app.route('/launch', methods=['POST'])
 def launch():
     """Launch the experiment."""
-    exp = experiment(db.init_db(drop_all=False))
+    exp = Experiment(db.init_db(drop_all=False))
     exp.log("Launching experiment...", "-----")
-    init_db()
-    exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
-    session_psiturk.commit()
+    url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
     session.commit()
 
-    return success_response(request_type="launch")
+    return success_response("recruitment_url", url_info, request_type="launch")
 
 
-@custom_code.route('/compute_bonus', methods=['GET'])
-def compute_bonus():
-    """Overide the psiTurk compute_bonus route."""
-    data = {
-        "bonusComputed": "success"
-    }
-    return Response(dumps(data), status=200)
+@app.route('/ad', methods=['GET'])
+@nocache
+def advertisement():
+    """
+    This is the url we give for the ad for our 'external question'.  The ad has
+    to display two different things: This page will be called from within
+    mechanical turk, with url arguments hitId, assignmentId, and workerId.
+    If the worker has not yet accepted the hit:
+        These arguments will have null values, we should just show an ad for
+        the experiment.
+    If the worker has accepted the hit:
+        These arguments will have appropriate values and we should enter the
+        person in the database and provide a link to the experiment popup.
+    """
+    user_agent_string = request.user_agent.string
+    user_agent_obj = user_agents.parse(user_agent_string)
+    browser_ok = True
+    for rule in config.get('browser_exclude_rule', '').split(','):
+        myrule = rule.strip()
+        if myrule in ["mobile", "tablet", "touchcapable", "pc", "bot"]:
+            if (myrule == "mobile" and user_agent_obj.is_mobile) or\
+               (myrule == "tablet" and user_agent_obj.is_tablet) or\
+               (myrule == "touchcapable" and user_agent_obj.is_touch_capable) or\
+               (myrule == "pc" and user_agent_obj.is_pc) or\
+               (myrule == "bot" and user_agent_obj.is_bot):
+                browser_ok = False
+        elif myrule in user_agent_string:
+            browser_ok = False
+
+    if not browser_ok:
+        # Handler for IE users if IE is not supported.
+        raise ExperimentError('browser_type_not_allowed')
+
+    if not ('hitId' in request.args and 'assignmentId' in request.args):
+        raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
+    hit_id = request.args['hitId']
+    assignment_id = request.args['assignmentId']
+    already_in_db = False
+    if 'workerId' in request.args:
+        worker_id = request.args['workerId']
+        # First check if this workerId has completed the task before (v1).
+        nrecords = models.Participant.query.\
+            filter(models.Participant.assignment_id != assignment_id).\
+            filter(models.Participant.worker_id == worker_id).\
+            count()
+
+        if nrecords > 0:  # Already completed task
+            already_in_db = True
+    else:  # If worker has not accepted the hit
+        worker_id = None
+    try:
+        part = models.Participant.query.\
+            filter(models.Participant.hit_id == hit_id).\
+            filter(models.Participant.assignment_id == assignment_id).\
+            filter(models.Participant.worker_id == worker_id).\
+            one()
+        status = part.status
+    except exc.SQLAlchemyError:
+        status = None
+
+    debug_mode = config.get('mode') == 'debug'
+    if ((status == 'working' and part.end_time is not None) or
+            (debug_mode and status in ('submitted', 'approved'))):
+        # They've done the debriefing but perhaps haven't submitted the HIT
+        # yet.. Turn asignmentId into original assignment id before sending it
+        # back to AMT
+        is_sandbox = config.get('mode') == "sandbox"
+        if is_sandbox:
+            external_submit_url = "https://workersandbox.mturk.com/mturk/externalSubmit"
+        else:
+            external_submit_url = "https://www.mturk.com/mturk/externalSubmit"
+        return render_template(
+            'thanks.html',
+            is_sandbox=is_sandbox,
+            hitid=hit_id,
+            assignmentid=assignment_id,
+            workerid=worker_id,
+            mode=config.get('mode'),
+            external_submit_url=external_submit_url,
+        )
+    if status == 'working':
+        # Once participants have finished the instructions, we do not allow
+        # them to start the task again.
+        raise ExperimentError('already_started_exp_mturk')
+    elif already_in_db and not debug_mode:
+        raise ExperimentError('already_did_exp_hit')
+    elif not status or debug_mode:
+        # Participant has not yet agreed to the consent. They might not
+        # even have accepted the HIT.
+        with open('templates/ad.html', 'r') as temp_file:
+            ad_string = temp_file.read()
+        ad_string = insert_mode(ad_string, config.get('mode'))
+        return render_template_string(
+            ad_string,
+            hitid=hit_id,
+            assignmentid=assignment_id,
+            workerid=worker_id
+        )
+    else:
+        raise ExperimentError('status_incorrectly_set')
 
 
-@custom_code.route('/summary', methods=['GET'])
+@app.route('/summary', methods=['GET'])
 def summary():
     """Summarize the participants' status codes."""
+    state = {
+        "status": "success",
+        "summary": Experiment(session).log_summary(),
+        "completed": False,
+    }
+    unfilled_nets = models.Network.query.filter(
+        models.Network.full != true()
+    ).with_entities(models.Network.id, models.Network.max_size).all()
+    working = models.Participant.query.filter_by(
+        status='working'
+    ).with_entities(func.count(models.Participant.id)).scalar()
+    state['unfilled_networks'] = len(unfilled_nets)
+    nodes_remaining = 0
+    required_nodes = 0
+    if state['unfilled_networks'] == 0:
+        if working == 0:
+            state['completed'] = True
+    else:
+        for net in unfilled_nets:
+            node_count = models.Node.query.filter_by(
+                network_id=net.id
+            ).with_entities(func.count(models.Node.id)).scalar()
+            net_size = net.max_size
+            required_nodes += net_size
+            nodes_remaining += net_size - node_count
+    state['nodes_remaining'] = nodes_remaining
+    state['required_nodes'] = required_nodes
+
     return Response(
-        dumps({
-            "status": "success",
-            "summary": experiment(session).log_summary()
-        }),
+        dumps(state),
         status=200,
         mimetype='application/json'
     )
 
 
-@custom_code.route('/quitter', methods=['POST'])
-def quitter():
-    """Overide the psiTurk quitter route."""
-    exp = experiment(session)
-    exp.log("Quitter route was hit.")
-
-    return Response(
-        dumps({
-            "status": "success"
-        }),
-        status=200,
-        mimetype='application/json'
-    )
-
-
-@custom_code.route('/experiment_property/<prop>', methods=['GET'])
-@custom_code.route('/experiment/<prop>', methods=['GET'])
+@app.route('/experiment_property/<prop>', methods=['GET'])
+@app.route('/experiment/<prop>', methods=['GET'])
 def experiment_property(prop):
     """Get a property of the experiment by name."""
-    exp = experiment(session)
+    exp = Experiment(session)
     p = getattr(exp, prop)
     return success_response(field=prop, data=p, request_type=prop)
 
 
-@custom_code.route("/ad_address/<mode>/<hit_id>", methods=["GET"])
-def ad_address(mode, hit_id):
-    """Get the address of the ad on AWS.
-
-    This is used at the end of the experiment to send participants
-    back to AWS where they can complete and submit the HIT.
-    """
-    if mode == "debug":
-        address = '/complete'
-    elif mode in ["sandbox", "live"]:
-        username = os.getenv('psiturk_access_key_id',
-                             config.get("psiTurk Access",
-                                        "psiturk_access_key_id"))
-        password = os.getenv('psiturk_secret_access_id',
-                             config.get("psiTurk Access",
-                                        "psiturk_secret_access_id"))
-        try:
-            req = requests.get(
-                'https://api.psiturk.org/api/ad/lookup/' + hit_id,
-                auth=(username, password))
-        except Exception:
-            raise ValueError('api_server_not_reachable')
-        else:
-            if req.status_code == 200:
-                hit_address = req.json()['ad_id']
-            else:
-                raise ValueError("something here")
-        if mode == "sandbox":
-            address = ('https://sandbox.ad.psiturk.org/complete/' +
-                       str(hit_address))
-        elif mode == "live":
-            address = 'https://ad.psiturk.org/complete/' + str(hit_address)
-    else:
-        raise ValueError("Unknown mode: {}".format(mode))
-    return success_response(field="address",
-                            data=address,
-                            request_type="ad_address")
-
-
-@custom_code.route("/<page>", methods=["GET"])
+@app.route("/<page>", methods=["GET"])
 def get_page(page):
     """Return the requested page."""
-    return render_template(page + ".html")
+    try:
+        return render_template(page + ".html")
+    except TemplateNotFound:
+        abort(404)
 
 
-@custom_code.route("/<directory>/<page>", methods=["GET"])
+@app.route("/<directory>/<page>", methods=["GET"])
 def get_page_from_directory(directory, page):
     """Get a page from a given directory."""
     return render_template(directory + '/' + page + '.html')
 
 
-@custom_code.route("/consent")
+@app.route("/consent")
 def consent():
     """Return the consent form. Here for backwards-compatibility with 2.x."""
     return render_template(
@@ -278,7 +392,7 @@ def consent():
         hit_id=request.args['hit_id'],
         assignment_id=request.args['assignment_id'],
         worker_id=request.args['worker_id'],
-        mode=request.args['mode']
+        mode=config.get('mode')
     )
 
 
@@ -297,7 +411,7 @@ def request_parameter(parameter, parameter_type=None, default=None,
     or if the parameter is found but is of the wrong type
     then a Response object is returned
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # get the parameter
     try:
@@ -365,44 +479,57 @@ def assign_properties(thing):
     session.commit()
 
 
-@custom_code.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
-                   methods=["POST"])
+@app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
+           methods=["POST"])
 def create_participant(worker_id, hit_id, assignment_id, mode):
     """Create a participant.
 
-    This route will be hit very early on as any nodes the participant creates
-    will be defined in reference to the participant object.
-    You must specify the worker_id, hit_id, assignment_id and mode in the url.
+    This route is hit early on. Any nodes the participant creates will be
+    defined in reference to the participant object. You must specify the
+    worker_id, hit_id, assignment_id, and mode in the url.
     """
-    # check this worker hasn't already taken part
-    parts = models.Participant.query.filter_by(worker_id=worker_id).all()
-    if parts:
-        print("participant already exists!")
-        return Response(status=200)
+    already_participated = models.Participant.query.\
+        filter_by(worker_id=worker_id).one_or_none()
 
-    # make the participant
-    participant = models.Participant(worker_id=worker_id,
-                                     assignment_id=assignment_id,
-                                     hit_id=hit_id,
-                                     mode=mode)
+    if already_participated:
+        db.logger.warning("Worker has already participated.")
+        return error_response(
+            error_type="/participant POST: worker has already participated.",
+            status=403)
+
+    duplicate = models.Participant.query.\
+        filter_by(
+            assignment_id=assignment_id,
+            status="working")\
+        .one_or_none()
+
+    if duplicate:
+        msg = """
+            AWS has reused assignment_id while existing participant is
+            working. Replacing older participant {}.
+        """
+        app.logger.warning(msg.format(duplicate.id))
+        q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
+
+    # Create the new participant.
+    participant = models.Participant(
+        worker_id=worker_id,
+        assignment_id=assignment_id,
+        hit_id=hit_id,
+        mode=mode
+    )
     session.add(participant)
     session.commit()
 
-    # make a psiturk participant too, for now
-    from psiturk.models import Participant as PsiturkParticipant
-    psiturk_participant = PsiturkParticipant(workerid=worker_id,
-                                             assignmentid=assignment_id,
-                                             hitid=hit_id)
-    session_psiturk.add(psiturk_participant)
-    session_psiturk.commit()
-
     # return the data
-    return success_response(field="participant",
-                            data=participant.__json__(),
-                            request_type="participant post")
+    return success_response(
+        field="participant",
+        data=participant.__json__(),
+        request_type="participant post"
+    )
 
 
-@custom_code.route("/participant/<participant_id>", methods=["GET"])
+@app.route("/participant/<participant_id>", methods=["GET"])
 def get_participant(participant_id):
     """Get the participant with the given id."""
     try:
@@ -418,7 +545,7 @@ def get_participant(participant_id):
                             request_type="participant get")
 
 
-@custom_code.route("/network/<network_id>", methods=["GET"])
+@app.route("/network/<network_id>", methods=["GET"])
 def get_network(network_id):
     """Get the network with the given id."""
     try:
@@ -434,7 +561,7 @@ def get_network(network_id):
                             request_type="network get")
 
 
-@custom_code.route("/question/<participant_id>", methods=["POST"])
+@app.route("/question/<participant_id>", methods=["POST"])
 def create_question(participant_id):
     """Send a POST request to the question table.
 
@@ -450,8 +577,8 @@ def create_question(participant_id):
         return error_response(error_type="/question POST no participant found",
                               status=403)
 
-    # Make sure the participant status is "working"
-    if ppt.status != "working":
+    # Make sure the participant status is "working" or we're in debug mode
+    if ppt.status != "working" and config.get('mode', None) != 'debug':
         error_type = "/question POST, status = {}".format(ppt.status)
         return error_response(error_type=error_type,
                               participant=ppt)
@@ -476,7 +603,7 @@ def create_question(participant_id):
     return success_response(request_type="question post")
 
 
-@custom_code.route("/node/<int:node_id>/neighbors", methods=["GET"])
+@app.route("/node/<int:node_id>/neighbors", methods=["GET"])
 def node_neighbors(node_id):
     """Send a GET request to the node table.
 
@@ -489,7 +616,7 @@ def node_neighbors(node_id):
     After getting the neighbours it also calls
     exp.node_get_request()
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # get the parameters
     node_type = request_parameter(parameter="node_type",
@@ -531,7 +658,7 @@ def node_neighbors(node_id):
                             request_type="neighbors")
 
 
-@custom_code.route("/node/<participant_id>", methods=["POST"])
+@app.route("/node/<participant_id>", methods=["POST"])
 def create_node(participant_id):
     """Send a POST request to the node table.
 
@@ -541,7 +668,7 @@ def create_node(participant_id):
         3. exp.add_node_to_network
         4. exp.node_post_request
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # Get the participant.
     try:
@@ -550,9 +677,6 @@ def create_node(participant_id):
     except NoResultFound:
         return error_response(error_type="/node POST no participant found",
                               status=403)
-
-    # replace any duplicate assignments
-    check_for_duplicate_assignments(participant)
 
     # Make sure the participant status is working
     if participant.status != "working":
@@ -593,7 +717,7 @@ def create_node(participant_id):
                             request_type="/node POST")
 
 
-@custom_code.route("/node/<int:node_id>/vectors", methods=["GET"])
+@app.route("/node/<int:node_id>/vectors", methods=["GET"])
 def node_vectors(node_id):
     """Get the vectors of a node.
 
@@ -601,7 +725,7 @@ def node_vectors(node_id):
     You can pass direction (incoming/outgoing/all) and failed
     (True/False/all).
     """
-    exp = experiment(session)
+    exp = Experiment(session)
     # get the parameters
     direction = request_parameter(parameter="direction", default="all")
     failed = request_parameter(parameter="failed",
@@ -630,15 +754,15 @@ def node_vectors(node_id):
                             request_type="vector get")
 
 
-@custom_code.route("/node/<int:node_id>/connect/<int:other_node_id>",
-                   methods=["POST"])
+@app.route("/node/<int:node_id>/connect/<int:other_node_id>",
+           methods=["POST"])
 def connect(node_id, other_node_id):
     """Connect to another node.
 
     The ids of both nodes must be speficied in the url.
     You can also pass direction (to/from/both) as an argument.
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # get the parameters
     direction = request_parameter(parameter="direction", default="to")
@@ -678,13 +802,13 @@ def connect(node_id, other_node_id):
                             request_type="vector post")
 
 
-@custom_code.route("/info/<int:node_id>/<int:info_id>", methods=["GET"])
+@app.route("/info/<int:node_id>/<int:info_id>", methods=["GET"])
 def get_info(node_id, info_id):
     """Get a specific info.
 
     Both the node and info id must be specified in the url.
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # check the node exists
     node = models.Node.query.get(node_id)
@@ -719,14 +843,14 @@ def get_info(node_id, info_id):
                             request_type="info get")
 
 
-@custom_code.route("/node/<int:node_id>/infos", methods=["GET"])
+@app.route("/node/<int:node_id>/infos", methods=["GET"])
 def node_infos(node_id):
     """Get all the infos of a node.
 
     The node id must be specified in the url.
     You can also pass info_type.
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # get the parameters
     info_type = request_parameter(parameter="info_type",
@@ -760,14 +884,14 @@ def node_infos(node_id):
                             request_type="infos")
 
 
-@custom_code.route("/node/<int:node_id>/received_infos", methods=["GET"])
+@app.route("/node/<int:node_id>/received_infos", methods=["GET"])
 def node_received_infos(node_id):
     """Get all the infos a node has been sent and has received.
 
     You must specify the node id in the url.
     You can also pass the info type.
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # get the parameters
     info_type = request_parameter(parameter="info_type",
@@ -801,7 +925,7 @@ def node_received_infos(node_id):
                             request_type="received infos")
 
 
-@custom_code.route("/info/<int:node_id>", methods=["POST"])
+@app.route("/info/<int:node_id>", methods=["POST"])
 def info_post(node_id):
     """Create an info.
 
@@ -812,7 +936,7 @@ def info_post(node_id):
     If info_type is a custom subclass of Info it must be
     added to the known_classes of the experiment class.
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # get the parameters
     info_type = request_parameter(parameter="info_type",
@@ -850,7 +974,7 @@ def info_post(node_id):
                             request_type="info post")
 
 
-@custom_code.route("/node/<int:node_id>/transmissions", methods=["GET"])
+@app.route("/node/<int:node_id>/transmissions", methods=["GET"])
 def node_transmissions(node_id):
     """Get all the transmissions of a node.
 
@@ -858,7 +982,7 @@ def node_transmissions(node_id):
     You can also pass direction (to/from/all) or status (all/pending/received)
     as arguments.
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # get the parameters
     direction = request_parameter(parameter="direction", default="incoming")
@@ -895,7 +1019,7 @@ def node_transmissions(node_id):
                             request_type="transmissions")
 
 
-@custom_code.route("/node/<int:node_id>/transmit", methods=["POST"])
+@app.route("/node/<int:node_id>/transmit", methods=["POST"])
 def node_transmit(node_id):
     """Transmit to another node.
 
@@ -927,7 +1051,7 @@ def node_transmit(node_id):
         },
     });
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     what = request_parameter(parameter="what", optional=True)
     to_whom = request_parameter(parameter="to_whom", optional=True)
@@ -992,7 +1116,7 @@ def node_transmit(node_id):
                             request_type="transmit")
 
 
-@custom_code.route("/node/<int:node_id>/transformations", methods=["GET"])
+@app.route("/node/<int:node_id>/transformations", methods=["GET"])
 def transformation_get(node_id):
     """Get all the transformations of a node.
 
@@ -1000,7 +1124,7 @@ def transformation_get(node_id):
 
     You can also pass transformation_type.
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # get the parameters
     transformation_type = request_parameter(parameter="transformation_type",
@@ -1033,7 +1157,7 @@ def transformation_get(node_id):
                             request_type="transformations")
 
 
-@custom_code.route(
+@app.route(
     "/transformation/<int:node_id>/<int:info_in_id>/<int:info_out_id>",
     methods=["POST"])
 def transformation_post(node_id, info_in_id, info_out_id):
@@ -1042,7 +1166,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
     The ids of the node, info in and info out must all be in the url.
     You can also pass transformation_type.
     """
-    exp = experiment(session)
+    exp = Experiment(session)
 
     # Get the parameters.
     transformation_type = request_parameter(parameter="transformation_type",
@@ -1090,7 +1214,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
                             request_type="transformation post")
 
 
-@custom_code.route("/notifications", methods=["POST", "GET"])
+@app.route("/notifications", methods=["POST", "GET"])
 def api_notifications():
     """Receive MTurk REST notifications."""
     event_type = request.values['Event.1.EventType']
@@ -1106,6 +1230,11 @@ def api_notifications():
     return success_response(request_type="notification")
 
 
+def _debug_notify(assignment_id, participant_id=None,
+                  event_type='AssignmentSubmitted'):
+    return worker_function(event_type, assignment_id, participant_id)
+
+
 def check_for_duplicate_assignments(participant):
     """Check that the assignment_id of the participant is unique.
 
@@ -1119,15 +1248,44 @@ def check_for_duplicate_assignments(participant):
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
 
 
+@app.route('/worker_complete', methods=['GET'])
+@db.scoped_session_decorator
+def worker_complete():
+    """Complete worker."""
+    if 'uniqueId' not in request.args:
+        status = "bad request"
+    else:
+        participant = models.Participant.query.filter_by(
+            unique_id=request.args['uniqueId'],
+        ).all()[0]
+        participant.end_time = datetime.now()
+        session.add(participant)
+        session.commit()
+        status = "success"
+    if config.get('mode') == "debug":
+        # Trigger notification directly in debug mode,
+        # because there won't be one from MTurk
+        _debug_notify(
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+        )
+    return success_response(field="status",
+                            data=status,
+                            request_type="worker complete")
+
+
 @db.scoped_session_decorator
 def worker_function(event_type, assignment_id, participant_id):
     """Process the notification."""
-    db.logger.debug("rq: worker_function working on job id: %s",
-                    get_current_job().id)
-    db.logger.debug('rq: Received Queue Length: %d (%s)', len(q),
-                    ', '.join(q.job_ids))
+    try:
+        db.logger.debug("rq: worker_function working on job id: %s",
+                        get_current_job().id)
+        db.logger.debug('rq: Received Queue Length: %d (%s)', len(q),
+                        ', '.join(q.job_ids))
+    except AttributeError:
+        db.logger.debug('Debug worker_function called synchronously')
 
-    exp = experiment(session)
+    exp = Experiment(session)
     key = "-----"
 
     exp.log("Received an {} notification for assignment {}, participant {}"
@@ -1146,29 +1304,16 @@ def worker_function(event_type, assignment_id, participant_id):
             .filter_by(assignment_id=assignment_id)\
             .all()
 
-        # if there are multiple participants select the most recent
-        if len(participants) > 1:
-            if event_type in ['AssignmentAbandoned', 'AssignmentReturned']:
-                participants = [p for p in participants if
-                                p.status == "working"]
-                if participants:
-                    participant = min(participants,
-                                      key=attrgetter('creation_time'))
-                else:
-                    return None
-            else:
-                participant = max(participants,
-                                  key=attrgetter('creation_time'))
+        # if there are one or more participants select the most recent
+        if participants:
+            participant = max(participants,
+                              key=attrgetter('creation_time'))
 
-        # if there are none (this is also bad news) print an error
-        elif len(participants) == 0:
+        # if there are none print an error
+        else:
             exp.log("Warning: No participants associated with this "
                     "assignment_id. Notification will not be processed.", key)
             return None
-
-        # if theres only one participant (this is good) select them
-        else:
-            participant = participants[0]
 
     elif participant_id is not None:
         participant = models.Participant.query\
@@ -1196,14 +1341,14 @@ def worker_function(event_type, assignment_id, participant_id):
             exp.assignment_returned(participant=participant)
 
     elif event_type == 'AssignmentSubmitted':
-        if participant.status == "working":
+        if participant.status in ["working", "returned", "abandoned"]:
             participant.end_time = datetime.now()
             participant.status = "submitted"
+            session.commit()
 
             # Approve the assignment.
             exp.recruiter().approve_hit(assignment_id)
-            participant.base_pay = config.get(
-                'HIT Configuration', 'base_payment')
+            participant.base_pay = config.get('base_payment')
 
             # Check that the participant's data is okay.
             worked = exp.data_check(participant=participant)
@@ -1212,6 +1357,7 @@ def worker_function(event_type, assignment_id, participant_id):
             if not worked:
                 participant.status = "bad_data"
                 exp.data_check_failed(participant=participant)
+                session.commit()
                 exp.recruiter().recruit_participants(n=1)
             else:
                 # If their data is ok, pay them a bonus.
@@ -1235,18 +1381,25 @@ def worker_function(event_type, assignment_id, participant_id):
                     exp.log("Attention check failed.", key)
                     participant.status = "did_not_attend"
                     exp.attention_check_failed(participant=participant)
+                    session.commit()
                     exp.recruiter().recruit_participants(n=1)
                 else:
                     # All good. Possibly recruit more participants.
                     exp.log("All checks passed.", key)
                     participant.status = "approved"
                     exp.submission_successful(participant=participant)
+                    session.commit()
                     exp.recruit()
 
     elif event_type == "NotificationMissing":
         if participant.status == "working":
             participant.end_time = datetime.now()
             participant.status = "missing_notification"
+
+    elif event_type == "AssignmentReassigned":
+        participant.end_time = datetime.now()
+        participant.status = "replaced"
+        exp.assignment_reassigned(participant=participant)
 
     else:
         exp.log("Error: unknown event_type {}".format(event_type), key)
@@ -1257,3 +1410,20 @@ def worker_function(event_type, assignment_id, participant_id):
 def date_handler(obj):
     """Serialize dates."""
     return obj.isoformat() if hasattr(obj, 'isoformat') else obj
+
+
+# Insert "mode" into pages so it's carried from page to page done server-side
+# to avoid breaking backwards compatibility with old templates.
+def insert_mode(page_html, mode):
+    """Insert mode."""
+    match_found = False
+    matches = re.finditer('workerId={{ workerid }}', page_html)
+    match = None
+    for match in matches:
+        match_found = True
+    if match_found:
+        new_html = page_html[:match.end()] + "&mode=" + mode +\
+            page_html[match.end():]
+        return new_html
+    else:
+        raise ExperimentError("insert_mode_failed")

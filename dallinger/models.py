@@ -85,7 +85,7 @@ class Participant(Base, SharedMixin):
     assignment_id = Column(String(50), nullable=False, index=True)
 
     #: A String, a concatenation of :attr:`~dallinger.models.Participant.worker_id`
-    #: and :attr:`~dallinger.models.Participant.assignment_id`, used by psiTurk.
+    #: and :attr:`~dallinger.models.Participant.assignment_id`
     unique_id = Column(String(75), nullable=False, index=True)
 
     #: A String, the id of the hit the participant is working on
@@ -131,6 +131,7 @@ class Participant(Base, SharedMixin):
             "did_not_attend",
             "bad_data",
             "missing_notification",
+            "replaced",
             name="participant_status"
         ),
         nullable=False,
