@@ -66,7 +66,7 @@ else:
 @app.route('/')
 def index():
     """Index route"""
-    return render_template('default.html')
+    abort(404)
 
 
 @app.route('/robots.txt')

@@ -54,9 +54,9 @@ class TestExperimentServer(FlaskAppTest):
         participant = Participant.query.get(participant_id)
         participant.status = status
 
-    def test_default(self):
+    def test_root(self):
         resp = self.app.get('/')
-        assert 'Welcome to Dallinger!' in resp.data
+        assert resp.status_code == 404
 
     def test_favicon(self):
         resp = self.app.get('/favicon.ico')
