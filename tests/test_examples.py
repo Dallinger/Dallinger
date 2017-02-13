@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import os
-import subprocess
+
+import dallinger
 
 
 class TestExamples(object):
@@ -19,8 +20,8 @@ class TestExamples(object):
 
     def verify_demo(self, demo):
         os.chdir(demo)
-        output = subprocess.check_output("dallinger verify", shell=True)
-        assert "✗" not in output
+        is_passing = dallinger.command_line.verify_package()
+        assert is_passing
         os.chdir("..")
 
     def test_verify_demo_bartlett1932(self):
