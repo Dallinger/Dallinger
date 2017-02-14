@@ -2,20 +2,13 @@
 
 from setuptools import setup
 
-try:
-    with open('README.rst', 'r') as file:
-        long_description = file.read()
-
-except (OSError, IOError) as e:
-    with open('README.md', 'r') as file:
-        long_description = file.read()
-
 setup_args = dict(
     name='dallinger',
     packages=['dallinger', 'demos'],
     version="2.7.0",
     description='Laboratory automation for the behavioral and social sciences',
-    long_description=long_description,
+    setup_requires=['setuptools-markdown==0.2'],
+    long_description_markdown_filename='README.md',
     url='http://github.com/Dallinger/Dallinger',
     maintainer='Jordan Suchow',
     maintainer_email='suchow@berkeley.edu',
