@@ -523,14 +523,14 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     session.commit()
 
     # Assign a qualification to the worker.
-    if mode in ['sandbox','live']:
+    if mode in ['sandbox','live','debug']:
         conn = MTurkConnection(
             config.get('aws_access_key_id'),
             config.get('aws_secret_access_key'),
         )
         result = conn.assign_qualification(
-            config.get('id'),
-            worker_id,
+            config.get('qualification_type_id'),
+            'A4NUTNFWSDCJK', #worker_id,
             value=1,
             send_notification=False,
         )

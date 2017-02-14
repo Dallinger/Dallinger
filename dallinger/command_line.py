@@ -171,7 +171,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
             os.path.join(cwd, "snapshots", public_id + "-code"), "zip", dst)
 
     # Save the experiment ID.
-    config.set("id", id)
+    config.extend({"id": public_id})
 
     # Check directories.
     if not os.path.exists(os.path.join("static", "scripts")):
@@ -333,11 +333,13 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         config.get('aws_secret_access_key'),
     )
 
-    conn.create_qualification_type(
+    results = conn.create_qualification_type(
         id,
         "Participated in experiment {}".format(id),
         "Active",
     )
+    qualification_type_id = results[0].QualificationTypeId
+    config.extend({"qualification_type_id": qualification_type_id})
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -347,6 +349,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     # Change to temporary directory.
     cwd = os.getcwd()
     os.chdir(tmp)
+
+    config.write_config()
 
     # Commit Heroku-specific files to tmp folder's git repo.
     cmds = ["git init",
@@ -555,7 +559,7 @@ def qualify(qualification, value, worker):
         click.echo('OK')
 
     # print out the current set of workers with the qualification
-    results = list(mturk.get_workers_with_qualification(qualification))
+    results = list(mturk.get_workers_with_qualification(qualifxication))
 
     click.echo("{} workers with qualification {}:".format(
         len(results),
