@@ -1,9 +1,7 @@
 """Bartlett's transmission chain experiment from Remembering (1932)."""
 
 from dallinger.networks import Chain
-from dallinger.nodes import Source
 from dallinger.experiments import Experiment
-import random
 
 
 class Bartlett1932(Experiment):
@@ -28,6 +26,7 @@ class Bartlett1932(Experiment):
         source to each network.
         """
         if not self.networks():
+            from bartlett1932_source import WarOfTheGhostsSource
             super(Bartlett1932, self).setup()
             for net in self.networks():
                 WarOfTheGhostsSource(network=net)
@@ -49,30 +48,3 @@ class Bartlett1932(Experiment):
             self.recruiter().recruit_participants(n=1)
         else:
             self.recruiter().close_recruitment()
-
-
-class WarOfTheGhostsSource(Source):
-    """A Source that reads in a random story from a file and transmits it."""
-
-    __mapper_args__ = {
-        "polymorphic_identity": "war_of_the_ghosts_source"
-    }
-
-    def _contents(self):
-        """Define the contents of new Infos.
-
-        transmit() -> _what() -> create_information() -> _contents().
-        """
-        stories = [
-            "ghosts.md",
-            "cricket.md",
-            "moochi.md",
-            "outwit.md",
-            "raid.md",
-            "species.md",
-            "tennis.md",
-            "vagabond.md"
-        ]
-        story = random.choice(stories)
-        with open("static/stimuli/{}".format(story), "r") as f:
-            return f.read()
