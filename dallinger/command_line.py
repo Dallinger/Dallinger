@@ -29,6 +29,7 @@ import redis
 import requests
 from collections import Counter
 
+from dallinger.compat import unicode
 from dallinger import data
 from dallinger import db
 from dallinger import heroku
@@ -62,7 +63,7 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
     """Log a message to stdout."""
     if verbose:
         if chevrons:
-            click.echo("\n❯❯ " + msg)
+            click.echo("\n❯❯ {}".format(msg))
         else:
             click.echo(msg)
         time.sleep(delay)
@@ -128,11 +129,11 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     pkg_resources.require(dependencies)
 
     # Generate a unique id for this experiment.
-    generated_uid = public_id = str(uuid.uuid4())
+    generated_uid = public_id = unicode(uuid.uuid4())
 
     # If the user provided an app name, use it everywhere that's user-facing.
     if app:
-        public_id = str(app)
+        public_id = unicode(app)
 
     log("Experiment id is " + public_id + "")
 
