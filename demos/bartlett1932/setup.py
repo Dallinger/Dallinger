@@ -12,7 +12,7 @@ except (OSError, IOError) as e:
 
 setup_args = dict(
     name='dallinger.bartlett1932',
-    version="0.1.0",
+    version="0.2.0",
     description='Bartlett (1932) demo for Dallinger',
     setup_requires=['setuptools-markdown'],
     long_description_markdown_filename='README.md',
