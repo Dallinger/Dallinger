@@ -35,9 +35,6 @@ setup_args = dict(
         'console_scripts': [
             'dallinger = dallinger.command_line:dallinger',
         ],
-        'dallinger.experiments': [
-            'Bartlett1932 = demos.bartlett1932.experiment:Bartlett1932',
-        ],
     },
     extras_require={
         'data': [
