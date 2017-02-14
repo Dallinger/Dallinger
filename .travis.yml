@@ -19,7 +19,7 @@ addons:
     - enchant
 before_install:
 - rvm install 2.1.5
-- pip install --upgrade setuptools pip
+- pip install --upgrade setuptools pip wheel
 install:
 - pip install tox==2.6.0
 - gem install danger
