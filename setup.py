@@ -40,7 +40,9 @@ setup_args = dict(
 )
 
 # If not on Heroku, install setuptools-markdown.
-if not os.environ.get("ON_HEROKU", False):
+try:
+    os.environ["DYNO"]
+except KeyError:
     setup_args.update({
         "setup_requires": ['setuptools-markdown==0.2'],
         "long_description_markdown_filename": 'README.md',
