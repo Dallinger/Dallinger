@@ -60,8 +60,6 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: data_check_failed
 
-  .. automethod:: deploy
-
   .. automethod:: fail_participant
 
   .. automethod:: get_network_for_participant
@@ -81,8 +79,6 @@ what to do with the database when the server receives requests from outside.
   .. automethod:: node_post_request
 
   .. automethod:: recruit
-
-  .. automethod:: sandbox
 
   .. automethod:: save
 
