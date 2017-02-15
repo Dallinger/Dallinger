@@ -6,7 +6,6 @@ import distutils.util
 import imp
 import logging
 import os
-from sets import Set
 import threading
 
 from .compat import unicode
@@ -78,7 +77,7 @@ class Configuration(object):
         self.data = deque()
         self.types = {}
         self.synonyms = {}
-        self.sensitive = Set()
+        self.sensitive = set()
         self.ready = False
 
     def set(self, key, value):
@@ -135,7 +134,9 @@ class Configuration(object):
         except KeyError:
             raise AttributeError
 
-    def register(self, key, type_, synonyms=Set(), sensitive=False):
+    def register(self, key, type_, synonyms=None, sensitive=False):
+        if synonyms is None:
+            synonyms = set()
         if key in self.types:
             raise KeyError('Config key {} is already registered'.format(key))
         if type_ not in self.SUPPORTED_TYPES:
