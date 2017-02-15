@@ -71,6 +71,16 @@ class TestConfiguration(object):
         config.extend({'num_participants': 1})
         config.get('num_participants', None)
 
+    def test_setting_by_set(self):
+        config = Configuration()
+        config.ready = True
+        config.set("mode", u"live")
+
+    def test_setting_by_assignment(self):
+        config = Configuration()
+        config.ready = True
+        config["mode"] = u"live"
+
     def test_get_without_default_raises(self):
         config = Configuration()
         config.register('num_participants', int)

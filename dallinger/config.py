@@ -80,6 +80,9 @@ class Configuration(object):
         self.sensitive = set()
         self.ready = False
 
+    def set(self, key, value):
+        return self.extend({key: value})
+
     def extend(self, mapping, cast_types=False, strict=False):
         normalized_mapping = {}
         for key, value in mapping.items():
@@ -125,13 +128,18 @@ class Configuration(object):
     def __getitem__(self, key):
         return self.get(key)
 
+    def __setitem__(self, key, value):
+        return self.extend({key: value})
+
     def __getattr__(self, key):
         try:
             return self.get(key)
         except KeyError:
             raise AttributeError
 
-    def register(self, key, type_, synonyms=set(), sensitive=False):
+    def register(self, key, type_, synonyms=None, sensitive=False):
+        if synonyms is None:
+            synonyms = set()
         if key in self.types:
             raise KeyError('Config key {} is already registered'.format(key))
         if type_ not in self.SUPPORTED_TYPES:
