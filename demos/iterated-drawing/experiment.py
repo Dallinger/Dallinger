@@ -1,12 +1,7 @@
 """Bartlett's trasmission chain experiment from Remembering (1932)."""
 
 from dallinger.networks import Chain
-from dallinger.nodes import Source
 from dallinger.experiments import Experiment
-import random
-import base64
-import os
-import json
 
 
 class IteratedDrawing(Experiment):
@@ -31,6 +26,7 @@ class IteratedDrawing(Experiment):
         source to each network.
         """
         if not self.networks():
+            from sources import DrawingSource
             super(IteratedDrawing, self).setup()
             for net in self.networks():
                 DrawingSource(network=net)
@@ -52,33 +48,3 @@ class IteratedDrawing(Experiment):
             self.recruiter().recruit_participants(n=1)
         else:
             self.recruiter().close_recruitment()
-
-
-class DrawingSource(Source):
-    """A Source that reads in a random image from a file and transmits it."""
-
-    __mapper_args__ = {
-        "polymorphic_identity": "drawing_source"
-    }
-
-    def _contents(self):
-        """Define the contents of new Infos.
-
-        transmit() -> _what() -> create_information() -> _contents().
-        """
-        images = [
-            "owl.png",
-        ]
-
-        image = random.choice(images)
-
-        image_path = os.path.join("static", "stimuli", image)
-        uri_encoded_image = (
-            "data:image/png;base64," +
-            base64.b64encode(open(image_path, "rb").read())
-        )
-
-        return json.dumps({
-            "image": uri_encoded_image,
-            "sketch": ""
-        })
