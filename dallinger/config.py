@@ -128,6 +128,9 @@ class Configuration(object):
     def __getitem__(self, key):
         return self.get(key)
 
+    def __setitem__(self, key, value):
+        return self.extend({key: value})
+
     def __getattr__(self, key):
         try:
             return self.get(key)
