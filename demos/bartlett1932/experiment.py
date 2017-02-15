@@ -24,9 +24,11 @@ class Bartlett1932(Experiment):
         runs once at the start of the experiment. It first calls the same
         function in the super (see experiments.py in dallinger). Then it adds a
         source to each network.
+
+        NB: Import of sources must happen here at runtime.
         """
         if not self.networks():
-            from bartlett1932_source import WarOfTheGhostsSource
+            from sources import WarOfTheGhostsSource
             super(Bartlett1932, self).setup()
             for net in self.networks():
                 WarOfTheGhostsSource(network=net)
