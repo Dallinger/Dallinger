@@ -385,6 +385,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
         "heroku addons:create papertrail",
 
+        "heroku config:set ON_HEROKU=true",
+
         "heroku config:set HOST=" +
         app_name(id) + ".herokuapp.com",
 

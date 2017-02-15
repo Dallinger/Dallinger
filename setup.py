@@ -1,5 +1,6 @@
 """Install Dallinger as a command line utility."""
 
+import os
 from setuptools import setup
 
 setup_args = dict(
@@ -7,8 +8,6 @@ setup_args = dict(
     packages=['dallinger', 'demos'],
     version="2.7.0",
     description='Laboratory automation for the behavioral and social sciences',
-    setup_requires=['setuptools-markdown==0.2'],
-    long_description_markdown_filename='README.md',
     url='http://github.com/Dallinger/Dallinger',
     maintainer='Jordan Suchow',
     maintainer_email='suchow@berkeley.edu',
@@ -39,6 +38,13 @@ setup_args = dict(
         ],
     }
 )
+
+# If not on Heroku, install setuptools-markdown.
+if not os.environ.get("ON_HEROKU", False):
+    setup_args.update({
+        "setup_requires": ['setuptools-markdown==0.2'],
+        "long_description_markdown_filename": 'README.md',
+    })
 
 # Read in requirements.txt for dependencies.
 setup_args['install_requires'] = install_requires = []
