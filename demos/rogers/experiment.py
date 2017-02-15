@@ -14,7 +14,15 @@ class RogersExperiment(Experiment):
     """The experiment class."""
 
     def __init__(self, session):
-        """Create the experiment."""
+        """Call the same function in the super (see experiments.py in dallinger).
+
+        The sources module is imported here because it must be imported at
+        runtime.
+
+        A few properties are then overwritten.
+
+        Finally, setup() is called.
+        """
         super(RogersExperiment, self).__init__(session)
         import sources
         self.sources = sources
@@ -67,11 +75,14 @@ class RogersExperiment(Experiment):
     def create_node(self, network, participant):
         """Make a new node for participants."""
         if network.role == "practice" or network.role == "catch":
-            return self.sources.RogersAgentFounder(network=network, participant=participant)
+            return self.sources.RogersAgentFounder(network=network,
+                                                   participant=participant)
         elif network.size(type=Agent) < network.generation_size:
-            return self.sources.RogersAgentFounder(network=network, participant=participant)
+            return self.sources.RogersAgentFounder(network=network,
+                                                   participant=participant)
         else:
-            return self.sources.RogersAgent(network=network, participant=participant)
+            return self.sources.RogersAgent(network=network,
+                                            participant=participant)
 
     def info_post_request(self, node, info):
         """Run whenever an info is created."""

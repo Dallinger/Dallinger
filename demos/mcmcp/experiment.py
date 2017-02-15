@@ -12,8 +12,18 @@ class MCMCP(Experiment):
     """Define the structure of the experiment."""
 
     def __init__(self, session):
-        """Initialize the experiment."""
+        """Call the same function in the super (see experiments.py in dallinger).
+
+        The sources module is imported here because it must be imported at
+        runtime.
+
+        A few properties are then overwritten.
+
+        Finally, setup() is called.
+        """
         super(MCMCP, self).__init__(session)
+        import sources
+        self.sources = sources
         self.experiment_repeats = 1
         self.trials_per_participant = 10
         self.setup()
@@ -26,10 +36,9 @@ class MCMCP(Experiment):
     def setup(self):
         """Setup the networks."""
         if not self.networks():
-            from sources import AnimalSource
             super(MCMCP, self).setup()
             for net in self.networks():
-                AnimalSource(network=net)
+                self.sources.AnimalSource(network=net)
 
     def create_network(self):
         """Create a new network."""
@@ -59,8 +68,8 @@ extra_routes = Blueprint(
 
 @extra_routes.route("/choice/<int:node_id>/<int:choice>", methods=["POST"])
 def choice(node_id, choice):
+    from sources import Agent
     try:
-        from sources import Agent
         exp = MCMCP(db.session)
         node = Agent.query.get(node_id)
         infos = node.infos()
