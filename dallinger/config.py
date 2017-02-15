@@ -6,6 +6,7 @@ import distutils.util
 import imp
 import logging
 import os
+from sets import Set
 import threading
 
 from .compat import unicode
@@ -77,8 +78,11 @@ class Configuration(object):
         self.data = deque()
         self.types = {}
         self.synonyms = {}
-        self.sensitive = set()
+        self.sensitive = Set()
         self.ready = False
+
+    def set(self, key, value):
+        self.extend({key: value})
 
     def extend(self, mapping, cast_types=False, strict=False):
         normalized_mapping = {}
@@ -131,7 +135,7 @@ class Configuration(object):
         except KeyError:
             raise AttributeError
 
-    def register(self, key, type_, synonyms=set(), sensitive=False):
+    def register(self, key, type_, synonyms=Set(), sensitive=False):
         if key in self.types:
             raise KeyError('Config key {} is already registered'.format(key))
         if type_ not in self.SUPPORTED_TYPES:
