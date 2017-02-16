@@ -16,7 +16,7 @@ class RogersExperiment(Experiment):
     def __init__(self, session):
         """Call the same function in the super (see experiments.py in dallinger).
 
-        The sources module is imported here because it must be imported at
+        The models module is imported here because it must be imported at
         runtime.
 
         A few properties are then overwritten.
@@ -24,8 +24,8 @@ class RogersExperiment(Experiment):
         Finally, setup() is called.
         """
         super(RogersExperiment, self).__init__(session)
-        import sources
-        self.sources = sources
+        import models
+        self.models = models
         self.verbose = False
         self.experiment_repeats = 1
         self.practice_repeats = 0
@@ -37,7 +37,7 @@ class RogersExperiment(Experiment):
         self.generation_size = 40
         self.bonus_payment = 1.0
         self.initial_recruitment_size = self.generation_size
-        self.known_classes["LearningGene"] = self.sources.LearningGene
+        self.known_classes["LearningGene"] = self.models.LearningGene
 
         if not self.networks():
             self.setup()
@@ -52,18 +52,18 @@ class RogersExperiment(Experiment):
             net.role = "catch"
 
         for net in self.networks():
-            source = self.sources.RogersSource(network=net)
+            source = self.models.RogersSource(network=net)
             source.create_information()
             if net.role == "practice":
-                env = self.sources.RogersEnvironment(network=net)
+                env = self.models.RogersEnvironment(network=net)
                 env.create_state(proportion=self.practice_difficulty)
             if net.role == "catch":
-                env = self.sources.RogersEnvironment(network=net)
+                env = self.models.RogersEnvironment(network=net)
                 env.create_state(proportion=self.catch_difficulty)
             if net.role == "experiment":
                 difficulty = self.difficulties[self.networks(role="experiment")
                                                .index(net)]
-                env = self.sources.RogersEnvironment(network=net)
+                env = self.models.RogersEnvironment(network=net)
                 env.create_state(proportion=difficulty)
 
     def create_network(self):
@@ -75,14 +75,14 @@ class RogersExperiment(Experiment):
     def create_node(self, network, participant):
         """Make a new node for participants."""
         if network.role == "practice" or network.role == "catch":
-            return self.sources.RogersAgentFounder(network=network,
-                                                   participant=participant)
+            return self.models.RogersAgentFounder(network=network,
+                                                  participant=participant)
         elif network.size(type=Agent) < network.generation_size:
-            return self.sources.RogersAgentFounder(network=network,
-                                                   participant=participant)
+            return self.models.RogersAgentFounder(network=network,
+                                                  participant=participant)
         else:
-            return self.sources.RogersAgent(network=network,
-                                            participant=participant)
+            return self.models.RogersAgent(network=network,
+                                           participant=participant)
 
     def info_post_request(self, node, info):
         """Run whenever an info is created."""
@@ -210,9 +210,9 @@ class RogersExperiment(Experiment):
         environment = network.nodes(type=Environment)[0]
         environment.connect(whom=node)
 
-        gene = node.infos(type=self.sources.LearningGene)[0].contents
+        gene = node.infos(type=self.models.LearningGene)[0].contents
         if (gene == "social"):
-            agent_model = self.sources.RogersAgent
+            agent_model = self.models.RogersAgent
             prev_agents = agent_model.query\
                 .filter(and_(agent_model.failed == false(),
                              agent_model.network_id == network.id,

@@ -10,7 +10,7 @@ class Bartlett1932(Experiment):
     def __init__(self, session=None):
         """Call the same function in the super (see experiments.py in dallinger).
 
-        The sources module is imported here because it must be imported at
+        The models module is imported here because it must be imported at
         runtime.
 
         A few properties are then overwritten.
@@ -18,8 +18,8 @@ class Bartlett1932(Experiment):
         Finally, setup() is called.
         """
         super(Bartlett1932, self).__init__(session)
-        import sources
-        self.sources = sources
+        import models
+        self.models = models
         self.experiment_repeats = 1
         self.setup()
 
@@ -34,7 +34,7 @@ class Bartlett1932(Experiment):
         if not self.networks():
             super(Bartlett1932, self).setup()
             for net in self.networks():
-                self.sources.WarOfTheGhostsSource(network=net)
+                self.models.WarOfTheGhostsSource(network=net)
 
     def create_network(self):
         """Return a new network."""
