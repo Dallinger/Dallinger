@@ -36,13 +36,6 @@ in like so:
     dallinger_email_address = ???
     dallinger_email_password = ???
 
-    [Server]
-    port = 5000
-    logfile = -
-    loglevel = 0
-    threads = 1
-    clock_on = true
-
 In the next steps, we'll fill in your config file with keys.
 
 Amazon Web Services API Keys

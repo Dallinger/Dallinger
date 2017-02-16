@@ -71,8 +71,13 @@ class StandaloneServer(Application):
 
 def launch():
     config = get_config()
-    LOG_LEVELS = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR,
-                  logging.CRITICAL]
+    LOG_LEVELS = [
+        logging.DEBUG,
+        logging.INFO,
+        logging.WARNING,
+        logging.ERROR,
+        logging.CRITICAL
+    ]
     LOG_LEVEL = LOG_LEVELS[config.get('loglevel')]
     logging.basicConfig(format='%(asctime)s %(message)s', level=LOG_LEVEL)
 

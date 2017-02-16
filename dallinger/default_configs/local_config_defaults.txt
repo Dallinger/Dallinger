@@ -8,5 +8,5 @@ database_url = postgresql://postgres@localhost/dallinger
 host = localhost
 port = 22362
 logfile = server.log
-loglevel = 2
+loglevel = 0
 threads = auto

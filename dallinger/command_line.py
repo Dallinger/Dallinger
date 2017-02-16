@@ -262,6 +262,7 @@ def debug(verbose):
         logfile = os.path.join(cwd, logfile)
     config.extend({
         "mode": u"debug",
+        "loglevel": 0,
         "logfile": logfile
     })
     config.write_config()
