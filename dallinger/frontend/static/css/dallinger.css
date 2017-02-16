@@ -3,6 +3,21 @@ body {
     font-size: 13pt;
 }
 
+.container {
+    max-width: 60rem !important;
+    margin-top: 4rem !important;
+}
+
+#ad-logo {
+    width: 100px;
+}
+
+#opt-out {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+}
+
 .main_div {
     margin: 5% 10% 5% 10%;
 }
