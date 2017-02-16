@@ -6,36 +6,33 @@
 </head>
 
 <body>
-    <div class="main_div">
+    <h1>Instructions</h1>
 
-        <h1>Instructions</h1>
+    <hr>
 
-        <hr>
+    <div class="row">
 
-        <div class="row">
-
-            <div class="col-xs-4">
-                <p>Your goal is to learn the relationship between the sizes of these two bars. In the first half of the game, you will receive training. On each round, the blue bar will appear, and you will guess how big the red bar should be. Move the mouse up and down to adjust the size of the red bar, and then click to enter your response.</p>
-                <img id="both-bars" src="/static/images/both-bars.jpg" width="200px" alt="Both bars" />
-            </div>
-
-            <div class="col-xs-4">
-                <p>A grey bar will appear next to it, showing you the correct answer.</p>
-                <img id="both-bars" src="/static/images/feedback.jpg" width="200px" alt="Both bars" />
-            </div>
-
-            <div class="col-xs-4">
-                <p>You will then have the opportunity to fix your response, readjusting the red bar so that it perfectly matches the correct value. Press the space bar to move on to the next round.</p>
-                <img id="both-bars" src="/static/images/adjust.jpg" width="200px" alt="Both bars" />
-            </div>
-
+        <div class="col-xs-4">
+            <p>Your goal is to learn the relationship between the sizes of these two bars. In the first half of the game, you will receive training. On each round, the blue bar will appear, and you will guess how big the red bar should be. Move the mouse up and down to adjust the size of the red bar, and then click to enter your response.</p>
+            <img id="both-bars" src="/static/images/both-bars.jpg" width="200px" alt="Both bars" />
         </div>
 
-        <hr>
+        <div class="col-xs-4">
+            <p>A grey bar will appear next to it, showing you the correct answer.</p>
+            <img id="both-bars" src="/static/images/feedback.jpg" width="200px" alt="Both bars" />
+        </div>
 
-        <button type="button" class="btn btn-primary btn-lg" onClick="allow_exit();go_to_page('instructions/instruct-1');" style="float: left;">Back
-        </button>
-        <button type="button" class="btn btn-primary btn-lg" onClick="allow_exit();go_to_page('instructions/instruct-3');" style="float: right;">Next
-        </button>
+        <div class="col-xs-4">
+            <p>You will then have the opportunity to fix your response, readjusting the red bar so that it perfectly matches the correct value. Press the space bar to move on to the next round.</p>
+            <img id="both-bars" src="/static/images/adjust.jpg" width="200px" alt="Both bars" />
+        </div>
+
     </div>
+
+    <hr>
+
+    <button type="button" class="btn btn-primary btn-lg" onClick="allow_exit();go_to_page('instructions/instruct-1');" style="float: left;">Back
+    </button>
+    <button type="button" class="btn btn-primary btn-lg" onClick="allow_exit();go_to_page('instructions/instruct-3');" style="float: right;">Next
+    </button>
 </body>

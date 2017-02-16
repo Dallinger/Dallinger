@@ -7,34 +7,31 @@
         <script src="/static/scripts/reqwest.min.js" type="text/javascript"> </script>
         <script src="/static/scripts/dallinger.js" type="text/javascript"> </script>
     </head>
+    
+    <script type="text/javascript">
+        create_participant();
+    </script>
 
-    <div class="main_div">
+    <h1>Instructions</h1>
 
-        <script type="text/javascript">
-            create_participant();
-        </script>
+    <hr>
 
-        <h1>Instructions</h1>
+    <p>In this experiment, you will have to decide whether there are more blue dots or yellow dots. On some rounds, you will see the dots directly. Don't bother trying to count them — they will appear too briefly for that. Instead, you should take your best guess.</p>
 
-        <hr>
+    <p>Here is an example of what you might see:</p>
+    <div class="center_div">
+        <img class="stimulus_image" src="/static/images/demo.jpg" width="400" alt=""/>
+    </div>
+    <p>In this image, there are more yellow dots than blue dots.</p>
 
-        <p>In this experiment, you will have to decide whether there are more blue dots or yellow dots. On some rounds, you will see the dots directly. Don't bother trying to count them — they will appear too briefly for that. Instead, you should take your best guess.</p>
+    <hr>
 
-        <p>Here is an example of what you might see:</p>
-        <div class="center_div">
-            <img class="stimulus_image" src="/static/images/demo.jpg" width="400" alt=""/>
-        </div>
-        <p>In this image, there are more yellow dots than blue dots.</p>
-
-        <hr>
-
-        <div>
-            <div class="row">
-                <div class="col-xs-10"></div>
-                <div class="col-xs-2">
-                    <button type="button" class="btn btn-primary btn-lg" onClick="allow_exit();go_to_page('instructions/instruct-2');">
-                    Next</button>
-                </div>
+    <div>
+        <div class="row">
+            <div class="col-xs-10"></div>
+            <div class="col-xs-2">
+                <button type="button" class="btn btn-primary btn-lg" onClick="allow_exit();go_to_page('instructions/instruct-2');">
+                Next</button>
             </div>
         </div>
     </div>

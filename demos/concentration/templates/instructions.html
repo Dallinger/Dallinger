@@ -8,27 +8,24 @@
     <script src="/static/scripts/experiment.js" type="text/javascript"> </script>
 </head>
 
-<div class="main_div">
+<script>
+    create_participant();
+</script>
 
-    <script>
-        create_participant();
-    </script>
+<h1>Instructions</h1>
 
-    <h1>Instructions</h1>
+<hr>
 
-    <hr>
+<p>In this experiment, you will play the game Concentration. Your goal is to find all the matching pairs of identical cards. Once you a find a matching pair, click each card in the pair one after the next, which will make that pair permanently visible. Then try to find the next matching pair.</p>
 
-    <p>In this experiment, you will play the game Concentration. Your goal is to find all the matching pairs of identical cards. Once you a find a matching pair, click each card in the pair one after the next, which will make that pair permanently visible. Then try to find the next matching pair.</p>
+<hr>
 
-    <hr>
-
-    <div>
-        <div class="row">
-            <div class="col-xs-10"></div>
-            <div class="col-xs-2">
-                <button type="button" class="btn btn-success btn-lg" onClick="allow_exit();go_to_page('exp');">
-                Begin</button>
-            </div>
+<div>
+    <div class="row">
+        <div class="col-xs-10"></div>
+        <div class="col-xs-2">
+            <button type="button" class="btn btn-success btn-lg" onClick="allow_exit();go_to_page('exp');">
+            Begin</button>
         </div>
     </div>
 </div>

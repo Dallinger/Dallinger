@@ -15,25 +15,22 @@
         <script type="text/javascript" src="/static/scripts/canvg.min.js"></script>
     </head>
     <body>
-        <div class="main_div">
-            <div id="stimulus">
-                <h1>Look at the following image:</h1>
-                <div><img id="image" src=""/></div>
-                <button id="finish-reading" type="button" class="btn btn-primary" onClick="finish_reading();">I'm done viewing the image.</button>
-            </div>
+        <div id="stimulus">
+            <h1>Look at the following image:</h1>
+            <div><img id="image" src=""/></div>
+            <button id="finish-reading" type="button" class="btn btn-primary" onClick="finish_reading();">I'm done viewing the image.</button>
+        </div>
 
-            <div id="response-form" style="display:none;">
-                <h1>Now reproduce the image by drawing it here:</h1>
-                <p><b>Note:</b> Your task is to recreate the text, word for word, to the best of your ability.<p>
-                <div id="editor" style="border: 1px solid #cccccc;"></div>
-                <canvas id="canvas" width="300px" height="300px"></canvas>
-                <p></p>
-                <button id="submit-response" type="button" class="btn btn-primary" onClick="submit_response();">Submit response.</button>
-            </div>
+        <div id="response-form" style="display:none;">
+            <h1>Now reproduce the image by drawing it here:</h1>
+            <p><b>Note:</b> Your task is to recreate the text, word for word, to the best of your ability.<p>
+            <div id="editor" style="border: 1px solid #cccccc;"></div>
+            <canvas id="canvas" width="300px" height="300px"></canvas>
+            <p></p>
+            <button id="submit-response" type="button" class="btn btn-primary" onClick="submit_response();">Submit response.</button>
         </div>
     </body>
     <script>
         create_agent();
     </script>
 </html>
-
