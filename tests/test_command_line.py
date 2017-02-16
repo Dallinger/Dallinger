@@ -57,6 +57,7 @@ class TestSetupExperiment(object):
         assert(os.path.exists('experiment_id.txt') is True)
         assert(os.path.exists('experiment.py') is False)
         assert(os.path.exists('dallinger_experiment.py') is True)
+        assert(os.path.exists('models.py') is True)
         assert(filecmp.cmp('dallinger_experiment.py',
                            os.path.join(exp_dir, 'experiment.py')) is True)
 

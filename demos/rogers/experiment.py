@@ -1,16 +1,12 @@
 """Replicate Rogers' paradox by simulating evolution with people."""
 
 from dallinger.experiments import Experiment
-from dallinger.information import Gene, Meme, State
-from dallinger.nodes import Source, Agent, Environment
+from dallinger.information import Meme
+from dallinger.nodes import Agent, Environment
 from dallinger.networks import DiscreteGenerational
 from dallinger.models import Node, Network, Participant
-from dallinger import transformations
-from sqlalchemy import Integer, Float
-from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.sql.expression import cast, false
+from sqlalchemy.sql.expression import false
 from sqlalchemy import and_
-from operator import attrgetter
 import random
 
 
@@ -18,8 +14,18 @@ class RogersExperiment(Experiment):
     """The experiment class."""
 
     def __init__(self, session):
-        """Create the experiment."""
+        """Call the same function in the super (see experiments.py in dallinger).
+
+        The models module is imported here because it must be imported at
+        runtime.
+
+        A few properties are then overwritten.
+
+        Finally, setup() is called.
+        """
         super(RogersExperiment, self).__init__(session)
+        import models
+        self.models = models
         self.verbose = False
         self.experiment_repeats = 1
         self.practice_repeats = 0
@@ -31,7 +37,7 @@ class RogersExperiment(Experiment):
         self.generation_size = 40
         self.bonus_payment = 1.0
         self.initial_recruitment_size = self.generation_size
-        self.known_classes["LearningGene"] = LearningGene
+        self.known_classes["LearningGene"] = self.models.LearningGene
 
         if not self.networks():
             self.setup()
@@ -46,18 +52,18 @@ class RogersExperiment(Experiment):
             net.role = "catch"
 
         for net in self.networks():
-            source = RogersSource(network=net)
+            source = self.models.RogersSource(network=net)
             source.create_information()
             if net.role == "practice":
-                env = RogersEnvironment(network=net)
+                env = self.models.RogersEnvironment(network=net)
                 env.create_state(proportion=self.practice_difficulty)
             if net.role == "catch":
-                env = RogersEnvironment(network=net)
+                env = self.models.RogersEnvironment(network=net)
                 env.create_state(proportion=self.catch_difficulty)
             if net.role == "experiment":
                 difficulty = self.difficulties[self.networks(role="experiment")
                                                .index(net)]
-                env = RogersEnvironment(network=net)
+                env = self.models.RogersEnvironment(network=net)
                 env.create_state(proportion=difficulty)
 
     def create_network(self):
@@ -69,11 +75,14 @@ class RogersExperiment(Experiment):
     def create_node(self, network, participant):
         """Make a new node for participants."""
         if network.role == "practice" or network.role == "catch":
-            return RogersAgentFounder(network=network, participant=participant)
+            return self.models.RogersAgentFounder(network=network,
+                                                  participant=participant)
         elif network.size(type=Agent) < network.generation_size:
-            return RogersAgentFounder(network=network, participant=participant)
+            return self.models.RogersAgentFounder(network=network,
+                                                  participant=participant)
         else:
-            return RogersAgent(network=network, participant=participant)
+            return self.models.RogersAgent(network=network,
+                                           participant=participant)
 
     def info_post_request(self, node, info):
         """Run whenever an info is created."""
@@ -201,12 +210,13 @@ class RogersExperiment(Experiment):
         environment = network.nodes(type=Environment)[0]
         environment.connect(whom=node)
 
-        gene = node.infos(type=LearningGene)[0].contents
+        gene = node.infos(type=self.models.LearningGene)[0].contents
         if (gene == "social"):
-            prev_agents = RogersAgent.query\
-                .filter(and_(RogersAgent.failed == false(),
-                             RogersAgent.network_id == network.id,
-                             RogersAgent.generation == node.generation - 1))\
+            agent_model = self.models.RogersAgent
+            prev_agents = agent_model.query\
+                .filter(and_(agent_model.failed == false(),
+                             agent_model.network_id == network.id,
+                             agent_model.generation == node.generation - 1))\
                 .all()
             parent = random.choice(prev_agents)
             parent.connect(whom=node)
@@ -217,160 +227,3 @@ class RogersExperiment(Experiment):
             raise ValueError("{} has invalid learning gene value of {}"
                              .format(node, gene))
         node.receive()
-
-
-class LearningGene(Gene):
-    """The Learning Gene."""
-
-    __mapper_args__ = {"polymorphic_identity": "learning_gene"}
-
-    def _mutated_contents(self):
-        alleles = ["social", "asocial"]
-        return random.choice([a for a in alleles if a != self.contents])
-
-
-class RogersSource(Source):
-    """A source that initializes agents as asocial learners."""
-
-    __mapper_args__ = {"polymorphic_identity": "rogers_source"}
-
-    def create_information(self):
-        """Create a new learning gene."""
-        if len(self.infos()) == 0:
-            LearningGene(
-                origin=self,
-                contents="asocial")
-
-    def _what(self):
-        """Transmit a learning gene by default."""
-        return self.infos(type=LearningGene)[0]
-
-
-class RogersAgent(Agent):
-    """The Rogers Agent."""
-
-    __mapper_args__ = {"polymorphic_identity": "rogers_agent"}
-
-    @hybrid_property
-    def generation(self):
-        """Convert property2 to genertion."""
-        return int(self.property2)
-
-    @generation.setter
-    def generation(self, generation):
-        """Make generation settable."""
-        self.property2 = repr(generation)
-
-    @generation.expression
-    def generation(self):
-        """Make generation queryable."""
-        return cast(self.property2, Integer)
-
-    @hybrid_property
-    def score(self):
-        """Convert property3 to score."""
-        return int(self.property3)
-
-    @score.setter
-    def score(self, score):
-        """Mark score settable."""
-        self.property3 = repr(score)
-
-    @score.expression
-    def score(self):
-        """Make score queryable."""
-        return cast(self.property3, Integer)
-
-    @hybrid_property
-    def proportion(self):
-        """Make property4 proportion."""
-        return float(self.property4)
-
-    @proportion.setter
-    def proportion(self, proportion):
-        """Make proportion settable."""
-        self.property4 = repr(proportion)
-
-    @proportion.expression
-    def proportion(self):
-        """Make proportion queryable."""
-        return cast(self.property4, Float)
-
-    def calculate_fitness(self):
-        """Calculcate your fitness."""
-        if self.fitness is not None:
-            raise Exception("You are calculating the fitness of agent {}, "
-                            .format(self.id) +
-                            "but they already have a fitness")
-        infos = self.infos()
-
-        said_blue = ([i for i in infos if
-                      isinstance(i, Meme)][0].contents == "blue")
-        proportion = float(
-            max(State.query.filter_by(network_id=self.network_id).all(),
-                key=attrgetter('creation_time')).contents)
-        self.proportion = proportion
-        is_blue = proportion > 0.5
-
-        if said_blue is is_blue:
-            self.score = 1
-        else:
-            self.score = 0
-
-        is_asocial = [
-            i for i in infos if isinstance(i, LearningGene)
-        ][0].contents == "asocial"
-        e = 2
-        b = 1
-        c = 0.3 * b
-        baseline = c + 0.0001
-
-        self.fitness = (baseline + self.score * b - is_asocial * c) ** e
-
-    def update(self, infos):
-        """Process received infos."""
-        for info_in in infos:
-            if isinstance(info_in, LearningGene):
-                if random.random() < 0.10:
-                    self.mutate(info_in)
-                else:
-                    self.replicate(info_in)
-
-    def _what(self):
-        return self.infos(type=LearningGene)[0]
-
-
-class RogersAgentFounder(RogersAgent):
-    """The Rogers Agent Founder.
-
-    It is like Rogers Agent except it cannot mutate.
-    """
-
-    __mapper_args__ = {"polymorphic_identity": "rogers_agent_founder"}
-
-    def update(self, infos):
-        """Process received infos."""
-        for info in infos:
-            if isinstance(info, LearningGene):
-                self.replicate(info)
-
-
-class RogersEnvironment(Environment):
-    """The Rogers environment."""
-
-    __mapper_args__ = {"polymorphic_identity": "rogers_environment"}
-
-    def create_state(self, proportion):
-        """Create an environmental state."""
-        if random.random() < 0.5:
-            proportion = 1 - proportion
-        State(origin=self, contents=proportion)
-
-    def step(self):
-        """Prompt the environment to change."""
-        current_state = max(self.infos(type=State),
-                            key=attrgetter('creation_time'))
-        current_contents = float(current_state.contents)
-        new_contents = 1 - current_contents
-        info_out = State(origin=self, contents=new_contents)
-        transformations.Mutation(info_in=current_state, info_out=info_out)

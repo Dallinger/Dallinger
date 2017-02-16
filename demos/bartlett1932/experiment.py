@@ -1,9 +1,7 @@
 """Bartlett's transmission chain experiment from Remembering (1932)."""
 
 from dallinger.networks import Chain
-from dallinger.nodes import Source
 from dallinger.experiments import Experiment
-import random
 
 
 class Bartlett1932(Experiment):
@@ -12,10 +10,16 @@ class Bartlett1932(Experiment):
     def __init__(self, session=None):
         """Call the same function in the super (see experiments.py in dallinger).
 
+        The models module is imported here because it must be imported at
+        runtime.
+
         A few properties are then overwritten.
+
         Finally, setup() is called.
         """
         super(Bartlett1932, self).__init__(session)
+        import models
+        self.models = models
         self.experiment_repeats = 1
         self.setup()
 
@@ -30,7 +34,7 @@ class Bartlett1932(Experiment):
         if not self.networks():
             super(Bartlett1932, self).setup()
             for net in self.networks():
-                WarOfTheGhostsSource(network=net)
+                self.models.WarOfTheGhostsSource(network=net)
 
     def create_network(self):
         """Return a new network."""
@@ -49,30 +53,3 @@ class Bartlett1932(Experiment):
             self.recruiter().recruit_participants(n=1)
         else:
             self.recruiter().close_recruitment()
-
-
-class WarOfTheGhostsSource(Source):
-    """A Source that reads in a random story from a file and transmits it."""
-
-    __mapper_args__ = {
-        "polymorphic_identity": "war_of_the_ghosts_source"
-    }
-
-    def _contents(self):
-        """Define the contents of new Infos.
-
-        transmit() -> _what() -> create_information() -> _contents().
-        """
-        stories = [
-            "ghosts.md",
-            "cricket.md",
-            "moochi.md",
-            "outwit.md",
-            "raid.md",
-            "species.md",
-            "tennis.md",
-            "vagabond.md"
-        ]
-        story = random.choice(stories)
-        with open("static/stimuli/{}".format(story), "r") as f:
-            return f.read()
