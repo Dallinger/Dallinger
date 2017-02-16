@@ -10,7 +10,7 @@ class FunctionLearning(Experiment):
     def __init__(self, session):
         """Call the same function in the super (see experiments.py in dallinger).
 
-        The sources module is imported here because it must be imported at
+        The models module is imported here because it must be imported at
         runtime.
 
         A few properties are then overwritten.
@@ -18,8 +18,8 @@ class FunctionLearning(Experiment):
         Finally, setup() is called.
         """
         super(FunctionLearning, self).__init__(session)
-        import sources
-        self.sources = sources
+        import models
+        self.models = models
         self.experiment_repeats = 1
         self.setup()
 
@@ -33,7 +33,7 @@ class FunctionLearning(Experiment):
         if not self.networks():
             super(FunctionLearning, self).setup()
             for net in self.networks():
-                self.sources.SinusoidalFunctionSource(network=net)
+                self.models.SinusoidalFunctionSource(network=net)
 
     def create_network(self):
         """Create a new network."""
