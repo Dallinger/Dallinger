@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+
+{% block head %}
+  {{ super() }}
+  <script src="/static/scripts/ad.js" type="text/javascript"></script>
+{% endblock %}
+
+{% block title %}
+  Participate in an experiment
+{% endblock %}
+
+{% block body %}
+
+    {% if assignmentid == "ASSIGNMENT_ID_NOT_AVAILABLE" %}
+
+        {% block ad %}
+        <h1>Call for participants</h1>
+        <p>
+        The XXX Lab at XXXXX University is looking for online participants for
+        a brief psychology experiment. The only requirements are that you are at
+        least 18 years old and are a fluent English speaker. The task will take
+        XXXXX minutes and will pay XXXXX.
+        </p>
+        <p>
+        Please click the "Accept HIT" button on the Amazon site above to begin the task.
+        </p>
+        {% endblock ad %}
+
+    {% else %}
+
+        {% block ad_continue %}
+        <h1>Thanks for accepting this HIT.</h1>
+        <p>
+            By clicking the following URL link, you will be taken to the experiment,
+            including complete instructions and an informed consent agreement.
+        </p>
+        <script>
+            function openwindow() {
+                popup = window.open('{{ server_location }}/consent?hit_id={{ hitid }}&assignment_id={{ assignmentid }}&worker_id={{ workerid }}&workerId={{ workerid }}','Popup','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=no,width='+1024+',height='+768+'');
+              }
+        </script>
+        <p><b>Warning</b>: Please disable pop-up blockers before continuing.</p>
+        <button type="button" class="button" onClick="openwindow();">Begin Experiment</button>
+        {% endblock ad_continue %}
+
+    {% endif %}
+
+{% endblock %}

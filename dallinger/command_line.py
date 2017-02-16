@@ -208,6 +208,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("templates", "ad.html"),
         os.path.join("templates", "error.html"),
         os.path.join("templates", "layout.html"),
         os.path.join("templates", "launch.html"),
