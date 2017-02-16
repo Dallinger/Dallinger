@@ -30,3 +30,4 @@ README.rst
 htmlcov/*
 tests/config.py
 *.ipynb_checkpoints/
+.eggs/*
