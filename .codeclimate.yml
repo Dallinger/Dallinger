@@ -30,4 +30,3 @@ ratings:
   - "**.rb"
 exclude_paths:
 - "**/*min.js"
-- "tests/*"
