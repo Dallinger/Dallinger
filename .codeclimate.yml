@@ -10,6 +10,8 @@ engines:
       - javascript
       - python
       - php
+    exclude_paths:
+      - "tests/*"
   eslint:
     enabled: true
   fixme:
