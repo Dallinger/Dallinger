@@ -18,11 +18,13 @@ Ctrl
 dallinger
 Dallinger
 dallingerconfig
+dyno
 dynos
 et
 frontend
 GitHub
 Google
+Gmail
 Griffiths
 GSoC
 Heroku
