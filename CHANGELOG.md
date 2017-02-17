@@ -1,16 +1,15 @@
 # Change Log
 
-## [v3.0.0](https://github.com/dallinger/dallinger/tree/v3.0.0) (2016-02-17)
+## [v3.0.0](https://github.com/dallinger/dallinger/tree/v3.0.0) (2016-03-31)
 
-Welcome to Dallinger 3. This release comes with several new features, some of
-which are breaking changes that will require you to edit your `.dallingerconfig`
-file and experiment code. This changelog will be updated to reflect any new
+Welcome to Dallinger 3. This release comes with several new features, some of which are breaking changes that will require you to edit your `.dallingerconfig` file and experiment code. This changelog will be updated to reflect any new
 breaking changes that we discover.
 
 - **BREAKING**. There is now only one configuration module, `dallinger.config`,
 which replaces the psiTurk config module and should be used in its place. See
 the documentation for details on [usage of the new configuration system](http://docs.dallinger.io/en/latest/configuration.html)
 and on adding [new configuration parameters](http://docs.dallinger.io/en/latest/extra_configuration.html).
+
 Several configuration parameters have been renamed or removed. In particular,
 to migrate, you MUST:
 
@@ -65,9 +64,7 @@ def recruit(self):
         self.recruiter().close_recruitment()
 ```
 
-**FEATURE**. Addition of a high-level Python API for automating experiments and a data
-module for handling Dallinger datasets, making it possible run experiments
-in this way:
+**FEATURE**. Addition of a high-level Python API for automating experiments and a data module for handling Dallinger datasets, making it possible run experiments in this way:
 
 ```Python
     import dallinger
@@ -79,8 +76,7 @@ in this way:
     })
 ```
 
-**FEATURE**. There is a new data module, `dallinger.data`, which provides a few new pieces
-of functionality. First, you can load datasets that have been exported:
+**FEATURE**. There is a new data module, `dallinger.data`, which provides a few new pieces of functionality. First, you can load datasets that have been exported:
 
 ```
 data = dallinger.load(UUID_OF_EXPERIMENT)
@@ -91,10 +87,7 @@ including a pandas DataFrame and CSV file.
 
 **FEATURE**. On export, data is automatically backed up to Amazon S3.
 
-**FEATURE**. Integration with Open Science Framework. When an OSF access token is added,
-each experiment launched in `sandbox` or `live` mode will create a new project
-on the Open Science Framework and back up your experiment code in that project.
-We will be developing deeper integrations in the future.
+**FEATURE**. Integration with Open Science Framework. When an OSF access token is added, each experiment launched in `sandbox` or `live` mode will create a new project on the Open Science Framework and back up your experiment code in that project. We will be developing deeper integrations in the future.
 
 ## [v2.7.1](https://github.com/dallinger/dallinger/tree/v2.7.1) (2017-02-25)
 
