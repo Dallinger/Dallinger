@@ -1,5 +1,55 @@
 # Change Log
 
+## [v3.0.0](https://github.com/dallinger/dallinger/tree/v3.0.0) (2016-02-17)
+
+Welcome to Dallinger 3. This release comes with several new features, some of
+which are breaking changes that will require you to edit your `.dallingerconfig`
+file and experiment code:
+
+- **BREAKING**. There is now only one configuration module, `dallinger.config`,
+which replaces the psiTurk config module and should be used in its place. See
+the documentation for details on [usage of the new configuration system](http://docs.dallinger.io/en/latest/configuration.html)
+and on adding [new configuration parameters](http://docs.dallinger.io/en/latest/extra_configuration.html).
+Several configuration parameters have been renamed: (`psiturk_keywords` => `keywords`).
+To migrate your existing installation and demos, you must do the following:
+
+    1.
+
+The command ``dalinger verify`` should catch many configuration-related issues.
+
+- **BREAKING**.
+
+- Addition of a high-level Python API for automating experiments and a data
+module for handling Dallinger datasets, making it possible run experiments
+in this way:
+
+```Python
+    import dallinger
+
+    experiment = dallinger.experiments.Bartlett1932()
+    data = experiment.run({
+        "mode": u"live",
+        "base_payment": 1.00,
+    })
+```
+
+- There is a new data module, `dallinger.data`, which provides a few new pieces
+of functionality. First, you can load datasets that have been exported:
+
+```
+data = dallinger.load(UUID_OF_EXPERIMENT)
+```
+
+The returned object makes the dataset accessible in a variety of formats,
+including a pandas DataFrame and CSV file.
+
+- Data is backed up to Amazon S3 on export.
+
+- Integration with Open Science Framework. When an OSF access token is added,
+each experiment launched in `sandbox` or `live` mode will create a new project
+on the Open Science Framework and back up your experiment code in that project.
+We will be developing deeper integrations in the future.
+
 ## [v2.7.1](https://github.com/dallinger/dallinger/tree/v2.7.1) (2017-02-25)
 
 - Fix issue with 2.x documentation pointing to 3.x demos.
