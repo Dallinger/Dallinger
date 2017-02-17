@@ -1,7 +1,0 @@
-unreleased=true
-since-tag=v1.0.0
-enhancement-labels='enhancement,demo,docs'
-bugs-label=**Bugs squashed**
-enhancement-label=**Enhancements**
-issues-label=**Issues closed**
-future_release=v2.7.0
