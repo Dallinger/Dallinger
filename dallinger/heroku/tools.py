@@ -4,11 +4,17 @@ import pexpect
 import subprocess
 
 from dallinger.config import get_config
+from dallinger.compat import unicode
 
 
 def app_name(id):
     """Convert a UUID to a valid Heroku app name."""
     return "dlgr-" + id[0:8]
+
+
+def auth_token():
+    """A Heroku authenication token."""
+    return unicode(subprocess.check_output(["heroku", "auth:token"]).rstrip())
 
 
 def log_in():

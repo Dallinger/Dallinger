@@ -2,7 +2,6 @@
 
 from datetime import datetime
 import json
-import os
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from boto.mturk.connection import MTurkConnection
@@ -92,15 +91,15 @@ def run_check(config, mturk, participants, session, reference_time):
                 args = json.dumps({"auto_recruit": "false"})
                 headers = {
                     "Accept": "application/vnd.heroku+json; version=3",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer {}".format(
+                        config.get("heroku_auth_token"))
                 }
-                heroku_email_address = os.getenv('heroku_email_address')
-                heroku_password = os.getenv('heroku_password')
                 requests.patch(
                     "https://api.heroku.com/apps/{}/config-vars".format(host),
                     data=args,
-                    auth=(heroku_email_address, heroku_password),
-                    headers=headers)
+                    headers=headers,
+                )
 
                 # then force expire the hit via boto
                 mturk.expire_hit(hit_id)

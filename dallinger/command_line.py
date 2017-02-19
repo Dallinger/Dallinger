@@ -325,6 +325,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
     heroku.log_in()
+    config.set("heroku_auth_token", heroku.auth_token())
     click.echo("")
 
     # Change to temporary directory.
