@@ -28,10 +28,6 @@ in like so:
     aws_secret_access_key = ???
     aws_region = us-east-1
 
-    [Heroku Access]
-    heroku_email_address = ???
-    heroku_password = ???
-
     [Email Access]
     dallinger_email_address = ???
     dallinger_email_password = ???
@@ -95,14 +91,6 @@ Then, log in from the command line:
 ::
 
     heroku login
-
-And fill in the appropriate section of ``.dallingerconfig``:
-
-::
-
-    [Heroku Access]
-    heroku_email_address = ???
-    heroku_password = ???
 
 
 Open Science Framework (optional)

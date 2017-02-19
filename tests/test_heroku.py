@@ -197,18 +197,17 @@ class TestHerokuClockTasks(object):
         session = None
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        os_env_email = None
-        os_env_password = None
+        os_env_heroku_auth = None
         with mock.patch('dallinger.heroku.clock.requests') as mock_requests:
             run_check(config, mturk, participants, session, reference_time)
 
             mock_requests.patch.assert_called_once_with(
                 'https://api.heroku.com/apps/fakehost/config-vars',
                 data='{"auto_recruit": "false"}',
-                auth=(os_env_email, os_env_password),
                 headers={
                     "Accept": "application/vnd.heroku+json; version=3",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer {}".format(os_env_heroku_auth),
                 }
             )
 
