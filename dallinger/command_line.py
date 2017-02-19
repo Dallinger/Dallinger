@@ -649,6 +649,9 @@ def logs(app):
 @dallinger.command()
 def verify():
     """Verify that app is compatible with Dallinger."""
+    # Check that the configuration is valid and loadable.
+    config = get_config()
+    config.load()
     verify_package(verbose=True)
 
 
