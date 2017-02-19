@@ -16,16 +16,26 @@ div.body p, div.body dd, div.body li {
     line-height: 1.6em;
 }
 
-code {
-    font-size: 14px;
-}
-
 .highlight {
     font-size: 18px;
 }
 
 tt, code {
-    padding: 4px 5px 1px 5px;
+    font-size: 14px;
+    padding: 6px 8px 2px 8px;
+    border-radius: 2px;
+    -moz-border-radius: 2px;
+    -webkit-border-radius: 2px;
+}
+
+dd {
+    padding-bottom: 20px;
+    font-size: 18px;
+    line-height: 1.3em;
+}
+
+.attribute {
+    padding-bottom: 0px;
 }
 
 @media screen and (max-width: 875px) {
@@ -74,7 +84,7 @@ div.body h2 {
   font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
   font-size: 150%;
   font-weight: bold;
-  padding-top: 20px;
+  padding-top: 10px;
 }
 
 div.body h3 {
