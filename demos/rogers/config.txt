@@ -5,7 +5,7 @@ auto_recruit = true
 [MTurk]
 title = Judge the dots
 description = Look at some dots and determine if there are more blue or yellow ones
-amt_keywords = Psychology, vision, dots
+keywords = Psychology, vision, dots
 base_payment = 1.00
 lifetime = 24
 duration = 0.5

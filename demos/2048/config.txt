@@ -6,7 +6,7 @@ n = 3
 [MTurk]
 title = War of the Ghosts
 description = Read a brief story and answer some questions about it.
-amt_keywords = Psychology, reading, text
+keywords = Psychology, reading, text
 base_payment = 1.00
 lifetime = 24
 duration = 0.1

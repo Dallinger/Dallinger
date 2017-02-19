@@ -84,7 +84,7 @@ def stub_config(**kwargs):
         'lifetime': 0.1,
         'title': 'fake experiment title',
         'description': 'fake HIT description',
-        'amt_keywords': ['kw1', 'kw2', 'kw3'],
+        'keywords': ['kw1', 'kw2', 'kw3'],
     }
     defaults.update(kwargs)
 

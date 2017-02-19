@@ -6,7 +6,7 @@ num_participants = 10
 [MTurk]
 title = Concentration game
 description = Play a round of the game Concentration.
-amt_keywords = game, videogame, play
+keywords = game, videogame, play
 base_payment = 1.00
 lifetime = 24
 duration = 0.25

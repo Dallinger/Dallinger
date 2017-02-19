@@ -5,7 +5,7 @@ auto_recruit = true
 [MTurk]
 title = Estimate these almanac facts
 description = Estimate a few values
-amt_keywords = Psychology, drawing, images
+keywords = Psychology, drawing, images
 base_payment = 1.00
 lifetime = 24
 duration = 0.25

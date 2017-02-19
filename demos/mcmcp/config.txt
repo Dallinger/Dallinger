@@ -5,7 +5,7 @@ auto_recruit = true
 [MTurk]
 title = Select the image
 description = Decide which image is a better match to a given category.
-amt_keywords = vision, categorization, images
+keywords = vision, categorization, images
 base_payment = 1.00
 lifetime = 24
 duration = 0.1
