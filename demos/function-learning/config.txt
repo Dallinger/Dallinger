@@ -5,7 +5,7 @@ mode = sandbox
 [MTurk]
 title = Function learning
 description = Learn the relationship between the sizes of two objects.
-amt_keywords = Psychology, game, learning
+keywords = Psychology, game, learning
 base_payment = 1.00
 lifetime = 24
 duration = 1

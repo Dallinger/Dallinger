@@ -126,7 +126,7 @@ class MTurkRecruiter(object):
             'max_assignments': n,
             'title': self.config.get('title'),
             'description': self.config.get('description'),
-            'keywords': self.config.get('amt_keywords'),
+            'keywords': self.config.get('keywords'),
             'reward': self.config.get('base_payment'),
             'duration_hours': self.config.get('duration'),
             'lifetime_days': self.config.get('lifetime'),

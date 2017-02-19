@@ -6,7 +6,7 @@ n = 10
 [MTurk]
 title = Snake game
 description = Play a round of the snake game.
-amt_keywords = game, videogame, play
+keywords = game, videogame, play
 base_payment = 1.00
 lifetime = 24
 duration = 0.25
