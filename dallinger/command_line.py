@@ -292,9 +292,12 @@ def debug(verbose):
     for line in iter(p.stdout.readline, ''):
         if verbose:
             sys.stdout.write(line)
-        if re.match('^.*? worker.1 .*? Connection refused.$', line.strip()):
+        line = line.strip()
+        if re.match('^.*? worker.1 .*? Connection refused.$', line):
             error('Could not connect to redis instance, experiment may not behave correctly.')
-        if re.match('^.*? web.1 .*? Ready.$', line.strip()):
+        if not verbose and re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line):
+            error(line)
+        if re.match('^.*? web.1 .*? Ready.$', line):
             ready = True
             break
 
