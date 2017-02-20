@@ -91,3 +91,31 @@ you can move on.
 
 Next, you'll need :doc:`access keys for AWS, Heroku,
 etc. <aws_etc_keys>`.
+
+
+Install Heroku
+^^^^^^^^^^^^^^
+
+To run experiments locally or on the internet you need the Heroku Command Line
+Interface installed. You need at least version 3.28.0 to use Dallinger. You
+only need a Heroku account to launch experiments on the internet, you do not
+need it for local debugging.
+
+You can check your currently installed version by running:
+
+::
+
+    heroku --version
+
+The Heroku CLI is available for download from
+`heroku.com <https://devcenter.heroku.com/articles/heroku-cli>`__.
+
+Install redis
+^^^^^^^^^^^^^
+
+Accurate debugging of experiments also requires you to have redis
+installed. If this is not installed you may find that local participant
+data does not get updated as you progress through the experiment.
+
+You can find installation instructions at `redis.com <https://redis.io/topics/quickstart>`__.
+

@@ -12,8 +12,8 @@ app = util.import_app("dallinger.experiment_server.experiment_server:app")
 
 
 def when_ready(arbiter):
-    # Signal to parent process that server has started.
-    print('Ready.')
+    # Signal to parent process that server has started
+    logger.warn('Ready.')
 
 
 class StandaloneServer(Application):

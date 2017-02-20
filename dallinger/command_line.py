@@ -267,9 +267,8 @@ def debug(verbose):
 
     # Start up the local server
     log("Starting up the server...")
-    path = os.path.realpath(os.path.join(__file__, '..', 'heroku', 'launch.py'))
     p = subprocess.Popen(
-        [sys.executable, '-u', path],
+        ['heroku', 'local'],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
@@ -277,10 +276,10 @@ def debug(verbose):
     # Wait for server to start
     ready = False
     for line in iter(p.stdout.readline, ''):
-        if re.match('^Ready.$', line):
+        sys.stdout.write(line)
+        if re.match('^.*? web.1 .*? Ready.$', line.strip()):
             ready = True
             break
-        sys.stdout.write(line)
 
     if ready:
         host = config.get('host')
