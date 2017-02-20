@@ -290,7 +290,8 @@ def debug(verbose):
     # Wait for server to start
     ready = False
     for line in iter(p.stdout.readline, ''):
-        sys.stdout.write(line)
+        if verbose:
+            sys.stdout.write(line)
         if re.match('^.*? worker.1 .*? Connection refused.$', line.strip()):
             error('Could not connect to redis instance, experiment may not behave correctly.')
         if re.match('^.*? web.1 .*? Ready.$', line.strip()):
