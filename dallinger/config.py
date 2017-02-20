@@ -42,6 +42,7 @@ default_keys = (
     ('description', unicode, []),
     ('duration', float, []),
     ('dyno_type', unicode, []),
+    ('group_name', unicode, ['blacklist']),
     ('heroku_email_address', unicode, [], True),
     ('heroku_password', unicode, [], True),
     ('heroku_team', unicode, ['team']),
