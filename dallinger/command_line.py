@@ -65,6 +65,16 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
         time.sleep(delay)
 
 
+def error(msg, delay=0.5, chevrons=True, verbose=True):
+    """Log a message to stdout."""
+    if verbose:
+        if chevrons:
+            click.secho("\n❯❯ " + msg, err=True, fg='red')
+        else:
+            click.secho(msg, err=True, fg='red')
+        time.sleep(delay)
+
+
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
 def dallinger():
@@ -267,16 +277,22 @@ def debug(verbose):
 
     # Start up the local server
     log("Starting up the server...")
-    p = subprocess.Popen(
-        ['heroku', 'local'],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+    try:
+        p = subprocess.Popen(
+            ['heroku', 'local'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    except OSError:
+        error("Couldn't start Heroku for local debugging.")
+        raise
 
     # Wait for server to start
     ready = False
     for line in iter(p.stdout.readline, ''):
         sys.stdout.write(line)
+        if re.match('^.*? worker.1 .*? Connection refused.$', line.strip()):
+            error('Could not connect to redis instance, experiment may not behave correctly.')
         if re.match('^.*? web.1 .*? Ready.$', line.strip()):
             ready = True
             break
