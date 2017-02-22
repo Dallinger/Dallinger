@@ -304,6 +304,8 @@ def debug(verbose, bot):
             ready = True
             break
 
+    epipe = 0
+    participant = None
     if ready:
         host = config.get('host')
         port = config.get('port')
@@ -332,6 +334,33 @@ def debug(verbose, bot):
                         log("This experiment does not have a bot.")
                 else:
                     webbrowser.open(url, new=1, autoraise=True)
+
+            # Is recruitment over? We can end this debug session.
+            match = re.search('Close recruitment.$', line)
+            if match:
+                if participant:
+                    # make sure there are no stray phantomjs processes
+                    participant.driver.quit()
+                p.kill()
+                break
+
+            # Check for bot exceptions
+            match = re.search('Exception on ', line)
+            if participant and match:
+                log("There was an error running the experiment.")
+                participant.driver.quit()
+                p.kill()
+                break
+
+            # Check for unexpected bot hangs
+            match = re.search('Ignoring EPIPE', line)
+            if participant and match:
+                epipe = epipe + 1
+                if epipe >= 2:
+                    log("The experiment finished but recruitment was not closed.")
+                    participant.driver.quit()
+                    p.kill()
+                    break
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
