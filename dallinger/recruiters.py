@@ -122,6 +122,12 @@ class MTurkRecruiter(object):
 
         self.mturkservice.check_credentials()
 
+        qualification_type_id = self.mturkservice.create_qualification_type(
+            self.config.get('group_name'),
+            "Participated in group {}".format(self.config.get('group_name')),
+            "Active",
+        )
+
         hit_request = {
             'max_assignments': n,
             'title': self.config.get('title'),
@@ -134,7 +140,7 @@ class MTurkRecruiter(object):
             'notification_url': self.config.get('notification_url'),
             'approve_requirement': self.config.get('approve_requirement'),
             'us_only': self.config.get('us_only'),
-            'blacklist': self.config.get('qualification_type_id'),
+            'blacklist': qualification_type_id,
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
         if self.config.get('mode') == "sandbox":

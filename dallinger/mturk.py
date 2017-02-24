@@ -1,5 +1,6 @@
 import datetime
 import logging
+import xml.etree.ElementTree as ET
 
 from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
@@ -113,18 +114,35 @@ class MTurkService(object):
     def create_qualification_type(self, name, description, status):
         """Passthrough. Create a new qualification Workers can be scored for.
         """
-        qtype = self.mturk.create_qualification_type(name, description, status)[0]
-        if qtype.IsValid != 'True':
-            raise MTurkServiceException(
-                "Qualification creation request was invalid for unknown reason.")
+        try:
+            qtype = self.mturk.create_qualification_type(name, description, status)[0]
 
-        return {
-            'id': qtype.QualificationTypeId,
-            'created': timestr_to_dt(qtype.CreationTime),
-            'name': qtype.Name,
-            'description': qtype.Description,
-            'status': qtype.QualificationTypeStatus,
-        }
+        except MTurkRequestError as e:
+            # assume the reason why you're getting the error is you're using a group name
+            # and there's already a qualification_type_id associated with that group name
+            # (i.e. go find the group name qualification id and use that)
+            root = ET.fromstring(e.body)
+            data = root.findall("./QualificationType/Request/Errors/Error/Data")
+            QualificationTypeId = unicode(data[0].findall("Value")[0].text)
+
+            return {
+                'id': QualificationTypeId,
+            }
+
+        else:
+
+            if qtype.IsValid != 'True':
+                raise MTurkServiceException(
+                    "Qualification creation request was invalid for unknown reason.")
+
+            return {
+                'id': qtype.QualificationTypeId,
+                'created': timestr_to_dt(qtype.CreationTime),
+                'name': qtype.Name,
+                'description': qtype.Description,
+                'status': qtype.QualificationTypeStatus,
+            }
+
 
     def assign_qualification(self, qualification_id, worker_id, score, notify=True):
         """Score a worker for a specific qualification"""

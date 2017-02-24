@@ -21,7 +21,7 @@ import time
 import uuid
 import webbrowser
 
-from boto.mturk.connection import MTurkConnection
+from boto.mturk.connection import MTurkConnection, MTurkRequestError
 import click
 from dallinger.config import get_config
 import psycopg2
@@ -157,6 +157,13 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     # Change directory to the temporary folder.
     cwd = os.getcwd()
     os.chdir(dst)
+
+    # If you don't specify a group, then the group is the experiment id.
+    try:
+        group_name = config.get('group_name')
+    except KeyError:
+        group_name = public_id
+        config.extend({"group_name": public_id})
 
     # Write the custom config
     if exp_config:
@@ -327,19 +334,6 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     if config.get("mode") == u"live":
         log("Registering the experiment on configured services...")
         registration.register(id, snapshot=None)
-
-    conn = MTurkConnection(
-        config.get('aws_access_key_id'),
-        config.get('aws_secret_access_key'),
-    )
-
-    results = conn.create_qualification_type(
-        id,
-        "Participated in experiment {}".format(id),
-        "Active",
-    )
-    qualification_type_id = results[0].QualificationTypeId
-    config.extend({"qualification_type_id": qualification_type_id})
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")

@@ -1,30 +1,32 @@
-[Experiment]
-mode = sandbox
-auto_recruit = true
-
-[MTurk]
-title = War of the Ghosts
-description = Read a brief story and answer some questions about it.
-amt_keywords = Psychology, reading, text
-base_payment = 1.00
-lifetime = 24
-duration = 0.1
-us_only = true
-approve_requirement = 95
-contact_email_on_error = bartlett1932@mailinator.com
-ad_group = War of the Ghosts
-organization_name = Monsters University
-browser_exclude_rule = MSIE, mobile, tablet
-
-[Database]
+[Parameters]
+aws_region = us-east-1
+dallinger_email_address = ???
+loglevel = 0
 database_url = postgresql://postgres@localhost/dallinger
-database_size = standard-0
-
-[Server]
-dyno_type = free
-num_dynos_web = 1
-num_dynos_worker = 1
 host = 0.0.0.0
-notification_url = None
-clock_on = false
+threads = 1
+mode = sandbox
 logfile = -
+port = 5000
+clock_on = False
+notification_url = None
+heroku_team = dallinger
+dyno_type = standard-1x
+us_only = True
+duration = 0.1
+lifetime = 1
+approve_requirement = 95
+title = War of the Ghosts
+auto_recruit = True
+group_name = loss
+organization_name = Monsters University
+num_dynos_web = 1
+description = Read a brief story and answer some questions about it.
+num_dynos_worker = 1
+base_payment = 1.0
+contact_email_on_error = bartlett1932@mailinator.com
+database_size = standard-0
+browser_exclude_rule = MSIE, mobile, tablet
+ad_group = War of the Ghosts
+amt_keywords = Psychology, reading, text
+
