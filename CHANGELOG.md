@@ -1,5 +1,9 @@
 # Change Log
 
+## [v2.7.1](https://github.com/dallinger/dallinger/tree/v2.7.1) (2017-02-25)
+
+- Fix issue with 2.x documentation pointing to 3.x demos.
+
 ## [v2.7.0](https://github.com/dallinger/dallinger/tree/v2.7.0) (2016-12-10)
 
 - Support for Heroku teams [\#331](https://github.com/Dallinger/Dallinger/pull/331)
