@@ -4,4 +4,4 @@ enhancement-labels='enhancement,demo,docs'
 bugs-label=**Bugs squashed**
 enhancement-label=**Enhancements**
 issues-label=**Issues closed**
-future_release=v2.7.0
+future_release=v2.7.1
