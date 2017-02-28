@@ -5,9 +5,11 @@ from functools import wraps
 import logging
 import os
 
+from psycopg2.extensions import TransactionRollbackError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.exc import DBAPIError
 
 
 logger = logging.getLogger('dallinger.db')
@@ -50,8 +52,7 @@ def scoped_session_decorator(func):
     """Manage contexts and add debugging to db sessions."""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        from dallinger.db import session as dallinger_session
-        with sessions_scope(dallinger_session):
+        with sessions_scope(session):
             # The session used in func comes from the funcs globals, but
             # it will be a proxied thread local var from the session
             # registry, and will therefore be identical to the one returned
@@ -69,3 +70,30 @@ def init_db(drop_all=False):
     Base.metadata.create_all(bind=engine)
 
     return session
+
+
+def serialized(func):
+    """Run a function within a db transaction using SERIALIZABLE isolation.
+
+    With this isolation level, committing will fail if this transaction
+    read data that was since modified by another transaction. So we need
+    to handle that case and retry the transaction.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kw):
+        attempts = 100
+        while attempts > 0:
+            try:
+                session.connection(
+                    execution_options={'isolation_level': 'SERIALIZABLE'})
+                with sessions_scope(session):
+                    return func(*args, **kw)
+            except TransactionRollbackError:
+                if attempts > 0:
+                    attempts -= 1
+                else:
+                    raise Exception(
+                        'Could not commit serialized transaction '
+                        'after 100 attempts.')
+    return wrapper
