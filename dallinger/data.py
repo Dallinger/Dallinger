@@ -238,9 +238,10 @@ def _s3_connection():
     if not config.ready:
         config.load()
 
-    return boto.connect_s3(
-        config.get('aws_access_key_id'),
-        config.get('aws_secret_access_key'),
+    return boto.s3.connect_to_region(
+        config.get('aws_region'),
+        aws_access_key_id=config.get('aws_access_key_id'),
+        aws_secret_access_key=config.get('aws_secret_access_key'),
     )
 
 
