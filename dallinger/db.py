@@ -9,7 +9,7 @@ from psycopg2.extensions import TransactionRollbackError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import OperationalError
 
 
 logger = logging.getLogger('dallinger.db')
@@ -87,13 +87,16 @@ def serialized(func):
             try:
                 session.connection(
                     execution_options={'isolation_level': 'SERIALIZABLE'})
-                with sessions_scope(session):
+                with sessions_scope(session, commit=True):
                     return func(*args, **kw)
-            except TransactionRollbackError:
-                if attempts > 0:
-                    attempts -= 1
+            except OperationalError as exc:
+                if isinstance(exc.orig, TransactionRollbackError):
+                    if attempts > 0:
+                        attempts -= 1
+                    else:
+                        raise Exception(
+                            'Could not commit serialized transaction '
+                            'after 100 attempts.')
                 else:
-                    raise Exception(
-                        'Could not commit serialized transaction '
-                        'after 100 attempts.')
+                    raise
     return wrapper
