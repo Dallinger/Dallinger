@@ -1,6 +1,7 @@
 Dallinger
 =======
 [![Build Status](https://travis-ci.org/Dallinger/Dallinger.svg?branch=master)](https://travis-ci.org/Dallinger/Dallinger)
+[![Build status](https://ci.appveyor.com/api/projects/status/5dudaqgk15q4oh00/branch/master?svg=true)](https://ci.appveyor.com/project/suchow/dallinger/branch/master)
 [![Demos](https://img.shields.io/badge/demos-11-edd172.svg)](http://dallinger.readthedocs.io/en/latest/#demos)
 [![codecov](https://codecov.io/gh/Dallinger/Dallinger/branch/master/graph/badge.svg)](https://codecov.io/gh/Dallinger/Dallinger)
 [![Code Climate](https://codeclimate.com/github/Dallinger/Dallinger/badges/gpa.svg)](https://codeclimate.com/github/Dallinger/Dallinger)
