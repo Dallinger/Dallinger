@@ -4,7 +4,7 @@ environment:
   # See: http://stackoverflow.com/a/13751649/163740
   CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\appveyor\\run_with_env.cmd"
   TOX_ENV: "pywin"
-  DATABASE_URL: postgresql://postgres@127.0.0.1/db
+  DATABASE_URL: tcp://postgres@127.0.0.1/db
   PORT: 5432
   POSTGRES_PATH: C:\Program Files\PostgreSQL\9.5
   PGUSER: postgres
