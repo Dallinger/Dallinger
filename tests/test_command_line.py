@@ -145,5 +145,5 @@ class TestDebugServer(object):
 class TestHeader(object):
 
     def test_header_contains_version_number(self):
-        # Make the header contains the version number
+        # Make sure header contains the version number.
         assert dallinger.version.__version__ in dallinger.command_line.header
