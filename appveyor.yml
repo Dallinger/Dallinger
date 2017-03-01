@@ -30,7 +30,7 @@ branches:
 install:
   - ps: "wget https://github.com/cloudify-cosmo/appveyor-utils/archive/master.zip -OutFile ./master.zip"
   - "7z e master.zip */appveyor/* -oappveyor"
-  - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%POSTGRES_PATH\\bin;%PATH%"
+  - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%POSTGRES_PATH%\\bin;%PATH%"
   - psql -c 'create database db;' -U postgres"
   - pip install -r requirements.txt
 
