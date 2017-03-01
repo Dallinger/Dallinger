@@ -7,7 +7,7 @@ future==0.16.0
 gunicorn==18.0
 localconfig==0.4.2
 pexpect==4.2.1
-psycopg2==2.6.2
+psycopg2==2.7
 redis==2.10.5
 requests==2.13.0
 rq==0.7.1
