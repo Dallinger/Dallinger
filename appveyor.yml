@@ -4,6 +4,14 @@ environment:
   # See: http://stackoverflow.com/a/13751649/163740
   CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\appveyor\\run_with_env.cmd"
   TOX_ENV: "pywin"
+  DATABASE_URL: postgresql://postgres@localhost/db
+  PORT: 5000
+  aws_access_key_id: 
+    secure: FIX ME
+  aws_secret_access_key:
+    secure: FIX ME
+  mturk_worker_id:
+    secure: FIX ME
 
   matrix:
     - PYTHON: "C:\\Python27"
