@@ -7,11 +7,11 @@ environment:
   DATABASE_URL: postgresql://postgres@localhost/db
   PORT: 5000
   aws_access_key_id: 
-    secure: FIX ME
+    secure: sdhuIy4jAdfifnSkaAJmlgHHZT0yd0oWKJdkcHaBlK8
   aws_secret_access_key:
-    secure: FIX ME
+    secure: RpwpXGEATotRZMKqb7c0a2ay51xCDPWPoXMLjLJMc0Uj2Wmim+Mkgv/PY2RDHjlK
   mturk_worker_id:
-    secure: FIX ME
+    secure: QgNH8h5Jz8F0P8QZUEOWsA==
 
   matrix:
     - PYTHON: "C:\\Python27"
