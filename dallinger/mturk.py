@@ -32,7 +32,6 @@ class MTurkService(object):
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.is_sandbox = sandbox
-        print "MTurkService: {} {}".format(aws_access_key_id, aws_secret_access_key)
 
     @cached_property
     def mturk(self):

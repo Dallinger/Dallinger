@@ -177,7 +177,6 @@ class Configuration(object):
             parser.write(fp)
 
     def load_from_environment(self):
-        print os.environ
         self.extend(os.environ, cast_types=True)
 
     def load_config(self):
