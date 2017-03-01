@@ -4,11 +4,13 @@ environment:
   # See: http://stackoverflow.com/a/13751649/163740
   CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\appveyor\\run_with_env.cmd"
   TOX_ENV: "pywin"
+  # Postgres:
   DATABASE_URL: postgresql://postgres:Password12!@127.0.0.1/db
   PORT: 5432
   POSTGRES_PATH: C:\Program Files\PostgreSQL\9.5
   PGUSER: postgres
   PGPASSWORD: Password12!  
+  # AWS/MTurk:
   AWS_ACCESS_KEY_ID: 
     secure: sdhuIy4jAdfifnSkaAJmlgHHZT0yd0oWKJdkcHaBlK8
   AWS_SECRET_ACCESS_KEY:
