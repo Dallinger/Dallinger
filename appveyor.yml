@@ -18,6 +18,8 @@ environment:
       PYTHON_VERSION: "2.7.8"
       PYTHON_ARCH: "32"
 
+services: postgresql      
+
 build: false
 
 branches:
@@ -35,6 +37,7 @@ build_script:
 
 before_test:
   - "%CMD_IN_ENV% pip install tox"
+  - "%CMD_IN_ENV% psql -c 'create database db;' -U postgres"
 
 test_script:
   - "%CMD_IN_ENV% tox -e %TOX_ENV%"
