@@ -12,6 +12,10 @@ environment:
 
 build: false
 
+branches:
+  only:
+  - windows
+
 install:
   - ps: "wget https://github.com/cloudify-cosmo/appveyor-utils/archive/master.zip -OutFile ./master.zip"
   - "7z e master.zip */appveyor/* -oappveyor"
