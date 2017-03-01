@@ -7,6 +7,8 @@ environment:
   DATABASE_URL: postgresql://postgres@localhost/db
   PORT: 5432
   POSTGRES_PATH: C:\Program Files\PostgreSQL\9.5
+  PGUSER: postgres
+  PGPASSWORD: Password12!  
   aws_access_key_id: 
     secure: sdhuIy4jAdfifnSkaAJmlgHHZT0yd0oWKJdkcHaBlK8
   aws_secret_access_key:
@@ -31,11 +33,12 @@ install:
   - ps: "wget https://github.com/cloudify-cosmo/appveyor-utils/archive/master.zip -OutFile ./master.zip"
   - "7z e master.zip */appveyor/* -oappveyor"
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%POSTGRES_PATH%\\bin;%PATH%"
-  - psql -c 'create database db;' -U postgres"
   - pip install -r requirements.txt
 
 build_script:
+  - echo %PATH%
   - python setup.py install
+  - psql -c 'create database db;' -U postgres"  
 
 before_test:
   - "%CMD_IN_ENV% pip install tox"
