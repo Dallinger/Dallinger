@@ -38,7 +38,7 @@ install:
 build_script:
   - echo %PATH%
   - python setup.py install
-  - psql -c 'create database db;' -U postgres"  
+  - psql -U postgres -c "create database db;" 
 
 before_test:
   - "%CMD_IN_ENV% pip install tox"
