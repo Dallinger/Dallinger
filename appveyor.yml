@@ -36,7 +36,6 @@ install:
   - pip install -r requirements.txt
 
 build_script:
-  - echo %PATH%
   - python setup.py install
   - psql -U postgres -c "create database db;"
 
