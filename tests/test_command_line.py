@@ -2,12 +2,16 @@
 # -*- coding: utf-8 -*-
 import filecmp
 import os
-import pexpect
 import subprocess
+from ConfigParser import NoOptionError, SafeConfigParser
+
+import pexpect
 from pytest import raises
-from ConfigParser import SafeConfigParser, NoOptionError
+
+import dallinger.command_line
 from dallinger.compat import unicode
-from dallinger.config import get_config, LOCAL_CONFIG
+from dallinger.config import LOCAL_CONFIG, get_config
+import dallinger.version
 
 
 class TestCommandLine(object):
@@ -136,3 +140,10 @@ class TestDebugServer(object):
         p.expect_exact('Server is running')
         p.sendcontrol('c')
         p.read()
+
+
+class TestHeader(object):
+
+    def test_header_contains_version_number(self):
+        # Make the header contains the version number
+        assert dallinger.version.__version__ in dallinger.command_line.header
