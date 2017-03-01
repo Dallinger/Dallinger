@@ -5,7 +5,7 @@ environment:
   CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\appveyor\\run_with_env.cmd"
   TOX_ENV: "pywin"
   DATABASE_URL: postgresql://postgres@localhost/db
-  PORT: 5000
+  PORT: 5432
   aws_access_key_id: 
     secure: sdhuIy4jAdfifnSkaAJmlgHHZT0yd0oWKJdkcHaBlK8
   aws_secret_access_key:
@@ -18,7 +18,7 @@ environment:
       PYTHON_VERSION: "2.7.8"
       PYTHON_ARCH: "32"
 
-services: postgresql      
+services: postgresql95      
 
 build: false
 
@@ -37,7 +37,8 @@ build_script:
 
 before_test:
   - "%CMD_IN_ENV% pip install tox"
-  - "%CMD_IN_ENV% psql -c 'create database db;' -U postgres"
+  - cmd: "PATH=C:\Program Files\PostgreSQL\9.5\bin\;%PATH%"
+  - cmd: psql -c 'create database db;' -U postgres"
 
 test_script:
   - "%CMD_IN_ENV% tox -e %TOX_ENV%"
