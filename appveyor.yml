@@ -6,6 +6,7 @@ environment:
   TOX_ENV: "pywin"
   DATABASE_URL: postgresql://postgres@localhost/db
   PORT: 5432
+  POSTGRES_PATH: C:\Program Files\PostgreSQL\9.5
   aws_access_key_id: 
     secure: sdhuIy4jAdfifnSkaAJmlgHHZT0yd0oWKJdkcHaBlK8
   aws_secret_access_key:
@@ -29,7 +30,8 @@ branches:
 install:
   - ps: "wget https://github.com/cloudify-cosmo/appveyor-utils/archive/master.zip -OutFile ./master.zip"
   - "7z e master.zip */appveyor/* -oappveyor"
-  - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
+  - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%POSTGRES_PATH;%PATH%"
+  - psql -c 'create database db;' -U postgres"
   - pip install -r requirements.txt
 
 build_script:
@@ -37,8 +39,6 @@ build_script:
 
 before_test:
   - "%CMD_IN_ENV% pip install tox"
-  - cmd: "PATH=C:\Program Files\PostgreSQL\9.5\bin\;%PATH%"
-  - cmd: psql -c 'create database db;' -U postgres"
 
 test_script:
   - "%CMD_IN_ENV% tox -e %TOX_ENV%"
