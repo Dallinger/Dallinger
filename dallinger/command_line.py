@@ -41,20 +41,18 @@ from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
+header = """
+    ____        ____
+   / __ \____ _/ / (_)___  ____ ____  _____
+  / / / / __ `/ / / / __ \/ __ `/ _ \/ ___/
+ / /_/ / /_/ / / / / / / / /_/ /  __/ /
+/_____/\__,_/_/_/_/_/ /_/\__, /\___/_/
+                        /____/
+                                 {:>8}
 
-def print_header():
-    """Print a fancy-looking header."""
-    log("""
-        ____        ____
-       / __ \____ _/ / (_)___  ____ ____  _____
-      / / / / __ `/ / / / __ \/ __ `/ _ \/ ___/
-     / /_/ / /_/ / / / / / / / /_/ /  __/ /
-    /_____/\__,_/_/_/_/_/ /_/\__, /\___/_/
-                            /____/
-
-                    Laboratory automation for
-           the behavioral and social sciences.
-    """, 0.5, False)
+                Laboratory automation for
+       the behavioral and social sciences.
+""".format("v" + __version__)
 
 
 def log(msg, delay=0.5, chevrons=True, verbose=True):
@@ -96,7 +94,7 @@ def setup():
 
 def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
-    print_header()
+    log(header, chevrons=False)
 
     # Verify that the package is usable.
     log("Verifying that directory is compatible with Dallinger...")
@@ -653,7 +651,7 @@ def awaken(app, databaseurl):
               help='Scrub PII')
 def export(app, local, no_scrub):
     """Export the data."""
-    print_header()
+    log(header, chevrons=False)
     data.export(str(app), local=local, scrub_pii=(not no_scrub))
 
 
