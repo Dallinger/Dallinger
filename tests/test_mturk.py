@@ -289,7 +289,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
     def worker_id(self):
         # Get a worker ID from the environment or tests/config.py
         import os
-        workerid = os.getenv('mturk_worker_id')
+        workerid = os.getenv('mturk_worker_id') or os.getenv('MTURK_WORKER_ID')
         if not workerid:
             try:
                 from . import config
