@@ -4,7 +4,7 @@ environment:
   # See: http://stackoverflow.com/a/13751649/163740
   CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\appveyor\\run_with_env.cmd"
   TOX_ENV: "pywin"
-  DATABASE_URL: postgresql://postgres@localhost/db
+  DATABASE_URL: postgresql://dallinger@localhost/db
   PORT: 5432
   POSTGRES_PATH: C:\Program Files\PostgreSQL\9.5
   PGUSER: postgres
@@ -39,6 +39,7 @@ build_script:
   - echo %PATH%
   - python setup.py install
   - psql -U postgres -c "create database db;" 
+  - psql -U postgres -c "CREATE USER dallinger;"
 
 before_test:
   - "%CMD_IN_ENV% pip install tox"
