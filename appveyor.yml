@@ -12,7 +12,7 @@ environment:
   PGPASSWORD: Password12!  
   # AWS/MTurk:
   AWS_ACCESS_KEY_ID: 
-    secure: sdhuIy4jAdfifnSkaAJmlgHHZT0yd0oWKJdkcHaBlK8
+    secure: sdhuIy4jAdfifnSkaAJmlgHHZT0yd0oWKJdkcHaBlK8=
   AWS_SECRET_ACCESS_KEY:
     secure: RpwpXGEATotRZMKqb7c0a2ay51xCDPWPoXMLjLJMc0Uj2Wmim+Mkgv/PY2RDHjlK
   MTURK_WORKER_ID:
