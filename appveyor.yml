@@ -9,11 +9,11 @@ environment:
   POSTGRES_PATH: C:\Program Files\PostgreSQL\9.5
   PGUSER: postgres
   PGPASSWORD: Password12!  
-  aws_access_key_id: 
+  AWS_ACCESS_KEY_ID: 
     secure: sdhuIy4jAdfifnSkaAJmlgHHZT0yd0oWKJdkcHaBlK8
-  aws_secret_access_key:
+  AWS_SECRET_ACCESS_KEY:
     secure: RpwpXGEATotRZMKqb7c0a2ay51xCDPWPoXMLjLJMc0Uj2Wmim+Mkgv/PY2RDHjlK
-  mturk_worker_id:
+  MTURK_WORKER_ID:
     secure: QgNH8h5Jz8F0P8QZUEOWsA==
 
   matrix:
