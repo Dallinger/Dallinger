@@ -158,7 +158,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     if exp_config:
         config.extend(exp_config)
 
-    config.write_config(filter_sensitive=True)
+    config.write(filter_sensitive=True)
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
@@ -263,7 +263,7 @@ def debug(verbose):
         "loglevel": 0,
         "logfile": logfile
     })
-    config.write_config()
+    config.write()
 
     # Start up the local server
     log("Starting up the server...")
@@ -439,7 +439,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         "notification_url": u"http://" + app_name(id) + ".herokuapp.com/notifications",
         "database_url": db_url.rstrip().decode('utf8'),
     })
-    config.write_config()
+    config.write()
 
     subprocess.check_call("git add config.txt", stdout=out, shell=True),
     time.sleep(0.25)

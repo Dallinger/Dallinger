@@ -163,7 +163,7 @@ class Configuration(object):
             data.update(dict(parser.items(section)))
         self.extend(data, cast_types=True, strict=True)
 
-    def write_config(self, filter_sensitive=False):
+    def write(self, filter_sensitive=False):
         parser = SafeConfigParser()
         parser.add_section('Parameters')
         for layer in reversed(self.data):
