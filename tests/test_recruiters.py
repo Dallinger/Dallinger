@@ -33,7 +33,7 @@ class TestHotAirRecruiter(object):
         os.chdir('tests/experiment')
         config = get_config()
         if not config.ready:
-            config.load_config()
+            config.load()
         yield HotAirRecruiter()
         os.chdir('../..')
 

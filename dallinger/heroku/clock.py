@@ -147,7 +147,7 @@ def check_db_for_missing_notifications():
 
 def launch():
     if not config.ready:
-        config.load_config()
+        config.load()
     scheduler.start()
 
 

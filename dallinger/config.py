@@ -179,7 +179,7 @@ class Configuration(object):
     def load_from_environment(self):
         self.extend(os.environ, cast_types=True)
 
-    def load_config(self):
+    def load(self):
         if self.ready:
             raise ValueError("Already loaded")
 
