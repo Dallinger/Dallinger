@@ -140,7 +140,7 @@ num_participants = 10
 worldwide = false
 """)
             configfile.flush()
-            config.load_from_config_file(configfile.name)
+            config.load_from_file(configfile.name)
         config.ready = True
         assert config.get('num_participants') == 10
         assert config.get('deploy_worldwide') is False

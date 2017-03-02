@@ -155,7 +155,7 @@ class Configuration(object):
         if sensitive:
             self.sensitive.add(key)
 
-    def load_from_config_file(self, filename):
+    def load_from_file(self, filename):
         parser = SafeConfigParser()
         parser.read(filename)
         data = {}
@@ -200,10 +200,10 @@ class Configuration(object):
             local_defaults_file,
             globalConfig,
         ]:
-            self.load_from_config_file(config_file)
+            self.load_from_file(config_file)
 
         if os.path.exists(localConfig):
-            self.load_from_config_file(localConfig)
+            self.load_from_file(localConfig)
 
         self.load_from_environment()
         self.ready = True
