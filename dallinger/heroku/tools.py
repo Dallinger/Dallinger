@@ -35,8 +35,7 @@ def scale_up_dynos(app):
             "heroku",
             "ps:scale",
             "{}={}:{}".format(process, num_dynos[process], dyno_type),
-            "--app",
-            app,
+            "--app", app,
         ])
 
     if config.get('clock_on'):
@@ -44,6 +43,5 @@ def scale_up_dynos(app):
             "heroku",
             "ps:scale",
             "clock=1:{}".format(dyno_type),
-            "--app",
-            app,
+            "--app", app,
         ])

@@ -13,6 +13,7 @@ from zipfile import ZipFile
 import boto
 from boto.s3.key import Key
 import hashlib
+import psycopg2
 
 try:
     import odo
@@ -71,15 +72,13 @@ def dump_database(id):
     subprocess.call([
         "heroku",
         "pg:backups:capture",
-        "--app",
-        heroku.app_name(id)
+        "--app", heroku.app_name(id)
     ], stdout=FNULL, stderr=FNULL)
 
     subprocess.call([
         "heroku",
         "pg:backups:download",
-        "--app",
-        heroku.app_name(id)
+        "--app", heroku.app_name(id)
     ], stdout=FNULL, stderr=FNULL)
 
     for filename in os.listdir(tmp_dir):
@@ -117,37 +116,43 @@ def copy_heroku_to_local(id):
         "pg:pull",
         "DATABASE_URL",
         heroku.app_name(id),
-        "--app",
-        heroku.app_name(id),
+        "--app", heroku.app_name(id),
     ])
 
 
 def copy_local_to_csv(local_db, path, scrub_pii=False):
     """Copy a local database to a set of CSV files."""
+    conn = psycopg2.connect(database="dallinger", user="postgres")
+    cur = conn.cursor()
     for table in table_names:
         csv_path = os.path.join(path, "{}.csv".format(table))
-        subprocess.check_call(
-            "psql -d " + local_db +
-            " --command=\"\\copy " + table + " to \'" +
-            csv_path + "\' csv header\"",
-            shell=True)
+        with open(csv_path, "w") as f:
+            cur.copy_to(f, table, sep=",", null="")
+            if table is "participant" and scrub_pii:
+                _scrub_participant_table(csv_path)
 
-        if table is "participant" and scrub_pii:
-            with open(csv_path, 'rb') as input:
-                with open("{}.new".format(csv_path), 'wb') as output:
-                    writer = csv.writer(output)
-                    reader = csv.reader(input)
-                    headers = reader.next()
-                    writer.writerow(headers)
-                    for i, row in enumerate(reader):
-                        row[headers.index("worker_id")] = i + 1
-                        row[headers.index("unique_id")] = "{}:{}".format(
-                            i + 1,
-                            row[headers.index("assignment_id")]
-                        )
-                        writer.writerow(row)
 
-            os.rename("{}.new".format(csv_path), csv_path)
+def _scrub_participant_table(path):
+    """Scrub PII from the given participant table."""
+    with open(path, 'rb') as input:
+        with open("{}.new".format(path), 'wb') as output:
+            writer = csv.writer(output)
+            reader = csv.reader(input)
+            try:
+                headers = reader.next()
+            except StopIteration:
+                pass
+            else:
+                writer.writerow(headers)
+                for i, row in enumerate(reader):
+                    row[headers.index("worker_id")] = i + 1
+                    row[headers.index("unique_id")] = "{}:{}".format(
+                        i + 1,
+                        row[headers.index("assignment_id")]
+                    )
+                    writer.writerow(row)
+
+    os.rename("{}.new".format(path), path)
 
 
 def export(id, local=False, scrub_pii=False):
