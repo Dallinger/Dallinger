@@ -21,7 +21,9 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         self.experiment_repeats = 1
         self.num_participants = config.get('n')
         self.initial_recruitment_size = self.num_participants
-        self.quorum = self.num_participants
+        self.public_properties = {
+            'quorum': self.num_participants
+        }
         self.config = config
         if not self.config.ready:
             self.config.load()

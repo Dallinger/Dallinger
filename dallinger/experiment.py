@@ -96,6 +96,12 @@ class Experiment(object):
             "Transformation": Transformation,
         }
 
+        #: dictionary, the properties of this experiment that are exposed
+        #: to the public over an AJAX call
+        if not hasattr(self, 'public_properties'):
+            # Guard against subclasses replacing this with a @property
+            self.public_properties = {}
+
     @property
     def recruiter(self):
         """Recruiter, the Dallinger class that recruits participants.

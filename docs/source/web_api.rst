@@ -47,6 +47,9 @@ Experiment routes
     GET /experiment/<property>
 
 Returns the value of the requested property as a JSON ``<property>``.
+The property must be a key in the ``experiment.public_properties``
+mapping and be JSON serializable. Experiments have no public properties
+by default.
 
 ::
 

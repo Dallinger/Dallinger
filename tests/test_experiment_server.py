@@ -184,6 +184,18 @@ class TestExperimentServer(FlaskAppTest):
         assert worker_summary[0] == [u'approved', 1]
         assert worker_summary[1] == [u'submitted', 1]
 
+    def test_existing_experiment_property(self):
+        p_id = self._create_participant()
+        resp = self.app.get('/experiment/exists'.format(p_id))
+        data = json.loads(resp.data)
+        assert data.get('status') == 'success'
+        assert data.get('exists') is True
+
+    def test_nonexisting_experiment_property(self):
+        p_id = self._create_participant()
+        resp = self.app.get('/experiment/missing'.format(p_id))
+        assert resp.status_code == 404
+
     def test_not_found(self):
         resp = self.app.get('/BOGUS')
         assert resp.status_code == 404

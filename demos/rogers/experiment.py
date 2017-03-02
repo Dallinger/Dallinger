@@ -43,6 +43,13 @@ class RogersExperiment(Experiment):
             self.setup()
         self.save()
 
+    @property
+    def public_properties(self):
+        return {
+            'practice_repeats': self.practice_repeats,
+            'experiment_repeats': self.experiment_repeats,
+        }
+
     def setup(self):
         """First time setup."""
         super(RogersExperiment, self).setup()

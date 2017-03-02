@@ -60,6 +60,7 @@ Redis
 Richerson
 Sanborn
 Senghas
+serializable
 Sforza
 Shiffrin
 silico
