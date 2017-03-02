@@ -24,7 +24,7 @@ class TestCommandLine(object):
         os.chdir("..")
 
     def test_dallinger_help(self):
-        output = subprocess.check_output("dallinger", shell=True)
+        output = subprocess.check_output(["dallinger"])
         assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
 
 

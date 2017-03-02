@@ -10,3 +10,4 @@ port = 22362
 logfile = server.log
 loglevel = 0
 threads = auto
+whimsical = true
