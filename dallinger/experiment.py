@@ -100,9 +100,12 @@ class Experiment(object):
     def recruiter(self):
         """Recruiter, the Dallinger class that recruits participants.
         Default is HotAirRecruiter in debug mode and MTurkRecruiter in other modes.
+        If recruiter param in config is set, there can be other recuiters. This
+        last part could (should) be made pluggable.
         """
         from dallinger.recruiters import HotAirRecruiter
         from dallinger.recruiters import MTurkRecruiter
+        from dallinger.recruiters import BotRecruiter
 
         try:
             debug_mode = config.get('mode') == 'debug'
@@ -110,8 +113,11 @@ class Experiment(object):
             # Config not yet loaded
             debug_mode = False
 
-        if debug_mode:
+        recruiter = config.get('recruiter')
+        if debug_mode and recruiter != 'bots':
             return HotAirRecruiter
+        if recruiter == 'bots':
+            return BotRecruiter.from_current_config
         return MTurkRecruiter.from_current_config
 
     def setup(self):

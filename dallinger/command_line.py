@@ -26,6 +26,10 @@ from dallinger.config import get_config
 import psycopg2
 import redis
 import requests
+from rq import (
+    Worker,
+    Connection,
+)
 from collections import Counter
 
 from dallinger import data
@@ -35,6 +39,7 @@ from dallinger.heroku import (
     app_name,
     scale_up_dynos
 )
+from dallinger.heroku.worker import conn
 from dallinger.mturk import MTurkService
 from dallinger import registration
 from dallinger.utils import generate_random_id
@@ -736,6 +741,16 @@ def bot(app):
 def verify():
     """Verify that app is compatible with Dallinger."""
     verify_package(verbose=True)
+
+
+@dallinger.command()
+def rq_worker():
+    """Start an rq worker in the context of dallinger."""
+    setup_experiment()
+    with Connection(conn):
+        # right now we care about low queue for bots
+        worker = Worker('low')
+        worker.work()
 
 
 def verify_package(verbose=True):
