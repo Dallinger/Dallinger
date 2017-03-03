@@ -154,6 +154,7 @@ class Configuration(object):
 
         if sensitive:
             self.sensitive.add(key)
+        print self.types
 
     def load_from_file(self, filename):
         parser = SafeConfigParser()
@@ -162,6 +163,7 @@ class Configuration(object):
         for section in parser.sections():
             data.update(dict(parser.items(section)))
         self.extend(data, cast_types=True, strict=True)
+        print self.data
 
     def write(self, filter_sensitive=False):
         parser = SafeConfigParser()
