@@ -7,6 +7,7 @@ import pandas as pd
 
 import dallinger
 from dallinger.config import get_config
+from dallinger.utils import generate_random_id
 
 
 class TestData(object):
@@ -18,6 +19,32 @@ class TestData(object):
     )
 
     config = get_config()
+
+    def test_connection_to_s3(self):
+        conn = dallinger.data._s3_connection()
+        assert conn
+
+    def test_user_s3_bucket_first_time(self):
+        conn = dallinger.data._s3_connection()
+        bucket = dallinger.data.user_s3_bucket(
+            canonical_user_id=generate_random_id(),
+        )
+        assert bucket
+        conn.delete_bucket(bucket)
+
+    def test_user_s3_bucket_thrice(self):
+        conn = dallinger.data._s3_connection()
+        id = generate_random_id()
+        for i in range(3):
+            bucket = dallinger.data.user_s3_bucket(
+                canonical_user_id=id,
+            )
+            assert bucket
+        conn.delete_bucket(bucket)
+
+    def test_user_s3_bucket_no_id_provided(self):
+        bucket = dallinger.data.user_s3_bucket()
+        assert bucket
 
     def test_dataset_creation(self):
         """Load a dataset."""
