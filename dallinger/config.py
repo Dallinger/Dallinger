@@ -155,7 +155,7 @@ class Configuration(object):
         if sensitive:
             self.sensitive.add(key)
 
-    def load_from_config_file(self, filename):
+    def load_from_file(self, filename):
         parser = SafeConfigParser()
         parser.read(filename)
         data = {}
@@ -163,7 +163,7 @@ class Configuration(object):
             data.update(dict(parser.items(section)))
         self.extend(data, cast_types=True, strict=True)
 
-    def write_config(self, filter_sensitive=False):
+    def write(self, filter_sensitive=False):
         parser = SafeConfigParser()
         parser.add_section('Parameters')
         for layer in reversed(self.data):
@@ -179,7 +179,7 @@ class Configuration(object):
     def load_from_environment(self):
         self.extend(os.environ, cast_types=True)
 
-    def load_config(self):
+    def load(self):
         if self.ready:
             raise ValueError("Already loaded")
 
@@ -200,10 +200,10 @@ class Configuration(object):
             local_defaults_file,
             globalConfig,
         ]:
-            self.load_from_config_file(config_file)
+            self.load_from_file(config_file)
 
         if os.path.exists(localConfig):
-            self.load_from_config_file(localConfig)
+            self.load_from_file(localConfig)
 
         self.load_from_environment()
         self.ready = True

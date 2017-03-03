@@ -24,7 +24,7 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         self.quorum = self.num_participants
         self.config = config
         if not self.config.ready:
-            self.config.load_config()
+            self.config.load()
         self.setup()
 
     def create_network(self):

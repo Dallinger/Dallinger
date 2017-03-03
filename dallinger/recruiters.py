@@ -94,7 +94,7 @@ class MTurkRecruiter(object):
     def from_current_config(cls):
         config = get_config()
         if not config.ready:
-            config.load_config()
+            config.load()
         ad_url = '{}/ad'.format(get_base_url())
         hit_domain = os.getenv('HOST')
         return cls(config, hit_domain, ad_url)

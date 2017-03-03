@@ -18,7 +18,7 @@ def run_check():
     os.chdir('tests/experiment')
     config = get_config()
     if not config.ready:
-        config.load_config()
+        config.load()
     # Import the FUT here, after config load, and return it
     from dallinger.heroku.clock import run_check
     yield run_check

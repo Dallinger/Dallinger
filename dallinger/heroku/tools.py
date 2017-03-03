@@ -21,7 +21,7 @@ def scale_up_dynos(app):
     """Scale up the Heroku dynos."""
     config = get_config()
     if not config.ready:
-        config.load_config()
+        config.load()
 
     dyno_type = config.get('dyno_type')
 
