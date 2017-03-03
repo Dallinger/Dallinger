@@ -153,15 +153,3 @@ $(document).keypress(function (e) {
     return false;
   }
 });
-
-quorum = 1e6;
-getQuorum = function () {
-    reqwest({
-        url: "/experiment/quorum",
-        method: "get",
-        success: function (resp) {
-            quorum = resp.quorum;
-        }
-    });
-};
-

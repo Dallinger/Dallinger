@@ -3,6 +3,7 @@
 from datetime import datetime
 from json import dumps
 from operator import attrgetter
+import json
 import re
 import traceback
 import user_agents
@@ -28,7 +29,7 @@ from sqlalchemy.sql.expression import true
 from dallinger import db
 from dallinger import experiment
 from dallinger import models
-from dallinger.heroku.worker import conn
+from dallinger.heroku.worker import conn as redis
 from dallinger.compat import unicode
 from dallinger.config import get_config
 
@@ -43,7 +44,8 @@ if not config.ready:
 session = db.session
 
 # Connect to the Redis queue for notifications.
-q = Queue(connection=conn)
+q = Queue(connection=redis)
+WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')
 
@@ -523,6 +525,18 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     )
     session.add(participant)
     session.commit()
+
+    # Notify waiting room
+    experiment = Experiment(session)
+    quorum = getattr(experiment, 'quorum', None)
+    if quorum:
+        count = models.Participant.query.filter_by(
+            status='working').count()
+        message = json.dumps({
+            'q': quorum,
+            'n': count,
+        })
+        redis.publish(WAITING_ROOM_CHANNEL, message)
 
     # return the data
     return success_response(

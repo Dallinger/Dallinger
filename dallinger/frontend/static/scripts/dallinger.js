@@ -153,25 +153,21 @@ submitNextResponse = function (n) {
 };
 
 waitForQuorum = function () {
-    reqwest({
-        url: "/summary",
-        method: "get",
-        success: function (resp) {
-            summary = resp.summary;
-            n = numReady(resp.summary);
-            percent = Math.round((n/quorum)*100.0) + "%";
-            $("#waiting-progress-bar").css("width", percent);
-            $("#progress-percentage").text(percent);
-            if (n >= quorum) {
-                allow_exit();
-                go_to_page("exp");
-            } else {
-                setTimeout(function(){
-                    waitForQuorum();
-                }, 1000);
-            }
+    var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
+    var inbox = new ReconnectingWebSocket(ws_scheme + location.host + "/receive_chat");
+    inbox.onmessage = function (msg) {
+        if (msg.data.indexOf('quorum:') !== 0) { return; }
+        var data = JSON.parse(msg.data.substring(7));
+        var n = data.n;
+        var quorum = data.q;
+        var percent = Math.round((n / quorum) * 100.0) + '%';
+        $("#waiting-progress-bar").css("width", percent);
+        $("#progress-percentage").text(percent);
+        if (n >= quorum) {
+            allow_exit();
+            go_to_page("exp");
         }
-    });
+    };
 };
 
 numReady = function(summary) {

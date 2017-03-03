@@ -8,7 +8,7 @@ import logging
 
 logger = logging.getLogger(__file__)
 
-app = util.import_app("dallinger.experiment_server.experiment_server:app")
+WORKER_CLASS = 'geventwebsocket.gunicorn.workers.GeventWebSocketWorker'
 
 
 def when_ready(arbiter):
@@ -45,7 +45,7 @@ class StandaloneServer(Application):
 
     def load(self):
         """Return our application to be run."""
-        return app
+        return util.import_app("dallinger.experiment_server.sockets:app")
 
     def load_user_config(self):
         config = get_config()
@@ -59,6 +59,7 @@ class StandaloneServer(Application):
         self.options = {
             'bind': bind_address,
             'workers': workers,
+            'worker_class': WORKER_CLASS,
             'loglevels': self.loglevels,
             'loglevel': self.loglevels[config.get("loglevel")],
             'accesslog': config.get("logfile"),
@@ -71,6 +72,7 @@ class StandaloneServer(Application):
 
 def launch():
     config = get_config()
+    config.load_config()
     LOG_LEVELS = [
         logging.DEBUG,
         logging.INFO,
