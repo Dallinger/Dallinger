@@ -160,6 +160,7 @@ class Configuration(object):
         parser = SafeConfigParser()
         parser.read(filename)
         data = {}
+        print parser._sections
         for section in parser.sections():
             data.update(dict(parser.items(section)))
         self.extend(data, cast_types=True, strict=True)
