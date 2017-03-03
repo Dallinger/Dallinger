@@ -3,6 +3,7 @@
 import filecmp
 import os
 import subprocess
+import tempfile
 from ConfigParser import NoOptionError, SafeConfigParser
 
 import pexpect
@@ -56,7 +57,8 @@ class TestSetupExperiment(object):
 
         # dst should be a temp dir with a cloned experiment for deployment
         assert(exp_dir != dst)
-        assert('/tmp' in dst)
+        assert(dst.startswith(tempfile.gettempdir()))
+
         os.chdir(dst)
         assert(os.path.exists('experiment_id.txt') is True)
         assert(os.path.exists('experiment.py') is False)
