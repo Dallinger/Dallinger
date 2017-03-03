@@ -39,7 +39,7 @@ def exp_class_working_dir(meth):
             )
             os.chdir(new_path)
             # Override configs
-            config.load_from_config_file(LOCAL_CONFIG)
+            config.load_from_file(LOCAL_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
             os.chdir(orig_path)

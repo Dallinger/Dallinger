@@ -38,7 +38,7 @@ def aws_creds():
     from dallinger.config import get_config
     config = get_config()
     if not config.ready:
-        config.load_config()
+        config.load()
     creds = {
         'aws_access_key_id': config.get('aws_access_key_id'),
         'aws_secret_access_key': config.get('aws_secret_access_key')

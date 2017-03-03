@@ -37,7 +37,7 @@ from .utils import nocache
 
 config = get_config()
 if not config.ready:
-    config.load_config()
+    config.load()
 
 # Initialize the Dallinger database.
 session = db.session

@@ -35,7 +35,7 @@ class TestSetupExperiment(object):
         self.orig_dir = os.getcwd()
         os.chdir("demos/bartlett1932")
         config = get_config()
-        config.load_from_config_file(LOCAL_CONFIG)
+        config.load_from_file(LOCAL_CONFIG)
 
     def teardown(self):
         os.chdir(self.orig_dir)

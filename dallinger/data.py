@@ -236,7 +236,7 @@ def _s3_connection():
     """An S3 connection using the AWS keys in the config."""
     config = get_config()
     if not config.ready:
-        config.load_config()
+        config.load()
 
     return boto.connect_s3(
         config.get('aws_access_key_id'),

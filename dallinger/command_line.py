@@ -113,7 +113,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     # Load configuration.
     config = get_config()
     if not config.ready:
-        config.load_config()
+        config.load()
 
     # Check that the demo-specific requirements are satisfied.
     try:
@@ -158,7 +158,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     if exp_config:
         config.extend(exp_config)
 
-    config.write_config(filter_sensitive=True)
+    config.write(filter_sensitive=True)
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
@@ -263,7 +263,7 @@ def debug(verbose):
         "loglevel": 0,
         "logfile": logfile
     })
-    config.write_config()
+    config.write()
 
     # Start up the local server
     log("Starting up the server...")
@@ -342,7 +342,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     # Load configuration.
     config = get_config()
     if not config.ready:
-        config.load_config()
+        config.load()
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
@@ -439,7 +439,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         "notification_url": u"http://" + app_name(id) + ".herokuapp.com/notifications",
         "database_url": db_url.rstrip().decode('utf8'),
     })
-    config.write_config()
+    config.write()
 
     subprocess.check_call("git add config.txt", stdout=out, shell=True),
     time.sleep(0.25)
@@ -482,7 +482,7 @@ def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     # Load configuration.
     config = get_config()
-    config.load_config()
+    config.load()
 
     # Set the mode.
     config.extend({
@@ -501,7 +501,7 @@ def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
     # Load configuration.
     config = get_config()
-    config.load_config()
+    config.load()
 
     # Set the mode.
     config.extend({
@@ -520,7 +520,7 @@ def deploy(verbose, app):
 def qualify(qualification, value, worker):
     """Assign a qualification to a worker."""
     config = get_config()
-    config.load_config()
+    config.load()
     mturk = MTurkService(
         aws_access_key_id=config.get('aws_access_key_id'),
         aws_secret_access_key=config.get('aws_secret_access_key'),
@@ -607,7 +607,7 @@ def awaken(app, databaseurl):
     """Restore the database from a given url."""
     id = app
     config = get_config()
-    config.load_config()
+    config.load()
 
     database_size = config.get('database_size')
 
