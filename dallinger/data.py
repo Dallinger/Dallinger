@@ -209,11 +209,14 @@ def export(id, local=False, scrub_pii=False):
     return path_to_data
 
 
-def user_s3_bucket():
+def user_s3_bucket(canonical_user_id=None):
     """Get the user's S3 bucket."""
     conn = _s3_connection()
+    if not canonical_user_id:
+        canonical_user_id = conn.get_canonical_user_id()
+
     s3_bucket_name = "dallinger-{}".format(
-        hashlib.sha256(conn.get_canonical_user_id()).hexdigest()[0:8])
+        hashlib.sha256(canonical_user_id).hexdigest()[0:8])
 
     if not conn.lookup(s3_bucket_name):
         bucket = conn.create_bucket(
@@ -238,9 +241,10 @@ def _s3_connection():
     if not config.ready:
         config.load()
 
-    return boto.connect_s3(
-        config.get('aws_access_key_id'),
-        config.get('aws_secret_access_key'),
+    return boto.s3.connect_to_region(
+        config.get('aws_region'),
+        aws_access_key_id=config.get('aws_access_key_id'),
+        aws_secret_access_key=config.get('aws_secret_access_key'),
     )
 
 
