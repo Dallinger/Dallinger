@@ -332,12 +332,12 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     os.chdir(tmp)
 
     # Commit Heroku-specific files to tmp folder's git repo.
-    cmds = ["git init",
-            "git add --all",
-            'git commit -m "Experiment ' + id + '"']
-    for cmd in cmds:
-        subprocess.check_call(cmd, stdout=out, shell=True)
-        time.sleep(0.5)
+    subprocess.check_call(["git", "init"], stdout=out)
+    subprocess.check_call(["git", "add", "--all"], stdout=out)
+    subprocess.check_call(
+        ["git", "commit", "-m", '"Experiment {}"'.format(id)],
+        stdout=out,
+    )
 
     # Load configuration.
     config = get_config()
@@ -366,64 +366,44 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     subprocess.check_call(create_cmd, stdout=out)
     database_size = config.get('database_size')
 
-    try:
-        if config.get('whimsical'):
-            whimsical = "true"
-        else:
-            whimsical = "false"
-    except:
-        whimsical = "false"
-
     # Set up postgres database and AWS environment variables.
     cmds = [
-        "heroku addons:create heroku-postgresql:{}".format(quote(database_size)),
-
-        "heroku pg:wait",
-
-        "heroku addons:create heroku-redis:premium-0",
-
-        "heroku addons:create papertrail",
-
-        "heroku config:set HOST=" +
-        app_name(id) + ".herokuapp.com",
-
-        "heroku config:set aws_access_key_id=" +
-        quote(config.get('aws_access_key_id')),
-
-        "heroku config:set aws_secret_access_key=" +
-        quote(config.get('aws_secret_access_key')),
-
-        "heroku config:set aws_region=" +
-        quote(config.get('aws_region')),
-
-        "heroku config:set auto_recruit={}".format(config.get('auto_recruit')),
-
-        "heroku config:set dallinger_email_username=" +
-        quote(config.get('dallinger_email_address')),
-
-        "heroku config:set dallinger_email_key=" +
-        quote(config.get('dallinger_email_password')),
-
-        "heroku config:set heroku_email_address=" +
-        quote(config.get('heroku_email_address')),
-
-        "heroku config:set heroku_password=" +
-        quote(config.get('heroku_password')),
-
-        "heroku config:set whimsical={}".format(whimsical),
+        ["heroku", "addons:create", "heroku-postgresql:{}".format(quote(database_size))],
+        ["heroku", "pg:wait"],
+        ["heroku", "addons:create", "heroku-redis:premium-0"],
+        ["heroku", "addons:create", "papertrail"],
     ]
     for cmd in cmds:
-        subprocess.check_call(
-            cmd + " --app " + app_name(id), stdout=out, shell=True)
+        subprocess.check_call(cmd + ["--app", app_name(id)], stdout=out)
+
+    heroku_config = {
+        "HOST": "{}.herokuapp.com".format(app_name(id)),
+        "aws_access_key_id": config["aws_access_key_id"],
+        "aws_secret_access_key": config["aws_secret_access_key"],
+        "aws_region": config["aws_region"],
+        "auto_recruit": config["auto_recruit"],
+        "dallinger_email_username": config["dallinger_email_address"],
+        "dallinger_email_key": config["dallinger_email_password"],
+        "heroku_email_address": config["heroku_email_address"],
+        "heroku_password": config["heroku_password"],
+        "whimsical": config["whimsical"],
+    }
+
+    for key in heroku_config:
+        subprocess.check_call([
+            "heroku",
+            "config:set",
+            "{}={}".format(key, quote(str(heroku_config[key]))),
+            "--app", app_name(id)
+        ], stdout=out)
 
     # Wait for Redis database to be ready.
     log("Waiting for Redis...")
     ready = False
     while not ready:
-        redis_URL = subprocess.check_output(
-            "heroku config:get REDIS_URL --app {}".format(app_name(id)),
-            shell=True
-        )
+        redis_URL = subprocess.check_output([
+            "heroku", "config:get", "REDIS_URL", "--app", app_name(id),
+        ])
         r = redis.from_url(redis_URL)
         try:
             r.set("foo", "bar")
@@ -432,8 +412,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
             time.sleep(2)
 
     log("Saving the URL of the postgres database...")
-    db_url = subprocess.check_output(
-        "heroku config:get DATABASE_URL --app " + app_name(id), shell=True)
+    db_url = subprocess.check_output([
+        "heroku", "config:get", "DATABASE_URL", "--app", app_name(id)
+    ])
+
     # Set the notification URL and database URL in the config file.
     config.extend({
         "notification_url": u"http://" + app_name(id) + ".herokuapp.com/notifications",
@@ -441,18 +423,21 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     })
     config.write()
 
-    subprocess.check_call("git add config.txt", stdout=out, shell=True),
+    subprocess.check_call(["git", "add", "config.txt"], stdout=out),
     time.sleep(0.25)
     subprocess.check_call(
-        'git commit -m "Save URLs for database and notifications"',
-        stdout=out,
-        shell=True)
+        ["git", "commit", "-m", '"Save URLs for database and notifications"'],
+        stdout=out
+    )
     time.sleep(0.25)
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
     subprocess.check_call(
-        "git push heroku HEAD:master", stdout=out, stderr=out, shell=True)
+        ["git", "push", "heroku", "HEAD:master"],
+        stdout=out,
+        stderr=out
+    )
 
     log("Scaling up the dynos...")
     scale_up_dynos(app_name(id))
@@ -593,10 +578,8 @@ def destroy_server(app):
     subprocess.check_call([
         "heroku",
         "destroy",
-        "--app",
-        app_name(app),
-        "--confirm",
-        app_name(app),
+        "--app", app_name(app),
+        "--confirm", app_name(app),
     ])
 
 
@@ -609,34 +592,29 @@ def awaken(app, databaseurl):
     config = get_config()
     config.load()
 
-    database_size = config.get('database_size')
+    subprocess.check_call([
+        "heroku",
+        "addons:create",
+        "heroku-postgresql:{}".format(config.get('database_size')),
+        "--app", app_name(id),
+    ])
 
-    subprocess.check_call(
-        "heroku addons:create heroku-postgresql:{} --app {}".format(
-            database_size,
-            app_name(id)),
-        shell=True)
-
-    subprocess.check_call(
-        "heroku pg:wait --app {}".format(app_name(id)),
-        shell=True)
+    subprocess.check_call(["heroku", "pg:wait", "--app", app_name(id)])
 
     bucket = data.user_s3_bucket()
     key = bucket.lookup('{}.dump'.format(id))
     url = key.generate_url(expires_in=300)
 
-    cmd = "heroku pg:backups restore"
-    subprocess.check_call(
-        "{} '{}' DATABASE_URL --app {} --confirm {}".format(
-            cmd,
-            url,
-            app_name(id),
-            app_name(id)),
-        shell=True)
+    subprocess.check_call([
+        "heroku", "pg:backups", "restore", "'{}'".format(url), "DATABASE_URL",
+        "--app", app_name(id),
+        "--confirm", app_name(id),
+    ])
 
-    subprocess.check_call(
-        "heroku addons:create heroku-redis:premium-0 --app {}".format(app_name(id)),
-        shell=True)
+    subprocess.check_call([
+        "heroku", "addons:create", "heroku-redis:premium-0",
+        "--app", app_name(id)
+    ])
 
     # Scale up the dynos.
     log("Scaling up the dynos...")
@@ -662,9 +640,9 @@ def logs(app):
     if app is None:
         raise TypeError("Select an experiment using the --app flag.")
     else:
-        subprocess.check_call(
-            "heroku addons:open papertrail --app " + app_name(app),
-            shell=True)
+        subprocess.check_call([
+            "heroku", "addons:open", "papertrail", "--app", app_name(app)
+        ])
 
 
 @dallinger.command()
