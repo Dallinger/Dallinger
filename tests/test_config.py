@@ -138,7 +138,7 @@ class TestConfiguration(object):
 [Example Section]
 num_participants = 10
 worldwide = false
-""")
+""".encode('utf-8'))
             configfile.flush()
             config.load_from_file(configfile.name)
         config.ready = True
