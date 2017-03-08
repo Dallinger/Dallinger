@@ -14,9 +14,12 @@ matrix:
     env: TOXENV=docs
 addons:
   apt:
+    sources:
+    - heroku
     packages:
     - pandoc
     - enchant
+    - heroku-toolbelt
 before_install:
 - rvm install 2.1.5
 - pip install --upgrade setuptools pip wheel

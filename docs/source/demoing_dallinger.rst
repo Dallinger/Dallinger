@@ -17,7 +17,7 @@ see something that looks like:
 
 ::
 
-    New participant requested: http://0.0.0.0:5000/ad?assignmentId=debug9TXPFF&hitId=P8UTMZ&workerId=SP7HJ4&mode=debug
+    12:00:00 PM web.1    |  2017-01-01 12:00:00,000 New participant requested: http://0.0.0.0:5000/ad?assignmentId=debug9TXPFF&hitId=P8UTMZ&workerId=SP7HJ4&mode=debug
 
 and your browser should automatically open to this URL.
 You can start interacting as the first participant in the experiment.
