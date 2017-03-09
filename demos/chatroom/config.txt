@@ -7,7 +7,7 @@ n = 2
 [MTurk]
 title = Coordination game
 description = Coordinate with other players.
-amt_keywords = Coordination, chat
+keywords = Coordination, chat
 base_payment = 1.00
 lifetime = 24
 duration = 0.1

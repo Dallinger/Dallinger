@@ -25,7 +25,7 @@ SENSITIVE_KEY_NAMES = (
 
 default_keys = (
     ('ad_group', unicode, []),
-    ('amt_keywords', unicode, []),
+    ('keywords', unicode, []),
     ('approve_requirement', int, []),
     ('auto_recruit', bool, []),
     ('aws_access_key_id', unicode, [], True),
@@ -54,7 +54,6 @@ default_keys = (
     ('notification_url', unicode, []),
     ('num_dynos_web', int, []),
     ('num_dynos_worker', int, []),
-    ('num_participants', int, []),
     ('organization_name', unicode, []),
     ('threads', unicode, []),
     ('title', unicode, []),
