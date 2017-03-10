@@ -404,8 +404,6 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         "auto_recruit": config["auto_recruit"],
         "dallinger_email_username": config["dallinger_email_address"],
         "dallinger_email_key": config["dallinger_email_password"],
-        "heroku_email_address": config["heroku_email_address"],
-        "heroku_password": config["heroku_password"],
         "whimsical": config["whimsical"],
     }
 
