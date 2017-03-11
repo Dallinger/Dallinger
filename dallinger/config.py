@@ -23,6 +23,34 @@ SENSITIVE_KEY_NAMES = (
     'token',
 )
 
+from backports.configparser.helpers import open, str
+
+
+class DebuggableConfigParser(SafeConfigParser):
+
+    def read(self, filenames, encoding=None):
+        """Read and parse a filename or a list of filenames.
+
+        Files that cannot be opened are silently ignored; this is
+        designed so that you can specify a list of potential
+        configuration file locations (e.g. current directory, user's
+        home directory, systemwide directory), and all existing
+        configuration files in the list will be read.  A single
+        filename may also be given.
+
+        Return list of successfully read files.
+        """
+
+        if isinstance(filenames, (str, bytes)):
+            filenames = [filenames]
+        read_ok = []
+        for filename in filenames:
+            with open(filename, encoding=encoding) as fp:
+                self._read(fp, filename)
+
+            read_ok.append(filename)
+        return read_ok
+
 default_keys = (
     ('ad_group', unicode, []),
     ('amt_keywords', unicode, []),
@@ -157,7 +185,8 @@ class Configuration(object):
         print self.types
 
     def load_from_file(self, filename):
-        parser = SafeConfigParser()
+        # parser = SafeConfigParser()
+        parser = DebuggableConfigParser()
         print filename
         filenames_read = parser.read(filename)
         print filenames_read
