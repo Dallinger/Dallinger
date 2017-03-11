@@ -158,6 +158,7 @@ class Configuration(object):
 
     def load_from_file(self, filename):
         parser = SafeConfigParser()
+        print filename
         filenames_read = parser.read(filename)
         print filenames_read
         data = {}
