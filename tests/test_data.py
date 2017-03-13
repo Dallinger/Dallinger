@@ -1,9 +1,14 @@
 """Tests for the data module."""
 
 from collections import OrderedDict
+import csv
 import os
+import tempfile
+import uuid
 
 import pandas as pd
+import psycopg2
+import pytest
 
 import dallinger
 from dallinger.config import get_config
@@ -92,3 +97,23 @@ class TestData(object):
         data = dallinger.data.load("3b9c2aeb-0eb7-4432-803e-bc437e17b3bb")
         assert data
         assert data.networks.csv
+
+    def test_export_of_nonexistent_database(self):
+        nonexistent_local_db = str(uuid.uuid4())
+        with pytest.raises(psycopg2.OperationalError):
+            dallinger.data.copy_local_to_csv(nonexistent_local_db, "")
+
+    def test_export_of_dallinger_database(self):
+        export_dir = tempfile.mkdtemp()
+        dallinger.data.copy_local_to_csv("dallinger", export_dir)
+        assert os.path.isfile(os.path.join(export_dir, "network.csv"))
+
+    def test_exported_database_includes_headers(self):
+        export_dir = tempfile.mkdtemp()
+        dallinger.data.copy_local_to_csv("dallinger", export_dir)
+        network_table_path = os.path.join(export_dir, "network.csv")
+        assert os.path.isfile(network_table_path)
+        with open(network_table_path, 'rb') as f:
+            reader = csv.reader(f, delimiter=',')
+            header = next(reader)
+            assert "creation_time" in header
