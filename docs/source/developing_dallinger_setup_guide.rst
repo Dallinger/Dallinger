@@ -2,7 +2,7 @@ Developer Installation
 ======================
 
 We recommend installing Dallinger on Mac OS X. It's also possible to use
-Ubuntu.
+Ubuntu, either directly or :doc:`in a virtual machine <vagrant_setup>`. Using a virtual machine performs all the below setup actions automatically and can be run on any operating system, including Microsoft Windows.
 
 Install Python 2.7
 ------------------
