@@ -122,7 +122,7 @@ def copy_heroku_to_local(id):
 
 def copy_local_to_csv(local_db, path, scrub_pii=False):
     """Copy a local database to a set of CSV files."""
-    conn = psycopg2.connect(database="dallinger", user="postgres")
+    conn = psycopg2.connect(database=local_db, user="postgres")
     cur = conn.cursor()
     for table in table_names:
         csv_path = os.path.join(path, "{}.csv".format(table))
