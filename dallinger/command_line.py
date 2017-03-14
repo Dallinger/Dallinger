@@ -26,6 +26,10 @@ from dallinger.config import get_config
 import psycopg2
 import redis
 import requests
+from rq import (
+    Worker,
+    Connection,
+)
 from collections import Counter
 
 from dallinger import data
@@ -35,8 +39,10 @@ from dallinger.heroku import (
     app_name,
     scale_up_dynos
 )
+from dallinger.heroku.worker import conn
 from dallinger.mturk import MTurkService
 from dallinger import registration
+from dallinger.utils import generate_random_id
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -253,7 +259,9 @@ def summary(app):
 
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def debug(verbose):
+@click.option('--bot', is_flag=True, flag_value=True,
+              help='Use bot to complete experiment')
+def debug(verbose, bot):
     """Run the experiment locally."""
     (id, tmp) = setup_experiment(debug=True, verbose=verbose)
 
@@ -302,6 +310,8 @@ def debug(verbose):
             ready = True
             break
 
+    epipe = 0
+    participant = None
     if ready:
         host = config.get('host')
         port = config.get('port')
@@ -320,7 +330,43 @@ def debug(verbose):
             match = re.search('New participant requested: (.*)$', line)
             if match:
                 url = match.group(1)
-                webbrowser.open(url, new=1, autoraise=True)
+                if bot:
+                    log("Using a bot to simulate participant...")
+                    try:
+                        from dallinger_experiment import Bot
+                        participant = Bot(url)
+                        participant.run_experiment()
+                    except ImportError:
+                        log("This experiment does not have a bot.")
+                else:
+                    webbrowser.open(url, new=1, autoraise=True)
+
+            # Is recruitment over? We can end this debug session.
+            match = re.search('Close recruitment.$', line)
+            if match:
+                if participant:
+                    # make sure there are no stray phantomjs processes
+                    participant.driver.quit()
+                p.kill()
+                break
+
+            # Check for bot exceptions
+            match = re.search('Exception on ', line)
+            if participant and match:
+                log("There was an error running the experiment.")
+                participant.driver.quit()
+                p.kill()
+                break
+
+            # Check for unexpected bot hangs
+            match = re.search('Ignoring EPIPE', line)
+            if participant and match:
+                epipe = epipe + 1
+                if epipe >= 2:
+                    log("The experiment finished but recruitment was not closed.")
+                    participant.driver.quit()
+                    p.kill()
+                    break
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
@@ -385,6 +431,13 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         pass
 
     subprocess.check_call(create_cmd, stdout=out)
+
+    subprocess.check_call([
+        "heroku",
+        "buildpacks:add",
+        "https://github.com/stomita/heroku-buildpack-phantomjs",
+    ])
+
     database_size = config.get('database_size')
 
     # Set up postgres database and AWS environment variables.
@@ -665,9 +718,40 @@ def logs(app):
 
 
 @dallinger.command()
+@click.option('--app', default=None, help='ID of the deployed experiment')
+def bot(app):
+    """Run the experiment bot."""
+    if app is None:
+        raise TypeError("Select an experiment using the --app flag.")
+    else:
+        (id, tmp) = setup_experiment()
+        from dallinger_experiment import Bot
+        host = app_name(app)
+        worker = generate_random_id()
+        hit = generate_random_id()
+        assignment = generate_random_id()
+        ad_url = 'https://{}.herokuapp.com/ad'.format(host)
+        ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
+        ad_parameters = ad_parameters.format(assignment, hit, worker)
+        url = '{}?{}'.format(ad_url, ad_parameters)
+        bot = Bot(url)
+        bot.run_experiment()
+
+
+@dallinger.command()
 def verify():
     """Verify that app is compatible with Dallinger."""
     verify_package(verbose=True)
+
+
+@dallinger.command()
+def rq_worker():
+    """Start an rq worker in the context of dallinger."""
+    setup_experiment()
+    with Connection(conn):
+        # right now we care about low queue for bots
+        worker = Worker('low')
+        worker.work()
 
 
 def verify_package(verbose=True):

@@ -50,19 +50,22 @@ class TestHotAirRecruiter(object):
         assert recruiter.approve_hit('any assignment id')
 
 
-class TestSimulatedRecruiter(object):
+class TestBotRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):
-        from dallinger.recruiters import SimulatedRecruiter
-        return SimulatedRecruiter()
+        from dallinger.recruiters import BotRecruiter
+        return BotRecruiter()
 
+    @pytest.mark.xfail
     def test_open_recruitment(self, recruiter):
         recruiter.open_recruitment()
 
+    @pytest.mark.xfail
     def test_recruit_participants(self, recruiter):
         recruiter.recruit_participants()
 
+    @pytest.mark.xfail
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
 

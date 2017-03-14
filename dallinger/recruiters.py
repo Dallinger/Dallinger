@@ -1,6 +1,8 @@
 """Recruiters manage the flow of participants to the experiment."""
 
+from rq import Queue
 from dallinger.config import get_config
+from dallinger.heroku.worker import conn
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
 from dallinger.utils import get_base_url
@@ -9,6 +11,9 @@ import logging
 import os
 
 logger = logging.getLogger(__file__)
+
+# Connect to Redis Queue for recruiter calls
+q = Queue('low', connection=conn)
 
 
 class Recruiter(object):
@@ -61,26 +66,6 @@ class HotAirRecruiter(object):
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
         return True
-
-
-class SimulatedRecruiter(object):
-    """A recruiter that recruits simulated participants."""
-
-    def __init__(self):
-        """Create a simulated recruiter."""
-        super(SimulatedRecruiter, self).__init__()
-
-    def open_recruitment(self, n=1):
-        """Open recruitment."""
-        self.recruit_participants(n)
-
-    def recruit_participants(self, n=1):
-        """Recruit n participants."""
-        pass
-
-    def close_recruitment(self):
-        """Do nothing."""
-        pass
 
 
 class MTurkRecruiterException(Exception):
@@ -183,5 +168,51 @@ class MTurkRecruiter(object):
 
         This does nothing, because the fact that this is called means
         that all MTurk HITs that were created were already completed.
+        """
+        pass
+
+
+class BotRecruiter(object):
+    """Recruit bot participants using a queue"""
+
+    @classmethod
+    def from_current_config(cls):
+        config = get_config()
+        if not config.ready:
+            config.load_config()
+        return cls(config)
+
+    def __init__(self, config):
+        logger.info("Initialized recruiter.")
+        self.config = config
+
+    def open_recruitment(self, n=1):
+        """Start recruiting right away."""
+        logger.info("Open recruitment.")
+        self.recruit_participants(n)
+
+    def recruit_participants(self, n=1):
+        """Recruit n new participant bots to the queue"""
+        from dallinger_experiment import Bot
+        base_url = get_base_url()
+        worker = generate_random_id()
+        hit = generate_random_id()
+        assignment = generate_random_id()
+        ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
+        ad_parameters = ad_parameters.format(assignment, hit, worker)
+        url = '{}/ad?{}'.format(base_url, ad_parameters)
+        bot = Bot(url)
+        job = q.enqueue(bot.run_experiment)
+        logger.info("Created job with id {} for url {}.".format(job.id, url))
+        return job
+
+    def approve_hit(self, assignment_id):
+        logger.info("Do we even get here ever.")
+        return True
+
+    def close_recruitment(self):
+        """Clean up once the experiment is complete.
+
+        This does nothing at this time.
         """
         pass
