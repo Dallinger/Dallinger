@@ -18,3 +18,8 @@ class TwentyFortyEight(dallinger.experiments.Experiment):
         N = config.get("n")
         self.initial_recruitment_size = N
         self.setup()
+
+    def recruit(self):
+        """Recruitment."""
+        if not self.networks(full=False):
+            self.recruiter().close_recruitment()
