@@ -39,6 +39,10 @@ class TestCommandLine(object):
         subprocess.check_call(["dallinger", "verify"])
         os.chdir("..")
 
+    def test_setup(self):
+        subprocess.check_call(["dallinger", "setup"])
+        subprocess.check_call(["dallinger", "setup"])
+
 
 class TestSetupExperiment(object):
 
