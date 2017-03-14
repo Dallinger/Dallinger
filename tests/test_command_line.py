@@ -26,9 +26,13 @@ class TestCommandLine(object):
     def teardown(self):
         os.chdir("..")
 
-    def test_dallinger_help(self):
+    def test_dallinger_no_args(self):
         output = subprocess.check_output(["dallinger"])
         assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
+
+    def test_dallinger_help(self):
+        output = subprocess.check_output(["dallinger", "--help"])
+        assert("Commands:" in output)
 
 
 class TestSetupExperiment(object):
