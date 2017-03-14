@@ -34,6 +34,11 @@ class TestCommandLine(object):
         output = subprocess.check_output(["dallinger", "--help"])
         assert("Commands:" in output)
 
+    def test_verify(self):
+        os.chdir("bartlett1932")
+        subprocess.check_call(["dallinger", "verify"])
+        os.chdir("..")
+
 
 class TestSetupExperiment(object):
 
