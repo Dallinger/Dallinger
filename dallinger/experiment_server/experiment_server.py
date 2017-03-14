@@ -365,8 +365,11 @@ def summary():
 def experiment_property(prop):
     """Get a property of the experiment by name."""
     exp = Experiment(session)
-    p = getattr(exp, prop)
-    return success_response(field=prop, data=p, request_type=prop)
+    try:
+        value = exp.public_properties[prop]
+    except KeyError:
+        abort(404)
+    return success_response(field=prop, data=value, request_type=prop)
 
 
 @app.route("/<page>", methods=["GET"])

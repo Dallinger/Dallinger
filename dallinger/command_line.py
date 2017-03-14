@@ -220,6 +220,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "complete.html"),
         os.path.join("templates", "thanks.html"),
+        os.path.join("templates", "waiting.html"),
         os.path.join("static", "robots.txt")
     ]
 

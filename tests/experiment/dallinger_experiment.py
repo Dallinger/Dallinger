@@ -12,6 +12,10 @@ class TestExperiment(Experiment):
         self.experiment_repeats = 1
         self.setup()
 
+    @property
+    def public_properties(self):
+        return {'exists': True}
+
     def create_network(self):
         """Return a new network."""
         return Star(max_size=2)

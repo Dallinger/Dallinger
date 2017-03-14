@@ -165,32 +165,3 @@ getQuorum = function () {
     });
 };
 
-waitForQuorum = function () {
-    reqwest({
-        url: "/summary",
-        method: "get",
-        success: function (resp) {
-            summary = resp.summary;
-            n = numReady(resp.summary);
-            percent = Math.round((n/quorum)*100.0) + "%";
-            $("#waiting-progress-bar").css("width", percent);
-            $("#progress-percentage").text(percent);
-            if (n >= quorum) {
-                allow_exit();
-                go_to_page("exp");
-            } else {
-                setTimeout(function(){
-                    waitForQuorum();
-                }, 1000);
-            }
-        }
-    });
-};
-
-numReady = function(summary) {
-    for (var i = 0; i < summary.length; i++) {
-        if (summary[i][0] == "working") {
-            return summary[i][1];
-        }
-    }
-};
