@@ -20,6 +20,8 @@ to migrate, you MUST:
 - Delete section `[Shell Parameters]`
 - Delete `anonymize_data`
 - Delete `table_name`
+- Delete `psiturk_access_key_id` from `.dallingerconfig`
+- Delete `psiturk_secret_access_id` from `.dallingerconfig`
 
 Additionally, note that section headings are now optional, meaning that all
 configuration parameters must have a unique name. We recommend that
