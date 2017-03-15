@@ -45,11 +45,25 @@ psiTurk shell. The workflow for debugging an experiment used to be:
 
 The new workflow is:
 
-1. Run `dallinger debug`. This will directly open one browser window for each
+1. Run `dallinger debug`. This will directly open a new browser window for each
 participant that is recruited.
 2. Participate in the experiment.
 
-Each time a new participant is recruited, a new browser window will open.
+- **BREAKING**. There are two breaking changes with regard to recruitment First,
+the recruiter's recruitment method has been renamed from `recruit_participants`
+to `recruit`. Second, the default recruitment method no longer recruits one new
+participant; instead, it does nothing. Thus to retain the 2.x behavior in 3.x
+experiments that do not override the default, you should include the original
+default `recruit` method in your experiment.py file:
+
+```
+def recruit(self):
+    """Recruit one participant at a time until all networks are full."""
+    if self.networks(full=False):
+        self.recruiter().recruit(n=1)
+    else:
+        self.recruiter().close_recruitment()
+```
 
 **FEATURE**. Addition of a high-level Python API for automating experiments and a data
 module for handling Dallinger datasets, making it possible run experiments
