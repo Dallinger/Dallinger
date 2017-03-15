@@ -129,31 +129,29 @@ def copy_local_to_csv(local_db, path, scrub_pii=False):
         with open(csv_path, "w") as f:
             sql = "COPY {} TO STDOUT WITH CSV HEADER".format(table)
             cur.copy_expert(sql, f)
-            if table is "participant" and scrub_pii:
-                _scrub_participant_table(csv_path)
+    if scrub_pii:
+        _scrub_participant_table(path)
 
 
 def _scrub_participant_table(path):
     """Scrub PII from the given participant table."""
-    with open(path, 'rb') as input:
-        with open("{}.new".format(path), 'wb') as output:
+    path_to_table = os.path.join(path, "participant.csv")
+    with open(path_to_table, 'rb') as input:
+        reader = csv.reader(input)
+        headers = next(reader)
+        with open("{}.new".format(path_to_table), 'wb') as output:
             writer = csv.writer(output)
-            reader = csv.reader(input)
-            try:
-                headers = reader.next()
-            except StopIteration:
-                pass
-            else:
-                writer.writerow(headers)
-                for i, row in enumerate(reader):
-                    row[headers.index("worker_id")] = i + 1
-                    row[headers.index("unique_id")] = "{}:{}".format(
-                        i + 1,
-                        row[headers.index("assignment_id")]
-                    )
-                    writer.writerow(row)
+            writer.writerow(headers)
 
-    os.rename("{}.new".format(path), path)
+            for i, row in enumerate(reader):
+                row[headers.index("worker_id")] = row[headers.index("id")]
+                row[headers.index("unique_id")] = "{}:{}".format(
+                    row[headers.index("id")],
+                    row[headers.index("assignment_id")]
+                )
+                writer.writerow(row)
+
+            os.rename("{}.new".format(path_to_table), path_to_table)
 
 
 def export(id, local=False, scrub_pii=False):

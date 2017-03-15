@@ -647,7 +647,7 @@ def awaken(app, databaseurl):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 @click.option('--local', is_flag=True, flag_value=True,
               help='Export local data')
-@click.option('--no-scrub', is_flag=True, flag_value=False,
+@click.option('--no-scrub', is_flag=True, flag_value=True,
               help='Scrub PII')
 def export(app, local, no_scrub):
     """Export the data."""
