@@ -243,14 +243,15 @@ def summary(app):
     """Print a summary of a deployed app's status."""
     r = requests.get('https://{}.herokuapp.com/summary'.format(app_name(app)))
     summary = r.json()['summary']
-    click.echo("\nstatus \t| count")
-    click.echo("----------------")
+    click.echo("\nstatus    | count")
+    click.echo("-----------------")
     for s in summary:
-        click.echo("{}\t| {}".format(s[0], s[1]))
-    num_101s = sum([s[1] for s in summary if s[0] == 101])
-    num_10xs = sum([s[1] for s in summary if s[0] >= 100])
-    if num_10xs > 0:
-        click.echo("\nYield: {:.2%}".format(1.0 * num_101s / num_10xs))
+        click.echo("{:<10}| {}".format(s[0], s[1]))
+    num_approved = sum([s[1] for s in summary if s[0] == u"approved"])
+    num_not_working = sum([s[1] for s in summary if s[0] != u"working"])
+    if num_not_working > 0:
+        the_yield = 1.0 * num_approved / num_not_working
+        click.echo("\nYield: {:.2%}".format(the_yield))
 
 
 @dallinger.command()
