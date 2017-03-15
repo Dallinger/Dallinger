@@ -360,7 +360,7 @@ def debug(verbose, bot):
 
                 # Check for bot exceptions
                 match = re.search('Exception on ', line)
-                if match:
+                if match and not verbose:
                     error("There was an error running the experiment.")
                     if participant:
                         participant.driver.quit()

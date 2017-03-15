@@ -91,7 +91,10 @@ create_participant = function() {
             mode;
     }
 
-    if (participant_id === undefined || participant_id === "undefined") {
+    var deferred = $.Deferred();
+    if (participant_id !== undefined && participant_id !== 'undefined') {
+        deferred.resolve();
+    } else {
         reqwest({
             url: url,
             method: "post",
@@ -99,6 +102,7 @@ create_participant = function() {
             success: function(resp) {
                 console.log(resp);
                 participant_id = resp.participant.id;
+                deferred.resolve();
             },
             error: function (err) {
                 errorResponse = JSON.parse(err.response);
@@ -106,6 +110,7 @@ create_participant = function() {
             }
         });
     }
+    return deferred;
 };
 
 lock = false;
@@ -155,6 +160,7 @@ submitNextResponse = function (n) {
 waitForQuorum = function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
     var inbox = new ReconnectingWebSocket(ws_scheme + location.host + "/receive_chat");
+    var deferred = $.Deferred();
     inbox.onmessage = function (msg) {
         if (msg.data.indexOf('quorum:') !== 0) { return; }
         var data = JSON.parse(msg.data.substring(7));
@@ -164,10 +170,10 @@ waitForQuorum = function () {
         $("#waiting-progress-bar").css("width", percent);
         $("#progress-percentage").text(percent);
         if (n >= quorum) {
-            allow_exit();
-            go_to_page("exp");
+            deferred.resolve();
         }
     };
+    return deferred;
 };
 
 numReady = function(summary) {
