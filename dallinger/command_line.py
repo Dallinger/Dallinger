@@ -379,6 +379,18 @@ def debug(verbose, bot):
     finally:
         p.kill()
 
+                # Check for unexpected bot hangs
+                match = re.search('Ignoring EPIPE', line)
+                if participant and match:
+                    epipe = epipe + 1
+                    if epipe >= 2:
+                        error("The experiment finished but recruitment was not closed.")
+                        participant.driver.quit()
+                        break
+
+    finally:
+        p.kill()
+
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
 
