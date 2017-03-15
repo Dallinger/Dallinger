@@ -565,12 +565,18 @@ def hibernate(app):
 
     log("Scaling down the web servers...")
 
-    for process in ["web", "worker", "clock"]:
+    for process in ["web", "worker"]:
         subprocess.check_call([
             "heroku",
             "ps:scale", "{}=0".format(process),
             "--app", app_name(app)
         ])
+
+    subprocess.call([
+        "heroku",
+        "ps:scale", "clock=0",
+        "--app", app_name(app)
+    ])
 
     log("Removing addons...")
 
