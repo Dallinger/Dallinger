@@ -268,11 +268,7 @@ class Experiment(object):
         until all networks are full.
 
         """
-        if self.networks(full=False):
-            self.log("Network space available: recruiting 1 more participant",
-                     "-----")
-            self.recruiter().recruit_participants(n=1)
-        else:
+        if not self.networks(full=False):
             self.log("All networks full: closing recruitment", "-----")
             self.recruiter().close_recruitment()
 

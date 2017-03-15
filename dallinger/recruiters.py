@@ -22,7 +22,7 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
-    def recruit_participants(self, n=1):
+    def recruit(self, n=1):
         """Throw an error."""
         raise NotImplementedError
 
@@ -44,9 +44,9 @@ class HotAirRecruiter(object):
     def open_recruitment(self, n=1):
         """Talk about opening recruitment."""
         logger.info("Opening recruitment.")
-        self.recruit_participants(n)
+        self.recruit(n)
 
-    def recruit_participants(self, n=1):
+    def recruit(self, n=1):
         """Talk about recruiting participants."""
         for i in range(n):
             ad_url = "{}/ad?assignmentId=debug{}&hitId={}&workerId={}&mode=debug".format(
@@ -72,9 +72,9 @@ class SimulatedRecruiter(object):
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
-        self.recruit_participants(n)
+        self.recruit(n)
 
-    def recruit_participants(self, n=1):
+    def recruit(self, n=1):
         """Recruit n participants."""
         pass
 
@@ -143,7 +143,7 @@ class MTurkRecruiter(object):
 
         return lookup_url.format(**hit_info)
 
-    def recruit_participants(self, n=1):
+    def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
         if not self.config.get('auto_recruit', False):
             logger.info('auto_recruit is False: recruitment suppressed')
