@@ -528,7 +528,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
     # Notify waiting room
     experiment = Experiment(session)
-    quorum = getattr(experiment, 'quorum', None)
+    quorum = experiment.public_properties.get('quorum')
     if quorum:
         count = models.Participant.query.filter_by(
             status='working').count()

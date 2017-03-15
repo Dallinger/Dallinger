@@ -119,7 +119,7 @@ class Experiment(object):
             # Config not yet loaded
             debug_mode = False
 
-        recruiter = config.get('recruiter')
+        recruiter = config.get('recruiter', None)
         if debug_mode and recruiter != 'bots':
             return HotAirRecruiter
         if recruiter == 'bots':
