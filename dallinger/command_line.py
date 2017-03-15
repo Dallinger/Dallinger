@@ -286,87 +286,97 @@ def debug(verbose, bot):
 
     # Start up the local server
     log("Starting up the server...")
+    port = config.get('port')
     try:
         p = subprocess.Popen(
-            ['heroku', 'local'],
+            ['heroku', 'local', '-p', str(port)],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
     except OSError:
         error("Couldn't start Heroku for local debugging.")
         raise
-
-    # Wait for server to start
-    ready = False
-    for line in iter(p.stdout.readline, ''):
-        if verbose:
-            sys.stdout.write(line)
-        line = line.strip()
-        if re.match('^.*? worker.1 .*? Connection refused.$', line):
-            error('Could not connect to redis instance, experiment may not behave correctly.')
-        if not verbose and re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line):
-            error(line)
-        if re.match('^.*? web.1 .*? Ready.$', line):
-            ready = True
-            break
-
-    epipe = 0
-    participant = None
-    if ready:
-        host = config.get('host')
-        port = config.get('port')
-        public_interface = "{}:{}".format(host, port)
-        log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
-
-        # Call endpoint to launch the experiment
-        log("Launching the experiment...")
-        requests.post('http://{}/launch'.format(public_interface))
-
-        # Monitor output from server process
+    else:
+        # Wait for server to start
+        ready = False
         for line in iter(p.stdout.readline, ''):
-            sys.stdout.write(line)
-
-            # Open browser for new participants
-            match = re.search('New participant requested: (.*)$', line)
-            if match:
-                url = match.group(1)
-                if bot:
-                    log("Using a bot to simulate participant...")
-                    try:
-                        from dallinger_experiment import Bot
-                        participant = Bot(url)
-                        participant.run_experiment()
-                    except ImportError:
-                        log("This experiment does not have a bot.")
-                else:
-                    webbrowser.open(url, new=1, autoraise=True)
-
-            # Is recruitment over? We can end this debug session.
-            match = re.search('Close recruitment.$', line)
-            if match:
-                if participant:
-                    # make sure there are no stray phantomjs processes
-                    participant.driver.quit()
-                p.kill()
+            if verbose:
+                sys.stdout.write(line)
+            line = line.strip()
+            if re.match('^.*? worker.1 .*? Connection refused.$', line):
+                error('Could not connect to redis instance, experiment may not behave correctly.')
+            if not verbose and re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line):
+                error(line)
+            if not verbose and re.match('\[DONE\] Killing all processes', line):
+                error(
+                    'There was an error while starting the server. '
+                    'Run with --verbose for details.'
+                )
+            if re.match('^.*? web.1 .*? Ready.$', line):
+                ready = True
                 break
 
-            # Check for bot exceptions
-            match = re.search('Exception on ', line)
-            if participant and match:
-                log("There was an error running the experiment.")
-                participant.driver.quit()
-                p.kill()
-                break
+        epipe = 0
+        participant = None
+        if ready:
+            host = config.get('host')
+            port = config.get('port')
+            public_interface = "{}:{}".format(host, port)
+            log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
 
-            # Check for unexpected bot hangs
-            match = re.search('Ignoring EPIPE', line)
-            if participant and match:
-                epipe = epipe + 1
-                if epipe >= 2:
-                    log("The experiment finished but recruitment was not closed.")
-                    participant.driver.quit()
-                    p.kill()
+            # Call endpoint to launch the experiment
+            log("Launching the experiment...")
+            time.sleep(4)
+            requests.post('http://{}/launch'.format(public_interface))
+
+            # Monitor output from server process
+            for line in iter(p.stdout.readline, ''):
+                if verbose:
+                    sys.stdout.write(line)
+
+                # Open browser for new participants
+                match = re.search('New participant requested: (.*)$', line)
+                if match:
+                    url = match.group(1)
+                    if bot:
+                        log("Using a bot to simulate participant...")
+                        try:
+                            from dallinger_experiment import Bot
+                            participant = Bot(url)
+                            participant.run_experiment()
+                        except ImportError:
+                            log("This experiment does not have a bot.")
+                    else:
+                        webbrowser.open(url, new=1, autoraise=True)
+
+                # Is recruitment over? We can end this debug session.
+                match = re.search('Close recruitment.$', line)
+                if match:
+                    if participant:
+                        # make sure there are no stray phantomjs processes
+                        participant.driver.quit()
+                    log('Recruitment is complete.')
                     break
+
+                # Check for bot exceptions
+                match = re.search('Exception on ', line)
+                if match:
+                    error("There was an error running the experiment.")
+                    if participant:
+                        participant.driver.quit()
+                    break
+
+                # Check for unexpected bot hangs
+                match = re.search('Ignoring EPIPE', line)
+                if participant and match:
+                    epipe = epipe + 1
+                    if epipe >= 2:
+                        error("The experiment finished but recruitment was not closed.")
+                        participant.driver.quit()
+                        break
+
+    finally:
+        p.kill()
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
