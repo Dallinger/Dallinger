@@ -296,7 +296,8 @@ def debug(verbose, bot):
     except OSError:
         error("Couldn't start Heroku for local debugging.")
         raise
-    else:
+
+    try:
         # Wait for server to start
         ready = False
         for line in iter(p.stdout.readline, ''):

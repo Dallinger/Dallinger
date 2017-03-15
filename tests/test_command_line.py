@@ -156,7 +156,7 @@ class TestDebugServer(object):
             p.sendcontrol('c')
             p.read()
         finally:
-            shutil.rmtree(fake_home)
+            shutil.rmtree(fake_home, ignore_errors=True)
 
     def test_warning_if_no_heroku_present(self):
         # Heroku requires a home directory to start up
