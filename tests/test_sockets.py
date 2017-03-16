@@ -63,9 +63,5 @@ class TestChatBackend:
 
     def test_outbox(self, sockets):
         ws = Mock()
-        ws.closed = False
         sockets.outbox(ws)
-        ws.closed = True
-
-        gevent.wait()
         assert ws in sockets.chat_backend.clients['quorum']

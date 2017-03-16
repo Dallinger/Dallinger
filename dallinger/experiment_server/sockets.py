@@ -1,7 +1,8 @@
-from flask_sockets import Sockets
 from .experiment_server import app
 from .experiment_server import WAITING_ROOM_CHANNEL
 from ..heroku.worker import conn
+from flask_sockets import Sockets
+from redis import ConnectionError
 import gevent
 
 sockets = Sockets(app)
@@ -21,8 +22,11 @@ class ChatBackend(object):
 
     def __init__(self):
         self.pubsub = conn.pubsub()
-        self.pubsub.subscribe(CHANNELS)
-        app.logger.debug('Subscribed to channels: {}'.format(CHANNELS))
+        try:
+            self.pubsub.subscribe(CHANNELS)
+            app.logger.debug('Subscribed to channels: {}'.format(CHANNELS))
+        except ConnectionError:
+            app.logger.exception('Could not connect to redis.')
 
         self.clients = {}
         for channel in CHANNELS:
