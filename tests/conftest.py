@@ -18,6 +18,12 @@ def cwd():
     os.chdir(root)
 
 
+@pytest.fixture(scope="class")
+def experiment_dir(cwd):
+    os.chdir('tests/experiment')
+    yield
+
+
 @pytest.fixture(scope='class', autouse=True)
 def reset_config():
     yield

@@ -31,7 +31,7 @@ class ChatBackend(object):
     def subscribe(self, client, channel=None):
         """Register a new client to receive messages."""
         if channel is not None:
-            if channel not in self.channels:
+            if channel not in self.clients:
                 raise ValueError('Unknown channel: {}'.format(channel))
             self.clients[channel].append(client)
         else:
@@ -70,16 +70,19 @@ class ChatBackend(object):
 
     def start(self):
         """Starts listening in the background."""
-        gevent.spawn(self.run)
+        self.greenlet = gevent.spawn(self.run)
+
+    def stop(self):
+        self.greenlet.kill()
 
 
-chats = ChatBackend()
-chats.start()
+chat_backend = ChatBackend()
+app.before_first_request(chat_backend.start)
 
 
 @sockets.route('/receive_chat')
 def outbox(ws):
-    chats.subscribe(ws)
+    chat_backend.subscribe(ws)
 
     while not ws.closed:
         # Wait for chat backend
