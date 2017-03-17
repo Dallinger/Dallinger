@@ -399,7 +399,7 @@ class Experiment(object):
         self.fail_participant(participant)
 
     @exp_class_working_dir
-    def run(self, exp_config=None, app_id=None):
+    def run(self, exp_config=None, app_id=None, **kwargs):
         """Deploy and run an experiment.
 
         The exp_config object is either a dictionary or a
@@ -412,13 +412,17 @@ class Experiment(object):
             app_id = str(uuid.uuid4())
 
         self.app_id = app_id
-        self.exp_config = exp_config
+        self.exp_config = exp_config or kwargs
 
-        dlgr.command_line.deploy_sandbox_shared_setup(
-            app=app_id,
-            verbose=self.verbose,
-            exp_config=exp_config
-        )
+        if self.exp_config["mode"] == u"debug":
+            raise NotImplementedError
+        else:
+            dlgr.command_line.deploy_sandbox_shared_setup(
+                app=app_id,
+                verbose=self.verbose,
+                exp_config=self.exp_config
+            )
+
         return self._finish_experiment()
 
     def _finish_experiment(self):
