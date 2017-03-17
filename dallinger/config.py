@@ -59,6 +59,8 @@ default_keys = (
     ('title', unicode, []),
     ('us_only', bool, []),
     ('whimsical', bool, []),
+    ('webdriver_type', unicode, []),
+    ('webdriver_url', unicode, []),
 )
 
 
