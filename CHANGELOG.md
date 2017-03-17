@@ -74,8 +74,8 @@ in this way:
 
     experiment = dallinger.experiments.Bartlett1932()
     data = experiment.run({
-        "mode": u"live",
-        "base_payment": 1.00,
+        mode="live",
+        base_payment=1.00,
     })
 ```
 
