@@ -4,6 +4,7 @@ from datetime import datetime
 from json import dumps
 from operator import attrgetter
 import re
+import subprocess
 import traceback
 import user_agents
 
@@ -394,6 +395,13 @@ def consent():
         worker_id=request.args['worker_id'],
         mode=config.get('mode')
     )
+
+
+@app.route('/start_worker', methods=['GET'])
+def start_worker():
+    """Start the rq worker."""
+    subprocess.call(["dallinger", "rq_worker"])
+    return success_response(request_type="start worker")
 
 
 """Routes for reading and writing to the database."""
