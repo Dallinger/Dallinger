@@ -103,6 +103,10 @@ class Experiment(object):
             self.public_properties = {}
 
     @property
+    def background_tasks(self):
+        return []
+
+    @property
     def recruiter(self):
         """Recruiter, the Dallinger class that recruits participants.
         Default is HotAirRecruiter in debug mode and MTurkRecruiter in other modes.
