@@ -10,7 +10,8 @@ import socket
 sockets = Sockets(app)
 
 CHANNELS = [
-    WAITING_ROOM_CHANNEL
+    WAITING_ROOM_CHANNEL,
+    'griduniverse'
 ]
 
 
