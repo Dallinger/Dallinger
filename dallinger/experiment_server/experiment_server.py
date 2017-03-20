@@ -49,6 +49,9 @@ q = Queue(connection=redis)
 WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')
+# This might only be necessary for Flask-SocketIO:
+secret = hashlib.sha256(config.get("aws_secret_access_key")).hexdigest()
+app.config["SECRET_KEY"] = secret
 
 Experiment = experiment.load()
 
@@ -1457,4 +1460,5 @@ def insert_mode(page_html, mode):
             page_html[match.end():]
         return new_html
     else:
+        traceback.print_exc()
         raise ExperimentError("insert_mode_failed")
