@@ -223,6 +223,11 @@ def launch():
     url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
     session.commit()
 
+    """Inject the experiment variable into the template context."""
+    @app.context_processor
+    def inject_experiment():
+        return dict(experiment=exp)
+
     return success_response("recruitment_url", url_info, request_type="launch")
 
 
