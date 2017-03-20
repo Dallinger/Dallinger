@@ -49,6 +49,7 @@ def exp_class_working_dir(meth):
 class Experiment(object):
     """Define the structure of an experiment."""
     app_id = None
+    channel = None
     exp_config = None
 
     def __init__(self, session=None):

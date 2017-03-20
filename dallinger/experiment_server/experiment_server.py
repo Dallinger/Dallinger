@@ -1,6 +1,7 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
 from datetime import datetime
+import gevent
 import hashlib
 from json import dumps
 from operator import attrgetter
@@ -227,6 +228,25 @@ def launch():
     @app.context_processor
     def inject_experiment():
         return dict(experiment=exp)
+
+    """Initialize a Socket.IO server if appropriate."""
+    # try:
+    #     from dallinger_experiment import socketio
+    # except ImportError:
+    #     pass
+    # else:
+    #     socketio.init_app(app)
+    #     for task in exp.background_tasks:
+    #         socketio.start_background_task(task)
+    # from flask_sockets import Sockets
+    # if hasattr(exp, 'sockets') and exp.sockets is None:
+    #     exp.sockets = Sockets(app)
+
+    # Storing return value as a reminder that spawn() returns a greenlet:
+    threads = [gevent.spawn(task) for task in exp.background_tasks]
+    if exp.channel is not None:
+        from dallinger.experiment_server.sockets import chat_backend
+        chat_backend.subscribe(exp, exp.channel)
 
     return success_response("recruitment_url", url_info, request_type="launch")
 
