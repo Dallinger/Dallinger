@@ -25,6 +25,7 @@ class BotBase(object):
 
     def sign_up(self):
         """Accept HIT, give consent and start experiment."""
+        logger.info("Starting sign up with URL: %s." % self.URL)
         try:
             self.driver.get(self.URL)
             logger.info("Loaded ad page.")
