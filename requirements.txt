@@ -7,7 +7,7 @@ Flask-Sockets==0.2.1
 future==0.16.0
 gevent==1.2.1
 greenlet==0.4.12
-gunicorn==18.0
+gunicorn==19.7.1
 localconfig==0.4.2
 pexpect==4.2.1
 psycopg2==2.7.1
