@@ -190,7 +190,6 @@ class BotRecruiter(object):
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
         logger.info("Open recruitment.")
-        Popen(['worker'], stdin=None, stdout=None, stderr=None, close_fds=True)
         self.recruit_participants(n)
 
     def recruit_participants(self, n=1):
