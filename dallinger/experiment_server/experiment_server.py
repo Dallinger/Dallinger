@@ -400,7 +400,9 @@ def consent():
 @app.route('/start_worker', methods=['GET'])
 def start_worker():
     """Start the rq worker."""
-    subprocess.call(["dallinger", "rq_worker"])
+    exp = Experiment(session)
+    exp.log("Starting bot worker...", "-----")
+    subprocess.call(["worker"])
     return success_response(request_type="start worker")
 
 
