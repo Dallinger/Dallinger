@@ -11,7 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from dallinger.config import get_config
 config = get_config()
 
-logging.basicConfig()
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__file__)
 
 
@@ -98,3 +98,4 @@ class BotBase(object):
         self.sign_up()
         self.participate()
         self.sign_off()
+        self.driver.quit()
