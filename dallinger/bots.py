@@ -11,6 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from dallinger.config import get_config
 config = get_config()
 
+logging.basicConfig()
 logger = logging.getLogger(__file__)
 
 
