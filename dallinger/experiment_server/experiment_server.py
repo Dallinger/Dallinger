@@ -1300,6 +1300,13 @@ def worker_complete():
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
         )
+    if config.get('recruiter', None) == "bots":
+        # Trigger notification directly
+        # Handled same as debug, but added separetely for clarity
+        _debug_notify(
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+        )
     return success_response(field="status",
                             data=status,
                             request_type="worker complete")
