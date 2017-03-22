@@ -48,7 +48,6 @@ class BotBase(object):
 
     def sign_up(self):
         """Accept HIT, give consent and start experiment."""
-        print self.URL
         try:
             self.driver.get(self.URL)
             logger.info("Loaded ad page.")
@@ -93,6 +92,8 @@ class BotBase(object):
             return False
 
     def run_experiment(self):
+        self.driver = webdriver.PhantomJS()
+        self.driver.set_window_size(1024, 768)
         self.sign_up()
         self.participate()
         self.sign_off()
