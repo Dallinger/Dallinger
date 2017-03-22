@@ -1302,15 +1302,12 @@ def worker_complete():
         )
     if config.get('recruiter', 'mturk') == 'bots':
         # Trigger notification directly
-        # Handled same as debug, but added separetely for clarity
+        # Bot submissions skip all attention and bonus checks
         _debug_notify(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
+            event_type='BotAssignmentSubmitted',
         )
-    _debug_notify(
-        assignment_id=participant.assignment_id,
-        participant_id=participant.id,
-    )
     return success_response(field="status",
                             data=status,
                             request_type="worker complete")
@@ -1432,6 +1429,14 @@ def worker_function(event_type, assignment_id, participant_id):
                     exp.submission_successful(participant=participant)
                     session.commit()
                     exp.recruit()
+
+    elif event_type == 'BotAssignmentSubmitted':
+        # No checks for bot submission
+        exp.log("Received bot submission.", key)
+        participant.status = "approved"
+        exp.submission_successful(participant=participant)
+        session.commit()
+        exp.recruit()
 
     elif event_type == "NotificationMissing":
         if participant.status == "working":
