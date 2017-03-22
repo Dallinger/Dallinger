@@ -207,7 +207,6 @@ class BotRecruiter(object):
         return job
 
     def approve_hit(self, assignment_id):
-        logger.info("Do we even get here ever.")
         return True
 
     def close_recruitment(self):
