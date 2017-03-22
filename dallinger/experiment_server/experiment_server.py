@@ -1300,7 +1300,8 @@ def worker_complete():
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
         )
-    if config.get('recruiter', None) == "bots":
+    print config.get('recruiter', 'mturk')
+    if config.get('recruiter', 'mturk') == 'bots':
         # Trigger notification directly
         # Handled same as debug, but added separetely for clarity
         _debug_notify(
