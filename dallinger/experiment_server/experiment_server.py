@@ -1433,14 +1433,21 @@ def worker_function(event_type, assignment_id, participant_id):
     elif event_type == 'BotAssignmentSubmitted':
         exp.log("Received bot submission.", key)
         participant.end_time = datetime.now()
-        participant.status = "submitted"
-        session.commit()
 
         # No checks for bot submission
         exp.recruiter().approve_hit(assignment_id)
         participant.status = "approved"
         exp.submission_successful(participant=participant)
         session.commit()
+        exp.recruit()
+
+    elif event_type == 'BotAssignmentRejected':
+        exp.log("Received rejected bot submission.", key)
+        participant.end_time = datetime.now()
+        participant.status = "rejected"
+        session.commit()
+
+        # We go back to recruiting immediately
         exp.recruit()
 
     elif event_type == "NotificationMissing":

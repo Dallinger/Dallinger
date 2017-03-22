@@ -39,6 +39,19 @@ def run_check(config, mturk, participants, session, reference_time):
             # get their assignment
             assignment_id = p.assignment_id
 
+            # First see if we have a bot participant
+            if config.get('recruiter', 'mturk') == 'bots':
+                # Bot somehow did not finish (phantomjs error?)
+                # Get rid of it and continue recruiting more bots
+                args = {
+                    'Event.1.EventType': 'BotAssignmentRejected',
+                    'Event.1.AssignmentId': assignment_id
+                }
+                requests.post(
+                    "http://" + config.get('host') + '/notifications',
+                    data=args)
+                return
+
             # ask amazon for the status of the assignment
             try:
                 assignment = mturk.get_assignment(assignment_id)[0]
