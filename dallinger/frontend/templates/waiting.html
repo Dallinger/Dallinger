@@ -23,7 +23,7 @@
             var awaitingQuorum = waitForQuorum();
             var creatingParticipant = create_participant();
             // wait for both deferreds to resolve
-            $.when(awaitingQuorum, create_participant).done(function () {
+            $.when(awaitingQuorum, creatingParticipant).done(function () {
                 allow_exit();
                 go_to_page("exp");
             });
