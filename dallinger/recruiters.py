@@ -201,7 +201,7 @@ class BotRecruiter(object):
         ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
         ad_parameters = ad_parameters.format(assignment, hit, worker)
         url = '{}/ad?{}'.format(base_url, ad_parameters)
-        bot = Bot(url, recruiter=self)
+        bot = Bot(url)
         job = q.enqueue(bot.run_experiment)
         logger.info("Created job with id {} for url {}.".format(job.id, url))
         return job

@@ -19,7 +19,7 @@ class BotBase(object):
 
     """A bot."""
 
-    def __init__(self, URL, recruiter=None):
+    def __init__(self, URL):
         logger.info("Starting up bot with URL: %s." % URL)
         self.URL = URL
         driver_url = config.get('webdriver_url', None)
@@ -45,6 +45,7 @@ class BotBase(object):
             raise ValueError(
                 'Unsupported webdriver_type: {}'.format(driver_type))
         self.driver.set_window_size(1024, 768)
+        self.recruiter = recruiter
         self.recruiter = recruiter
         logger.info("Started PhantomJs webdriver.")
 
@@ -91,9 +92,6 @@ class BotBase(object):
             return True
         except TimeoutException:
             logger.error("Error during experiment sign off.")
-            # Complete was not called, so try again
-            if self.recruiter is not None:
-                self.recruiter.recruit_participants(n=1)
             return False
 
     def run_experiment(self):
