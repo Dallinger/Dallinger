@@ -48,7 +48,7 @@ class BotBase(object):
         self.driver.set_window_size(1024, 768)
         self.assignment_id = assignment_id
         self.worker_id = worker_id
-        self.uniqueId = worker_id + ':' + assignment_id
+        self.unique_id = worker_id + ':' + assignment_id
         logger.info("Started PhantomJs webdriver.")
 
     def sign_up(self):
