@@ -1,6 +1,7 @@
 """Bots."""
 
 import logging
+from urlparse import urlparse
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -19,7 +20,7 @@ class BotBase(object):
 
     """A bot."""
 
-    def __init__(self, URL):
+    def __init__(self, URL, assignment_id='', worker_id=''):
         logger.info("Starting up bot with URL: %s." % URL)
         self.URL = URL
         driver_url = config.get('webdriver_url', None)
@@ -45,8 +46,9 @@ class BotBase(object):
             raise ValueError(
                 'Unsupported webdriver_type: {}'.format(driver_type))
         self.driver.set_window_size(1024, 768)
-        self.recruiter = recruiter
-        self.recruiter = recruiter
+        self.assignment_id = assignment_id
+        self.worker_id = worker_id
+        self.uniqueId = worker_id + ':' + assignment_id
         logger.info("Started PhantomJs webdriver.")
 
     def sign_up(self):
@@ -99,5 +101,12 @@ class BotBase(object):
         self.driver.set_window_size(1024, 768)
         self.sign_up()
         self.participate()
-        self.sign_off()
+        if not self.sign_off():
+            # phantomjs error, but need to call complete or recruiting stops
+            url = self.driver.current_url
+            p = urlparse(url)
+            complete_url = '%s://%s/worker_failed?uniqueId=%s'
+            complete_url = complete_url % (p.scheme, p.netloc, self.unique_id)
+            self.driver.get(complete_url)
+            logger.error("Error. Forced call to worker_failed.")
         self.driver.quit()

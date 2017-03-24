@@ -1313,6 +1313,31 @@ def worker_complete():
                             request_type="worker complete")
 
 
+@app.route('/worker_failed', methods=['GET'])
+@db.scoped_session_decorator
+def worker_failed():
+    """Fail worker. Used by bots only for now."""
+    if 'uniqueId' not in request.args:
+        status = "bad request"
+    else:
+        participant = models.Participant.query.filter_by(
+            unique_id=request.args['uniqueId'],
+        ).all()[0]
+        participant.end_time = datetime.now()
+        session.add(participant)
+        session.commit()
+        status = "success"
+    if config.get('recruiter', 'mturk') == 'bots':
+        _debug_notify(
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+            event_type='BotAssignmentRejected',
+        )
+    return success_response(field="status",
+                            data=status,
+                            request_type="worker failed")
+
+
 @db.scoped_session_decorator
 def worker_function(event_type, assignment_id, participant_id):
     """Process the notification."""

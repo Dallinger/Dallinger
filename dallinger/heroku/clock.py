@@ -9,7 +9,6 @@ import requests
 
 import dallinger
 from dallinger import db
-from dallinger.experiment_server.experiment_server import worker_function
 from dallinger.models import Participant
 from dallinger.heroku.messages import NullHITMessager
 
@@ -45,7 +44,6 @@ def run_check(config, mturk, participants, session, reference_time):
                 # Bot somehow did not finish (phantomjs?). Just get rid of it.
                 p.status = "rejected"
                 session.commit()
-                worker_function('BotAssignmentRejected', assignment_id, None)
                 return
 
             # ask amazon for the status of the assignment
