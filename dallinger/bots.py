@@ -84,7 +84,7 @@ class BotBase(object):
     def sign_off(self):
         """Submit questionnaire and finish."""
         try:
-            feedback = WebDriverWait(self.driver, 15).until(
+            feedback = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.ID, 'submit-questionnaire')))
             feedback.click()
             logger.info("Clicked submit questionnaire button.")
@@ -96,20 +96,26 @@ class BotBase(object):
             logger.error("Error during experiment sign off.")
             return False
 
+    def complete_experiment(self, status):
+        tmp_driver = webdriver.PhantomJS()
+        url = self.driver.current_url
+        p = urlparse(url)
+        complete_url = '%s://%s/%s?uniqueId=%s'
+        complete_url = complete_url % (p.scheme,
+                                       p.netloc,
+                                       status,
+                                       self.unique_id)
+        tmp_driver.get(complete_url)
+        logger.error("Forced call to %s: %s" % (status, complete_url))
+        tmp_driver.quit()
+
     def run_experiment(self):
         self.driver = webdriver.PhantomJS()
         self.driver.set_window_size(1024, 768)
         self.sign_up()
         self.participate()
-        if not self.sign_off():
-            # phantomjs error, but need to call complete or recruiting stops
-            tmp_driver = webdriver.PhantomJS()
-            url = self.driver.current_url
-            p = urlparse(url)
-            complete_url = '%s://%s/worker_failed?uniqueId=%s'
-            complete_url = complete_url % (p.scheme, p.netloc, self.unique_id)
-            tmp_driver.get(complete_url)
-            logger.error("Forced call to worker_failed: %s" % complete_url)
-            logger.info(self.driver.current_url)
-            tmp_driver.quit()
+        if self.sign_off():
+            complete_experiment('worker_complete')
+        else:
+            complete_experiment('worker_failed')
         self.driver.quit()
