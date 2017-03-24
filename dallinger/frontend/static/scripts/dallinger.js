@@ -151,3 +151,37 @@ submitNextResponse = function (n) {
         }
     });
 };
+
+// Dallinger JS module.
+var dallinger = (function() {
+  var public = {};
+
+  // Public property
+  public.version = '3.0.0';
+
+  // Public method
+  public.createParticipant = function(workerId, hitId, assignmentId, mode, callback) {
+    url = "/participant/" +
+      workerId + "/" +
+      hitId + "/" +
+      assignmentId + "/" +
+      mode;
+      reqwest({
+        url: url,
+        method: "post",
+        type: "json",
+        success: function(resp) {
+          store.set("participant_id", resp.participant.id);
+          callback();
+        },
+      });
+  };
+
+  // Private method
+  function private() {
+    //  Do something...
+  }
+
+  // Return only the public properties and methods.
+  return public;
+}());
