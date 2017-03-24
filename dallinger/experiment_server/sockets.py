@@ -2,6 +2,7 @@ from collections import defaultdict
 from .experiment_server import app
 from .experiment_server import WAITING_ROOM_CHANNEL
 from ..heroku.worker import conn
+from flask import request
 from flask_sockets import Sockets
 from redis import ConnectionError
 import gevent
@@ -105,7 +106,13 @@ app.before_first_request(chat_backend.start)
 
 @sockets.route('/receive_chat')
 def outbox(ws):
-    chat_backend.subscribe(ws)
+    """This route was highjacked temporarily for the Griduniverse socket.
+    It both subscribes the websocket to the chat backend
+    so the front-end clients get messages via redis,
+    and it puts messages from the clients into redis so they can be sent on
+    to the Experiment, which is also registered with the chat_backend.
+    """
+    chat_backend.subscribe(ws, channel=request.args.get('channel'))
 
     while not ws.closed:
         # Wait for chat backend
