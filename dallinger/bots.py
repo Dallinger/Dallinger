@@ -109,4 +109,5 @@ class BotBase(object):
             complete_url = complete_url % (p.scheme, p.netloc, self.unique_id)
             self.driver.get(complete_url)
             logger.error("Error. Forced call to worker_failed.")
+            logger.info(self.driver.page_source)
         self.driver.quit()
