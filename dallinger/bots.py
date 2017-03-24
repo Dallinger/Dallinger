@@ -103,11 +103,13 @@ class BotBase(object):
         self.participate()
         if not self.sign_off():
             # phantomjs error, but need to call complete or recruiting stops
+            tmp_driver = webdriver.PhantomJS()
             url = self.driver.current_url
             p = urlparse(url)
             complete_url = '%s://%s/worker_failed?uniqueId=%s'
             complete_url = complete_url % (p.scheme, p.netloc, self.unique_id)
-            self.driver.get(complete_url)
+            tmp_driver.get(complete_url)
             logger.error("Forced call to worker_failed: %s" % complete_url)
-            logger.info(self.driver.page_source)
+            logger.info(self.driver.current_url)
+            tmp_driver.quit()
         self.driver.quit()
