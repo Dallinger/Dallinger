@@ -454,7 +454,6 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     # Set up postgres database and AWS environment variables.
     cmds = [
         ["heroku", "addons:create", "heroku-postgresql:{}".format(quote(database_size))],
-        ["heroku", "pg:wait"],
         ["heroku", "addons:create", "heroku-redis:premium-0"],
         ["heroku", "addons:create", "papertrail"],
     ]
@@ -495,6 +494,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
             time.sleep(2)
 
     log("Saving the URL of the postgres database...")
+    subprocess.check_call(["heroku", "pg:wait", "--app", app_name(id)])
     db_url = subprocess.check_output([
         "heroku", "config:get", "DATABASE_URL", "--app", app_name(id)
     ])
