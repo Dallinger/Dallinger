@@ -84,7 +84,7 @@ class BotBase(object):
     def sign_off(self):
         """Submit questionnaire and finish."""
         try:
-            feedback = WebDriverWait(self.driver, 10).until(
+            feedback = WebDriverWait(self.driver, 15).until(
                 EC.element_to_be_clickable((By.ID, 'submit-questionnaire')))
             feedback.click()
             logger.info("Clicked submit questionnaire button.")
@@ -108,6 +108,6 @@ class BotBase(object):
             complete_url = '%s://%s/worker_failed?uniqueId=%s'
             complete_url = complete_url % (p.scheme, p.netloc, self.unique_id)
             self.driver.get(complete_url)
-            logger.error("Error. Forced call to worker_failed.")
+            logger.error("Forced call to worker_failed: %s" % complete_url)
             logger.info(self.driver.page_source)
         self.driver.quit()
