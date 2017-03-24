@@ -115,7 +115,7 @@ class BotBase(object):
         self.sign_up()
         self.participate()
         if self.sign_off():
-            complete_experiment('worker_complete')
+            self.complete_experiment('worker_complete')
         else:
-            complete_experiment('worker_failed')
+            self.complete_experiment('worker_failed')
         self.driver.quit()
