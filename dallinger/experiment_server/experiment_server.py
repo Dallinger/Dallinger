@@ -229,21 +229,11 @@ def launch():
     def inject_experiment():
         return dict(experiment=exp)
 
-    """Initialize a Socket.IO server if appropriate."""
-    # try:
-    #     from dallinger_experiment import socketio
-    # except ImportError:
-    #     pass
-    # else:
-    #     socketio.init_app(app)
-    #     for task in exp.background_tasks:
-    #         socketio.start_background_task(task)
-    # from flask_sockets import Sockets
-    # if hasattr(exp, 'sockets') and exp.sockets is None:
-    #     exp.sockets = Sockets(app)
+    for task in exp.background_tasks:
+        gevent.spawn(task)
 
-    # Storing return value as a reminder that spawn() returns a greenlet:
-    threads = [gevent.spawn(task) for task in exp.background_tasks]
+    # If the experiment defines a channel, subscribe the experiment to the
+    # redis communication channel:
     if exp.channel is not None:
         from dallinger.experiment_server.sockets import chat_backend
         chat_backend.subscribe(exp, exp.channel)
