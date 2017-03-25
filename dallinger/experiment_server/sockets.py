@@ -4,6 +4,7 @@ from ..heroku.worker import conn
 from flask_sockets import Sockets
 from redis import ConnectionError
 import gevent
+import socket
 
 sockets = Sockets(app)
 
@@ -53,7 +54,7 @@ class ChatBackend(object):
         """
         try:
             client.send(data)
-        except:
+        except socket.error:
             for channel in self.clients:
                 self.unsubscribe(client, channel)
 
