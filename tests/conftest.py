@@ -19,10 +19,10 @@ def cwd():
 
 
 @pytest.fixture(scope="class")
-def experiment_dir(cwd):
+def experiment_dir():
     os.chdir('tests/experiment')
     yield
-    # The cwd fixture will return to the starting directory.
+    cwd()
 
 
 @pytest.fixture(scope='class', autouse=True)

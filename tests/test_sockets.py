@@ -1,6 +1,7 @@
 from mock import Mock
 import gevent
 import pytest
+import socket
 
 
 @pytest.fixture
@@ -40,7 +41,7 @@ class TestChatBackend:
 
     def test_send_exception(self, chat):
         client = Mock()
-        client.send.side_effect = Exception()
+        client.send.side_effect = socket.error()
         chat.subscribe(client)
         chat.send(client, 'message')
         assert chat.clients == {'quorum': []}
