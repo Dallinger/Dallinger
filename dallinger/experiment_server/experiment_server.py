@@ -3,7 +3,6 @@
 from datetime import datetime
 from json import dumps
 from operator import attrgetter
-import json
 import re
 import traceback
 import user_agents
@@ -532,7 +531,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     if quorum:
         count = models.Participant.query.filter_by(
             status='working').count()
-        message = json.dumps({
+        message = dumps({
             'q': quorum,
             'n': count,
         })
