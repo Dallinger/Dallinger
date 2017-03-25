@@ -10,9 +10,8 @@ import socket
 
 sockets = Sockets(app)
 
-CHANNELS = [
+DEFAULT_CHANNELS = [
     WAITING_ROOM_CHANNEL,
-    'griduniverse'
 ]
 
 
@@ -26,14 +25,18 @@ class ChatBackend(object):
 
     def __init__(self):
         self.pubsub = conn.pubsub()
+        self._join_pubsub(DEFAULT_CHANNELS)
+        self.clients = defaultdict(list)
+
+    def _join_pubsub(self, channels):
         try:
-            self.pubsub.subscribe(CHANNELS)
-            app.logger.debug('Subscribed to channels: {}'.format(CHANNELS))
+            self.pubsub.subscribe(channels)
+            app.logger.debug('Subscribed to channels: {}'.format(channels))
         except ConnectionError:
             app.logger.exception('Could not connect to redis.')
 
         self.clients = {}
-        for channel in CHANNELS:
+        for channel in DEFAULT_CHANNELS:
             self.clients[channel] = []
 
         self.age = defaultdict(lambda: 0)
@@ -42,11 +45,10 @@ class ChatBackend(object):
         """Register a new client to receive messages."""
         app.logger.debug('{} subscribing to channel {}'.format(client, channel))
         if channel is not None:
-            if channel not in self.clients:
-                raise ValueError('Unknown channel: {}'.format(channel))
             self.clients[channel].append(client)
+            self._join_pubsub([channel])
         else:
-            for channel in CHANNELS:
+            for channel in DEFAULT_CHANNELS:
                 self.clients[channel].append(client)
                 app.logger.debug(
                     'Subscribed client {} to channel {}'.format(
