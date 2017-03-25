@@ -35,8 +35,9 @@ class TestChatBackend:
 
     def test_subscribe_to_new_channel_subscribes_on_redis(self, chat):
         client = Mock()
+        chat.pubsub = Mock()
         chat.subscribe(client, 'custom')
-        assert 'custom' in chat.pubsub.channels
+        chat.pubsub.subscribe.assert_called_once_with(['custom'])
 
     def test_unsubscribe(self, chat):
         client = Mock()
