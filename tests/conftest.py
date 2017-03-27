@@ -60,3 +60,11 @@ def db_session():
     yield session
     session.rollback()
     session.close()
+
+
+def pytest_addoption(parser):
+    parser.addoption("--firefox", action="store_true", help="Run firefox bot tests")
+    parser.addoption("--phantomjs", action="store_true", help="Run phantomjs bot tests")
+    parser.addoption("--webdriver", nargs="?", action="store",
+                     help="URL of selenium server including /wd/hub to run remote tests against",
+                     metavar='URL')
