@@ -18,6 +18,13 @@ def cwd():
     os.chdir(root)
 
 
+@pytest.fixture(scope="class")
+def experiment_dir():
+    os.chdir('tests/experiment')
+    yield
+    cwd()
+
+
 @pytest.fixture(scope='class', autouse=True)
 def reset_config():
     yield
@@ -44,3 +51,12 @@ def aws_creds():
         'aws_secret_access_key': config.get('aws_secret_access_key')
     }
     return creds
+
+
+@pytest.fixture
+def db_session():
+    import dallinger.db
+    session = dallinger.db.init_db(drop_all=True)
+    yield session
+    session.rollback()
+    session.close()

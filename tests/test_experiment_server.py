@@ -14,7 +14,7 @@ class FlaskAppTest(unittest.TestCase):
         # when running via the CLI
         os.chdir('tests/experiment')
 
-        from dallinger.experiment_server.experiment_server import app
+        from dallinger.experiment_server.sockets import app
         app.config['DEBUG'] = True
         app.config['TESTING'] = True
         self.app = app.test_client()
@@ -26,6 +26,10 @@ class FlaskAppTest(unittest.TestCase):
         self.db.rollback()
         self.db.close()
         os.chdir('../..')
+
+        # Make sure the greenlet handling chat is stopped
+        from dallinger.experiment_server.sockets import chat_backend
+        chat_backend.stop()
 
 
 class TestExperimentServer(FlaskAppTest):

@@ -28,7 +28,7 @@ from sqlalchemy.sql.expression import true
 from dallinger import db
 from dallinger import experiment
 from dallinger import models
-from dallinger.heroku.worker import conn
+from dallinger.heroku.worker import conn as redis
 from dallinger.compat import unicode
 from dallinger.config import get_config
 
@@ -43,7 +43,8 @@ if not config.ready:
 session = db.session
 
 # Connect to the Redis queue for notifications.
-q = Queue(connection=conn)
+q = Queue(connection=redis)
+WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')
 
@@ -524,6 +525,18 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     session.add(participant)
     session.commit()
 
+    # Notify waiting room
+    experiment = Experiment(session)
+    quorum = experiment.public_properties.get('quorum')
+    if quorum:
+        count = models.Participant.query.filter_by(
+            status='working').count()
+        message = dumps({
+            'q': quorum,
+            'n': count,
+        })
+        redis.publish(WAITING_ROOM_CHANNEL, message)
+
     # return the data
     return success_response(
         field="participant",
@@ -662,6 +675,7 @@ def node_neighbors(node_id):
 
 
 @app.route("/node/<participant_id>", methods=["POST"])
+@db.serialized
 def create_node(participant_id):
     """Send a POST request to the node table.
 
@@ -687,32 +701,24 @@ def create_node(participant_id):
         return error_response(error_type=error_type,
                               participant=participant)
 
-    try:
-        # execute the request
-        network = exp.get_network_for_participant(participant=participant)
+    # execute the request
+    network = exp.get_network_for_participant(participant=participant)
 
-        if network is None:
-            return Response(dumps({"status": "error"}), status=403)
+    if network is None:
+        return Response(dumps({"status": "error"}), status=403)
 
-        node = exp.create_node(
-            participant=participant,
-            network=network)
+    node = exp.create_node(
+        participant=participant,
+        network=network)
 
-        assign_properties(node)
+    assign_properties(node)
 
-        exp.add_node_to_network(
-            node=node,
-            network=network)
+    exp.add_node_to_network(
+        node=node,
+        network=network)
 
-        session.commit()
-
-        # ping the experiment
-        exp.node_post_request(participant=participant, node=node)
-        session.commit()
-    except Exception:
-        return error_response(error_type="/node POST server error",
-                              status=403,
-                              participant=participant)
+    # ping the experiment
+    exp.node_post_request(participant=participant, node=node)
 
     # return the data
     return success_response(field="node",
