@@ -31,7 +31,8 @@ class ChatBackend(object):
     def _join_pubsub(self, channels):
         try:
             self.pubsub.subscribe(channels)
-            app.logger.debug('Subscribed to channels: {}'.format(channels))
+            app.logger.debug(
+                'Subscribed to channels: {}'.format(self.pubsub.channels.keys()))
         except ConnectionError:
             app.logger.exception('Could not connect to redis.')
 
