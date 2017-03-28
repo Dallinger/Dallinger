@@ -1,7 +1,7 @@
 [Experiment]
 mode = sandbox
 auto_recruit = true
-num_participants = 10
+num_participants = 3
 
 [MTurk]
 title = Concentration game
