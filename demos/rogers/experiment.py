@@ -1,13 +1,18 @@
 """Replicate Rogers' paradox by simulating evolution with people."""
 
+import random
+
+from sqlalchemy import and_
+from sqlalchemy.sql.expression import false
+
 from dallinger.experiments import Experiment
 from dallinger.information import Meme
-from dallinger.nodes import Agent, Environment
+from dallinger.models import Network
+from dallinger.models import Node
+from dallinger.models import Participant
 from dallinger.networks import DiscreteGenerational
-from dallinger.models import Node, Network, Participant
-from sqlalchemy.sql.expression import false
-from sqlalchemy import and_
-import random
+from dallinger.nodes import Agent
+from dallinger.nodes import Environment
 
 
 class RogersExperiment(Experiment):
@@ -27,14 +32,15 @@ class RogersExperiment(Experiment):
         import models
         self.models = models
         self.verbose = False
-        self.experiment_repeats = 1
+        self.experiment_repeats = 10
         self.practice_repeats = 0
         self.catch_repeats = 0  # a subset of experiment repeats
         self.practice_difficulty = 0.80
         self.difficulties = [0.525, 0.5625, 0.65] * self.experiment_repeats
         self.catch_difficulty = 0.80
         self.min_acceptable_performance = 10 / float(12)
-        self.generation_size = 40
+        self.generation_size = 4
+        self.generations = 4
         self.bonus_payment = 1.0
         self.initial_recruitment_size = self.generation_size
         self.known_classes["LearningGene"] = self.models.LearningGene
@@ -69,8 +75,10 @@ class RogersExperiment(Experiment):
     def create_network(self):
         """Create a new network."""
         return DiscreteGenerational(
-            generations=4, generation_size=self.generation_size,
-            initial_source=True)
+            generations=self.generations,
+            generation_size=self.generation_size,
+            initial_source=True
+        )
 
     def create_node(self, network, participant):
         """Make a new node for participants."""
@@ -90,7 +98,7 @@ class RogersExperiment(Experiment):
 
     def submission_successful(self, participant):
         """Run when a participant submits successfully."""
-        key = participant.uniqueid[0:5]
+        key = participant.unique_id[0:5]
 
         finished_participants = Participant.query.filter_by(status=101).all()
         num_finished_participants = len(finished_participants)
@@ -140,11 +148,10 @@ class RogersExperiment(Experiment):
         if participant is None:
             raise(ValueError("You must specify the participant to \
                               calculate the bonus."))
-        participant_id = participant.uniqueid
-        key = participant_id[0:5]
+        key = participant.unique_id[0:5]
 
         nodes = Node.query.join(Node.network)\
-                    .filter(and_(Node.participant_id == participant_id,
+                    .filter(and_(Node.participant_id == participant.id,
                                  Network.role == "experiment"))\
                     .all()
 
@@ -161,7 +168,7 @@ class RogersExperiment(Experiment):
     def attention_check(self, participant=None):
         """Check a participant paid attention."""
         participant_nodes = Node.query.join(Node.network)\
-            .filter(and_(Node.participant_id == participant.uniqueid,
+            .filter(and_(Node.participant_id == participant.id,
                          Network.role == "catch"))\
             .all()
         scores = [n.score for n in participant_nodes]
@@ -176,9 +183,7 @@ class RogersExperiment(Experiment):
 
     def data_check(self, participant):
         """Check a participants data."""
-        participant_id = participant.uniqueid
-
-        nodes = Node.query.filter_by(participant_id=participant_id).all()
+        nodes = Node.query.filter_by(participant_id=participant.id).all()
 
         if len(nodes) != self.experiment_repeats + self.practice_repeats:
             print("Error: Participant has {} nodes. Data check failed"

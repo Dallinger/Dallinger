@@ -209,7 +209,7 @@ class TestRogers(object):
                 p = Participant(workerid=worker_id, assignmentid=assignment_id, hitid=hit_id)
                 self.db.add(p)
                 self.db.commit()
-                p_id = p.uniqueid
+                p_id = p.unique_id
                 p_ids.append(p_id)
                 p_start_time = timenow()
 
@@ -501,7 +501,7 @@ class TestRogers(object):
             sys.stdout.flush()
 
             assert exp.bonus(participant=Participant.query.filter_by(
-                uniqueid=p_ids[0]).all()[0]) == exp.bonus_payment
+                unique_id=p_ids[0]).all()[0]) == exp.bonus_payment
 
             print("Testing bonus payments...            done!")
             sys.stdout.flush()
