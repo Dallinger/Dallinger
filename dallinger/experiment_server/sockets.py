@@ -44,7 +44,6 @@ class ChatBackend(object):
 
     def subscribe(self, client, channel=None):
         """Register a new client to receive messages."""
-        app.logger.debug('{} subscribing to channel {}'.format(client, channel))
         if channel is not None:
             self.clients[channel].append(client)
             self._join_pubsub([channel])
@@ -64,7 +63,6 @@ class ChatBackend(object):
 
         Automatically discards invalid connections.
         """
-        app.logger.debug('sending {} to client {}'.format(data, client))
         try:
             client.send(data)
         except socket.error:

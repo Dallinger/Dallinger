@@ -2,7 +2,6 @@
 
 from datetime import datetime
 import gevent
-import hashlib
 from json import dumps
 from operator import attrgetter
 import re
@@ -50,9 +49,6 @@ q = Queue(connection=redis)
 WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')
-# This might only be necessary for Flask-SocketIO:
-secret = hashlib.sha256(config.get("aws_secret_access_key")).hexdigest()
-app.config["SECRET_KEY"] = secret
 
 Experiment = experiment.load()
 
