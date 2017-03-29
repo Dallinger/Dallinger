@@ -175,9 +175,9 @@ class RogersExperiment(Experiment):
         if (gene == "social"):
             agent_model = self.models.RogersAgent
             prev_agents = agent_model.query\
-                .filter(and_(agent_model.failed == false(),
-                             agent_model.network_id == network.id,
-                             agent_model.generation == node.generation - 1))\
+                .filter_by(failed=False,
+                           network_id=network.id,
+                           generation=node.generation - 1)\
                 .all()
             parent = random.choice(prev_agents)
             parent.connect(whom=node)
