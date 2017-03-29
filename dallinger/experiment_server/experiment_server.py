@@ -1457,5 +1457,4 @@ def insert_mode(page_html, mode):
             page_html[match.end():]
         return new_html
     else:
-        traceback.print_exc()
         raise ExperimentError("insert_mode_failed")
