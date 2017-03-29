@@ -98,27 +98,11 @@ class RogersExperiment(Experiment):
 
     def submission_successful(self, participant):
         """Run when a participant submits successfully."""
-        key = participant.unique_id[0:5]
-
-        finished_participants = Participant.query.filter_by(status=101).all()
-        num_finished_participants = len(finished_participants)
-        current_generation = int((num_finished_participants - 1) /
-                                 float(self.generation_size))
-
-        if num_finished_participants % self.generation_size == 0:
-            if (current_generation + 1) % 10 == 0:
-                self.log("Participant was final particpant in generation {}: \
-                          environment stepping"
-                         .format(current_generation), key)
-                environments = Environment.query.all()
-                for e in environments:
-                    e.step()
-            else:
-                self.log("Participant was final participant in generation {}: \
-                          not stepping".format(current_generation), key)
-        else:
-            self.log("Participant was not final in generation {}: \
-                      not stepping".format(current_generation), key)
+        num_approved = len(Participant.query.filter_by(status="approved").all())
+        current_generation = Participant.nodes()[0].generation
+        if num_approved % self.generation_size == 0 and current_generation % 10 == 0:
+            for e in Environment.query.all():
+                e.step()
 
     def recruit(self):
         """Recruit more participants."""
