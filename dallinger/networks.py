@@ -7,6 +7,26 @@ from .models import Network
 from .nodes import Source
 
 
+class DelayedChain(Network):
+    """Source -> Node -> Node -> Node -> ...
+
+    The source is optional, but must be added first.
+    """
+
+    __mapper_args__ = {"polymorphic_identity": "delayed_chain"}
+
+    def add_node(self, node):
+        """Add an agent, connecting it to the previous node."""
+        other_nodes = [n for n in self.nodes() if n.id != node.id]
+        if node.id > 11:
+            parents = [max(other_nodes, key=attrgetter('creation_time'))]
+        else:
+            parents = [n for n in other_nodes if isinstance(n, Source)]
+
+        for parent in parents:
+            parent.connect(whom=node)
+
+
 class Chain(Network):
     """Source -> Node -> Node -> Node -> ...
 
