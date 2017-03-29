@@ -33,8 +33,6 @@ from dallinger import db
 from dallinger import heroku
 from dallinger.heroku import (
     app_name,
-    open_logs,
-    scale_up_dynos
 )
 from dallinger.mturk import MTurkService
 from dallinger import registration
@@ -463,7 +461,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     )
 
     log("Scaling up the dynos...")
-    scale_up_dynos(app_name(id))
+    heroku.scale_up_dynos(app_name(id))
 
     time.sleep(8)
 
@@ -651,7 +649,7 @@ def awaken(app, databaseurl):
 
     # Scale up the dynos.
     log("Scaling up the dynos...")
-    scale_up_dynos(app_name(id))
+    heroku.scale_up_dynos(app_name(id))
 
 
 @dallinger.command()
