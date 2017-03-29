@@ -627,21 +627,25 @@ def awaken(app, databaseurl):
         "--app", app_name(id),
     ])
 
-    subprocess.check_call(["heroku", "pg:wait", "--app", app_name(id)])
-
     bucket = data.user_s3_bucket()
     key = bucket.lookup('{}.dump'.format(id))
     url = key.generate_url(expires_in=300)
 
-    subprocess.check_call([
-        "heroku", "pg:backups", "restore", "'{}'".format(url), "DATABASE_URL",
-        "--app", app_name(id),
-        "--confirm", app_name(id),
-    ])
+    time.sleep(60)
+
+    subprocess.check_call(["heroku", "pg:wait", "--app", app_name(id)])
+
+    time.sleep(10)
 
     subprocess.check_call([
         "heroku", "addons:create", "heroku-redis:premium-0",
         "--app", app_name(id)
+    ])
+
+    subprocess.check_call([
+        "heroku", "pg:backups:restore", "{}".format(url), "DATABASE_URL",
+        "--app", app_name(id),
+        "--confirm", app_name(id),
     ])
 
     # Scale up the dynos.
