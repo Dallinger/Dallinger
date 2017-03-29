@@ -33,6 +33,7 @@ from dallinger import db
 from dallinger import heroku
 from dallinger.heroku import (
     app_name,
+    open_logs,
     scale_up_dynos
 )
 from dallinger.mturk import MTurkService
@@ -668,6 +669,7 @@ def export(app, local, no_scrub):
 @dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def logs(app):
+    heroku.open_logs(app)
     """Show the logs."""
     if app is None:
         raise TypeError("Select an experiment using the --app flag.")
