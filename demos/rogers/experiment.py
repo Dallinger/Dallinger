@@ -111,26 +111,16 @@ class RogersExperiment(Experiment):
             self.log("generation finished, recruiting another")
             self.recruiter().recruit_participants(n=self.generation_size)
 
-    def bonus(self, participant=None):
+    def bonus(self, participant):
         """Calculate a participants bonus."""
-        if participant is None:
-            raise(ValueError("You must specify the participant to \
-                              calculate the bonus."))
-        key = participant.unique_id[0:5]
+        nodes = participant.nodes()
+        nets = Network.query.filter_by(role="experiment").all()
+        net_ids = [net.id for net in nets]
+        nodes = [node for node in nodes if node.network_id in net_ids]
 
-        nodes = Node.query.join(Node.network)\
-                    .filter(and_(Node.participant_id == participant.id,
-                                 Network.role == "experiment"))\
-                    .all()
-
-        if len(nodes) == 0:
-            self.log("Participant has 0 nodes - cannot calculate bonus!", key)
-            return 0
-        self.log("calculating bonus...", key)
         score = [node.score for node in nodes]
         average = float(sum(score)) / float(len(score))
         bonus = round(max(0.0, ((average - 0.5) * 2)) * self.bonus_payment, 2)
-        self.log("bonus calculated, returning {}".format(bonus), key)
         return bonus
 
     def attention_check(self, participant=None):
