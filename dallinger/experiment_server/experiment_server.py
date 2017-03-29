@@ -1283,12 +1283,17 @@ def check_for_duplicate_assignments(participant):
 @db.scoped_session_decorator
 def worker_complete():
     """Complete worker."""
-    if 'uniqueId' not in request.args:
+    if not request.args.get('uniqueId'):
         status = "bad request"
     else:
-        participant = models.Participant.query.filter_by(
+        participants = models.Participant.query.filter_by(
             unique_id=request.args['uniqueId'],
-        ).all()[0]
+        ).all()
+        if not len(participants):
+            return error_response(error_type='UniqueId not found: {}'.format(
+                request.args['uniqueId']
+            ))
+        participant = participants[0]
         participant.end_time = datetime.now()
         session.add(participant)
         session.commit()

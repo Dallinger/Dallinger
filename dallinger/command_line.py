@@ -7,6 +7,7 @@ import imp
 import inspect
 import os
 import pkg_resources
+import psutil
 import re
 try:
     from pipes import quote
@@ -14,10 +15,12 @@ except ImportError:
     # Python >= 3.3
     from shlex import quote
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import time
+import traceback
 import uuid
 import webbrowser
 
@@ -313,7 +316,7 @@ def debug(verbose, bot):
                     'There was an error while starting the server. '
                     'Run with --verbose for details.'
                 )
-            if re.match('^.*? web.1 .*? Ready.$', line):
+            if re.match('^.*? \d+ workers$', line):
                 ready = True
                 break
 
@@ -330,6 +333,8 @@ def debug(verbose, bot):
             time.sleep(4)
             requests.post('http://{}/launch'.format(public_interface))
 
+            # Only make one bot request per participant url
+            url_matches = set()
             # Monitor output from server process
             for line in iter(p.stdout.readline, ''):
                 if verbose:
@@ -340,13 +345,19 @@ def debug(verbose, bot):
                 if match:
                     url = match.group(1)
                     if bot:
+                        if url in url_matches:
+                            log('Tried to request new bot for old url {}, skipping.'.format(url))
+                            continue
                         log("Using a bot to simulate participant...")
                         try:
-                            from dallinger_experiment import Bot
-                            participant = Bot(url)
-                            participant.run_experiment()
-                        except ImportError:
-                            log("This experiment does not have a bot.")
+                            subprocess.Popen(
+                                ["dallinger", "bot", "--debug", url],
+                                cwd=cwd,
+                            )
+                            url_matches.add(url)
+                        except:
+                            error("Error running bot sub-process for {}.".format(url))
+                            log(traceback.format_exc())
                     else:
                         webbrowser.open(url, new=1, autoraise=True)
 
@@ -358,38 +369,17 @@ def debug(verbose, bot):
                         participant.driver.quit()
                     log('Recruitment is complete.')
                     break
-
-                # Check for bot exceptions
-                match = re.search('Exception on ', line)
-                if match and not verbose:
-                    error("There was an error running the experiment.")
-                    if participant:
-                        participant.driver.quit()
-                    break
-
-                # Check for unexpected bot hangs
-                match = re.search('Ignoring EPIPE', line)
-                if participant and match:
-                    epipe = epipe + 1
-                    if epipe >= 2:
-                        error("The experiment finished but recruitment was not closed.")
-                        participant.driver.quit()
-                        break
-
     finally:
-        p.kill()
-
-                # Check for unexpected bot hangs
-                match = re.search('Ignoring EPIPE', line)
-                if participant and match:
-                    epipe = epipe + 1
-                    if epipe >= 2:
-                        error("The experiment finished but recruitment was not closed.")
-                        participant.driver.quit()
-                        break
-
-    finally:
-        p.kill()
+        try:
+            # It seems we need to explicitly kill all subprocesses with a SIGINT
+            int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
+            for sub in psutil.Process(p.pid).children(recursive=True):
+                os.kill(sub.pid, int_signal)
+            p.terminate()
+            log("Local Heroku process terminated")
+        except OSError:
+            log("Local Heroku process already terminated")
+            log(traceback.format_exc())
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
@@ -495,10 +485,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     log("Waiting for Redis...")
     ready = False
     while not ready:
-        redis_URL = subprocess.check_output([
+        redis_url = subprocess.check_output([
             "heroku", "config:get", "REDIS_URL", "--app", app_name(id),
         ])
-        r = redis.from_url(redis_URL)
+        r = redis.from_url(redis_url)
         try:
             r.set("foo", "bar")
             ready = True
@@ -742,13 +732,18 @@ def logs(app):
 
 @dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
-def bot(app):
+@click.option('--debug', default=None,
+              help='Local debug recruitment url')
+def bot(app, debug):
     """Run the experiment bot."""
-    if app is None:
+    if app is None and debug is None:
         raise TypeError("Select an experiment using the --app flag.")
+
+    (id, tmp) = setup_experiment()
+
+    if debug:
+        url = debug
     else:
-        (id, tmp) = setup_experiment()
-        from dallinger_experiment import Bot
         host = app_name(app)
         worker = generate_random_id()
         hit = generate_random_id()
@@ -757,8 +752,10 @@ def bot(app):
         ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
         ad_parameters = ad_parameters.format(assignment, hit, worker)
         url = '{}?{}'.format(ad_url, ad_parameters)
-        bot = Bot(url)
-        bot.run_experiment()
+
+    from dallinger_experiment import Bot
+    bot = Bot(url)
+    bot.run_experiment()
 
 
 @dallinger.command()

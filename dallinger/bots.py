@@ -1,7 +1,7 @@
 """Bots."""
 
 import logging
-from urlparse import urlparse
+from urlparse import urlparse, parse_qs
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -46,7 +46,14 @@ class BotBase(object):
             raise ValueError(
                 'Unsupported webdriver_type: {}'.format(driver_type))
         self.driver.set_window_size(1024, 768)
+
+        parts = urlparse(URL)
+        query = parse_qs(parts.query)
+        if not assignment_id:
+            assignment_id = query.get('assignmentId', [''])[0]
         self.assignment_id = assignment_id
+        if not worker_id:
+            worker_id = query.get('workerId', [''])[0]
         self.worker_id = worker_id
         self.unique_id = worker_id + ':' + assignment_id
         logger.info("Started PhantomJs webdriver.")
@@ -106,7 +113,7 @@ class BotBase(object):
                                        status,
                                        self.unique_id)
         tmp_driver.get(complete_url)
-        logger.error("Forced call to %s: %s" % (status, complete_url))
+        logger.info("Forced call to %s: %s" % (status, complete_url))
         tmp_driver.quit()
 
     def run_experiment(self):
