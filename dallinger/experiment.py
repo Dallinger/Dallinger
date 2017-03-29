@@ -49,6 +49,9 @@ def exp_class_working_dir(meth):
 class Experiment(object):
     """Define the structure of an experiment."""
     app_id = None
+    # Optional Redis channel to create and subscribe to on launch. Note that if
+    # you define a channel, you probably also want to override the send()
+    # method, since this is where messages from Redis will be sent.
     channel = None
     exp_config = None
 
@@ -105,6 +108,9 @@ class Experiment(object):
 
     @property
     def background_tasks(self):
+        """An experiment may define functions or methods to be started as
+        background tasks upon experiment launch.
+        """
         return []
 
     @property
@@ -130,6 +136,16 @@ class Experiment(object):
         if recruiter == 'bots':
             return BotRecruiter.from_current_config
         return MTurkRecruiter.from_current_config
+
+    def send(self, raw_message):
+        """socket interface implementation, and point of entry for incoming
+        Redis messages.
+
+        param raw_message is a string with a channel prefix, for example:
+
+            'shopping:{"type":"buy","color":"blue","quantity":"2"}'
+        """
+        pass
 
     def setup(self):
         """Create the networks if they don't already exist."""
