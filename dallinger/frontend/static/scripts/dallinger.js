@@ -157,10 +157,11 @@ submitNextResponse = function (n) {
     });
 };
 
-waitForQuorum = function () {
+waitForQuorum = function (onOpen) {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
     var inbox = new ReconnectingWebSocket(ws_scheme + location.host + "/receive_chat");
     var deferred = $.Deferred();
+    inbox.onopen = onOpen;
     inbox.onmessage = function (msg) {
         if (msg.data.indexOf('quorum:') !== 0) { return; }
         var data = JSON.parse(msg.data.substring(7));

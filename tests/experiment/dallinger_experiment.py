@@ -14,7 +14,10 @@ class TestExperiment(Experiment):
 
     @property
     def public_properties(self):
-        return {'exists': True}
+        return {
+            'exists': True,
+            'quorum': 1,
+        }
 
     def create_network(self):
         """Return a new network."""
