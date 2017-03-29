@@ -102,3 +102,27 @@ class TestChatBackend:
         sockets.request.args.get.return_value = 'special'
         sockets.outbox(ws)
         assert ws in sockets.chat_backend.clients['special']
+
+    def test_inbox_publishes_message_to_requested_channel(self, sockets):
+        class MockSocket(Mock):
+            """We need a property that returns False the first time
+            and True after that. Doesn't seem possible with Mock.
+            """
+            calls = []
+
+            @property
+            def closed(self):
+                if self.calls:
+                    return True
+                self.calls.append('called')
+                return False
+
+        ws = MockSocket()
+        ws.receive.return_value = 'incoming message!'
+        sockets.request = Mock()
+        sockets.conn = Mock()
+        sockets.request.args.get.return_value = 'special'
+        sockets.inbox(ws)
+        sockets.conn.publish.assert_called_once_with(
+            'special', 'incoming message!'
+        )
