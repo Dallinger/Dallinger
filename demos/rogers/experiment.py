@@ -105,27 +105,11 @@ class RogersExperiment(Experiment):
                 e.step()
 
     def recruit(self):
-        """Recruit more participants."""
-        participants = Participant.query.\
-            with_entities(Participant.status).all()
-
-        # if all networks are full, close recruitment,
-        if not self.networks(full=False):
-            print "All networks are full, closing recruitment."
-            self.recruiter().close_recruitment()
-
-        # if anyone is still working, don't recruit
-        elif [p for p in participants if p.status < 100]:
-            print "People are still participating: not recruiting."
-
-        # we only need to recruit if the current generation is complete
-        elif (len([p for p in participants if p.status == 101]) %
-              self.generation_size) == 0:
-            print "Recruiting another generation."
-            self.recruiter().recruit(n=self.generation_size)
-        # otherwise do nothing
-        else:
-            print "not recruiting."
+        """Recruit participants if necessary."""
+        num_approved = len(Participant.query.filter_by(status="approved").all())
+        if num_approved % self.generation_size == 0 and num_approved < self.generations*self.generation_size:
+            self.log("generation finished, recruiting another")
+            self.recruiter().recruit_participants(n=self.generation_size)
 
     def bonus(self, participant=None):
         """Calculate a participants bonus."""
