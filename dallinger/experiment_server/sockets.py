@@ -32,7 +32,8 @@ class ChatBackend(object):
         try:
             self.pubsub.subscribe(channels)
             app.logger.debug(
-                'Subscribed to channels: {}'.format(self.pubsub.channels.keys()))
+                'Subscribed to channels: {}'.format(self.pubsub.channels.keys())
+            )
         except ConnectionError:
             app.logger.exception('Could not connect to redis.')
 
@@ -46,7 +47,8 @@ class ChatBackend(object):
         """Register a new client to receive messages."""
         if channel is not None:
             self.clients[channel].append(client)
-            self._join_pubsub([channel])
+            if channel not in self.pubsub.channels:
+                self._join_pubsub([channel])
         else:
             for channel in DEFAULT_CHANNELS:
                 self.clients[channel].append(client)

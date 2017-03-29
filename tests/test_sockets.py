@@ -36,8 +36,16 @@ class TestChatBackend:
     def test_subscribe_to_new_channel_subscribes_on_redis(self, chat):
         client = Mock()
         chat.pubsub = Mock()
+        chat.pubsub.channels = {}
         chat.subscribe(client, 'custom')
         chat.pubsub.subscribe.assert_called_once_with(['custom'])
+
+    def test_subscribe_wont_duplicate_channel(self, chat):
+        client1 = Mock()
+        chat.pubsub = Mock()
+        chat.pubsub.channels = {'custom'}
+        chat.subscribe(client1, 'custom')
+        chat.pubsub.subscribe.assert_not_called()
 
     def test_unsubscribe(self, chat):
         client = Mock()
