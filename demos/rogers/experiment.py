@@ -125,19 +125,17 @@ class RogersExperiment(Experiment):
 
     def attention_check(self, participant=None):
         """Check a participant paid attention."""
-        participant_nodes = Node.query.join(Node.network)\
-            .filter(and_(Node.participant_id == participant.id,
-                         Network.role == "catch"))\
-            .all()
-        scores = [n.score for n in participant_nodes]
-
-        if participant_nodes:
-            avg = sum(scores) / float(len(scores))
-        else:
+        if self.catch_repeats == 0:
             return True
 
-        is_passing = avg >= self.min_acceptable_performance
-        return is_passing
+        nodes = participant.nodes()
+        nets = Network.query.filter_by(role="catch").all()
+        net_ids = [net.id for net in nets]
+        nodes = [node for node in nodes if node.network_id in net_ids]
+
+        scores = [n.score for n in nodes]
+        avg = sum(scores) / float(len(scores))
+        return avg >= self.min_acceptable_performance
 
     def data_check(self, participant):
         """Check a participants data."""
