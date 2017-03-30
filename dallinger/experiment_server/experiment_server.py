@@ -1298,20 +1298,20 @@ def worker_complete():
         session.add(participant)
         session.commit()
         status = "success"
-    if config.get('mode') == "debug":
-        # Trigger notification directly in debug mode,
-        # because there won't be one from MTurk
-        _debug_notify(
-            assignment_id=participant.assignment_id,
-            participant_id=participant.id,
-        )
-    if config.get('recruiter', 'mturk') == 'bots':
+    if config.get('recruiter', 'mturk') == u'bots':
         # Trigger notification directly
         # Bot submissions skip all attention and bonus checks
         _debug_notify(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
             event_type='BotAssignmentSubmitted',
+        )
+    elif config.get('mode') == "debug":
+        # Trigger notification directly in debug mode,
+        # because there won't be one from MTurk
+        _debug_notify(
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
         )
     return success_response(field="status",
                             data=status,

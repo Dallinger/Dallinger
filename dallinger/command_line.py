@@ -46,6 +46,7 @@ from dallinger.heroku.worker import conn
 from dallinger.mturk import MTurkService
 from dallinger import registration
 from dallinger.utils import generate_random_id
+from dallinger.utils import get_base_url
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -264,9 +265,17 @@ def summary(app):
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--bot', is_flag=True, flag_value=True,
               help='Use bot to complete experiment')
-def debug(verbose, bot):
+def debug(verbose, bot, exp_config=None):
     """Run the experiment locally."""
-    (id, tmp) = setup_experiment(debug=True, verbose=verbose)
+    exp_config = exp_config or {}
+    exp_config.update({
+        "mode": u"debug",
+        "loglevel": 0,
+    })
+    if bot:
+        exp_config["recruiter"] = u"bots"
+
+    (id, tmp) = setup_experiment(debug=True, verbose=verbose, exp_config=exp_config)
 
     # Switch to the temporary directory.
     cwd = os.getcwd()
@@ -277,12 +286,6 @@ def debug(verbose, bot):
     logfile = config.get('logfile')
     if logfile != '-':
         logfile = os.path.join(cwd, logfile)
-    config.extend({
-        "mode": u"debug",
-        "loglevel": 0,
-        "logfile": logfile
-    })
-    config.write()
 
     # Drop all the tables from the database.
     db.init_db(drop_all=True)
@@ -320,53 +323,30 @@ def debug(verbose, bot):
                 ready = True
                 break
 
-        epipe = 0
-        participant = None
         if ready:
-            host = config.get('host')
-            port = config.get('port')
-            public_interface = "{}:{}".format(host, port)
-            log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
+            base_url = get_base_url()
+            log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
 
             # Call endpoint to launch the experiment
             log("Launching the experiment...")
             time.sleep(4)
-            requests.post('http://{}/launch'.format(public_interface))
+            requests.post('{}/launch'.format(base_url))
 
-            # Only make one bot request per participant url
-            url_matches = set()
             # Monitor output from server process
             for line in iter(p.stdout.readline, ''):
                 if verbose:
                     sys.stdout.write(line)
 
                 # Open browser for new participants
-                match = re.search('New participant requested: (.*)$', line)
-                if match:
-                    url = match.group(1)
-                    if bot:
-                        if url in url_matches:
-                            log('Tried to request new bot for old url {}, skipping.'.format(url))
-                            continue
-                        log("Using a bot to simulate participant...")
-                        try:
-                            subprocess.Popen(
-                                ["dallinger", "bot", "--debug", url],
-                                cwd=cwd,
-                            )
-                            url_matches.add(url)
-                        except:
-                            error("Error running bot sub-process for {}.".format(url))
-                            log(traceback.format_exc())
-                    else:
+                if not bot:
+                    match = re.search('New participant requested: (.*)$', line)
+                    if match:
+                        url = match.group(1)
                         webbrowser.open(url, new=1, autoraise=True)
 
                 # Is recruitment over? We can end this debug session.
                 match = re.search('Close recruitment.$', line)
                 if match:
-                    if participant:
-                        # make sure there are no stray phantomjs processes
-                        participant.driver.quit()
                     log('Recruitment is complete.')
                     break
     finally:

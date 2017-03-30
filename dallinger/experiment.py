@@ -455,13 +455,14 @@ class Experiment(object):
         bot = kwargs.get('bot')
         if bot:
             del kwargs['bot']
+            kwargs['recruiter'] = 'bots'
 
         if kwargs:
             self.exp_config.update(kwargs)
 
         if self.exp_config.get('mode') == u'debug':
             dlgr.command_line.debug.callback(verbose=True,
-                                             bot=bot)
+                                             exp_config=self.exp_config)
         else:
             dlgr.command_line.deploy_sandbox_shared_setup(
                 app=app_id,

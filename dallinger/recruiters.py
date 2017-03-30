@@ -169,7 +169,7 @@ class MTurkRecruiter(object):
         This does nothing, because the fact that this is called means
         that all MTurk HITs that were created were already completed.
         """
-        pass
+        logger.info("Close recruitment.")
 
 
 class BotRecruiter(object):
@@ -214,4 +214,4 @@ class BotRecruiter(object):
 
         This does nothing at this time.
         """
-        pass
+        logger.info("Close recruitment.")
