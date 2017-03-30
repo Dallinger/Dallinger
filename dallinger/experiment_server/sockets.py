@@ -1,3 +1,4 @@
+from collections import defaultdict
 from .experiment_server import app
 from .experiment_server import WAITING_ROOM_CHANNEL
 from ..heroku.worker import conn
@@ -33,6 +34,8 @@ class ChatBackend(object):
         for channel in CHANNELS:
             self.clients[channel] = []
 
+        self.age = defaultdict(lambda: 0)
+
     def subscribe(self, client, channel=None):
         """Register a new client to receive messages."""
         if channel is not None:
@@ -42,6 +45,9 @@ class ChatBackend(object):
         else:
             for channel in CHANNELS:
                 self.clients[channel].append(client)
+                app.logger.debug(
+                    'Subscribed client {} to channel {}'.format(
+                        client, channel))
 
     def unsubscribe(self, client, channel):
         if client in self.clients[channel]:
@@ -57,6 +63,8 @@ class ChatBackend(object):
         except socket.error:
             for channel in self.clients:
                 self.unsubscribe(client, channel)
+            if client in self.age:
+                del self.age[client]
 
     def run(self):
         """Listens for new messages in redis, and sends them to clients."""
@@ -80,6 +88,13 @@ class ChatBackend(object):
     def stop(self):
         self.greenlet.kill()
 
+    def heartbeat(self, client):
+        """Send a ping to the client periodically"""
+        self.age[client] += 1
+        if self.age[client] == 300:  # 30 seconds
+            gevent.spawn(self.send, client, 'ping')
+            self.age[client] = 0
+
 
 chat_backend = ChatBackend()
 app.before_first_request(chat_backend.start)
@@ -92,3 +107,7 @@ def outbox(ws):
     while not ws.closed:
         # Wait for chat backend
         gevent.sleep(0.1)
+
+        # Send heartbeat ping every 30s
+        # so Heroku won't close the connection
+        chat_backend.heartbeat(ws)

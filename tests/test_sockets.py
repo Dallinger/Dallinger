@@ -62,7 +62,23 @@ class TestChatBackend:
         gevent.wait()  # wait for event loop
         client.send.assert_called_once_with('quorum:Calloo! Callay!')
 
+    def test_stop(self, chat):
+        chat.start()
+        chat.stop()
+
+    def test_heartbeat(self, chat):
+        client = Mock()
+
+        for i in range(300):
+            chat.heartbeat(client)
+
+        assert chat.age[client] == 0
+
     def test_outbox(self, sockets):
         ws = Mock()
         sockets.outbox(ws)
+
+        ws.closed = True
+        gevent.wait()
+
         assert ws in sockets.chat_backend.clients['quorum']

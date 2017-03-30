@@ -20,9 +20,16 @@
             </div>
         </div>
         <script type="text/javascript">
-            var awaitingQuorum = waitForQuorum();
-            var creatingParticipant = create_participant();
-            // wait for both deferreds to resolve
+            var creatingParticipant = $.Deferred();
+            var awaitingQuorum = waitForQuorum(function () {
+                // Send create participant request once the websocket is open
+                // so we'll be sure to receive our own quorum update
+                create_participant().done(function () {
+                    creatingParticipant.resolve();
+                });
+            });
+
+            // wait for quorum to be reached AND for participant to be created
             $.when(awaitingQuorum, creatingParticipant).done(function () {
                 allow_exit();
                 go_to_page("exp");

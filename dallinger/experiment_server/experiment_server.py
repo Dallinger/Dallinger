@@ -18,6 +18,7 @@ from flask import (
     send_from_directory,
 )
 from jinja2 import TemplateNotFound
+from redis import ConnectionError
 from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
@@ -535,7 +536,13 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
             'q': quorum,
             'n': count,
         })
-        redis.publish(WAITING_ROOM_CHANNEL, message)
+        try:
+            app.logger.debug(
+                'Publishing message to {}: {}'.format(
+                    WAITING_ROOM_CHANNEL, message))
+            redis.publish(WAITING_ROOM_CHANNEL, message)
+        except ConnectionError:
+            app.logger.exception('Could not connect to redis')
 
     # return the data
     return success_response(
