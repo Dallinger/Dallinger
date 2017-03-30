@@ -17,6 +17,7 @@ from sqlalchemy import and_
 
 from dallinger.config import get_config, LOCAL_CONFIG
 from dallinger.data import Data
+from dallinger.data import export
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.heroku import app_name
 from dallinger.information import Gene, Meme, State
@@ -436,7 +437,7 @@ class Experiment(object):
         self.fail_participant(participant)
 
     @exp_class_working_dir
-    def run(self, exp_config=None, app_id=None):
+    def run(self, exp_config=None, app_id=None, **kwargs):
         """Deploy and run an experiment.
 
         The exp_config object is either a dictionary or a
@@ -449,21 +450,34 @@ class Experiment(object):
             app_id = str(uuid.uuid4())
 
         self.app_id = app_id
-        self.exp_config = exp_config
+        self.exp_config = exp_config or {}
 
-        dlgr.command_line.deploy_sandbox_shared_setup(
-            app=app_id,
-            verbose=self.verbose,
-            exp_config=exp_config
-        )
+        bot = kwargs.get('bot')
+        if bot:
+            del kwargs['bot']
+
+        if kwargs:
+            self.exp_config.update(kwargs)
+
+        if self.exp_config.get('mode') == u'debug':
+            dlgr.command_line.debug.callback(verbose=True,
+                                             bot=bot)
+        else:
+            dlgr.command_line.deploy_sandbox_shared_setup(
+                app=app_id,
+                verbose=self.verbose,
+                exp_config=exp_config
+            )
         return self._finish_experiment()
 
     def _finish_experiment(self):
-        self.log("Waiting for experiment to complete.", "")
-        while self.experiment_completed() is False:
-            time.sleep(30)
+        # Debug runs synchronously
+        if self.exp_config.get('mode') != 'debug':
+            self.log("Waiting for experiment to complete.", "")
+            while self.experiment_completed() is False:
+                time.sleep(30)
+            self.end_experiment()
         data = self.retrieve_data()
-        self.end_experiment()
         return (self.app_id, data, self.exp_config)
 
     def experiment_completed(self):
@@ -483,8 +497,10 @@ class Experiment(object):
 
     def retrieve_data(self):
         """Retrieves and saves data from a running experiment"""
-        import dallinger as dlgr
-        filename = dlgr.command_line.export_data(self.app_id)
+        local = False
+        if self.exp_config.get('mode') == 'debug':
+            local = True
+        filename = export(self.app_id, local=local)
         logger.debug('Data exported to %s' % filename)
         return Data(filename)
 

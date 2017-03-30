@@ -16,7 +16,7 @@ import json
 class SheepMarket(Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session):
+    def __init__(self, session=None):
         """Call the same function in the super (see experiments.py in dallinger).
 
         A few properties are then overwritten.
@@ -25,7 +25,8 @@ class SheepMarket(Experiment):
         super(SheepMarket, self).__init__(session)
         self.experiment_repeats = 1
         self.initial_recruitment = 10000
-        self.setup()
+        if session:
+            self.setup()
 
     def create_network(self):
         """Return a new network."""

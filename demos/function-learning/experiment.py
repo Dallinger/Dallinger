@@ -7,7 +7,7 @@ from dallinger.networks import Chain
 class FunctionLearning(Experiment):
     """A function-learning experiment."""
 
-    def __init__(self, session):
+    def __init__(self, session=None):
         """Call the same function in the super (see experiments.py in dallinger).
 
         The models module is imported here because it must be imported at
@@ -21,7 +21,8 @@ class FunctionLearning(Experiment):
         import models
         self.models = models
         self.experiment_repeats = 1
-        self.setup()
+        if session:
+            self.setup()
 
     def setup(self):
         """Setup does stuff only if there are no networks.

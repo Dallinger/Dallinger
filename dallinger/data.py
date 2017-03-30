@@ -161,7 +161,11 @@ def export(id, local=False, scrub_pii=False):
 
     print("Preparing to export the data...")
 
-    copy_heroku_to_local(id)
+    if local:
+        db_name = 'dallinger'
+    else:
+        db_name = heroku.app_name(id)
+        copy_heroku_to_local(id)
 
     # Create the data package if it doesn't already exist.
     subdata_path = os.path.join("data", id, "data")
@@ -173,7 +177,7 @@ def export(id, local=False, scrub_pii=False):
             raise
 
     # Copy in the data.
-    copy_local_to_csv(heroku.app_name(id), subdata_path, scrub_pii=scrub_pii)
+    copy_local_to_csv(db_name, subdata_path, scrub_pii=scrub_pii)
 
     # Copy the experiment code into a code/ subdirectory.
     try:

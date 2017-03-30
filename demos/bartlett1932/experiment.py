@@ -33,7 +33,8 @@ class Bartlett1932(Experiment):
         import models
         self.models = models
         self.experiment_repeats = 1
-        self.setup()
+        if session:
+            self.setup()
 
     def setup(self):
         """Setup the networks.

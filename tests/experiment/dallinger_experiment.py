@@ -10,7 +10,8 @@ class TestExperiment(Experiment):
     def __init__(self, session=None):
         super(TestExperiment, self).__init__(session)
         self.experiment_repeats = 1
-        self.setup()
+        if session:
+            self.setup()
 
     @property
     def public_properties(self):

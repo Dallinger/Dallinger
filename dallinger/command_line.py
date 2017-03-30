@@ -268,9 +268,6 @@ def debug(verbose, bot):
     """Run the experiment locally."""
     (id, tmp) = setup_experiment(debug=True, verbose=verbose)
 
-    # Drop all the tables from the database.
-    db.init_db(drop_all=True)
-
     # Switch to the temporary directory.
     cwd = os.getcwd()
     os.chdir(tmp)
@@ -287,9 +284,12 @@ def debug(verbose, bot):
     })
     config.write()
 
+    # Drop all the tables from the database.
+    db.init_db(drop_all=True)
+
     # Start up the local server
     log("Starting up the server...")
-    port = config.get('port')
+    port = config.get('port', 22362)
     try:
         p = subprocess.Popen(
             ['heroku', 'local', '-p', str(port)],
