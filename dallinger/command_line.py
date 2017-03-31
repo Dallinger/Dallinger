@@ -858,9 +858,7 @@ def export(app, local, no_scrub):
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def logs(app):
     """Show the logs."""
-    subprocess.check_call([
-        "heroku", "addons:open", "papertrail", "--app", app_name(app)
-    ])
+    heroku.open_logs(app)
 
 
 @dallinger.command()
