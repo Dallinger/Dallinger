@@ -344,11 +344,28 @@ def debug(verbose, bot, exp_config=None):
                         url = match.group(1)
                         webbrowser.open(url, new=1, autoraise=True)
 
-                # Is recruitment over? We can end this debug session.
+                # Is recruitment over? We can end the loop, and check
+                # experiment status
                 match = re.search('Close recruitment.$', line)
                 if match:
                     log('Recruitment is complete.')
                     break
+
+            # Check status url
+            status_url = base_url + '/summary'
+            while True:
+                time.sleep(30)
+                data = {}
+                try:
+                    resp = requests.get(status_url)
+                    data = resp.json()
+                except (ValueError, requests.exceptions.RequestException):
+                    error('Error fetching experiment status.')
+                log('Current application state: {}'.format(data))
+                if data.get('completed', False):
+                    log('Experiment completed, all nodes filled.')
+                    break
+
     finally:
         try:
             # It seems we need to explicitly kill all subprocesses with a SIGINT
