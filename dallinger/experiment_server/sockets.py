@@ -26,6 +26,7 @@ class ChatBackend(object):
     def __init__(self):
         self.pubsub = conn.pubsub()
         self._join_pubsub(DEFAULT_CHANNELS)
+        self.age = defaultdict(lambda: 0)
         self.clients = defaultdict(list)
 
     def _join_pubsub(self, channels):
@@ -36,12 +37,6 @@ class ChatBackend(object):
             )
         except ConnectionError:
             app.logger.exception('Could not connect to redis.')
-
-        self.clients = {}
-        for channel in DEFAULT_CHANNELS:
-            self.clients[channel] = []
-
-        self.age = defaultdict(lambda: 0)
 
     def subscribe(self, client, channel=None):
         """Register a new client to receive messages."""
@@ -124,3 +119,16 @@ def outbox(ws):
         # Send heartbeat ping every 30s
         # so Heroku won't close the connection
         chat_backend.heartbeat(ws)
+
+
+@sockets.route('/send_chat')
+def inbox(ws):
+    """Receives incoming messages and inserts them into a Redis channel"""
+    channel = request.args.get('channel')
+
+    while not ws.closed:
+        # Sleep to prevent *constant* context-switches.
+        gevent.sleep(0.1)
+        # Put messages from the front-end into redis:
+        message = ws.receive()
+        conn.publish(channel, message)
