@@ -23,6 +23,12 @@ def log_in():
     p.interact()
 
 
+def open_logs(app):
+    subprocess.check_call([
+        "heroku", "addons:open", "papertrail", "--app", app_name(app)
+    ])
+
+
 def scale_up_dynos(app):
     """Scale up the Heroku dynos."""
     config = get_config()
