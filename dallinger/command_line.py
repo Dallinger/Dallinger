@@ -868,6 +868,27 @@ def logs(app):
 
 
 @dallinger.command()
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
+def monitor(app):
+    """Set up application monitoring."""
+    if app is None:
+        raise TypeError("Select an experiment using the --app flag.")
+
+    dash_url = "https://dashboard.heroku.com/apps/{}".format(app_name(app))
+    webbrowser.open(dash_url)
+    webbrowser.open("https://requester.mturk.com/mturk/manageHITs")
+    heroku.open_logs(app)
+    subprocess.call(["open", heroku.db_uri(app)])
+    while True:
+        summary = get_summary(app)
+        click.clear()
+        click.echo(header)
+        click.echo("\nExperiment {}\n".format(app))
+        click.echo(summary)
+        time.sleep(10)
+
+
+@dallinger.command()
 @click.option('--app', default=None, help='Experiment id')
 @click.option('--debug', default=None,
               help='Local debug recruitment url')
