@@ -29,6 +29,9 @@ class BotBase(object):
                 capabilities = webdriver.DesiredCapabilities.FIREFOX
             elif driver_type == 'phantomjs':
                 capabilities = webdriver.DesiredCapabilities.PHANTOMJS
+            else:
+                raise ValueError(
+                    'Unsupported remote webdriver_type: {}'.format(driver_type))
             self.driver = webdriver.Remote(
                 desired_capabilities=capabilities,
                 command_executor=driver_url
@@ -37,6 +40,9 @@ class BotBase(object):
             self.driver = webdriver.PhantomJS()
         elif driver_type == 'firefox':
             self.driver = webdriver.Firefox()
+        else:
+            raise ValueError(
+                'Unsupported webdriver_type: {}'.format(driver_type))
         self.driver.set_window_size(1024, 768)
         logger.info("Started PhantomJs webdriver.")
 
