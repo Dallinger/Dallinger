@@ -8,6 +8,8 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+from dallinger.config import get_config
+config = get_config()
 
 logger = logging.getLogger(__file__)
 
@@ -19,7 +21,28 @@ class BotBase(object):
     def __init__(self, URL):
         logger.info("Starting up bot with URL: %s." % URL)
         self.URL = URL
-        self.driver = webdriver.PhantomJS()
+        driver_url = config.get('webdriver_url', None)
+        driver_type = config.get('webdriver_type', 'phantomjs').lower()
+        if driver_url:
+            capabilities = {}
+            if driver_type == 'firefox':
+                capabilities = webdriver.DesiredCapabilities.FIREFOX
+            elif driver_type == 'phantomjs':
+                capabilities = webdriver.DesiredCapabilities.PHANTOMJS
+            else:
+                raise ValueError(
+                    'Unsupported remote webdriver_type: {}'.format(driver_type))
+            self.driver = webdriver.Remote(
+                desired_capabilities=capabilities,
+                command_executor=driver_url
+            )
+        elif driver_type == 'phantomjs':
+            self.driver = webdriver.PhantomJS()
+        elif driver_type == 'firefox':
+            self.driver = webdriver.Firefox()
+        else:
+            raise ValueError(
+                'Unsupported webdriver_type: {}'.format(driver_type))
         self.driver.set_window_size(1024, 768)
         logger.info("Started PhantomJs webdriver.")
 
