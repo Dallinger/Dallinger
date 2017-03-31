@@ -2,6 +2,7 @@ from collections import defaultdict
 from .experiment_server import app
 from .experiment_server import WAITING_ROOM_CHANNEL
 from ..heroku.worker import conn
+from flask import request
 from flask_sockets import Sockets
 from redis import ConnectionError
 import gevent
@@ -9,8 +10,8 @@ import socket
 
 sockets = Sockets(app)
 
-CHANNELS = [
-    WAITING_ROOM_CHANNEL
+DEFAULT_CHANNELS = [
+    WAITING_ROOM_CHANNEL,
 ]
 
 
@@ -24,26 +25,27 @@ class ChatBackend(object):
 
     def __init__(self):
         self.pubsub = conn.pubsub()
+        self._join_pubsub(DEFAULT_CHANNELS)
+        self.age = defaultdict(lambda: 0)
+        self.clients = defaultdict(list)
+
+    def _join_pubsub(self, channels):
         try:
-            self.pubsub.subscribe(CHANNELS)
-            app.logger.debug('Subscribed to channels: {}'.format(CHANNELS))
+            self.pubsub.subscribe(channels)
+            app.logger.debug(
+                'Subscribed to channels: {}'.format(self.pubsub.channels.keys())
+            )
         except ConnectionError:
             app.logger.exception('Could not connect to redis.')
-
-        self.clients = {}
-        for channel in CHANNELS:
-            self.clients[channel] = []
-
-        self.age = defaultdict(lambda: 0)
 
     def subscribe(self, client, channel=None):
         """Register a new client to receive messages."""
         if channel is not None:
-            if channel not in self.clients:
-                raise ValueError('Unknown channel: {}'.format(channel))
             self.clients[channel].append(client)
+            if channel not in self.pubsub.channels:
+                self._join_pubsub([channel])
         else:
-            for channel in CHANNELS:
+            for channel in DEFAULT_CHANNELS:
                 self.clients[channel].append(client)
                 app.logger.debug(
                     'Subscribed client {} to channel {}'.format(
@@ -102,7 +104,13 @@ app.before_first_request(chat_backend.start)
 
 @sockets.route('/receive_chat')
 def outbox(ws):
-    chat_backend.subscribe(ws)
+    """This route was highjacked temporarily for the Griduniverse socket.
+    It both subscribes the websocket to the chat backend
+    so the front-end clients get messages via redis,
+    and it puts messages from the clients into redis so they can be sent on
+    to the Experiment, which is also registered with the chat_backend.
+    """
+    chat_backend.subscribe(ws, channel=request.args.get('channel'))
 
     while not ws.closed:
         # Wait for chat backend
@@ -111,3 +119,16 @@ def outbox(ws):
         # Send heartbeat ping every 30s
         # so Heroku won't close the connection
         chat_backend.heartbeat(ws)
+
+
+@sockets.route('/send_chat')
+def inbox(ws):
+    """Receives incoming messages and inserts them into a Redis channel"""
+    channel = request.args.get('channel')
+
+    while not ws.closed:
+        # Sleep to prevent *constant* context-switches.
+        gevent.sleep(0.1)
+        # Put messages from the front-end into redis:
+        message = ws.receive()
+        conn.publish(channel, message)

@@ -1,6 +1,7 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
 from datetime import datetime
+import gevent
 from json import dumps
 from operator import attrgetter
 import re
@@ -218,6 +219,20 @@ def launch():
     exp.log("Launching experiment...", "-----")
     url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
     session.commit()
+
+    """Inject the experiment variable into the template context."""
+    @app.context_processor
+    def inject_experiment():
+        return dict(experiment=exp)
+
+    for task in exp.background_tasks:
+        gevent.spawn(task)
+
+    # If the experiment defines a channel, subscribe the experiment to the
+    # redis communication channel:
+    if exp.channel is not None:
+        from dallinger.experiment_server.sockets import chat_backend
+        chat_backend.subscribe(exp, exp.channel)
 
     return success_response("recruitment_url", url_info, request_type="launch")
 
