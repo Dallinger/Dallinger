@@ -2,9 +2,6 @@
 
 import random
 
-from sqlalchemy import and_
-from sqlalchemy.sql.expression import false
-
 from dallinger.experiments import Experiment
 from dallinger.information import Meme
 from dallinger.models import Network
@@ -99,7 +96,7 @@ class RogersExperiment(Experiment):
     def submission_successful(self, participant):
         """Run when a participant submits successfully."""
         num_approved = len(Participant.query.filter_by(status="approved").all())
-        current_generation = Participant.nodes()[0].generation
+        current_generation = participant.nodes()[0].generation
         if num_approved % self.generation_size == 0 and current_generation % 10 == 0:
             for e in Environment.query.all():
                 e.step()
@@ -107,7 +104,9 @@ class RogersExperiment(Experiment):
     def recruit(self):
         """Recruit participants if necessary."""
         num_approved = len(Participant.query.filter_by(status="approved").all())
-        if num_approved % self.generation_size == 0 and num_approved < self.generations*self.generation_size:
+        end_of_generation = num_approved % self.generation_size == 0
+        incomplete = num_approved < (self.generations * self.generation_size)
+        if end_of_generation and incomplete:
             self.log("generation finished, recruiting another")
             self.recruiter().recruit_participants(n=self.generation_size)
 
