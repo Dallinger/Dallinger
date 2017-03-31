@@ -275,7 +275,7 @@ class Table(object):
     def __init__(self, path):
 
         self.odo_resource = odo.resource(path)
-        self.tablib_dataset = tablib.Dataset().load(open(path).read())
+        self.tablib_dataset = tablib.Dataset().load(open(path).read(), "csv")
 
     @property
     def csv(self):
