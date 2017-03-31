@@ -359,16 +359,22 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def summary(app):
     """Print a summary of a deployed app's status."""
+    click.echo(get_summary(app))
+
+
+def get_summary(app):
     r = requests.get('https://{}.herokuapp.com/summary'.format(app_name(app)))
     summary = r.json()['summary']
-    click.echo("\nstatus \t| count")
-    click.echo("----------------")
+    out = []
+    out.append("\nstatus \t| count")
+    out.append("----------------")
     for s in summary:
-        click.echo("{}\t| {}".format(s[0], s[1]))
+        out.append("{}\t| {}".format(s[0], s[1]))
     num_101s = sum([s[1] for s in summary if s[0] == 101])
     num_10xs = sum([s[1] for s in summary if s[0] >= 100])
     if num_10xs > 0:
-        click.echo("\nYield: {:.2%}".format(1.0 * num_101s / num_10xs))
+        out.append("\nYield: {:.2%}".format(1.0 * num_101s / num_10xs))
+    return "\n".join(out)
 
 
 def _handle_launch_data(url):
