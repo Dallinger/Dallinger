@@ -1,6 +1,7 @@
 """Miscellaneous tools for Heroku."""
 
 import pexpect
+import re
 import subprocess
 
 from dallinger.config import get_config
@@ -27,6 +28,17 @@ def open_logs(app):
     subprocess.check_call([
         "heroku", "addons:open", "papertrail", "--app", app_name(app)
     ])
+
+
+def db_uri(app):
+    output = subprocess.check_output([
+        "heroku",
+        "pg:credentials",
+        "DATABASE",
+        "--app", app_name(app)
+    ])
+    match = re.search('(postgres://.*)$', output)
+    return match.group(1)
 
 
 def scale_up_dynos(app):
