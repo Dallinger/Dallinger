@@ -58,6 +58,13 @@ class HotAirRecruiter(object):
         """Talk about closing recruitment."""
         logger.info("Close recruitment.")
 
+    def reward_bonus(self, assignment_id, amount, reason):
+        """Taking about rewarding the participant with a bonus."""
+        logger.info("Awarding bonus of {} for assignment {}.".format(
+            amount,
+            assignment_id,
+        ))
+
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
         return True
