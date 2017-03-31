@@ -266,7 +266,7 @@ class Data(object):
                 setattr(
                     self,
                     "{}s".format(tab),
-                    Table(os.path.join(tmp_dir, "data", "{}.csv").format(tab)),
+                    Table(os.path.join(tmp_dir, "data", "{}.csv".format(tab))),
                 )
 
 
