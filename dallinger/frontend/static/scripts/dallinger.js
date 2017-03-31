@@ -104,8 +104,21 @@ var create_participant = function() {
                 success: function(resp) {
                     console.log(resp);
                     participant_id = resp.participant.id;
-                    $('.btn-success').prop('disabled', null);
-                    deferred.resolve();
+                    if (resp.quorum) {
+                        if (resp.quorum && resp.quorum.n === resp.quorum.q) {
+                            // reached quorum; resolve immediately
+                            deferred.resolve();
+                        } else {
+                            // wait for quorum, then resolve
+                            updateProgressBar(resp.quorum.n, resp.quorum.q);
+                            waitForQuorum().done(function () {
+                                deferred.resolve();
+                            });
+                        }
+                    } else {
+                        // no quorum; resolve immediately
+                        deferred.resolve();
+                    }
                 },
                 error: function (err) {
                     var errorResponse = JSON.parse(err.response);
@@ -161,19 +174,16 @@ var submitNextResponse = function (n) {
     });
 };
 
-waitForQuorum = function (onOpen) {
+waitForQuorum = function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
     var inbox = new ReconnectingWebSocket(ws_scheme + location.host + "/receive_chat");
     var deferred = $.Deferred();
-    inbox.onopen = onOpen;
     inbox.onmessage = function (msg) {
         if (msg.data.indexOf('quorum:') !== 0) { return; }
         var data = JSON.parse(msg.data.substring(7));
         var n = data.n;
         var quorum = data.q;
-        var percent = Math.round((n / quorum) * 100.0) + '%';
-        $("#waiting-progress-bar").css("width", percent);
-        $("#progress-percentage").text(percent);
+        updateProgressBar(n, quorum);
         if (n >= quorum) {
             deferred.resolve();
         }
@@ -181,10 +191,8 @@ waitForQuorum = function (onOpen) {
     return deferred;
 };
 
-var numReady = function(summary) {
-    for (var i = 0; i < summary.length; i++) {
-        if (summary[i][0] == "working") {
-            return summary[i][1];
-        }
-    }
+updateProgressBar = function (value, total) {
+    var percent = Math.round((value / total) * 100.0) + '%';
+    $("#waiting-progress-bar").css("width", percent);
+    $("#progress-percentage").text(percent);
 };

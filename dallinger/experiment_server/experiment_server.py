@@ -19,7 +19,6 @@ from flask import (
     send_from_directory,
 )
 from jinja2 import TemplateNotFound
-from redis import ConnectionError
 from rq import get_current_job
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound
@@ -86,13 +85,11 @@ def static_favicon():
 """Define some canned response types."""
 
 
-def success_response(field=None, data=None, request_type=""):
+def success_response(**data):
     """Return a generic success response."""
     data_out = {}
     data_out["status"] = "success"
-    if field:
-        data_out[field] = data
-    print("{} request successful.".format(request_type))
+    data_out.update(data)
     js = dumps(data_out, default=date_handler)
     return Response(js, status=200, mimetype='application/json')
 
@@ -103,7 +100,6 @@ def error_response(error_type="Internal server error",
                    participant=None):
     """Return a generic server error response."""
     traceback.print_exc()
-    print("Error: {}.".format(error_type))
 
     page = error_page(
         error_text=error_text,
@@ -236,7 +232,7 @@ def launch():
         from dallinger.experiment_server.sockets import chat_backend
         chat_backend.subscribe(exp, exp.channel)
 
-    return success_response("recruitment_url", url_info, request_type="launch")
+    return success_response(recruitment_url=url_info)
 
 
 @app.route('/ad', methods=['GET'])
@@ -388,7 +384,7 @@ def experiment_property(prop):
         value = exp.public_properties[prop]
     except KeyError:
         abort(404)
-    return success_response(field=prop, data=value, request_type=prop)
+    return success_response(**{prop: value})
 
 
 @app.route("/<page>", methods=["GET"])
@@ -501,8 +497,13 @@ def assign_properties(thing):
     session.commit()
 
 
+def queue_message(channel, message):
+    session.info['outbox'].append((channel, message))
+
+
 @app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
            methods=["POST"])
+@db.serialized
 def create_participant(worker_id, hit_id, assignment_id, mode):
     """Create a participant.
 
@@ -533,6 +534,10 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         app.logger.warning(msg.format(duplicate.id))
         q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
 
+    # Count participants waiting for quorum
+    waiting_count = models.Participant.query.filter_by(
+        status='working', all_nodes=None).count() + 1
+
     # Create the new participant.
     participant = models.Participant(
         worker_id=worker_id,
@@ -541,32 +546,23 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         mode=mode
     )
     session.add(participant)
-    session.commit()
+    session.flush()  # Make sure we know the id for the new row
+    result = {
+        'participant': participant.__json__()
+    }
 
-    # Notify waiting room
+    # Queue notification to others in waiting room
     experiment = Experiment(session)
-    quorum = experiment.public_properties.get('quorum')
-    if quorum:
-        count = models.Participant.query.filter_by(
-            status='working').count()
-        message = dumps({
-            'q': quorum,
-            'n': count,
-        })
-        try:
-            app.logger.debug(
-                'Publishing message to {}: {}'.format(
-                    WAITING_ROOM_CHANNEL, message))
-            redis.publish(WAITING_ROOM_CHANNEL, message)
-        except ConnectionError:
-            app.logger.exception('Could not connect to redis')
+    if experiment.quorum:
+        quorum = {
+            'q': experiment.quorum,
+            'n': waiting_count,
+        }
+        queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
+        result['quorum'] = quorum
 
     # return the data
-    return success_response(
-        field="participant",
-        data=participant.__json__(),
-        request_type="participant post"
-    )
+    return success_response(**result)
 
 
 @app.route("/participant/<participant_id>", methods=["GET"])
@@ -580,9 +576,7 @@ def get_participant(participant_id):
             status=403)
 
     # return the data
-    return success_response(field="participant",
-                            data=ppt.__json__(),
-                            request_type="participant get")
+    return success_response(participant=ppt.__json__())
 
 
 @app.route("/network/<network_id>", methods=["GET"])
@@ -596,9 +590,7 @@ def get_network(network_id):
             status=403)
 
     # return the data
-    return success_response(field="network",
-                            data=net.__json__(),
-                            request_type="network get")
+    return success_response(network=net.__json__())
 
 
 @app.route("/question/<participant_id>", methods=["POST"])
@@ -640,7 +632,7 @@ def create_question(participant_id):
                               status=403)
 
     # return the data
-    return success_response(request_type="question post")
+    return success_response()
 
 
 @app.route("/node/<int:node_id>/neighbors", methods=["GET"])
@@ -693,9 +685,7 @@ def node_neighbors(node_id):
     except Exception:
         return error_response(error_type="exp.node_get_request")
 
-    return success_response(field="nodes",
-                            data=[n.__json__() for n in nodes],
-                            request_type="neighbors")
+    return success_response(nodes=[n.__json__() for n in nodes])
 
 
 @app.route("/node/<participant_id>", methods=["POST"])
@@ -745,9 +735,7 @@ def create_node(participant_id):
     exp.node_post_request(participant=participant, node=node)
 
     # return the data
-    return success_response(field="node",
-                            data=node.__json__(),
-                            request_type="/node POST")
+    return success_response(node=node.__json__())
 
 
 @app.route("/node/<int:node_id>/vectors", methods=["GET"])
@@ -782,9 +770,7 @@ def node_vectors(node_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="vectors",
-                            data=[v.__json__() for v in vectors],
-                            request_type="vector get")
+    return success_response(vectors=[v.__json__() for v in vectors])
 
 
 @app.route("/node/<int:node_id>/connect/<int:other_node_id>",
@@ -830,9 +816,7 @@ def connect(node_id, other_node_id):
                               status=403,
                               participant=node.participant)
 
-    return success_response(field="vectors",
-                            data=[v.__json__() for v in vectors],
-                            request_type="vector post")
+    return success_response(vectors=[v.__json__() for v in vectors])
 
 
 @app.route("/info/<int:node_id>/<int:info_id>", methods=["GET"])
@@ -871,9 +855,7 @@ def get_info(node_id, info_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="info",
-                            data=info.__json__(),
-                            request_type="info get")
+    return success_response(info=info.__json__())
 
 
 @app.route("/node/<int:node_id>/infos", methods=["GET"])
@@ -912,9 +894,7 @@ def node_infos(node_id):
                               status=403,
                               participant=node.participant)
 
-    return success_response(field="infos",
-                            data=[i.__json__() for i in infos],
-                            request_type="infos")
+    return success_response(infos=[i.__json__() for i in infos])
 
 
 @app.route("/node/<int:node_id>/received_infos", methods=["GET"])
@@ -953,9 +933,7 @@ def node_received_infos(node_id):
                               status=403,
                               participant=node.participant)
 
-    return success_response(field="infos",
-                            data=[i.__json__() for i in infos],
-                            request_type="received infos")
+    return success_response(infos=[i.__json__() for i in infos])
 
 
 @app.route("/info/<int:node_id>", methods=["POST"])
@@ -1002,9 +980,7 @@ def info_post(node_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="info",
-                            data=info.__json__(),
-                            request_type="info post")
+    return success_response(info=info.__json__())
 
 
 @app.route("/node/<int:node_id>/transmissions", methods=["GET"])
@@ -1047,9 +1023,7 @@ def node_transmissions(node_id):
             participant=node.participant)
 
     # return the data
-    return success_response(field="transmissions",
-                            data=[t.__json__() for t in transmissions],
-                            request_type="transmissions")
+    return success_response(transmissions=[t.__json__() for t in transmissions])
 
 
 @app.route("/node/<int:node_id>/transmit", methods=["POST"])
@@ -1144,9 +1118,7 @@ def node_transmit(node_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="transmissions",
-                            data=[t.__json__() for t in transmissions],
-                            request_type="transmit")
+    return success_response(transmissions=[t.__json__() for t in transmissions])
 
 
 @app.route("/node/<int:node_id>/transformations", methods=["GET"])
@@ -1185,9 +1157,7 @@ def transformation_get(node_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="transformations",
-                            data=[t.__json__() for t in transformations],
-                            request_type="transformations")
+    return success_response(transformations=[t.__json__() for t in transformations])
 
 
 @app.route(
@@ -1242,9 +1212,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="transformation",
-                            data=transformation.__json__(),
-                            request_type="transformation post")
+    return success_response(transformation=transformation.__json__())
 
 
 @app.route("/notifications", methods=["POST", "GET"])
@@ -1260,7 +1228,7 @@ def api_notifications():
     db.logger.debug('rq: Submitted Queue Length: %d (%s)', len(q),
                     ', '.join(q.job_ids))
 
-    return success_response(request_type="notification")
+    return success_response()
 
 
 def _debug_notify(assignment_id, participant_id=None,
@@ -1315,9 +1283,7 @@ def worker_complete():
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
         )
-    return success_response(field="status",
-                            data=status,
-                            request_type="worker complete")
+    return success_response(status=status)
 
 
 @app.route('/worker_failed', methods=['GET'])

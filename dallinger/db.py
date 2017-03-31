@@ -7,6 +7,8 @@ import os
 
 from psycopg2.extensions import TransactionRollbackError
 from sqlalchemy import create_engine
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
@@ -100,3 +102,26 @@ def serialized(func):
                 else:
                     raise
     return wrapper
+
+
+# Reset outbox when session begins
+@event.listens_for(Session, 'after_begin')
+def after_begin(session, transaction, connection):
+    session.info['outbox'] = []
+
+
+# Reset outbox after rollback
+@event.listens_for(Session, 'after_soft_rollback')
+def after_soft_rollback(session, previous_transaction):
+    session.info['outbox'] = []
+
+
+# Publish messages to redis after commit
+@event.listens_for(Session, 'after_commit')
+def after_commit(session):
+    from dallinger.heroku.worker import conn as redis
+
+    for channel, message in session.info['outbox']:
+        logger.debug(
+            'Publishing message to {}: {}'.format(channel, message))
+        redis.publish(channel, message)
