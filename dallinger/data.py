@@ -133,25 +133,23 @@ def copy_local_to_csv(local_db, path, scrub_pii=False):
         _scrub_participant_table(path)
 
 
-def _scrub_participant_table(path):
+def _scrub_participant_table(path_to_data):
     """Scrub PII from the given participant table."""
-    path_to_table = os.path.join(path, "participant.csv")
-    with open(path_to_table, 'rb') as input:
+    path = os.path.join(path_to_data, "participant.csv")
+    with open(path, 'rb') as input, open("{}.0".format(path), 'wb') as output:
         reader = csv.reader(input)
+        writer = csv.writer(output)
         headers = next(reader)
-        with open("{}.new".format(path_to_table), 'wb') as output:
-            writer = csv.writer(output)
-            writer.writerow(headers)
+        writer.writerow(headers)
+        for i, row in enumerate(reader):
+            row[headers.index("worker_id")] = row[headers.index("id")]
+            row[headers.index("unique_id")] = "{}:{}".format(
+                row[headers.index("id")],
+                row[headers.index("assignment_id")]
+            )
+            writer.writerow(row)
 
-            for i, row in enumerate(reader):
-                row[headers.index("worker_id")] = row[headers.index("id")]
-                row[headers.index("unique_id")] = "{}:{}".format(
-                    row[headers.index("id")],
-                    row[headers.index("assignment_id")]
-                )
-                writer.writerow(row)
-
-            os.rename("{}.new".format(path_to_table), path_to_table)
+        os.rename("{}.0".format(path), path)
 
 
 def export(id, local=False, scrub_pii=False):
