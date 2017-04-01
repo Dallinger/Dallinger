@@ -275,7 +275,7 @@ def debug(verbose, bot, exp_config=None):
     if bot:
         exp_config["recruiter"] = u"bots"
 
-    (id, tmp) = setup_experiment(debug=True, verbose=verbose, exp_config=exp_config)
+    (id, tmp) = setup_experiment(verbose=verbose, exp_config=exp_config)
 
     # Switch to the temporary directory.
     cwd = os.getcwd()
@@ -284,15 +284,17 @@ def debug(verbose, bot, exp_config=None):
     # Set the mode to debug.
     config = get_config()
     logfile = config.get('logfile')
-    if logfile != '-':
+    if logfile and logfile != '-':
         logfile = os.path.join(cwd, logfile)
+        config.extend({'logfile': logfile})
+        config.write()
 
     # Drop all the tables from the database.
     db.init_db(drop_all=True)
 
     # Start up the local server
     log("Starting up the server...")
-    port = config.get('port', 22362)
+    port = config.get('port')
     try:
         p = subprocess.Popen(
             ['heroku', 'local', '-p', str(port)],
@@ -338,11 +340,10 @@ def debug(verbose, bot, exp_config=None):
                     sys.stdout.write(line)
 
                 # Open browser for new participants
-                if not bot:
-                    match = re.search('New participant requested: (.*)$', line)
-                    if match:
-                        url = match.group(1)
-                        webbrowser.open(url, new=1, autoraise=True)
+                match = re.search('New participant requested: (.*)$', line)
+                if match:
+                    url = match.group(1)
+                    webbrowser.open(url, new=1, autoraise=True)
 
                 # Is recruitment over? We can end the loop, and check
                 # experiment status

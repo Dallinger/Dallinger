@@ -23,6 +23,7 @@ except ImportError:
     pass
 
 from dallinger import heroku
+from dallinger.db import db_url
 
 
 table_names = [
@@ -162,7 +163,7 @@ def export(id, local=False, scrub_pii=False):
     print("Preparing to export the data...")
 
     if local:
-        db_name = 'dallinger'
+        db_name = db_url
     else:
         db_name = heroku.app_name(id)
         copy_heroku_to_local(id)

@@ -437,7 +437,7 @@ class Experiment(object):
         self.fail_participant(participant)
 
     @exp_class_working_dir
-    def run(self, exp_config=None, app_id=None, **kwargs):
+    def run(self, exp_config=None, app_id=None, bot=False, **kwargs):
         """Deploy and run an experiment.
 
         The exp_config object is either a dictionary or a
@@ -452,9 +452,7 @@ class Experiment(object):
         self.app_id = app_id
         self.exp_config = exp_config or {}
 
-        bot = kwargs.get('bot')
         if bot:
-            del kwargs['bot']
             kwargs['recruiter'] = 'bots'
 
         if kwargs:
