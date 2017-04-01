@@ -244,19 +244,24 @@ report = function (color) {
     }
 };
 
-$(document).keydown(function(e) {
-    var code = e.keyCode || e.which;
-    if(code == 70) { //Enter keycode
-        report("blue");
-    } else if (code == 74) {
+$(document).ready(function() {
+
+    $("#more-yellow").click(function() {
+        console.log("Reported more yellow.");
         report("yellow");
-    }
-});
+    });
 
-$("#more-yellow").click(function() {
-    report("yellow");
-});
+    $("#more-blue").click(function() {
+        console.log("Reported more blue.");
+        report("blue");
+    });
 
-$("#more-blue").click(function() {
-    report("blue");
+    $(document).keydown(function(e) {
+        var code = e.keyCode || e.which;
+        if(code == 70) { //Enter keycode
+            report("blue");
+        } else if (code == 74) {
+            report("yellow");
+        }
+    });
 });

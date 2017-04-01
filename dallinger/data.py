@@ -129,31 +129,27 @@ def copy_local_to_csv(local_db, path, scrub_pii=False):
         with open(csv_path, "w") as f:
             sql = "COPY {} TO STDOUT WITH CSV HEADER".format(table)
             cur.copy_expert(sql, f)
-            if table is "participant" and scrub_pii:
-                _scrub_participant_table(csv_path)
+    if scrub_pii:
+        _scrub_participant_table(path)
 
 
-def _scrub_participant_table(path):
+def _scrub_participant_table(path_to_data):
     """Scrub PII from the given participant table."""
-    with open(path, 'rb') as input:
-        with open("{}.new".format(path), 'wb') as output:
-            writer = csv.writer(output)
-            reader = csv.reader(input)
-            try:
-                headers = reader.next()
-            except StopIteration:
-                pass
-            else:
-                writer.writerow(headers)
-                for i, row in enumerate(reader):
-                    row[headers.index("worker_id")] = i + 1
-                    row[headers.index("unique_id")] = "{}:{}".format(
-                        i + 1,
-                        row[headers.index("assignment_id")]
-                    )
-                    writer.writerow(row)
+    path = os.path.join(path_to_data, "participant.csv")
+    with open(path, 'rb') as input, open("{}.0".format(path), 'wb') as output:
+        reader = csv.reader(input)
+        writer = csv.writer(output)
+        headers = next(reader)
+        writer.writerow(headers)
+        for i, row in enumerate(reader):
+            row[headers.index("worker_id")] = row[headers.index("id")]
+            row[headers.index("unique_id")] = "{}:{}".format(
+                row[headers.index("id")],
+                row[headers.index("assignment_id")]
+            )
+            writer.writerow(row)
 
-    os.rename("{}.new".format(path), path)
+        os.rename("{}.0".format(path), path)
 
 
 def export(id, local=False, scrub_pii=False):
@@ -270,7 +266,7 @@ class Data(object):
                 setattr(
                     self,
                     "{}s".format(tab),
-                    Table(os.path.join(tmp_dir, "data", "{}.csv").format(tab)),
+                    Table(os.path.join(tmp_dir, "data", "{}.csv".format(tab))),
                 )
 
 
@@ -279,7 +275,7 @@ class Table(object):
     def __init__(self, path):
 
         self.odo_resource = odo.resource(path)
-        self.tablib_dataset = tablib.Dataset().load(open(path).read())
+        self.tablib_dataset = tablib.Dataset().load(open(path).read(), "csv")
 
     @property
     def csv(self):
