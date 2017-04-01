@@ -200,7 +200,6 @@ class TestDebugServer(object):
     #         p.read()
 
 
-
 class TestHeader(object):
     def test_header_contains_version_number(self):
         # Make sure header contains the version number.

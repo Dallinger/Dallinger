@@ -1,6 +1,7 @@
 """Bots."""
 
 import logging
+from lazy import lazy
 from urlparse import urlparse, parse_qs
 
 from selenium import webdriver
@@ -8,9 +9,6 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
-from dallinger.config import get_config
-config = get_config()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__file__)
@@ -21,31 +19,8 @@ class BotBase(object):
     """A bot."""
 
     def __init__(self, URL, assignment_id='', worker_id=''):
-        logger.info("Starting up bot with URL: %s." % URL)
+        logger.info("Creating bot with URL: %s." % URL)
         self.URL = URL
-        driver_url = config.get('webdriver_url', None)
-        driver_type = config.get('webdriver_type', 'phantomjs').lower()
-        if driver_url:
-            capabilities = {}
-            if driver_type == 'firefox':
-                capabilities = webdriver.DesiredCapabilities.FIREFOX
-            elif driver_type == 'phantomjs':
-                capabilities = webdriver.DesiredCapabilities.PHANTOMJS
-            else:
-                raise ValueError(
-                    'Unsupported remote webdriver_type: {}'.format(driver_type))
-            self.driver = webdriver.Remote(
-                desired_capabilities=capabilities,
-                command_executor=driver_url
-            )
-        elif driver_type == 'phantomjs':
-            self.driver = webdriver.PhantomJS()
-        elif driver_type == 'firefox':
-            self.driver = webdriver.Firefox()
-        else:
-            raise ValueError(
-                'Unsupported webdriver_type: {}'.format(driver_type))
-        self.driver.set_window_size(1024, 768)
 
         parts = urlparse(URL)
         query = parse_qs(parts.query)
@@ -56,7 +31,37 @@ class BotBase(object):
             worker_id = query.get('workerId', [''])[0]
         self.worker_id = worker_id
         self.unique_id = worker_id + ':' + assignment_id
-        logger.info("Started PhantomJs webdriver.")
+
+    @lazy
+    def driver(self):
+        from dallinger.config import get_config
+        config = get_config()
+        driver_url = config.get('webdriver_url', None)
+        driver_type = config.get('webdriver_type', 'phantomjs').lower()
+
+        if driver_url:
+            capabilities = {}
+            if driver_type == 'firefox':
+                capabilities = webdriver.DesiredCapabilities.FIREFOX
+            elif driver_type == 'phantomjs':
+                capabilities = webdriver.DesiredCapabilities.PHANTOMJS
+            else:
+                raise ValueError(
+                    'Unsupported remote webdriver_type: {}'.format(driver_type))
+            driver = webdriver.Remote(
+                desired_capabilities=capabilities,
+                command_executor=driver_url
+            )
+        elif driver_type == 'phantomjs':
+            driver = webdriver.PhantomJS()
+        elif driver_type == 'firefox':
+            driver = webdriver.Firefox()
+        else:
+            raise ValueError(
+                'Unsupported webdriver_type: {}'.format(driver_type))
+        driver.set_window_size(1024, 768)
+        logger.info("Created {} webdriver.".format(driver_type))
+        return driver
 
     def sign_up(self):
         """Accept HIT, give consent and start experiment."""
