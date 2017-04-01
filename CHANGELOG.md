@@ -1,6 +1,6 @@
 # Change Log
 
-## [v3.0.0](https://github.com/dallinger/dallinger/tree/v3.0.0) (2016-03-31)
+## [v3.0.0](https://github.com/dallinger/dallinger/tree/v3.0.0) (2017-03-31)
 
 Welcome to Dallinger 3. This release comes with several new features, some of which are breaking changes that will require you to edit your `.dallingerconfig` file and experiment code. This changelog will be updated to reflect any new
 breaking changes that we discover.
