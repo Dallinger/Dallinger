@@ -23,7 +23,7 @@ except ImportError:
     pass
 
 from dallinger import heroku
-from dallinger.db import db_url
+from dallinger import db
 
 
 table_names = [
@@ -123,7 +123,10 @@ def copy_heroku_to_local(id):
 
 def copy_local_to_csv(local_db, path, scrub_pii=False):
     """Copy a local database to a set of CSV files."""
-    conn = psycopg2.connect(database=local_db, user="postgres")
+    if "postgresql://" in local_db:
+        conn = psycopg2.connect(dsn=local_db)
+    else:
+        conn = psycopg2.connect(database=local_db, user="postgres")
     cur = conn.cursor()
     for table in table_names:
         csv_path = os.path.join(path, "{}.csv".format(table))
@@ -163,9 +166,9 @@ def export(id, local=False, scrub_pii=False):
     print("Preparing to export the data...")
 
     if local:
-        db_name = db_url
+        local_db = db.db_url
     else:
-        db_name = heroku.app_name(id)
+        local_db = heroku.app_name(id)
         copy_heroku_to_local(id)
 
     # Create the data package if it doesn't already exist.
@@ -178,7 +181,7 @@ def export(id, local=False, scrub_pii=False):
             raise
 
     # Copy in the data.
-    copy_local_to_csv(db_name, subdata_path, scrub_pii=scrub_pii)
+    copy_local_to_csv(local_db, subdata_path, scrub_pii=scrub_pii)
 
     # Copy the experiment code into a code/ subdirectory.
     try:
