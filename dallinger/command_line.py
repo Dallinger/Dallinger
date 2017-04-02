@@ -355,14 +355,14 @@ def debug(verbose, bot, exp_config=None):
             # Check status url
             status_url = base_url + '/summary'
             while True:
-                time.sleep(30)
+                time.sleep(10)
                 data = {}
                 try:
                     resp = requests.get(status_url)
                     data = resp.json()
                 except (ValueError, requests.exceptions.RequestException):
                     error('Error fetching experiment status.')
-                log('Current application state: {}'.format(data))
+                log('Experiment summary: {}'.format(data))
                 if data.get('completed', False):
                     log('Experiment completed, all nodes filled.')
                     break
