@@ -479,8 +479,7 @@ class Experiment(object):
             while self.experiment_completed() is False:
                 time.sleep(30)
             self.end_experiment()
-        data = self.retrieve_data()
-        return (self.app_id, data, self.exp_config)
+        return self.retrieve_data()
 
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
