@@ -1,7 +1,6 @@
 """Bartlett's transmission chain experiment from Remembering (1932)."""
 
 import logging
-import time
 
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
