@@ -73,13 +73,13 @@ $(document).ready(function() {
 
 // Create the agent.
 var create_agent = function() {
-    $('#finish-reading').attr('disabled', 'disabled');
+    $('#finish-reading').prop('disabled', true);
     reqwest({
         url: "/node/" + participant_id,
         method: 'post',
         type: 'json',
         success: function (resp) {
-            $('#finish-reading').attr('disabled', null);
+            $('#finish-reading').prop('disabled', false);
             my_node_id = resp.node.id;
             get_info(my_node_id);
         },
