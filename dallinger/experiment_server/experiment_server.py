@@ -209,6 +209,13 @@ def shutdown_session(_=None):
     db.logger.debug('Closing Dallinger DB session at flask request end')
 
 
+"""Inject the experiment variable into the template context."""
+@app.context_processor
+def inject_experiment():
+    exp = Experiment(session)
+    return dict(experiment=exp)
+
+
 """Define routes for managing an experiment and the participants."""
 
 
@@ -219,11 +226,6 @@ def launch():
     exp.log("Launching experiment...", "-----")
     url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
     session.commit()
-
-    """Inject the experiment variable into the template context."""
-    @app.context_processor
-    def inject_experiment():
-        return dict(experiment=exp)
 
     for task in exp.background_tasks:
         gevent.spawn(task)
