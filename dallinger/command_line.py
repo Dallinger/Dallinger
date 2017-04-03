@@ -334,10 +334,27 @@ def debug(verbose, bot, exp_config=None):
             time.sleep(4)
             requests.post('{}/launch'.format(base_url))
 
+            closed = False
+            status_url = base_url + '/summary'
+            exp_data = {}
             # Monitor output from server process
             for line in iter(p.stdout.readline, ''):
                 if verbose:
                     sys.stdout.write(line)
+
+                # start checking for completion status
+                if closed:
+                    try:
+                        resp = requests.get(status_url)
+                        exp_data = resp.json()
+                    except (ValueError, requests.exceptions.RequestException):
+                        error('Error fetching experiment status.')
+                    log('Experiment summary: {}'.format(exp_data))
+                    if exp_data.get('completed', False):
+                        log('Experiment completed, all nodes filled.')
+                        break
+                    time.sleep(10)
+                    continue
 
                 # Open browser for new participants
                 match = re.search('New participant requested: (.*)$', line)
@@ -350,22 +367,7 @@ def debug(verbose, bot, exp_config=None):
                 match = re.search('Close recruitment.$', line)
                 if match:
                     log('Recruitment is complete.')
-                    break
-
-            # Check status url
-            status_url = base_url + '/summary'
-            while True:
-                time.sleep(10)
-                data = {}
-                try:
-                    resp = requests.get(status_url)
-                    data = resp.json()
-                except (ValueError, requests.exceptions.RequestException):
-                    error('Error fetching experiment status.')
-                log('Experiment summary: {}'.format(data))
-                if data.get('completed', False):
-                    log('Experiment completed, all nodes filled.')
-                    break
+                    closed = True
 
     finally:
         try:

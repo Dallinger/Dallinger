@@ -1,7 +1,7 @@
 """Bots."""
 
 import logging
-from lazy import lazy
+from cached_property import cached_property
 from urlparse import urlparse, parse_qs
 
 from selenium import webdriver
@@ -32,10 +32,12 @@ class BotBase(object):
         self.worker_id = worker_id
         self.unique_id = worker_id + ':' + assignment_id
 
-    @lazy
+    @cached_property
     def driver(self):
         from dallinger.config import get_config
         config = get_config()
+        if not config.ready:
+            config.load()
         driver_url = config.get('webdriver_url', None)
         driver_type = config.get('webdriver_type', 'phantomjs').lower()
 
@@ -122,8 +124,6 @@ class BotBase(object):
         tmp_driver.quit()
 
     def run_experiment(self):
-        self.driver = webdriver.PhantomJS()
-        self.driver.set_window_size(1024, 768)
         self.sign_up()
         self.participate()
         if self.sign_off():
