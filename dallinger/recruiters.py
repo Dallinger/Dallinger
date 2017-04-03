@@ -195,16 +195,17 @@ class BotRecruiter(object):
         """Recruit n new participant bots to the queue"""
         from dallinger_experiment import Bot
         base_url = get_base_url()
-        worker = generate_random_id()
-        hit = generate_random_id()
-        assignment = generate_random_id()
-        ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
-        ad_parameters = ad_parameters.format(assignment, hit, worker)
-        url = '{}/ad?{}'.format(base_url, ad_parameters)
-        bot = Bot(url, assignment_id=assignment, worker_id=worker)
-        job = q.enqueue(bot.run_experiment)
-        logger.info("Created job with id {} for url {}.".format(job.id, url))
-        return job
+
+        for _ in range(n):
+            worker = generate_random_id()
+            hit = generate_random_id()
+            assignment = generate_random_id()
+            ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
+            ad_parameters = ad_parameters.format(assignment, hit, worker)
+            url = '{}/ad?{}'.format(base_url, ad_parameters)
+            bot = Bot(url, assignment_id=assignment, worker_id=worker)
+            job = q.enqueue(bot.run_experiment)
+            logger.info("Created job {} for url {}.".format(job.id, url))
 
     def approve_hit(self, assignment_id):
         return True
