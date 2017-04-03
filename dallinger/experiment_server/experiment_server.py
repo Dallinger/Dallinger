@@ -209,9 +209,9 @@ def shutdown_session(_=None):
     db.logger.debug('Closing Dallinger DB session at flask request end')
 
 
-"""Inject the experiment variable into the template context."""
 @app.context_processor
 def inject_experiment():
+    """Inject the experiment variable into the template context."""
     exp = Experiment(session)
     return dict(experiment=exp)
 
