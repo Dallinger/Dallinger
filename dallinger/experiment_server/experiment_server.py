@@ -362,7 +362,7 @@ def summary():
     else:
         for net in unfilled_nets:
             node_count = models.Node.query.filter_by(
-                network_id=net.id
+                network_id=net.id, failed=False,
             ).with_entities(func.count(models.Node.id)).scalar()
             net_size = net.max_size
             required_nodes += net_size
