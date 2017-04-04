@@ -97,11 +97,16 @@ class BotBase(object):
         logger.error("Bot class does not define participate method.")
         raise NotImplementedError
 
+    def complete_questionnaire(self):
+        """Complete the standard debriefing form."""
+        pass
+
     def sign_off(self):
         """Submit questionnaire and finish."""
         try:
             feedback = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.ID, 'submit-questionnaire')))
+            self.complete_questionnaire()
             feedback.click()
             logger.info("Clicked submit questionnaire button.")
             self.driver.switch_to_window(self.driver.window_handles[0])
