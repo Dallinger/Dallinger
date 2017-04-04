@@ -204,7 +204,7 @@ class BotRecruiter(object):
             ad_parameters = ad_parameters.format(assignment, hit, worker)
             url = '{}/ad?{}'.format(base_url, ad_parameters)
             bot = Bot(url, assignment_id=assignment, worker_id=worker)
-            job = q.enqueue(bot.run_experiment)
+            job = q.enqueue(bot.run_experiment, timeout=60*20)
             logger.info("Created job {} for url {}.".format(job.id, url))
 
     def approve_hit(self, assignment_id):
