@@ -29,7 +29,6 @@ setup_args = dict(
         ],
         'dallinger.experiments': [
             'Bartlett1932 = demos.bartlett1932.experiment:Bartlett1932',
-            'Griduniverse = demos.Griduniverse.experiment:Griduniverse',
         ],
     },
     extras_require={
