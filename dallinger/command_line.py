@@ -344,6 +344,7 @@ def debug(verbose, bot, exp_config=None):
 
                 # start checking for completion status
                 if closed:
+                    time.sleep(10)
                     try:
                         resp = requests.get(status_url)
                         exp_data = resp.json()
@@ -353,7 +354,6 @@ def debug(verbose, bot, exp_config=None):
                     if exp_data.get('completed', False):
                         log('Experiment completed, all nodes filled.')
                         break
-                    time.sleep(10)
                     continue
 
                 # Open browser for new participants
