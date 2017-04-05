@@ -72,7 +72,7 @@ class ChatBackend(object):
         """Listens for new messages in redis, and sends them to clients."""
         for message in self.pubsub.listen():
             data = message.get('data')
-            if message['type'] == 'message':
+            if message['type'] == 'message' and data != 'None':
                 channel = message['channel']
                 count = len(self.clients[channel])
                 if count:
