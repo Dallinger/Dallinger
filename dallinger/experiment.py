@@ -236,7 +236,9 @@ class Experiment(object):
 
     def create_node(self, participant, network):
         """Create a node for a participant."""
-        return Node(network=network, participant=participant)
+        node = Node(network=network, participant=participant)
+        self.session.commit()
+        return node
 
     def add_node_to_network(self, node, network):
         """Add a node to a network.
