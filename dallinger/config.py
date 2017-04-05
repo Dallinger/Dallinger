@@ -191,9 +191,6 @@ class Configuration(object):
         self.extend(os.environ, cast_types=True)
 
     def load(self):
-        if self.ready:
-            raise ValueError("Already loaded")
-
         # Apply extra parameters before loading the configs
         self.register_extra_parameters()
 
