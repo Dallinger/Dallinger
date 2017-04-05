@@ -138,7 +138,7 @@ class Configuration(object):
         except KeyError:
             raise AttributeError
 
-    def __dict__(self):
+    def as_dict(self):
         d = {}
         for key in self.types:
             if key not in self.sensitive:
