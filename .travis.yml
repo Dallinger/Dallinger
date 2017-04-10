@@ -20,6 +20,7 @@ addons:
     - pandoc
     - enchant
     - heroku-toolbelt
+    - redis-server
 before_install:
 - rvm install 2.1.5
 - pip install --upgrade setuptools pip wheel

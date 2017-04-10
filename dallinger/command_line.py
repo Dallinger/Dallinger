@@ -297,7 +297,9 @@ def debug(verbose, bot, exp_config=None):
     port = config.get('port')
     try:
         p = subprocess.Popen(
-            ['heroku', 'local', 'web=2,worker=8', '-p', str(port)],
+            ['heroku', 'local', '-p', str(port),
+             "web={},worker={}".format(config.get('num_dynos_web', 1),
+                                       config.get('num_dynos_worker', 1))],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
