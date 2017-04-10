@@ -118,7 +118,6 @@ class BotBase(object):
             return False
 
     def complete_experiment(self, status):
-        tmp_driver = webdriver.PhantomJS()
         url = self.driver.current_url
         p = urlparse(url)
         complete_url = '%s://%s/%s?uniqueId=%s'
@@ -126,15 +125,16 @@ class BotBase(object):
                                        p.netloc,
                                        status,
                                        self.unique_id)
-        tmp_driver.get(complete_url)
+        self.driver.get(complete_url)
         logger.info("Forced call to %s: %s" % (status, complete_url))
-        tmp_driver.quit()
 
     def run_experiment(self):
-        self.sign_up()
-        self.participate()
-        if self.sign_off():
-            self.complete_experiment('worker_complete')
-        else:
-            self.complete_experiment('worker_failed')
-        self.driver.quit()
+        try:
+            self.sign_up()
+            self.participate()
+            if self.sign_off():
+                self.complete_experiment('worker_complete')
+            else:
+                self.complete_experiment('worker_failed')
+        finally:
+            self.driver.quit()
