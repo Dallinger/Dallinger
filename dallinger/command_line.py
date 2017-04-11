@@ -103,7 +103,6 @@ def verify_package(verbose=True):
     required_files = [
         "config.txt",
         "experiment.py",
-        "requirements.txt",
     ]
 
     for f in required_files:
@@ -142,17 +141,6 @@ def verify_package(verbose=True):
             log("✗ experiment.py defines more than one experiment class.",
                 delay=0, chevrons=False, verbose=verbose)
         os.chdir(cwd)
-
-    # Make sure there's a help file.
-    is_txt_readme = os.path.exists("README.md")
-    is_md_readme = os.path.exists("README.txt")
-    if (not is_md_readme) and (not is_txt_readme):
-        is_passing = False
-        log("✗ README.txt or README.md is MISSING.",
-            delay=0, chevrons=False, verbose=verbose)
-    else:
-        log("✓ README is OK",
-            delay=0, chevrons=False, verbose=verbose)
 
     # Check base_payment is correct
     config = get_config()
