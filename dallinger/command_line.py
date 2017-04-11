@@ -7,6 +7,7 @@ import imp
 import inspect
 import os
 import pkg_resources
+import psutil
 import re
 try:
     from pipes import quote
@@ -14,10 +15,12 @@ except ImportError:
     # Python >= 3.3
     from shlex import quote
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import time
+import traceback
 import uuid
 import webbrowser
 
@@ -43,6 +46,7 @@ from dallinger.heroku.worker import conn
 from dallinger.mturk import MTurkService
 from dallinger import registration
 from dallinger.utils import generate_random_id
+from dallinger.utils import get_base_url
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -261,12 +265,17 @@ def summary(app):
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--bot', is_flag=True, flag_value=True,
               help='Use bot to complete experiment')
-def debug(verbose, bot):
+def debug(verbose, bot, exp_config=None):
     """Run the experiment locally."""
-    (id, tmp) = setup_experiment(debug=True, verbose=verbose)
+    exp_config = exp_config or {}
+    exp_config.update({
+        "mode": u"debug",
+        "loglevel": 0,
+    })
+    if bot:
+        exp_config["recruiter"] = u"bots"
 
-    # Drop all the tables from the database.
-    db.init_db(drop_all=True)
+    (id, tmp) = setup_experiment(verbose=verbose, exp_config=exp_config)
 
     # Switch to the temporary directory.
     cwd = os.getcwd()
@@ -275,21 +284,22 @@ def debug(verbose, bot):
     # Set the mode to debug.
     config = get_config()
     logfile = config.get('logfile')
-    if logfile != '-':
+    if logfile and logfile != '-':
         logfile = os.path.join(cwd, logfile)
-    config.extend({
-        "mode": u"debug",
-        "loglevel": 0,
-        "logfile": logfile
-    })
-    config.write()
+        config.extend({'logfile': logfile})
+        config.write()
+
+    # Drop all the tables from the database.
+    db.init_db(drop_all=True)
 
     # Start up the local server
     log("Starting up the server...")
     port = config.get('port')
     try:
         p = subprocess.Popen(
-            ['heroku', 'local', '-p', str(port)],
+            ['heroku', 'local', '-p', str(port),
+             "web={},worker={}".format(config.get('num_dynos_web', 1),
+                                       config.get('num_dynos_worker', 1))],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
@@ -313,71 +323,65 @@ def debug(verbose, bot):
                     'There was an error while starting the server. '
                     'Run with --verbose for details.'
                 )
-            if re.match('^.*? web.1 .*? Ready.$', line):
+            if re.match('^.*? \d+ workers$', line):
                 ready = True
                 break
 
-        epipe = 0
-        participant = None
         if ready:
-            host = config.get('host')
-            port = config.get('port')
-            public_interface = "{}:{}".format(host, port)
-            log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
+            base_url = get_base_url()
+            log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
 
             # Call endpoint to launch the experiment
             log("Launching the experiment...")
             time.sleep(4)
-            requests.post('http://{}/launch'.format(public_interface))
+            requests.post('{}/launch'.format(base_url))
 
+            closed = False
+            status_url = base_url + '/summary'
+            exp_data = {}
             # Monitor output from server process
             for line in iter(p.stdout.readline, ''):
                 if verbose:
                     sys.stdout.write(line)
 
+                # start checking for completion status
+                if closed:
+                    time.sleep(10)
+                    try:
+                        resp = requests.get(status_url)
+                        exp_data = resp.json()
+                    except (ValueError, requests.exceptions.RequestException):
+                        error('Error fetching experiment status.')
+                    log('Experiment summary: {}'.format(exp_data))
+                    if exp_data.get('completed', False):
+                        log('Experiment completed, all nodes filled.')
+                        break
+                    continue
+
                 # Open browser for new participants
                 match = re.search('New participant requested: (.*)$', line)
                 if match:
                     url = match.group(1)
-                    if bot:
-                        log("Using a bot to simulate participant...")
-                        try:
-                            from dallinger_experiment import Bot
-                            participant = Bot(url)
-                            participant.run_experiment()
-                        except ImportError:
-                            log("This experiment does not have a bot.")
-                    else:
-                        webbrowser.open(url, new=1, autoraise=True)
+                    webbrowser.open(url, new=1, autoraise=True)
 
-                # Is recruitment over? We can end this debug session.
+                # Is recruitment over? We can end the loop, and check
+                # experiment status
                 match = re.search('Close recruitment.$', line)
                 if match:
-                    if participant:
-                        # make sure there are no stray phantomjs processes
-                        participant.driver.quit()
                     log('Recruitment is complete.')
-                    break
-
-                # Check for bot exceptions
-                match = re.search('Exception on ', line)
-                if match and not verbose:
-                    error("There was an error running the experiment.")
-                    if participant:
-                        participant.driver.quit()
-                    break
-
-                # Check for unexpected bot hangs
-                match = re.search('Ignoring EPIPE', line)
-                if participant and match:
-                    epipe = epipe + 1
-                    if epipe >= 2:
-                        error("The experiment finished but recruitment was not closed.")
-                        participant.driver.quit()
-                        break
+                    closed = True
 
     finally:
-        p.kill()
+        try:
+            # It seems we need to explicitly kill all subprocesses with a SIGINT
+            int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
+            for sub in psutil.Process(p.pid).children(recursive=True):
+                os.kill(sub.pid, int_signal)
+            p.terminate()
+            log("Local Heroku process terminated")
+        except OSError:
+            log("Local Heroku process already terminated")
+            log(traceback.format_exc())
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
@@ -483,10 +487,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     log("Waiting for Redis...")
     ready = False
     while not ready:
-        redis_URL = subprocess.check_output([
+        redis_url = subprocess.check_output([
             "heroku", "config:get", "REDIS_URL", "--app", app_name(id),
         ])
-        r = redis.from_url(redis_URL)
+        r = redis.from_url(redis_url)
         try:
             r.set("foo", "bar")
             ready = True
@@ -730,13 +734,18 @@ def logs(app):
 
 @dallinger.command()
 @click.option('--app', default=None, help='ID of the deployed experiment')
-def bot(app):
+@click.option('--debug', default=None,
+              help='Local debug recruitment url')
+def bot(app, debug):
     """Run the experiment bot."""
-    if app is None:
+    if app is None and debug is None:
         raise TypeError("Select an experiment using the --app flag.")
+
+    (id, tmp) = setup_experiment()
+
+    if debug:
+        url = debug
     else:
-        (id, tmp) = setup_experiment()
-        from dallinger_experiment import Bot
         host = app_name(app)
         worker = generate_random_id()
         hit = generate_random_id()
@@ -745,8 +754,10 @@ def bot(app):
         ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
         ad_parameters = ad_parameters.format(assignment, hit, worker)
         url = '{}?{}'.format(ad_url, ad_parameters)
-        bot = Bot(url)
-        bot.run_experiment()
+
+    from dallinger_experiment import Bot
+    bot = Bot(url)
+    bot.run_experiment()
 
 
 @dallinger.command()

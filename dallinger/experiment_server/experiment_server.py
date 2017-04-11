@@ -209,6 +209,13 @@ def shutdown_session(_=None):
     db.logger.debug('Closing Dallinger DB session at flask request end')
 
 
+@app.context_processor
+def inject_experiment():
+    """Inject the experiment variable into the template context."""
+    exp = Experiment(session)
+    return dict(experiment=exp)
+
+
 """Define routes for managing an experiment and the participants."""
 
 
@@ -219,11 +226,6 @@ def launch():
     exp.log("Launching experiment...", "-----")
     url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
     session.commit()
-
-    """Inject the experiment variable into the template context."""
-    @app.context_processor
-    def inject_experiment():
-        return dict(experiment=exp)
 
     for task in exp.background_tasks:
         gevent.spawn(task)
@@ -362,7 +364,7 @@ def summary():
     else:
         for net in unfilled_nets:
             node_count = models.Node.query.filter_by(
-                network_id=net.id
+                network_id=net.id, failed=False,
             ).with_entities(func.count(models.Node.id)).scalar()
             net_size = net.max_size
             required_nodes += net_size
@@ -1283,6 +1285,45 @@ def check_for_duplicate_assignments(participant):
 @db.scoped_session_decorator
 def worker_complete():
     """Complete worker."""
+    if not request.args.get('uniqueId'):
+        status = "bad request"
+    else:
+        participants = models.Participant.query.filter_by(
+            unique_id=request.args['uniqueId'],
+        ).all()
+        if not len(participants):
+            return error_response(error_type='UniqueId not found: {}'.format(
+                request.args['uniqueId']
+            ))
+        participant = participants[0]
+        participant.end_time = datetime.now()
+        session.add(participant)
+        session.commit()
+        status = "success"
+    if config.get('recruiter', 'mturk') == u'bots':
+        # Trigger notification directly
+        # Bot submissions skip all attention and bonus checks
+        _debug_notify(
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+            event_type='BotAssignmentSubmitted',
+        )
+    elif config.get('mode') == "debug":
+        # Trigger notification directly in debug mode,
+        # because there won't be one from MTurk
+        _debug_notify(
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+        )
+    return success_response(field="status",
+                            data=status,
+                            request_type="worker complete")
+
+
+@app.route('/worker_failed', methods=['GET'])
+@db.scoped_session_decorator
+def worker_failed():
+    """Fail worker. Used by bots only for now."""
     if 'uniqueId' not in request.args:
         status = "bad request"
     else:
@@ -1293,16 +1334,15 @@ def worker_complete():
         session.add(participant)
         session.commit()
         status = "success"
-    if config.get('mode') == "debug":
-        # Trigger notification directly in debug mode,
-        # because there won't be one from MTurk
+    if config.get('recruiter', 'mturk') == 'bots':
         _debug_notify(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
+            event_type='BotAssignmentRejected',
         )
     return success_response(field="status",
                             data=status,
-                            request_type="worker complete")
+                            request_type="worker failed")
 
 
 @db.scoped_session_decorator
@@ -1421,6 +1461,26 @@ def worker_function(event_type, assignment_id, participant_id):
                     exp.submission_successful(participant=participant)
                     session.commit()
                     exp.recruit()
+
+    elif event_type == 'BotAssignmentSubmitted':
+        exp.log("Received bot submission.", key)
+        participant.end_time = datetime.now()
+
+        # No checks for bot submission
+        exp.recruiter().approve_hit(assignment_id)
+        participant.status = "approved"
+        exp.submission_successful(participant=participant)
+        session.commit()
+        exp.recruit()
+
+    elif event_type == 'BotAssignmentRejected':
+        exp.log("Received rejected bot submission.", key)
+        participant.end_time = datetime.now()
+        participant.status = "rejected"
+        session.commit()
+
+        # We go back to recruiting immediately
+        exp.recruit()
 
     elif event_type == "NotificationMissing":
         if participant.status == "working":

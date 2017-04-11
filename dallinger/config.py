@@ -138,6 +138,16 @@ class Configuration(object):
         except KeyError:
             raise AttributeError
 
+    def as_dict(self):
+        d = {}
+        for key in self.types:
+            if key not in self.sensitive:
+                try:
+                    d[key] = self.get(key)
+                except KeyError:
+                    pass
+        return d
+
     def register(self, key, type_, synonyms=None, sensitive=False):
         if synonyms is None:
             synonyms = set()
@@ -181,9 +191,6 @@ class Configuration(object):
         self.extend(os.environ, cast_types=True)
 
     def load(self):
-        if self.ready:
-            raise ValueError("Already loaded")
-
         # Apply extra parameters before loading the configs
         self.register_extra_parameters()
 

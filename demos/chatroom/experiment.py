@@ -15,7 +15,7 @@ def extra_parameters():
 class CoordinationChatroom(dlgr.experiments.Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session):
+    def __init__(self, session=None):
         """Initialize the experiment."""
         super(CoordinationChatroom, self).__init__(session)
         self.experiment_repeats = 1
@@ -27,7 +27,8 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         self.config = config
         if not self.config.ready:
             self.config.load()
-        self.setup()
+        if session:
+            self.setup()
 
     def create_network(self):
         """Create a new network by reading the configuration file."""

@@ -1,7 +1,6 @@
 """Bartlett's transmission chain experiment from Remembering (1932)."""
 
 import logging
-import time
 
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
@@ -33,7 +32,8 @@ class Bartlett1932(Experiment):
         import models
         self.models = models
         self.experiment_repeats = 1
-        self.setup()
+        if session:
+            self.setup()
 
     def setup(self):
         """Setup the networks.
@@ -55,8 +55,10 @@ class Bartlett1932(Experiment):
     def add_node_to_network(self, node, network):
         """Add node to the chain and receive transmissions."""
         network.add_node(node)
-        parent = node.neighbors(direction="from")[0]
-        parent.transmit()
+        parents = node.neighbors(direction="from")
+        if len(parents):
+            parent = parents[0]
+            parent.transmit()
         node.receive()
 
     def recruit(self):
@@ -74,8 +76,6 @@ class Bot(BotBase):
         """Finish reading and send text"""
         try:
             logger.info("Entering participate method")
-            self.driver.execute_script("create_agent")
-            time.sleep(10)
             ready = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.ID, 'finish-reading')))
             stimulus = self.driver.find_element_by_id('stimulus')

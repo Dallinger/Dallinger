@@ -133,60 +133,71 @@ class TestDebugServer(object):
         """Set up the environment by moving to the demos directory."""
         self.orig_dir = os.getcwd()
         os.chdir("demos/bartlett1932")
+        # Heroku requires a home directory to start up
+        # We create a fake one using tempfile and set it into the
+        # environment to handle sandboxes on CI servers
+        self.fake_home = tempfile.mkdtemp()
+
+        self.environ = os.environ.copy()
+        self.environ.update({'HOME': self.fake_home})
 
     def teardown(self):
+        shutil.rmtree(self.fake_home, ignore_errors=True)
         os.chdir(self.orig_dir)
 
     def test_startup(self):
-        # Heroku requires a home directory to start up
-        # We create a fake one using tempfile and set it into the
-        # environment to handle sandboxes on CI servers
-        fake_home = tempfile.mkdtemp()
         # Make sure debug server starts without error
+        p = pexpect.spawn(
+            'dallinger',
+            ['debug', '--verbose'],
+            env=self.environ,
+        )
+        p.logfile = sys.stdout
         try:
-            environ = os.environ.copy()
-            environ.update({'HOME': fake_home})
-            p = pexpect.spawn(
-                'dallinger',
-                ['debug', '--verbose'],
-                env=environ,
-            )
-            p.logfile = sys.stdout
             p.expect_exact('Server is running', timeout=120)
+        finally:
             p.sendcontrol('c')
             p.read()
-        finally:
-            shutil.rmtree(fake_home, ignore_errors=True)
 
     def test_warning_if_no_heroku_present(self):
-        # Heroku requires a home directory to start up
-        # We create a fake one using tempfile and set it into the
-        # environment to handle sandboxes on CI servers
-        fake_home = tempfile.mkdtemp()
-        # Make sure debug server starts without error
+        environ = self.environ.copy()
+        # Remove the path item that has heroku in it
+        path_items = environ['PATH'].split(':')
+        path_items = [
+            item for item in path_items
+            if not os.path.exists(os.path.join(item, 'heroku'))
+        ]
+        environ.update({
+            'PATH': ':'.join(path_items)
+        })
+        p = pexpect.spawn(
+            'dallinger',
+            ['debug', '--verbose'],
+            env=environ,
+        )
+        p.logfile = sys.stdout
         try:
-            environ = os.environ.copy()
-            # Remove the path item that has heroku in it
-            path_items = environ['PATH'].split(':')
-            path_items = [
-                item for item in path_items
-                if not os.path.exists(os.path.join(item, 'heroku'))
-            ]
-            environ.update({
-                'HOME': fake_home,
-                'PATH': ':'.join(path_items)
-            })
-            p = pexpect.spawn(
-                'dallinger',
-                ['debug', '--verbose'],
-                env=environ,
-            )
-            p.logfile = sys.stdout
             p.expect_exact("Couldn't start Heroku for local debugging", timeout=120)
+        finally:
             p.sendcontrol('c')
             p.read()
-        finally:
-            shutil.rmtree(fake_home)
+
+    # def test_debug_bots(self):
+    #     # Make sure debug server runs to completion with bots
+    #     p = pexpect.spawn(
+    #         'dallinger',
+    #         ['debug', '--verbose', '--bot'],
+    #         env=self.environ,
+    #     )
+    #     p.logfile = sys.stdout
+    #     try:
+    #         p.expect_exact('Server is running', timeout=120)
+    #         p.expect_exact('Recruitment is complete', timeout=300)
+    #         p.expect_exact('Experiment completed', timeout=120)
+    #         p.expect_exact('Local Heroku process terminated', timeout=10)
+    #     finally:
+    #         p.sendcontrol('c')
+    #         p.read()
 
 
 class TestHeader(object):
