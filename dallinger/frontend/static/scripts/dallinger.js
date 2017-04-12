@@ -105,7 +105,7 @@ var create_participant = function() {
                     console.log(resp);
                     participant_id = resp.participant.id;
                     if (resp.quorum) {
-                        if (resp.quorum && resp.quorum.n === resp.quorum.q) {
+                        if (resp.quorum.n === resp.quorum.q) {
                             // reached quorum; resolve immediately
                             deferred.resolve();
                         } else {
