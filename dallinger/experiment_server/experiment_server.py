@@ -497,10 +497,6 @@ def assign_properties(thing):
     session.commit()
 
 
-def queue_message(channel, message):
-    session.info['outbox'].append((channel, message))
-
-
 @app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
            methods=["POST"])
 @db.serialized
@@ -558,7 +554,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
             'q': experiment.quorum,
             'n': waiting_count,
         }
-        queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
+        db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
         result['quorum'] = quorum
 
     # return the data

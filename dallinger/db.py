@@ -116,6 +116,10 @@ def after_soft_rollback(session, previous_transaction):
     session.info['outbox'] = []
 
 
+def queue_message(channel, message):
+    session.info['outbox'].append((channel, message))
+
+
 # Publish messages to redis after commit
 @event.listens_for(Session, 'after_commit')
 def after_commit(session):
