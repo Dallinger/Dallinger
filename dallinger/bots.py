@@ -45,6 +45,8 @@ class BotBase(object):
             capabilities = {}
             if driver_type == 'firefox':
                 capabilities = webdriver.DesiredCapabilities.FIREFOX
+            elif driver_type == 'chrome':
+                capabilities = webdriver.DesiredCapabilities.CHROME
             elif driver_type == 'phantomjs':
                 capabilities = webdriver.DesiredCapabilities.PHANTOMJS
             else:
@@ -58,6 +60,8 @@ class BotBase(object):
             driver = webdriver.PhantomJS()
         elif driver_type == 'firefox':
             driver = webdriver.Firefox()
+        elif driver_type == 'chrome':
+            driver = webdriver.Chrome()
         else:
             raise ValueError(
                 'Unsupported webdriver_type: {}'.format(driver_type))
