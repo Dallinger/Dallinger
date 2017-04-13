@@ -38,6 +38,7 @@ env:
   global:
   - DATABASE_URL=postgresql://postgres@localhost/dallinger
   - PORT=5000
+  - threads=1
   - secure: isabc6zJWlMBizW/5MbjmWJ9Q2shDj0rjTPmtQmq7QZrrmxczjWfgiQE0i6tcw3wPvBIOgsA4M806ddgM/oeUPWt892BlPHUESb7j96zHtig9B/P4kwH11EPK4pEPcvg90NfVeDCqYHVSNcMtsRTSf93Fg7aT081URb7vRUykxg=
   - secure: rWBAifHvKlQabe6gvz+edMEtjtDnpwI4RFHJB1ytYSNVKQ59s7fIk2q39IZc8K3Uix7ZtP3G7ws6ufQhOj44Pm4j1J+rbLnDjdMtmcDN5aiSnwb05JpltZXCNjUqAu/CBFZ44lnNenZp4uSLhU/kLVhB2Q+UPvyWNFgApEVoiHM=
   - secure: fd4hFOH60UV8laBN4Mjva0w/EmVK3SVC5p/0O1oqPriPhUpoJ3eVVRvITbdvPctEJJgRR9t62rPk+Rv4EOXeRFfsjZK9gOfQqv/9VhJBebdQfOx2dwQLjDiGTrklkokDIDyfpyYOoJzZ/oP+6EneD403ilHnXC4fd/4EDQmaIRI=
