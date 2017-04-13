@@ -10,6 +10,7 @@ class TestExperiment(Experiment):
     def __init__(self, session=None):
         super(TestExperiment, self).__init__(session)
         self.experiment_repeats = 1
+        self.quorum = 1
         if session:
             self.setup()
 
@@ -17,7 +18,6 @@ class TestExperiment(Experiment):
     def public_properties(self):
         return {
             'exists': True,
-            'quorum': 1,
         }
 
     def create_network(self):
