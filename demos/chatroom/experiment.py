@@ -9,6 +9,7 @@ config = get_config()
 
 def extra_parameters():
     config.register('network', unicode)
+    config.register('repeats', int)
     config.register('n', int)
 
 
@@ -18,12 +19,10 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
     def __init__(self, session=None):
         """Initialize the experiment."""
         super(CoordinationChatroom, self).__init__(session)
-        self.experiment_repeats = 1
-        self.num_participants = config.get('n')
-        self.initial_recruitment_size = self.num_participants
-        self.public_properties = {
-            'quorum': self.num_participants
-        }
+        self.experiment_repeats = repeats = config.get('repeats')
+        self.quorum = config.get('n')
+        # Recruit for all networks at once
+        self.initial_recruitment_size = repeats * self.quorum
         self.config = config
         if not self.config.ready:
             self.config.load()
@@ -36,7 +35,11 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
             dlgr.networks,
             self.config.get('network')
         )
-        return class_(max_size=self.num_participants)
+        return class_(max_size=self.quorum)
+
+    def choose_network(self, networks, participant):
+        # Choose first available network rather than random
+        return networks[0]
 
     def info_post_request(self, node, info):
         """Run when a request to create an info is complete."""

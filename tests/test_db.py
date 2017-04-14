@@ -1,3 +1,6 @@
+import mock
+
+
 def test_serialized(db_session):
     from dallinger.db import serialized
     from dallinger.models import Participant
@@ -37,3 +40,12 @@ def test_serialized(db_session):
     # Which we can check by making sure that `write`
     # calculated the count at least 3 times
     assert counts == [0, 0, 1]
+
+
+def test_after_commit_hook(db_session):
+    with mock.patch('dallinger.heroku.worker.conn') as redis:
+        from dallinger.db import queue_message
+        queue_message('test', 'test')
+        db_session.commit()
+
+        assert redis.called_once_with('test', 'test')

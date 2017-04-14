@@ -90,7 +90,7 @@ get_transmissions = function (my_node_id) {
                 console.log(transmissions[i]);
                 display_info(transmissions[i].info_id);
             }
-            get_transmissions(my_node_id);
+            setTimeout(function () { get_transmissions(my_node_id); }, 100);
         },
         error: function (err) {
             console.log(err);

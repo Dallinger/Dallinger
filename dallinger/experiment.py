@@ -79,6 +79,11 @@ class Experiment(object):
         self.experiment_repeats = 0
 
         #: int, the number of participants
+        #: required to move from the waiting room to the experiment.
+        #: Default is 0 (no waiting room).
+        self.quorum = 0
+
+        #: int, the number of participants
         #: requested when the experiment first starts. Default is 1.
         self.initial_recruitment_size = 1
 
@@ -199,7 +204,8 @@ class Experiment(object):
 
         """
         key = participant.id
-        networks_with_space = Network.query.filter_by(full=False).all()
+        networks_with_space = Network.query.filter_by(
+            full=False).order_by(Network.id).all()
         networks_participated_in = [
             node.network_id for node in
             Node.query.with_entities(Node.network_id)
@@ -228,11 +234,14 @@ class Experiment(object):
                      "Assigning participant to practice network {}."
                      .format(chosen_network.id), key)
         else:
-            chosen_network = random.choice(legal_networks)
+            chosen_network = self.choose_network(legal_networks, participant)
             self.log("No practice networks available."
                      "Assigning participant to experiment network {}"
                      .format(chosen_network.id), key)
         return chosen_network
+
+    def choose_network(self, networks, participant):
+        return random.choice(networks)
 
     def create_node(self, participant, network):
         """Create a node for a participant."""
