@@ -90,45 +90,33 @@ class ChatBackend(object):
     def stop(self):
         self.greenlet.kill()
 
-    def heartbeat(self, client):
-        """Send a ping to the client periodically"""
-        self.age[client] += 1
-        if self.age[client] == 300:  # 30 seconds
-            gevent.spawn(self.send, client, 'ping')
-            self.age[client] = 0
+    def heartbeat(self, ws):
+        """Send a ping to the websocket client periodically"""
+        while not ws.closed:
+            gevent.sleep(30)
+            gevent.spawn(self.send, ws, 'ping')
 
 
 chat_backend = ChatBackend()
 app.before_first_request(chat_backend.start)
 
 
-@sockets.route('/receive_chat')
-def outbox(ws):
-    """This route was highjacked temporarily for the Griduniverse socket.
-    It both subscribes the websocket to the chat backend
-    so the front-end clients get messages via redis,
-    and it puts messages from the clients into redis so they can be sent on
-    to the Experiment, which is also registered with the chat_backend.
+@sockets.route('/chat')
+def chat(ws):
+    """Relay chat messages to and from clients.
     """
+    # Subscribe to messages on the specified channel.
     chat_backend.subscribe(ws, channel=request.args.get('channel'))
 
-    while not ws.closed:
-        # Wait for chat backend
-        gevent.sleep(0.1)
-
-        # Send heartbeat ping every 30s
-        # so Heroku won't close the connection
-        chat_backend.heartbeat(ws)
-
-
-@sockets.route('/send_chat')
-def inbox(ws):
-    """Receives incoming messages and inserts them into a Redis channel"""
-    channel = request.args.get('channel')
+    # Send heartbeat ping every 30s
+    # so Heroku won't close the connection
+    gevent.spawn(chat_backend.heartbeat, ws)
 
     while not ws.closed:
         # Sleep to prevent *constant* context-switches.
         gevent.sleep(0.1)
-        # Put messages from the front-end into redis:
+
+        # Publish messages from client
         message = ws.receive()
-        conn.publish(channel, message)
+        channel, data = message.split(':', 1)
+        conn.publish(channel, data)

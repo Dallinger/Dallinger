@@ -176,9 +176,9 @@ var submitNextResponse = function (n) {
 
 waitForQuorum = function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
-    var inbox = new ReconnectingWebSocket(ws_scheme + location.host + "/receive_chat");
+    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat");
     var deferred = $.Deferred();
-    inbox.onmessage = function (msg) {
+    socket.onmessage = function (msg) {
         if (msg.data.indexOf('quorum:') !== 0) { return; }
         var data = JSON.parse(msg.data.substring(7));
         var n = data.n;
