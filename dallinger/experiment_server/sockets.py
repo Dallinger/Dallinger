@@ -13,6 +13,7 @@ sockets = Sockets(app)
 DEFAULT_CHANNELS = [
     WAITING_ROOM_CHANNEL,
 ]
+HEARTBEAT_DELAY = 30
 
 
 class ChatBackend(object):
@@ -26,7 +27,6 @@ class ChatBackend(object):
     def __init__(self):
         self.pubsub = conn.pubsub()
         self._join_pubsub(DEFAULT_CHANNELS)
-        self.age = defaultdict(lambda: 0)
         self.clients = defaultdict(list)
 
     def _join_pubsub(self, channels):
@@ -65,8 +65,6 @@ class ChatBackend(object):
         except socket.error:
             for channel in self.clients:
                 self.unsubscribe(client, channel)
-            if client in self.age:
-                del self.age[client]
 
     def run(self):
         """Listens for new messages in redis, and sends them to clients."""
@@ -93,7 +91,7 @@ class ChatBackend(object):
     def heartbeat(self, ws):
         """Send a ping to the websocket client periodically"""
         while not ws.closed:
-            gevent.sleep(30)
+            gevent.sleep(HEARTBEAT_DELAY)
             gevent.spawn(self.send, ws, 'ping')
 
 

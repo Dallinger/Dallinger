@@ -85,13 +85,18 @@ class TestChatBackend:
         chat.start()
         chat.stop()
 
-    def test_heartbeat(self, chat):
+    def test_heartbeat(self, chat, sockets):
         client = Mock()
+        client.closed = False
+        chat.send = Mock()
+        sockets.HEARTBEAT_DELAY = 1
 
-        for i in range(300):
-            chat.heartbeat(client)
+        gevent.spawn(chat.heartbeat, client)
+        gevent.sleep(2)
+        client.closed = True
+        gevent.wait()
 
-        assert chat.age[client] == 0
+        chat.send.assert_called_with(client, 'ping')
 
     def test_chat_subscribes_to_default_channel(self, sockets):
         ws = Mock()
