@@ -118,5 +118,6 @@ def chat(ws):
 
         # Publish messages from client
         message = ws.receive()
-        channel, data = message.split(':', 1)
-        conn.publish(channel, data)
+        if message is not None:
+            channel, data = message.split(':', 1)
+            conn.publish(channel, data)

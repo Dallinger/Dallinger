@@ -96,13 +96,14 @@ var create_participant = function() {
         deferred.resolve();
     } else {
         $(function () {
-            $('.btn-success').prop('disabled', 'disabled');
+            $('.btn-success').prop('disabled', true);
             reqwest({
                 url: url,
                 method: "post",
                 type: "json",
                 success: function(resp) {
                     console.log(resp);
+                    $('.btn-success').prop('disabled', false);
                     participant_id = resp.participant.id;
                     if (resp.quorum) {
                         if (resp.quorum.n === resp.quorum.q) {
