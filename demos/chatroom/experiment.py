@@ -1,15 +1,16 @@
 """Coordination chatroom game."""
 
 import logging
-from random import choice
-from random import expovariate
+import random
 from time import sleep
 
-from chatterbot import ChatBot
-from chatterbot.trainers import ChatterBotCorpusTrainer
+from nltk.chat.eliza import eliza_chatbot
+from nltk.chat.iesha import iesha_chatbot
+from nltk.chat.rude import rude_chatbot
+from nltk.chat.suntsu import suntsu_chatbot
+from nltk.chat.zen import zen_chatbot
 
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -75,39 +76,37 @@ GREETINGS = ['Hello.',
              'Hi.',
              "What's up?"]
 
-AVG_TIME_BETWEEN_MESSAGES = 2
+AVG_TIME_BETWEEN_MESSAGES = 7
 
-TOTAL_CHAT_TIME = 30
+TOTAL_CHAT_TIME = 60
 
+BOTS = [eliza_chatbot, iesha_chatbot, rude_chatbot, suntsu_chatbot, zen_chatbot]
 
 class Bot(BotBase):
     """A bot conversation demo."""
 
     def participate(self):
-        self.chatbot = ChatBot('Dallinger Bot')
-        self.chatbot.set_trainer(ChatterBotCorpusTrainer)
-        self.chatbot.train(
-                "chatterbot.corpus.english.greetings",
-                "chatterbot.corpus.english.conversations"
-        )
+        random.seed(self.worker_id)
+        chatbot = random.choice(BOTS)
         WebDriverWait(self.driver, 10).until(
             EC.element_to_be_clickable((By.ID, 'send-message')))
         logger.info("Entering participate method")
-        output = choice(GREETINGS)
-        self.driver.execute_script('$("#reproduction").val("%s")' % output)
-        self.driver.execute_script('$("#send-message").click()')
-        logger.info("Output: %s" % output)
         chat_time = TOTAL_CHAT_TIME
         while chat_time > 0:
-            waiting_time = int(expovariate(1.0/AVG_TIME_BETWEEN_MESSAGES)) + 1
+            waiting_time = int(random.expovariate(1.0/AVG_TIME_BETWEEN_MESSAGES)) + 1
             sleep(waiting_time)
             chat_time = chat_time - waiting_time
             story = self.driver.find_element_by_id('story')
             history = story.text.split('\n')
-            if history:
+            logger.info("History: %s" % history)
+            if history and history[-1]:
                 logger.info("Responding to: %s" % history[-1])
-                output = self.chatbot.get_response(history[-1])
-                self.driver.execute_script('$("#reproduction").val("%s")' % output)
-                self.driver.execute_script('$("#send-message").click()')
-                logger.info("Output: %s" % output)
+                output = chatbot.respond(history[-1])
+            else:
+                logger.info("Using random greeting.")
+                output = random.choice(GREETINGS)
+            logger.info("Output: %s" % output)
+            self.driver.execute_script('$("#reproduction").val("%s")' %
+                                       output)
+            self.driver.execute_script('$("#send-message").click()')
         self.driver.execute_script('leave_chatroom()')
