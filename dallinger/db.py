@@ -125,7 +125,7 @@ def queue_message(channel, message):
 def after_commit(session):
     from dallinger.heroku.worker import conn as redis
 
-    for channel, message in session.info['outbox']:
+    for channel, message in session.info.get('outbox', ()):
         logger.debug(
             'Publishing message to {}: {}'.format(channel, message))
         redis.publish(channel, message)
