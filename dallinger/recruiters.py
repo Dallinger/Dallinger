@@ -194,9 +194,9 @@ class BotRecruiter(object):
     def recruit_participants(self, n=1):
         """Recruit n new participant bots to the queue"""
         from dallinger_experiment import Bot
-        base_url = get_base_url()
 
         for _ in range(n):
+            base_url = get_base_url()
             worker = generate_random_id()
             hit = generate_random_id()
             assignment = generate_random_id()
