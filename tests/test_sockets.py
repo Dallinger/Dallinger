@@ -85,33 +85,38 @@ class TestChatBackend:
         chat.start()
         chat.stop()
 
-    def test_heartbeat(self, chat):
+    def test_heartbeat(self, chat, sockets):
         client = Mock()
+        client.closed = False
+        chat.send = Mock()
+        sockets.HEARTBEAT_DELAY = 1
 
-        for i in range(300):
-            chat.heartbeat(client)
+        gevent.spawn(chat.heartbeat, client)
+        gevent.sleep(2)
+        client.closed = True
+        gevent.wait()
 
-        assert chat.age[client] == 0
+        chat.send.assert_called_with(client, 'ping')
 
-    def test_outbox_subscribes_to_default_channel(self, sockets):
+    def test_chat_subscribes_to_default_channel(self, sockets):
         ws = Mock()
         sockets.request = Mock()
-        sockets.request.args.get.return_value = None
-        sockets.outbox(ws)
+        sockets.request.args = {}
+        sockets.chat(ws)
 
         ws.closed = True
         gevent.wait()
 
         assert ws in sockets.chat_backend.clients['quorum']
 
-    def test_outbox_subscribes_to_requested_channel(self, sockets):
+    def test_chat_subscribes_to_requested_channel(self, sockets):
         ws = Mock()
         sockets.request = Mock()
         sockets.request.args.get.return_value = 'special'
-        sockets.outbox(ws)
+        sockets.chat(ws)
         assert ws in sockets.chat_backend.clients['special']
 
-    def test_inbox_publishes_message_to_requested_channel(self, sockets):
+    def test_chat_publishes_message_to_requested_channel(self, sockets):
         class MockSocket(Mock):
             """We need a property that returns False the first time
             and True after that. Doesn't seem possible with Mock.
@@ -126,11 +131,10 @@ class TestChatBackend:
                 return False
 
         ws = MockSocket()
-        ws.receive.return_value = 'incoming message!'
+        ws.receive.return_value = 'special:incoming message!'
         sockets.request = Mock()
         sockets.conn = Mock()
-        sockets.request.args.get.return_value = 'special'
-        sockets.inbox(ws)
+        sockets.chat(ws)
         sockets.conn.publish.assert_called_once_with(
             'special', 'incoming message!'
         )

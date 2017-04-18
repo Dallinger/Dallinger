@@ -13,6 +13,7 @@ sockets = Sockets(app)
 DEFAULT_CHANNELS = [
     WAITING_ROOM_CHANNEL,
 ]
+HEARTBEAT_DELAY = 30
 
 
 class ChatBackend(object):
@@ -26,7 +27,6 @@ class ChatBackend(object):
     def __init__(self):
         self.pubsub = conn.pubsub()
         self._join_pubsub(DEFAULT_CHANNELS)
-        self.age = defaultdict(lambda: 0)
         self.clients = defaultdict(list)
 
     def _join_pubsub(self, channels):
@@ -65,8 +65,6 @@ class ChatBackend(object):
         except socket.error:
             for channel in self.clients:
                 self.unsubscribe(client, channel)
-            if client in self.age:
-                del self.age[client]
 
     def run(self):
         """Listens for new messages in redis, and sends them to clients."""
@@ -90,45 +88,34 @@ class ChatBackend(object):
     def stop(self):
         self.greenlet.kill()
 
-    def heartbeat(self, client):
-        """Send a ping to the client periodically"""
-        self.age[client] += 1
-        if self.age[client] == 300:  # 30 seconds
-            gevent.spawn(self.send, client, 'ping')
-            self.age[client] = 0
+    def heartbeat(self, ws):
+        """Send a ping to the websocket client periodically"""
+        while not ws.closed:
+            gevent.sleep(HEARTBEAT_DELAY)
+            gevent.spawn(self.send, ws, 'ping')
 
 
 chat_backend = ChatBackend()
 app.before_first_request(chat_backend.start)
 
 
-@sockets.route('/receive_chat')
-def outbox(ws):
-    """This route was highjacked temporarily for the Griduniverse socket.
-    It both subscribes the websocket to the chat backend
-    so the front-end clients get messages via redis,
-    and it puts messages from the clients into redis so they can be sent on
-    to the Experiment, which is also registered with the chat_backend.
+@sockets.route('/chat')
+def chat(ws):
+    """Relay chat messages to and from clients.
     """
+    # Subscribe to messages on the specified channel.
     chat_backend.subscribe(ws, channel=request.args.get('channel'))
 
-    while not ws.closed:
-        # Wait for chat backend
-        gevent.sleep(0.1)
-
-        # Send heartbeat ping every 30s
-        # so Heroku won't close the connection
-        chat_backend.heartbeat(ws)
-
-
-@sockets.route('/send_chat')
-def inbox(ws):
-    """Receives incoming messages and inserts them into a Redis channel"""
-    channel = request.args.get('channel')
+    # Send heartbeat ping every 30s
+    # so Heroku won't close the connection
+    gevent.spawn(chat_backend.heartbeat, ws)
 
     while not ws.closed:
         # Sleep to prevent *constant* context-switches.
         gevent.sleep(0.1)
-        # Put messages from the front-end into redis:
+
+        # Publish messages from client
         message = ws.receive()
-        conn.publish(channel, message)
+        if message is not None:
+            channel, data = message.split(':', 1)
+            conn.publish(channel, data)
