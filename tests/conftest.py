@@ -64,6 +64,7 @@ def db_session():
 
 def pytest_addoption(parser):
     parser.addoption("--firefox", action="store_true", help="Run firefox bot tests")
+    parser.addoption("--chrome", action="store_true", help="Run chrome bot tests")
     parser.addoption("--phantomjs", action="store_true", help="Run phantomjs bot tests")
     parser.addoption("--webdriver", nargs="?", action="store",
                      help="URL of selenium server including /wd/hub to run remote tests against",
