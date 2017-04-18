@@ -13,5 +13,5 @@ requests==2.13.0
 rq==0.7.1
 SQLAlchemy==1.1.9
 tablib==0.11.4
-ua-parser==0.3.6
-user-agents==0.2.0
+ua-parser==0.7.3
+user-agents==1.1.0
