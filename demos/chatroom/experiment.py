@@ -18,7 +18,6 @@ import dallinger as dlgr
 from dallinger.bots import BotBase
 from dallinger.compat import unicode
 from dallinger.config import get_config
-from dallinger.experiments import Experiment
 
 
 config = get_config()
@@ -81,6 +80,7 @@ AVG_TIME_BETWEEN_MESSAGES = 7
 TOTAL_CHAT_TIME = 60
 
 BOTS = [eliza_chatbot, iesha_chatbot, rude_chatbot, suntsu_chatbot, zen_chatbot]
+
 
 class Bot(BotBase):
     """A bot conversation demo."""
