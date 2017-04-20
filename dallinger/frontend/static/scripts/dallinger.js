@@ -33,6 +33,7 @@ allow_exit = function() {
 
 // advance the participant to a given html page
 go_to_page = function(page) {
+    allow_exit();
     window.location = "/" + page + "?participant_id=" + participant_id;
 };
 
