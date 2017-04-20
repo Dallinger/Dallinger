@@ -2,7 +2,7 @@
 
 import logging
 import random
-from time import sleep
+import time
 
 from nltk.chat.eliza import eliza_chatbot
 from nltk.chat.iesha import iesha_chatbot
@@ -68,34 +68,51 @@ class CoordinationChatroom(dlgr.experiment.Experiment):
         return dlgr.nodes.Agent(network=network, participant=participant)
 
 
-GREETINGS = ['Hello.',
-             'How do you do.',
-             'Good day.',
-             'Anyone here?',
-             'Hi.',
-             "What's up?"]
-
-AVG_TIME_BETWEEN_MESSAGES = 7
-
-TOTAL_CHAT_TIME = 60
-
-BOTS = [eliza_chatbot, iesha_chatbot, rude_chatbot, suntsu_chatbot, zen_chatbot]
-
-
 class Bot(BotBase):
     """A bot conversation demo."""
 
+    GREETINGS = [
+        'Hello.',
+        'How do you do.',
+        'Good day.',
+        'Anyone here?',
+        'Hi.',
+        "What's up?",
+    ]
+
+    AVG_TIME_BETWEEN_MESSAGES = 7
+
+    TOTAL_CHAT_TIME = 60
+
+    PERSONALITIES = [
+        eliza_chatbot,
+        iesha_chatbot,
+        rude_chatbot,
+        suntsu_chatbot,
+        zen_chatbot
+    ]
+
+    def wait_to_send_message(self):
+        waiting_time = random.expovariate(1.0 / self.AVG_TIME_BETWEEN_MESSAGES)
+        time.sleep(waiting_time)
+
+    def send_message(self, message):
+        self.driver.find_element_by_id("reproduction").send_keys(message)
+        self.driver.find_element_by_id("send-message").click()
+
+    def leave_chat(self):
+        self.driver.find_element_by_id("leave-chat").click()
+
     def participate(self):
         random.seed(self.worker_id)
-        chatbot = random.choice(BOTS)
+        chatbot = random.choice(self.PERSONALITIES)
         WebDriverWait(self.driver, 10).until(
             EC.element_to_be_clickable((By.ID, 'send-message')))
         logger.info("Entering participate method")
-        chat_time = TOTAL_CHAT_TIME
-        while chat_time > 0:
-            waiting_time = int(random.expovariate(1.0/AVG_TIME_BETWEEN_MESSAGES)) + 1
-            sleep(waiting_time)
-            chat_time = chat_time - waiting_time
+        start = time.time()
+        while (time.time() - start) < self.TOTAL_CHAT_TIME:
+
+            self.wait_to_send_message()
             story = self.driver.find_element_by_id('story')
             history = story.text.split('\n')
             logger.info("History: %s" % history)
@@ -104,9 +121,8 @@ class Bot(BotBase):
                 output = chatbot.respond(history[-1])
             else:
                 logger.info("Using random greeting.")
-                output = random.choice(GREETINGS)
+                output = random.choice(self.GREETINGS)
             logger.info("Output: %s" % output)
-            self.driver.find_element_by_id("reproduction").send_keys(output)
-            self.driver.find_element_by_id("send-message").click()
+            self.send_message(output)
 
-        self.driver.find_element_by_id("leave-chat").click()
+        self.leave_chat()
