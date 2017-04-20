@@ -18,6 +18,10 @@ engines:
     enabled: true
   radon:
     enabled: true
+  pep8:
+    enabled: true
+  markdownlint:
+    enabled: true
 ratings:
   paths:
   - "**.css"
