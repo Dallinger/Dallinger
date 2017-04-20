@@ -106,7 +106,7 @@ class Bot(BotBase):
                 logger.info("Using random greeting.")
                 output = random.choice(GREETINGS)
             logger.info("Output: %s" % output)
-            self.driver.execute_script('$("#reproduction").val("%s")' %
-                                       output)
-            self.driver.execute_script('$("#send-message").click()')
-        self.driver.execute_script('leave_chatroom()')
+            self.driver.find_element_by_id("reproduction").send_keys(output)
+            self.driver.find_element_by_id("send-message").click()
+
+        self.driver.find_element_by_id("leave-chat").click()
