@@ -92,6 +92,10 @@ class Bot(BotBase):
         zen_chatbot
     ]
 
+    def get_chat_history(self):
+        story = self.driver.find_element_by_id('story')
+        return story.text.split('\n')
+
     def wait_to_send_message(self):
         waiting_time = random.expovariate(1.0 / self.AVG_TIME_BETWEEN_MESSAGES)
         time.sleep(waiting_time)
@@ -113,8 +117,7 @@ class Bot(BotBase):
         while (time.time() - start) < self.TOTAL_CHAT_TIME:
 
             self.wait_to_send_message()
-            story = self.driver.find_element_by_id('story')
-            history = story.text.split('\n')
+            history = self.get_chat_history()
             logger.info("History: %s" % history)
             if history and history[-1]:
                 logger.info("Responding to: %s" % history[-1])
