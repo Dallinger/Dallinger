@@ -1,6 +1,7 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
 from datetime import datetime
+import hashlib
 from json import dumps
 from operator import attrgetter
 import re
@@ -46,6 +47,8 @@ session = db.session
 q = Queue(connection=conn)
 
 app = Flask('Experiment_Server')
+secret = hashlib.sha256(config.get("aws_secret_access_key")).hexdigest()
+app.config["SECRET_KEY"] = secret
 
 Experiment = experiment.load()
 
@@ -215,6 +218,22 @@ def launch():
     exp = Experiment(db.init_db(drop_all=False))
     exp.log("Launching experiment...", "-----")
     url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+
+    """Inject the experiment variable into the template context."""
+    @app.context_processor
+    def inject_experiment():
+        return dict(experiment=exp)
+
+    """Initialize a Socket.IO server if appropriate."""
+    try:
+        from dallinger_experiment import socketio
+    except ImportError:
+        pass
+    else:
+        socketio.init_app(app)
+        for task in exp.background_tasks:
+            socketio.start_background_task(task)
+
     session.commit()
 
     return success_response("recruitment_url", url_info, request_type="launch")
@@ -1426,4 +1445,5 @@ def insert_mode(page_html, mode):
             page_html[match.end():]
         return new_html
     else:
+        traceback.print_exc()
         raise ExperimentError("insert_mode_failed")
