@@ -21,6 +21,7 @@ dallingerconfig
 dyno
 dynos
 et
+Firefox
 frontend
 GitHub
 Google
@@ -48,6 +49,7 @@ neighbour
 ons
 pandoc
 Papertrail
+phantomJS
 Populi
 Postgres
 PostgreSQL
@@ -77,6 +79,7 @@ virtualization
 Vox
 walkthrough
 walkthroughs
+Webdriver
 Webhook
 webpage
 Wikipedia

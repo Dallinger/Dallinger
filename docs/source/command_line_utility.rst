@@ -10,6 +10,15 @@ verify
 
 Verify that a directory is a Dallinger-compatible app.
 
+.. _dallinger-bot:
+
+bot
+^^^
+
+Spawn a bot and attach it to the specified application. The ``--debug`` flag
+connects the bot to the locally running instance of Dallinger. Alternatively
+an instance on Heroku may be specified using the ``--app`` parameter.
+
 debug
 ^^^^^
 

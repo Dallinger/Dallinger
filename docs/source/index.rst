@@ -11,6 +11,7 @@ Laboratory automation for the behavioral and social sciences.
     dallinger_with_anaconda
     aws_etc_keys
     demoing_dallinger
+    running_bots
     learning_to_use_dallinger
     monitoring_a_live_experiment
     postico_and_postgres
