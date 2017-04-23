@@ -83,6 +83,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: recruit
 
+  .. automethod:: run
+
   .. automethod:: save
 
   .. automethod:: setup
