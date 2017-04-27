@@ -5,6 +5,7 @@ import gevent
 from json import dumps
 from operator import attrgetter
 import re
+import sys
 import traceback
 import user_agents
 
@@ -95,21 +96,26 @@ def success_response(**data):
 
 
 def error_response(error_type="Internal server error",
-                   error_text=None,
+                   error_text='',
                    status=400,
-                   participant=None):
+                   participant=None,
+                   simple=False):
     """Return a generic server error response."""
-    traceback.print_exc()
+    if sys.exc_info()[0]:
+        db.logger.exception("Failure for request: {}".format(dict(request.args)))
+        traceback.print_exc()
 
-    page = error_page(
-        error_text=error_text,
-        error_type=error_type,
-        participant=participant)
+    data = {"status": "error"}
 
-    data = {
-        "status": "error",
-        "html": unicode(page)
-    }
+    if simple:
+        data["message"] = error_text
+    else:
+        data["html"] = unicode(
+            error_page(error_text=error_text,
+                       error_type=error_type,
+                       participant=participant).get_data()
+        )
+
     return Response(dumps(data), status=status, mimetype='application/json')
 
 
@@ -220,17 +226,39 @@ def launch():
     """Launch the experiment."""
     exp = Experiment(db.init_db(drop_all=False))
     exp.log("Launching experiment...", "-----")
-    url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
-    session.commit()
+    try:
+        url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+        session.commit()
+    except:
+        return error_response(
+            error_text=u"Failed to open recruitment, check experiment server log "
+                       u"for details.",
+            status=500, simple=True
+        )
 
     for task in exp.background_tasks:
-        gevent.spawn(task)
+        try:
+            gevent.spawn(task)
+        except:
+            return error_response(
+                error_text=u"Failed to spawn task on launch: {}, ".format(task) +
+                           u"check experiment server log for details",
+                status=500, simple=True
+            )
 
     # If the experiment defines a channel, subscribe the experiment to the
     # redis communication channel:
     if exp.channel is not None:
-        from dallinger.experiment_server.sockets import chat_backend
-        chat_backend.subscribe(exp, exp.channel)
+        try:
+            from dallinger.experiment_server.sockets import chat_backend
+            chat_backend.subscribe(exp, exp.channel)
+        except:
+            return error_response(
+                error_text=u"Failed to subscribe to chat for channel on launch " +
+                           u"{}".format(exp.channel) +
+                           u", check experiment server log for details",
+                status=500, simple=True
+            )
 
     return success_response(recruitment_url=url_info)
 

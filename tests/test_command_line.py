@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import filecmp
 import os
+import pytest
 import shutil
 import subprocess
 import sys
@@ -159,6 +160,29 @@ class TestDebugServer(object):
             p.sendcontrol('c')
             p.read()
 
+    def test_launch_failure(self):
+        # Make sure debug server starts without error
+        environ = self.environ.copy()
+        environ['recruiter'] = u'bogus'
+        p = pexpect.spawn(
+            'dallinger',
+            ['debug', '--verbose'],
+            env=environ,
+        )
+        p.logfile = sys.stdout
+        try:
+            p.expect_exact('Launching the experiment...', timeout=120)
+            p.expect_exact('Experiment launch failed, check web dyno logs for details.',
+                           timeout=60)
+            p.expect_exact('Failed to open recruitment, check experiment server log for details.',
+                           timeout=30)
+        finally:
+            try:
+                p.sendcontrol('c')
+            except IOError:
+                pass
+            p.read()
+
     def test_warning_if_no_heroku_present(self):
         environ = self.environ.copy()
         # Remove the path item that has heroku in it
@@ -182,22 +206,24 @@ class TestDebugServer(object):
             p.sendcontrol('c')
             p.read()
 
-    # def test_debug_bots(self):
-    #     # Make sure debug server runs to completion with bots
-    #     p = pexpect.spawn(
-    #         'dallinger',
-    #         ['debug', '--verbose', '--bot'],
-    #         env=self.environ,
-    #     )
-    #     p.logfile = sys.stdout
-    #     try:
-    #         p.expect_exact('Server is running', timeout=120)
-    #         p.expect_exact('Recruitment is complete', timeout=300)
-    #         p.expect_exact('Experiment completed', timeout=120)
-    #         p.expect_exact('Local Heroku process terminated', timeout=10)
-    #     finally:
-    #         p.sendcontrol('c')
-    #         p.read()
+    @pytest.mark.skipif(not pytest.config.getvalue("runbot"),
+                        reason="--runbot was specified")
+    def test_debug_bots(self):
+        # Make sure debug server runs to completion with bots
+        p = pexpect.spawn(
+            'dallinger',
+            ['debug', '--verbose', '--bot'],
+            env=self.environ,
+        )
+        p.logfile = sys.stdout
+        try:
+            p.expect_exact('Server is running', timeout=300)
+            p.expect_exact('Recruitment is complete', timeout=600)
+            p.expect_exact('Experiment completed', timeout=60)
+            p.expect_exact('Local Heroku process terminated', timeout=10)
+        finally:
+            p.sendcontrol('c')
+            p.read()
 
 
 class TestHeader(object):

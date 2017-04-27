@@ -137,6 +137,9 @@ class Experiment(object):
             debug_mode = False
 
         recruiter = config.get('recruiter', None)
+        if recruiter == 'bogus':
+            # For forcing failures in tests
+            raise NotImplementedError
         if debug_mode and recruiter != 'bots':
             return HotAirRecruiter
         if recruiter == 'bots':

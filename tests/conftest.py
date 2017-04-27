@@ -69,3 +69,5 @@ def pytest_addoption(parser):
     parser.addoption("--webdriver", nargs="?", action="store",
                      help="URL of selenium server including /wd/hub to run remote tests against",
                      metavar='URL')
+    parser.addoption("--runbot", action="store_true",
+                     help="Run an experiment using a bot during tests")

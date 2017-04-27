@@ -334,7 +334,18 @@ def debug(verbose, bot, exp_config=None):
             # Call endpoint to launch the experiment
             log("Launching the experiment...")
             time.sleep(4)
-            requests.post('{}/launch'.format(base_url))
+            launch_request = requests.post('{}/launch'.format(base_url))
+            try:
+                launch_data = launch_request.json()
+            except ValueError:
+                error("Error parsing response from /launch: {}".format(launch_request.content))
+                raise
+
+            if not launch_request.ok:
+                error('Experiment launch failed, check web dyno logs for details.')
+                if launch_data.get('message'):
+                    error(str(launch_data['message']))
+                launch_request.raise_for_status()
 
             closed = False
             status_url = base_url + '/summary'
@@ -535,7 +546,17 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     log("Launching the experiment on MTurk...")
 
     launch_request = requests.post('https://{}.herokuapp.com/launch'.format(app_name(id)))
-    launch_data = launch_request.json()
+    try:
+        launch_data = launch_request.json()
+    except ValueError:
+        error("Error parsing response from /launch: {}".format(launch_request.content))
+        raise
+
+    if not launch_request.ok:
+        error('Experiment launch failed, check web dyno logs for details.')
+        if launch_data.get('message'):
+            error(str(launch_data['message']))
+        launch_request.raise_for_status()
 
     log("URLs:")
     log("App home: https://{}.herokuapp.com/".format(app_name(id)), chevrons=False)

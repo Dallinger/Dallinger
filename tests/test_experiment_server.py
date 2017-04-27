@@ -6,26 +6,31 @@ import unittest
 class FlaskAppTest(unittest.TestCase):
     """Base test case class for tests of the flask app."""
 
+    experiment_dir = 'tests/experiment'
+
     def setUp(self, case=None):
         # The flask app assumes it is imported
         # while in an experiment directory.
         # `tests/experiment` mimics the files that are put
         # in place by dallinger.command_line.setup_experiment
         # when running via the CLI
-        os.chdir('tests/experiment')
-
-        from dallinger.experiment_server.sockets import app
+        self.orig_dir = os.getcwd()
+        os.chdir(self.experiment_dir)
+        from dallinger.experiment_server import sockets
+        app = sockets.app
         app.config['DEBUG'] = True
         app.config['TESTING'] = True
         self.app = app.test_client()
 
         import dallinger.db
         self.db = dallinger.db.init_db(drop_all=True)
+        from dallinger.config import get_config
+        self.exp_config = get_config()
 
     def tearDown(self):
         self.db.rollback()
         self.db.close()
-        os.chdir('../..')
+        os.chdir(self.orig_dir)
 
         # Make sure the greenlet handling chat is stopped
         from dallinger.experiment_server.sockets import chat_backend
@@ -203,3 +208,9 @@ class TestExperimentServer(FlaskAppTest):
     def test_not_found(self):
         resp = self.app.get('/BOGUS')
         assert resp.status_code == 404
+
+    def test_launch(self):
+        resp = self.app.post('/launch', {})
+        assert resp.status_code == 200
+        data = json.loads(resp.get_data())
+        assert 'recruitment_url' in data
