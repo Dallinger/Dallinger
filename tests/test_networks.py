@@ -1,6 +1,7 @@
 from dallinger import networks, nodes, db, models
 import random
-from pytest import raises
+import pytest
+from collections import defaultdict
 
 
 class TestNetworks(object):
@@ -54,7 +55,7 @@ class TestNetworks(object):
         node = models.Node(network=net)
         self.db.add(net)
         self.db.commit()
-        with raises(NotImplementedError):
+        with pytest.raises(NotImplementedError):
             net.add_node(node)
 
     def test_network_sources(self):
@@ -181,7 +182,7 @@ class TestNetworks(object):
 
         node1.connect(whom=[node2, agent1, agent2])
 
-        raises(TypeError, node1.connect, whom=source1)
+        pytest.raises(TypeError, node1.connect, whom=source1)
 
         assert set(node1.neighbors(direction="to")) == set([node2, agent1, agent2])
         assert len(node1.vectors(direction="outgoing")) == 3
@@ -190,7 +191,7 @@ class TestNetworks(object):
         agent1.fail()
         agent2.fail()
 
-        raises(ValueError, node1.neighbors, direction="ghbhfgjd")
+        pytest.raises(ValueError, node1.neighbors, direction="ghbhfgjd")
 
     def test_network_repr(self):
         net = networks.Network()
@@ -378,33 +379,102 @@ class TestNetworks(object):
         assert agent3.is_connected(direction="to", whom=agent5)
         assert not agent3.is_connected(direction="to", whom=agent6)
 
-    # def test_discrete_generational(self):
-    #     n_gens = 4
-    #     gen_size = 4
 
-    #     net = networks.DiscreteGenerational(
-    #         generations=n_gens, generation_size=gen_size, initial_source=True)
+class GenerationalAgent(nodes.Agent):
 
-    #     source = nodes.RandomBinaryStringSource()
-    #     net.add(source)
-    #     self.db.add(source)
-    #     agents = []
-    #     for i in range(n_gens*gen_size):
-    #         agents.append(nodes.Agent())
-    #         self.db.add(agents[-1])
-    #         net.add(agents[-1])
-    #         net.add_node(agents[-1])
+    from sqlalchemy.ext.hybrid import hybrid_property
 
-    #     assert len(net.nodes(type=nodes.Source)) == 1
-    #     assert len(net.nodes(type=nodes.Agent)) == n_gens*gen_size
+    __mapper_args__ = {"polymorphic_identity": "test_agent"}
 
-    #     for a in range(n_gens*gen_size):
-    #         for b in range(n_gens*gen_size):
-    #             a_gen = int((a)/float(gen_size))
-    #             b_gen = int((b)/float(gen_size))
-    #             if b_gen == (1+a_gen):
-    #                 assert agents[a].is_connected(direction="to", whom=agents[b])
-    #             else:
-    #                 assert (agents[a].is_connected(direction="to", whom=agents[b]) is False)
-    #             if a_gen == 0:
-    #                 assert isinstance(agents[a].neighbors(direction="from")[0], nodes.Source)
+    @hybrid_property
+    def generation(self):
+        """Convert property2 to genertion."""
+        return int(self.property2)
+
+    @generation.setter
+    def generation(self, generation):
+        """Make generation settable."""
+        self.property2 = repr(generation)
+
+    @generation.expression
+    def generation(self):
+        """Make generation queryable."""
+        from sqlalchemy import Integer
+        from sqlalchemy.sql.expression import cast
+        return cast(self.property2, Integer)
+
+
+class TestDiscreteGenerational(TestNetworks):
+
+    def _make_one(self, n_gens, gen_size, initial_source):
+        net = networks.DiscreteGenerational(
+            generations=n_gens,
+            generation_size=gen_size,
+            initial_source=initial_source)
+        self.db.add(net)
+        self.db.commit()
+
+        return net
+
+    def _fill(self, net):
+        total_nodes = net.generations * net.generation_size
+        by_gen = defaultdict(list)
+        for i in range(total_nodes):
+            agent = GenerationalAgent(network=net)
+            agent.fitness = i + .1
+            net.add_node(agent)
+            by_gen[agent.generation].append(agent)
+
+        return by_gen
+
+    def test_initial_source_attr_true(self):
+        net = self._make_one(1, 1, initial_source=True)
+        assert net.initial_source
+
+    def test_initial_source_attr_false(self):
+        net = self._make_one(1, 1, initial_source=False)
+        assert not net.initial_source
+
+    def test_add_node_with_initial_source_true(self):
+        n_gens = 4
+        gen_size = 4
+
+        net = self._make_one(n_gens, gen_size, initial_source=True)
+        source = nodes.RandomBinaryStringSource(network=net)
+
+        by_gen = self._fill(net)
+
+        assert len(net.nodes(type=nodes.Source)) == 1
+        assert len(net.nodes(type=nodes.Agent)) == n_gens * gen_size
+
+        first_generation = by_gen[0]
+        subsequent_generations = {gen: by_gen[gen] for gen in by_gen.keys() if gen > 0}
+
+        # First generation is conncted to source
+        for agent in first_generation:
+            assert agent.neighbors(direction='from') == [source]
+
+        # Subsequent generations get assigned a single random parent
+        # from the previous generation
+        for generation, agents in subsequent_generations.items():
+            for agent in agents:
+                parents = agent.neighbors(direction='from')
+                assert len(parents) == 1
+                assert parents[0] in by_gen[agent.generation - 1]
+
+    def test_add_node_with_initial_source_false(self):
+        n_gens = 4
+        gen_size = 4
+        net = self._make_one(n_gens, gen_size, initial_source=False)
+        source = nodes.RandomBinaryStringSource(network=net)
+
+        by_gen = self._fill(net)
+
+        assert len(net.nodes(type=nodes.Source)) == 1
+        assert len(net.nodes(type=nodes.Agent)) == n_gens * gen_size
+
+        first_generation = by_gen[0]
+
+        # First generation is NOT conncted to source
+        for agent in first_generation:
+            assert source not in agent.neighbors(direction='from')
