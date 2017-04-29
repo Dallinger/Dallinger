@@ -134,7 +134,7 @@ class DiscreteGenerational(Network):
     @property
     def initial_source(self):
         """The source that seeds the first generation."""
-        return bool(self.property3)
+        return self.property3.lower() != 'false'
 
     def add_node(self, node):
         """Link the agent to a random member of the previous generation."""
