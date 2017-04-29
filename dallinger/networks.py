@@ -99,11 +99,16 @@ class DiscreteGenerational(Network):
     """A discrete generational network.
 
     A discrete generational network arranges agents into none-overlapping
-    generations. Each agent is connected to all agents in the previous
-    generation. If initial_source is true agents in the first generation will
-    connect to the oldest source in the network. generation_size dictates how
-    many agents are in each generation, generations sets how many generations
-    the network involves.
+    generations.
+
+    If initial_source is true, agents in the first generation will connect to
+    the oldest source in the network as their parent. Otherwise, they will be
+    parentless. For Agents in subsequent generations, a parent will be
+    selected from the previous generation with probability proportional to the
+    parent's fitness, with fitter parents more likely to be selected.
+
+    generation_size dictates how many agents are in each generation,
+    generations sets how many generations the network involves.
 
     Note that this network type assumes that agents have a property called
     generation. If you agents do not have this property it will not work.
@@ -137,7 +142,7 @@ class DiscreteGenerational(Network):
         return self.property3.lower() != 'false'
 
     def add_node(self, node):
-        """Link the agent to a random member of the previous generation."""
+        """Link to the agent from a parent based on the paren'ts fitness"""
         nodes = [n for n in self.nodes() if not isinstance(n, Source)]
         num_agents = len(nodes)
         curr_generation = int((num_agents - 1) / float(self.generation_size))
