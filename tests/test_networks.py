@@ -315,17 +315,17 @@ class TestNetworks(object):
             net.add_node(agent)
 
         assert len(net.nodes(type=nodes.Agent)) == m0
-        assert len(net.vectors()) == m0*(m0 - 1)
+        assert len(net.vectors()) == m0 * (m0 - 1)
 
         agent1 = nodes.Agent(network=net)
         net.add_node(agent1)
         assert len(net.nodes(type=nodes.Agent)) == m0 + 1
-        assert len(net.vectors()) == m0*(m0 - 1) + 2*m
+        assert len(net.vectors()) == m0 * (m0 - 1) + 2 * m
 
         agent2 = nodes.Agent(network=net)
         net.add_node(agent2)
         assert len(net.nodes(type=nodes.Agent)) == m0 + 2
-        assert len(net.vectors()) == m0*(m0 - 1) + 2*2*m
+        assert len(net.vectors()) == m0 * (m0 - 1) + 2 * 2 * m
 
     def test_scale_free_repr(self):
         net = networks.ScaleFree(m0=4, m=4)
