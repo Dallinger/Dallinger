@@ -142,7 +142,7 @@ class DiscreteGenerational(Network):
         return self.property3.lower() != 'false'
 
     def add_node(self, node):
-        """Link to the agent from a parent based on the paren'ts fitness"""
+        """Link to the agent from a parent based on the parent's fitness"""
         nodes = [n for n in self.nodes() if not isinstance(n, Source)]
         num_agents = len(nodes)
         curr_generation = int((num_agents - 1) / float(self.generation_size))
