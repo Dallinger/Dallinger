@@ -27,6 +27,29 @@ class TestAgents(object):
         agent = nodes.Agent(network=net)
         assert agent
 
+    def test_fitness_property(self):
+        net = models.Network()
+        agent = nodes.Agent(network=net)
+        agent.fitness = 1.99999
+        assert agent.fitness == 1.99999
+
+    def test_fitness_expression_search_match(self):
+        net = models.Network()
+        agent = nodes.Agent(network=net)
+        agent.fitness = 1.99999
+        self.add(agent)
+        results = nodes.Agent.query.filter_by(fitness=1.99999).all()
+        assert len(results) == 1
+        assert results[0] is agent
+
+    def test_fitness_expression_search_fail(self):
+        net = models.Network()
+        agent = nodes.Agent(network=net)
+        agent.fitness = 1.99999
+        self.add(agent)
+        results = nodes.Agent.query.filter_by(fitness=1.9).all()
+        assert len(results) == 0
+
     def test_create_agent_generic_transmit_to_all(self):
         net = models.Network()
         self.db.add(net)

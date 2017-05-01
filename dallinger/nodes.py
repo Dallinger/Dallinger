@@ -4,7 +4,7 @@ from operator import attrgetter
 import random
 
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy import Integer
+from sqlalchemy import Float
 from sqlalchemy.sql.expression import cast
 
 from dallinger.information import State
@@ -33,7 +33,7 @@ class Agent(Node):
     @fitness.expression
     def fitness(self):
         """Retrieve fitness via property1."""
-        return cast(self.property1, Integer)
+        return cast(self.property1, Float)
 
 
 class ReplicatorAgent(Agent):
