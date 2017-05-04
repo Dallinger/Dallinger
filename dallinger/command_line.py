@@ -734,7 +734,7 @@ def logs(app):
             "heroku", "addons:open", "papertrail", "--app", app_name(app)
         ])
     except subprocess.CalledProcessError as e:
-        print("Invalid experiment ID. {}".format(e))
+        raise ValueError("Invalid experiment ID. {}".format(e))
 
 
 @dallinger.command()
