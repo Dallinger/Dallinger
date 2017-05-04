@@ -69,7 +69,7 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
     """Log a message to stdout."""
     if verbose:
         if chevrons:
-            click.echo("\n❯❯ " + msg)
+            click.echo(u"\n❯❯ " + msg)
         else:
             click.echo(msg)
         time.sleep(delay)
@@ -79,7 +79,7 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
     """Log a message to stdout."""
     if verbose:
         if chevrons:
-            click.secho("\n❯❯ " + msg, err=True, fg='red')
+            click.secho(u"\n❯❯ " + msg, err=True, fg='red')
         else:
             click.secho(msg, err=True, fg='red')
         time.sleep(delay)
@@ -338,13 +338,16 @@ def debug(verbose, bot, exp_config=None):
             try:
                 launch_data = launch_request.json()
             except ValueError:
-                error("Error parsing response from /launch: {}".format(launch_request.content))
+                error(
+                    u"Error parsing response from /launch, check web dyno logs for details: "
+                    + launch_request.text
+                )
                 raise
 
             if not launch_request.ok:
                 error('Experiment launch failed, check web dyno logs for details.')
                 if launch_data.get('message'):
-                    error(str(launch_data['message']))
+                    error(launch_data['message'])
                 launch_request.raise_for_status()
 
             closed = False
@@ -549,7 +552,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     try:
         launch_data = launch_request.json()
     except ValueError:
-        error("Error parsing response from /launch: {}".format(launch_request.content))
+        error(
+            "Error parsing response from /launch, check web dyno logs for details: "
+            + launch_request.text
+        )
         raise
 
     if not launch_request.ok:
