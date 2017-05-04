@@ -33,7 +33,7 @@ class BotBase(object):
 
     @cached_property
     def driver(self):
-        """Returns a Selenium Webdriver instance of the type requested in the
+        """Returns a Selenium WebDriver instance of the type requested in the
         configuration."""
         from dallinger.config import get_config
         config = get_config()

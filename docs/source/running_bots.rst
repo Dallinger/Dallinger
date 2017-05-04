@@ -1,9 +1,9 @@
 Running bots as participants
 ============================
 
-Dallinger supports writing bots using the Selenium framework that participate in
-an experiment. Not all experiments have bots available, currently :doc:`demos/bartlett1932/index`
-and :doc:`demos/chatroom/index` have bots available.
+Dallinger supports using the Selenium framework to write bots that participate in
+experiments. Not all experiments will have bots available; the :doc:`demos/bartlett1932/index`
+and :doc:`demos/chatroom/index` demos are the only built-in experiments that do.
 
 Writing a bot
 ^^^^^^^^^^^^^
@@ -26,9 +26,9 @@ Running bots locally
 You must set the configuration value ``recruiter='bots'`` to run an experiment using its
 bot. As usual, this can be set in local or global configurations, as an
 environment variable or as a keyword argument to :py:meth:`~dallinger.experiments.Experiment.run`.
-You should also set ``max_participants`` to the number of bots you want to run at once,
-``num_dynos_worker`` should be more than that number, as a bot takes up a worker
-processes. In addition, you may want to increase `num_dynos_web` to improve
+You should also set ``max_participants`` to the number of bots you want to run at once.
+``num_dynos_worker`` should be more than ``max_participants``, as a bot takes up a worker
+process while it is running. In addition, you may want to increase `num_dynos_web` to improve
 performance.
 
 Dallinger uses Selenium to run bots locally. By default, it will try to run
@@ -39,12 +39,8 @@ configuration variables.
 
     webdriver_type = firefox
 
-You can also provide a URL to a Selenium Webdriver hub, which is recommended if
-you're planning on running a large number of simultaneous bots. The hub does not
-need to be on the same computer as Dallinger, but it does need to be able to access
-the computer running Dallinger directly by its IP address.
 
-We recommend using FireFox when writing bots, as it allows you to visually see
+We recommend using Firefox when writing bots, as it allows you to visually see
 its output and allows you to attach the development console directly to the
 bot's browser session.
 
@@ -57,7 +53,7 @@ Running an experiment with the API may look like:
         mode=u'debug',
         recruiter=u'bots',
         max_participants=participants,
-        num_dynos_web=int(participants/4),
+        num_dynos_web=int(participants/4) + 1,
         num_dynos_worker=participants,
         workers=participants+5,
     )
@@ -65,7 +61,7 @@ Running an experiment with the API may look like:
 Running a single bot
 ********************
 
-If you want to run a single bot as part of a wider experiment, you can use
+If you want to run a single bot as part of an ongoing experiment, you can use
 the :ref:`bot <dallinger-bot>` command. This is useful for testing a single
 bot's behavior as part of a longer-running experiment, and allows easy access 
 to the Python pdb debugger.
@@ -73,13 +69,27 @@ to the Python pdb debugger.
 Scaling bots locally
 ********************
 
-For example, you may want to run a dedicated computer on your lab network to host
+For example you may want to run a dedicated computer on your lab network to host
 bots, without slowing down experimenter computers. It is recommended that you 
-run Selenium in a hub configuration, as a single selenium instance will limit 
+run Selenium in a hub configuration, as a single Selenium instance will limit 
 the number of concurrent sessions. 
 
-Download the latest ``selenium-server-standalone.jar`` file from `SeleniumHQ <http://www.seleniumhq.org/download/>`_
-and run a hub using:
+You can also provide a URL to a Selenium WebDriver instance using the
+``webdriver_url`` configuration setting. This is required if you're running 
+Selenium in a hub configuration. The hub does not need to be on the same computer
+as Dallinger, but it does need to be able to access the computer running
+Dallinger directly by its IP address.
+
+On Apple macOS, we recommend using homebrew to install and run selenium, using:
+
+::
+
+    brew install selenium-server-standalone
+    selenium-server -port 4444
+
+
+On other platforms, download the latest ``selenium-server-standalone.jar`` file 
+from `SeleniumHQ <http://www.seleniumhq.org/download/>`_ and run a hub using:
 
 ::
 
@@ -93,17 +103,17 @@ and attach multiple nodes by running:
 
 These nodes may be on other computers on the local network or on the same host
 machine. If they are on the same host you will need to add ``-port 4446`` (for 
-some port number) such that each selenium node on the same server is listening
+some port number) such that each Selenium node on the same server is listening
 on a different port.
 
 You will also need to set up the browser interfaces on each computer that's running
 a node. This requires being able to run the browser and having the correct driver
-available in the system path, so the selenium server can run it.
+available in the system path, so the Selenium server can run it.
 
 We recommend using Chrome when running large numbers of bots, as it is more
 feature-complete than PhantomJS but with better performance at scale than Firefox. It
 is best to run at most three Firefox sessions on commodity hardware, so for best
-results 16 bots should be run over 6 selenium servers. This will depend on how
-processor intensive your experiment is, it may be possible to run more sessions
+results 16 bots should be run over 6 Selenium servers. This will depend on how
+processor intensive your experiment is. It may be possible to run more sessions
 without performance degradation.
 

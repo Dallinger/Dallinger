@@ -41,6 +41,7 @@ js
 Kalish
 Kegl
 Lewandowsky
+macOS
 md
 Meme
 microfluidics
@@ -79,7 +80,7 @@ virtualization
 Vox
 walkthrough
 walkthroughs
-Webdriver
+WebDriver
 Webhook
 webpage
 Wikipedia
