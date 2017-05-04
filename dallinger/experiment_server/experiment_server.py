@@ -6,7 +6,6 @@ from json import dumps
 from operator import attrgetter
 import re
 import sys
-import traceback
 import user_agents
 
 from flask import (
@@ -31,7 +30,6 @@ from dallinger import db
 from dallinger import experiment
 from dallinger import models
 from dallinger.heroku.worker import conn as redis
-from dallinger.compat import unicode
 from dallinger.config import get_config
 
 from .utils import nocache
@@ -101,21 +99,20 @@ def error_response(error_type="Internal server error",
                    participant=None,
                    simple=False):
     """Return a generic server error response."""
-    if sys.exc_info()[0]:
-        db.logger.exception("Failure for request: {}".format(dict(request.args)))
-        traceback.print_exc()
+    last_exception = sys.exc_info()
+    if last_exception[0]:
+        db.logger.error(
+            "Failure for request: {!r}".format(dict(request.args)),
+            exc_info=last_exception)
 
     data = {"status": "error"}
 
     if simple:
         data["message"] = error_text
     else:
-        data["html"] = unicode(
-            error_page(error_text=error_text,
-                       error_type=error_type,
-                       participant=participant).get_data()
-        )
-
+        data["html"] = error_page(error_text=error_text,
+                                  error_type=error_type,
+                                  participant=participant).get_data().decode('utf-8')
     return Response(dumps(data), status=status, mimetype='application/json')
 
 
@@ -229,7 +226,7 @@ def launch():
     try:
         url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
         session.commit()
-    except:
+    except Exception:
         return error_response(
             error_text=u"Failed to open recruitment, check experiment server log "
                        u"for details.",
@@ -239,7 +236,7 @@ def launch():
     for task in exp.background_tasks:
         try:
             gevent.spawn(task)
-        except:
+        except Exception:
             return error_response(
                 error_text=u"Failed to spawn task on launch: {}, ".format(task) +
                            u"check experiment server log for details",
