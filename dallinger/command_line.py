@@ -678,6 +678,7 @@ def destroy_server(app):
 @click.option('--databaseurl', default=None, help='URL of the database')
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
+    verify_id(app)
     id = app
     config = get_config()
     config.load()
