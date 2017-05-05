@@ -31,14 +31,11 @@ class TestCommandLine(object):
         assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
 
     def test_dlgr_id(self):
-        output = subprocess.check_output(["dallinger logs --app dlgr-3b9c2aeb"
-                                          "-0eb7-4432-803e-bc437e17b3bb"])
-        assert("ValueError: The --app flag requires the full UUID beginning with "
-               "3b9c2aeb." in output)
+        assert(ValueError, lambda: subprocess.call(["dallinger logs --app dlgr-3b9c2aeb"
+                                                    "-0eb7-4432-803e-bc437e17b3bb"]))
 
     def test_empty_id(self):
-        output = subprocess.check_output(["dallinger logs"])
-        assert(output == "TypeError: Select an experiment using the --app flag.")
+        assert(TypeError, lambda: subprocess.call(["dallinger logs"]))
 
 
 class TestSetupExperiment(object):
