@@ -783,7 +783,7 @@ def verify_id(app):
     """Verify the experiment id."""
     if app is None:
         raise TypeError("Select an experiment using the --app flag.")
-    elif "dlgr-" == app[0:5]:
+    elif app[0:5] = "dlgr-":
         raise ValueError("The --app flag requires the full UUID beginning with {}.".format(app[5:13]))
 
 
