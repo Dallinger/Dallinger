@@ -31,8 +31,8 @@ class TestCommandLine(object):
         assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
 
     def test_dlgr_id(self):
-        assert ValueError, subprocess.call(["dallinger logs --app dlgr-3b9c2aeb"
-                                                    "-0eb7-4432-803e-bc437e17b3bb"])
+        assert ValueError, subprocess.call(["dallinger logs --app dlgr-3b9c2aeb-0eb7-4432-803e-"
+                                            "bc437e17b3bb"])
 
     def test_empty_id(self):
         assert TypeError, subprocess.call(["dallinger logs"])
