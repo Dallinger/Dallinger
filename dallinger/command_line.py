@@ -730,12 +730,9 @@ def export(app, local, no_scrub):
 def logs(app):
     """Show the logs."""
     verify_id(app)
-    try:
-        subprocess.check_call([
-            "heroku", "addons:open", "papertrail", "--app", app_name(app)
-        ])
-    except subprocess.CalledProcessError as e:
-        raise ValueError("Invalid experiment ID. {}".format(e))
+    subprocess.check_call([
+        "heroku", "addons:open", "papertrail", "--app", app_name(app)
+    ])
 
 
 @dallinger.command()
@@ -786,8 +783,8 @@ def verify_id(app):
     """Verify the experiment id."""
     if app is None:
         raise TypeError("Select an experiment using the --app flag.")
-    elif "dlgr-" in app:
-        raise ValueError("Remove the \"dlgr-\" prefix.")
+    elif "dlgr-" == app[0:5]:
+        raise ValueError("The --app flag requires the full UUID beginning with {}.".format(app[5:13]))
 
 
 def verify_package(verbose=True):
