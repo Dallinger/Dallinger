@@ -249,6 +249,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def summary(app):
     """Print a summary of a deployed app's status."""
+    verify_id(app)
     r = requests.get('https://{}.herokuapp.com/summary'.format(app_name(app)))
     summary = r.json()['summary']
     click.echo("\nstatus \t| count")
@@ -624,6 +625,7 @@ def qualify(qualification, value, worker):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def hibernate(app):
     """Pause an experiment and remove costly resources."""
+    verify_id(app)
     log("The database backup URL is...")
     backup_url = data.backup(app)
     log(backup_url)
@@ -657,6 +659,7 @@ def hibernate(app):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def destroy(app):
     """Tear down an experiment server."""
+    verify_id(app)
     destroy_server(app)
 
 
@@ -675,6 +678,7 @@ def destroy_server(app):
 @click.option('--databaseurl', default=None, help='URL of the database')
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
+    verify_id(app)
     id = app
     config = get_config()
     config.load()
@@ -716,6 +720,7 @@ def awaken(app, databaseurl):
               help='Scrub PII')
 def export(app, local, no_scrub):
     """Export the data."""
+    verify_id(app)
     log(header, chevrons=False)
     data.export(str(app), local=local, scrub_pii=(not no_scrub))
 
@@ -724,12 +729,13 @@ def export(app, local, no_scrub):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def logs(app):
     """Show the logs."""
-    if app is None:
-        raise TypeError("Select an experiment using the --app flag.")
-    else:
+    verify_id(app)
+    try:
         subprocess.check_call([
             "heroku", "addons:open", "papertrail", "--app", app_name(app)
         ])
+    except subprocess.CalledProcessError as e:
+        raise ValueError("Invalid experiment ID. {}".format(e))
 
 
 @dallinger.command()
@@ -774,6 +780,14 @@ def rq_worker():
         # right now we care about low queue for bots
         worker = Worker('low')
         worker.work()
+
+
+def verify_id(app):
+    """Verify the experiment id."""
+    if app is None:
+        raise TypeError("Select an experiment using the --app flag.")
+    elif "dlgr-" in app:
+        raise ValueError("Remove the \"dlgr-\" prefix.")
 
 
 def verify_package(verbose=True):
