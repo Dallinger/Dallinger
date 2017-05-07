@@ -85,6 +85,98 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
         time.sleep(delay)
 
 
+def verify_id(ctx, param, app):
+    """Verify the experiment id."""
+    if app is None:
+        raise TypeError("Select an experiment using the --app flag.")
+    elif app[0:5] == "dlgr-":
+        raise ValueError("The --app flag requires the full "
+                         "UUID beginning with {}-...".format(app[5:13]))
+
+
+def verify_package(verbose=True):
+    """Ensure the package has a config file and a valid experiment file."""
+    is_passing = True
+
+    # Check for existence of required files.
+    required_files = [
+        "config.txt",
+        "experiment.py",
+        "requirements.txt",
+    ]
+
+    for f in required_files:
+        if os.path.exists(f):
+            log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
+        else:
+            log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
+            is_passing = False
+
+    # Check the experiment file.
+    if os.path.exists("experiment.py"):
+
+        # Check if the experiment file has exactly one Experiment class.
+        tmp = tempfile.mkdtemp()
+        for f in ["experiment.py", "config.txt"]:
+            shutil.copyfile(f, os.path.join(tmp, f))
+
+        cwd = os.getcwd()
+        os.chdir(tmp)
+
+        open("__init__.py", "a").close()
+        exp = imp.load_source('experiment', os.path.join(tmp, "experiment.py"))
+
+        classes = inspect.getmembers(exp, inspect.isclass)
+        exps = [c for c in classes
+                if (c[1].__bases__[0].__name__ in "Experiment")]
+
+        if len(exps) == 0:
+            log("✗ experiment.py does not define an experiment class.",
+                delay=0, chevrons=False, verbose=verbose)
+            is_passing = False
+        elif len(exps) == 1:
+            log("✓ experiment.py defines 1 experiment",
+                delay=0, chevrons=False, verbose=verbose)
+        else:
+            log("✗ experiment.py defines more than one experiment class.",
+                delay=0, chevrons=False, verbose=verbose)
+        os.chdir(cwd)
+
+    # Make sure there's a help file.
+    is_txt_readme = os.path.exists("README.md")
+    is_md_readme = os.path.exists("README.txt")
+    if (not is_md_readme) and (not is_txt_readme):
+        is_passing = False
+        log("✗ README.txt or README.md is MISSING.",
+            delay=0, chevrons=False, verbose=verbose)
+    else:
+        log("✓ README is OK",
+            delay=0, chevrons=False, verbose=verbose)
+
+    # Check front-end files do not exist
+    files = [
+        os.path.join("templates", "complete.html"),
+        os.path.join("templates", "error.html"),
+        os.path.join("templates", "launch.html"),
+        os.path.join("templates", "thanks.html"),
+        os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("static", "robots.txt")
+    ]
+
+    for f in files:
+        if os.path.exists(f):
+            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, "
+                "please delete or rename.".format(f),
+                delay=0, chevrons=False, verbose=verbose)
+            return False
+
+    log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
+
+    return is_passing
+
+
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
 def dallinger():
@@ -249,6 +341,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def summary(app):
     """Print a summary of a deployed app's status."""
+    verify_id(app)
     r = requests.get('https://{}.herokuapp.com/summary'.format(app_name(app)))
     summary = r.json()['summary']
     click.echo("\nstatus \t| count")
@@ -549,7 +642,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-@click.option('--app', default=None, help='ID of the sandboxed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     # Load configuration.
@@ -621,7 +714,7 @@ def qualify(qualification, value, worker):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def hibernate(app):
     """Pause an experiment and remove costly resources."""
     log("The database backup URL is...")
@@ -654,7 +747,8 @@ def hibernate(app):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
+@click.confirmation_option(prompt='Are you sure you want to destroy the app?')
 def destroy(app):
     """Tear down an experiment server."""
     destroy_server(app)
@@ -671,7 +765,7 @@ def destroy_server(app):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--databaseurl', default=None, help='URL of the database')
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
@@ -709,7 +803,7 @@ def awaken(app, databaseurl):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--local', is_flag=True, flag_value=True,
               help='Export local data')
 @click.option('--no-scrub', is_flag=True, flag_value=False,
@@ -721,25 +815,22 @@ def export(app, local, no_scrub):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def logs(app):
     """Show the logs."""
-    if app is None:
-        raise TypeError("Select an experiment using the --app flag.")
-    else:
-        subprocess.check_call([
-            "heroku", "addons:open", "papertrail", "--app", app_name(app)
-        ])
+    subprocess.check_call([
+        "heroku", "addons:open", "papertrail", "--app", app_name(app)
+    ])
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, help='Experiment id')
 @click.option('--debug', default=None,
               help='Local debug recruitment url')
 def bot(app, debug):
     """Run the experiment bot."""
-    if app is None and debug is None:
-        raise TypeError("Select an experiment using the --app flag.")
+    if debug is None:
+        verify_id(app)
 
     (id, tmp) = setup_experiment()
 
@@ -774,86 +865,3 @@ def rq_worker():
         # right now we care about low queue for bots
         worker = Worker('low')
         worker.work()
-
-
-def verify_package(verbose=True):
-    """Ensure the package has a config file and a valid experiment file."""
-    is_passing = True
-
-    # Check for existence of required files.
-    required_files = [
-        "config.txt",
-        "experiment.py",
-        "requirements.txt",
-    ]
-
-    for f in required_files:
-        if os.path.exists(f):
-            log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
-        else:
-            log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
-            is_passing = False
-
-    # Check the experiment file.
-    if os.path.exists("experiment.py"):
-
-        # Check if the experiment file has exactly one Experiment class.
-        tmp = tempfile.mkdtemp()
-        for f in ["experiment.py", "config.txt"]:
-            shutil.copyfile(f, os.path.join(tmp, f))
-
-        cwd = os.getcwd()
-        os.chdir(tmp)
-
-        open("__init__.py", "a").close()
-        exp = imp.load_source('experiment', os.path.join(tmp, "experiment.py"))
-
-        classes = inspect.getmembers(exp, inspect.isclass)
-        exps = [c for c in classes
-                if (c[1].__bases__[0].__name__ in "Experiment")]
-
-        if len(exps) == 0:
-            log("✗ experiment.py does not define an experiment class.",
-                delay=0, chevrons=False, verbose=verbose)
-            is_passing = False
-        elif len(exps) == 1:
-            log("✓ experiment.py defines 1 experiment",
-                delay=0, chevrons=False, verbose=verbose)
-        else:
-            log("✗ experiment.py defines more than one experiment class.",
-                delay=0, chevrons=False, verbose=verbose)
-        os.chdir(cwd)
-
-    # Make sure there's a help file.
-    is_txt_readme = os.path.exists("README.md")
-    is_md_readme = os.path.exists("README.txt")
-    if (not is_md_readme) and (not is_txt_readme):
-        is_passing = False
-        log("✗ README.txt or README.md is MISSING.",
-            delay=0, chevrons=False, verbose=verbose)
-    else:
-        log("✓ README is OK",
-            delay=0, chevrons=False, verbose=verbose)
-
-    # Check front-end files do not exist
-    files = [
-        os.path.join("templates", "complete.html"),
-        os.path.join("templates", "error.html"),
-        os.path.join("templates", "launch.html"),
-        os.path.join("templates", "thanks.html"),
-        os.path.join("static", "css", "dallinger.css"),
-        os.path.join("static", "scripts", "dallinger.js"),
-        os.path.join("static", "scripts", "reqwest.min.js"),
-        os.path.join("static", "robots.txt")
-    ]
-
-    for f in files:
-        if os.path.exists(f):
-            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, "
-                "please delete or rename.".format(f),
-                delay=0, chevrons=False, verbose=verbose)
-            return False
-
-    log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
-
-    return is_passing
