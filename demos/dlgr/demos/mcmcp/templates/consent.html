@@ -42,7 +42,7 @@
                 <hr>
                 <h4>Do you understand and consent to these terms?</h4>
                 <br>
-                <button type="button" class="btn btn-primary btn-lg" onClick="allow_exit();window.location='/instructions/instruct-ready?hit_id={{ hit_id }}&assignment_id={{ assignment_id }}&worker_id={{ worker_id }}&mode={{ mode }}';" style="float: left;">I agree
+                <button type="button" class="btn btn-primary btn-lg" id="consent" onClick="allow_exit();window.location='/instructions/instruct-ready?hit_id={{ hit_id }}&assignment_id={{ assignment_id }}&worker_id={{ worker_id }}&mode={{ mode }}';" style="float: left;">I agree
                 </button>
                 <button type="button" class="btn btn-danger btn-lg" onClick="allow_exit();self.close();" style="float: right;">No thanks (exit HIT)
                 </button>
