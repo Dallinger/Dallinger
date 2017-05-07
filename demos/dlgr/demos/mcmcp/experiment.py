@@ -1,11 +1,18 @@
 """Monte Carlo Markov Chains with people."""
+from operator import attrgetter
+import random
+import time
 
-from dallinger.networks import Chain
+from flask import Blueprint, Response
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
+
+from dallinger.bots import BotBase
 from dallinger.experiment import Experiment
 from dallinger import db
-import random
-from flask import Blueprint, Response
-from operator import attrgetter
+from dallinger.networks import DelayedChain
 
 
 class MCMCP(Experiment):
@@ -42,7 +49,7 @@ class MCMCP(Experiment):
 
     def create_network(self):
         """Create a new network."""
-        return Chain(max_size=100)
+        return DelayedChain(max_size=100)
 
     def get_network_for_participant(self, participant):
         if len(participant.nodes(failed="all")) < self.trials_per_participant:
@@ -96,3 +103,21 @@ def choice(node_id, choice):
         return Response(
             status=403,
             mimetype='application/json')
+
+
+class Bot(BotBase):
+    """Bot tasks for experiment participation"""
+
+    def participate(self):
+        """Finish reading and send text"""
+        try:
+            while True:
+                left = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable((By.ID, 'left_button')))
+                right = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable((By.ID, 'right_button')))
+
+                random.choice((left, right)).click()
+                time.sleep(1.0)
+        except TimeoutException:
+            return False
