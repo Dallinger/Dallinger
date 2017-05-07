@@ -85,6 +85,98 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
         time.sleep(delay)
 
 
+def verify_id(ctx, param, app):
+    """Verify the experiment id."""
+    if app is None:
+        raise TypeError("Select an experiment using the --app flag.")
+    elif app[0:5] == "dlgr-":
+        raise ValueError("The --app flag requires the full "
+                         "UUID beginning with {}-...".format(app[5:13]))
+
+
+def verify_package(verbose=True):
+    """Ensure the package has a config file and a valid experiment file."""
+    is_passing = True
+
+    # Check for existence of required files.
+    required_files = [
+        "config.txt",
+        "experiment.py",
+        "requirements.txt",
+    ]
+
+    for f in required_files:
+        if os.path.exists(f):
+            log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
+        else:
+            log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
+            is_passing = False
+
+    # Check the experiment file.
+    if os.path.exists("experiment.py"):
+
+        # Check if the experiment file has exactly one Experiment class.
+        tmp = tempfile.mkdtemp()
+        for f in ["experiment.py", "config.txt"]:
+            shutil.copyfile(f, os.path.join(tmp, f))
+
+        cwd = os.getcwd()
+        os.chdir(tmp)
+
+        open("__init__.py", "a").close()
+        exp = imp.load_source('experiment', os.path.join(tmp, "experiment.py"))
+
+        classes = inspect.getmembers(exp, inspect.isclass)
+        exps = [c for c in classes
+                if (c[1].__bases__[0].__name__ in "Experiment")]
+
+        if len(exps) == 0:
+            log("✗ experiment.py does not define an experiment class.",
+                delay=0, chevrons=False, verbose=verbose)
+            is_passing = False
+        elif len(exps) == 1:
+            log("✓ experiment.py defines 1 experiment",
+                delay=0, chevrons=False, verbose=verbose)
+        else:
+            log("✗ experiment.py defines more than one experiment class.",
+                delay=0, chevrons=False, verbose=verbose)
+        os.chdir(cwd)
+
+    # Make sure there's a help file.
+    is_txt_readme = os.path.exists("README.md")
+    is_md_readme = os.path.exists("README.txt")
+    if (not is_md_readme) and (not is_txt_readme):
+        is_passing = False
+        log("✗ README.txt or README.md is MISSING.",
+            delay=0, chevrons=False, verbose=verbose)
+    else:
+        log("✓ README is OK",
+            delay=0, chevrons=False, verbose=verbose)
+
+    # Check front-end files do not exist
+    files = [
+        os.path.join("templates", "complete.html"),
+        os.path.join("templates", "error.html"),
+        os.path.join("templates", "launch.html"),
+        os.path.join("templates", "thanks.html"),
+        os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("static", "robots.txt")
+    ]
+
+    for f in files:
+        if os.path.exists(f):
+            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, "
+                "please delete or rename.".format(f),
+                delay=0, chevrons=False, verbose=verbose)
+            return False
+
+    log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
+
+    return is_passing
+
+
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
 def dallinger():
@@ -777,95 +869,3 @@ def rq_worker():
         # right now we care about low queue for bots
         worker = Worker('low')
         worker.work()
-
-
-def verify_id(app):
-    """Verify the experiment id."""
-    if app is None:
-        raise TypeError("Select an experiment using the --app flag.")
-    elif app[0:5] == "dlgr-":
-        raise ValueError("The --app flag requires the full "
-                         "UUID beginning with {}.".format(app[5:13]))
-
-
-def verify_package(verbose=True):
-    """Ensure the package has a config file and a valid experiment file."""
-    is_passing = True
-
-    # Check for existence of required files.
-    required_files = [
-        "config.txt",
-        "experiment.py",
-        "requirements.txt",
-    ]
-
-    for f in required_files:
-        if os.path.exists(f):
-            log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
-        else:
-            log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
-            is_passing = False
-
-    # Check the experiment file.
-    if os.path.exists("experiment.py"):
-
-        # Check if the experiment file has exactly one Experiment class.
-        tmp = tempfile.mkdtemp()
-        for f in ["experiment.py", "config.txt"]:
-            shutil.copyfile(f, os.path.join(tmp, f))
-
-        cwd = os.getcwd()
-        os.chdir(tmp)
-
-        open("__init__.py", "a").close()
-        exp = imp.load_source('experiment', os.path.join(tmp, "experiment.py"))
-
-        classes = inspect.getmembers(exp, inspect.isclass)
-        exps = [c for c in classes
-                if (c[1].__bases__[0].__name__ in "Experiment")]
-
-        if len(exps) == 0:
-            log("✗ experiment.py does not define an experiment class.",
-                delay=0, chevrons=False, verbose=verbose)
-            is_passing = False
-        elif len(exps) == 1:
-            log("✓ experiment.py defines 1 experiment",
-                delay=0, chevrons=False, verbose=verbose)
-        else:
-            log("✗ experiment.py defines more than one experiment class.",
-                delay=0, chevrons=False, verbose=verbose)
-        os.chdir(cwd)
-
-    # Make sure there's a help file.
-    is_txt_readme = os.path.exists("README.md")
-    is_md_readme = os.path.exists("README.txt")
-    if (not is_md_readme) and (not is_txt_readme):
-        is_passing = False
-        log("✗ README.txt or README.md is MISSING.",
-            delay=0, chevrons=False, verbose=verbose)
-    else:
-        log("✓ README is OK",
-            delay=0, chevrons=False, verbose=verbose)
-
-    # Check front-end files do not exist
-    files = [
-        os.path.join("templates", "complete.html"),
-        os.path.join("templates", "error.html"),
-        os.path.join("templates", "launch.html"),
-        os.path.join("templates", "thanks.html"),
-        os.path.join("static", "css", "dallinger.css"),
-        os.path.join("static", "scripts", "dallinger.js"),
-        os.path.join("static", "scripts", "reqwest.min.js"),
-        os.path.join("static", "robots.txt")
-    ]
-
-    for f in files:
-        if os.path.exists(f):
-            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, "
-                "please delete or rename.".format(f),
-                delay=0, chevrons=False, verbose=verbose)
-            return False
-
-    log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
-
-    return is_passing
