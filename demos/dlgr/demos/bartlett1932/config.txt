@@ -2,6 +2,7 @@
 mode = sandbox
 auto_recruit = true
 webdriver_type = phantomjs
+recruiter = mturklarge
 
 [MTurk]
 title = War of the Ghosts

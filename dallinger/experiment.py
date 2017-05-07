@@ -138,6 +138,7 @@ class Experiment(object):
         last part could (should) be made pluggable.
         """
         from dallinger.recruiters import HotAirRecruiter
+        from dallinger.recruiters import MTurkLargeRecruiter
         from dallinger.recruiters import MTurkRecruiter
         from dallinger.recruiters import BotRecruiter
 
@@ -156,6 +157,8 @@ class Experiment(object):
             return HotAirRecruiter
         if recruiter == 'bots':
             return BotRecruiter.from_current_config
+        if recruiter == 'mturklarge':
+            return MTurkLargeRecruiter.from_current_config
         return MTurkRecruiter.from_current_config
 
     def send(self, raw_message):

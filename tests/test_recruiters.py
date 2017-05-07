@@ -316,3 +316,91 @@ class TestMTurkRecruiter(object):
 
         # logs, but does not raise:
         recruiter.notify_recruited(participant)
+
+
+class TestMTurkLargeRecruiter(TestMTurkRecruiter):
+
+    def setup(self):
+        self.db = db.init_db(drop_all=True)
+
+    def teardown(self):
+        self.db.rollback()
+        self.db.close()
+
+    def make_one(self, **kwargs):
+        from dallinger.mturk import MTurkService
+        from dallinger.recruiters import MTurkLargeRecruiter
+        mockservice = mock.create_autospec(MTurkService)
+        r = MTurkLargeRecruiter(
+            config=stub_config(**kwargs),
+            hit_domain='fake-domain',
+            ad_url='http://fake-domain/ad'
+        )
+        r.mturkservice = mockservice('fake key', 'fake secret')
+        r.mturkservice.check_credentials.return_value = True
+        r.mturkservice.create_hit.return_value = {
+            'type_id': 'fake type id'
+        }
+        return r
+
+    def test_open_recruitment_single_recruitee(self):
+        recruiter = self.make_one()
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_hit.assert_called_once_with(
+            ad_url='http://fake-domain/ad',
+            approve_requirement=95,
+            description='fake HIT description',
+            duration_hours=1.0,
+            keywords=['kw1', 'kw2', 'kw3'],
+            lifetime_days=0.1,
+            max_assignments=10,
+            notification_url='https://url-of-notification-route',
+            reward=0.01,
+            title='fake experiment title',
+            us_only=True
+        )
+
+    def test_more_than_ten_can_be_recruited_on_open(self):
+        recruiter = self.make_one()
+        recruiter.open_recruitment(n=20)
+        recruiter.mturkservice.create_hit.assert_called_once_with(
+            ad_url='http://fake-domain/ad',
+            approve_requirement=95,
+            description='fake HIT description',
+            duration_hours=1.0,
+            keywords=['kw1', 'kw2', 'kw3'],
+            lifetime_days=0.1,
+            max_assignments=20,
+            notification_url='https://url-of-notification-route',
+            reward=0.01,
+            title='fake experiment title',
+            us_only=True
+        )
+
+    def test_recruit_participants_auto_recruit_on_recruits_for_current_hit(self):
+        recruiter = self.make_one()
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.open_recruitment(n=1)
+        recruiter.recruit_participants(n=9)
+        recruiter.mturkservice.extend_hit.assert_not_called()
+        recruiter.recruit_participants(n=1)
+        recruiter.mturkservice.extend_hit.assert_called_once_with(
+            'fake HIT id',
+            duration_hours=1.0,
+            number=1
+        )
+
+    def test_recruiting_partially_from_preallocated_pool(self):
+        recruiter = self.make_one()
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.open_recruitment(n=1)
+        recruiter.recruit_participants(n=5)
+        recruiter.mturkservice.extend_hit.assert_not_called()
+        recruiter.recruit_participants(n=10)
+        recruiter.mturkservice.extend_hit.assert_called_once_with(
+            'fake HIT id',
+            duration_hours=1.0,
+            number=6
+        )
