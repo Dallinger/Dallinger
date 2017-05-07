@@ -824,13 +824,13 @@ def logs(app):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, help='Experiment id')
 @click.option('--debug', default=None,
               help='Local debug recruitment url')
 def bot(app, debug):
     """Run the experiment bot."""
-    if app is None and debug is None:
-        raise TypeError("Select an experiment using the --app flag.")
+    if debug is None:
+        verify_id(app)
 
     (id, tmp) = setup_experiment()
 
