@@ -642,7 +642,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-@click.option('--app', default=None, help='ID of the sandboxed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     # Load configuration.
@@ -714,10 +714,9 @@ def qualify(qualification, value, worker):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def hibernate(app):
     """Pause an experiment and remove costly resources."""
-    verify_id(app)
     log("The database backup URL is...")
     backup_url = data.backup(app)
     log(backup_url)
@@ -748,10 +747,10 @@ def hibernate(app):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
+@click.confirmation_option(prompt='Are you sure you want to destroy the app?')
 def destroy(app):
     """Tear down an experiment server."""
-    verify_id(app)
     destroy_server(app)
 
 
@@ -766,11 +765,10 @@ def destroy_server(app):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--databaseurl', default=None, help='URL of the database')
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
-    verify_id(app)
     id = app
     config = get_config()
     config.load()
@@ -805,23 +803,21 @@ def awaken(app, databaseurl):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--local', is_flag=True, flag_value=True,
               help='Export local data')
 @click.option('--no-scrub', is_flag=True, flag_value=False,
               help='Scrub PII')
 def export(app, local, no_scrub):
     """Export the data."""
-    verify_id(app)
     log(header, chevrons=False)
     data.export(str(app), local=local, scrub_pii=(not no_scrub))
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def logs(app):
     """Show the logs."""
-    verify_id(app)
     subprocess.check_call([
         "heroku", "addons:open", "papertrail", "--app", app_name(app)
     ])
