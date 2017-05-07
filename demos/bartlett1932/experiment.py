@@ -6,6 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from sqlalchemy import not_
 
 from dallinger.bots import BotBase
 from dallinger.networks import DelayedChain
@@ -68,10 +69,10 @@ class Bartlett1932(Experiment):
         if self.networks(full=False):
 
             participants = Participant.query\
-                .filter_by(status="approved")\
+                .filter_by(not_(status="working"))\
                 .all()
 
-            if len(participants) >= 10:
+            if len(participants) >= self.initial_recruitment_size:
                 self.recruiter().recruit_participants(n=1)
 
         else:
