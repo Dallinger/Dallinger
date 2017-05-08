@@ -854,6 +854,20 @@ def verify_package(verbose=True):
                 delay=0, chevrons=False, verbose=verbose)
             return False
 
+    # Check base_payment is correct
+    config = get_config()
+    if not config.ready:
+        config.load()
+    base_pay = config.get('base_payment')
+    if base_pay <= 0:
+        log("Payment must be positive.")
+        return False
+
+    elif '.' not in str(base_pay):
+        log("✗ base_payment must be in [dollars].[cents] format in config.txt. Try changing "
+            "{0} to {1:.2f}.".format(base_pay, base_pay))
+        return False
+
     log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
 
     return is_passing
