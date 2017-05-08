@@ -80,7 +80,7 @@ Selenium in a hub configuration. The hub does not need to be on the same compute
 as Dallinger, but it does need to be able to access the computer running
 Dallinger directly by its IP address.
 
-On Apple macOS, we recommend using homebrew to install and run selenium, using:
+On Apple macOS, we recommend using Homebrew to install and run selenium, using:
 
 ::
 
