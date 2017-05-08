@@ -354,6 +354,25 @@ def summary(app):
         click.echo("\nYield: {:.2%}".format(1.0 * num_101s / num_10xs))
 
 
+def _handle_launch_data(url):
+    launch_request = requests.post(url)
+    try:
+        launch_data = launch_request.json()
+    except ValueError:
+        error(
+            u"Error parsing response from /launch, check web dyno logs for details: "
+            + launch_request.text
+        )
+        raise
+
+    if not launch_request.ok:
+        error('Experiment launch failed, check web dyno logs for details.')
+        if launch_data.get('message'):
+            error(launch_data['message'])
+        launch_request.raise_for_status()
+    return launch_data
+
+
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--bot', is_flag=True, flag_value=True,
@@ -427,21 +446,7 @@ def debug(verbose, bot, exp_config=None):
             # Call endpoint to launch the experiment
             log("Launching the experiment...")
             time.sleep(4)
-            launch_request = requests.post('{}/launch'.format(base_url))
-            try:
-                launch_data = launch_request.json()
-            except ValueError:
-                error(
-                    u"Error parsing response from /launch, check web dyno logs for details: "
-                    + launch_request.text
-                )
-                raise
-
-            if not launch_request.ok:
-                error('Experiment launch failed, check web dyno logs for details.')
-                if launch_data.get('message'):
-                    error(launch_data['message'])
-                launch_request.raise_for_status()
+            _handle_launch_data('{}/launch'.format(base_url))
 
             closed = False
             status_url = base_url + '/summary'
@@ -641,22 +646,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     # Launch the experiment.
     log("Launching the experiment on MTurk...")
 
-    launch_request = requests.post('https://{}.herokuapp.com/launch'.format(app_name(id)))
-    try:
-        launch_data = launch_request.json()
-    except ValueError:
-        error(
-            "Error parsing response from /launch, check web dyno logs for details: "
-            + launch_request.text
-        )
-        raise
-
-    if not launch_request.ok:
-        error('Experiment launch failed, check web dyno logs for details.')
-        if launch_data.get('message'):
-            error(str(launch_data['message']))
-        launch_request.raise_for_status()
-
+    launch_data = _handle_launch_data('https://{}.herokuapp.com/launch'.format(app_name(id)))
     log("URLs:")
     log("App home: https://{}.herokuapp.com/".format(app_name(id)), chevrons=False)
     log("Initial recruitment: {}".format(launch_data.get('recruitment_url', None)), chevrons=False)
