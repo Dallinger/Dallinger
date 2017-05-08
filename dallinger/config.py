@@ -103,7 +103,7 @@ class Configuration(object):
                 except ValueError:
                     pass
             if not isinstance(value, expected_type):
-                raise ValueError(
+                raise TypeError(
                     'Got {value} for {key}, expected {expected_type}'
                     .format(
                         value=repr(value),
