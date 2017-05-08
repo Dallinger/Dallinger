@@ -10,6 +10,15 @@ verify
 
 Verify that a directory is a Dallinger-compatible app.
 
+.. _dallinger-bot:
+
+bot
+^^^
+
+Spawn a bot and attach it to the specified application. The ``--debug`` flag
+connects the bot to the locally running instance of Dallinger. Alternatively,
+the ``--app <app>`` flag specifies a live experiment by its id.
+
 debug
 ^^^^^
 
@@ -26,7 +35,9 @@ deploy
 ^^^^^^
 
 Runs the experiment live on MTurk using Heroku as a server. An optional
-``--verbose`` flag prints more detailed logs to the command line.
+``--verbose`` flag prints more detailed logs to the command line. An optional
+``--bot`` flag forces the bot recruiter to be used, rather than the configured
+recruiter.
 
 logs
 ^^^^
