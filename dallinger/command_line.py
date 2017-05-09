@@ -896,3 +896,4 @@ def rq_worker():
         # right now we care about low queue for bots
         worker = Worker('low')
         worker.work()
+
