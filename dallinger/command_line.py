@@ -159,11 +159,13 @@ def verify_package(verbose=True):
         config.load()
     base_pay = config.get('base_payment')
     dollarFormat = "{:.2f}".format(base_pay)
+
     if base_pay <= 0:
         log("✗ base_payment must be positive value in config.txt.",
             delay=0, chevrons=False, verbose=verbose)
         return False
-    if str(base_pay) != str(dollarFormat):
+
+    if '.' not in str(base_pay):
         log("✗ base_payment must be in [dollars].[cents] format in config.txt. Try changing "
             "{0} to {1}.".format(base_pay, dollarFormat), delay=0, chevrons=False, verbose=verbose)
         return False
@@ -897,4 +899,3 @@ def rq_worker():
         # right now we care about low queue for bots
         worker = Worker('low')
         worker.work()
-
