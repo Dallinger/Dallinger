@@ -9,7 +9,7 @@ localconfig==0.4.2
 pexpect==4.2.1
 psycopg2==2.7.1
 redis==2.10.5
-requests==2.13.0
+requests==2.14.0
 rq==0.7.1
 SQLAlchemy==1.1.9
 tablib==0.11.4
