@@ -29,8 +29,13 @@ get_infos = function() {
         success: function (resp) {
             sides_switched = Math.random() < 0.5;
 
-            animal_0 = JSON.parse(resp.infos[0].contents);
-            animal_1 = JSON.parse(resp.infos[1].contents);
+            if (resp.infos[0].id > resp.infos[1].id) {
+                animal_0 = JSON.parse(resp.infos[0].contents);
+                animal_1 = JSON.parse(resp.infos[1].contents);
+            } else {
+                animal_0 = JSON.parse(resp.infos[1].contents);
+                animal_1 = JSON.parse(resp.infos[0].contents);
+            }
 
             if (sides_switched === false) {
                 drawAnimal(animal_0, "left");
