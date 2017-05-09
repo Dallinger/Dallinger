@@ -5,7 +5,7 @@ import gevent
 from json import dumps
 from operator import attrgetter
 import re
-import traceback
+import sys
 import user_agents
 
 from flask import (
@@ -30,7 +30,6 @@ from dallinger import db
 from dallinger import experiment
 from dallinger import models
 from dallinger.heroku.worker import conn as redis
-from dallinger.compat import unicode
 from dallinger.config import get_config
 
 from .utils import nocache
@@ -95,21 +94,25 @@ def success_response(**data):
 
 
 def error_response(error_type="Internal server error",
-                   error_text=None,
+                   error_text='',
                    status=400,
-                   participant=None):
+                   participant=None,
+                   simple=False):
     """Return a generic server error response."""
-    traceback.print_exc()
+    last_exception = sys.exc_info()
+    if last_exception[0]:
+        db.logger.error(
+            "Failure for request: {!r}".format(dict(request.args)),
+            exc_info=last_exception)
 
-    page = error_page(
-        error_text=error_text,
-        error_type=error_type,
-        participant=participant)
+    data = {"status": "error"}
 
-    data = {
-        "status": "error",
-        "html": unicode(page)
-    }
+    if simple:
+        data["message"] = error_text
+    else:
+        data["html"] = error_page(error_text=error_text,
+                                  error_type=error_type,
+                                  participant=participant).get_data().decode('utf-8')
     return Response(dumps(data), status=status, mimetype='application/json')
 
 
@@ -220,17 +223,39 @@ def launch():
     """Launch the experiment."""
     exp = Experiment(db.init_db(drop_all=False))
     exp.log("Launching experiment...", "-----")
-    url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
-    session.commit()
+    try:
+        url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+        session.commit()
+    except Exception:
+        return error_response(
+            error_text=u"Failed to open recruitment, check experiment server log "
+                       u"for details.",
+            status=500, simple=True
+        )
 
     for task in exp.background_tasks:
-        gevent.spawn(task)
+        try:
+            gevent.spawn(task)
+        except Exception:
+            return error_response(
+                error_text=u"Failed to spawn task on launch: {}, ".format(task) +
+                           u"check experiment server log for details",
+                status=500, simple=True
+            )
 
     # If the experiment defines a channel, subscribe the experiment to the
     # redis communication channel:
     if exp.channel is not None:
-        from dallinger.experiment_server.sockets import chat_backend
-        chat_backend.subscribe(exp, exp.channel)
+        try:
+            from dallinger.experiment_server.sockets import chat_backend
+            chat_backend.subscribe(exp, exp.channel)
+        except:
+            return error_response(
+                error_text=u"Failed to subscribe to chat for channel on launch " +
+                           u"{}".format(exp.channel) +
+                           u", check experiment server log for details",
+                status=500, simple=True
+            )
 
     return success_response(recruitment_url=url_info)
 

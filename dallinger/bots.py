@@ -15,8 +15,7 @@ logger = logging.getLogger(__file__)
 
 
 class BotBase(object):
-
-    """A bot."""
+    """A base class for Bots that works with the built-in demos."""
 
     def __init__(self, URL, assignment_id='', worker_id=''):
         logger.info("Creating bot with URL: %s." % URL)
@@ -34,6 +33,8 @@ class BotBase(object):
 
     @cached_property
     def driver(self):
+        """Returns a Selenium WebDriver instance of the type requested in the
+        configuration."""
         from dallinger.config import get_config
         config = get_config()
         if not config.ready:
@@ -133,6 +134,8 @@ class BotBase(object):
         logger.info("Forced call to %s: %s" % (status, complete_url))
 
     def run_experiment(self):
+        """Sign up, run the ``participate`` method, then sign off and close
+        the driver."""
         try:
             self.sign_up()
             self.participate()
