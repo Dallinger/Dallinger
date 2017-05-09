@@ -154,7 +154,7 @@ class Configuration(object):
         if key in self.types:
             raise KeyError('Config key {} is already registered'.format(key))
         if type_ not in self.SUPPORTED_TYPES:
-            raise ValueError(
+            raise TypeError(
                 '{type} is not a supported type'.format(
                     type=type_
                 )
