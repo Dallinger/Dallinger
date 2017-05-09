@@ -16,6 +16,7 @@ import dallinger.command_line
 from dallinger.compat import unicode
 from dallinger.config import LOCAL_CONFIG, get_config
 import dallinger.version
+from dallinger.command_line import verify_package
 
 
 class TestCommandLine(object):
@@ -140,6 +141,14 @@ class TestSetupExperiment(object):
             deploy_config.get('Parameters', 'a_password')
         with raises(NoOptionError):
             deploy_config.get('Parameters', 'something_sensitive')
+
+    def test_incorrect_payment(self):
+        config = get_config()
+        with raises(TypeError):
+            config['base_payment'] = 12
+
+    def test_default_config(self):
+        assert verify_package() is True
 
 
 class TestDebugServer(object):

@@ -103,7 +103,7 @@ class Configuration(object):
                 except ValueError:
                     pass
             if not isinstance(value, expected_type):
-                raise ValueError(
+                raise TypeError(
                     'Got {value} for {key}, expected {expected_type}'
                     .format(
                         value=repr(value),
@@ -154,7 +154,7 @@ class Configuration(object):
         if key in self.types:
             raise KeyError('Config key {} is already registered'.format(key))
         if type_ not in self.SUPPORTED_TYPES:
-            raise ValueError(
+            raise TypeError(
                 '{type} is not a supported type'.format(
                     type=type_
                 )
