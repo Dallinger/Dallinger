@@ -113,6 +113,13 @@ class Experiment(object):
             # Guard against subclasses replacing this with a @property
             self.public_properties = {}
 
+        if session:
+            self.configure()
+
+    def configure(self):
+        """Load experiment configuration here"""
+        pass
+
     @property
     def background_tasks(self):
         """An experiment may define functions or methods to be started as
