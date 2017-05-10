@@ -142,6 +142,22 @@ class TestExperimentServer(FlaskAppTest):
 
         assert resp.status_code == 403
 
+    def test_notifies_recruiter_when_participant_joins(self):
+        from dallinger.recruiters import Recruiter
+
+        worker_id = self.worker_counter
+        hit_id = self.hit_counter
+        assignment_id = self.assignment_counter
+        class_to_patch = 'dallinger.experiment_server.experiment_server.Recruiter'
+
+        with mock.patch(class_to_patch) as mock_rec_class:
+            mock_recruiter = mock.Mock(spec=Recruiter)
+            mock_rec_class.for_experiment.return_value = mock_recruiter
+            self.app.post('/participant/{}/{}/{}/debug'.format(
+                worker_id, hit_id, assignment_id
+            ))
+            mock_recruiter.notify_recruited.assert_called()
+
     def test_node_vectors(self):
         p_id = self._create_participant()
         n_id = self._create_node(p_id)

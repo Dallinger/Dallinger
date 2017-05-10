@@ -43,6 +43,12 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
+    def notify_recruited(self, participant, experiment):
+        """Allow the Recruiter to be notified when an recruited Participant
+        has joined an experiment.
+        """
+        pass
+
 
 class HotAirRecruiter(Recruiter):
     """A dummy recruiter.
@@ -174,6 +180,17 @@ class MTurkRecruiter(Recruiter):
             hit_id,
             number=n,
             duration_hours=self.config.get('duration')
+        )
+
+    def notify_recruited(self, participant, experiment):
+        """Assign a Qualification to the Participant based on the group_name,
+        or the Experiment ID.
+        """
+        qualification_id = self.config.get('group_name', experiment.app_id)
+        worker_id = participant.worker_id
+        score = '1'
+        self.mturkservice.assign_qualification(
+            qualification_id, worker_id, score
         )
 
     def reward_bonus(self, assignment_id, amount, reason):
