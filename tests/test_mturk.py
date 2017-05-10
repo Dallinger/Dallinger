@@ -172,8 +172,43 @@ def with_cleanup(aws_creds, request):
             pass
 
 
+@pytest.fixture
+def worker_id():
+    # Get a worker ID from the environment or tests/config.py
+    import os
+    workerid = os.getenv('mturk_worker_id')
+    if not workerid:
+        try:
+            from . import config
+            workerid = config.mturk_worker_id
+        except Exception:
+            pass
+    if not workerid:
+        raise FixtureConfigurationError(
+            'No "mturk_worker_id" value found. '
+            'Either set this value or skip these tests with '
+            '`pytest -m "not mturkworker"`'
+        )
+    return workerid
+
+
+class MTurkTestBase(object):
+
+    def _make_qtype(self, mturk, name=None):
+        if name is None:
+            name = generate_random_id(size=32)
+
+        qtype = mturk.create_qualification_type(
+            name=name,
+            description=TEST_QUALIFICATION_DESCRIPTION,
+            status='Active',
+        )
+        self._qtypes_to_purge.append(qtype['id'])
+        return qtype
+
+
 @pytest.mark.mturk
-class TestMTurkService(object):
+class TestMTurkService(MTurkTestBase):
 
     def test_check_credentials_good_credentials(self, mturk):
         is_authenticated = mturk.check_credentials()
@@ -226,6 +261,19 @@ class TestMTurkService(object):
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 2
 
+    def test_create_hit_with_valid_blacklist(self, with_cleanup):
+        qtype = self._make_qtype(with_cleanup, name='foo')
+        hit = with_cleanup.create_hit(
+            **standard_hit_config(blacklist=qtype['id'])
+        )
+        assert hit['status'] == 'Assignable'
+
+    def test_create_hit_with_invalid_blacklist_raises(self, with_cleanup):
+        with pytest.raises(MTurkServiceException):
+            with_cleanup.create_hit(
+                **standard_hit_config(blacklist='NONEXISTENT!')
+            )
+
     def test_extend_hit_with_valid_hit_id(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
 
@@ -275,92 +323,106 @@ class TestMTurkService(object):
 
 @pytest.mark.mturk
 @pytest.mark.mturkworker
-class TestMTurkServiceWithRequesterAndWorker(object):
+class TestMTurkServiceWithRequesterAndWorker(MTurkTestBase):
 
-    def _make_qtype(self, mturk):
-        qtype = mturk.create_qualification_type(
-            name=generate_random_id(size=32),
-            description=TEST_QUALIFICATION_DESCRIPTION,
-            status='Active',
-        )
-        self._qtypes_to_purge.append(qtype['id'])
-        return qtype
-
-    def worker_id(self):
-        # Get a worker ID from the environment or tests/config.py
-        import os
-        workerid = os.getenv('mturk_worker_id')
-        if not workerid:
-            try:
-                from . import config
-                workerid = config.mturk_worker_id
-            except Exception:
-                pass
-        if not workerid:
-            raise FixtureConfigurationError(
-                'No "mturk_worker_id" value found. '
-                'Either set this value or skip these tests with '
-                '`pytest -m "not mturkworker"`'
-            )
-        return workerid
-
-    def test_assign_qualification(self, with_cleanup):
+    def test_assign_qualification(self, with_cleanup, worker_id):
         qtype = self._make_qtype(with_cleanup)
         assert with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id(), score=2, notify=False)
+            qtype['id'], worker_id, score=2, notify=False)
 
-    def test_assign_already_granted_qualification_raises(self, with_cleanup):
+    def test_assign_already_granted_qualification_raises(self, with_cleanup, worker_id):
         qtype = self._make_qtype(with_cleanup)
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id(), score=2, notify=False
+            qtype['id'], worker_id, score=2, notify=False
         )
 
         with pytest.raises(MTurkRequestError):
             with_cleanup.assign_qualification(
-                qtype['id'], self.worker_id(), score=2, notify=False)
+                qtype['id'], worker_id, score=2, notify=False)
 
-    def test_update_qualification_score(self, with_cleanup):
+    def test_update_qualification_score(self, with_cleanup, worker_id):
         qtype = self._make_qtype(with_cleanup)
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id(), score=2, notify=False)
+            qtype['id'], worker_id, score=2, notify=False)
 
         with_cleanup.update_qualification_score(
-            qtype['id'], self.worker_id(), score=3)
+            qtype['id'], worker_id, score=3)
 
         new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id())[0].IntegerValue
+            qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '3'
 
-    def test_get_workers_with_qualification(self, with_cleanup):
+    def test_get_workers_with_qualification(self, with_cleanup, worker_id):
         qtype = self._make_qtype(with_cleanup)
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id(), score=2, notify=False)
+            qtype['id'], worker_id, score=2, notify=False)
 
         workers = with_cleanup.get_workers_with_qualification(qtype['id'])
 
-        assert self.worker_id() in [w['id'] for w in workers]
+        assert worker_id in [w['id'] for w in workers]
 
-    def test_set_qualification_score_with_new_qualification(self, with_cleanup):
+    def test_set_qualification_score_with_new_qualification(self, with_cleanup, worker_id):
         qtype = self._make_qtype(with_cleanup)
 
         with_cleanup.set_qualification_score(
-            qtype['id'], self.worker_id(), score=2, notify=False)
+            qtype['id'], worker_id, score=2, notify=False)
 
         new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id())[0].IntegerValue
+            qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '2'
 
-    def test_set_qualification_score_with_existing_qualification(self, with_cleanup):
+    def test_set_qualification_score_with_existing_qualification(self, with_cleanup, worker_id):
         qtype = self._make_qtype(with_cleanup)
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id(), score=2, notify=False)
+            qtype['id'], worker_id, score=2, notify=False)
 
         with_cleanup.set_qualification_score(
-            qtype['id'], self.worker_id(), score=3, notify=False)
+            qtype['id'], worker_id, score=3, notify=False)
 
         new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id())[0].IntegerValue
+            qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '3'
+
+
+@pytest.mark.skipif(not pytest.config.getvalue("manual"),
+                    reason="--manual was not specified")
+class TestBlacklistsManualTesting(MTurkTestBase):
+
+    qual_name = 'dallinger_test_qualification'
+
+    def test_worker_can_see_hit_when_blacklist_not_in_qualifications(self, with_cleanup, worker_id):
+        qtype = self._make_qtype(with_cleanup, name=self.qual_name)
+        with_cleanup.assign_qualification(
+            qtype['id'], worker_id, score=1, notify=False)
+
+        print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(self.qual_name)
+        raw_input("Any key to continue...")
+
+        hit = with_cleanup.create_hit(
+            **standard_hit_config(title="Dallinger: No Blacklist"))
+
+        print 'MANUAL STEP: Should be able to see "{}" as available HIT'.format(hit['title'])
+        raw_input("Any key to continue...")
+
+    def test_worker_cannot_see_hit_when_blacklist_in_qualifications(self, with_cleanup, worker_id):
+        qtype = self._make_qtype(with_cleanup, name=self.qual_name)
+        with_cleanup.assign_qualification(
+            qtype['id'], worker_id, score=1, notify=False)
+
+        print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(self.qual_name)
+        raw_input("Any key to continue...")
+
+        hit = with_cleanup.create_hit(
+            **standard_hit_config(
+                title="Dallinger: Blacklist",
+                blacklist=qtype['id']
+            )
+        )
+
+        print 'MANUAL STEP: Should NOT be able to see "{}"" as available HIT'.format(hit['title'])
+        raw_input("Any key to continue...")
+
+        pass
 
 
 @pytest.fixture

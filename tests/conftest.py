@@ -101,3 +101,5 @@ def pytest_addoption(parser):
                      metavar='URL')
     parser.addoption("--runbot", action="store_true",
                      help="Run an experiment using a bot during tests")
+    parser.addoption("--manual", action="store_true",
+                     help="Run manual interactive tests during test run")

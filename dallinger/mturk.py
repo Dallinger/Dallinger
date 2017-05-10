@@ -7,6 +7,7 @@ from boto.mturk.price import Price
 from boto.mturk.qualification import LocaleRequirement
 from boto.mturk.qualification import PercentAssignmentsApprovedRequirement
 from boto.mturk.qualification import Qualifications
+from boto.mturk.qualification import Requirement
 from boto.mturk.question import ExternalQuestion
 from cached_property import cached_property
 
@@ -87,8 +88,12 @@ class MTurkService(object):
 
         return hit_type.HITTypeId
 
-    def build_hit_qualifications(self, approve_requirement, restrict_to_usa):
-        """Translate restrictions/qualifications to boto Qualifications objects"""
+    def build_hit_qualifications(self, approve_requirement, restrict_to_usa, blacklist):
+        """Translate restrictions/qualifications to boto Qualifications objects
+
+        @blacklist is a Qualification ID workers must *not* have in order to
+        see and accept the HIT.
+        """
         quals = Qualifications()
         quals.add(
             PercentAssignmentsApprovedRequirement(
@@ -97,6 +102,16 @@ class MTurkService(object):
 
         if restrict_to_usa:
             quals.add(LocaleRequirement("EqualTo", "US"))
+
+        if blacklist is not None:
+            try:
+                self.mturk.get_qualification_type(blacklist)
+            except MTurkRequestError, ex:
+                raise MTurkServiceException(ex.message)
+
+            quals.add(
+                Requirement(blacklist, "DoesNotExist", required_to_preview=True)
+            )
 
         return quals
 
@@ -169,12 +184,12 @@ class MTurkService(object):
 
     def create_hit(self, title, description, keywords, reward, duration_hours,
                    lifetime_days, ad_url, notification_url, approve_requirement,
-                   max_assignments, us_only):
+                   max_assignments, us_only, blacklist=None):
         """Create the actual HIT and return a dict with its useful properties."""
         frame_height = 600
         mturk_question = ExternalQuestion(ad_url, frame_height)
         qualifications = self.build_hit_qualifications(
-            approve_requirement, us_only
+            approve_requirement, us_only, blacklist
         )
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords
