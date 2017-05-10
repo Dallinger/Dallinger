@@ -2,6 +2,8 @@ import mock
 import os
 import pytest
 from dallinger import db
+from dallinger.models import Participant
+from dallinger.experiment import Experiment
 
 
 class TestRecruiters(object):
@@ -30,6 +32,10 @@ class TestRecruiters(object):
         Recruiter.for_experiment(mock_exp)
 
         mock_exp.recruiter.assert_called()
+
+    def test_notify_recruited(self, recruiter):
+        dummy = mock.NonCallableMock()
+        recruiter.notify_recruited(participant=dummy, experiment=dummy)
 
 
 class TestHotAirRecruiter(object):
@@ -184,7 +190,6 @@ class TestMTurkRecruiter(object):
         )
 
     def test_open_recruitment_is_noop_if_experiment_in_progress(self):
-        from dallinger.models import Participant
         participant = Participant(
             worker_id='1', hit_id='1', assignment_id='1', mode="test")
         self.db.add(participant)
@@ -194,7 +199,6 @@ class TestMTurkRecruiter(object):
         recruiter.mturkservice.check_credentials.assert_not_called()
 
     def test_current_hit_id_with_active_experiment(self):
-        from dallinger.models import Participant
         participant = Participant(
             worker_id='1', hit_id='the hit!', assignment_id='1', mode="test")
         self.db.add(participant)
@@ -259,3 +263,23 @@ class TestMTurkRecruiter(object):
         recruiter = self.make_one()
         recruiter.close_recruitment()
         # This test is for coverage; the method doesn't do anything.
+
+    def test_notify_recruited_when_group_name_not_specified(self):
+        participant = mock.Mock(spec=Participant, worker_id='some worker id')
+        experiment = mock.Mock(spec=Experiment, app_id='some experiment id')
+        recruiter = self.make_one()
+        recruiter.notify_recruited(participant, experiment)
+
+        recruiter.mturkservice.assign_qualification.assert_called_once_with(
+            'some experiment id', participant.worker_id, '1'
+        )
+
+    def test_notify_recruited_when_group_name_specified(self):
+        participant = mock.Mock(spec=Participant, worker_id='some worker id')
+        experiment = mock.Mock(spec=Experiment, app_id='some experiment id')
+        recruiter = self.make_one(group_name='some existing qualification id')
+        recruiter.notify_recruited(participant, experiment)
+
+        recruiter.mturkservice.assign_qualification.assert_called_once_with(
+            'some existing qualification id', participant.worker_id, '1'
+        )
