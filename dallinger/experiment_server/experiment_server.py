@@ -31,6 +31,7 @@ from dallinger import experiment
 from dallinger import models
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
+from dallinger.recruiters import Recruiter
 
 from .worker_events import WorkerEvent
 from .utils import nocache
@@ -527,7 +528,6 @@ def assign_properties(thing):
 
     session.commit()
 
-from dallinger.recruiters import Recruiter
 
 @app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
            methods=["POST"])
