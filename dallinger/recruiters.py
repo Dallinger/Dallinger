@@ -19,9 +19,6 @@ q = Queue('low', connection=conn)
 class Recruiter(object):
     """The base recruiter."""
 
-    def __init__(self):
-        """Create a recruiter."""
-        super(Recruiter, self).__init__()
 
     def open_recruitment(self):
         """Throw an error."""
@@ -40,15 +37,11 @@ class Recruiter(object):
         raise NotImplementedError
 
 
-class HotAirRecruiter(object):
+class HotAirRecruiter(Recruiter):
     """A dummy recruiter.
 
     Talks the talk, but does not walk the walk.
     """
-
-    def __init__(self):
-        """Create a hot air recruiter."""
-        super(HotAirRecruiter, self).__init__()
 
     def open_recruitment(self, n=1):
         """Talk about opening recruitment."""
@@ -103,7 +96,7 @@ class MTurkRecruiterException(Exception):
     """Custom exception for MTurkRecruiter"""
 
 
-class MTurkRecruiter(object):
+class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
     @classmethod
@@ -203,7 +196,7 @@ class MTurkRecruiter(object):
         logger.info("Close recruitment.")
 
 
-class BotRecruiter(object):
+class BotRecruiter(Recruiter):
     """Recruit bot participants using a queue"""
 
     @classmethod
