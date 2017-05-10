@@ -356,10 +356,9 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def summary(app):
     """Print a summary of a deployed app's status."""
-    verify_id(app)
     r = requests.get('https://{}.herokuapp.com/summary'.format(app_name(app)))
     summary = r.json()['summary']
     click.echo("\nstatus \t| count")
@@ -677,10 +676,13 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-@click.option('--app', default=None, callback=verify_id, help='Experiment id')
+@click.option('--app', default=None, help='Experiment id')
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     # Load configuration.
+    if app:
+        verify_id(None, None, app)
+
     config = get_config()
     config.load()
 
@@ -699,6 +701,9 @@ def sandbox(verbose, app):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
+    if app:
+        verify_id(None, None, app)
+
     # Load configuration.
     config = get_config()
     config.load()
@@ -865,7 +870,7 @@ def logs(app):
 def bot(app, debug):
     """Run the experiment bot."""
     if debug is None:
-        verify_id(app)
+        verify_id(None, None, app)
 
     (id, tmp) = setup_experiment()
 
