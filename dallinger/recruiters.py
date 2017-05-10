@@ -19,6 +19,13 @@ q = Queue('low', connection=conn)
 class Recruiter(object):
     """The base recruiter."""
 
+    @staticmethod
+    def for_experiment(experiment):
+        """Return the Recruiter instance for the specified Experiment.
+
+        This provides a seam for testing.
+        """
+        return experiment.recruiter()
 
     def open_recruitment(self):
         """Throw an error."""
