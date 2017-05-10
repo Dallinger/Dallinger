@@ -26,13 +26,13 @@ class TestConfiguration(object):
 
     def test_register_unknown_type_raises(self):
         config = Configuration()
-        with raises(ValueError):
+        with raises(TypeError):
             config.register('num_participants', object)
 
     def test_type_mismatch(self):
         config = Configuration()
         config.register('num_participants', int)
-        with raises(ValueError):
+        with raises(TypeError):
             config.extend({'num_participants': 1.0})
 
     def test_type_mismatch_with_cast_types(self):
@@ -46,7 +46,7 @@ class TestConfiguration(object):
         config = Configuration()
         config.register('num_participants', int)
         config.ready = True
-        with raises(ValueError):
+        with raises(TypeError):
             config.extend({'num_participants': 'A NUMBER'}, cast_types=True)
 
     def test_get_before_ready_is_not_possible(self):

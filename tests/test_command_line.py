@@ -13,6 +13,7 @@ import pexpect
 from pytest import raises
 
 import dallinger.command_line
+from dallinger.command_line import verify_package
 from dallinger.compat import unicode
 from dallinger.config import LOCAL_CONFIG, get_config
 import dallinger.version
@@ -150,7 +151,7 @@ class TestSetupExperiment(object):
         config = get_config()
         config['base_payment'] = 1.2342
         assert(verify_package() is False)
-    
+
     def test_negative_payment(self):
         config = get_config()
         config['base_payment'] = -1.99
