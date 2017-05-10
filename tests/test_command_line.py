@@ -32,12 +32,20 @@ class TestCommandLine(object):
         output = subprocess.check_output(["dallinger"])
         assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
 
-    def test_dlgr_id(self):
+    def test_log_empty(self):
         id = "dlgr-3b9c2aeb"
         assert ValueError, subprocess.call(["dallinger", "logs", "--app", id])
 
-    def test_empty_id(self):
+    def test_log_no_flag(self):
         assert TypeError, subprocess.call(["dallinger", "logs"])
+
+    def test_deploy_empty(self):
+        id = "dlgr-3b9c2aeb"
+        assert ValueError, subprocess.call(["dallinger", "deploy", "--app", id])
+
+    def test_sandbox_empty(self):
+        id = "dlgr-3b9c2aeb"
+        assert ValueError, subprocess.call(["dallinger", "sandbox", "--app", id])
 
     def test_verify_id_short_fails(self):
         id = "dlgr-3b9c2aeb"
