@@ -23,6 +23,14 @@ class TestRecruiters(object):
         with pytest.raises(NotImplementedError):
             recruiter.close_recruitment()
 
+    def test_for_experiment(self):
+        from dallinger.experiment import Experiment
+        from dallinger.recruiters import Recruiter
+        mock_exp = mock.MagicMock(spec=Experiment)
+        Recruiter.for_experiment(mock_exp)
+
+        mock_exp.recruiter.assert_called()
+
 
 class TestHotAirRecruiter(object):
 
