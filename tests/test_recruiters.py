@@ -1,6 +1,9 @@
 import mock
 import os
 import pytest
+from dallinger import db
+from dallinger.models import Participant
+from dallinger.experiment import Experiment
 
 
 class TestRecruiters(object):
@@ -33,6 +36,10 @@ class TestRecruiters(object):
         Recruiter.for_experiment(mock_exp)
 
         mock_exp.recruiter.assert_called()
+
+    def test_notify_recruited(self, recruiter):
+        dummy = mock.NonCallableMock()
+        recruiter.notify_recruited(participant=dummy, experiment=dummy)
 
 
 class TestHotAirRecruiter(object):
@@ -239,3 +246,23 @@ class TestMTurkRecruiter(object):
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
         # This test is for coverage; the method doesn't do anything.
+
+    def test_notify_recruited_when_group_name_not_specified(self):
+        participant = mock.Mock(spec=Participant, worker_id='some worker id')
+        experiment = mock.Mock(spec=Experiment, app_id='some experiment id')
+        recruiter = self.make_one()
+        recruiter.notify_recruited(participant, experiment)
+
+        recruiter.mturkservice.assign_qualification.assert_called_once_with(
+            'some experiment id', participant.worker_id, '1'
+        )
+
+    def test_notify_recruited_when_group_name_specified(self):
+        participant = mock.Mock(spec=Participant, worker_id='some worker id')
+        experiment = mock.Mock(spec=Experiment, app_id='some experiment id')
+        recruiter = self.make_one(group_name='some existing qualification id')
+        recruiter.notify_recruited(participant, experiment)
+
+        recruiter.mturkservice.assign_qualification.assert_called_once_with(
+            'some existing qualification id', participant.worker_id, '1'
+        )

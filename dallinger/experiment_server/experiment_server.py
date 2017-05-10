@@ -527,6 +527,7 @@ def assign_properties(thing):
 
     session.commit()
 
+from dallinger.recruiters import Recruiter
 
 @app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
            methods=["POST"])
@@ -578,11 +579,16 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         'participant': participant.__json__()
     }
 
+    exp = Experiment(session)
+
+    # Ping back to the recruiter that one of their pool has joined:
+    recruiter = Recruiter.for_experiment(exp)
+    recruiter.notify_recruited(participant, exp)
+
     # Queue notification to others in waiting room
-    experiment = Experiment(session)
-    if experiment.quorum:
+    if exp.quorum:
         quorum = {
-            'q': experiment.quorum,
+            'q': exp.quorum,
             'n': waiting_count,
         }
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
