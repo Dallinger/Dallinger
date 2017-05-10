@@ -154,6 +154,23 @@ def verify_package(verbose=True):
         log("✓ README is OK",
             delay=0, chevrons=False, verbose=verbose)
 
+    # Check base_payment is correct
+    config = get_config()
+    if not config.ready:
+        config.load()
+    base_pay = config.get('base_payment')
+    dollarFormat = "{:.2f}".format(base_pay)
+
+    if base_pay <= 0:
+        log("✗ base_payment must be positive value in config.txt.",
+            delay=0, chevrons=False, verbose=verbose)
+        return False
+
+    if float(dollarFormat) != float(base_pay):
+        log("✗ base_payment must be in [dollars].[cents] format in config.txt. Try changing "
+            "{0} to {1}.".format(base_pay, dollarFormat), delay=0, chevrons=False, verbose=verbose)
+        return False
+
     # Check front-end files do not exist
     files = [
         os.path.join("templates", "complete.html"),
