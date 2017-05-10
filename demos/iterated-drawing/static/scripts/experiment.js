@@ -48,11 +48,16 @@ finish_reading = function() {
     $("#response-form").show();
     $("#submit-response").removeClass('disabled');
     $("#submit-response").html('Submit');
-    sketchpad = Raphael.sketchpad("editor", {
-        width: 300,
-        height: 300,
-        editing: true
-    });
+    if (typeof sketchpad !== 'undefined') {
+        // the variable is defined
+        sketchpad.clear();
+    } else {
+        sketchpad = Raphael.sketchpad("editor", {
+            width: 300,
+            height: 300,
+            editing: true
+        });
+    }
     pen = sketchpad.pen();
     pen.width(2);
 };
