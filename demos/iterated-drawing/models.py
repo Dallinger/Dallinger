@@ -1,7 +1,6 @@
 import base64
 import json
 import os
-import random
 
 from dallinger.nodes import Source
 
@@ -22,7 +21,7 @@ class DrawingSource(Source):
             "owl.png",
         ]
 
-        image = random.choice(images)
+        image = images[(self.network.id - 1) % len(images)]
 
         image_path = os.path.join("static", "stimuli", image)
         uri_encoded_image = (
