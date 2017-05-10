@@ -141,6 +141,21 @@ class TestSetupExperiment(object):
         with raises(NoOptionError):
             deploy_config.get('Parameters', 'something_sensitive')
 
+    def test_payment_type(self):
+        config = get_config()
+        with raises(TypeError):
+            config['base_payment'] = 12
+
+    def test_large_float_payment(self):
+        config = get_config()
+        config['base_payment'] = 1.2342
+        assert(verify_package() is False)
+    
+    def test_negative_payment(self):
+        config = get_config()
+        config['base_payment'] = -1.99
+        assert(verify_package() is False)
+
 
 class TestDebugServer(object):
 
