@@ -19,6 +19,8 @@ class DrawingSource(Source):
         """
         images = [
             "owl.png",
+            "xkcd.png",
+            "portrait.png",
         ]
 
         image = images[(self.network.id - 1) % len(images)]
