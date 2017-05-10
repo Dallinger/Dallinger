@@ -164,12 +164,12 @@ def verify_package(verbose=True):
     if base_pay <= 0:
         log("✗ base_payment must be positive value in config.txt.",
             delay=0, chevrons=False, verbose=verbose)
-        return False
+        is_passing = False
 
     if float(dollarFormat) != float(base_pay):
         log("✗ base_payment must be in [dollars].[cents] format in config.txt. Try changing "
             "{0} to {1}.".format(base_pay, dollarFormat), delay=0, chevrons=False, verbose=verbose)
-        return False
+        is_passing = False
 
     # Check front-end files do not exist
     files = [
