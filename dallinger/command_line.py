@@ -92,6 +92,7 @@ def verify_id(ctx, param, app):
     elif app[0:5] == "dlgr-":
         raise ValueError("The --app flag requires the full "
                          "UUID beginning with {}-...".format(app[5:13]))
+    return app
 
 
 def verify_package(verbose=True):
