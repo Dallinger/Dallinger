@@ -1,5 +1,6 @@
 import datetime
 import logging
+import time
 
 from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
@@ -104,14 +105,15 @@ class MTurkService(object):
             quals.add(LocaleRequirement("EqualTo", "US"))
 
         if blacklist is not None:
-            try:
-                self.mturk.get_qualification_type(blacklist)
-            except MTurkRequestError, ex:
-                raise MTurkServiceException(ex.message)
-
-            quals.add(
-                Requirement(blacklist, "DoesNotExist", required_to_preview=True)
-            )
+            qtype = self.get_qualification_type_by_name(blacklist)
+            if qtype:
+                quals.add(
+                    Requirement(
+                        qtype['id'],
+                        "DoesNotExist",
+                        required_to_preview=True
+                    )
+                )
 
         return quals
 
@@ -123,13 +125,27 @@ class MTurkService(object):
             raise MTurkServiceException(
                 "Qualification creation request was invalid for unknown reason.")
 
-        return {
-            'id': qtype.QualificationTypeId,
-            'created': timestr_to_dt(qtype.CreationTime),
-            'name': qtype.Name,
-            'description': qtype.Description,
-            'status': qtype.QualificationTypeStatus,
-        }
+        return self._translate_qtype(qtype)
+
+    def get_qualification_type_by_name(self, name):
+        """Return a Qualification Type if there is just one with this name"""
+        query = name.upper()
+        max_wait_secs = 30.0
+        start = time.time()
+        results = self.mturk.search_qualification_types(query=query)
+
+        # This loop is largely for tests, because there's some indexing that
+        # needs to happen on MTurk for search to work:
+        while not results and time.time() - start < max_wait_secs:
+            time.sleep(1)
+            results = self.mturk.search_qualification_types(query=query)
+
+        if not results:
+            return None
+        if len(results) > 1:
+            raise MTurkServiceException(
+                "{} was not a unique QualificationTypeId".format(query))
+        return self._translate_qtype(results[0])
 
     def assign_qualification(self, qualification_id, worker_id, score, notify=True):
         """Score a worker for a specific qualification"""
@@ -285,6 +301,15 @@ class MTurkService(object):
         }
 
         return translated
+
+    def _translate_qtype(self, qtype):
+        return {
+            'id': qtype.QualificationTypeId,
+            'created': timestr_to_dt(qtype.CreationTime),
+            'name': qtype.Name,
+            'description': qtype.Description,
+            'status': qtype.QualificationTypeStatus,
+        }
 
     def _is_ok(self, mturk_response):
         return mturk_response == []
