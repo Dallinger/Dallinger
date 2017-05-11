@@ -262,17 +262,11 @@ class TestMTurkService(MTurkTestBase):
         assert hit['max_assignments'] == 2
 
     def test_create_hit_with_valid_blacklist(self, with_cleanup):
-        qtype = self._make_qtype(with_cleanup, name='foo')
+        self._make_qtype(with_cleanup, name='foo')
         hit = with_cleanup.create_hit(
-            **standard_hit_config(blacklist=qtype['id'])
+            **standard_hit_config(blacklist='foo')
         )
         assert hit['status'] == 'Assignable'
-
-    def test_create_hit_with_invalid_blacklist_raises(self, with_cleanup):
-        with pytest.raises(MTurkServiceException):
-            with_cleanup.create_hit(
-                **standard_hit_config(blacklist='NONEXISTENT!')
-            )
 
     def test_extend_hit_with_valid_hit_id(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
@@ -319,6 +313,17 @@ class TestMTurkService(MTurkTestBase):
         assert isinstance(result['id'], unicode)
         assert result['status'] == u'Active'
         assert with_cleanup.dispose_qualification_type(result['id'])
+
+    def test_create_qualification_type_with_existing_name_raises(self, with_cleanup):
+        self._make_qtype(with_cleanup, name='foo')
+        with pytest.raises(MTurkRequestError):
+            self._make_qtype(with_cleanup, name='foo')
+
+    def test_get_qualification_type_by_name_with_valid_name(self, with_cleanup):
+        name = generate_random_id(size=32)
+        qtype = self._make_qtype(with_cleanup, name=name)
+        result = with_cleanup.get_qualification_type_by_name(name)
+        assert qtype == result
 
 
 @pytest.mark.mturk
