@@ -315,9 +315,9 @@ class TestMTurkService(MTurkTestBase):
         assert with_cleanup.dispose_qualification_type(result['id'])
 
     def test_create_qualification_type_with_existing_name_raises(self, with_cleanup):
-        self._make_qtype(with_cleanup, name='foo')
+        qtype = self._make_qtype(with_cleanup)
         with pytest.raises(MTurkRequestError):
-            self._make_qtype(with_cleanup, name='foo')
+            self._make_qtype(with_cleanup, qtype['name'])
 
     def test_get_qualification_type_by_name_with_valid_name(self, with_cleanup):
         name = generate_random_id(size=32)
