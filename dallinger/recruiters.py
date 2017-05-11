@@ -152,15 +152,24 @@ class MTurkRecruiter(Recruiter):
         )
 
     def notify_recruited(self, participant, experiment):
-        """Assign a Qualification to the Participant based on the group_name,
-        or the Experiment ID.
+        """Assign a Qualification to the Participant for the experiment ID,
+        and for the configured group_name, if it's been set.
         """
-        qualification_id = self.config.get('group_name', experiment.app_id)
+        score = '1'  # always '1'; doesn't matter
         worker_id = participant.worker_id
-        score = '1'
-        self.mturkservice.assign_qualification(
-            qualification_id, worker_id, score
-        )
+
+        # Always add a qualification to the worker based on the experiment's
+        # app_id:
+        qualification_names = [experiment.app_id]
+
+        group = self.config.get('group_name')
+        if group:
+            qualification_names.append(group)
+
+        for name in qualification_names:
+            self.mturkservice.assign_qualification_by_name(
+                name, worker_id, score
+            )
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""

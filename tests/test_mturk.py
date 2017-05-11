@@ -388,19 +388,29 @@ class TestMTurkServiceWithRequesterAndWorker(MTurkTestBase):
             qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '3'
 
+    def test_assign_qualification_by_name_with_existing_name(self, with_cleanup, worker_id):
+        qtype = self._make_qtype(with_cleanup)
+        assert with_cleanup.assign_qualification_by_name(
+            qtype['name'], worker_id, score=1, notify=False
+        )
+
+    def test_assign_qualification_by_name_with_new_name(self, with_cleanup, worker_id):
+        name = generate_random_id(size=32)
+        assert with_cleanup.assign_qualification_by_name(
+            name, worker_id, score=1, notify=False
+        )
+
 
 @pytest.mark.skipif(not pytest.config.getvalue("manual"),
                     reason="--manual was not specified")
 class TestBlacklistsManualTesting(MTurkTestBase):
 
-    qual_name = 'dallinger_test_qualification'
-
     def test_worker_can_see_hit_when_blacklist_not_in_qualifications(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup, name=self.qual_name)
+        qtype = self._make_qtype(with_cleanup)
         with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=1, notify=False)
 
-        print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(self.qual_name)
+        print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name'])
         raw_input("Any key to continue...")
 
         hit = with_cleanup.create_hit(
@@ -410,17 +420,17 @@ class TestBlacklistsManualTesting(MTurkTestBase):
         raw_input("Any key to continue...")
 
     def test_worker_cannot_see_hit_when_blacklist_in_qualifications(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup, name=self.qual_name)
+        qtype = self._make_qtype(with_cleanup)
         with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=1, notify=False)
 
-        print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(self.qual_name)
+        print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name'])
         raw_input("Any key to continue...")
 
         hit = with_cleanup.create_hit(
             **standard_hit_config(
                 title="Dallinger: Blacklist",
-                blacklist=qtype['id']
+                blacklist=[qtype['name']]
             )
         )
 
