@@ -58,6 +58,11 @@ class MCMCP(Experiment):
         parent.transmit()
         node.receive()
 
+    def data_check(self, participant):
+        """Make sure each trial contains exactly one chosen info."""
+        infos = participant.infos()
+        return len([info for info in infos if info.chosen])*2 == len(infos)
+
 
 extra_routes = Blueprint(
     'extra_routes',
