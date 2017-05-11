@@ -262,9 +262,9 @@ class TestMTurkService(MTurkTestBase):
         assert hit['max_assignments'] == 2
 
     def test_create_hit_with_valid_blacklist(self, with_cleanup):
-        self._make_qtype(with_cleanup, name='foo')
+        qtype = self._make_qtype(with_cleanup)
         hit = with_cleanup.create_hit(
-            **standard_hit_config(blacklist=['foo'])
+            **standard_hit_config(blacklist=[qtype['name']])
         )
         assert hit['status'] == 'Assignable'
 
