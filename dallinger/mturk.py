@@ -157,6 +157,19 @@ class MTurkService(object):
             notify
         ))
 
+    def assign_qualification_by_name(self, name, worker_id, score, notify=True):
+        """Assign a qualification to a worker based on a qualification name.
+
+        If a qualification with the provided name does not already exist, it
+        will be created first.
+        """
+        qtype = self.get_qualification_type_by_name(name)
+        if not qtype:
+            description = "Dallinger prior experiment experience qualification"
+            qtype = self.create_qualification_type(name, description, status='Active')
+
+        return self.assign_qualification(qtype['id'], worker_id, score, notify)
+
     def update_qualification_score(self, qualification_id, worker_id, score):
         """Score a worker for a specific qualification"""
         return self._is_ok(self.mturk.update_qualification_score(

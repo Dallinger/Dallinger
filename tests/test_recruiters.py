@@ -253,16 +253,17 @@ class TestMTurkRecruiter(object):
         recruiter = self.make_one()
         recruiter.notify_recruited(participant, experiment)
 
-        recruiter.mturkservice.assign_qualification.assert_called_once_with(
-            'some experiment id', participant.worker_id, '1'
+        recruiter.mturkservice.assign_qualification_by_name.assert_called_once_with(
+            'some experiment id', 'some worker id', '1'
         )
 
     def test_notify_recruited_when_group_name_specified(self):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
         experiment = mock.Mock(spec=Experiment, app_id='some experiment id')
-        recruiter = self.make_one(group_name='some existing qualification id')
+        recruiter = self.make_one(group_name='some existing group_name')
         recruiter.notify_recruited(participant, experiment)
 
-        recruiter.mturkservice.assign_qualification.assert_called_once_with(
-            'some existing qualification id', participant.worker_id, '1'
-        )
+        recruiter.mturkservice.assign_qualification_by_name.assert_has_calls([
+            mock.call('some experiment id', 'some worker id', '1'),
+            mock.call('some existing group_name', 'some worker id', '1')
+        ])
