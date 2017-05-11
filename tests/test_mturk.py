@@ -264,7 +264,7 @@ class TestMTurkService(MTurkTestBase):
     def test_create_hit_with_valid_blacklist(self, with_cleanup):
         self._make_qtype(with_cleanup, name='foo')
         hit = with_cleanup.create_hit(
-            **standard_hit_config(blacklist='foo')
+            **standard_hit_config(blacklist=['foo'])
         )
         assert hit['status'] == 'Assignable'
 

@@ -92,8 +92,8 @@ class MTurkService(object):
     def build_hit_qualifications(self, approve_requirement, restrict_to_usa, blacklist):
         """Translate restrictions/qualifications to boto Qualifications objects
 
-        @blacklist is a Qualification ID workers must *not* have in order to
-        see and accept the HIT.
+        @blacklist is a list of names of Qualifications workers must *not* have
+        in order to see and accept the HIT.
         """
         quals = Qualifications()
         quals.add(
@@ -105,15 +105,16 @@ class MTurkService(object):
             quals.add(LocaleRequirement("EqualTo", "US"))
 
         if blacklist is not None:
-            qtype = self.get_qualification_type_by_name(blacklist)
-            if qtype:
-                quals.add(
-                    Requirement(
-                        qtype['id'],
-                        "DoesNotExist",
-                        required_to_preview=True
+            for item in blacklist:
+                qtype = self.get_qualification_type_by_name(item)
+                if qtype:
+                    quals.add(
+                        Requirement(
+                            qtype['id'],
+                            "DoesNotExist",
+                            required_to_preview=True
+                        )
                     )
-                )
 
         return quals
 
