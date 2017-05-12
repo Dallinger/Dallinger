@@ -236,7 +236,7 @@ class MTurkRecruiter(Recruiter):
         # but the config system only supports strings for now, so we convert:
         blacklist = self.config.get('blacklist')
         if blacklist:
-            blacklist = (blacklist, )
+            blacklist = tuple([item.strip() for item in blacklist.split(',')])
         else:
             blacklist = ()
 
