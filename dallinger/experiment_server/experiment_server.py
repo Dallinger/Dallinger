@@ -581,7 +581,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
     exp = Experiment(session)
 
-    # Ping back to the recruiter that one of their pool has joined:
+    # Ping back to the recruiter that one of their participants has joined:
     recruiter = Recruiter.for_experiment(exp)
     recruiter.notify_recruited(participant, exp)
 
