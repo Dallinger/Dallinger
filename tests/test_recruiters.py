@@ -176,7 +176,26 @@ class TestMTurkRecruiter(object):
             notification_url='https://url-of-notification-route',
             reward=0.01,
             title='fake experiment title',
-            us_only=True
+            us_only=True,
+            blacklist=(),
+        )
+
+    def test_open_recruitment_with_blacklist(self):
+        recruiter = self.make_one(blacklist='foo')
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_hit.assert_called_once_with(
+            ad_url='http://fake-domain/ad',
+            approve_requirement=95,
+            description='fake HIT description',
+            duration_hours=1.0,
+            keywords=['kw1', 'kw2', 'kw3'],
+            lifetime_days=0.1,
+            max_assignments=1,
+            notification_url='https://url-of-notification-route',
+            reward=0.01,
+            title='fake experiment title',
+            us_only=True,
+            blacklist=('foo', ),
         )
 
     def test_open_recruitment_is_noop_if_experiment_in_progress(self, recruiter, db_session):
