@@ -113,6 +113,8 @@ class MTurkRecruiter(Recruiter):
 
         self.mturkservice.check_credentials()
 
+        blacklist = self._extract_blacklist_from_config()
+
         hit_request = {
             'max_assignments': n,
             'title': self.config.get('title'),
@@ -125,6 +127,7 @@ class MTurkRecruiter(Recruiter):
             'notification_url': self.config.get('notification_url'),
             'approve_requirement': self.config.get('approve_requirement'),
             'us_only': self.config.get('us_only'),
+            'blacklist': blacklist,
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
         if self.config.get('mode') == "sandbox":
@@ -196,6 +199,17 @@ class MTurkRecruiter(Recruiter):
         that all MTurk HITs that were created were already completed.
         """
         logger.info("Close recruitment.")
+
+    def _extract_blacklist_from_config(self):
+        # At some point we'll support lists, so all service code supports them,
+        # but the config system only supports strings for now, so we convert:
+        blacklist = self.config.get('blacklist')
+        if blacklist:
+            blacklist = (blacklist, )
+        else:
+            blacklist = ()
+
+        return blacklist
 
 
 class BotRecruiter(Recruiter):
