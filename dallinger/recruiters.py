@@ -194,15 +194,15 @@ class MTurkRecruiter(Recruiter):
 
         # Always add a qualification to the worker based on the experiment's
         # app_id:
-        qualification_names = [experiment.app_id]
+        qualifications = [(experiment.app_id, 'Experiment specific qualification')]
 
         group = self.config.get('group_name')
         if group:
-            qualification_names.append(group)
+            qualifications.append((group, 'Experiment group qualification'))
 
-        for name in qualification_names:
+        for name, desc in qualifications:
             self.mturkservice.assign_qualification_by_name(
-                name, worker_id, score
+                name, worker_id, score, desc
             )
 
     def reward_bonus(self, assignment_id, amount, reason):
@@ -275,7 +275,7 @@ class BotRecruiter(Recruiter):
             ad_parameters = ad_parameters.format(assignment, hit, worker)
             url = '{}/ad?{}'.format(base_url, ad_parameters)
             bot = Bot(url, assignment_id=assignment, worker_id=worker)
-            job = q.enqueue(bot.run_experiment, timeout=60*20)
+            job = q.enqueue(bot.run_experiment, timeout=60 * 20)
             logger.info("Created job {} for url {}.".format(job.id, url))
 
     def approve_hit(self, assignment_id):

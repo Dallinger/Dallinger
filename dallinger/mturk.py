@@ -157,13 +157,17 @@ class MTurkService(object):
             notify
         ))
 
-    def assign_qualification_by_name(self, name, worker_id, score, notify=True):
+    def assign_qualification_by_name(self,
+                                     name,
+                                     worker_id,
+                                     score,
+                                     description='Dallinger qualification',
+                                     notify=True):
         """Assign a qualification to a worker based on a qualification name.
 
         If a qualification with the provided name does not already exist, it
         will be created first.
         """
-        description = "Dallinger prior experiment experience qualification"
         qtype = None
         try:
             qtype = self.create_qualification_type(name, description, status='Active')
