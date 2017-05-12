@@ -703,9 +703,8 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.get_workers_with_qualification = mock.Mock(
             return_value=[{'id': 'workerid', 'score': 2}]
         )
-        with_mock.update_qualification_score = mock.Mock(
-            return_value=True
-        )
+        with_mock.update_qualification_score = mock.Mock(return_value=True)
+
         assert with_mock.set_qualification_score('qid', 'workerid', 4)
         with_mock.get_workers_with_qualification.assert_called_once_with('qid')
         with_mock.update_qualification_score.assert_called_once_with(
@@ -713,14 +712,37 @@ class TestMTurkServiceWithFakeConnection(object):
         )
 
     def test_set_qualification_score_with_new_qualification(self, with_mock):
-        with_mock.get_workers_with_qualification = mock.Mock(
-            return_value=[]
-        )
-        with_mock.assign_qualification = mock.Mock(
-            return_value=True
-        )
+        with_mock.get_workers_with_qualification = mock.Mock(return_value=[])
+        with_mock.assign_qualification = mock.Mock(return_value=True)
+
         assert with_mock.set_qualification_score('qid', 'workerid', 4)
         with_mock.get_workers_with_qualification.assert_called_once_with('qid')
         with_mock.assign_qualification.assert_called_once_with(
             'qid', 'workerid', 4, True
+        )
+
+    def test_assign_qualification_by_name_with_existing_name(self, with_mock):
+        with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
+        with_mock.assign_qualification = mock.Mock(return_value=True)
+
+        assert with_mock.assign_qualification_by_name('foo', 'workerid', 1, False)
+        with_mock.get_qualification_type_by_name.assert_called_once_with('foo')
+        with_mock.assign_qualification.assert_called_once_with(
+            'qid', 'workerid', 1, False
+        )
+
+    def test_assign_qualification_by_name_with_new_name(self, with_mock):
+        with_mock.get_qualification_type_by_name = mock.Mock(return_value=None)
+        with_mock.assign_qualification = mock.Mock(return_value=True)
+        with_mock.create_qualification_type = mock.Mock(return_value={'id': 'qid'})
+
+        assert with_mock.assign_qualification_by_name('foo', 'workerid', 1, False)
+        with_mock.get_qualification_type_by_name.assert_called_once_with('foo')
+        with_mock.create_qualification_type.assert_called_once_with(
+            'foo',
+            'Dallinger prior experiment experience qualification',
+            status='Active'
+        )
+        with_mock.assign_qualification.assert_called_once_with(
+            'qid', 'workerid', 1, False
         )
