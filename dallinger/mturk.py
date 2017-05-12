@@ -131,7 +131,7 @@ class MTurkService(object):
     def get_qualification_type_by_name(self, name):
         """Return a Qualification Type if there is just one with this name"""
         query = name.upper()
-        max_wait_secs = 30.0
+        max_wait_secs = 60.0
         start = time.time()
         results = self.mturk.search_qualification_types(query=query)
 
@@ -144,8 +144,8 @@ class MTurkService(object):
         if not results:
             return None
         if len(results) > 1:
-            raise MTurkServiceException(
-                "{} was not a unique QualificationTypeId".format(query))
+            raise MTurkServiceException("{} was not a unique name".format(query))
+
         return self._translate_qtype(results[0])
 
     def assign_qualification(self, qualification_id, worker_id, score, notify=True):
@@ -163,10 +163,22 @@ class MTurkService(object):
         If a qualification with the provided name does not already exist, it
         will be created first.
         """
-        qtype = self.get_qualification_type_by_name(name)
-        if not qtype:
-            description = "Dallinger prior experiment experience qualification"
+        description = "Dallinger prior experiment experience qualification"
+        qtype = None
+        try:
             qtype = self.create_qualification_type(name, description, status='Active')
+        except MTurkRequestError, ex:
+            if "name must be unique" in ex.message:
+                qtype = self.get_qualification_type_by_name(name)
+                if qtype is None:
+                    raise MTurkServiceException(
+                        "Qualification with name {} exists, "
+                        "but couldn't be retrieved by name.".format(name)
+                    )
+            else:
+                raise MTurkServiceException(
+                    "Qualification assignment failed: {}".format(ex.message)
+                )
 
         return self.assign_qualification(qtype['id'], worker_id, score, notify)
 

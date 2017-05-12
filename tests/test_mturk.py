@@ -195,8 +195,10 @@ def worker_id():
 class MTurkTestBase(object):
 
     def _make_qtype(self, mturk, name=None):
+        import socket
+        hostname = socket.gethostname()
         if name is None:
-            name = generate_random_id(size=32)
+            name = "{}:{}".format(hostname, generate_random_id(size=32))
 
         qtype = mturk.create_qualification_type(
             name=name,
@@ -401,6 +403,8 @@ class TestMTurkServiceWithRequesterAndWorker(MTurkTestBase):
         )
 
 
+@pytest.mark.mturk
+@pytest.mark.mturkworker
 @pytest.mark.skipif(not pytest.config.getvalue("manual"),
                     reason="--manual was not specified")
 class TestBlacklistsManualTesting(MTurkTestBase):
@@ -721,23 +725,60 @@ class TestMTurkServiceWithFakeConnection(object):
             'qid', 'workerid', 4, True
         )
 
-    def test_assign_qualification_by_name_with_existing_name(self, with_mock):
+    def test_assign_qualification_by_name_with_existing_name_lookup_succeeds(self, with_mock):
+        with_mock.create_qualification_type = mock.Mock()
+        with_mock.create_qualification_type.side_effect = MTurkRequestError(
+            status='status',
+            reason='reason',
+            body="Qualification name must be unique"
+        )
+
         with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
         with_mock.assign_qualification = mock.Mock(return_value=True)
 
         assert with_mock.assign_qualification_by_name('foo', 'workerid', 1, False)
+        with_mock.create_qualification_type.assert_called_once_with(
+            'foo',
+            'Dallinger prior experiment experience qualification',
+            status='Active'
+        )
         with_mock.get_qualification_type_by_name.assert_called_once_with('foo')
         with_mock.assign_qualification.assert_called_once_with(
             'qid', 'workerid', 1, False
         )
 
-    def test_assign_qualification_by_name_with_new_name(self, with_mock):
+    def test_assign_qualification_by_name_with_existing_name_lookup_fails(self, with_mock):
+        with_mock.create_qualification_type = mock.Mock()
+        with_mock.create_qualification_type.side_effect = MTurkRequestError(
+            status='status',
+            reason='reason',
+            body="Qualification name must be unique"
+        )
+
         with_mock.get_qualification_type_by_name = mock.Mock(return_value=None)
-        with_mock.assign_qualification = mock.Mock(return_value=True)
+
+        with pytest.raises(MTurkServiceException):
+            with_mock.assign_qualification_by_name('foo', 'workerid', 1, False)
+
+    def test_assign_qualification_by_name_with_new_name_unknown_error(self, with_mock):
+        with_mock.create_qualification_type = mock.Mock()
+        with_mock.create_qualification_type.side_effect = MTurkRequestError(
+            status='status',
+            reason='reason',
+            body='Arbitrary MTurkRequestError...'
+        )
+
+        with_mock.get_qualification_type_by_name = mock.Mock(return_value=None)
+
+        with pytest.raises(MTurkServiceException) as ex:
+            with_mock.assign_qualification_by_name('foo', 'workerid', 1, False)
+        assert 'Arbitrary MTurkRequestError...' in ex.value.message
+
+    def test_assign_qualification_by_name_with_new_name(self, with_mock):
         with_mock.create_qualification_type = mock.Mock(return_value={'id': 'qid'})
+        with_mock.assign_qualification = mock.Mock(return_value=True)
 
         assert with_mock.assign_qualification_by_name('foo', 'workerid', 1, False)
-        with_mock.get_qualification_type_by_name.assert_called_once_with('foo')
         with_mock.create_qualification_type.assert_called_once_with(
             'foo',
             'Dallinger prior experiment experience qualification',
