@@ -3,6 +3,9 @@ var my_node_id;
 // Consent to the experiment.
 $(document).ready(function() {
 
+    // do not allow user to close or reload
+    prevent_exit = true;
+
     // Print the consent form.
     $("#print-consent").click(function() {
         console.log("hello");

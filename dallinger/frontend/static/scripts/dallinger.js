@@ -19,16 +19,25 @@ var assignment_id = getUrlParameter("assignment_id");
 var mode = getUrlParameter("mode");
 var participant_id = getUrlParameter("participant_id");
 
-// stop people leaving the page
-window.onbeforeunload = function() {
-    return "Warning: the study is not yet finished. " +
-    "Closing the window, refreshing the page or navigating elsewhere " +
-    "might prevent you from finishing the experiment.";
-};
+// stop people leaving the page, but only if desired by experiment
+var allow_exit_once = false;
+var prevent_exit = false;
+window.addEventListener('beforeunload', function(e) {
+    if (prevent_exit == true && allow_exit_once == false) {
+        var returnValue = "Warning: the study is not yet finished. " +
+        "Closing the window, refreshing the page or navigating elsewhere " +
+        "might prevent you from finishing the experiment.";
+        e.returnValue = returnValue;
+        return returnValue
+    } else {
+        allow_exit_once = false;
+        return undefined;
+    }
+});
 
 // allow actions to leave the page
 var allow_exit = function() {
-    window.onbeforeunload = function() {};
+    allow_exit_once = true;
 };
 
 // advance the participant to a given html page
