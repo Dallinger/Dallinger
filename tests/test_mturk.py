@@ -736,10 +736,10 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
         with_mock.assign_qualification = mock.Mock(return_value=True)
 
-        assert with_mock.assign_qualification_by_name('foo', 'workerid', 1, False)
+        assert with_mock.assign_qualification_by_name('foo', 'workerid', 1, 'desc', False)
         with_mock.create_qualification_type.assert_called_once_with(
             'foo',
-            'Dallinger prior experiment experience qualification',
+            'desc',
             status='Active'
         )
         with_mock.get_qualification_type_by_name.assert_called_once_with('foo')
@@ -758,7 +758,7 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.get_qualification_type_by_name = mock.Mock(return_value=None)
 
         with pytest.raises(MTurkServiceException):
-            with_mock.assign_qualification_by_name('foo', 'workerid', 1, False)
+            with_mock.assign_qualification_by_name('foo', 'workerid', 1)
 
     def test_assign_qualification_by_name_with_new_name_unknown_error(self, with_mock):
         with_mock.create_qualification_type = mock.Mock()
@@ -771,19 +771,19 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.get_qualification_type_by_name = mock.Mock(return_value=None)
 
         with pytest.raises(MTurkServiceException) as ex:
-            with_mock.assign_qualification_by_name('foo', 'workerid', 1, False)
+            with_mock.assign_qualification_by_name('foo', 'workerid', 1)
         assert 'Arbitrary MTurkRequestError...' in ex.value.message
 
     def test_assign_qualification_by_name_with_new_name(self, with_mock):
         with_mock.create_qualification_type = mock.Mock(return_value={'id': 'qid'})
         with_mock.assign_qualification = mock.Mock(return_value=True)
 
-        assert with_mock.assign_qualification_by_name('foo', 'workerid', 1, False)
+        assert with_mock.assign_qualification_by_name('foo', 'workerid', 1, 'desc')
         with_mock.create_qualification_type.assert_called_once_with(
             'foo',
-            'Dallinger prior experiment experience qualification',
+            'desc',
             status='Active'
         )
         with_mock.assign_qualification.assert_called_once_with(
-            'qid', 'workerid', 1, False
+            'qid', 'workerid', 1, True
         )
