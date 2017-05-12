@@ -290,7 +290,7 @@ class TestMTurkRecruiter(object):
         recruiter.notify_recruited(participant, experiment)
 
         recruiter.mturkservice.assign_qualification_by_name.assert_called_once_with(
-            'some experiment id', 'some worker id', '1'
+            'some experiment id', 'some worker id', '1', 'Experiment specific qualification'
         )
 
     def test_notify_recruited_when_group_name_specified(self):
@@ -300,6 +300,12 @@ class TestMTurkRecruiter(object):
         recruiter.notify_recruited(participant, experiment)
 
         recruiter.mturkservice.assign_qualification_by_name.assert_has_calls([
-            mock.call('some experiment id', 'some worker id', '1'),
-            mock.call('some existing group_name', 'some worker id', '1')
+            mock.call(
+                'some experiment id',
+                'some worker id', '1',
+                'Experiment specific qualification'),
+            mock.call(
+                'some existing group_name',
+                'some worker id', '1',
+                'Experiment group qualification')
         ])
