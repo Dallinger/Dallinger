@@ -28,7 +28,7 @@ window.addEventListener('beforeunload', function(e) {
         "Closing the window, refreshing the page or navigating elsewhere " +
         "might prevent you from finishing the experiment.";
         e.returnValue = returnValue;
-        return returnValue
+        return returnValue;
     } else {
         allow_exit_once = false;
         return undefined;
