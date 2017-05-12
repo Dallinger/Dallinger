@@ -181,7 +181,7 @@ class TestMTurkRecruiter(object):
         )
 
     def test_open_recruitment_with_blacklist(self):
-        recruiter = self.make_one(blacklist='foo')
+        recruiter = self.make_one(blacklist='foo, bar')
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url='http://fake-domain/ad',
@@ -195,7 +195,7 @@ class TestMTurkRecruiter(object):
             reward=0.01,
             title='fake experiment title',
             us_only=True,
-            blacklist=('foo', ),
+            blacklist=('foo', 'bar'),
         )
 
     def test_open_recruitment_is_noop_if_experiment_in_progress(self, recruiter, db_session):
