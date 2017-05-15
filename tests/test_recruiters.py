@@ -191,7 +191,7 @@ class TestMTurkRecruiter(object):
         )
 
     def test_open_recruitment_with_blacklist(self):
-        recruiter = self.make_one(blacklist='foo, bar')
+        recruiter = self.make_one(qualification_blacklist='foo, bar')
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url='http://fake-domain/ad',

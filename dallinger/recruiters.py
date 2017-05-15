@@ -203,7 +203,7 @@ class MTurkRecruiter(Recruiter):
     def _extract_blacklist_from_config(self):
         # At some point we'll support lists, so all service code supports them,
         # but the config system only supports strings for now, so we convert:
-        blacklist = self.config.get('blacklist')
+        blacklist = self.config.get('qualification_blacklist')
         if blacklist:
             blacklist = tuple([item.strip() for item in blacklist.split(',')])
         else:
