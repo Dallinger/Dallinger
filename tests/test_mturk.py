@@ -2,6 +2,7 @@ import datetime
 import mock
 import os
 import pytest
+import socket
 from boto.resultset import ResultSet
 from boto.mturk.price import Price
 from boto.mturk.connection import Assignment
@@ -130,12 +131,13 @@ def standard_hit_config(**kwargs):
         'max_assignments': 1,
         'notification_url': 'https://url-of-notification-route',
         'title': 'Test Title',
-        'description': TEST_HIT_DESCRIPTION + str(os.getpid()),
         'keywords': ['testkw1', 'testkw1'],
         'reward': .01,
         'duration_hours': .25
     }
     defaults.update(**kwargs)
+    # Use fixed description, since this is how we clean up:
+    defaults['description'] = TEST_HIT_DESCRIPTION + str(os.getpid())
 
     return defaults
 
@@ -154,7 +156,6 @@ def with_cleanup(aws_creds, request):
         return hit['description'] == TEST_HIT_DESCRIPTION + str(os.getpid())
 
     service = MTurkService(**aws_creds)
-    request.instance._qtypes_to_purge = []
     try:
         yield service
     except Exception as e:
@@ -163,10 +164,6 @@ def with_cleanup(aws_creds, request):
         try:
             for hit in service.get_hits(test_hits_only):
                 service.disable_hit(hit['id'])
-
-            # remove QualificationTypes we may have added:
-            for qtype_id in request.instance._qtypes_to_purge:
-                service.dispose_qualification_type(qtype_id)
         except Exception:
             # Broad exception so we don't leak credentials in Travis CI logs
             pass
@@ -192,25 +189,27 @@ def worker_id():
     return workerid
 
 
-class MTurkTestBase(object):
+@pytest.fixture
+def qtype(aws_creds):
+    # build
+    hostname = socket.gethostname()
 
-    def _make_qtype(self, mturk, name=None):
-        import socket
-        hostname = socket.gethostname()
-        if name is None:
-            name = "{}:{}".format(hostname, generate_random_id(size=32))
+    name = "{}:{}".format(hostname, generate_random_id(size=32))
+    service = MTurkService(**aws_creds)
+    qtype = service.create_qualification_type(
+        name=name,
+        description=TEST_QUALIFICATION_DESCRIPTION,
+        status='Active',
+    )
 
-        qtype = mturk.create_qualification_type(
-            name=name,
-            description=TEST_QUALIFICATION_DESCRIPTION,
-            status='Active',
-        )
-        self._qtypes_to_purge.append(qtype['id'])
-        return qtype
+    yield qtype
+
+    # clean up
+    service.dispose_qualification_type(qtype['id'])
 
 
 @pytest.mark.mturk
-class TestMTurkService(MTurkTestBase):
+class TestMTurkService(object):
 
     def test_check_credentials_good_credentials(self, mturk):
         is_authenticated = mturk.check_credentials()
@@ -263,8 +262,7 @@ class TestMTurkService(MTurkTestBase):
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 2
 
-    def test_create_hit_with_valid_blacklist(self, with_cleanup):
-        qtype = self._make_qtype(with_cleanup)
+    def test_create_hit_with_valid_blacklist(self, with_cleanup, qtype):
         hit = with_cleanup.create_hit(
             **standard_hit_config(blacklist=[qtype['name']])
         )
@@ -316,29 +314,27 @@ class TestMTurkService(MTurkTestBase):
         assert result['status'] == u'Active'
         assert with_cleanup.dispose_qualification_type(result['id'])
 
-    def test_create_qualification_type_with_existing_name_raises(self, with_cleanup):
-        qtype = self._make_qtype(with_cleanup)
+    def test_create_qualification_type_with_existing_name_raises(self, with_cleanup, qtype):
         with pytest.raises(MTurkRequestError):
-            self._make_qtype(with_cleanup, qtype['name'])
+            with_cleanup.create_qualification_type(qtype['name'], 'desc', 'Active')
 
-    def test_get_qualification_type_by_name_with_valid_name(self, with_cleanup):
-        name = generate_random_id(size=32)
-        qtype = self._make_qtype(with_cleanup, name=name)
-        result = with_cleanup.get_qualification_type_by_name(name)
+    def test_get_qualification_type_by_name_with_valid_name(self, with_cleanup, qtype):
+        result = with_cleanup.get_qualification_type_by_name(qtype['name'])
         assert qtype == result
 
 
 @pytest.mark.mturk
 @pytest.mark.mturkworker
-class TestMTurkServiceWithRequesterAndWorker(MTurkTestBase):
+class TestMTurkServiceWithRequesterAndWorker(object):
 
-    def test_assign_qualification(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup)
+    def test_assign_qualification(self, with_cleanup, worker_id, qtype):
         assert with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=2, notify=False)
 
-    def test_assign_already_granted_qualification_raises(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup)
+    def test_assign_already_granted_qualification_raises(self,
+                                                         with_cleanup,
+                                                         worker_id,
+                                                         qtype):
         with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=2, notify=False
         )
@@ -347,8 +343,7 @@ class TestMTurkServiceWithRequesterAndWorker(MTurkTestBase):
             with_cleanup.assign_qualification(
                 qtype['id'], worker_id, score=2, notify=False)
 
-    def test_update_qualification_score(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup)
+    def test_update_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=2, notify=False)
 
@@ -359,8 +354,7 @@ class TestMTurkServiceWithRequesterAndWorker(MTurkTestBase):
             qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '3'
 
-    def test_get_workers_with_qualification(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup)
+    def test_get_workers_with_qualification(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=2, notify=False)
 
@@ -368,9 +362,7 @@ class TestMTurkServiceWithRequesterAndWorker(MTurkTestBase):
 
         assert worker_id in [w['id'] for w in workers]
 
-    def test_set_qualification_score_with_new_qualification(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup)
-
+    def test_set_qualification_score_with_new_qualification(self, with_cleanup, worker_id, qtype):
         with_cleanup.set_qualification_score(
             qtype['id'], worker_id, score=2, notify=False)
 
@@ -378,8 +370,10 @@ class TestMTurkServiceWithRequesterAndWorker(MTurkTestBase):
             qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '2'
 
-    def test_set_qualification_score_with_existing_qualification(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup)
+    def test_set_qualification_score_with_existing_qualification(self,
+                                                                 with_cleanup,
+                                                                 worker_id,
+                                                                 qtype):
         with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=2, notify=False)
 
@@ -390,8 +384,7 @@ class TestMTurkServiceWithRequesterAndWorker(MTurkTestBase):
             qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '3'
 
-    def test_assign_qualification_by_name_with_existing_name(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup)
+    def test_assign_qualification_by_name_with_existing_name(self, with_cleanup, worker_id, qtype):
         assert with_cleanup.assign_qualification_by_name(
             qtype['name'], worker_id, score=1, notify=False
         )
@@ -407,10 +400,12 @@ class TestMTurkServiceWithRequesterAndWorker(MTurkTestBase):
 @pytest.mark.mturkworker
 @pytest.mark.skipif(not pytest.config.getvalue("manual"),
                     reason="--manual was not specified")
-class TestBlacklistsManualTesting(MTurkTestBase):
+class TestInteractive(object):
 
-    def test_worker_can_see_hit_when_blacklist_not_in_qualifications(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup)
+    def test_worker_can_see_hit_when_blacklist_not_in_qualifications(self,
+                                                                     with_cleanup,
+                                                                     worker_id,
+                                                                     qtype):
         with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=1, notify=False)
 
@@ -423,8 +418,10 @@ class TestBlacklistsManualTesting(MTurkTestBase):
         print 'MANUAL STEP: Should be able to see "{}" as available HIT'.format(hit['title'])
         raw_input("Any key to continue...")
 
-    def test_worker_cannot_see_hit_when_blacklist_in_qualifications(self, with_cleanup, worker_id):
-        qtype = self._make_qtype(with_cleanup)
+    def test_worker_cannot_see_hit_when_blacklist_in_qualifications(self,
+                                                                    with_cleanup,
+                                                                    worker_id,
+                                                                    qtype):
         with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=1, notify=False)
 
