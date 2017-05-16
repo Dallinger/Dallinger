@@ -146,10 +146,11 @@ def verify_package(verbose=True):
         os.chdir(cwd)
         sys.path.remove(clone_dir)
 
-    # Check base_payment is correct
     config = get_config()
     if not config.ready:
         config.load()
+
+    # Check base_payment is correct
     base_pay = config.get('base_payment')
     dollarFormat = "{:.2f}".format(base_pay)
 
@@ -161,6 +162,14 @@ def verify_package(verbose=True):
     if float(dollarFormat) != float(base_pay):
         log("✗ base_payment must be in [dollars].[cents] format in config.txt. Try changing "
             "{0} to {1}.".format(base_pay, dollarFormat), delay=0, chevrons=False, verbose=verbose)
+        is_passing = False
+
+    # Validate qualification blacklist config
+    blacklist = config.get('qualification_blacklist', None)
+    blacklist_limit = config.get('qualification_blacklist_experience_limit', None)
+    if blacklist and blacklist_limit is None:
+        log("✗ if qualification_blacklist is set in config.txt, "
+            "qualification_blacklist_experience_limit must also be set")
         is_passing = False
 
     # Check front-end files do not exist
