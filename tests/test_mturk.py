@@ -27,6 +27,12 @@ class FixtureConfigurationError(Exception):
     """
 
 
+def name_with_hostname_prefix():
+    hostname = socket.gethostname()
+    name = "{}:{}".format(hostname, generate_random_id(size=32))
+    return name
+
+
 def as_resultset(things):
     if not isinstance(things, (list, tuple)):
         things = [things]
@@ -192,9 +198,7 @@ def worker_id():
 @pytest.fixture
 def qtype(aws_creds):
     # build
-    hostname = socket.gethostname()
-
-    name = "{}:{}".format(hostname, generate_random_id(size=32))
+    name = name_with_hostname_prefix()
     service = MTurkService(**aws_creds)
     qtype = service.create_qualification_type(
         name=name,
@@ -264,7 +268,10 @@ class TestMTurkService(object):
 
     def test_create_hit_with_valid_blacklist(self, with_cleanup, qtype):
         hit = with_cleanup.create_hit(
-            **standard_hit_config(blacklist=[qtype['name']])
+            **standard_hit_config(
+                blacklist=[qtype['name']],
+                blacklist_experience_limit=2
+            )
         )
         assert hit['status'] == 'Assignable'
 
@@ -385,15 +392,61 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         assert new_score == '3'
 
     def test_assign_qualification_by_name_with_existing_name(self, with_cleanup, worker_id, qtype):
-        assert with_cleanup.assign_qualification_by_name(
+        result = with_cleanup.assign_qualification_by_name(
             qtype['name'], worker_id, score=1, notify=False
         )
 
+        assert result['qtype']['id'] == qtype['id']
+        assert result['score'] == 1
+
     def test_assign_qualification_by_name_with_new_name(self, with_cleanup, worker_id):
         name = generate_random_id(size=32)
-        assert with_cleanup.assign_qualification_by_name(
+        result = with_cleanup.assign_qualification_by_name(
             name, worker_id, score=1, notify=False
         )
+
+        assert result['qtype']['name'] == name
+        assert result['score'] == 1
+
+    def test_get_current_qualification_score(self, with_cleanup, worker_id, qtype):
+        with_cleanup.assign_qualification(
+            qtype['id'], worker_id, score=2, notify=False)
+
+        result = with_cleanup.get_current_qualification_score(qtype['name'], worker_id)
+
+        assert result['qtype']['id'] == qtype['id']
+        assert result['score'] == 2
+
+    def test_get_current_qualification_score_worker_unscored(self, with_cleanup, worker_id, qtype):
+        result = with_cleanup.get_current_qualification_score(qtype['name'], worker_id)
+
+        assert result['qtype']['id'] == qtype['id']
+        assert result['score'] is None
+
+    def test_increment_qualification_score(self, with_cleanup, worker_id, qtype):
+        with_cleanup.assign_qualification(
+            qtype['id'], worker_id, score=2, notify=False)
+
+        result = with_cleanup.increment_qualification_score(
+            qtype['name'], worker_id, notify=False)
+
+        assert result['qtype']['id'] == qtype['id']
+        assert result['score'] == 3
+
+    def test_increment_qualification_score_worker_unscored(self, with_cleanup, worker_id, qtype):
+        result = with_cleanup.increment_qualification_score(
+            qtype['name'], worker_id, notify=False)
+
+        assert result['qtype']['id'] == qtype['id']
+        assert result['score'] == 1
+
+    def test_increment_qualification_score_new_qualification(self, with_cleanup, worker_id):
+        with_cleanup.max_wait_secs = 1  # we know the name doesn't exist, so no need to wait
+        name = name_with_hostname_prefix()
+        result = with_cleanup.increment_qualification_score(
+            name, worker_id, notify=False)
+
+        assert result['score'] == 1
 
 
 @pytest.mark.mturk
@@ -539,6 +592,16 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.create_hit(**standard_hit_config())
 
         with_mock.mturk.create_hit.assert_called_once()
+
+    def test_create_hit_with_blacklist_but_no_limit_raises(self, with_mock):
+        with_mock.mturk.configure_mock(**{
+            'register_hit_type.return_value': fake_hit_type_response(),
+            'set_rest_notification.return_value': ResultSet(),
+            'create_hit.return_value': fake_hit_response(),
+        })
+
+        with pytest.raises(MTurkServiceException):
+            with_mock.create_hit(**standard_hit_config(blacklist="foo"))
 
     def test_create_hit_translates_response_back_from_mturk(self, with_mock):
         with_mock.mturk.configure_mock(**{
@@ -737,7 +800,6 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.create_qualification_type.assert_called_once_with(
             'foo',
             'desc',
-            status='Active'
         )
         with_mock.get_qualification_type_by_name.assert_called_once_with('foo')
         with_mock.assign_qualification.assert_called_once_with(
@@ -779,8 +841,36 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.create_qualification_type.assert_called_once_with(
             'foo',
             'desc',
-            status='Active'
         )
         with_mock.assign_qualification.assert_called_once_with(
             'qid', 'workerid', 1, True
         )
+
+    def test_get_current_qualification_score(self, with_mock):
+        worker_id = 'some worker id'
+        with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
+        with_mock.mturk.get_all_qualifications_for_qual_type = mock.Mock(
+            return_value=[mock.Mock(SubjectId=worker_id, IntegerValue='1')]
+        )
+
+        result = with_mock.get_current_qualification_score('some name', worker_id)
+
+        assert result['qtype'] == {'id': 'qid'}
+        assert result['score'] == 1
+
+    def test_get_current_qualification_score_worker_unscored(self, with_mock):
+        worker_id = 'some worker id'
+        with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
+        with_mock.mturk.get_all_qualifications_for_qual_type = mock.Mock(
+            return_value=[mock.Mock(SubjectId='other worker id', IntegerValue='1')]
+        )
+
+        result = with_mock.get_current_qualification_score('some name', worker_id)
+
+        assert result['qtype'] == {'id': 'qid'}
+        assert result['score'] is None
+
+    @pytest.mark.xfail
+    def test_increment_qualification_score(self, with_mock):
+        # XXX Implement me
+        assert False
