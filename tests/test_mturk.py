@@ -169,7 +169,7 @@ def with_cleanup(aws_creds, request):
             pass
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def worker_id():
     # Get a worker ID from the environment or tests/config.py
     import os

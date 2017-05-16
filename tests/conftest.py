@@ -67,7 +67,7 @@ def env():
     shutil.rmtree(fake_home, ignore_errors=True)
 
 
-@pytest.fixture
+@pytest.fixture(scope='class')
 def aws_creds():
     from dallinger.config import get_config
     config = get_config()
