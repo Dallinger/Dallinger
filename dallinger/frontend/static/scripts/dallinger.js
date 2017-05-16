@@ -16,6 +16,25 @@ var getUrlParameter = function getUrlParameter(sParam) {
 
 var Dallinger = (function () {
   var dlgr = {};
+
+  participantId = getUrlParameter("participant_id") || -1;
+
+  dlgr.submitQuestionnaire = function (name, callback) {
+    formSerialized = $("form").serializeArray();
+    formDict = formSerialized.reduce(
+      function(m,o){ m[o.name] = o.value; return m; }, {}
+    );
+    $.ajax({
+      type: "POST",
+      url: "/question/" + participantId,
+      data: {
+        question: name || "questionnaire",
+        number: 1,
+        response: JSON.stringify(formDict),
+      },
+      success: callback,
+    });
+  };
   return dlgr;
 })();
 
