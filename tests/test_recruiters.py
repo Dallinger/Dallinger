@@ -178,10 +178,14 @@ class TestMTurkRecruiter(object):
             title='fake experiment title',
             us_only=True,
             blacklist=(),
+            blacklist_experience_limit=None,
         )
 
     def test_open_recruitment_with_blacklist(self):
-        recruiter = self.make_one(qualification_blacklist='foo, bar')
+        recruiter = self.make_one(
+            qualification_blacklist='foo, bar',
+            qualification_blacklist_experience_limit=0
+        )
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url='http://fake-domain/ad',
@@ -196,6 +200,7 @@ class TestMTurkRecruiter(object):
             title='fake experiment title',
             us_only=True,
             blacklist=('foo', 'bar'),
+            blacklist_experience_limit=0,
         )
 
     def test_open_recruitment_is_noop_if_experiment_in_progress(self, recruiter, db_session):
@@ -272,8 +277,8 @@ class TestMTurkRecruiter(object):
         recruiter = self.make_one()
         recruiter.notify_recruited(participant, experiment)
 
-        recruiter.mturkservice.assign_qualification_by_name.assert_called_once_with(
-            'some experiment id', 'some worker id', '1', 'Experiment specific qualification'
+        recruiter.mturkservice.increment_qualification_score.assert_called_once_with(
+            'some experiment id', 'some worker id', 'Experiment specific qualification'
         )
 
     def test_notify_recruited_when_group_name_specified(self):
@@ -282,13 +287,13 @@ class TestMTurkRecruiter(object):
         recruiter = self.make_one(group_name='some existing group_name')
         recruiter.notify_recruited(participant, experiment)
 
-        recruiter.mturkservice.assign_qualification_by_name.assert_has_calls([
+        recruiter.mturkservice.increment_qualification_score.assert_has_calls([
             mock.call(
                 'some experiment id',
-                'some worker id', '1',
+                'some worker id',
                 'Experiment specific qualification'),
             mock.call(
                 'some existing group_name',
-                'some worker id', '1',
+                'some worker id',
                 'Experiment group qualification')
         ])
