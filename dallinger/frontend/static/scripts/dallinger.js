@@ -13,6 +13,12 @@ var getUrlParameter = function getUrlParameter(sParam) {
         }
     }
 };
+
+var Dallinger = (function () {
+  var dlgr = {};
+  return dlgr;
+})();
+
 var hit_id = getUrlParameter("hit_id");
 var worker_id = getUrlParameter("worker_id");
 var assignment_id = getUrlParameter("assignment_id");
