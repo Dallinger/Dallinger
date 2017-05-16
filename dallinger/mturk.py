@@ -23,12 +23,17 @@ class MTurkServiceException(Exception):
     """Custom exception type"""
 
 
+class QualificationNotFoundException(MTurkServiceException):
+    """A Qualification searched for by name does not exist"""
+
+
 class MTurkService(object):
     """Facade for Amazon Mechanical Turk services provided via the boto
        library.
     """
     production_mturk_server = 'mechanicalturk.amazonaws.com'
     sandbox_mturk_server = 'mechanicalturk.sandbox.amazonaws.com'
+    max_wait_secs = 60.0
 
     def __init__(self, aws_access_key_id, aws_secret_access_key, sandbox=True):
         self.aws_access_key_id = aws_access_key_id
@@ -89,11 +94,16 @@ class MTurkService(object):
 
         return hit_type.HITTypeId
 
-    def build_hit_qualifications(self, approve_requirement, restrict_to_usa, blacklist):
+    def build_hit_qualifications(self,
+                                 approve_requirement,
+                                 restrict_to_usa,
+                                 blacklist,
+                                 blacklist_experience_limit):
         """Translate restrictions/qualifications to boto Qualifications objects
 
-        @blacklist is a list of names of Qualifications workers must *not* have
-        in order to see and accept the HIT.
+        @blacklist is a list of Qualifications names, and
+        @blacklist_experience_limit is a Qualification score workers must
+        not exceed in order to see and accept the HIT.
         """
         quals = Qualifications()
         quals.add(
@@ -111,14 +121,15 @@ class MTurkService(object):
                     quals.add(
                         Requirement(
                             qtype['id'],
-                            "DoesNotExist",
+                            "LessThan",
+                            integer_value=blacklist_experience_limit + 1,
                             required_to_preview=True
                         )
                     )
 
         return quals
 
-    def create_qualification_type(self, name, description, status):
+    def create_qualification_type(self, name, description, status='Active'):
         """Passthrough. Create a new qualification Workers can be scored for.
         """
         qtype = self.mturk.create_qualification_type(name, description, status)[0]
@@ -131,13 +142,12 @@ class MTurkService(object):
     def get_qualification_type_by_name(self, name):
         """Return a Qualification Type if there is just one with this name"""
         query = name.upper()
-        max_wait_secs = 60.0
         start = time.time()
         results = self.mturk.search_qualification_types(query=query)
 
         # This loop is largely for tests, because there's some indexing that
         # needs to happen on MTurk for search to work:
-        while not results and time.time() - start < max_wait_secs:
+        while not results and time.time() - start < self.max_wait_secs:
             time.sleep(1)
             results = self.mturk.search_qualification_types(query=query)
 
@@ -170,7 +180,7 @@ class MTurkService(object):
         """
         qtype = None
         try:
-            qtype = self.create_qualification_type(name, description, status='Active')
+            qtype = self.create_qualification_type(name, description)
         except MTurkRequestError, ex:
             if "name must be unique" in ex.message:
                 qtype = self.get_qualification_type_by_name(name)
@@ -184,7 +194,60 @@ class MTurkService(object):
                     "Qualification assignment failed: {}".format(ex.message)
                 )
 
-        return self.assign_qualification(qtype['id'], worker_id, score, notify)
+        self.assign_qualification(qtype['id'], worker_id, score, notify)
+
+        return {
+            'qtype': qtype,
+            'score': score
+        }
+
+    def get_current_qualification_score(self, name, worker_id):
+        """Return the current score for a worker, on a qualification with the
+        provided name.
+        """
+        qtype = self.get_qualification_type_by_name(name)
+        if qtype is None:
+            raise QualificationNotFoundException(
+                'No Qualification exists with name "{}"'.format(name)
+            )
+
+        for_type = self.mturk.get_all_qualifications_for_qual_type(qtype['id'])
+        for_worker = [q for q in for_type if q.SubjectId == worker_id]
+        if for_worker:
+            return {
+                'qtype': qtype,
+                'score': int(for_worker[0].IntegerValue)
+            }
+        return {
+            'qtype': qtype,
+            'score': None
+        }
+
+    def increment_qualification_score(self, name, worker_id, description=None, notify=True):
+        """Increment the current qualification score for a worker, on a
+        qualification with the provided name. If no qualification with this name
+        exists, one will be created.
+        """
+        new_score = 1
+        try:
+            result = self.get_current_qualification_score(name, worker_id)
+        except QualificationNotFoundException:
+            return self.assign_qualification_by_name(
+                name, worker_id, new_score, description, notify)
+
+        current_score = result['score']
+        qtype_id = result['qtype']['id']
+        if current_score is not None:
+            new_score = current_score + 1
+            self.update_qualification_score(qtype_id, worker_id, new_score)
+        else:
+            self.assign_qualification(
+                qtype_id, worker_id, new_score, notify)
+
+        return {
+            'qtype': result['qtype'],
+            'score': new_score
+        }
 
     def update_qualification_score(self, qualification_id, worker_id, score):
         """Score a worker for a specific qualification"""
@@ -230,12 +293,19 @@ class MTurkService(object):
 
     def create_hit(self, title, description, keywords, reward, duration_hours,
                    lifetime_days, ad_url, notification_url, approve_requirement,
-                   max_assignments, us_only, blacklist=None):
+                   max_assignments, us_only, blacklist=None,
+                   blacklist_experience_limit=None):
         """Create the actual HIT and return a dict with its useful properties."""
         frame_height = 600
         mturk_question = ExternalQuestion(ad_url, frame_height)
+        if blacklist is not None and blacklist_experience_limit is None:
+            raise MTurkServiceException(
+                "If you specify a qualification_blacklist you must also specify"
+                " qualification_blacklist_experience_limit"
+            )
+
         qualifications = self.build_hit_qualifications(
-            approve_requirement, us_only, blacklist
+            approve_requirement, us_only, blacklist, blacklist_experience_limit
         )
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords
