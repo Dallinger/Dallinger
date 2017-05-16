@@ -159,6 +159,10 @@ class MTurkRecruiter(Recruiter):
             'approve_requirement': self.config.get('approve_requirement'),
             'us_only': self.config.get('us_only'),
             'blacklist': blacklist,
+            'blacklist_experience_limit': self.config.get(
+                'qualification_blacklist_experience_limit'
+            )
+
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
         if self.config.get('mode') == "sandbox":
@@ -189,7 +193,6 @@ class MTurkRecruiter(Recruiter):
         """Assign a Qualification to the Participant for the experiment ID,
         and for the configured group_name, if it's been set.
         """
-        score = '1'  # always '1'; doesn't matter
         worker_id = participant.worker_id
 
         # Always add a qualification to the worker based on the experiment's
@@ -201,8 +204,8 @@ class MTurkRecruiter(Recruiter):
             qualifications.append((group, 'Experiment group qualification'))
 
         for name, desc in qualifications:
-            self.mturkservice.assign_qualification_by_name(
-                name, worker_id, score, desc
+            self.mturkservice.increment_qualification_score(
+                name, worker_id, desc
             )
 
     def reward_bonus(self, assignment_id, amount, reason):
