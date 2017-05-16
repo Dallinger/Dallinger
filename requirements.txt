@@ -5,7 +5,7 @@ click==6.7
 Flask==0.12.2
 future==0.16.0
 gunicorn==18.0
-localconfig==0.4.2
+localconfig==1.0.1
 pexpect==4.2.1
 psycopg2==2.7.1
 redis==2.10.5
