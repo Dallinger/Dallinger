@@ -1416,7 +1416,7 @@ def worker_function(event_type, assignment_id, participant_id):
                 participant.status = "bad_data"
                 exp.data_check_failed(participant=participant)
                 session.commit()
-                exp.recruiter().recruit_participants(n=1)
+                exp.recruiter().recruit(n=1)
             else:
                 # If their data is ok, pay them a bonus.
                 # Note that the bonus is paid before the attention check.
@@ -1440,7 +1440,7 @@ def worker_function(event_type, assignment_id, participant_id):
                     participant.status = "did_not_attend"
                     exp.attention_check_failed(participant=participant)
                     session.commit()
-                    exp.recruiter().recruit_participants(n=1)
+                    exp.recruiter().recruit(n=1)
                 else:
                     # All good. Possibly recruit more participants.
                     exp.log("All checks passed.", key)

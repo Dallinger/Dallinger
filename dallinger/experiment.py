@@ -314,11 +314,7 @@ class Experiment(object):
         until all networks are full.
 
         """
-        if self.networks(full=False):
-            self.log("Network space available: recruiting 1 more participant",
-                     "-----")
-            self.recruiter().recruit_participants(n=1)
-        else:
+        if not self.networks(full=False):
             self.log("All networks full: closing recruitment", "-----")
             self.recruiter().close_recruitment()
 
@@ -462,7 +458,7 @@ class Experiment(object):
             app_id = str(uuid.uuid4())
 
         self.app_id = app_id
-        self.exp_config = exp_config or {}
+        self.exp_config = exp_config or kwargs
 
         if bot:
             kwargs['recruiter'] = 'bots'
@@ -482,6 +478,7 @@ class Experiment(object):
                 verbose=self.verbose,
                 exp_config=exp_config
             )
+
         return self._finish_experiment()
 
     def _finish_experiment(self):

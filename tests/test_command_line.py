@@ -28,7 +28,7 @@ class TestCommandLine(object):
     def teardown(self):
         os.chdir("..")
 
-    def test_dallinger_help(self):
+    def test_dallinger_no_args(self):
         output = subprocess.check_output(["dallinger"])
         assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
 
@@ -53,6 +53,15 @@ class TestCommandLine(object):
 
     def test_empty_id_fails_verification(self):
         assert ValueError, dallinger.commandline.verify_id(None)
+
+    def test_dallinger_help(self):
+        output = subprocess.check_output(["dallinger", "--help"])
+        assert("Commands:" in output)
+
+    def test_verify(self):
+        os.chdir("bartlett1932")
+        subprocess.check_call(["dallinger", "verify"])
+        os.chdir("..")
 
 
 class TestSetupExperiment(object):

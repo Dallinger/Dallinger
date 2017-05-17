@@ -17,5 +17,3 @@ class TwentyFortyEight(dallinger.experiments.Experiment):
         self.experiment_repeats = 1
         N = config.get("n")
         self.initial_recruitment_size = N
-        if session:
-            self.setup()

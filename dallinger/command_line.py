@@ -40,7 +40,6 @@ from dallinger import db
 from dallinger import heroku
 from dallinger.heroku import (
     app_name,
-    scale_up_dynos
 )
 from dallinger.heroku.worker import conn
 from dallinger.mturk import MTurkService
@@ -198,7 +197,7 @@ def verify_package(verbose=True):
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
 def dallinger():
-    """Set up Dallinger as a name space."""
+    """Dallinger command-line utility."""
     from logging.config import fileConfig
     fileConfig(os.path.join(os.path.dirname(__file__), 'logging.ini'),
                disable_existing_loggers=False)
@@ -217,8 +216,11 @@ def setup():
     else:
         log("Creating Dallinger config file at ~/.dallingerconfig...",
             chevrons=False)
-        dallinger_module_path = os.path.dirname(os.path.realpath(__file__))
-        src = os.path.join(dallinger_module_path, "config", config_name)
+        src = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "default_configs",
+            config_name
+        )
         shutil.copyfile(src, config_path)
 
 
@@ -365,15 +367,17 @@ def summary(app):
 def get_summary(app):
     r = requests.get('https://{}.herokuapp.com/summary'.format(app_name(app)))
     summary = r.json()['summary']
+
     out = []
     out.append("\nstatus \t| count")
     out.append("----------------")
     for s in summary:
         out.append("{}\t| {}".format(s[0], s[1]))
-    num_101s = sum([s[1] for s in summary if s[0] == 101])
-    num_10xs = sum([s[1] for s in summary if s[0] >= 100])
-    if num_10xs > 0:
-        out.append("\nYield: {:.2%}".format(1.0 * num_101s / num_10xs))
+    num_approved = sum([s[1] for s in summary if s[0] == u"approved"])
+    num_not_working = sum([s[1] for s in summary if s[0] != u"working"])
+    if num_not_working > 0:
+        the_yield = 1.0 * num_approved / num_not_working
+        out.append("\nYield: {:.2%}".format(the_yield))
     return "\n".join(out)
 
 
@@ -662,7 +666,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     )
 
     log("Scaling up the dynos...")
-    scale_up_dynos(app_name(id))
+    heroku.scale_up_dynos(app_name(id))
 
     time.sleep(8)
 
@@ -769,12 +773,18 @@ def hibernate(app):
 
     log("Scaling down the web servers...")
 
-    for process in ["web", "worker", "clock"]:
+    for process in ["web", "worker"]:
         subprocess.check_call([
             "heroku",
             "ps:scale", "{}=0".format(process),
             "--app", app_name(app)
         ])
+
+    subprocess.call([
+        "heroku",
+        "ps:scale", "clock=0",
+        "--app", app_name(app)
+    ])
 
     log("Removing addons...")
 
@@ -826,33 +836,37 @@ def awaken(app, databaseurl):
         "--app", app_name(id),
     ])
 
-    subprocess.check_call(["heroku", "pg:wait", "--app", app_name(id)])
-
     bucket = data.user_s3_bucket()
     key = bucket.lookup('{}.dump'.format(id))
     url = key.generate_url(expires_in=300)
 
-    subprocess.check_call([
-        "heroku", "pg:backups", "restore", "'{}'".format(url), "DATABASE_URL",
-        "--app", app_name(id),
-        "--confirm", app_name(id),
-    ])
+    time.sleep(60)
+
+    subprocess.check_call(["heroku", "pg:wait", "--app", app_name(id)])
+
+    time.sleep(10)
 
     subprocess.check_call([
         "heroku", "addons:create", "heroku-redis:premium-0",
         "--app", app_name(id)
     ])
 
+    subprocess.check_call([
+        "heroku", "pg:backups:restore", "{}".format(url), "DATABASE_URL",
+        "--app", app_name(id),
+        "--confirm", app_name(id),
+    ])
+
     # Scale up the dynos.
     log("Scaling up the dynos...")
-    scale_up_dynos(app_name(id))
+    heroku.scale_up_dynos(app_name(id))
 
 
 @dallinger.command()
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--local', is_flag=True, flag_value=True,
               help='Export local data')
-@click.option('--no-scrub', is_flag=True, flag_value=False,
+@click.option('--no-scrub', is_flag=True, flag_value=True,
               help='Scrub PII')
 def export(app, local, no_scrub):
     """Export the data."""
@@ -863,6 +877,7 @@ def export(app, local, no_scrub):
 @dallinger.command()
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def logs(app):
+    heroku.open_logs(app)
     """Show the logs."""
     heroku.open_logs(app)
 
