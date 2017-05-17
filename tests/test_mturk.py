@@ -394,6 +394,16 @@ class TestMTurkServiceWithRequesterAndWorker(object):
             qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '3'
 
+    def test_get_qualification_by_name(self, with_cleanup, worker_id, qtype):
+        # First query can be very slow, since the qtype was just added:
+        result = with_cleanup.get_qualification_type_by_name(qtype['name'])
+        assert result is not None
+        # After that they will be fast, so we can set the wait to 0
+        with_cleanup.max_wait_secs = 0
+        for i in range(3):
+            result = with_cleanup.get_qualification_type_by_name(qtype['name'])
+            assert result is not None
+
     def test_assign_qualification_by_name_with_existing_name(self, with_cleanup, worker_id, qtype):
         result = with_cleanup.assign_qualification_by_name(
             qtype['name'], worker_id, score=1, notify=False
