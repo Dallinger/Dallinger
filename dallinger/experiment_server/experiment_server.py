@@ -319,7 +319,7 @@ def advertisement():
         status = part.status
     except exc.SQLAlchemyError:
         status = None
-    try: 
+    try:
         app_id = config.get('id')
     except KeyError:
         app_id = 'unknown'
