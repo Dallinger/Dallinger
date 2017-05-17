@@ -162,6 +162,9 @@ def with_cleanup(aws_creds, request):
         return hit['description'] == TEST_HIT_DESCRIPTION + str(os.getpid())
 
     service = MTurkService(**aws_creds)
+    # In tests we do a lot of querying of Qualifications we only just created,
+    # so we need a long time-out
+    service.max_wait_secs = 60.0
     try:
         yield service
     except Exception as e:
