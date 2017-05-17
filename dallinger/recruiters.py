@@ -166,7 +166,7 @@ class MTurkRecruiter(Recruiter):
 
         # Always add a qualification to the worker based on the experiment's
         # app_id:
-        qualifications = [(experiment.app_id, 'Experiment specific qualification')]
+        qualifications = [(experiment.app_id, 'Experiment-specific qualification')]
 
         group = self.config.get('group_name')
         if group:

@@ -295,7 +295,9 @@ class TestMTurkRecruiter(object):
         recruiter.notify_recruited(participant, experiment)
 
         recruiter.mturkservice.increment_qualification_score.assert_called_once_with(
-            'some experiment id', 'some worker id', 'Experiment specific qualification'
+            'some experiment id',
+            'some worker id',
+            'Experiment-specific qualification',
         )
 
     def test_notify_recruited_when_group_name_specified(self):
@@ -308,7 +310,7 @@ class TestMTurkRecruiter(object):
             mock.call(
                 'some experiment id',
                 'some worker id',
-                'Experiment specific qualification'),
+                'Experiment-specific qualification'),
             mock.call(
                 'some existing group_name',
                 'some worker id',
