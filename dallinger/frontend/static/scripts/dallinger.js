@@ -21,9 +21,10 @@ var Dallinger = (function () {
 
   dlgr.submitQuestionnaire = function (name, callback) {
     formSerialized = $("form").serializeArray();
-    formDict = formSerialized.reduce(
-      function(m,o){ m[o.name] = o.value; return m; }, {}
-    );
+    var formDict = {};
+    formSerialized.forEach(function (field) {
+        formDict[field.name] = field.value;
+    });
     $.ajax({
       type: "POST",
       url: "/question/" + participantId,
