@@ -17,7 +17,7 @@ var getUrlParameter = function getUrlParameter(sParam) {
 var Dallinger = (function () {
   var dlgr = {};
 
-  participantId = getUrlParameter("participant_id") || -1;
+  participantId = getUrlParameter("participant_id");
 
   dlgr.submitQuestionnaire = function (name, callback) {
     formSerialized = $("form").serializeArray();
