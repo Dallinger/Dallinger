@@ -33,7 +33,7 @@ class MTurkService(object):
     """
     production_mturk_server = 'mechanicalturk.amazonaws.com'
     sandbox_mturk_server = 'mechanicalturk.sandbox.amazonaws.com'
-    max_wait_secs = 6.0
+    max_wait_secs = 0
 
     def __init__(self, aws_access_key_id, aws_secret_access_key, sandbox=True):
         self.aws_access_key_id = aws_access_key_id
