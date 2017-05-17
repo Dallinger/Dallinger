@@ -69,13 +69,3 @@ def scale_up_dynos(app):
             "clock=1:{}".format(dyno_type),
             "--app", app,
         ])
-
-
-def open_logs(app):
-    """Show the logs."""
-    if app is None:
-        raise TypeError("Select an experiment using the --app flag.")
-    else:
-        subprocess.check_call([
-            "heroku", "addons:open", "papertrail", "--app", app_name(app)
-        ])
