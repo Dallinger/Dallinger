@@ -39,6 +39,13 @@
                         <img id="adlogo" src="{{ server_location }}/static/images/logo.png" alt="Lab Logo" />
                     </div>
                     <div class="col-xs-10">
+
+                        {% if is_sandbox or debug_mode %}
+                            <p>
+                                <b>Application ID:</b> {{app_id}}.
+                            </p>
+                        {% endif %}
+
                         {% if assignmentid == "ASSIGNMENT_ID_NOT_AVAILABLE" %}
 
                             <h1>Call for participants</h1>

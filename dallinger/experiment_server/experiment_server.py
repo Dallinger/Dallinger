@@ -319,7 +319,10 @@ def advertisement():
         status = part.status
     except exc.SQLAlchemyError:
         status = None
-
+    try: 
+        app_id = config.get('id')
+    except KeyError:
+        app_id = 'unknown'
     debug_mode = config.get('mode') == 'debug'
     if ((status == 'working' and part.end_time is not None) or
             (debug_mode and status in ('submitted', 'approved'))):
@@ -334,11 +337,13 @@ def advertisement():
         return render_template(
             'thanks.html',
             is_sandbox=is_sandbox,
+            is_debug=False,
             hitid=hit_id,
             assignmentid=assignment_id,
             workerid=worker_id,
             mode=config.get('mode'),
             external_submit_url=external_submit_url,
+            app_id=app_id
         )
     if status == 'working':
         # Once participants have finished the instructions, we do not allow
@@ -354,9 +359,12 @@ def advertisement():
         ad_string = insert_mode(ad_string, config.get('mode'))
         return render_template_string(
             ad_string,
+            is_sandbox=False,
+            debug_mode=debug_mode,
             hitid=hit_id,
             assignmentid=assignment_id,
-            workerid=worker_id
+            workerid=worker_id,
+            app_id=app_id
         )
     else:
         raise ExperimentError('status_incorrectly_set')

@@ -64,6 +64,11 @@
 					</div>
 					<div class="col-xs-10">
 
+                        {% if is_sandbox or debug_mode %}
+                            <p>
+                                <b>Application ID:</b> {{app_id}}.
+                            </p>
+                        {% endif %}
 							<!--
 								If assignmentid is "ASSIGNMENT_ID_NOT_AVAILABLE"
 								it means the participant has NOT accepted your hit.

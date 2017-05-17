@@ -288,6 +288,8 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     if exp_config:
         config.extend(exp_config)
 
+    config.extend({'id': unicode(generated_uid)})
+
     config.write(filter_sensitive=True)
 
     # Zip up the temporary directory and place it in the cwd.
