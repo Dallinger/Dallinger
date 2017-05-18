@@ -223,17 +223,12 @@ class MTurkService(object):
             'score': None
         }
 
-    def increment_qualification_score(self, name, worker_id, description=None, notify=True):
+    def increment_qualification_score(self, name, worker_id, notify=True):
         """Increment the current qualification score for a worker, on a
-        qualification with the provided name. If no qualification with this name
-        exists, one will be created.
+        qualification with the provided name.
         """
         new_score = 1
-        try:
-            result = self.get_current_qualification_score(name, worker_id)
-        except QualificationNotFoundException:
-            return self.assign_qualification_by_name(
-                name, worker_id, new_score, description, notify)
+        result = self.get_current_qualification_score(name, worker_id)
 
         current_score = result['score']
         qtype_id = result['qtype']['id']

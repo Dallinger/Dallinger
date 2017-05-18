@@ -208,7 +208,7 @@ class TestMTurkRecruiter(object):
         recruiter.mturkservice.create_qualification_type.assert_has_calls([
             mock.call('some experiment uid', 'Experiment-specific qualification'),
             mock.call('some group name', 'Experiment group qualification')
-        ])
+        ], any_order=True)
 
     def test_open_recruitment_with_blacklist(self):
         recruiter = self.make_one(
@@ -315,7 +315,6 @@ class TestMTurkRecruiter(object):
         recruiter.mturkservice.increment_qualification_score.assert_called_once_with(
             'some experiment uid',
             'some worker id',
-            'Experiment-specific qualification',
         )
 
     def test_notify_recruited_when_group_name_specified(self):
@@ -327,12 +326,16 @@ class TestMTurkRecruiter(object):
         recruiter.notify_recruited(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_has_calls([
-            mock.call(
-                'some experiment uid',
-                'some worker id',
-                'Experiment-specific qualification'),
-            mock.call(
-                'some existing group_name',
-                'some worker id',
-                'Experiment group qualification')
-        ])
+            mock.call('some experiment uid', 'some worker id'),
+            mock.call('some existing group_name', 'some worker id')
+        ], any_order=True)
+
+    def test_notify_recruited_nonexistent_qualification(self):
+        from dallinger.mturk import QualificationNotFoundException
+        participant = mock.Mock(spec=Participant, worker_id='some worker id')
+        recruiter = self.make_one(id="some unregistred experiment uid")
+        error = QualificationNotFoundException("Ouch!")
+        recruiter.mturkservice.increment_qualification_score.side_effect = error
+
+        # logs, but does not raise:
+        recruiter.notify_recruited(participant)
