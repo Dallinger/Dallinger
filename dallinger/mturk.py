@@ -186,8 +186,9 @@ class MTurkService(object):
                 qtype = self.get_qualification_type_by_name(name)
                 if qtype is None:
                     raise MTurkServiceException(
-                        "Qualification with name {} exists, "
-                        "but couldn't be retrieved by name.".format(name)
+                        "Qualification with name {} exists, but couldn't be "
+                        "retrieved by name before timeout ({} seconds).".format(
+                            name, self.max_wait_secs)
                     )
             else:
                 raise MTurkServiceException(
