@@ -181,6 +181,26 @@ class TestMTurkRecruiter(object):
             blacklist_experience_limit=None,
         )
 
+    def test_open_recruitment_creates_qualifications_for_experiment_app_id(self):
+        recruiter = self.make_one(
+            id="some experiment uid"
+        )
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_qualification_type.assert_called_once_with(
+            'some experiment uid', 'Experiment-specific qualification'
+        )
+
+    def test_open_recruitment_creates_qualifications_for_exp_with_group_name(self):
+        recruiter = self.make_one(
+            group_name='some group name',
+            id="some experiment uid"
+        )
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_qualification_type.assert_has_calls([
+            mock.call('some experiment uid', 'Experiment-specific qualification'),
+            mock.call('some group name', 'Experiment group qualification')
+        ])
+
     def test_open_recruitment_with_blacklist(self):
         recruiter = self.make_one(
             qualification_blacklist='foo, bar',

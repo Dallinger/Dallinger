@@ -112,6 +112,9 @@ class MTurkRecruiterException(Exception):
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
+    experiment_qualification_desc = 'Experiment-specific qualification'
+    group_qualification_desc = 'Experiment group qualification'
+
     @classmethod
     def from_current_config(cls):
         config = get_config()
@@ -143,6 +146,8 @@ class MTurkRecruiter(Recruiter):
             raise MTurkRecruiterException("Can't run a HIT from localhost")
 
         self.mturkservice.check_credentials()
+
+        self._create_mturk_qualifications()
 
         blacklist = self._extract_blacklist_from_config()
 
@@ -197,11 +202,11 @@ class MTurkRecruiter(Recruiter):
 
         # Always add a qualification to the worker based on the experiment's
         # app_id:
-        qualifications = [(experiment.app_id, 'Experiment-specific qualification')]
+        qualifications = [(experiment.app_id, self.experiment_qualification_desc)]
 
         group = self.config.get('group_name')
         if group:
-            qualifications.append((group, 'Experiment group qualification'))
+            qualifications.append((group, self.group_qualification_desc))
 
         for name, desc in qualifications:
             self.mturkservice.increment_qualification_score(
@@ -244,6 +249,17 @@ class MTurkRecruiter(Recruiter):
             blacklist = ()
 
         return blacklist
+
+    def _create_mturk_qualifications(self):
+        """Create MTurk Qualification for experiment ID, and for group_name
+        if it's been set.
+        """
+        self.mturkservice.create_qualification_type(
+            self.config.get('id'), self.experiment_qualification_desc)
+        group_name = self.config.get('group_name', None)
+        if group_name:
+            self.mturkservice.create_qualification_type(
+                group_name, self.group_qualification_desc)
 
 
 class BotRecruiter(Recruiter):
