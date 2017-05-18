@@ -336,13 +336,11 @@ def advertisement():
             external_submit_url = "https://www.mturk.com/mturk/externalSubmit"
         return render_template(
             'thanks.html',
-            is_sandbox=is_sandbox,
-            is_debug=False,
             hitid=hit_id,
             assignmentid=assignment_id,
             workerid=worker_id,
-            mode=config.get('mode'),
             external_submit_url=external_submit_url,
+            mode=config.get('mode'),
             app_id=app_id
         )
     if status == 'working':
@@ -359,11 +357,10 @@ def advertisement():
         ad_string = insert_mode(ad_string, config.get('mode'))
         return render_template_string(
             ad_string,
-            is_sandbox=False,
-            debug_mode=debug_mode,
             hitid=hit_id,
             assignmentid=assignment_id,
             workerid=worker_id,
+            mode=config.get('mode'),
             app_id=app_id
         )
     else:

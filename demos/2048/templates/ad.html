@@ -43,9 +43,9 @@
                     </div>
                     <div class="col-xs-10">
 
-                        {% if is_sandbox or debug_mode %}
+                        {% if (mode == "sandbox") or (mode == "debug") %}
                             <p>
-                                <b>Application ID:</b> {{app_id}}.
+                                <b>Application ID:</b> {{ app_id }}.
                             </p>
                         {% endif %}
 
