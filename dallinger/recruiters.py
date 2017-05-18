@@ -5,6 +5,7 @@ from dallinger.config import get_config
 from dallinger.heroku.worker import conn
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
+from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 import logging
@@ -134,6 +135,15 @@ class MTurkRecruiter(Recruiter):
             (self.config.get('mode') == "sandbox")
         )
 
+    @property
+    def qualifications(self):
+        quals = {self.config.get('id'): self.experiment_qualification_desc}
+        group_name = self.config.get('group_name', None)
+        if group_name:
+            quals[group_name] = self.group_qualification_desc
+
+        return quals
+
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
         if self.is_in_progress:
@@ -200,20 +210,11 @@ class MTurkRecruiter(Recruiter):
         """
         worker_id = participant.worker_id
 
-        # Always add a qualification to the worker based on the experiment's
-        # UID:
-        qualifications = [
-            (self.config.get('id'), self.experiment_qualification_desc)
-        ]
-
-        group = self.config.get('group_name')
-        if group:
-            qualifications.append((group, self.group_qualification_desc))
-
-        for name, desc in qualifications:
-            self.mturkservice.increment_qualification_score(
-                name, worker_id, desc
-            )
+        for name in self.qualifications:
+            try:
+                self.mturkservice.increment_qualification_score(name, worker_id)
+            except QualificationNotFoundException, ex:
+                logger.exception(ex)
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
@@ -256,12 +257,8 @@ class MTurkRecruiter(Recruiter):
         """Create MTurk Qualification for experiment ID, and for group_name
         if it's been set.
         """
-        self.mturkservice.create_qualification_type(
-            self.config.get('id'), self.experiment_qualification_desc)
-        group_name = self.config.get('group_name', None)
-        if group_name:
-            self.mturkservice.create_qualification_type(
-                group_name, self.group_qualification_desc)
+        for name, desc in self.qualifications.items():
+            self.mturkservice.create_qualification_type(name, desc)
 
 
 class BotRecruiter(Recruiter):
