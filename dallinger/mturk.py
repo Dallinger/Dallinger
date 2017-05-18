@@ -167,40 +167,6 @@ class MTurkService(object):
             notify
         ))
 
-    def assign_qualification_by_name(self,
-                                     name,
-                                     worker_id,
-                                     score,
-                                     description='Dallinger qualification',
-                                     notify=True):
-        """Assign a qualification to a worker based on a qualification name.
-
-        If a qualification with the provided name does not already exist, it
-        will be created first.
-        """
-        qtype = None
-        try:
-            qtype = self.create_qualification_type(name, description)
-        except MTurkRequestError, ex:
-            if "name must be unique" in ex.message:
-                qtype = self.get_qualification_type_by_name(name)
-                if qtype is None:
-                    raise MTurkServiceException(
-                        "Qualification with name {} exists, "
-                        "but couldn't be retrieved by name.".format(name)
-                    )
-            else:
-                raise MTurkServiceException(
-                    "Qualification assignment failed: {}".format(ex.message)
-                )
-
-        self.assign_qualification(qtype['id'], worker_id, score, notify)
-
-        return {
-            'qtype': qtype,
-            'score': score
-        }
-
     def get_current_qualification_score(self, name, worker_id):
         """Return the current score for a worker, on a qualification with the
         provided name.

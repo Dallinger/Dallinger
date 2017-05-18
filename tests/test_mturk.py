@@ -405,23 +405,6 @@ class TestMTurkServiceWithRequesterAndWorker(object):
             result = with_cleanup.get_qualification_type_by_name(qtype['name'])
             assert result is not None
 
-    def test_assign_qualification_by_name_with_existing_name(self, with_cleanup, worker_id, qtype):
-        result = with_cleanup.assign_qualification_by_name(
-            qtype['name'], worker_id, score=1, notify=False
-        )
-
-        assert result['qtype']['id'] == qtype['id']
-        assert result['score'] == 1
-
-    def test_assign_qualification_by_name_with_new_name(self, with_cleanup, worker_id):
-        name = generate_random_id(size=32)
-        result = with_cleanup.assign_qualification_by_name(
-            name, worker_id, score=1, notify=False
-        )
-
-        assert result['qtype']['name'] == name
-        assert result['score'] == 1
-
     def test_get_current_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=2, notify=False)
@@ -796,67 +779,6 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.get_workers_with_qualification.assert_called_once_with('qid')
         with_mock.assign_qualification.assert_called_once_with(
             'qid', 'workerid', 4, True
-        )
-
-    def test_assign_qualification_by_name_with_existing_name_lookup_succeeds(self, with_mock):
-        with_mock.create_qualification_type = mock.Mock()
-        with_mock.create_qualification_type.side_effect = MTurkRequestError(
-            status='status',
-            reason='reason',
-            body="Qualification name must be unique"
-        )
-
-        with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
-        with_mock.assign_qualification = mock.Mock(return_value=True)
-
-        assert with_mock.assign_qualification_by_name('foo', 'workerid', 1, 'desc', False)
-        with_mock.create_qualification_type.assert_called_once_with(
-            'foo',
-            'desc',
-        )
-        with_mock.get_qualification_type_by_name.assert_called_once_with('foo')
-        with_mock.assign_qualification.assert_called_once_with(
-            'qid', 'workerid', 1, False
-        )
-
-    def test_assign_qualification_by_name_with_existing_name_lookup_fails(self, with_mock):
-        with_mock.create_qualification_type = mock.Mock()
-        with_mock.create_qualification_type.side_effect = MTurkRequestError(
-            status='status',
-            reason='reason',
-            body="Qualification name must be unique"
-        )
-
-        with_mock.get_qualification_type_by_name = mock.Mock(return_value=None)
-
-        with pytest.raises(MTurkServiceException):
-            with_mock.assign_qualification_by_name('foo', 'workerid', 1)
-
-    def test_assign_qualification_by_name_with_new_name_unknown_error(self, with_mock):
-        with_mock.create_qualification_type = mock.Mock()
-        with_mock.create_qualification_type.side_effect = MTurkRequestError(
-            status='status',
-            reason='reason',
-            body='Arbitrary MTurkRequestError...'
-        )
-
-        with_mock.get_qualification_type_by_name = mock.Mock(return_value=None)
-
-        with pytest.raises(MTurkServiceException) as ex:
-            with_mock.assign_qualification_by_name('foo', 'workerid', 1)
-        assert 'Arbitrary MTurkRequestError...' in ex.value.message
-
-    def test_assign_qualification_by_name_with_new_name(self, with_mock):
-        with_mock.create_qualification_type = mock.Mock(return_value={'id': 'qid'})
-        with_mock.assign_qualification = mock.Mock(return_value=True)
-
-        assert with_mock.assign_qualification_by_name('foo', 'workerid', 1, 'desc')
-        with_mock.create_qualification_type.assert_called_once_with(
-            'foo',
-            'desc',
-        )
-        with_mock.assign_qualification.assert_called_once_with(
-            'qid', 'workerid', 1, True
         )
 
     def test_get_current_qualification_score(self, with_mock):
