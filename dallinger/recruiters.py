@@ -39,7 +39,7 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
-    def notify_recruited(self, participant, experiment):
+    def notify_recruited(self, participant):
         """Allow the Recruiter to be notified when an recruited Participant
         has joined an experiment.
         """
@@ -163,15 +163,17 @@ class MTurkRecruiter(Recruiter):
             duration_hours=self.config.get('duration')
         )
 
-    def notify_recruited(self, participant, experiment):
+    def notify_recruited(self, participant):
         """Assign a Qualification to the Participant for the experiment ID,
         and for the configured group_name, if it's been set.
         """
         worker_id = participant.worker_id
 
         # Always add a qualification to the worker based on the experiment's
-        # app_id:
-        qualifications = [(experiment.app_id, self.experiment_qualification_desc)]
+        # UID:
+        qualifications = [
+            (self.config.get('id'), self.experiment_qualification_desc)
+        ]
 
         group = self.config.get('group_name')
         if group:

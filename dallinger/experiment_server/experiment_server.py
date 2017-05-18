@@ -582,7 +582,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
     # Ping back to the recruiter that one of their participants has joined:
     recruiter = Recruiter.for_experiment(exp)
-    recruiter.notify_recruited(participant, exp)
+    recruiter.notify_recruited(participant)
 
     # Queue notification to others in waiting room
     if exp.quorum:
