@@ -144,6 +144,7 @@ class TestExperimentServer(FlaskAppTest):
 
     def test_notifies_recruiter_when_participant_joins(self):
         from dallinger.recruiters import Recruiter
+        from dallinger.models import Participant
 
         worker_id = self.worker_counter
         hit_id = self.hit_counter
@@ -156,7 +157,8 @@ class TestExperimentServer(FlaskAppTest):
             self.app.post('/participant/{}/{}/{}/debug'.format(
                 worker_id, hit_id, assignment_id
             ))
-            mock_recruiter.notify_recruited.assert_called()
+            args, _ = mock_recruiter.notify_recruited.call_args
+            assert isinstance(args[0], Participant)
 
     def test_node_vectors(self):
         p_id = self._create_participant()

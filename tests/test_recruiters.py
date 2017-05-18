@@ -30,7 +30,6 @@ class TestRecruiters(object):
             recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
     def test_for_experiment(self):
-        from dallinger.experiment import Experiment
         from dallinger.recruiters import Recruiter
         mock_exp = mock.MagicMock(spec=Experiment)
         Recruiter.for_experiment(mock_exp)
@@ -39,7 +38,7 @@ class TestRecruiters(object):
 
     def test_notify_recruited(self, recruiter):
         dummy = mock.NonCallableMock()
-        recruiter.notify_recruited(participant=dummy, experiment=dummy)
+        recruiter.notify_recruited(participant=dummy)
 
 
 class TestHotAirRecruiter(object):
@@ -293,25 +292,26 @@ class TestMTurkRecruiter(object):
 
     def test_notify_recruited_when_group_name_not_specified(self):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
-        experiment = mock.Mock(spec=Experiment, app_id='some experiment id')
-        recruiter = self.make_one()
-        recruiter.notify_recruited(participant, experiment)
+        recruiter = self.make_one(id="some experiment uid")
+        recruiter.notify_recruited(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_called_once_with(
-            'some experiment id',
+            'some experiment uid',
             'some worker id',
             'Experiment-specific qualification',
         )
 
     def test_notify_recruited_when_group_name_specified(self):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
-        experiment = mock.Mock(spec=Experiment, app_id='some experiment id')
-        recruiter = self.make_one(group_name='some existing group_name')
-        recruiter.notify_recruited(participant, experiment)
+        recruiter = self.make_one(
+            id="some experiment uid",
+            group_name='some existing group_name'
+        )
+        recruiter.notify_recruited(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_has_calls([
             mock.call(
-                'some experiment id',
+                'some experiment uid',
                 'some worker id',
                 'Experiment-specific qualification'),
             mock.call(
