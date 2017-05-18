@@ -14,6 +14,7 @@ from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
+from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import generate_random_id
 
 
@@ -453,13 +454,12 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         assert result['qtype']['id'] == qtype['id']
         assert result['score'] == 1
 
-    def test_increment_qualification_score_new_qualification(self, with_cleanup, worker_id):
-        with_cleanup.max_wait_secs = 1  # we know the name doesn't exist, so no need to wait
-        name = name_with_hostname_prefix()
-        result = with_cleanup.increment_qualification_score(
-            name, worker_id, notify=False)
-
-        assert result['score'] == 1
+    def test_increment_qualification_score_nonexistent_qual(self, with_cleanup, worker_id):
+        with_cleanup.max_wait_secs = 0  # we know the name doesn't exist, so no need to wait
+        with pytest.raises(QualificationNotFoundException):
+            with_cleanup.increment_qualification_score(
+                'nonexistent', worker_id, notify=False
+            )
 
 
 @pytest.mark.mturk
@@ -883,7 +883,35 @@ class TestMTurkServiceWithFakeConnection(object):
         assert result['qtype'] == {'id': 'qid'}
         assert result['score'] is None
 
-    @pytest.mark.xfail
-    def test_increment_qualification_score(self, with_mock):
-        # XXX Implement me
-        assert False
+    def test_increment_qualification_score_for_worker_with_score(self, with_mock):
+        worker_id = 'some worker id'
+        fake_score = {'qtype': {'id': 'qtype_id'}, 'score': 2}
+        with_mock.get_current_qualification_score = mock.Mock(
+            return_value=fake_score)
+
+        result = with_mock.increment_qualification_score('some qual', worker_id)
+
+        assert result['score'] == 3
+        with_mock.mturk.update_qualification_score.assert_called_once_with(
+            'qtype_id', worker_id, 3
+        )
+
+    def test_increment_qualification_score_for_worker_with_no_score(self, with_mock):
+        worker_id = 'some worker id'
+        fake_score = {'qtype': {'id': 'qtype_id'}, 'score': None}
+        with_mock.get_current_qualification_score = mock.Mock(
+            return_value=fake_score)
+
+        result = with_mock.increment_qualification_score('some qual', worker_id)
+
+        assert result['score'] == 1
+        with_mock.mturk.assign_qualification.assert_called_once_with(
+            'qtype_id', worker_id, 1, True
+        )
+
+    def test_increment_qualification_score_nonexisting_qual_raises(self, with_mock):
+        worker_id = 'some worker id'
+        with_mock.get_qualification_type_by_name = mock.Mock(return_value=None)
+
+        with pytest.raises(QualificationNotFoundException):
+            with_mock.increment_qualification_score('some qual', worker_id)
