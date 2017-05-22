@@ -13,6 +13,32 @@ var getUrlParameter = function getUrlParameter(sParam) {
         }
     }
 };
+
+var Dallinger = (function () {
+  var dlgr = {};
+
+  participantId = getUrlParameter("participant_id");
+
+  dlgr.submitQuestionnaire = function (name, callback) {
+    formSerialized = $("form").serializeArray();
+    var formDict = {};
+    formSerialized.forEach(function (field) {
+        formDict[field.name] = field.value;
+    });
+    $.ajax({
+      type: "POST",
+      url: "/question/" + participantId,
+      data: {
+        question: name || "questionnaire",
+        number: 1,
+        response: JSON.stringify(formDict),
+      },
+      success: callback,
+    });
+  };
+  return dlgr;
+})();
+
 var hit_id = getUrlParameter("hit_id");
 var worker_id = getUrlParameter("worker_id");
 var assignment_id = getUrlParameter("assignment_id");
