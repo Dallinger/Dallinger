@@ -212,7 +212,7 @@ var submitNextResponse = function (n) {
 
 waitForQuorum = function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
-    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat");
+    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum");
     var deferred = $.Deferred();
     socket.onmessage = function (msg) {
         if (msg.data.indexOf('quorum:') !== 0) { return; }
