@@ -284,6 +284,42 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     cwd = os.getcwd()
     os.chdir(dst)
 
+    # Freeze the Python requirements
+    log('Freezing Python requirements...')
+    blacklist = (
+        # Dev dependencies
+        'alabaster',
+        'coverage',
+        'coverage_pth',
+        'codecov',
+        'flake8',
+        'mock',
+        'pyenchant',
+        'pytest',
+        'Sphinx',
+        'sphinxcontrib-spelling',
+        'tox',
+        # Data analysis tools
+        'datashape',
+        'networkx',
+        'numpy',
+        'odo',
+        'pandas',
+        'tablib',
+        # Obsolete
+        'psiturk-dallinger',
+    )
+    with open(os.path.join(dst, 'requirements.txt'), 'w') as file:
+        for line in subprocess.check_output(['pip', 'freeze']).splitlines():
+            if line.startswith(blacklist):
+                continue
+            # Access github anonymously
+            line = line.replace(
+                'git+git@github.com:', 'git+https://github.com/')
+            click.echo(line)
+            file.write(line)
+            file.write('\n')
+
     # Write the custom config
     if exp_config:
         config.extend(exp_config)
@@ -312,8 +348,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join(dst, "dallinger_experiment.py"))
 
     # Get dallinger package location.
-    from pkg_resources import get_distribution
-    dist = get_distribution('dallinger')
+    dist = pkg_resources.get_distribution('dallinger')
     src_base = os.path.join(dist.location, dist.project_name)
 
     heroku_files = [
