@@ -31,7 +31,7 @@ class ChatBackend(object):
     def __init__(self):
         self.pubsub = conn.pubsub()
         self.clients = defaultdict(list)
-        self.listening = False
+        self.greenlet = None
 
     def subscribe(self, client, channel):
         """Register a new client to receive messages on a channel."""
@@ -46,7 +46,7 @@ class ChatBackend(object):
                 log('Subscribed to redis channel {}'.format(channel))
 
         # Make sure this process has a greenlet listening for messages
-        if not self.listening:
+        if self.greenlet is None:
             self.start()
 
         self.clients[channel].append(client)
@@ -86,10 +86,11 @@ class ChatBackend(object):
     def start(self):
         """Starts listening in the background."""
         self.greenlet = gevent.spawn(self.run)
-        self.listening = True
 
     def stop(self):
-        self.greenlet.kill()
+        if self.greenlet is not None:
+            self.greenlet.kill()
+            self.greenlet = None
 
     def heartbeat(self, ws):
         """Send a ping to the websocket client periodically"""
