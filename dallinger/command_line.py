@@ -185,10 +185,8 @@ def verify_package(verbose=True):
 
     for f in files:
         if os.path.exists(f):
-            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, "
-                "please delete or rename.".format(f),
+            log("✗ {} OVERWRITES shared frontend files inserted at run-time".format(f),
                 delay=0, chevrons=False, verbose=verbose)
-            return False
 
     log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
 
