@@ -348,7 +348,9 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
     for filename in frontend_files:
         src = os.path.join(src_base, "frontend", filename)
-        shutil.copy(src, os.path.join(dst, filename))
+        dst_filepath = os.path.join(dst, filename)
+        if not os.path.exists(dst_filepath):
+            shutil.copy(src, dst_filepath)
 
     time.sleep(0.25)
 
