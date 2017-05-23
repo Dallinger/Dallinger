@@ -226,13 +226,6 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
     log(header, chevrons=False)
 
-    # Verify that the package is usable.
-    log("Verifying that directory is compatible with Dallinger...")
-    if not verify_package(verbose=verbose):
-        raise AssertionError(
-            "This is not a valid Dallinger app. " +
-            "Fix the errors and then try running 'dallinger verify'.")
-
     # Verify that the Postgres server is running.
     try:
         psycopg2.connect(database="x", user="postgres", password="nada")
