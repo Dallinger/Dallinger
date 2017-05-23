@@ -139,7 +139,7 @@ class Experiment(object):
         from dallinger.recruiters import BotRecruiter
 
         try:
-            debug_mode = config.get('mode') == 'debug'
+            debug_mode = config.get('mode', None) == 'debug'
         except RuntimeError:
             # Config not yet loaded
             debug_mode = False
