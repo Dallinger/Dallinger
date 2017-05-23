@@ -112,6 +112,45 @@ def verify_package(verbose=True):
             log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
             is_passing = False
 
+    # Check the experiment file.
+    if os.path.exists("experiment.py"):
+
+        # Check if the experiment file has exactly one Experiment class.
+        tmp = tempfile.mkdtemp()
+        clone_dir = os.path.join(tmp, 'temp_exp_pacakge')
+        to_ignore = shutil.ignore_patterns(
+            os.path.join(".git", "*"),
+            "*.db",
+            "snapshots",
+            "data",
+            "server.log"
+        )
+        shutil.copytree(os.getcwd(), clone_dir, ignore=to_ignore)
+
+        cwd = os.getcwd()
+        os.chdir(clone_dir)
+        sys.path.append(clone_dir)
+
+        open("__init__.py", "a").close()
+        exp = imp.load_source('experiment', os.path.join(clone_dir, "experiment.py"))
+
+        classes = inspect.getmembers(exp, inspect.isclass)
+        exps = [c for c in classes
+                if (c[1].__bases__[0].__name__ in "Experiment")]
+
+        if len(exps) == 0:
+            log("✗ experiment.py does not define an experiment class.",
+                delay=0, chevrons=False, verbose=verbose)
+            is_passing = False
+        elif len(exps) == 1:
+            log("✓ experiment.py defines 1 experiment",
+                delay=0, chevrons=False, verbose=verbose)
+        else:
+            log("✗ experiment.py defines more than one experiment class.",
+                delay=0, chevrons=False, verbose=verbose)
+        os.chdir(cwd)
+        sys.path.remove(clone_dir)
+
     # Check base_payment is correct
     config = get_config()
     if not config.ready:
