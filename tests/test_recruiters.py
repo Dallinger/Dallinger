@@ -62,7 +62,7 @@ class TestBotRecruiter(object):
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import BotRecruiter
-        return BotRecruiter()
+        return BotRecruiter(config={})
 
     @pytest.mark.xfail
     def test_open_recruitment(self, recruiter):
@@ -72,12 +72,11 @@ class TestBotRecruiter(object):
     def test_recruit_participants(self, recruiter):
         recruiter.recruit_participants()
 
-    @pytest.mark.xfail
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
 
     def test_reward_bonus(self, recruiter):
-        recruiter.reward_bonus()
+        recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
 
 def stub_config(**kwargs):
