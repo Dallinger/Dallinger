@@ -131,7 +131,6 @@ def verify_package(verbose=True):
         os.chdir(clone_dir)
         sys.path.append(clone_dir)
 
-        open("__init__.py", "a").close()
         exp = imp.load_source('experiment', os.path.join(clone_dir, "experiment.py"))
 
         classes = inspect.getmembers(exp, inspect.isclass)
