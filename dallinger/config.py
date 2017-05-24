@@ -45,6 +45,7 @@ default_keys = (
     ('heroku_auth_token', unicode, [], True),
     ('heroku_team', unicode, ['team']),
     ('host', unicode, []),
+    ('id', unicode, []),
     ('port', int, ['PORT']),
     ('lifetime', int, []),
     ('logfile', unicode, []),

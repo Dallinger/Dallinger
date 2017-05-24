@@ -4,11 +4,8 @@ with a ``setuptools`` ``entry_point`` for the ``dallinger.experiments`` group.
 import logging
 from pkg_resources import iter_entry_points
 
-from ..config import get_config
 from ..experiment import Experiment
 
-config = get_config()
-config.load()
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

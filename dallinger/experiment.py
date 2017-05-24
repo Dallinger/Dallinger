@@ -40,6 +40,7 @@ def exp_class_working_dir(meth):
             )
             os.chdir(new_path)
             # Override configs
+            config.register_extra_parameters()
             config.load_from_file(LOCAL_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
@@ -112,6 +113,13 @@ class Experiment(object):
             # Guard against subclasses replacing this with a @property
             self.public_properties = {}
 
+        if session:
+            self.configure()
+
+    def configure(self):
+        """Load experiment configuration here"""
+        pass
+
     @property
     def background_tasks(self):
         """An experiment may define functions or methods to be started as
@@ -131,7 +139,7 @@ class Experiment(object):
         from dallinger.recruiters import BotRecruiter
 
         try:
-            debug_mode = config.get('mode') == 'debug'
+            debug_mode = config.get('mode', None) == 'debug'
         except RuntimeError:
             # Config not yet loaded
             debug_mode = False
