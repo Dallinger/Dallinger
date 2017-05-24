@@ -103,7 +103,6 @@ def verify_package(verbose=True):
     required_files = [
         "config.txt",
         "experiment.py",
-        "requirements.txt",
     ]
 
     for f in required_files:
@@ -118,14 +117,21 @@ def verify_package(verbose=True):
 
         # Check if the experiment file has exactly one Experiment class.
         tmp = tempfile.mkdtemp()
-        for f in ["experiment.py", "config.txt"]:
-            shutil.copyfile(f, os.path.join(tmp, f))
+        clone_dir = os.path.join(tmp, 'temp_exp_pacakge')
+        to_ignore = shutil.ignore_patterns(
+            os.path.join(".git", "*"),
+            "*.db",
+            "snapshots",
+            "data",
+            "server.log"
+        )
+        shutil.copytree(os.getcwd(), clone_dir, ignore=to_ignore)
 
         cwd = os.getcwd()
-        os.chdir(tmp)
+        os.chdir(clone_dir)
+        sys.path.append(clone_dir)
 
-        open("__init__.py", "a").close()
-        exp = imp.load_source('experiment', os.path.join(tmp, "experiment.py"))
+        exp = imp.load_source('experiment', os.path.join(clone_dir, "experiment.py"))
 
         classes = inspect.getmembers(exp, inspect.isclass)
         exps = [c for c in classes
@@ -142,17 +148,7 @@ def verify_package(verbose=True):
             log("✗ experiment.py defines more than one experiment class.",
                 delay=0, chevrons=False, verbose=verbose)
         os.chdir(cwd)
-
-    # Make sure there's a help file.
-    is_txt_readme = os.path.exists("README.md")
-    is_md_readme = os.path.exists("README.txt")
-    if (not is_md_readme) and (not is_txt_readme):
-        is_passing = False
-        log("✗ README.txt or README.md is MISSING.",
-            delay=0, chevrons=False, verbose=verbose)
-    else:
-        log("✓ README is OK",
-            delay=0, chevrons=False, verbose=verbose)
+        sys.path.remove(clone_dir)
 
     # Check base_payment is correct
     config = get_config()

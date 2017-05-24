@@ -1,6 +1,11 @@
 import json
 import os
 import unittest
+from dallinger.config import get_config
+
+config = get_config()
+if not config.ready:
+    config.load()
 
 
 class FlaskAppTest(unittest.TestCase):
@@ -24,8 +29,7 @@ class FlaskAppTest(unittest.TestCase):
 
         import dallinger.db
         self.db = dallinger.db.init_db(drop_all=True)
-        from dallinger.config import get_config
-        self.exp_config = get_config()
+        self.exp_config = config
 
     def tearDown(self):
         self.db.rollback()
