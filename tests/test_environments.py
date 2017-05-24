@@ -41,3 +41,14 @@ class TestEnvironments(object):
         agent.receive()
 
         assert agent.infos()[0].contents == "foo"
+
+    def test_environment_update(self):
+        net = models.Network()
+        self.db.add(net)
+        environment = nodes.Environment(network=net)
+        environment.update("some content")
+        self.db.commit()
+
+        state = environment.state()
+
+        assert state.contents == u'some content'
