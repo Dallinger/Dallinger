@@ -11,22 +11,25 @@ def sockets():
 
 
 @pytest.fixture
-def chat(sockets):
-    return sockets.ChatBackend()
+def pubsub():
+    pubsub = Mock()
+    pubsub.channels = {}
+    pubsub.listen.return_value = []
+    return pubsub
+
+
+@pytest.fixture
+def chat(sockets, pubsub):
+    chat = sockets.ChatBackend()
+    chat.pubsub = pubsub
+
+    yield chat
+
+    gevent.wait()
 
 
 @pytest.mark.usefixtures("experiment_dir")
 class TestChatBackend:
-
-    def test_subscribe_all_default_channels(self, chat):
-        client = Mock()
-        chat.subscribe(client)
-        assert chat.clients == {'quorum': [client]}
-
-    def test_subscribe_explicitly_to_a_default_channel(self, chat):
-        client = Mock()
-        chat.subscribe(client, 'quorum')
-        assert chat.clients == {'quorum': [client]}
 
     def test_subscribe_to_new_channel_registers_client_for_channel(self, chat):
         client = Mock()
@@ -61,21 +64,23 @@ class TestChatBackend:
     def test_send_exception(self, chat):
         client = Mock()
         client.send.side_effect = socket.error()
-        chat.subscribe(client)
+        chat.subscribe(client, 'quorum')
         chat.send(client, 'message')
         assert chat.clients == {'quorum': []}
 
     def test_run(self, chat):
         client = Mock()
-        chat.subscribe(client)
 
         chat.pubsub = Mock()
+        chat.pubsub.channels = ['quorum']
         chat.pubsub.listen.return_value = [{
             'type': 'message',
             'channel': 'quorum',
             'data': 'Calloo! Callay!',
         }]
+        chat.greenlet = Mock()
 
+        chat.subscribe(client, 'quorum')
         chat.run()
 
         gevent.wait()  # wait for event loop
@@ -98,17 +103,6 @@ class TestChatBackend:
 
         chat.send.assert_called_with(client, 'ping')
 
-    def test_chat_subscribes_to_default_channel(self, sockets):
-        ws = Mock()
-        sockets.request = Mock()
-        sockets.request.args = {}
-        sockets.chat(ws)
-
-        ws.closed = True
-        gevent.wait()
-
-        assert ws in sockets.chat_backend.clients['quorum']
-
     def test_chat_subscribes_to_requested_channel(self, sockets):
         ws = Mock()
         sockets.request = Mock()
@@ -116,7 +110,7 @@ class TestChatBackend:
         sockets.chat(ws)
         assert ws in sockets.chat_backend.clients['special']
 
-    def test_chat_publishes_message_to_requested_channel(self, sockets):
+    def test_chat_publishes_message_to_requested_channel(self, sockets, pubsub):
         class MockSocket(Mock):
             """We need a property that returns False the first time
             and True after that. Doesn't seem possible with Mock.
@@ -134,6 +128,7 @@ class TestChatBackend:
         ws.receive.return_value = 'special:incoming message!'
         sockets.request = Mock()
         sockets.conn = Mock()
+        sockets.chat_backend.pubsub = pubsub
         sockets.chat(ws)
         sockets.conn.publish.assert_called_once_with(
             'special', 'incoming message!'
