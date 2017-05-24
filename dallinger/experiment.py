@@ -17,6 +17,7 @@ from sqlalchemy import and_
 
 from dallinger.config import get_config, LOCAL_CONFIG
 from dallinger.data import Data
+from dallinger.data import export
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.heroku import app_name
 from dallinger.information import Gene, Meme, State
@@ -39,6 +40,7 @@ def exp_class_working_dir(meth):
             )
             os.chdir(new_path)
             # Override configs
+            config.register_extra_parameters()
             config.load_from_file(LOCAL_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
@@ -49,6 +51,10 @@ def exp_class_working_dir(meth):
 class Experiment(object):
     """Define the structure of an experiment."""
     app_id = None
+    # Optional Redis channel to create and subscribe to on launch. Note that if
+    # you define a channel, you probably also want to override the send()
+    # method, since this is where messages from Redis will be sent.
+    channel = None
     exp_config = None
 
     def __init__(self, session=None):
@@ -74,6 +80,11 @@ class Experiment(object):
         self.experiment_repeats = 0
 
         #: int, the number of participants
+        #: required to move from the waiting room to the experiment.
+        #: Default is 0 (no waiting room).
+        self.quorum = 0
+
+        #: int, the number of participants
         #: requested when the experiment first starts. Default is 1.
         self.initial_recruitment_size = 1
 
@@ -96,23 +107,62 @@ class Experiment(object):
             "Transformation": Transformation,
         }
 
+        #: dictionary, the properties of this experiment that are exposed
+        #: to the public over an AJAX call
+        if not hasattr(self, 'public_properties'):
+            # Guard against subclasses replacing this with a @property
+            self.public_properties = {}
+
+        if session:
+            self.configure()
+
+    def configure(self):
+        """Load experiment configuration here"""
+        pass
+
+    @property
+    def background_tasks(self):
+        """An experiment may define functions or methods to be started as
+        background tasks upon experiment launch.
+        """
+        return []
+
     @property
     def recruiter(self):
         """Recruiter, the Dallinger class that recruits participants.
         Default is HotAirRecruiter in debug mode and MTurkRecruiter in other modes.
+        If recruiter param in config is set, there can be other recuiters. This
+        last part could (should) be made pluggable.
         """
         from dallinger.recruiters import HotAirRecruiter
         from dallinger.recruiters import MTurkRecruiter
+        from dallinger.recruiters import BotRecruiter
 
         try:
-            debug_mode = config.get('mode') == 'debug'
+            debug_mode = config.get('mode', None) == 'debug'
         except RuntimeError:
             # Config not yet loaded
             debug_mode = False
 
-        if debug_mode:
+        recruiter = config.get('recruiter', None)
+        if recruiter == 'bogus':
+            # For forcing failures in tests
+            raise NotImplementedError
+        if debug_mode and recruiter != 'bots':
             return HotAirRecruiter
+        if recruiter == 'bots':
+            return BotRecruiter.from_current_config
         return MTurkRecruiter.from_current_config
+
+    def send(self, raw_message):
+        """socket interface implementation, and point of entry for incoming
+        Redis messages.
+
+        param raw_message is a string with a channel prefix, for example:
+
+            'shopping:{"type":"buy","color":"blue","quantity":"2"}'
+        """
+        pass
 
     def setup(self):
         """Create the networks if they don't already exist."""
@@ -165,7 +215,8 @@ class Experiment(object):
 
         """
         key = participant.id
-        networks_with_space = Network.query.filter_by(full=False).all()
+        networks_with_space = Network.query.filter_by(
+            full=False).order_by(Network.id).all()
         networks_participated_in = [
             node.network_id for node in
             Node.query.with_entities(Node.network_id)
@@ -194,11 +245,14 @@ class Experiment(object):
                      "Assigning participant to practice network {}."
                      .format(chosen_network.id), key)
         else:
-            chosen_network = random.choice(legal_networks)
+            chosen_network = self.choose_network(legal_networks, participant)
             self.log("No practice networks available."
                      "Assigning participant to experiment network {}"
                      .format(chosen_network.id), key)
         return chosen_network
+
+    def choose_network(self, networks, participant):
+        return random.choice(networks)
 
     def create_node(self, participant, network):
         """Create a node for a participant."""
@@ -399,7 +453,7 @@ class Experiment(object):
         self.fail_participant(participant)
 
     @exp_class_working_dir
-    def run(self, exp_config=None, app_id=None, **kwargs):
+    def run(self, exp_config=None, app_id=None, bot=False, **kwargs):
         """Deploy and run an experiment.
 
         The exp_config object is either a dictionary or a
@@ -414,24 +468,35 @@ class Experiment(object):
         self.app_id = app_id
         self.exp_config = exp_config or kwargs
 
-        if self.exp_config["mode"] == u"debug":
-            raise NotImplementedError
+        if bot:
+            kwargs['recruiter'] = 'bots'
+
+        if kwargs:
+            self.exp_config.update(kwargs)
+
+        if self.exp_config.get('mode') == u'debug':
+            dlgr.command_line.debug.callback(
+                verbose=True,
+                bot=bot,
+                exp_config=self.exp_config
+            )
         else:
             dlgr.command_line.deploy_sandbox_shared_setup(
                 app=app_id,
                 verbose=self.verbose,
-                exp_config=self.exp_config
+                exp_config=exp_config
             )
 
         return self._finish_experiment()
 
     def _finish_experiment(self):
-        self.log("Waiting for experiment to complete.", "")
-        while self.experiment_completed() is False:
-            time.sleep(30)
-        data = self.retrieve_data()
-        self.end_experiment()
-        return (self.app_id, data, self.exp_config)
+        # Debug runs synchronously
+        if self.exp_config.get('mode') != 'debug':
+            self.log("Waiting for experiment to complete.", "")
+            while self.experiment_completed() is False:
+                time.sleep(30)
+            self.end_experiment()
+        return self.retrieve_data()
 
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
@@ -450,8 +515,10 @@ class Experiment(object):
 
     def retrieve_data(self):
         """Retrieves and saves data from a running experiment"""
-        import dallinger as dlgr
-        filename = dlgr.command_line.export_data(self.app_id)
+        local = False
+        if self.exp_config.get('mode') == 'debug':
+            local = True
+        filename = export(self.app_id, local=local)
         logger.debug('Data exported to %s' % filename)
         return Data(filename)
 

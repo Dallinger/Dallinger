@@ -7,6 +7,7 @@ import imp
 import inspect
 import os
 import pkg_resources
+import psutil
 import re
 try:
     from pipes import quote
@@ -14,10 +15,12 @@ except ImportError:
     # Python >= 3.3
     from shlex import quote
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import time
+import traceback
 import uuid
 import webbrowser
 
@@ -26,6 +29,10 @@ from dallinger.config import get_config
 import psycopg2
 import redis
 import requests
+from rq import (
+    Worker,
+    Connection,
+)
 from collections import Counter
 
 from dallinger import data
@@ -34,8 +41,11 @@ from dallinger import heroku
 from dallinger.heroku import (
     app_name,
 )
+from dallinger.heroku.worker import conn
 from dallinger.mturk import MTurkService
 from dallinger import registration
+from dallinger.utils import generate_random_id
+from dallinger.utils import get_base_url
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -58,7 +68,7 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
     """Log a message to stdout."""
     if verbose:
         if chevrons:
-            click.echo("\n❯❯ " + msg)
+            click.echo(u"\n❯❯ " + msg)
         else:
             click.echo(msg)
         time.sleep(delay)
@@ -68,10 +78,116 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
     """Log a message to stdout."""
     if verbose:
         if chevrons:
-            click.secho("\n❯❯ " + msg, err=True, fg='red')
+            click.secho(u"\n❯❯ " + msg, err=True, fg='red')
         else:
             click.secho(msg, err=True, fg='red')
         time.sleep(delay)
+
+
+def verify_id(ctx, param, app):
+    """Verify the experiment id."""
+    if app is None:
+        raise TypeError("Select an experiment using the --app flag.")
+    elif app[0:5] == "dlgr-":
+        raise ValueError("The --app flag requires the full "
+                         "UUID beginning with {}-...".format(app[5:13]))
+    return app
+
+
+def verify_package(verbose=True):
+    """Ensure the package has a config file and a valid experiment file."""
+    is_passing = True
+
+    # Check for existence of required files.
+    required_files = [
+        "config.txt",
+        "experiment.py",
+    ]
+
+    for f in required_files:
+        if os.path.exists(f):
+            log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
+        else:
+            log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
+            is_passing = False
+
+    # Check the experiment file.
+    if os.path.exists("experiment.py"):
+
+        # Check if the experiment file has exactly one Experiment class.
+        tmp = tempfile.mkdtemp()
+        clone_dir = os.path.join(tmp, 'temp_exp_pacakge')
+        to_ignore = shutil.ignore_patterns(
+            os.path.join(".git", "*"),
+            "*.db",
+            "snapshots",
+            "data",
+            "server.log"
+        )
+        shutil.copytree(os.getcwd(), clone_dir, ignore=to_ignore)
+
+        cwd = os.getcwd()
+        os.chdir(clone_dir)
+        sys.path.append(clone_dir)
+
+        exp = imp.load_source('experiment', os.path.join(clone_dir, "experiment.py"))
+
+        classes = inspect.getmembers(exp, inspect.isclass)
+        exps = [c for c in classes
+                if (c[1].__bases__[0].__name__ in "Experiment")]
+
+        if len(exps) == 0:
+            log("✗ experiment.py does not define an experiment class.",
+                delay=0, chevrons=False, verbose=verbose)
+            is_passing = False
+        elif len(exps) == 1:
+            log("✓ experiment.py defines 1 experiment",
+                delay=0, chevrons=False, verbose=verbose)
+        else:
+            log("✗ experiment.py defines more than one experiment class.",
+                delay=0, chevrons=False, verbose=verbose)
+        os.chdir(cwd)
+        sys.path.remove(clone_dir)
+
+    # Check base_payment is correct
+    config = get_config()
+    if not config.ready:
+        config.load()
+    base_pay = config.get('base_payment')
+    dollarFormat = "{:.2f}".format(base_pay)
+
+    if base_pay <= 0:
+        log("✗ base_payment must be positive value in config.txt.",
+            delay=0, chevrons=False, verbose=verbose)
+        is_passing = False
+
+    if float(dollarFormat) != float(base_pay):
+        log("✗ base_payment must be in [dollars].[cents] format in config.txt. Try changing "
+            "{0} to {1}.".format(base_pay, dollarFormat), delay=0, chevrons=False, verbose=verbose)
+        is_passing = False
+
+    # Check front-end files do not exist
+    files = [
+        os.path.join("templates", "complete.html"),
+        os.path.join("templates", "error.html"),
+        os.path.join("templates", "launch.html"),
+        os.path.join("templates", "thanks.html"),
+        os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("static", "robots.txt")
+    ]
+
+    for f in files:
+        if os.path.exists(f):
+            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, "
+                "please delete or rename.".format(f),
+                delay=0, chevrons=False, verbose=verbose)
+            return False
+
+    log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
+
+    return is_passing
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -170,6 +286,8 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     if exp_config:
         config.extend(exp_config)
 
+    config.extend({'id': unicode(generated_uid)})
+
     config.write(filter_sensitive=True)
 
     # Zip up the temporary directory and place it in the cwd.
@@ -222,6 +340,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "complete.html"),
         os.path.join("templates", "thanks.html"),
+        os.path.join("templates", "waiting.html"),
         os.path.join("static", "robots.txt")
     ]
 
@@ -237,30 +356,63 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def summary(app):
     """Print a summary of a deployed app's status."""
+    click.echo(get_summary(app))
+
+
+def get_summary(app):
     r = requests.get('https://{}.herokuapp.com/summary'.format(app_name(app)))
     summary = r.json()['summary']
-    click.echo("\nstatus    | count")
-    click.echo("-----------------")
+
+    out = []
+    out.append("\nstatus \t| count")
+    out.append("----------------")
     for s in summary:
-        click.echo("{:<10}| {}".format(s[0], s[1]))
+        out.append("{}\t| {}".format(s[0], s[1]))
     num_approved = sum([s[1] for s in summary if s[0] == u"approved"])
     num_not_working = sum([s[1] for s in summary if s[0] != u"working"])
     if num_not_working > 0:
         the_yield = 1.0 * num_approved / num_not_working
-        click.echo("\nYield: {:.2%}".format(the_yield))
+        out.append("\nYield: {:.2%}".format(the_yield))
+    return "\n".join(out)
+
+
+def _handle_launch_data(url):
+    launch_request = requests.post(url)
+    try:
+        launch_data = launch_request.json()
+    except ValueError:
+        error(
+            u"Error parsing response from /launch, check web dyno logs for details: "
+            + launch_request.text
+        )
+        raise
+
+    if not launch_request.ok:
+        error('Experiment launch failed, check web dyno logs for details.')
+        if launch_data.get('message'):
+            error(launch_data['message'])
+        launch_request.raise_for_status()
+    return launch_data
 
 
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def debug(verbose):
+@click.option('--bot', is_flag=True, flag_value=True,
+              help='Use bot to complete experiment')
+def debug(verbose, bot, exp_config=None):
     """Run the experiment locally."""
-    (id, tmp) = setup_experiment(debug=True, verbose=verbose)
+    exp_config = exp_config or {}
+    exp_config.update({
+        "mode": u"debug",
+        "loglevel": 0,
+    })
+    if bot:
+        exp_config["recruiter"] = u"bots"
 
-    # Drop all the tables from the database.
-    db.init_db(drop_all=True)
+    (id, tmp) = setup_experiment(verbose=verbose, exp_config=exp_config)
 
     # Switch to the temporary directory.
     cwd = os.getcwd()
@@ -269,20 +421,22 @@ def debug(verbose):
     # Set the mode to debug.
     config = get_config()
     logfile = config.get('logfile')
-    if logfile != '-':
+    if logfile and logfile != '-':
         logfile = os.path.join(cwd, logfile)
-    config.extend({
-        "mode": u"debug",
-        "loglevel": 0,
-        "logfile": logfile
-    })
-    config.write()
+        config.extend({'logfile': logfile})
+        config.write()
+
+    # Drop all the tables from the database.
+    db.init_db(drop_all=True)
 
     # Start up the local server
     log("Starting up the server...")
+    port = config.get('port')
     try:
         p = subprocess.Popen(
-            ['heroku', 'local'],
+            ['heroku', 'local', '-p', str(port),
+             "web={},worker={}".format(config.get('num_dynos_web', 1),
+                                       config.get('num_dynos_worker', 1))],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
@@ -290,39 +444,81 @@ def debug(verbose):
         error("Couldn't start Heroku for local debugging.")
         raise
 
-    # Wait for server to start
-    ready = False
-    for line in iter(p.stdout.readline, ''):
-        if verbose:
-            sys.stdout.write(line)
-        line = line.strip()
-        if re.match('^.*? worker.1 .*? Connection refused.$', line):
-            error('Could not connect to redis instance, experiment may not behave correctly.')
-        if not verbose and re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line):
-            error(line)
-        if re.match('^.*? web.1 .*? Ready.$', line):
-            ready = True
-            break
-
-    if ready:
-        host = config.get('host')
-        port = config.get('port')
-        public_interface = "{}:{}".format(host, port)
-        log("Server is running on {}. Press Ctrl+C to exit.".format(public_interface))
-
-        # Call endpoint to launch the experiment
-        log("Launching the experiment...")
-        requests.post('http://{}/launch'.format(public_interface))
-
-        # Monitor output from server process
+    try:
+        # Wait for server to start
+        ready = False
         for line in iter(p.stdout.readline, ''):
-            sys.stdout.write(line)
+            if verbose:
+                sys.stdout.write(line)
+            line = line.strip()
+            if re.match('^.*? worker.1 .*? Connection refused.$', line):
+                error('Could not connect to redis instance, experiment may not behave correctly.')
+            if not verbose and re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line):
+                error(line)
+            if not verbose and re.match('\[DONE\] Killing all processes', line):
+                error(
+                    'There was an error while starting the server. '
+                    'Run with --verbose for details.'
+                )
+            if re.match('^.*? \d+ workers$', line):
+                ready = True
+                break
 
-            # Open browser for new participants
-            match = re.search('New participant requested: (.*)$', line)
-            if match:
-                url = match.group(1)
-                webbrowser.open(url, new=1, autoraise=True)
+        if ready:
+            base_url = get_base_url()
+            log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+
+            # Call endpoint to launch the experiment
+            log("Launching the experiment...")
+            time.sleep(4)
+            _handle_launch_data('{}/launch'.format(base_url))
+
+            closed = False
+            status_url = base_url + '/summary'
+            exp_data = {}
+            # Monitor output from server process
+            for line in iter(p.stdout.readline, ''):
+                if verbose:
+                    sys.stdout.write(line)
+
+                # start checking for completion status
+                if closed:
+                    time.sleep(10)
+                    try:
+                        resp = requests.get(status_url)
+                        exp_data = resp.json()
+                    except (ValueError, requests.exceptions.RequestException):
+                        error('Error fetching experiment status.')
+                    log('Experiment summary: {}'.format(exp_data))
+                    if exp_data.get('completed', False):
+                        log('Experiment completed, all nodes filled.')
+                        break
+                    continue
+
+                # Open browser for new participants
+                match = re.search('New participant requested: (.*)$', line)
+                if match:
+                    url = match.group(1)
+                    webbrowser.open(url, new=1, autoraise=True)
+
+                # Is recruitment over? We can end the loop, and check
+                # experiment status
+                match = re.search('Close recruitment.$', line)
+                if match:
+                    log('Recruitment is complete.')
+                    closed = True
+
+    finally:
+        try:
+            # It seems we need to explicitly kill all subprocesses with a SIGINT
+            int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
+            for sub in psutil.Process(p.pid).children(recursive=True):
+                os.kill(sub.pid, int_signal)
+            p.terminate()
+            log("Local Heroku process terminated")
+        except OSError:
+            log("Local Heroku process already terminated")
+            log(traceback.format_exc())
 
     log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
@@ -387,6 +583,13 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         pass
 
     subprocess.check_call(create_cmd, stdout=out)
+
+    subprocess.check_call([
+        "heroku",
+        "buildpacks:add",
+        "https://github.com/stomita/heroku-buildpack-phantomjs",
+    ])
+
     database_size = config.get('database_size')
 
     # Set up postgres database and AWS environment variables.
@@ -421,10 +624,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     log("Waiting for Redis...")
     ready = False
     while not ready:
-        redis_URL = subprocess.check_output([
+        redis_url = subprocess.check_output([
             "heroku", "config:get", "REDIS_URL", "--app", app_name(id),
         ])
-        r = redis.from_url(redis_URL)
+        r = redis.from_url(redis_url)
         try:
             r.set("foo", "bar")
             ready = True
@@ -468,9 +671,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     # Launch the experiment.
     log("Launching the experiment on MTurk...")
 
-    launch_request = requests.post('https://{}.herokuapp.com/launch'.format(app_name(id)))
-    launch_data = launch_request.json()
-
+    launch_data = _handle_launch_data('https://{}.herokuapp.com/launch'.format(app_name(id)))
     log("URLs:")
     log("App home: https://{}.herokuapp.com/".format(app_name(id)), chevrons=False)
     log("Initial recruitment: {}".format(launch_data.get('recruitment_url', None)), chevrons=False)
@@ -483,10 +684,13 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-@click.option('--app', default=None, help='ID of the sandboxed experiment')
+@click.option('--app', default=None, help='Experiment id')
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     # Load configuration.
+    if app:
+        verify_id(None, None, app)
+
     config = get_config()
     config.load()
 
@@ -505,6 +709,9 @@ def sandbox(verbose, app):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
+    if app:
+        verify_id(None, None, app)
+
     # Load configuration.
     config = get_config()
     config.load()
@@ -555,7 +762,7 @@ def qualify(qualification, value, worker):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def hibernate(app):
     """Pause an experiment and remove costly resources."""
     log("The database backup URL is...")
@@ -594,7 +801,8 @@ def hibernate(app):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
+@click.confirmation_option(prompt='Are you sure you want to destroy the app?')
 def destroy(app):
     """Tear down an experiment server."""
     destroy_server(app)
@@ -611,7 +819,7 @@ def destroy_server(app):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--databaseurl', default=None, help='URL of the database')
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
@@ -653,7 +861,7 @@ def awaken(app, databaseurl):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--local', is_flag=True, flag_value=True,
               help='Export local data')
 @click.option('--no-scrub', is_flag=True, flag_value=True,
@@ -665,16 +873,60 @@ def export(app, local, no_scrub):
 
 
 @dallinger.command()
-@click.option('--app', default=None, help='ID of the deployed experiment')
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def logs(app):
     heroku.open_logs(app)
     """Show the logs."""
+    heroku.open_logs(app)
+
+
+@dallinger.command()
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
+def monitor(app):
+    """Set up application monitoring."""
     if app is None:
         raise TypeError("Select an experiment using the --app flag.")
+
+    dash_url = "https://dashboard.heroku.com/apps/{}".format(app_name(app))
+    webbrowser.open(dash_url)
+    webbrowser.open("https://requester.mturk.com/mturk/manageHITs")
+    heroku.open_logs(app)
+    subprocess.call(["open", heroku.db_uri(app)])
+    while True:
+        summary = get_summary(app)
+        click.clear()
+        click.echo(header)
+        click.echo("\nExperiment {}\n".format(app))
+        click.echo(summary)
+        time.sleep(10)
+
+
+@dallinger.command()
+@click.option('--app', default=None, help='Experiment id')
+@click.option('--debug', default=None,
+              help='Local debug recruitment url')
+def bot(app, debug):
+    """Run the experiment bot."""
+    if debug is None:
+        verify_id(None, None, app)
+
+    (id, tmp) = setup_experiment()
+
+    if debug:
+        url = debug
     else:
-        subprocess.check_call([
-            "heroku", "addons:open", "papertrail", "--app", app_name(app)
-        ])
+        host = app_name(app)
+        worker = generate_random_id()
+        hit = generate_random_id()
+        assignment = generate_random_id()
+        ad_url = 'https://{}.herokuapp.com/ad'.format(host)
+        ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
+        ad_parameters = ad_parameters.format(assignment, hit, worker)
+        url = '{}?{}'.format(ad_url, ad_parameters)
+
+    from dallinger_experiment import Bot
+    bot = Bot(url)
+    bot.run_experiment()
 
 
 @dallinger.command()
@@ -683,84 +935,11 @@ def verify():
     verify_package(verbose=True)
 
 
-def verify_package(verbose=True):
-    """Ensure the package has a config file and a valid experiment file."""
-    is_passing = True
-
-    # Check for existence of required files.
-    required_files = [
-        "config.txt",
-        "experiment.py",
-        "requirements.txt",
-    ]
-
-    for f in required_files:
-        if os.path.exists(f):
-            log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
-        else:
-            log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
-            is_passing = False
-
-    # Check the experiment file.
-    if os.path.exists("experiment.py"):
-
-        # Check if the experiment file has exactly one Experiment class.
-        tmp = tempfile.mkdtemp()
-        for f in ["experiment.py", "config.txt"]:
-            shutil.copyfile(f, os.path.join(tmp, f))
-
-        cwd = os.getcwd()
-        os.chdir(tmp)
-
-        open("__init__.py", "a").close()
-        exp = imp.load_source('experiment', os.path.join(tmp, "experiment.py"))
-
-        classes = inspect.getmembers(exp, inspect.isclass)
-        exps = [c for c in classes
-                if (c[1].__bases__[0].__name__ in "Experiment")]
-
-        if len(exps) == 0:
-            log("✗ experiment.py does not define an experiment class.",
-                delay=0, chevrons=False, verbose=verbose)
-            is_passing = False
-        elif len(exps) == 1:
-            log("✓ experiment.py defines 1 experiment",
-                delay=0, chevrons=False, verbose=verbose)
-        else:
-            log("✗ experiment.py defines more than one experiment class.",
-                delay=0, chevrons=False, verbose=verbose)
-        os.chdir(cwd)
-
-    # Make sure there's a help file.
-    is_txt_readme = os.path.exists("README.md")
-    is_md_readme = os.path.exists("README.txt")
-    if (not is_md_readme) and (not is_txt_readme):
-        is_passing = False
-        log("✗ README.txt or README.md is MISSING.",
-            delay=0, chevrons=False, verbose=verbose)
-    else:
-        log("✓ README is OK",
-            delay=0, chevrons=False, verbose=verbose)
-
-    # Check front-end files do not exist
-    files = [
-        os.path.join("templates", "complete.html"),
-        os.path.join("templates", "error.html"),
-        os.path.join("templates", "launch.html"),
-        os.path.join("templates", "thanks.html"),
-        os.path.join("static", "css", "dallinger.css"),
-        os.path.join("static", "scripts", "dallinger.js"),
-        os.path.join("static", "scripts", "reqwest.min.js"),
-        os.path.join("static", "robots.txt")
-    ]
-
-    for f in files:
-        if os.path.exists(f):
-            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, "
-                "please delete or rename.".format(f),
-                delay=0, chevrons=False, verbose=verbose)
-            return False
-
-    log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
-
-    return is_passing
+@dallinger.command()
+def rq_worker():
+    """Start an rq worker in the context of dallinger."""
+    setup_experiment()
+    with Connection(conn):
+        # right now we care about low queue for bots
+        worker = Worker('low')
+        worker.work()

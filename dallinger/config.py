@@ -45,6 +45,7 @@ default_keys = (
     ('heroku_auth_token', unicode, [], True),
     ('heroku_team', unicode, ['team']),
     ('host', unicode, []),
+    ('id', unicode, []),
     ('port', int, ['PORT']),
     ('lifetime', int, []),
     ('logfile', unicode, []),
@@ -54,10 +55,13 @@ default_keys = (
     ('num_dynos_web', int, []),
     ('num_dynos_worker', int, []),
     ('organization_name', unicode, []),
+    ('recruiter', unicode, []),
     ('threads', unicode, []),
     ('title', unicode, []),
     ('us_only', bool, []),
     ('whimsical', bool, []),
+    ('webdriver_type', unicode, []),
+    ('webdriver_url', unicode, []),
 )
 
 
@@ -100,7 +104,7 @@ class Configuration(object):
                 except ValueError:
                     pass
             if not isinstance(value, expected_type):
-                raise ValueError(
+                raise TypeError(
                     'Got {value} for {key}, expected {expected_type}'
                     .format(
                         value=repr(value),
@@ -135,13 +139,23 @@ class Configuration(object):
         except KeyError:
             raise AttributeError
 
+    def as_dict(self):
+        d = {}
+        for key in self.types:
+            if key not in self.sensitive:
+                try:
+                    d[key] = self.get(key)
+                except KeyError:
+                    pass
+        return d
+
     def register(self, key, type_, synonyms=None, sensitive=False):
         if synonyms is None:
             synonyms = set()
         if key in self.types:
             raise KeyError('Config key {} is already registered'.format(key))
         if type_ not in self.SUPPORTED_TYPES:
-            raise ValueError(
+            raise TypeError(
                 '{type} is not a supported type'.format(
                     type=type_
                 )
@@ -178,9 +192,6 @@ class Configuration(object):
         self.extend(os.environ, cast_types=True)
 
     def load(self):
-        if self.ready:
-            raise ValueError("Already loaded")
-
         # Apply extra parameters before loading the configs
         self.register_extra_parameters()
 

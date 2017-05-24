@@ -1,6 +1,7 @@
 """This is Dallinger, a platform for simulating evolution with people."""
 
 from . import (
+    bots,
     command_line,
     config,
     models,
@@ -22,6 +23,7 @@ logger.addHandler(NullHandler())
 
 
 __all__ = (
+    "bots",
     "command_line",
     "config",
     "models",

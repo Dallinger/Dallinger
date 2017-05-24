@@ -1,10 +1,17 @@
 import json
 import os
 import unittest
+from dallinger.config import get_config
+
+config = get_config()
+if not config.ready:
+    config.load()
 
 
 class FlaskAppTest(unittest.TestCase):
     """Base test case class for tests of the flask app."""
+
+    experiment_dir = 'tests/experiment'
 
     def setUp(self, case=None):
         # The flask app assumes it is imported
@@ -12,20 +19,26 @@ class FlaskAppTest(unittest.TestCase):
         # `tests/experiment` mimics the files that are put
         # in place by dallinger.command_line.setup_experiment
         # when running via the CLI
-        os.chdir('tests/experiment')
-
-        from dallinger.experiment_server.experiment_server import app
+        self.orig_dir = os.getcwd()
+        os.chdir(self.experiment_dir)
+        from dallinger.experiment_server import sockets
+        app = sockets.app
         app.config['DEBUG'] = True
         app.config['TESTING'] = True
         self.app = app.test_client()
 
         import dallinger.db
         self.db = dallinger.db.init_db(drop_all=True)
+        self.exp_config = config
 
     def tearDown(self):
         self.db.rollback()
         self.db.close()
-        os.chdir('../..')
+        os.chdir(self.orig_dir)
+
+        # Make sure the greenlet handling chat is stopped
+        from dallinger.experiment_server.sockets import chat_backend
+        chat_backend.stop()
 
 
 class TestExperimentServer(FlaskAppTest):
@@ -184,6 +197,24 @@ class TestExperimentServer(FlaskAppTest):
         assert worker_summary[0] == [u'approved', 1]
         assert worker_summary[1] == [u'submitted', 1]
 
+    def test_existing_experiment_property(self):
+        p_id = self._create_participant()
+        resp = self.app.get('/experiment/exists'.format(p_id))
+        data = json.loads(resp.data)
+        assert data.get('status') == 'success'
+        assert data.get('exists') is True
+
+    def test_nonexisting_experiment_property(self):
+        p_id = self._create_participant()
+        resp = self.app.get('/experiment/missing'.format(p_id))
+        assert resp.status_code == 404
+
     def test_not_found(self):
         resp = self.app.get('/BOGUS')
         assert resp.status_code == 404
+
+    def test_launch(self):
+        resp = self.app.post('/launch', {})
+        assert resp.status_code == 200
+        data = json.loads(resp.get_data())
+        assert 'recruitment_url' in data

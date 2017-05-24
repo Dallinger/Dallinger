@@ -1,10 +1,11 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
 from datetime import datetime
+import gevent
 from json import dumps
 from operator import attrgetter
 import re
-import traceback
+import sys
 import user_agents
 
 from flask import (
@@ -28,8 +29,7 @@ from sqlalchemy.sql.expression import true
 from dallinger import db
 from dallinger import experiment
 from dallinger import models
-from dallinger.heroku.worker import conn
-from dallinger.compat import unicode
+from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 
 from .utils import nocache
@@ -43,7 +43,8 @@ if not config.ready:
 session = db.session
 
 # Connect to the Redis queue for notifications.
-q = Queue(connection=conn)
+q = Queue(connection=redis)
+WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')
 
@@ -83,34 +84,35 @@ def static_favicon():
 """Define some canned response types."""
 
 
-def success_response(field=None, data=None, request_type=""):
+def success_response(**data):
     """Return a generic success response."""
     data_out = {}
     data_out["status"] = "success"
-    if field:
-        data_out[field] = data
-    print("{} request successful.".format(request_type))
+    data_out.update(data)
     js = dumps(data_out, default=date_handler)
     return Response(js, status=200, mimetype='application/json')
 
 
 def error_response(error_type="Internal server error",
-                   error_text=None,
+                   error_text='',
                    status=400,
-                   participant=None):
+                   participant=None,
+                   simple=False):
     """Return a generic server error response."""
-    traceback.print_exc()
-    print("Error: {}.".format(error_type))
+    last_exception = sys.exc_info()
+    if last_exception[0]:
+        db.logger.error(
+            "Failure for request: {!r}".format(dict(request.args)),
+            exc_info=last_exception)
 
-    page = error_page(
-        error_text=error_text,
-        error_type=error_type,
-        participant=participant)
+    data = {"status": "error"}
 
-    data = {
-        "status": "error",
-        "html": unicode(page)
-    }
+    if simple:
+        data["message"] = error_text
+    else:
+        data["html"] = error_page(error_text=error_text,
+                                  error_type=error_type,
+                                  participant=participant).get_data().decode('utf-8')
     return Response(dumps(data), status=status, mimetype='application/json')
 
 
@@ -206,6 +208,13 @@ def shutdown_session(_=None):
     db.logger.debug('Closing Dallinger DB session at flask request end')
 
 
+@app.context_processor
+def inject_experiment():
+    """Inject the experiment variable into the template context."""
+    exp = Experiment(session)
+    return dict(experiment=exp)
+
+
 """Define routes for managing an experiment and the participants."""
 
 
@@ -214,10 +223,41 @@ def launch():
     """Launch the experiment."""
     exp = Experiment(db.init_db(drop_all=False))
     exp.log("Launching experiment...", "-----")
-    url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
-    session.commit()
+    try:
+        url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+        session.commit()
+    except Exception:
+        return error_response(
+            error_text=u"Failed to open recruitment, check experiment server log "
+                       u"for details.",
+            status=500, simple=True
+        )
 
-    return success_response("recruitment_url", url_info, request_type="launch")
+    for task in exp.background_tasks:
+        try:
+            gevent.spawn(task)
+        except Exception:
+            return error_response(
+                error_text=u"Failed to spawn task on launch: {}, ".format(task) +
+                           u"check experiment server log for details",
+                status=500, simple=True
+            )
+
+    # If the experiment defines a channel, subscribe the experiment to the
+    # redis communication channel:
+    if exp.channel is not None:
+        try:
+            from dallinger.experiment_server.sockets import chat_backend
+            chat_backend.subscribe(exp, exp.channel)
+        except:
+            return error_response(
+                error_text=u"Failed to subscribe to chat for channel on launch " +
+                           u"{}".format(exp.channel) +
+                           u", check experiment server log for details",
+                status=500, simple=True
+            )
+
+    return success_response(recruitment_url=url_info)
 
 
 @app.route('/ad', methods=['GET'])
@@ -279,7 +319,10 @@ def advertisement():
         status = part.status
     except exc.SQLAlchemyError:
         status = None
-
+    try:
+        app_id = config.get('id')
+    except KeyError:
+        app_id = 'unknown'
     debug_mode = config.get('mode') == 'debug'
     if ((status == 'working' and part.end_time is not None) or
             (debug_mode and status in ('submitted', 'approved'))):
@@ -293,12 +336,12 @@ def advertisement():
             external_submit_url = "https://www.mturk.com/mturk/externalSubmit"
         return render_template(
             'thanks.html',
-            is_sandbox=is_sandbox,
             hitid=hit_id,
             assignmentid=assignment_id,
             workerid=worker_id,
-            mode=config.get('mode'),
             external_submit_url=external_submit_url,
+            mode=config.get('mode'),
+            app_id=app_id
         )
     if status == 'working':
         # Once participants have finished the instructions, we do not allow
@@ -316,7 +359,9 @@ def advertisement():
             ad_string,
             hitid=hit_id,
             assignmentid=assignment_id,
-            workerid=worker_id
+            workerid=worker_id,
+            mode=config.get('mode'),
+            app_id=app_id
         )
     else:
         raise ExperimentError('status_incorrectly_set')
@@ -345,7 +390,7 @@ def summary():
     else:
         for net in unfilled_nets:
             node_count = models.Node.query.filter_by(
-                network_id=net.id
+                network_id=net.id, failed=False,
             ).with_entities(func.count(models.Node.id)).scalar()
             net_size = net.max_size
             required_nodes += net_size
@@ -365,8 +410,11 @@ def summary():
 def experiment_property(prop):
     """Get a property of the experiment by name."""
     exp = Experiment(session)
-    p = getattr(exp, prop)
-    return success_response(field=prop, data=p, request_type=prop)
+    try:
+        value = exp.public_properties[prop]
+    except KeyError:
+        abort(404)
+    return success_response(**{prop: value})
 
 
 @app.route("/<page>", methods=["GET"])
@@ -481,6 +529,7 @@ def assign_properties(thing):
 
 @app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
            methods=["POST"])
+@db.serialized
 def create_participant(worker_id, hit_id, assignment_id, mode):
     """Create a participant.
 
@@ -511,6 +560,10 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         app.logger.warning(msg.format(duplicate.id))
         q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
 
+    # Count participants waiting for quorum
+    waiting_count = models.Participant.query.filter_by(
+        status='working', all_nodes=None).count() + 1
+
     # Create the new participant.
     participant = models.Participant(
         worker_id=worker_id,
@@ -519,14 +572,23 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         mode=mode
     )
     session.add(participant)
-    session.commit()
+    session.flush()  # Make sure we know the id for the new row
+    result = {
+        'participant': participant.__json__()
+    }
+
+    # Queue notification to others in waiting room
+    experiment = Experiment(session)
+    if experiment.quorum:
+        quorum = {
+            'q': experiment.quorum,
+            'n': waiting_count,
+        }
+        db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
+        result['quorum'] = quorum
 
     # return the data
-    return success_response(
-        field="participant",
-        data=participant.__json__(),
-        request_type="participant post"
-    )
+    return success_response(**result)
 
 
 @app.route("/participant/<participant_id>", methods=["GET"])
@@ -540,9 +602,7 @@ def get_participant(participant_id):
             status=403)
 
     # return the data
-    return success_response(field="participant",
-                            data=ppt.__json__(),
-                            request_type="participant get")
+    return success_response(participant=ppt.__json__())
 
 
 @app.route("/network/<network_id>", methods=["GET"])
@@ -556,9 +616,7 @@ def get_network(network_id):
             status=403)
 
     # return the data
-    return success_response(field="network",
-                            data=net.__json__(),
-                            request_type="network get")
+    return success_response(network=net.__json__())
 
 
 @app.route("/question/<participant_id>", methods=["POST"])
@@ -600,7 +658,7 @@ def create_question(participant_id):
                               status=403)
 
     # return the data
-    return success_response(request_type="question post")
+    return success_response()
 
 
 @app.route("/node/<int:node_id>/neighbors", methods=["GET"])
@@ -653,12 +711,11 @@ def node_neighbors(node_id):
     except Exception:
         return error_response(error_type="exp.node_get_request")
 
-    return success_response(field="nodes",
-                            data=[n.__json__() for n in nodes],
-                            request_type="neighbors")
+    return success_response(nodes=[n.__json__() for n in nodes])
 
 
 @app.route("/node/<participant_id>", methods=["POST"])
+@db.serialized
 def create_node(participant_id):
     """Send a POST request to the node table.
 
@@ -684,37 +741,27 @@ def create_node(participant_id):
         return error_response(error_type=error_type,
                               participant=participant)
 
-    try:
-        # execute the request
-        network = exp.get_network_for_participant(participant=participant)
+    # execute the request
+    network = exp.get_network_for_participant(participant=participant)
 
-        if network is None:
-            return Response(dumps({"status": "error"}), status=403)
+    if network is None:
+        return Response(dumps({"status": "error"}), status=403)
 
-        node = exp.create_node(
-            participant=participant,
-            network=network)
+    node = exp.create_node(
+        participant=participant,
+        network=network)
 
-        assign_properties(node)
+    assign_properties(node)
 
-        exp.add_node_to_network(
-            node=node,
-            network=network)
+    exp.add_node_to_network(
+        node=node,
+        network=network)
 
-        session.commit()
-
-        # ping the experiment
-        exp.node_post_request(participant=participant, node=node)
-        session.commit()
-    except Exception:
-        return error_response(error_type="/node POST server error",
-                              status=403,
-                              participant=participant)
+    # ping the experiment
+    exp.node_post_request(participant=participant, node=node)
 
     # return the data
-    return success_response(field="node",
-                            data=node.__json__(),
-                            request_type="/node POST")
+    return success_response(node=node.__json__())
 
 
 @app.route("/node/<int:node_id>/vectors", methods=["GET"])
@@ -749,9 +796,7 @@ def node_vectors(node_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="vectors",
-                            data=[v.__json__() for v in vectors],
-                            request_type="vector get")
+    return success_response(vectors=[v.__json__() for v in vectors])
 
 
 @app.route("/node/<int:node_id>/connect/<int:other_node_id>",
@@ -797,9 +842,7 @@ def connect(node_id, other_node_id):
                               status=403,
                               participant=node.participant)
 
-    return success_response(field="vectors",
-                            data=[v.__json__() for v in vectors],
-                            request_type="vector post")
+    return success_response(vectors=[v.__json__() for v in vectors])
 
 
 @app.route("/info/<int:node_id>/<int:info_id>", methods=["GET"])
@@ -838,9 +881,7 @@ def get_info(node_id, info_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="info",
-                            data=info.__json__(),
-                            request_type="info get")
+    return success_response(info=info.__json__())
 
 
 @app.route("/node/<int:node_id>/infos", methods=["GET"])
@@ -879,9 +920,7 @@ def node_infos(node_id):
                               status=403,
                               participant=node.participant)
 
-    return success_response(field="infos",
-                            data=[i.__json__() for i in infos],
-                            request_type="infos")
+    return success_response(infos=[i.__json__() for i in infos])
 
 
 @app.route("/node/<int:node_id>/received_infos", methods=["GET"])
@@ -920,9 +959,7 @@ def node_received_infos(node_id):
                               status=403,
                               participant=node.participant)
 
-    return success_response(field="infos",
-                            data=[i.__json__() for i in infos],
-                            request_type="received infos")
+    return success_response(infos=[i.__json__() for i in infos])
 
 
 @app.route("/info/<int:node_id>", methods=["POST"])
@@ -969,9 +1006,7 @@ def info_post(node_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="info",
-                            data=info.__json__(),
-                            request_type="info post")
+    return success_response(info=info.__json__())
 
 
 @app.route("/node/<int:node_id>/transmissions", methods=["GET"])
@@ -1014,9 +1049,7 @@ def node_transmissions(node_id):
             participant=node.participant)
 
     # return the data
-    return success_response(field="transmissions",
-                            data=[t.__json__() for t in transmissions],
-                            request_type="transmissions")
+    return success_response(transmissions=[t.__json__() for t in transmissions])
 
 
 @app.route("/node/<int:node_id>/transmit", methods=["POST"])
@@ -1111,9 +1144,7 @@ def node_transmit(node_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="transmissions",
-                            data=[t.__json__() for t in transmissions],
-                            request_type="transmit")
+    return success_response(transmissions=[t.__json__() for t in transmissions])
 
 
 @app.route("/node/<int:node_id>/transformations", methods=["GET"])
@@ -1152,9 +1183,7 @@ def transformation_get(node_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="transformations",
-                            data=[t.__json__() for t in transformations],
-                            request_type="transformations")
+    return success_response(transformations=[t.__json__() for t in transformations])
 
 
 @app.route(
@@ -1209,9 +1238,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
                               participant=node.participant)
 
     # return the data
-    return success_response(field="transformation",
-                            data=transformation.__json__(),
-                            request_type="transformation post")
+    return success_response(transformation=transformation.__json__())
 
 
 @app.route("/notifications", methods=["POST", "GET"])
@@ -1227,7 +1254,7 @@ def api_notifications():
     db.logger.debug('rq: Submitted Queue Length: %d (%s)', len(q),
                     ', '.join(q.job_ids))
 
-    return success_response(request_type="notification")
+    return success_response()
 
 
 def _debug_notify(assignment_id, participant_id=None,
@@ -1252,6 +1279,43 @@ def check_for_duplicate_assignments(participant):
 @db.scoped_session_decorator
 def worker_complete():
     """Complete worker."""
+    if not request.args.get('uniqueId'):
+        status = "bad request"
+    else:
+        participants = models.Participant.query.filter_by(
+            unique_id=request.args['uniqueId'],
+        ).all()
+        if not len(participants):
+            return error_response(error_type='UniqueId not found: {}'.format(
+                request.args['uniqueId']
+            ))
+        participant = participants[0]
+        participant.end_time = datetime.now()
+        session.add(participant)
+        session.commit()
+        status = "success"
+    if config.get('recruiter', 'mturk') == u'bots':
+        # Trigger notification directly
+        # Bot submissions skip all attention and bonus checks
+        _debug_notify(
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+            event_type='BotAssignmentSubmitted',
+        )
+    elif config.get('mode') == "debug":
+        # Trigger notification directly in debug mode,
+        # because there won't be one from MTurk
+        _debug_notify(
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+        )
+    return success_response(status=status)
+
+
+@app.route('/worker_failed', methods=['GET'])
+@db.scoped_session_decorator
+def worker_failed():
+    """Fail worker. Used by bots only for now."""
     if 'uniqueId' not in request.args:
         status = "bad request"
     else:
@@ -1262,16 +1326,15 @@ def worker_complete():
         session.add(participant)
         session.commit()
         status = "success"
-    if config.get('mode') == "debug":
-        # Trigger notification directly in debug mode,
-        # because there won't be one from MTurk
+    if config.get('recruiter', 'mturk') == 'bots':
         _debug_notify(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
+            event_type='BotAssignmentRejected',
         )
     return success_response(field="status",
                             data=status,
-                            request_type="worker complete")
+                            request_type="worker failed")
 
 
 @db.scoped_session_decorator
@@ -1390,6 +1453,26 @@ def worker_function(event_type, assignment_id, participant_id):
                     exp.submission_successful(participant=participant)
                     session.commit()
                     exp.recruit()
+
+    elif event_type == 'BotAssignmentSubmitted':
+        exp.log("Received bot submission.", key)
+        participant.end_time = datetime.now()
+
+        # No checks for bot submission
+        exp.recruiter().approve_hit(assignment_id)
+        participant.status = "approved"
+        exp.submission_successful(participant=participant)
+        session.commit()
+        exp.recruit()
+
+    elif event_type == 'BotAssignmentRejected':
+        exp.log("Received rejected bot submission.", key)
+        participant.end_time = datetime.now()
+        participant.status = "rejected"
+        session.commit()
+
+        # We go back to recruiting immediately
+        exp.recruit()
 
     elif event_type == "NotificationMissing":
         if participant.status == "working":

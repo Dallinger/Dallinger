@@ -23,8 +23,9 @@ bug = github.pr_labels.include?("bug")
 release = github.pr_labels.include?("release")
 demo = github.pr_labels.include?("demo")
 docs = github.pr_labels.include?("docs")
+feature = github.pr_labels.include?("feature")
 
-has_label = enhancement || bug || release || demo || docs
+has_label = enhancement || bug || release || demo || docs || feature
 
 if !has_label
     warn("Please apply a label.")
