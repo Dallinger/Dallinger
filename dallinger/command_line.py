@@ -181,10 +181,8 @@ def verify_package(verbose=True):
 
     for f in files:
         if os.path.exists(f):
-            log("✗ {} will CONFLICT with shared front-end files inserted at run-time, "
-                "please delete or rename.".format(f),
+            log("✗ {} OVERWRITES shared frontend files inserted at run-time".format(f),
                 delay=0, chevrons=False, verbose=verbose)
-            return False
 
     log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
 
@@ -221,13 +219,6 @@ def setup():
 def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
     log(header, chevrons=False)
-
-    # Verify that the package is usable.
-    log("Verifying that directory is compatible with Dallinger...")
-    if not verify_package(verbose=verbose):
-        raise AssertionError(
-            "This is not a valid Dallinger app. " +
-            "Fix the errors and then try running 'dallinger verify'.")
 
     # Verify that the Postgres server is running.
     try:
@@ -344,7 +335,9 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
     for filename in frontend_files:
         src = os.path.join(src_base, "frontend", filename)
-        shutil.copy(src, os.path.join(dst, filename))
+        dst_filepath = os.path.join(dst, filename)
+        if not os.path.exists(dst_filepath):
+            shutil.copy(src, dst_filepath)
 
     time.sleep(0.25)
 
