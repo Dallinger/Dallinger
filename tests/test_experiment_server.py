@@ -239,6 +239,8 @@ class TestWorkerEvents(object):
 
 class TestAssignmentSubmitted(object):
 
+    end_time = datetime(2000, 01, 01)
+
     @pytest.fixture
     def experiment(self):
         from dallinger.recruiters import MTurkRecruiter
@@ -257,7 +259,7 @@ class TestAssignmentSubmitted(object):
         from dallinger.experiment_server.worker_events import AssignmentSubmitted
         participant = mock.Mock(status="working")
         assignment_id = '1'
-        now = datetime.now()
+        now = self.end_time
         session = mock.Mock()
         config = {'base_payment': 1.00}
         runner = AssignmentSubmitted(participant, assignment_id, experiment, session, config, now)
@@ -278,6 +280,11 @@ class TestAssignmentSubmitted(object):
         runner.experiment.recruiter().reward_bonus.assert_not_called()
         assert "NOT paying bonus" in str(runner.experiment.log.call_args_list)
 
+    def test_sets_participant_bonus_regardless(self, runner):
+        runner.experiment.bonus.return_value = .005
+        runner()
+        assert runner.participant.bonus == .005
+
     def test_participant_base_pay_set(self, runner):
         runner()
         assert runner.participant.base_pay == 1.0
@@ -285,6 +292,10 @@ class TestAssignmentSubmitted(object):
     def test_participant_status_set(self, runner):
         runner()
         assert runner.participant.status == 'approved'
+
+    def test_participant_end_time_set(self, runner):
+        runner()
+        assert runner.participant.end_time == self.end_time
 
     def test_submission_successful_called_on_experiment(self, runner):
         runner()

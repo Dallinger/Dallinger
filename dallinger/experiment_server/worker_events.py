@@ -28,6 +28,13 @@ class WorkerEvent(object):
         self.config = config
         self.now = now
 
+    @property
+    def recruiter(self):
+        return self.experiment.recruiter()
+
+    def commit(self):
+        self.session.commit()
+
 
 class AssignmentAccepted(WorkerEvent):
 
@@ -55,58 +62,63 @@ class AssignmentReturned(WorkerEvent):
 
 class AssignmentSubmitted(WorkerEvent):
 
+    min_real_bonus = 0.01
+
     def __call__(self):
         if self.participant.status not in ["working", "returned", "abandoned"]:
             return
 
         self.participant.end_time = self.now
         self.participant.status = "submitted"
-        self.session.commit()
+        self.commit()
 
         # Approve the assignment.
-        self.experiment.recruiter().approve_hit(self.assignment_id)
+        self.recruiter.approve_hit(self.assignment_id)
         self.participant.base_pay = self.config.get('base_payment')
 
-        # Check that the participant's data is okay.
-        worked = self.experiment.data_check(participant=self.participant)
-
-        # If it isn't, fail their nodes and recruit a replacement.
-        if not worked:
+        if not self.data_is_ok():
+            # If it isn't, fail their nodes, recruit a replacement, and go home.
             self.participant.status = "bad_data"
             self.experiment.data_check_failed(participant=self.participant)
-            self.session.commit()
-            self.experiment.recruiter().recruit_participants(n=1)
+            self.commit()
+            self.recruiter.recruit_participants(n=1)
+
+            return
+
+        # If their data is ok, pay them a bonus.
+        # Note that the bonus is paid before the attention check.
+        bonus = self.experiment.bonus(participant=self.participant)
+        self.participant.bonus = bonus
+        if bonus >= self.min_real_bonus:
+            self.experiment.log("Bonus = {}: paying bonus".format(bonus), self.key)
+            self.recruiter.reward_bonus(
+                self.assignment_id,
+                bonus,
+                self.experiment.bonus_reason())
         else:
-            # If their data is ok, pay them a bonus.
-            # Note that the bonus is paid before the attention check.
-            bonus = self.experiment.bonus(participant=self.participant)
-            self.participant.bonus = bonus
-            if bonus >= 0.01:
-                self.experiment.log("Bonus = {}: paying bonus".format(bonus), self.key)
-                self.experiment.recruiter().reward_bonus(
-                    self.assignment_id,
-                    bonus,
-                    self.experiment.bonus_reason())
-            else:
-                self.experiment.log("Bonus = {}: NOT paying bonus".format(bonus), self.key)
+            self.experiment.log("Bonus = {}: NOT paying bonus".format(bonus), self.key)
 
-            # Perform an attention check.
-            attended = self.experiment.attention_check(participant=self.participant)
-
+        if self.did_attend():
+            # All good. Possibly recruit more participants.
+            self.experiment.log("All checks passed.", self.key)
+            self.participant.status = "approved"
+            self.experiment.submission_successful(participant=self.participant)
+            self.commit()
+            self.experiment.recruit()
+        else:
             # If they fail the attention check, fail nodes and replace.
-            if not attended:
-                self.experiment.log("Attention check failed.", self.key)
-                self.participant.status = "did_not_attend"
-                self.experiment.attention_check_failed(participant=self.participant)
-                self.session.commit()
-                self.experiment.recruiter().recruit_participants(n=1)
-            else:
-                # All good. Possibly recruit more participants.
-                self.experiment.log("All checks passed.", self.key)
-                self.participant.status = "approved"
-                self.experiment.submission_successful(participant=self.participant)
-                self.session.commit()
-                self.experiment.recruit()
+            self.experiment.log("Attention check failed.", self.key)
+            self.participant.status = "did_not_attend"
+            self.experiment.attention_check_failed(participant=self.participant)
+            self.commit()
+            self.recruiter.recruit_participants(n=1)
+
+    def data_is_ok(self):
+        """Run a check on our participant's data"""
+        return self.experiment.data_check(participant=self.participant)
+
+    def did_attend(self):
+        return self.experiment.attention_check(participant=self.participant)
 
 
 class BotAssignmentSubmitted(WorkerEvent):
