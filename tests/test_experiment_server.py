@@ -295,3 +295,44 @@ class TestAssignmentSubmitted(object):
     def test_recruit_called_on_experiment(self, runner):
         runner()
         runner.experiment.recruit.assert_called_once()
+
+    def test_does_nothing_if_already_approved_worker(self, runner):
+        runner.participant.status = 'approved'
+        runner()
+        runner.session.assert_not_called()
+
+    def test_sets_participant_status_on_failed_data_check(self, runner):
+        runner.experiment.data_check.return_value = False
+        runner()
+        assert runner.participant.status == 'bad_data'
+
+    def test_calls_data_check_failed_on_failed_data_check(self, runner):
+        runner.experiment.data_check.return_value = False
+        runner()
+        runner.experiment.data_check_failed.assert_called_once_with(
+            participant=runner.participant
+        )
+
+    def test_recruits_another_on_failed_data_check(self, runner):
+        runner.experiment.data_check.return_value = False
+        runner()
+        runner.experiment.recruiter().recruit_participants.assert_called_once_with(
+            n=1
+        )
+
+    def test_no_bonus_inquiry_on_failed_data_check(self, runner):
+        runner.experiment.data_check.return_value = False
+        runner()
+        runner.experiment.bonus.assert_not_called()
+
+    def test_sets_participant_status_on_failed_attention_check(self, runner):
+        runner.experiment.attention_check.return_value = False
+        runner()
+        assert runner.participant.status == 'did_not_attend'
+
+    def test_calls_attention_check_failed_on_failed_attention_check(self, runner):
+        runner.experiment.attention_check.return_value = False
+        runner()
+        runner.experiment.attention_check_failed.assert_called_once_with(
+            participant=runner.participant
+        )
