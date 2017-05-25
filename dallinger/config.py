@@ -6,6 +6,7 @@ import distutils.util
 import imp
 import logging
 import os
+import sys
 import threading
 
 from .compat import unicode
@@ -219,6 +220,9 @@ class Configuration(object):
 
     def register_extra_parameters(self):
         extra_parameters = None
+        cwd = os.getcwd()
+        sys.path.append(cwd)
+        path_index = len(sys.path) - 1
         try:
             from dallinger_experiment import extra_parameters
         except ImportError:
@@ -237,6 +241,8 @@ class Configuration(object):
         if extra_parameters is not None and getattr(extra_parameters, 'loaded', None) is None:
             extra_parameters()
             extra_parameters.loaded = True
+        # Remove path element we added
+        sys.path.pop(path_index)
 
 
 configurations = threading.local()
