@@ -229,14 +229,14 @@ class Configuration(object):
             try:
                 exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
                 extra_parameters = getattr(exp, 'extra_parameters', None)
-            except (ImportError, IOError):
+            except IOError:
                 pass
             if extra_parameters is None:
                 try:
                     # We may be in the original source directory, try experiment.py
                     exp = imp.load_source('dallinger_experiment', "experiment.py")
                     extra_parameters = getattr(exp, 'extra_parameters', None)
-                except (ImportError, IOError):
+                except IOError:
                     pass
         if extra_parameters is not None and getattr(extra_parameters, 'loaded', None) is None:
             extra_parameters()
