@@ -23,6 +23,10 @@ class TestRecruiters(object):
         with pytest.raises(NotImplementedError):
             recruiter.close_recruitment()
 
+    def test_reward_bonus(self, recruiter):
+        with pytest.raises(NotImplementedError):
+            recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
+
 
 class TestHotAirRecruiter(object):
 
@@ -49,13 +53,16 @@ class TestHotAirRecruiter(object):
     def test_approve_hit(self, recruiter):
         assert recruiter.approve_hit('any assignment id')
 
+    def test_reward_bonus(self, recruiter):
+        recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
+
 
 class TestBotRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import BotRecruiter
-        return BotRecruiter()
+        return BotRecruiter(config={})
 
     @pytest.mark.xfail
     def test_open_recruitment(self, recruiter):
@@ -65,9 +72,11 @@ class TestBotRecruiter(object):
     def test_recruit_participants(self, recruiter):
         recruiter.recruit_participants()
 
-    @pytest.mark.xfail
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
+
+    def test_reward_bonus(self, recruiter):
+        recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
 
 def stub_config(**kwargs):

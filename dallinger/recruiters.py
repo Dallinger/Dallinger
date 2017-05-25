@@ -35,6 +35,10 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
+    def reward_bonus(self, assignment_id, amount, reason):
+        """Throw an error."""
+        raise NotImplementedError
+
 
 class HotAirRecruiter(object):
     """A dummy recruiter.
@@ -66,6 +70,13 @@ class HotAirRecruiter(object):
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
         return True
+
+    def reward_bonus(self, assignment_id, amount, reason):
+        """Logging-only, Hot Air implementation"""
+        logger.info(
+            "Were this a real Recruiter, we'd be awarding ${} for assignment {}, "
+            'with reason "{}"'.format(amount, assignment_id, reason)
+        )
 
 
 class MTurkRecruiterException(Exception):
@@ -216,3 +227,9 @@ class BotRecruiter(object):
         This does nothing at this time.
         """
         logger.info("Close recruitment.")
+
+    def reward_bonus(self, assignment_id, amount, reason):
+        """Logging only. These are bots."""
+        logger.info(
+            "Bots don't get bonuses. Sorry, bots."
+        )
