@@ -1,6 +1,8 @@
 import json
+import mock
 import os
 import unittest
+from datetime import datetime
 from dallinger.config import get_config
 
 config = get_config()
@@ -218,3 +220,43 @@ class TestExperimentServer(FlaskAppTest):
         assert resp.status_code == 200
         data = json.loads(resp.get_data())
         assert 'recruitment_url' in data
+
+
+class TestWorkerEvents(object):
+
+    def test_dispatch(self):
+        from dallinger.experiment_server.worker_events import WorkerEvent
+        from dallinger.experiment_server.worker_events import AssignmentSubmitted
+        cls = WorkerEvent.for_name('AssignmentSubmitted')
+
+        assert cls is AssignmentSubmitted
+
+    def test_dispatch_with_unsupported_event_type(self):
+        from dallinger.experiment_server.worker_events import WorkerEvent
+        assert WorkerEvent.for_name('nonsense') is None
+
+
+class TestAssignmentSubmitted(object):
+
+    def test_calls_reward_bonus_if_experiment_returns_bonus_more_than_one_cent(self):
+        from dallinger.experiment_server.worker_events import AssignmentSubmitted
+        participant = mock.Mock(status="working")
+        assignment_id = '1'
+        now = datetime.now()
+        recruiter = mock.Mock()
+        experiment = mock.Mock()
+        session = mock.Mock()
+        config = {'base_payment': 1.00}
+        experiment.data_check = mock.Mock(return_value=True)
+        experiment.bonus = mock.Mock(return_value=.02)
+        experiment.bonus_reason = mock.Mock(return_value="You rock.")
+        experiment.recruiter = mock.Mock(return_value=recruiter)
+        runner = AssignmentSubmitted(participant, assignment_id, experiment, session, config, now)
+
+        runner()
+
+        recruiter.reward_bonus.asssert_called_once_with(
+            assignment_id,
+            .02,
+            "You rock."
+        )
