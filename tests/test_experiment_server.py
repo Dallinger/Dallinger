@@ -1,6 +1,7 @@
 import json
 import mock
 import os
+import pytest
 import unittest
 from datetime import datetime
 from dallinger.config import get_config
@@ -238,25 +239,59 @@ class TestWorkerEvents(object):
 
 class TestAssignmentSubmitted(object):
 
-    def test_calls_reward_bonus_if_experiment_returns_bonus_more_than_one_cent(self):
+    @pytest.fixture
+    def experiment(self):
+        from dallinger.recruiters import MTurkRecruiter
+        from dallinger.experiment import Experiment
+        experiment = mock.Mock(spec=Experiment)
+        experiment.attention_check = mock.Mock(return_value=True)
+        experiment.data_check = mock.Mock(return_value=True)
+        experiment.bonus = mock.Mock(return_value=0.0)
+        experiment.bonus_reason = mock.Mock(return_value="You rock.")
+        experiment.recruiter = mock.Mock(return_value=mock.Mock(spec=MTurkRecruiter))
+
+        return experiment
+
+    @pytest.fixture
+    def runner(self, experiment):
         from dallinger.experiment_server.worker_events import AssignmentSubmitted
         participant = mock.Mock(status="working")
         assignment_id = '1'
         now = datetime.now()
-        recruiter = mock.Mock()
-        experiment = mock.Mock()
         session = mock.Mock()
         config = {'base_payment': 1.00}
-        experiment.data_check = mock.Mock(return_value=True)
-        experiment.bonus = mock.Mock(return_value=.02)
-        experiment.bonus_reason = mock.Mock(return_value="You rock.")
-        experiment.recruiter = mock.Mock(return_value=recruiter)
         runner = AssignmentSubmitted(participant, assignment_id, experiment, session, config, now)
 
-        runner()
+        return runner
 
-        recruiter.reward_bonus.asssert_called_once_with(
-            assignment_id,
+    def test_calls_reward_bonus_if_experiment_returns_bonus_more_than_one_cent(self, runner):
+        runner.experiment.bonus.return_value = .02
+        runner()
+        runner.experiment.recruiter().reward_bonus.assert_called_once_with(
+            '1',
             .02,
             "You rock."
         )
+
+    def test_no_reward_bonus_if_experiment_returns_bonus_less_than_one_cent(self, runner):
+        runner()
+        runner.experiment.recruiter().reward_bonus.assert_not_called()
+        assert "NOT paying bonus" in str(runner.experiment.log.call_args_list)
+
+    def test_participant_base_pay_set(self, runner):
+        runner()
+        assert runner.participant.base_pay == 1.0
+
+    def test_participant_status_set(self, runner):
+        runner()
+        assert runner.participant.status == 'approved'
+
+    def test_submission_successful_called_on_experiment(self, runner):
+        runner()
+        runner.experiment.submission_successful.assert_called_once_with(
+            participant=runner.participant
+        )
+
+    def test_recruit_called_on_experiment(self, runner):
+        runner()
+        runner.experiment.recruit.assert_called_once()
