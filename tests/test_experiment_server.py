@@ -258,7 +258,7 @@ class TestAssignmentSubmitted(object):
     def runner(self, experiment):
         from dallinger.experiment_server.worker_events import AssignmentSubmitted
         participant = mock.Mock(status="working")
-        assignment_id = '1'
+        assignment_id = 'some assignment id'
         now = self.end_time
         session = mock.Mock()
         config = {'base_payment': 1.00}
@@ -270,7 +270,7 @@ class TestAssignmentSubmitted(object):
         runner.experiment.bonus.return_value = .02
         runner()
         runner.experiment.recruiter().reward_bonus.assert_called_once_with(
-            '1',
+            'some assignment id',
             .02,
             "You rock."
         )
@@ -284,6 +284,12 @@ class TestAssignmentSubmitted(object):
         runner.experiment.bonus.return_value = .005
         runner()
         assert runner.participant.bonus == .005
+
+    def test_approve_hit_called_on_recruiter(self, runner):
+        runner()
+        runner.experiment.recruiter().approve_hit.assert_called_once_with(
+            'some assignment id'
+        )
 
     def test_participant_base_pay_set(self, runner):
         runner()
@@ -347,3 +353,54 @@ class TestAssignmentSubmitted(object):
         runner.experiment.attention_check_failed.assert_called_once_with(
             participant=runner.participant
         )
+
+
+class TestBotAssignmentSubmitted(object):
+
+    end_time = datetime(2000, 01, 01)
+
+    @pytest.fixture
+    def experiment(self):
+        from dallinger.recruiters import BotRecruiter
+        from dallinger.experiment import Experiment
+        experiment = mock.Mock(spec=Experiment)
+        experiment.recruiter = mock.Mock(return_value=mock.Mock(spec=BotRecruiter))
+
+        return experiment
+
+    @pytest.fixture
+    def runner(self, experiment):
+        from dallinger.experiment_server.worker_events import BotAssignmentSubmitted
+        participant = mock.Mock(status="working")
+        assignment_id = 'some assignment id'
+        now = self.end_time
+        session = mock.Mock()
+        config = {}
+        runner = BotAssignmentSubmitted(
+            participant, assignment_id, experiment, session, config, now)
+
+        return runner
+
+    def test_participant_status_set(self, runner):
+        runner()
+        assert runner.participant.status == 'approved'
+
+    def test_participant_end_time_set(self, runner):
+        runner()
+        assert runner.participant.end_time == self.end_time
+
+    def test_submission_successful_called_on_experiment(self, runner):
+        runner()
+        runner.experiment.submission_successful.assert_called_once_with(
+            participant=runner.participant
+        )
+
+    def test_approve_hit_called_on_recruiter(self, runner):
+        runner()
+        runner.experiment.recruiter().approve_hit.assert_called_once_with(
+            'some assignment id'
+        )
+
+    def test_recruit_called_on_experiment(self, runner):
+        runner()
+        runner.experiment.recruit.assert_called_once()

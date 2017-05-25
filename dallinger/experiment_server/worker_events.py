@@ -128,7 +128,7 @@ class BotAssignmentSubmitted(WorkerEvent):
         self.participant.end_time = self.now
 
         # No checks for bot submission
-        self.experiment.recruiter().approve_hit(self.assignment_id)
+        self.recruiter.approve_hit(self.assignment_id)
         self.participant.status = "approved"
         self.experiment.submission_successful(participant=self.participant)
         self.session.commit()
