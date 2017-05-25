@@ -8,7 +8,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from zipfile import ZipFile
+from zipfile import ZipFile, ZIP_DEFLATED
 
 import boto
 from boto.s3.key import Key
@@ -200,16 +200,11 @@ def export(id, local=False, scrub_pii=False):
     with open(os.path.join("data", id, "experiment_id.md"), "a+") as file:
         file.write(id)
 
-    print("Zipping up the package...")
-    shutil.make_archive(
-        os.path.join("data", id + "-data"),
-        "zip",
-        os.path.join("data", id)
-    )
-
-    shutil.rmtree(os.path.join("data", id))
-
-    print("Done. Data available in {}-data.zip".format(id))
+    # Zip data
+    src = os.path.join("data", id)
+    dst = os.path.join("data", id + "-data.zip")
+    archive_data(id, src, dst)
+    shutil.rmtree(src)
 
     cwd = os.getcwd()
     data_filename = '{}-data.zip'.format(id)
@@ -221,6 +216,17 @@ def export(id, local=False, scrub_pii=False):
     k.set_contents_from_filename(path_to_data)
 
     return path_to_data
+
+
+def archive_data(id, src, dst):
+    print("Zipping up the package...")
+    if not os.path.isdir(src):
+        IOError("File not found.")
+    with ZipFile(dst, 'w', ZIP_DEFLATED, allowZip64=True) as zf:
+        for root, dirs, files in os.walk(src):
+            for file in files:
+                zf.write(os.path.join(root, file))
+    print("Done. Data available in {}-data.zip".format(id))
 
 
 def user_s3_bucket(canonical_user_id=None):
