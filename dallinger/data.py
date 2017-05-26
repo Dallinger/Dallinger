@@ -204,7 +204,6 @@ def export(id, local=False, scrub_pii=False):
     src = os.path.join("data", id)
     dst = os.path.join("data", id + "-data.zip")
     archive_data(id, src, dst)
-    shutil.rmtree(src)
 
     cwd = os.getcwd()
     data_filename = '{}-data.zip'.format(id)
@@ -220,12 +219,11 @@ def export(id, local=False, scrub_pii=False):
 
 def archive_data(id, src, dst):
     print("Zipping up the package...")
-    if not os.path.isdir(src):
-        IOError("File not found.")
     with ZipFile(dst, 'w', ZIP_DEFLATED, allowZip64=True) as zf:
         for root, dirs, files in os.walk(src):
             for file in files:
                 zf.write(os.path.join(root, file))
+    shutil.rmtree(src)
     print("Done. Data available in {}-data.zip".format(id))
 
 
