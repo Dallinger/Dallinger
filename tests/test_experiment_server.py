@@ -291,7 +291,7 @@ class TestWorkerEvents(object):
         assert WorkerEvent.for_name('nonsense') is None
 
 
-end_time = datetime(2000, 01, 01)
+end_time = datetime(2000, 1, 1)
 
 
 @pytest.fixture
