@@ -11,7 +11,7 @@ psycopg2==2.7.1
 redis==2.10.5
 requests==2.14.2
 rq==0.7.1
-SQLAlchemy==1.1.9
+SQLAlchemy==1.1.10
 tablib==0.11.4
 ua-parser==0.7.3
 user-agents==1.1.0
