@@ -1391,7 +1391,7 @@ def worker_function(event_type, assignment_id, participant_id):
 
     runner_cls = WorkerEvent.for_name(event_type)
     if runner_cls:
-        runner = runner_cls(event_type)(
+        runner = runner_cls(
             participant, assignment_id, exp, session, config, datetime.now()
         )
         runner()
