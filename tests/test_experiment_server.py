@@ -223,6 +223,59 @@ class TestExperimentServer(FlaskAppTest):
         assert 'recruitment_url' in data
 
 
+@pytest.mark.usefixtures('experiment_dir')
+class TestWorkerFunctionIntegration(object):
+
+    dispatcher = 'dallinger.experiment_server.experiment_server.WorkerEvent'
+
+    @pytest.fixture
+    def worker_func(self):
+        from dallinger.config import get_config
+        config = get_config()
+        if not config.ready:
+            config.load()
+        from dallinger.experiment_server.experiment_server import worker_function
+        yield worker_function
+
+    def test_all_invalid_values(self, worker_func):
+        worker_func('foo', 'bar', 'baz')
+
+    def test_uses_assignment_id(self, worker_func, db_session):
+        from dallinger.models import Participant
+        participant = Participant(
+            worker_id='1', hit_id='1', assignment_id='1', mode="test")
+        db_session.add(participant)
+
+        with mock.patch(self.dispatcher) as mock_baseclass:
+            runner = mock.Mock()
+            mock_baseclass.for_name = mock.Mock(return_value=runner)
+            worker_func(
+                event_type='MockEvent',
+                assignment_id='1',
+                participant_id=None
+            )
+            mock_baseclass.for_name.assert_called_once_with('MockEvent')
+            runner.call_args[0][0] is participant
+
+    def test_uses_participant_id(self, worker_func, db_session):
+        from dallinger.models import Participant
+        participant = Participant(
+            worker_id='1', hit_id='1', assignment_id='1', mode="test")
+        db_session.add(participant)
+        db_session.commit()
+
+        with mock.patch(self.dispatcher) as mock_baseclass:
+            runner = mock.Mock()
+            mock_baseclass.for_name = mock.Mock(return_value=runner)
+            worker_func(
+                event_type='MockEvent',
+                assignment_id=None,
+                participant_id=participant.id
+            )
+            mock_baseclass.for_name.assert_called_once_with('MockEvent')
+            runner.call_args[0][0] is participant
+
+
 class TestWorkerEvents(object):
 
     def test_dispatch(self):
