@@ -291,34 +291,48 @@ class TestWorkerEvents(object):
         assert WorkerEvent.for_name('nonsense') is None
 
 
+end_time = datetime(2000, 01, 01)
+
+
+@pytest.fixture
+def experiment():
+    from dallinger.experiment import Experiment
+    experiment = mock.Mock(spec=Experiment)
+
+    return experiment
+
+
+@pytest.fixture
+def standard_args(experiment):
+    participant = mock.Mock(status="working")
+    assignment_id = 'some assignment id'
+    now = end_time
+    session = mock.Mock()
+    config = {}
+
+    return {
+        'participant': participant,
+        'assignment_id': assignment_id,
+        'experiment': experiment,
+        'now': now,
+        'session': session,
+        'config': config,
+        'now': now
+    }.copy()
+
+
 class TestAssignmentSubmitted(object):
 
-    end_time = datetime(2000, 01, 01)
-
     @pytest.fixture
-    def experiment(self):
-        from dallinger.recruiters import MTurkRecruiter
-        from dallinger.experiment import Experiment
-        experiment = mock.Mock(spec=Experiment)
+    def runner(self, standard_args):
+        from dallinger.experiment_server.worker_events import AssignmentSubmitted
+        experiment = standard_args['experiment']
         experiment.attention_check = mock.Mock(return_value=True)
         experiment.data_check = mock.Mock(return_value=True)
         experiment.bonus = mock.Mock(return_value=0.0)
         experiment.bonus_reason = mock.Mock(return_value="You rock.")
-        experiment.recruiter = mock.Mock(return_value=mock.Mock(spec=MTurkRecruiter))
-
-        return experiment
-
-    @pytest.fixture
-    def runner(self, experiment):
-        from dallinger.experiment_server.worker_events import AssignmentSubmitted
-        participant = mock.Mock(status="working")
-        assignment_id = 'some assignment id'
-        now = self.end_time
-        session = mock.Mock()
-        config = {'base_payment': 1.00}
-        runner = AssignmentSubmitted(participant, assignment_id, experiment, session, config, now)
-
-        return runner
+        standard_args['config'] = {'base_payment': 1.00}
+        return AssignmentSubmitted(**standard_args)
 
     def test_calls_reward_bonus_if_experiment_returns_bonus_more_than_one_cent(self, runner):
         runner.experiment.bonus.return_value = .02
@@ -355,7 +369,7 @@ class TestAssignmentSubmitted(object):
 
     def test_participant_end_time_set(self, runner):
         runner()
-        assert runner.participant.end_time == self.end_time
+        assert runner.participant.end_time == end_time
 
     def test_submission_successful_called_on_experiment(self, runner):
         runner()
@@ -411,29 +425,10 @@ class TestAssignmentSubmitted(object):
 
 class TestBotAssignmentSubmitted(object):
 
-    end_time = datetime(2000, 01, 01)
-
     @pytest.fixture
-    def experiment(self):
-        from dallinger.recruiters import BotRecruiter
-        from dallinger.experiment import Experiment
-        experiment = mock.Mock(spec=Experiment)
-        experiment.recruiter = mock.Mock(return_value=mock.Mock(spec=BotRecruiter))
-
-        return experiment
-
-    @pytest.fixture
-    def runner(self, experiment):
+    def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import BotAssignmentSubmitted
-        participant = mock.Mock(status="working")
-        assignment_id = 'some assignment id'
-        now = self.end_time
-        session = mock.Mock()
-        config = {}
-        runner = BotAssignmentSubmitted(
-            participant, assignment_id, experiment, session, config, now)
-
-        return runner
+        return BotAssignmentSubmitted(**standard_args)
 
     def test_participant_status_set(self, runner):
         runner()
@@ -441,7 +436,7 @@ class TestBotAssignmentSubmitted(object):
 
     def test_participant_end_time_set(self, runner):
         runner()
-        assert runner.participant.end_time == self.end_time
+        assert runner.participant.end_time == end_time
 
     def test_submission_successful_called_on_experiment(self, runner):
         runner()
@@ -458,3 +453,138 @@ class TestBotAssignmentSubmitted(object):
     def test_recruit_called_on_experiment(self, runner):
         runner()
         runner.experiment.recruit.assert_called_once()
+
+
+class TestBotAssignmentRejected(object):
+
+    @pytest.fixture
+    def runner(self, standard_args):
+        from dallinger.experiment_server.worker_events import BotAssignmentRejected
+        return BotAssignmentRejected(**standard_args)
+
+    def test_sets_participant_status(self, runner):
+        runner()
+        assert runner.participant.status == 'rejected'
+
+    def test_sets_participant_end_time(self, runner):
+        runner()
+        assert runner.participant.end_time == end_time
+
+    def test_calls_recruit_on_experiment(self, runner):
+        runner()
+        runner.experiment.recruit.assert_called_once()
+
+
+class TestAssignmentAccepted(object):
+
+    @pytest.fixture
+    def runner(self, standard_args):
+        from dallinger.experiment_server.worker_events import AssignmentAccepted
+        return AssignmentAccepted(**standard_args)
+
+    def test_does_nothing_without_raising(self, runner):
+        runner()
+
+
+class TestAssignmentAbandoned(object):
+
+    @pytest.fixture
+    def runner(self, standard_args):
+        from dallinger.experiment_server.worker_events import AssignmentAbandoned
+        return AssignmentAbandoned(**standard_args)
+
+    def test_is_noop_if_participant_not_working(self, runner):
+        runner.participant.status = 'not working'
+        runner()
+        assert runner.participant.status == 'not working'
+
+    def test_sets_participant_status(self, runner):
+        runner()
+        assert runner.participant.status == 'abandoned'
+
+    def test_sets_participant_end_time(self, runner):
+        runner()
+        assert runner.participant.end_time == end_time
+
+    def test_calls_assignment_abandoned_on_experiment(self, runner):
+        runner()
+        runner.experiment.assignment_abandoned.assert_called_once_with(
+            participant=runner.participant
+        )
+
+
+class TestAssignmentReturned(object):
+
+    @pytest.fixture
+    def runner(self, standard_args):
+        from dallinger.experiment_server.worker_events import AssignmentReturned
+        return AssignmentReturned(**standard_args)
+
+    def test_is_noop_if_participant_not_working(self, runner):
+        runner.participant.status = 'not working'
+        runner()
+        assert runner.participant.status == 'not working'
+
+    def test_sets_participant_status(self, runner):
+        runner()
+        assert runner.participant.status == 'returned'
+
+    def test_sets_participant_end_time(self, runner):
+        runner()
+        assert runner.participant.end_time == end_time
+
+    def test_calls_assignment_returned_on_experiment(self, runner):
+        runner()
+        runner.experiment.assignment_returned.assert_called_once_with(
+            participant=runner.participant
+        )
+
+
+class TestAssignmentReassigned(object):
+
+    @pytest.fixture
+    def runner(self, standard_args):
+        from dallinger.experiment_server.worker_events import AssignmentReassigned
+        return AssignmentReassigned(**standard_args)
+
+    def test_sets_participant_status(self, runner):
+        runner()
+        assert runner.participant.status == 'replaced'
+
+    def test_sets_participant_end_time(self, runner):
+        runner()
+        assert runner.participant.end_time == end_time
+
+    def test_calls_assignment_returned_on_experiment(self, runner):
+        runner()
+        runner.experiment.assignment_reassigned.assert_called_once_with(
+            participant=runner.participant
+        )
+
+
+class TestNotificationMissing(object):
+
+    @pytest.fixture
+    def runner(self, standard_args):
+        from dallinger.experiment_server.worker_events import NotificationMissing
+        return NotificationMissing(**standard_args)
+
+    def test_sets_participant_status_for_working_participant(self, runner):
+        runner()
+        assert runner.participant.status == 'missing_notification'
+
+    def test_does_not_set_participant_status_for_participant_otherwise(self, runner):
+        runner.participant.status = 'something other than "working"'
+        runner()
+        assert runner.participant.status == 'something other than "working"'
+
+    def test_sets_participant_end_time_if_working(self, runner):
+        runner()
+        assert runner.participant.end_time == end_time
+
+    def test_does_not_set_participant_end_time_for_participant_otherwise(self, runner):
+        runner.participant.status = 'something other than "working"'
+        marker = object()
+        runner.participant.end_time = marker
+        runner()
+        assert runner.participant.end_time is marker

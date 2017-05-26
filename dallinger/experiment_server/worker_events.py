@@ -49,7 +49,7 @@ class AssignmentAbandoned(WorkerEvent):
 
     def __call__(self):
         if self.participant.status == "working":
-            self.participant.end_time = self.now
+            self.update_particant_end_time()
             self.participant.status = "abandoned"
             self.experiment.assignment_abandoned(participant=self.participant)
 
@@ -58,7 +58,7 @@ class AssignmentReturned(WorkerEvent):
 
     def __call__(self):
         if self.participant.status == "working":
-            self.participant.end_time = self.now
+            self.update_particant_end_time()
             self.participant.status = "returned"
             self.experiment.assignment_returned(participant=self.participant)
 
