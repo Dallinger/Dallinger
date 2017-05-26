@@ -35,6 +35,9 @@ class WorkerEvent(object):
     def commit(self):
         self.session.commit()
 
+    def log(self, message):
+        self.experiment.log(message, self.key)
+
     def update_particant_end_time(self):
         self.participant.end_time = self.now
 
@@ -75,15 +78,10 @@ class AssignmentSubmitted(WorkerEvent):
         self.participant.status = "submitted"
         self.commit()
 
-        # Approve the assignment.
-        self.recruiter.approve_hit(self.assignment_id)
-        self.participant.base_pay = self.config.get('base_payment')
+        self.approve_assignment()
 
         if not self.data_is_ok():
-            # If it isn't, fail their nodes, recruit a replacement, and go home.
-            self.participant.status = "bad_data"
-            self.experiment.data_check_failed(participant=self.participant)
-            self.commit()
+            self.fail_data_check()
             self.recruiter.recruit_participants(n=1)
 
             return
@@ -93,27 +91,15 @@ class AssignmentSubmitted(WorkerEvent):
         bonus = self.experiment.bonus(participant=self.participant)
         self.participant.bonus = bonus
         if bonus >= self.min_real_bonus:
-            self.experiment.log("Bonus = {}: paying bonus".format(bonus), self.key)
-            self.recruiter.reward_bonus(
-                self.assignment_id,
-                bonus,
-                self.experiment.bonus_reason())
+            self.award_bonus(bonus)
         else:
-            self.experiment.log("Bonus = {}: NOT paying bonus".format(bonus), self.key)
+            self.log("Bonus = {}: NOT paying bonus".format(bonus))
 
         if self.did_attend():
-            # All good. Possibly recruit more participants.
-            self.experiment.log("All checks passed.", self.key)
-            self.participant.status = "approved"
-            self.experiment.submission_successful(participant=self.participant)
-            self.commit()
+            self.approve_submission()
             self.experiment.recruit()
         else:
-            # If they fail the attention check, fail nodes and replace.
-            self.experiment.log("Attention check failed.", self.key)
-            self.participant.status = "did_not_attend"
-            self.experiment.attention_check_failed(participant=self.participant)
-            self.commit()
+            self.fail_submission()
             self.recruiter.recruit_participants(n=1)
 
     def data_is_ok(self):
@@ -123,28 +109,56 @@ class AssignmentSubmitted(WorkerEvent):
     def did_attend(self):
         return self.experiment.attention_check(participant=self.participant)
 
+    def approve_assignment(self):
+        self.recruiter.approve_hit(self.assignment_id)
+        self.participant.base_pay = self.config.get('base_payment')
+
+    def award_bonus(self, bonus):
+        self.log("Bonus = {}: paying bonus".format(bonus))
+        self.recruiter.reward_bonus(
+            self.assignment_id,
+            bonus,
+            self.experiment.bonus_reason())
+
+    def fail_data_check(self):
+        self.participant.status = "bad_data"
+        self.experiment.data_check_failed(participant=self.participant)
+        self.commit()
+
+    def approve_submission(self):
+        self.log("All checks passed.")
+        self.participant.status = "approved"
+        self.experiment.submission_successful(participant=self.participant)
+        self.commit()
+
+    def fail_submission(self):
+        self.log("Attention check failed.")
+        self.participant.status = "did_not_attend"
+        self.experiment.attention_check_failed(participant=self.participant)
+        self.commit()
+
 
 class BotAssignmentSubmitted(WorkerEvent):
 
     def __call__(self):
-        self.experiment.log("Received bot submission.", self.key)
+        self.log("Received bot submission.")
         self.update_particant_end_time()
 
         # No checks for bot submission
         self.recruiter.approve_hit(self.assignment_id)
         self.participant.status = "approved"
         self.experiment.submission_successful(participant=self.participant)
-        self.session.commit()
+        self.commit()
         self.experiment.recruit()
 
 
 class BotAssignmentRejected(WorkerEvent):
 
     def __call__(self):
-        self.experiment.log("Received rejected bot submission.", self.key)
+        self.log("Received rejected bot submission.")
         self.update_particant_end_time()
         self.participant.status = "rejected"
-        self.session.commit()
+        self.commit()
 
         # We go back to recruiting immediately
         self.experiment.recruit()
