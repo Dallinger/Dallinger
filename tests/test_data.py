@@ -118,7 +118,7 @@ class TestData(object):
             header = next(reader)
             assert "creation_time" in header
 
-    def test_export_archive(self):
+    def test_archive_data(self):
         export_dir = tempfile.mkdtemp()
         id = "12345-12345-12345-12345"
         src = os.path.join(export_dir, id)
@@ -126,3 +126,11 @@ class TestData(object):
         os.mkdir(src)
         dallinger.data.archive_data(id, src, dst)
         assert os.path.isfile(dst)
+
+    def test_archive_data_error(self):
+        export_dir = tempfile.mkdtemp()
+        id = "12345-12345-12345-12345"
+        src = os.path.join(id)
+        dst = os.path.join(id + "-data.zip")
+        with pytest.raises(IOError):
+            os.path.isfile(dst)
