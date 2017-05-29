@@ -304,20 +304,16 @@ def experiment():
 
 @pytest.fixture
 def standard_args(experiment):
-    participant = mock.Mock(status="working")
-    assignment_id = 'some assignment id'
-    now = end_time
-    session = mock.Mock()
-    config = {}
+    from dallinger.models import Participant
+    from sqlalchemy.orm.scoping import scoped_session
 
     return {
-        'participant': participant,
-        'assignment_id': assignment_id,
+        'participant': mock.Mock(spec_set=Participant, status="working"),
+        'assignment_id': 'some assignment id',
         'experiment': experiment,
-        'now': now,
-        'session': session,
-        'config': config,
-        'now': now
+        'session': mock.Mock(spec_set=scoped_session),
+        'config': {},
+        'now': end_time
     }.copy()
 
 
@@ -327,11 +323,12 @@ class TestAssignmentSubmitted(object):
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import AssignmentSubmitted
         experiment = standard_args['experiment']
-        experiment.attention_check = mock.Mock(return_value=True)
-        experiment.data_check = mock.Mock(return_value=True)
-        experiment.bonus = mock.Mock(return_value=0.0)
-        experiment.bonus_reason = mock.Mock(return_value="You rock.")
-        standard_args['config'] = {'base_payment': 1.00}
+        experiment.attention_check.return_value = True
+        experiment.data_check.return_value = True
+        experiment.bonus.return_value = 0.0
+        experiment.bonus_reason.return_value = "You rock."
+        standard_args['config'].update({'base_payment': 1.00})
+
         return AssignmentSubmitted(**standard_args)
 
     def test_calls_reward_bonus_if_experiment_returns_bonus_more_than_one_cent(self, runner):
