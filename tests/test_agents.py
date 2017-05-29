@@ -1,6 +1,6 @@
 """Tests for creating and manipulating agents."""
 
-from dallinger import nodes, information, db, models
+from dallinger import nodes, information, models
 from dallinger.information import Meme, Gene
 from pytest import raises
 
@@ -9,50 +9,38 @@ class TestAgents(object):
 
     """The agent test class."""
 
-    def setup(self):
-        """Set up the environment by resetting the tables."""
-        self.db = db.init_db(drop_all=True)
-
-    def teardown(self):
-        self.db.rollback()
-        self.db.close()
-
-    def add(self, *args):
-        self.db.add_all(args)
-        self.db.commit()
-
-    def test_create_agent_generic(self):
+    def test_create_agent_generic(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         agent = nodes.Agent(network=net)
         assert agent
 
-    def test_fitness_property(self):
+    def test_fitness_property(self, db_session):
         net = models.Network()
         agent = nodes.Agent(network=net)
         agent.fitness = 1.99999
         assert agent.fitness == 1.99999
 
-    def test_fitness_expression_search_match(self):
+    def test_fitness_expression_search_match(self, db_session):
         net = models.Network()
         agent = nodes.Agent(network=net)
         agent.fitness = 1.99999
-        self.add(agent)
+        db_session.add(agent)
         results = nodes.Agent.query.filter_by(fitness=1.99999).all()
         assert len(results) == 1
         assert results[0] is agent
 
-    def test_fitness_expression_search_fail(self):
+    def test_fitness_expression_search_fail(self, db_session):
         net = models.Network()
         agent = nodes.Agent(network=net)
         agent.fitness = 1.99999
-        self.add(agent)
+        db_session.add(agent)
         results = nodes.Agent.query.filter_by(fitness=1.9).all()
         assert len(results) == 0
 
-    def test_create_agent_generic_transmit_to_all(self):
+    def test_create_agent_generic_transmit_to_all(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         agent1 = nodes.Agent(network=net)
         agent2 = nodes.Agent(network=net)
         agent3 = nodes.Agent(network=net)
@@ -61,11 +49,10 @@ class TestAgents(object):
         agent1.connect(direction="to", whom=agent3)
         agent1.transmit(to_whom=models.Node)
 
-    def test_fail_agent(self):
+    def test_fail_agent(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         agent = nodes.Agent(network=net)
-        self.db.commit()
 
         assert agent.failed is False
         assert agent.time_of_death is None
@@ -74,9 +61,9 @@ class TestAgents(object):
         assert agent.failed is True
         assert agent.time_of_death is not None
 
-    def test_create_replicator_agent(self):
+    def test_create_replicator_agent(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         agent = nodes.ReplicatorAgent(network=net)
 
         assert len(agent.infos()) is 0
@@ -85,9 +72,9 @@ class TestAgents(object):
 
         assert agent.infos()[0] == info
 
-    def test_agent_transmit(self):
+    def test_agent_transmit(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
 
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
@@ -107,18 +94,18 @@ class TestAgents(object):
         assert transmission.origin_id == agent1.id
         assert transmission.destination_id == agent2.id
 
-    def test_agent_transmit_no_connection(self):
+    def test_agent_transmit_no_connection(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
         info = models.Info(origin=agent1, contents="foo")
         with raises(ValueError):
             agent1.transmit(what=info, to_whom=agent2)
 
-    def test_agent_transmit_invalid_info(self):
+    def test_agent_transmit_invalid_info(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
 
@@ -128,10 +115,9 @@ class TestAgents(object):
         with raises(ValueError):
             agent1.transmit(what=info, to_whom=agent2)
 
-    def test_agent_transmit_everything_to_everyone(self):
+    def test_agent_transmit_everything_to_everyone(self, db_session):
         net = models.Network()
-        self.db.add(net)
-        self.db.commit()
+        db_session.add(net)
 
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
@@ -153,9 +139,9 @@ class TestAgents(object):
         transmissions = info.transmissions()
         assert len(transmissions) == 2
 
-    def test_transmit_selector_default(self):
+    def test_transmit_selector_default(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         # Create a network of two biological nodes.
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
@@ -180,9 +166,9 @@ class TestAgents(object):
         assert "foo" == agent2.infos(type=Meme)[0].contents
         assert "bar" == agent2.infos(type=Gene)[0].contents
 
-    def test_transmit_selector_specific_info(self):
+    def test_transmit_selector_specific_info(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         # Create a network of two biological nodes.
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
@@ -207,9 +193,9 @@ class TestAgents(object):
         assert not agent2.infos(type=Meme)
         assert "bar" == agent2.infos(type=Gene)[0].contents
 
-    def test_transmit_selector_all_of_type(self):
+    def test_transmit_selector_all_of_type(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
 
         # Create a network of two biological nodes.
         agent1 = nodes.ReplicatorAgent(network=net)

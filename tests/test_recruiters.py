@@ -1,7 +1,6 @@
 import mock
 import os
 import pytest
-from dallinger import db
 
 
 class TestRecruiters(object):
