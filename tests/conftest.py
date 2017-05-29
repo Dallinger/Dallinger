@@ -56,6 +56,9 @@ def aws_creds():
 @pytest.fixture
 def db_session():
     import dallinger.db
+    # The drop_all call can hang without this; see:
+    # https://stackoverflow.com/questions/13882407/sqlalchemy-blocked-on-dropping-tables
+    dallinger.db.session.close()
     session = dallinger.db.init_db(drop_all=True)
     yield session
     session.rollback()
