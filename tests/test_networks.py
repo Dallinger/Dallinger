@@ -403,22 +403,15 @@ class TestDiscreteGenerational(TestNetworks):
     gen_size = 4
 
     @pytest.fixture
-    def net_init_src_true(self, db_session):
-        net = networks.DiscreteGenerational(
-            generations=self.n_gens,
-            generation_size=self.gen_size,
-            initial_source=True)
-        db_session.add(net)
-        db_session.commit()
-
-        return net
+    def initial_source(self):
+        return True
 
     @pytest.fixture
-    def net_init_src_false(self, db_session):
+    def net(self, db_session, initial_source):
         net = networks.DiscreteGenerational(
             generations=self.n_gens,
             generation_size=self.gen_size,
-            initial_source=False)
+            initial_source=initial_source)
         db_session.add(net)
         db_session.commit()
 
@@ -435,21 +428,24 @@ class TestDiscreteGenerational(TestNetworks):
 
         return by_gen
 
-    def test_initial_source_attr_true(self, net_init_src_true):
-        assert net_init_src_true.initial_source
+    def test_initial_source_attr_true(self, net):
+        assert net.initial_source
 
-    def test_initial_source_attr_false(self, net_init_src_false):
-        net = net_init_src_false
+    @pytest.mark.parametrize('initial_source', [False])
+    def test_initial_source_attr_false(self, net):
         assert not net.initial_source
 
-    def test_add_node_with_initial_source_true(self, net_init_src_true):
-        net = net_init_src_true
-        source = nodes.RandomBinaryStringSource(network=net)
-
-        by_gen = self._fill(net)
+    @pytest.mark.parametrize('initial_source', [True, False])
+    def test_add_node_fills_network_dimensions(self, net):
+        nodes.RandomBinaryStringSource(network=net)
+        self._fill(net)
 
         assert len(net.nodes(type=nodes.Source)) == 1
         assert len(net.nodes(type=nodes.Agent)) == self.n_gens * self.gen_size
+
+    def test_add_node_with_initial_source_true(self, net):
+        source = nodes.RandomBinaryStringSource(network=net)
+        by_gen = self._fill(net)
 
         first_generation = by_gen[0]
         subsequent_generations = {gen: by_gen[gen] for gen in by_gen.keys() if gen > 0}
@@ -466,16 +462,10 @@ class TestDiscreteGenerational(TestNetworks):
                 assert len(parents) == 1
                 assert parents[0] in by_gen[agent.generation - 1]
 
-    def test_add_node_with_initial_source_false(self, net_init_src_false):
-        net = net_init_src_false
+    @pytest.mark.parametrize('initial_source', [False])
+    def test_add_node_with_initial_source_false(self, net):
         source = nodes.RandomBinaryStringSource(network=net)
-
-        by_gen = self._fill(net)
-
-        assert len(net.nodes(type=nodes.Source)) == 1
-        assert len(net.nodes(type=nodes.Agent)) == self.n_gens * self.gen_size
-
-        first_generation = by_gen[0]
+        first_generation = self._fill(net)[0]
 
         # First generation is NOT conncted to source
         for agent in first_generation:
