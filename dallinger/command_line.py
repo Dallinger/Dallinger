@@ -562,7 +562,7 @@ def hibernate(app):
     backup_url = data.backup(app)
     log(backup_url)
 
-    log("Scaling down the web servers...")
+    log("Scaling down the web server...")
 
     for process in ["web", "worker"]:
         subprocess.check_call([
