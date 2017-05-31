@@ -57,7 +57,7 @@ class TestClockScheduler(object):
         jobs = self.clock.scheduler.get_jobs()
         with pytest.raises(RuntimeError) as excinfo:
             jobs[0].func()
-        assert excinfo.value.message == 'Config not loaded'
+        assert excinfo.match('Config not loaded')
 
     def test_launch_loads_config(self):
         original_start = self.clock.scheduler.start
