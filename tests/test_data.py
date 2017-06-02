@@ -117,3 +117,12 @@ class TestData(object):
             reader = csv.reader(f, delimiter=',')
             header = next(reader)
             assert "creation_time" in header
+
+    def test_archive_data(self):
+        export_dir = tempfile.mkdtemp()
+        id = "12345-12345-12345-12345"
+        src = os.path.join(export_dir, id)
+        dst = os.path.join(export_dir, id + "-data.zip")
+        os.mkdir(src)
+        dallinger.data.archive_data(id, src, dst)
+        assert os.path.isfile(dst)
