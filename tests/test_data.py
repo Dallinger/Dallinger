@@ -5,6 +5,7 @@ import csv
 import os
 import tempfile
 import uuid
+import shutil
 
 import pandas as pd
 import psycopg2
@@ -118,11 +119,7 @@ class TestData(object):
             header = next(reader)
             assert "creation_time" in header
 
-    def test_archive_data(self):
-        export_dir = tempfile.mkdtemp()
-        id = "12345-12345-12345-12345"
-        src = os.path.join(export_dir, id)
-        dst = os.path.join(export_dir, id + "-data.zip")
-        os.mkdir(src)
-        dallinger.data.archive_data(id, src, dst)
-        assert os.path.isfile(dst)
+    def test_export(self):
+        dallinger.data.export("12345-12345-12345-12345", local=True)
+        assert os.path.isfile("data/12345-12345-12345-12345-data.zip")
+        shutil.rmtree('data')

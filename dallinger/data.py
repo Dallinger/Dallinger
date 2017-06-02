@@ -209,10 +209,11 @@ def export(id, local=False, scrub_pii=False):
     data_filename = '{}-data.zip'.format(id)
     path_to_data = os.path.join(cwd, "data", data_filename)
 
-    # Backup data on S3.
-    k = Key(user_s3_bucket())
-    k.key = data_filename
-    k.set_contents_from_filename(path_to_data)
+    # Backup data on S3 unless run locally
+    if not local:
+        k = Key(user_s3_bucket())
+        k.key = data_filename
+        k.set_contents_from_filename(path_to_data)
 
     return path_to_data
 
