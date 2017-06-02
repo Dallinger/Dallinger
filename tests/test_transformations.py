@@ -1,57 +1,45 @@
-from dallinger import db, models
+from dallinger import models
 
 
 class TestTransformations(object):
 
-    def setup(self):
-        """Set up the environment by resetting the tables."""
-        self.db = db.init_db(drop_all=True)
-
-    def teardown(self):
-        self.db.rollback()
-        self.db.close()
-
-    def add(self, *args):
-        self.db.add_all(args)
-        self.db.commit()
-
-    def test_identity_transformation(self):
+    def test_identity_transformation(self, db_session):
         net = models.Network()
-        self.add(net)
+        db_session.add(net)
         node = models.Node(network=net)
-        self.db.add(node)
-        self.db.commit()
+        db_session.add(node)
+        db_session.commit()
 
         info_in = models.Info(origin=node, contents="foo")
-        self.db.add(info_in)
-        self.db.commit()
+        db_session.add(info_in)
+        db_session.commit()
 
         node.replicate(info_in)
 
         # # Create a new info based on the old one.
         # info_out = models.Info(origin=node, contents=info_in.contents)
-        # self.db.add(info_in)
-        # self.db.commit()
+        # db_session.add(info_in)
+        # db_session.commit()
 
         # # Register the transformation.
         # transformation = transformations.Replication(
         #     info_out=info_out,
         #     info_in=info_in)
 
-        # self.db.add(transformation)
-        # self.db.commit()
+        # db_session.add(transformation)
+        # db_session.commit()
 
         assert node.infos()[-1].contents == "foo"
         assert len(node.infos()) == 2
 
     # def test_shuffle_transformation(self):
     #     node = models.Node()
-    #     self.db.add(node)
-    #     self.db.commit()
+    #     db_session.add(node)
+    #     db_session.commit()
 
     #     info_in = models.Info(origin=node, contents="foo")
-    #     self.db.add(info_in)
-    #     self.db.commit()
+    #     db_session.add(info_in)
+    #     db_session.commit()
 
     #     # Create a new info based on the old one.
     #     shuffled_string = ''.join(
@@ -64,7 +52,7 @@ class TestTransformations(object):
     #         info_out=info_out,
     #         info_in=info_in)
 
-    #     self.db.add(transformation)
-    #     self.db.commit()
+    #     db_session.add(transformation)
+    #     db_session.commit()
 
     #     assert info_out.contents in ["foo", "ofo", "oof"]
