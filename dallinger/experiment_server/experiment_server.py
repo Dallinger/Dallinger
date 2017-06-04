@@ -32,6 +32,7 @@ from dallinger import models
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 
+from .worker_events import WorkerEvent
 from .utils import nocache
 
 
@@ -1388,102 +1389,12 @@ def worker_function(event_type, assignment_id, participant_id):
 
     participant_id = participant.id
 
-    if event_type == 'AssignmentAccepted':
-        pass
-
-    elif event_type == 'AssignmentAbandoned':
-        if participant.status == "working":
-            participant.end_time = datetime.now()
-            participant.status = "abandoned"
-            exp.assignment_abandoned(participant=participant)
-
-    elif event_type == 'AssignmentReturned':
-        if participant.status == "working":
-            participant.end_time = datetime.now()
-            participant.status = "returned"
-            exp.assignment_returned(participant=participant)
-
-    elif event_type == 'AssignmentSubmitted':
-        if participant.status in ["working", "returned", "abandoned"]:
-            participant.end_time = datetime.now()
-            participant.status = "submitted"
-            session.commit()
-
-            # Approve the assignment.
-            exp.recruiter().approve_hit(assignment_id)
-            participant.base_pay = config.get('base_payment')
-
-            # Check that the participant's data is okay.
-            worked = exp.data_check(participant=participant)
-
-            # If it isn't, fail their nodes and recruit a replacement.
-            if not worked:
-                participant.status = "bad_data"
-                exp.data_check_failed(participant=participant)
-                session.commit()
-                exp.recruiter().recruit_participants(n=1)
-            else:
-                # If their data is ok, pay them a bonus.
-                # Note that the bonus is paid before the attention check.
-                bonus = exp.bonus(participant=participant)
-                participant.bonus = bonus
-                if bonus >= 0.01:
-                    exp.log("Bonus = {}: paying bonus".format(bonus), key)
-                    exp.recruiter().reward_bonus(
-                        assignment_id,
-                        bonus,
-                        exp.bonus_reason())
-                else:
-                    exp.log("Bonus = {}: NOT paying bonus".format(bonus), key)
-
-                # Perform an attention check.
-                attended = exp.attention_check(participant=participant)
-
-                # If they fail the attention check, fail nodes and replace.
-                if not attended:
-                    exp.log("Attention check failed.", key)
-                    participant.status = "did_not_attend"
-                    exp.attention_check_failed(participant=participant)
-                    session.commit()
-                    exp.recruiter().recruit_participants(n=1)
-                else:
-                    # All good. Possibly recruit more participants.
-                    exp.log("All checks passed.", key)
-                    participant.status = "approved"
-                    exp.submission_successful(participant=participant)
-                    session.commit()
-                    exp.recruit()
-
-    elif event_type == 'BotAssignmentSubmitted':
-        exp.log("Received bot submission.", key)
-        participant.end_time = datetime.now()
-
-        # No checks for bot submission
-        exp.recruiter().approve_hit(assignment_id)
-        participant.status = "approved"
-        exp.submission_successful(participant=participant)
-        session.commit()
-        exp.recruit()
-
-    elif event_type == 'BotAssignmentRejected':
-        exp.log("Received rejected bot submission.", key)
-        participant.end_time = datetime.now()
-        participant.status = "rejected"
-        session.commit()
-
-        # We go back to recruiting immediately
-        exp.recruit()
-
-    elif event_type == "NotificationMissing":
-        if participant.status == "working":
-            participant.end_time = datetime.now()
-            participant.status = "missing_notification"
-
-    elif event_type == "AssignmentReassigned":
-        participant.end_time = datetime.now()
-        participant.status = "replaced"
-        exp.assignment_reassigned(participant=participant)
-
+    runner_cls = WorkerEvent.for_name(event_type)
+    if runner_cls:
+        runner = runner_cls(
+            participant, assignment_id, exp, session, config, datetime.now()
+        )
+        runner()
     else:
         exp.log("Error: unknown event_type {}".format(event_type), key)
 
