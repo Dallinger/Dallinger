@@ -1,0 +1,10 @@
+paper
+journal
+newspaper
+article
+book
+magazine
+novel
+letter
+essay
+encyclopedia 
