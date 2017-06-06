@@ -1,4 +1,5 @@
 import json
+import mock
 import os
 import unittest
 
@@ -6,26 +7,35 @@ import unittest
 class FlaskAppTest(unittest.TestCase):
     """Base test case class for tests of the flask app."""
 
+    experiment_dir = 'tests/experiment'
+
     def setUp(self, case=None):
         # The flask app assumes it is imported
         # while in an experiment directory.
         # `tests/experiment` mimics the files that are put
         # in place by dallinger.command_line.setup_experiment
         # when running via the CLI
-        os.chdir('tests/experiment')
-
-        from dallinger.experiment_server.experiment_server import app
+        self.orig_dir = os.getcwd()
+        os.chdir(self.experiment_dir)
+        from dallinger.experiment_server import sockets
+        app = sockets.app
         app.config['DEBUG'] = True
         app.config['TESTING'] = True
         self.app = app.test_client()
 
         import dallinger.db
         self.db = dallinger.db.init_db(drop_all=True)
+        from dallinger.config import get_config
+        self.exp_config = get_config()
 
     def tearDown(self):
         self.db.rollback()
         self.db.close()
-        os.chdir('../..')
+        os.chdir(self.orig_dir)
+
+        # Make sure the greenlet handling chat is stopped
+        from dallinger.experiment_server.sockets import chat_backend
+        chat_backend.stop()
 
 
 class TestExperimentServer(FlaskAppTest):
@@ -126,6 +136,24 @@ class TestExperimentServer(FlaskAppTest):
 
         assert resp.status_code == 403
 
+    def test_notifies_recruiter_when_participant_joins(self):
+        from dallinger.recruiters import Recruiter
+        from dallinger.models import Participant
+
+        worker_id = self.worker_counter
+        hit_id = self.hit_counter
+        assignment_id = self.assignment_counter
+        class_to_patch = 'dallinger.experiment_server.experiment_server.Recruiter'
+
+        with mock.patch(class_to_patch) as mock_rec_class:
+            mock_recruiter = mock.Mock(spec=Recruiter)
+            mock_rec_class.for_experiment.return_value = mock_recruiter
+            self.app.post('/participant/{}/{}/{}/debug'.format(
+                worker_id, hit_id, assignment_id
+            ))
+            args, _ = mock_recruiter.notify_recruited.call_args
+            assert isinstance(args[0], Participant)
+
     def test_node_vectors(self):
         p_id = self._create_participant()
         n_id = self._create_node(p_id)
@@ -184,6 +212,24 @@ class TestExperimentServer(FlaskAppTest):
         assert worker_summary[0] == [u'approved', 1]
         assert worker_summary[1] == [u'submitted', 1]
 
+    def test_existing_experiment_property(self):
+        p_id = self._create_participant()
+        resp = self.app.get('/experiment/exists'.format(p_id))
+        data = json.loads(resp.data)
+        assert data.get('status') == 'success'
+        assert data.get('exists') is True
+
+    def test_nonexisting_experiment_property(self):
+        p_id = self._create_participant()
+        resp = self.app.get('/experiment/missing'.format(p_id))
+        assert resp.status_code == 404
+
     def test_not_found(self):
         resp = self.app.get('/BOGUS')
         assert resp.status_code == 404
+
+    def test_launch(self):
+        resp = self.app.post('/launch', {})
+        assert resp.status_code == 200
+        data = json.loads(resp.get_data())
+        assert 'recruitment_url' in data

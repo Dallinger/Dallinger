@@ -12,9 +12,11 @@ def extra_parameters():
 class ConcentrationGame(dallinger.experiments.Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session):
+    def __init__(self, session=None):
         """Initialize the experiment."""
         super(ConcentrationGame, self).__init__(session)
         self.experiment_repeats = 1
-        self.initial_recruitment_size = config["num_participants"]
-        self.setup()
+        N = config.get("Experiment", "num_participants")
+        self.initial_recruitment_size = N
+        if session:
+            self.setup()

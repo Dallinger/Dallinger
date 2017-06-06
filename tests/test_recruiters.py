@@ -2,6 +2,8 @@ import mock
 import os
 import pytest
 from dallinger import db
+from dallinger.models import Participant
+from dallinger.experiment import Experiment
 
 
 class TestRecruiters(object):
@@ -22,6 +24,17 @@ class TestRecruiters(object):
     def test_close_recruitment(self, recruiter):
         with pytest.raises(NotImplementedError):
             recruiter.close_recruitment()
+
+    def test_for_experiment(self):
+        from dallinger.recruiters import Recruiter
+        mock_exp = mock.MagicMock(spec=Experiment)
+        Recruiter.for_experiment(mock_exp)
+
+        mock_exp.recruiter.assert_called()
+
+    def test_notify_recruited(self, recruiter):
+        dummy = mock.NonCallableMock()
+        recruiter.notify_recruited(participant=dummy)
 
 
 class TestHotAirRecruiter(object):
@@ -50,19 +63,22 @@ class TestHotAirRecruiter(object):
         assert recruiter.approve_hit('any assignment id')
 
 
-class TestSimulatedRecruiter(object):
+class TestBotRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):
-        from dallinger.recruiters import SimulatedRecruiter
-        return SimulatedRecruiter()
+        from dallinger.recruiters import BotRecruiter
+        return BotRecruiter()
 
+    @pytest.mark.xfail
     def test_open_recruitment(self, recruiter):
         recruiter.open_recruitment()
 
-    def test_recruit(self, recruiter):
-        recruiter.recruit()
+    @pytest.mark.xfail
+    def test_recruit_participants(self, recruiter):
+        recruiter.recruit_participants()
 
+    @pytest.mark.xfail
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
 
@@ -169,11 +185,54 @@ class TestMTurkRecruiter(object):
             notification_url='https://url-of-notification-route',
             reward=0.01,
             title='fake experiment title',
-            us_only=True
+            us_only=True,
+            blacklist=(),
+            blacklist_experience_limit=None,
+        )
+
+    def test_open_recruitment_creates_qualifications_for_experiment_app_id(self):
+        recruiter = self.make_one(
+            id="some experiment uid"
+        )
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_qualification_type.assert_called_once_with(
+            'some experiment uid', 'Experiment-specific qualification'
+        )
+
+    def test_open_recruitment_creates_qualifications_for_exp_with_group_name(self):
+        recruiter = self.make_one(
+            group_name='some group name',
+            id="some experiment uid"
+        )
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_qualification_type.assert_has_calls([
+            mock.call('some experiment uid', 'Experiment-specific qualification'),
+            mock.call('some group name', 'Experiment group qualification')
+        ], any_order=True)
+
+    def test_open_recruitment_with_blacklist(self):
+        recruiter = self.make_one(
+            qualification_blacklist='foo, bar',
+            qualification_blacklist_experience_limit=0
+        )
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_hit.assert_called_once_with(
+            ad_url='http://fake-domain/ad',
+            approve_requirement=95,
+            description='fake HIT description',
+            duration_hours=1.0,
+            keywords=['kw1', 'kw2', 'kw3'],
+            lifetime_days=0.1,
+            max_assignments=1,
+            notification_url='https://url-of-notification-route',
+            reward=0.01,
+            title='fake experiment title',
+            us_only=True,
+            blacklist=('foo', 'bar'),
+            blacklist_experience_limit=0,
         )
 
     def test_open_recruitment_is_noop_if_experiment_in_progress(self):
-        from dallinger.models import Participant
         participant = Participant(
             worker_id='1', hit_id='1', assignment_id='1', mode="test")
         self.db.add(participant)
@@ -183,7 +242,6 @@ class TestMTurkRecruiter(object):
         recruiter.mturkservice.check_credentials.assert_not_called()
 
     def test_current_hit_id_with_active_experiment(self):
-        from dallinger.models import Participant
         participant = Participant(
             worker_id='1', hit_id='the hit!', assignment_id='1', mode="test")
         self.db.add(participant)
@@ -248,3 +306,36 @@ class TestMTurkRecruiter(object):
         recruiter = self.make_one()
         recruiter.close_recruitment()
         # This test is for coverage; the method doesn't do anything.
+
+    def test_notify_recruited_when_group_name_not_specified(self):
+        participant = mock.Mock(spec=Participant, worker_id='some worker id')
+        recruiter = self.make_one(id="some experiment uid")
+        recruiter.notify_recruited(participant)
+
+        recruiter.mturkservice.increment_qualification_score.assert_called_once_with(
+            'some experiment uid',
+            'some worker id',
+        )
+
+    def test_notify_recruited_when_group_name_specified(self):
+        participant = mock.Mock(spec=Participant, worker_id='some worker id')
+        recruiter = self.make_one(
+            id="some experiment uid",
+            group_name='some existing group_name'
+        )
+        recruiter.notify_recruited(participant)
+
+        recruiter.mturkservice.increment_qualification_score.assert_has_calls([
+            mock.call('some experiment uid', 'some worker id'),
+            mock.call('some existing group_name', 'some worker id')
+        ], any_order=True)
+
+    def test_notify_recruited_nonexistent_qualification(self):
+        from dallinger.mturk import QualificationNotFoundException
+        participant = mock.Mock(spec=Participant, worker_id='some worker id')
+        recruiter = self.make_one(id="some unregistred experiment uid")
+        error = QualificationNotFoundException("Ouch!")
+        recruiter.mturkservice.increment_qualification_score.side_effect = error
+
+        # logs, but does not raise:
+        recruiter.notify_recruited(participant)

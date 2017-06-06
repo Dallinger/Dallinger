@@ -1,8 +1,11 @@
 """Recruiters manage the flow of participants to the experiment."""
 
+from rq import Queue
 from dallinger.config import get_config
+from dallinger.heroku.worker import conn
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
+from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 import logging
@@ -10,13 +13,20 @@ import os
 
 logger = logging.getLogger(__file__)
 
+# Connect to Redis Queue for recruiter calls
+q = Queue('low', connection=conn)
+
 
 class Recruiter(object):
     """The base recruiter."""
 
-    def __init__(self):
-        """Create a recruiter."""
-        super(Recruiter, self).__init__()
+    @staticmethod
+    def for_experiment(experiment):
+        """Return the Recruiter instance for the specified Experiment.
+
+        This provides a seam for testing.
+        """
+        return experiment.recruiter()
 
     def open_recruitment(self):
         """Throw an error."""
@@ -30,16 +40,18 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
+    def notify_recruited(self, participant):
+        """Allow the Recruiter to be notified when an recruited Participant
+        has joined an experiment.
+        """
+        pass
 
-class HotAirRecruiter(object):
+
+class HotAirRecruiter(Recruiter):
     """A dummy recruiter.
 
     Talks the talk, but does not walk the walk.
     """
-
-    def __init__(self):
-        """Create a hot air recruiter."""
-        super(HotAirRecruiter, self).__init__()
 
     def open_recruitment(self, n=1):
         """Talk about opening recruitment."""
@@ -69,33 +81,15 @@ class HotAirRecruiter(object):
         """Approve the HIT."""
         return True
 
-
-class SimulatedRecruiter(object):
-    """A recruiter that recruits simulated participants."""
-
-    def __init__(self):
-        """Create a simulated recruiter."""
-        super(SimulatedRecruiter, self).__init__()
-
-    def open_recruitment(self, n=1):
-        """Open recruitment."""
-        self.recruit(n)
-
-    def recruit(self, n=1):
-        """Recruit n participants."""
-        pass
-
-    def close_recruitment(self):
-        """Do nothing."""
-        pass
-
-
 class MTurkRecruiterException(Exception):
     """Custom exception for MTurkRecruiter"""
 
 
-class MTurkRecruiter(object):
+class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
+
+    experiment_qualification_desc = 'Experiment-specific qualification'
+    group_qualification_desc = 'Experiment group qualification'
 
     @classmethod
     def from_current_config(cls):
@@ -116,6 +110,15 @@ class MTurkRecruiter(object):
             (self.config.get('mode') == "sandbox")
         )
 
+    @property
+    def qualifications(self):
+        quals = {self.config.get('id'): self.experiment_qualification_desc}
+        group_name = self.config.get('group_name', None)
+        if group_name:
+            quals[group_name] = self.group_qualification_desc
+
+        return quals
+
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
         if self.is_in_progress:
@@ -129,6 +132,10 @@ class MTurkRecruiter(object):
 
         self.mturkservice.check_credentials()
 
+        self._create_mturk_qualifications()
+
+        blacklist = self._extract_blacklist_from_config()
+
         hit_request = {
             'max_assignments': n,
             'title': self.config.get('title'),
@@ -141,6 +148,11 @@ class MTurkRecruiter(object):
             'notification_url': self.config.get('notification_url'),
             'approve_requirement': self.config.get('approve_requirement'),
             'us_only': self.config.get('us_only'),
+            'blacklist': blacklist,
+            'blacklist_experience_limit': self.config.get(
+                'qualification_blacklist_experience_limit'
+            )
+
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
         if self.config.get('mode') == "sandbox":
@@ -167,6 +179,18 @@ class MTurkRecruiter(object):
             duration_hours=self.config.get('duration')
         )
 
+    def notify_recruited(self, participant):
+        """Assign a Qualification to the Participant for the experiment ID,
+        and for the configured group_name, if it's been set.
+        """
+        worker_id = participant.worker_id
+
+        for name in self.qualifications:
+            try:
+                self.mturkservice.increment_qualification_score(name, worker_id)
+            except QualificationNotFoundException, ex:
+                logger.exception(ex)
+
     def reward_bonus(self, assignment_id, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
         return self.mturkservice.grant_bonus(assignment_id, amount, reason)
@@ -191,4 +215,68 @@ class MTurkRecruiter(object):
         This does nothing, because the fact that this is called means
         that all MTurk HITs that were created were already completed.
         """
-        pass
+        logger.info("Close recruitment.")
+
+    def _extract_blacklist_from_config(self):
+        # At some point we'll support lists, so all service code supports them,
+        # but the config system only supports strings for now, so we convert:
+        blacklist = self.config.get('qualification_blacklist')
+        if blacklist:
+            blacklist = tuple([item.strip() for item in blacklist.split(',')])
+        else:
+            blacklist = ()
+
+        return blacklist
+
+    def _create_mturk_qualifications(self):
+        """Create MTurk Qualification for experiment ID, and for group_name
+        if it's been set.
+        """
+        for name, desc in self.qualifications.items():
+            self.mturkservice.create_qualification_type(name, desc)
+
+
+class BotRecruiter(Recruiter):
+    """Recruit bot participants using a queue"""
+
+    @classmethod
+    def from_current_config(cls):
+        config = get_config()
+        if not config.ready:
+            config.load_config()
+        return cls(config)
+
+    def __init__(self, config):
+        logger.info("Initialized recruiter.")
+        self.config = config
+
+    def open_recruitment(self, n=1):
+        """Start recruiting right away."""
+        logger.info("Open recruitment.")
+        self.recruit_participants(n)
+
+    def recruit_participants(self, n=1):
+        """Recruit n new participant bots to the queue"""
+        from dallinger_experiment import Bot
+
+        for _ in range(n):
+            base_url = get_base_url()
+            worker = generate_random_id()
+            hit = generate_random_id()
+            assignment = generate_random_id()
+            ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
+            ad_parameters = ad_parameters.format(assignment, hit, worker)
+            url = '{}/ad?{}'.format(base_url, ad_parameters)
+            bot = Bot(url, assignment_id=assignment, worker_id=worker)
+            job = q.enqueue(bot.run_experiment, timeout=60 * 20)
+            logger.info("Created job {} for url {}.".format(job.id, url))
+
+    def approve_hit(self, assignment_id):
+        return True
+
+    def close_recruitment(self):
+        """Clean up once the experiment is complete.
+
+        This does nothing at this time.
+        """
+        logger.info("Close recruitment.")

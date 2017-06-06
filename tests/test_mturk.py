@@ -2,6 +2,7 @@ import datetime
 import mock
 import os
 import pytest
+import socket
 from boto.resultset import ResultSet
 from boto.mturk.price import Price
 from boto.mturk.connection import Assignment
@@ -13,6 +14,7 @@ from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
+from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import generate_random_id
 
 
@@ -24,6 +26,12 @@ class FixtureConfigurationError(Exception):
     """To clarify that the error is with test configuration,
     not production code.
     """
+
+
+def name_with_hostname_prefix():
+    hostname = socket.gethostname()
+    name = "{}:{}".format(hostname, generate_random_id(size=32))
+    return name
 
 
 def as_resultset(things):
@@ -130,12 +138,13 @@ def standard_hit_config(**kwargs):
         'max_assignments': 1,
         'notification_url': 'https://url-of-notification-route',
         'title': 'Test Title',
-        'description': TEST_HIT_DESCRIPTION + str(os.getpid()),
         'keywords': ['testkw1', 'testkw1'],
         'reward': .01,
         'duration_hours': .25
     }
     defaults.update(**kwargs)
+    # Use fixed description, since this is how we clean up:
+    defaults['description'] = TEST_HIT_DESCRIPTION + str(os.getpid())
 
     return defaults
 
@@ -154,7 +163,9 @@ def with_cleanup(aws_creds, request):
         return hit['description'] == TEST_HIT_DESCRIPTION + str(os.getpid())
 
     service = MTurkService(**aws_creds)
-    request.instance._qtypes_to_purge = []
+    # In tests we do a lot of querying of Qualifications we only just created,
+    # so we need a long time-out
+    service.max_wait_secs = 60.0
     try:
         yield service
     except Exception as e:
@@ -163,13 +174,46 @@ def with_cleanup(aws_creds, request):
         try:
             for hit in service.get_hits(test_hits_only):
                 service.disable_hit(hit['id'])
-
-            # remove QualificationTypes we may have added:
-            for qtype_id in request.instance._qtypes_to_purge:
-                service.dispose_qualification_type(qtype_id)
         except Exception:
             # Broad exception so we don't leak credentials in Travis CI logs
             pass
+
+
+@pytest.fixture(scope="class")
+def worker_id():
+    # Get a worker ID from the environment or tests/config.py
+    import os
+    workerid = os.getenv('mturk_worker_id')
+    if not workerid:
+        try:
+            from . import config
+            workerid = config.mturk_worker_id
+        except Exception:
+            pass
+    if not workerid:
+        raise FixtureConfigurationError(
+            'No "mturk_worker_id" value found. '
+            'Either set this value or skip these tests with '
+            '`pytest -m "not mturkworker"`'
+        )
+    return workerid
+
+
+@pytest.fixture
+def qtype(aws_creds):
+    # build
+    name = name_with_hostname_prefix()
+    service = MTurkService(**aws_creds)
+    qtype = service.create_qualification_type(
+        name=name,
+        description=TEST_QUALIFICATION_DESCRIPTION,
+        status='Active',
+    )
+
+    yield qtype
+
+    # clean up
+    service.dispose_qualification_type(qtype['id'])
 
 
 @pytest.mark.mturk
@@ -226,6 +270,15 @@ class TestMTurkService(object):
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 2
 
+    def test_create_hit_with_valid_blacklist(self, with_cleanup, qtype):
+        hit = with_cleanup.create_hit(
+            **standard_hit_config(
+                blacklist=[qtype['name']],
+                blacklist_experience_limit=2
+            )
+        )
+        assert hit['status'] == 'Assignable'
+
     def test_extend_hit_with_valid_hit_id(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
 
@@ -272,95 +325,169 @@ class TestMTurkService(object):
         assert result['status'] == u'Active'
         assert with_cleanup.dispose_qualification_type(result['id'])
 
+    def test_create_qualification_type_with_existing_name_raises(self, with_cleanup, qtype):
+        with pytest.raises(MTurkRequestError):
+            with_cleanup.create_qualification_type(qtype['name'], 'desc', 'Active')
+
+    def test_get_qualification_type_by_name_with_valid_name(self, with_cleanup, qtype):
+        result = with_cleanup.get_qualification_type_by_name(qtype['name'])
+        assert qtype == result
+
 
 @pytest.mark.mturk
 @pytest.mark.mturkworker
 class TestMTurkServiceWithRequesterAndWorker(object):
 
-    def _make_qtype(self, mturk):
-        qtype = mturk.create_qualification_type(
-            name=generate_random_id(size=32),
-            description=TEST_QUALIFICATION_DESCRIPTION,
-            status='Active',
-        )
-        self._qtypes_to_purge.append(qtype['id'])
-        return qtype
-
-    def worker_id(self):
-        # Get a worker ID from the environment or tests/config.py
-        import os
-        workerid = os.getenv('mturk_worker_id')
-        if not workerid:
-            try:
-                from . import config
-                workerid = config.mturk_worker_id
-            except Exception:
-                pass
-        if not workerid:
-            raise FixtureConfigurationError(
-                'No "mturk_worker_id" value found. '
-                'Either set this value or skip these tests with '
-                '`pytest -m "not mturkworker"`'
-            )
-        return workerid
-
-    def test_assign_qualification(self, with_cleanup):
-        qtype = self._make_qtype(with_cleanup)
+    def test_assign_qualification(self, with_cleanup, worker_id, qtype):
         assert with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id(), score=2, notify=False)
+            qtype['id'], worker_id, score=2, notify=False)
 
-    def test_assign_already_granted_qualification_raises(self, with_cleanup):
-        qtype = self._make_qtype(with_cleanup)
+    def test_assign_already_granted_qualification_raises(self,
+                                                         with_cleanup,
+                                                         worker_id,
+                                                         qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id(), score=2, notify=False
+            qtype['id'], worker_id, score=2, notify=False
         )
 
         with pytest.raises(MTurkRequestError):
             with_cleanup.assign_qualification(
-                qtype['id'], self.worker_id(), score=2, notify=False)
+                qtype['id'], worker_id, score=2, notify=False)
 
-    def test_update_qualification_score(self, with_cleanup):
-        qtype = self._make_qtype(with_cleanup)
+    def test_update_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id(), score=2, notify=False)
+            qtype['id'], worker_id, score=2, notify=False)
 
         with_cleanup.update_qualification_score(
-            qtype['id'], self.worker_id(), score=3)
+            qtype['id'], worker_id, score=3)
 
         new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id())[0].IntegerValue
+            qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '3'
 
-    def test_get_workers_with_qualification(self, with_cleanup):
-        qtype = self._make_qtype(with_cleanup)
+    def test_get_workers_with_qualification(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id(), score=2, notify=False)
+            qtype['id'], worker_id, score=2, notify=False)
 
         workers = with_cleanup.get_workers_with_qualification(qtype['id'])
 
-        assert self.worker_id() in [w['id'] for w in workers]
+        assert worker_id in [w['id'] for w in workers]
 
-    def test_set_qualification_score_with_new_qualification(self, with_cleanup):
-        qtype = self._make_qtype(with_cleanup)
-
+    def test_set_qualification_score_with_new_qualification(self, with_cleanup, worker_id, qtype):
         with_cleanup.set_qualification_score(
-            qtype['id'], self.worker_id(), score=2, notify=False)
+            qtype['id'], worker_id, score=2, notify=False)
 
         new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id())[0].IntegerValue
+            qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '2'
 
-    def test_set_qualification_score_with_existing_qualification(self, with_cleanup):
-        qtype = self._make_qtype(with_cleanup)
+    def test_set_qualification_score_with_existing_qualification(self,
+                                                                 with_cleanup,
+                                                                 worker_id,
+                                                                 qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], self.worker_id(), score=2, notify=False)
+            qtype['id'], worker_id, score=2, notify=False)
 
         with_cleanup.set_qualification_score(
-            qtype['id'], self.worker_id(), score=3, notify=False)
+            qtype['id'], worker_id, score=3, notify=False)
 
         new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], self.worker_id())[0].IntegerValue
+            qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '3'
+
+    def test_get_qualification_by_name(self, with_cleanup, worker_id, qtype):
+        # First query can be very slow, since the qtype was just added:
+        result = with_cleanup.get_qualification_type_by_name(qtype['name'])
+        assert result is not None
+        # After that they will be fast, so we can set the wait to 0
+        with_cleanup.max_wait_secs = 0
+        for i in range(3):
+            result = with_cleanup.get_qualification_type_by_name(qtype['name'])
+            assert result is not None
+
+    def test_get_current_qualification_score(self, with_cleanup, worker_id, qtype):
+        with_cleanup.assign_qualification(
+            qtype['id'], worker_id, score=2, notify=False)
+
+        result = with_cleanup.get_current_qualification_score(qtype['name'], worker_id)
+
+        assert result['qtype']['id'] == qtype['id']
+        assert result['score'] == 2
+
+    def test_get_current_qualification_score_worker_unscored(self, with_cleanup, worker_id, qtype):
+        result = with_cleanup.get_current_qualification_score(qtype['name'], worker_id)
+
+        assert result['qtype']['id'] == qtype['id']
+        assert result['score'] is None
+
+    def test_increment_qualification_score(self, with_cleanup, worker_id, qtype):
+        with_cleanup.assign_qualification(
+            qtype['id'], worker_id, score=2, notify=False)
+
+        result = with_cleanup.increment_qualification_score(
+            qtype['name'], worker_id, notify=False)
+
+        assert result['qtype']['id'] == qtype['id']
+        assert result['score'] == 3
+
+    def test_increment_qualification_score_worker_unscored(self, with_cleanup, worker_id, qtype):
+        result = with_cleanup.increment_qualification_score(
+            qtype['name'], worker_id, notify=False)
+
+        assert result['qtype']['id'] == qtype['id']
+        assert result['score'] == 1
+
+    def test_increment_qualification_score_nonexistent_qual(self, with_cleanup, worker_id):
+        with_cleanup.max_wait_secs = 0  # we know the name doesn't exist, so no need to wait
+        with pytest.raises(QualificationNotFoundException):
+            with_cleanup.increment_qualification_score(
+                'nonexistent', worker_id, notify=False
+            )
+
+
+@pytest.mark.mturk
+@pytest.mark.mturkworker
+@pytest.mark.skipif(not pytest.config.getvalue("manual"),
+                    reason="--manual was not specified")
+class TestInteractive(object):
+
+    def test_worker_can_see_hit_when_blacklist_not_in_qualifications(self,
+                                                                     with_cleanup,
+                                                                     worker_id,
+                                                                     qtype):
+        with_cleanup.assign_qualification(
+            qtype['id'], worker_id, score=1, notify=False)
+
+        print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name'])
+        raw_input("Any key to continue...")
+
+        hit = with_cleanup.create_hit(
+            **standard_hit_config(title="Dallinger: No Blacklist"))
+
+        print 'MANUAL STEP: Should be able to see "{}" as available HIT'.format(hit['title'])
+        raw_input("Any key to continue...")
+
+    def test_worker_cannot_see_hit_when_blacklist_in_qualifications(self,
+                                                                    with_cleanup,
+                                                                    worker_id,
+                                                                    qtype):
+        with_cleanup.assign_qualification(
+            qtype['id'], worker_id, score=1, notify=False)
+
+        print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name'])
+        raw_input("Any key to continue...")
+
+        hit = with_cleanup.create_hit(
+            **standard_hit_config(
+                title="Dallinger: Blacklist",
+                blacklist=[qtype['name']]
+            )
+        )
+
+        print 'MANUAL STEP: Should NOT be able to see "{}"" as available HIT'.format(hit['title'])
+        raw_input("Any key to continue...")
+
+        pass
 
 
 @pytest.fixture
@@ -461,6 +588,16 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.create_hit(**standard_hit_config())
 
         with_mock.mturk.create_hit.assert_called_once()
+
+    def test_create_hit_with_blacklist_but_no_limit_raises(self, with_mock):
+        with_mock.mturk.configure_mock(**{
+            'register_hit_type.return_value': fake_hit_type_response(),
+            'set_rest_notification.return_value': ResultSet(),
+            'create_hit.return_value': fake_hit_response(),
+        })
+
+        with pytest.raises(MTurkServiceException):
+            with_mock.create_hit(**standard_hit_config(blacklist="foo"))
 
     def test_create_hit_translates_response_back_from_mturk(self, with_mock):
         with_mock.mturk.configure_mock(**{
@@ -626,9 +763,8 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.get_workers_with_qualification = mock.Mock(
             return_value=[{'id': 'workerid', 'score': 2}]
         )
-        with_mock.update_qualification_score = mock.Mock(
-            return_value=True
-        )
+        with_mock.update_qualification_score = mock.Mock(return_value=True)
+
         assert with_mock.set_qualification_score('qid', 'workerid', 4)
         with_mock.get_workers_with_qualification.assert_called_once_with('qid')
         with_mock.update_qualification_score.assert_called_once_with(
@@ -636,14 +772,68 @@ class TestMTurkServiceWithFakeConnection(object):
         )
 
     def test_set_qualification_score_with_new_qualification(self, with_mock):
-        with_mock.get_workers_with_qualification = mock.Mock(
-            return_value=[]
-        )
-        with_mock.assign_qualification = mock.Mock(
-            return_value=True
-        )
+        with_mock.get_workers_with_qualification = mock.Mock(return_value=[])
+        with_mock.assign_qualification = mock.Mock(return_value=True)
+
         assert with_mock.set_qualification_score('qid', 'workerid', 4)
         with_mock.get_workers_with_qualification.assert_called_once_with('qid')
         with_mock.assign_qualification.assert_called_once_with(
             'qid', 'workerid', 4, True
         )
+
+    def test_get_current_qualification_score(self, with_mock):
+        worker_id = 'some worker id'
+        with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
+        with_mock.mturk.get_all_qualifications_for_qual_type = mock.Mock(
+            return_value=[mock.Mock(SubjectId=worker_id, IntegerValue='1')]
+        )
+
+        result = with_mock.get_current_qualification_score('some name', worker_id)
+
+        assert result['qtype'] == {'id': 'qid'}
+        assert result['score'] == 1
+
+    def test_get_current_qualification_score_worker_unscored(self, with_mock):
+        worker_id = 'some worker id'
+        with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
+        with_mock.mturk.get_all_qualifications_for_qual_type = mock.Mock(
+            return_value=[mock.Mock(SubjectId='other worker id', IntegerValue='1')]
+        )
+
+        result = with_mock.get_current_qualification_score('some name', worker_id)
+
+        assert result['qtype'] == {'id': 'qid'}
+        assert result['score'] is None
+
+    def test_increment_qualification_score_for_worker_with_score(self, with_mock):
+        worker_id = 'some worker id'
+        fake_score = {'qtype': {'id': 'qtype_id'}, 'score': 2}
+        with_mock.get_current_qualification_score = mock.Mock(
+            return_value=fake_score)
+
+        result = with_mock.increment_qualification_score('some qual', worker_id)
+
+        assert result['score'] == 3
+        with_mock.mturk.update_qualification_score.assert_called_once_with(
+            'qtype_id', worker_id, 3
+        )
+
+    def test_increment_qualification_score_for_worker_with_no_score(self, with_mock):
+        worker_id = 'some worker id'
+        fake_score = {'qtype': {'id': 'qtype_id'}, 'score': None}
+        with_mock.get_current_qualification_score = mock.Mock(
+            return_value=fake_score)
+
+        result = with_mock.increment_qualification_score('some qual', worker_id)
+
+        assert result['score'] == 1
+        with_mock.mturk.assign_qualification.assert_called_once_with(
+            'qtype_id', worker_id, 1, True
+        )
+
+    def test_increment_qualification_score_nonexisting_qual_raises(self, with_mock):
+        worker_id = 'some worker id'
+        with_mock.get_qualification_type_by_name = mock.Mock(return_value=None)
+
+        with pytest.raises(QualificationNotFoundException):
+            with_mock.increment_qualification_score('some qual', worker_id)

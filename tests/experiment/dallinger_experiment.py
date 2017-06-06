@@ -10,7 +10,15 @@ class TestExperiment(Experiment):
     def __init__(self, session=None):
         super(TestExperiment, self).__init__(session)
         self.experiment_repeats = 1
-        self.setup()
+        self.quorum = 1
+        if session:
+            self.setup()
+
+    @property
+    def public_properties(self):
+        return {
+            'exists': True,
+        }
 
     def create_network(self):
         """Return a new network."""

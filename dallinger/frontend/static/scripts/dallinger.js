@@ -13,31 +13,40 @@ var getUrlParameter = function getUrlParameter(sParam) {
         }
     }
 };
-hit_id = getUrlParameter("hit_id");
-worker_id = getUrlParameter("worker_id");
-assignment_id = getUrlParameter("assignment_id");
-mode = getUrlParameter("mode");
-participant_id = getUrlParameter("participant_id");
+var hit_id = getUrlParameter("hit_id");
+var worker_id = getUrlParameter("worker_id");
+var assignment_id = getUrlParameter("assignment_id");
+var mode = getUrlParameter("mode");
+var participant_id = getUrlParameter("participant_id");
 
-// stop people leaving the page
-window.onbeforeunload = function() {
-    return "Warning: the study is not yet finished. " +
-    "Closing the window, refreshing the page or navigating elsewhere " +
-    "might prevent you from finishing the experiment.";
-};
+// stop people leaving the page, but only if desired by experiment
+var allow_exit_once = false;
+var prevent_exit = false;
+window.addEventListener('beforeunload', function(e) {
+    if (prevent_exit == true && allow_exit_once == false) {
+        var returnValue = "Warning: the study is not yet finished. " +
+        "Closing the window, refreshing the page or navigating elsewhere " +
+        "might prevent you from finishing the experiment.";
+        e.returnValue = returnValue;
+        return returnValue;
+    } else {
+        allow_exit_once = false;
+        return undefined;
+    }
+});
 
 // allow actions to leave the page
-allow_exit = function() {
-    window.onbeforeunload = function() {};
+var allow_exit = function() {
+    allow_exit_once = true;
 };
 
 // advance the participant to a given html page
-go_to_page = function(page) {
+var go_to_page = function(page) {
     window.location = "/" + page + "?participant_id=" + participant_id;
 };
 
 // report assignment complete
-submitAssignment = function() {
+var submitAssignment = function() {
     reqwest({
         url: "/participant/" + participant_id,
         method: "get",
@@ -47,7 +56,7 @@ submitAssignment = function() {
             hit_id = resp.participant.hit_id;
             assignment_id = resp.participant.assignment_id;
             worker_id = resp.participant.worker_id;
-            worker_complete = '/worker_complete';
+            var worker_complete = '/worker_complete';
             reqwest({
                 url: worker_complete,
                 method: "get",
@@ -61,7 +70,7 @@ submitAssignment = function() {
                 },
                 error: function (err) {
                     console.log(err);
-                    errorResponse = JSON.parse(err.response);
+                    var errorResponse = JSON.parse(err.response);
                     $("body").html(errorResponse.html);
                 }
             });
@@ -69,13 +78,13 @@ submitAssignment = function() {
     });
 };
 
-submit_assignment = function () {
+var submit_assignment = function () {
     submitAssignment();
 };
 
 // make a new participant
-create_participant = function() {
-
+var create_participant = function() {
+    var url;
     // check if the local store is available, and if so, use it.
     if (typeof store != "undefined") {
         url = "/participant/" +
@@ -91,39 +100,62 @@ create_participant = function() {
             mode;
     }
 
-    if (participant_id === undefined || participant_id === "undefined") {
-        reqwest({
-            url: url,
-            method: "post",
-            type: "json",
-            success: function(resp) {
-                console.log(resp);
-                participant_id = resp.participant.id;
-            },
-            error: function (err) {
-                errorResponse = JSON.parse(err.response);
-                $("body").html(errorResponse.html);
-            }
+    var deferred = $.Deferred();
+    if (participant_id !== undefined && participant_id !== 'undefined') {
+        deferred.resolve();
+    } else {
+        $(function () {
+            $('.btn-success').prop('disabled', true);
+            reqwest({
+                url: url,
+                method: "post",
+                type: "json",
+                success: function(resp) {
+                    console.log(resp);
+                    $('.btn-success').prop('disabled', false);
+                    participant_id = resp.participant.id;
+                    if (resp.quorum) {
+                        if (resp.quorum.n === resp.quorum.q) {
+                            // reached quorum; resolve immediately
+                            deferred.resolve();
+                        } else {
+                            // wait for quorum, then resolve
+                            updateProgressBar(resp.quorum.n, resp.quorum.q);
+                            waitForQuorum().done(function () {
+                                deferred.resolve();
+                            });
+                        }
+                    } else {
+                        // no quorum; resolve immediately
+                        deferred.resolve();
+                    }
+                },
+                error: function (err) {
+                    var errorResponse = JSON.parse(err.response);
+                    $("body").html(errorResponse.html);
+                }
+            });
         });
     }
+    return deferred;
 };
 
-lock = false;
+var lock = false;
 
-submitResponses = function () {
+var submitResponses = function () {
     submitNextResponse(0);
     submitAssignment();
 };
 
-submit_responses = function () {
+var submit_responses = function () {
     submitResponses();
     submitAssignment();
 };
 
-submitNextResponse = function (n) {
+var submitNextResponse = function (n) {
 
     // Get all the ids.
-    ids = $("form .question select, input, textarea").map(
+    var ids = $("form .question select, input, textarea").map(
         function () {
             return $(this).attr("id");
         }
@@ -144,10 +176,33 @@ submitNextResponse = function (n) {
             }
         },
         error: function (err) {
-            errorResponse = JSON.parse(err.response);
+            var errorResponse = JSON.parse(err.response);
             if (errorResponse.hasOwnProperty("html")) {
                 $("body").html(errorResponse.html);
             }
         }
     });
+};
+
+waitForQuorum = function () {
+    var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
+    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat");
+    var deferred = $.Deferred();
+    socket.onmessage = function (msg) {
+        if (msg.data.indexOf('quorum:') !== 0) { return; }
+        var data = JSON.parse(msg.data.substring(7));
+        var n = data.n;
+        var quorum = data.q;
+        updateProgressBar(n, quorum);
+        if (n >= quorum) {
+            deferred.resolve();
+        }
+    };
+    return deferred;
+};
+
+updateProgressBar = function (value, total) {
+    var percent = Math.round((value / total) * 100.0) + '%';
+    $("#waiting-progress-bar").css("width", percent);
+    $("#progress-percentage").text(percent);
 };

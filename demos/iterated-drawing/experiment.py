@@ -7,7 +7,7 @@ from dallinger.experiments import Experiment
 class IteratedDrawing(Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session):
+    def __init__(self, session=None):
         """Call the same function in the super (see experiments.py in dallinger).
 
         The models module is imported here because it must be imported at
@@ -21,7 +21,8 @@ class IteratedDrawing(Experiment):
         import models
         self.models = models
         self.experiment_repeats = 1
-        self.setup()
+        if session:
+            self.setup()
 
     def setup(self):
         """Setup the networks.
