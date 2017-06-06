@@ -2,6 +2,8 @@
 
 from collections import OrderedDict
 import csv
+from datetime import datetime
+import io
 import os
 import requests
 import tempfile
@@ -158,3 +160,35 @@ class TestData(object):
         # We should be able to check that the UUID is registered
         assert dallinger.data.is_registered(new_uuid) is True
         assert dallinger.data.is_registered('bogus-uuid-value') is False
+
+
+class TestImport(object):
+
+    zip_path = os.path.join(
+        "tests",
+        "datasets",
+        "12eee6c6-f37f-4963-b684-da585acd77f1-data.zip"
+    )
+
+    config = get_config()
+
+    def test_ingest_to_model(self, db_session):
+        data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
+1,2001-01-01 09:46:40.133536,,,,,,f,,fully-connected,4,f,experiment'''
+        f = io.StringIO(initial_value=data)
+
+        dallinger.data.ingest_to_model(f, dallinger.models.Network)
+
+        networks = dallinger.models.Network.query.all()
+        assert len(networks) == 1
+        network = networks[0]
+        assert network.type == 'fully-connected'
+        assert network.creation_time == datetime(2001, 1, 1, 9, 46, 40, 133536)
+        assert network.role == 'experiment'
+
+    def test_ingest_zip(self, db_session):
+        dallinger.data.ingest_zip(self.zip_path)
+
+        networks = dallinger.models.Network.query.all()
+        assert len(networks) == 1
+        assert networks[0].type == 'chain'
