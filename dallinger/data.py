@@ -13,6 +13,7 @@ from zipfile import ZipFile, ZIP_DEFLATED
 import boto
 from boto.s3.key import Key
 import hashlib
+import postgres_copy
 import psycopg2
 
 try:
@@ -24,6 +25,7 @@ except ImportError:
 
 from dallinger import heroku
 from dallinger import db
+from dallinger import models
 
 
 table_names = [
@@ -252,6 +254,28 @@ def export(id, local=False, scrub_pii=False):
         register(id, url)
 
     return path_to_data
+
+
+def ingest_zip(path):
+    """Given a path to a zip file created with `export()`, recreate the
+    database with the data stored in the included .csv files.
+    """
+    with ZipFile(path, 'r') as archive:
+        for name in table_names:
+            filename = [f for f in archive.namelist() if name in f][0]
+            model_name = name.capitalize()
+            model = getattr(models, model_name)
+            file = archive.open(filename)
+            ingest_to_model(file, model)
+
+
+def ingest_to_model(file, model):
+    """Load data from a CSV file handle into storage for a
+    SQLAlchemy model class.
+    """
+    postgres_copy.copy_from(
+        file, model, db.engine, format='csv', HEADER=True
+    )
 
 
 def archive_data(id, src, dst):
