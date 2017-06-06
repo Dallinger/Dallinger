@@ -1,0 +1,1 @@
+-e git://github.com/Dallinger/Dallinger.git@memory-expt#egg=dallinger
