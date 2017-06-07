@@ -260,8 +260,19 @@ def ingest_zip(path):
     """Given a path to a zip file created with `export()`, recreate the
     database with the data stored in the included .csv files.
     """
+    import_order = [
+        "network",
+        "participant",
+        "node",
+        "info",
+        "notification",
+        "question",
+        "transformation",
+        "vector",
+        "transmission",
+    ]
     with ZipFile(path, 'r') as archive:
-        for name in table_names:
+        for name in import_order:
             filename = [f for f in archive.namelist() if name in f][0]
             model_name = name.capitalize()
             model = getattr(models, model_name)

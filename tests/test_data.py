@@ -173,13 +173,13 @@ class TestData(object):
 
 class TestImport(object):
 
-    zip_path = os.path.join(
-        "tests",
-        "datasets",
-        "12eee6c6-f37f-4963-b684-da585acd77f1-data.zip"
-    )
-
-    config = get_config()
+    @pytest.fixture
+    def zip_path(self):
+        return os.path.join(
+            "tests",
+            "datasets",
+            "test_export.zip"
+        )
 
     def test_ingest_to_model(self, db_session):
         data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
@@ -195,9 +195,50 @@ class TestImport(object):
         assert network.creation_time == datetime(2001, 1, 1, 9, 46, 40, 133536)
         assert network.role == 'experiment'
 
-    def test_ingest_zip(self, db_session):
-        dallinger.data.ingest_zip(self.zip_path)
+    def test_ingest_zip_recreates_network(self, db_session, zip_path):
+        dallinger.data.ingest_zip(zip_path)
 
         networks = dallinger.models.Network.query.all()
         assert len(networks) == 1
         assert networks[0].type == 'chain'
+
+    def test_ingest_zip_recreates_participants(self, db_session, zip_path):
+        dallinger.data.ingest_zip(zip_path)
+
+        participants = dallinger.models.Participant.query.all()
+        assert len(participants) == 4
+        for p in participants:
+            assert p.status == 'approved'
+
+    def test_ingest_zip_recreates_nodes(self, db_session, zip_path):
+        dallinger.data.ingest_zip(zip_path)
+        assert len(dallinger.models.Node.query.all()) == 5
+
+    def test_ingest_zip_recreates_infos(self, db_session, zip_path):
+        dallinger.data.ingest_zip(zip_path)
+
+        infos = dallinger.models.Info.query.all()
+        assert len(infos) == 5
+        for info in infos:
+            assert info.contents.startswith(u'One night two young men')
+
+    def test_ingest_zip_recreates_notifications(self, db_session, zip_path):
+        dallinger.data.ingest_zip(zip_path)
+        assert len(dallinger.models.Notification.query.all()) == 8
+
+    def test_ingest_zip_recreates_questions(self, db_session, zip_path):
+        dallinger.data.ingest_zip(zip_path)
+
+        model = dallinger.models.Question
+        p1_questions = model.query.filter_by(participant_id=1).all()
+        for q in p1_questions:
+            if q.response:
+                assert q.response == u'5'
+
+    def test_ingest_zip_recreates_vectors(self, db_session, zip_path):
+        dallinger.data.ingest_zip(zip_path)
+        assert len(dallinger.models.Vector.query.all()) == 4
+
+    def test_ingest_zip_recreates_transmissions(self, db_session, zip_path):
+        dallinger.data.ingest_zip(zip_path)
+        assert len(dallinger.models.Transmission.query.all()) == 4
