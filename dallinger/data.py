@@ -280,6 +280,15 @@ def ingest_zip(path):
             ingest_to_model(file, model)
 
 
+def fix_autoincrement(table_name):
+    """Auto-increment pointers are not updated when IDs are set explicitly,
+    so we manually update the pointer so subsequent inserts work correctly.
+    """
+    db.engine.execute(
+        "select setval('{0}_id_seq', max(id)) from {0}".format(table_name)
+    )
+
+
 def ingest_to_model(file, model):
     """Load data from a CSV file handle into storage for a
     SQLAlchemy model class.
@@ -287,6 +296,7 @@ def ingest_to_model(file, model):
     postgres_copy.copy_from(
         file, model, db.engine, format='csv', HEADER=True
     )
+    fix_autoincrement(model.__table__.name)
 
 
 def archive_data(id, src, dst):

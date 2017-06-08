@@ -195,6 +195,20 @@ class TestImport(object):
         assert network.creation_time == datetime(2001, 1, 1, 9, 46, 40, 133536)
         assert network.role == 'experiment'
 
+    def test_ingest_to_model_allows_subsequent_insert(self, db_session):
+        data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
+1,2001-01-01 09:46:40.133536,,,,,,f,,fully-connected,4,f,experiment'''
+        f = io.StringIO(initial_value=data)
+
+        dallinger.data.ingest_to_model(f, dallinger.models.Network)
+
+        db_session.add(dallinger.models.Network())
+        db_session.flush()
+        db_session.commit()
+
+        networks = dallinger.models.Network.query.all()
+        assert networks[1].id == 2
+
     def test_ingest_zip_recreates_network(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
 
