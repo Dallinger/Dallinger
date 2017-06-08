@@ -16,18 +16,25 @@ from pytest import raises
 import dallinger.command_line
 from dallinger.command_line import verify_package
 from dallinger.compat import unicode
-from dallinger.config import LOCAL_CONFIG, get_config
+from dallinger.config import get_config
 import dallinger.version
 
 
+def found_in(name, path):
+    return os.path.exists(os.path.join(path, name))
+
+
+@pytest.fixture
+def env():
+    fake_home = tempfile.mkdtemp()
+    environ = os.environ.copy()
+    environ.update({'HOME': fake_home})
+    yield environ
+
+    shutil.rmtree(fake_home, ignore_errors=True)
+
+
 class TestCommandLine(object):
-
-    def setup(self):
-        """Set up the environment by moving to the demos directory."""
-        os.chdir("demos")
-
-    def teardown(self):
-        os.chdir("..")
 
     def test_dallinger_no_args(self):
         output = subprocess.check_output(["dallinger"])
@@ -73,72 +80,65 @@ class TestCommandLine(object):
         subprocess.check_call(["dallinger", "setup"])
 
 
+@pytest.mark.usefixtures('bartlett_dir')
 class TestSetupExperiment(object):
-
-    def setup(self):
-        """Set up the environment by moving to the demos directory."""
-        self.orig_dir = os.getcwd()
-        os.chdir("demos/bartlett1932")
-        config = get_config()
-        config.load_from_file(LOCAL_CONFIG)
-
-    def teardown(self):
-        os.chdir(self.orig_dir)
 
     def test_setup_creates_new_experiment(self):
         from dallinger.command_line import setup_experiment
         # Baseline
         exp_dir = os.getcwd()
-        assert(os.path.exists('experiment.py') is True)
-        assert(os.path.exists('dallinger_experiment.py') is False)
-        assert(os.path.exists('experiment_id.txt') is False)
-        assert(os.path.exists('Procfile') is False)
-        assert(os.path.exists('launch.py') is False)
-        assert(os.path.exists('worker.py') is False)
-        assert(os.path.exists('clock.py') is False)
+        assert found_in('experiment.py', exp_dir)
+        assert not found_in('dallinger_experiment.py', exp_dir)
+        assert not found_in('experiment_id.txt', exp_dir)
+        assert not found_in('Procfile', exp_dir)
+        assert not found_in('launch.py', exp_dir)
+        assert not found_in('worker.py', exp_dir)
+        assert not found_in('clock.py', exp_dir)
 
         exp_id, dst = setup_experiment()
 
         # dst should be a temp dir with a cloned experiment for deployment
         assert(exp_dir != dst)
         assert('/tmp' in dst)
-        os.chdir(dst)
-        assert(os.path.exists('experiment_id.txt') is True)
-        assert(os.path.exists('experiment.py') is False)
-        assert(os.path.exists('dallinger_experiment.py') is True)
-        assert(os.path.exists('models.py') is True)
-        assert(filecmp.cmp('dallinger_experiment.py',
-                           os.path.join(exp_dir, 'experiment.py')) is True)
 
-        assert(os.path.exists('Procfile') is True)
-        assert(os.path.exists('launch.py') is True)
-        assert(os.path.exists('worker.py') is True)
-        assert(os.path.exists('clock.py') is True)
-        assert(os.path.exists(os.path.join("static", "css", "dallinger.css")) is True)
-        assert(os.path.exists(os.path.join("static", "scripts", "dallinger.js")) is True)
-        assert(os.path.exists(os.path.join("static", "scripts", "reqwest.min.js")) is True)
-        assert(os.path.exists(os.path.join("static", "robots.txt")) is True)
-        assert(os.path.exists(os.path.join("templates", "error.html")) is True)
-        assert(os.path.exists(os.path.join("templates", "launch.html")) is True)
-        assert(os.path.exists(os.path.join("templates", "complete.html")) is True)
+        assert found_in('experiment_id.txt', dst)
+        assert not found_in('experiment.py', dst)
+        assert found_in('dallinger_experiment.py', dst)
+        assert found_in('models.py', dst)
+        assert found_in('Procfile', dst)
+        assert found_in('launch.py', dst)
+        assert found_in('worker.py', dst)
+        assert found_in('clock.py', dst)
+
+        assert filecmp.cmp(
+            os.path.join(dst, 'dallinger_experiment.py'),
+            os.path.join(exp_dir, 'experiment.py')
+        )
+
+        assert found_in(os.path.join("static", "css", "dallinger.css"), dst)
+        assert found_in(os.path.join("static", "scripts", "dallinger.js"), dst)
+        assert found_in(os.path.join("static", "scripts", "reqwest.min.js"), dst)
+        assert found_in(os.path.join("static", "robots.txt"), dst)
+        assert found_in(os.path.join("templates", "error.html"), dst)
+        assert found_in(os.path.join("templates", "launch.html"), dst)
+        assert found_in(os.path.join("templates", "complete.html"), dst)
 
     def test_setup_with_custom_dict_config(self):
         from dallinger.command_line import setup_experiment
         config = get_config()
-        assert(config.get('num_dynos_web') == 1)
+        assert config.get('num_dynos_web') == 1
 
         exp_id, dst = setup_experiment(exp_config={'num_dynos_web': 2})
         # Config is updated
-        assert(config.get('num_dynos_web') == 2)
+        assert config.get('num_dynos_web') == 2
 
         # Code snapshot is saved
         os.path.exists(os.path.join('snapshots', exp_id + '-code.zip'))
 
         # There should be a modified configuration in the temp dir
-        os.chdir(dst)
         deploy_config = SafeConfigParser()
-        deploy_config.read('config.txt')
-        assert(int(deploy_config.get('Parameters', 'num_dynos_web')) == 2)
+        deploy_config.read(os.path.join(dst, 'config.txt'))
+        assert int(deploy_config.get('Parameters', 'num_dynos_web')) == 2
 
     def test_setup_excludes_sensitive_config(self):
         from dallinger.command_line import setup_experiment
@@ -157,9 +157,8 @@ class TestSetupExperiment(object):
         exp_id, dst = setup_experiment()
 
         # The temp dir should have a config with the sensitive variables missing
-        os.chdir(dst)
         deploy_config = SafeConfigParser()
-        deploy_config.read('config.txt')
+        deploy_config.read(os.path.join(dst, 'config.txt'))
         assert(deploy_config.get(
             'Parameters', 'something_normal') == u'show this'
         )
@@ -168,10 +167,10 @@ class TestSetupExperiment(object):
         with raises(NoOptionError):
             deploy_config.get('Parameters', 'something_sensitive')
 
-    def test_setup_copies_dataset_archive(self):
+    def test_setup_copies_dataset_archive(self, root):
         from dallinger.command_line import setup_experiment
         zip_path = os.path.join(
-            self.orig_dir,
+            root,
             'tests',
             'datasets',
             'test_export.zip'
@@ -187,38 +186,23 @@ class TestSetupExperiment(object):
     def test_large_float_payment(self):
         config = get_config()
         config['base_payment'] = 1.2342
-        assert(verify_package() is False)
+        assert verify_package() is False
 
     def test_negative_payment(self):
         config = get_config()
         config['base_payment'] = -1.99
-        assert(verify_package() is False)
+        assert verify_package() is False
 
 
+@pytest.mark.usefixtures('bartlett_dir')
 class TestDebugServer(object):
 
-    def setup(self):
-        """Set up the environment by moving to the demos directory."""
-        self.orig_dir = os.getcwd()
-        os.chdir("demos/bartlett1932")
-        # Heroku requires a home directory to start up
-        # We create a fake one using tempfile and set it into the
-        # environment to handle sandboxes on CI servers
-        self.fake_home = tempfile.mkdtemp()
-
-        self.environ = os.environ.copy()
-        self.environ.update({'HOME': self.fake_home})
-
-    def teardown(self):
-        shutil.rmtree(self.fake_home, ignore_errors=True)
-        os.chdir(self.orig_dir)
-
-    def test_startup(self):
+    def test_startup(self, env):
         # Make sure debug server starts without error
         p = pexpect.spawn(
             'dallinger',
             ['debug', '--verbose'],
-            env=self.environ,
+            env=env,
         )
         p.logfile = sys.stdout
         try:
@@ -227,14 +211,13 @@ class TestDebugServer(object):
             p.sendcontrol('c')
             p.read()
 
-    def test_launch_failure(self):
+    def test_launch_failure(self, env):
         # Make sure debug server starts without error
-        environ = self.environ.copy()
-        environ['recruiter'] = u'bogus'
+        env['recruiter'] = u'bogus'
         p = pexpect.spawn(
             'dallinger',
             ['debug', '--verbose'],
-            env=environ,
+            env=env,
         )
         p.logfile = sys.stdout
         try:
@@ -250,21 +233,20 @@ class TestDebugServer(object):
                 pass
             p.read()
 
-    def test_warning_if_no_heroku_present(self):
-        environ = self.environ.copy()
+    def test_warning_if_no_heroku_present(self, env):
         # Remove the path item that has heroku in it
-        path_items = environ['PATH'].split(':')
+        path_items = env['PATH'].split(':')
         path_items = [
             item for item in path_items
             if not os.path.exists(os.path.join(item, 'heroku'))
         ]
-        environ.update({
+        env.update({
             'PATH': ':'.join(path_items)
         })
         p = pexpect.spawn(
             'dallinger',
             ['debug', '--verbose'],
-            env=environ,
+            env=env,
         )
         p.logfile = sys.stdout
         try:
@@ -275,12 +257,12 @@ class TestDebugServer(object):
 
     @pytest.mark.skipif(not pytest.config.getvalue("runbot"),
                         reason="--runbot was specified")
-    def test_debug_bots(self):
+    def test_debug_bots(self, env):
         # Make sure debug server runs to completion with bots
         p = pexpect.spawn(
             'dallinger',
             ['debug', '--verbose', '--bot'],
-            env=self.environ,
+            env=env,
         )
         p.logfile = sys.stdout
         try:
@@ -291,16 +273,6 @@ class TestDebugServer(object):
         finally:
             p.sendcontrol('c')
             p.read()
-
-
-@pytest.fixture
-def env():
-    fake_home = tempfile.mkdtemp()
-    environ = os.environ.copy()
-    environ.update({'HOME': fake_home})
-    yield environ
-
-    shutil.rmtree(fake_home, ignore_errors=True)
 
 
 @pytest.mark.usefixtures('bartlett_dir')
