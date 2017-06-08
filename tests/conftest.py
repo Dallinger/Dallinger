@@ -10,19 +10,30 @@ def subprocess_coverage():
     os.environ['COVERAGE_FILE'] = os.path.join(coverage_path, '.coverage')
 
 
+@pytest.fixture(scope='session')
+def root():
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+
 # This fixture is used automatically and ensures that
 # the current working directory is reset if other test classes changed it.
 @pytest.fixture(scope="class")
-def cwd():
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+def cwd(root):
     os.chdir(root)
 
 
 @pytest.fixture(scope="class")
-def experiment_dir():
+def experiment_dir(root):
     os.chdir('tests/experiment')
     yield
-    cwd()
+    cwd(root)
+
+
+@pytest.fixture(scope="class")
+def bartlett_dir(root):
+    os.chdir('demos/bartlett1932')
+    yield
+    cwd(root)
 
 
 @pytest.fixture(scope='class', autouse=True)

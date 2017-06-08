@@ -407,9 +407,7 @@ def _handle_launch_data(url):
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--bot', is_flag=True, flag_value=True,
               help='Use bot to complete experiment')
-@click.option('--dataset', default='',
-              help='Load a zipped dataset as a starting state')
-def debug(verbose, bot, dataset, exp_config=None):
+def debug(verbose, bot, exp_config=None):
     """Run the experiment locally."""
     exp_config = exp_config or {}
     exp_config.update({
@@ -419,7 +417,7 @@ def debug(verbose, bot, dataset, exp_config=None):
     if bot:
         exp_config["recruiter"] = u"bots"
 
-    (id, tmp) = setup_experiment(verbose=verbose, dataset=dataset, exp_config=exp_config)
+    (id, tmp) = setup_experiment(verbose=verbose, exp_config=exp_config)
 
     # Switch to the temporary directory.
     cwd = os.getcwd()
@@ -474,12 +472,6 @@ def debug(verbose, bot, dataset, exp_config=None):
         if ready:
             base_url = get_base_url()
             log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
-
-            # Bootstrap from dataset, if appropriate
-            if dataset:
-                zip_filename = os.path.basename(dataset)
-                log("Ingesting dataset from {}...".format(zip_filename))
-                data.ingest_zip(zip_filename)
 
             # Call endpoint to launch the experiment
             log("Launching the experiment...")
@@ -883,6 +875,99 @@ def export(app, local, no_scrub):
     """Export the data."""
     log(header, chevrons=False)
     data.export(str(app), local=local, scrub_pii=(not no_scrub))
+
+
+@dallinger.command()
+@click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
+@click.argument('dataset', type=click.Path(exists=True))
+def load(dataset, verbose, exp_config=None):
+    """Import database state from an exported zip file and leave the server
+    running until killing the process with <control>-c.
+    """
+    exp_config = exp_config or {}
+    exp_config.update({
+        "mode": u"debug",
+        "loglevel": 0,
+    })
+
+    (id, tmp) = setup_experiment(verbose=verbose, dataset=dataset, exp_config=exp_config)
+
+    # Switch to the temporary directory.
+    cwd = os.getcwd()
+    os.chdir(tmp)
+
+    # Set the mode to debug.
+    config = get_config()
+    logfile = config.get('logfile')
+    if logfile and logfile != '-':
+        logfile = os.path.join(cwd, logfile)
+        config.extend({'logfile': logfile})
+        config.write()
+
+    # Drop all the tables from the database.
+    db.init_db(drop_all=True)
+
+    # Start up the local server
+    log("Starting up the server...")
+    port = config.get('port')
+    try:
+        p = subprocess.Popen(
+            ['heroku', 'local', '-p', str(port),
+             "web={},worker={}".format(config.get('num_dynos_web', 1),
+                                       config.get('num_dynos_worker', 1))],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    except OSError:
+        error("Couldn't start Heroku for local debugging.")
+        raise
+
+    try:
+        # Wait for server to start
+        ready = False
+        for line in iter(p.stdout.readline, ''):
+            if verbose:
+                sys.stdout.write(line)
+            line = line.strip()
+            if re.match('^.*? worker.1 .*? Connection refused.$', line):
+                error('Could not connect to redis instance, experiment may not behave correctly.')
+            if not verbose and re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line):
+                error(line)
+            if not verbose and re.match('\[DONE\] Killing all processes', line):
+                error(
+                    'There was an error while starting the server. '
+                    'Run with --verbose for details.'
+                )
+            if re.match('^.*? \d+ workers$', line):
+                ready = True
+                break
+
+        if ready:
+            # Bootstrap from dataset
+            zip_filename = os.path.basename(dataset)
+            log("Ingesting dataset from {}...".format(zip_filename))
+            data.ingest_zip(zip_filename)
+
+            base_url = get_base_url()
+            log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+            while(True):
+                time.sleep(10)
+
+    finally:
+        try:
+            # It seems we need to explicitly kill all subprocesses with a SIGINT
+            int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
+            for sub in psutil.Process(p.pid).children(recursive=True):
+                os.kill(sub.pid, int_signal)
+            p.terminate()
+            log("Local Heroku process terminated")
+        except OSError:
+            log("Local Heroku process already terminated")
+            log(traceback.format_exc())
+        finally:
+            log("Terminating dataset load for experiment {}".format(id))
+
+    os.chdir(cwd)
 
 
 @dallinger.command()
