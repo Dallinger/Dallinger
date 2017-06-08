@@ -41,6 +41,7 @@ from dallinger.heroku import (
     app_name,
 )
 from dallinger.heroku.worker import conn
+from dallinger.heroku.tools import HerokuLocalRunner
 from dallinger.mturk import MTurkService
 from dallinger import registration
 from dallinger.utils import generate_random_id
@@ -423,7 +424,7 @@ def debug(verbose, bot, exp_config=None):
     cwd = os.getcwd()
     os.chdir(tmp)
 
-    # Set the mode to debug.
+    # Update the logfile to the new directory
     config = get_config()
     logfile = config.get('logfile')
     if logfile and logfile != '-':
@@ -896,7 +897,7 @@ def load(dataset, verbose, exp_config=None):
     cwd = os.getcwd()
     os.chdir(tmp)
 
-    # Set the mode to debug.
+    # Update the logfile to the new directory
     config = get_config()
     logfile = config.get('logfile')
     if logfile and logfile != '-':
@@ -909,61 +910,28 @@ def load(dataset, verbose, exp_config=None):
 
     # Start up the local server
     log("Starting up the server...")
-    port = config.get('port')
+    runner = HerokuLocalRunner(
+        config, log, error, blather=sys.stdout.write, verbose=verbose)
+
     try:
-        p = subprocess.Popen(
-            ['heroku', 'local', '-p', str(port),
-             "web={},worker={}".format(config.get('num_dynos_web', 1),
-                                       config.get('num_dynos_worker', 1))],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
+        runner.start()
     except OSError:
-        error("Couldn't start Heroku for local debugging.")
-        raise
+        return
+    else:
+        # Bootstrap from dataset
+        zip_filename = os.path.basename(dataset)
+        log("Ingesting dataset from {}...".format(zip_filename))
+        data.ingest_zip(zip_filename)
 
-    try:
-        # Wait for server to start
-        ready = False
-        for line in iter(p.stdout.readline, ''):
-            if verbose:
-                sys.stdout.write(line)
-            line = line.strip()
-            if re.match('^.*? worker.1 .*? Connection refused.$', line):
-                error('Could not connect to redis instance, experiment may not behave correctly.')
-            if not verbose and re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line):
-                error(line)
-            if not verbose and re.match('\[DONE\] Killing all processes', line):
-                error(
-                    'There was an error while starting the server. '
-                    'Run with --verbose for details.'
-                )
-            if re.match('^.*? \d+ workers$', line):
-                ready = True
-                break
-
-        if ready:
-            # Bootstrap from dataset
-            zip_filename = os.path.basename(dataset)
-            log("Ingesting dataset from {}...".format(zip_filename))
-            data.ingest_zip(zip_filename)
-
-            base_url = get_base_url()
-            log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
-            while(True):
-                time.sleep(10)
-
+        base_url = get_base_url()
+        log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+        while(True):
+            time.sleep(10)
     finally:
         try:
             # It seems we need to explicitly kill all subprocesses with a SIGINT
             int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
-            for sub in psutil.Process(p.pid).children(recursive=True):
-                os.kill(sub.pid, int_signal)
-            p.terminate()
-            log("Local Heroku process terminated")
-        except OSError:
-            log("Local Heroku process already terminated")
-            log(traceback.format_exc())
+            runner.kill(int_signal)
         finally:
             log("Terminating dataset load for experiment {}".format(id))
 
