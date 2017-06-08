@@ -155,6 +155,17 @@ class TestSetupExperiment(object):
         with raises(NoOptionError):
             deploy_config.get('Parameters', 'something_sensitive')
 
+    def test_setup_copies_dataset_archive(self):
+        from dallinger.command_line import setup_experiment
+        zip_path = os.path.join(
+            self.orig_dir,
+            'tests',
+            'datasets',
+            'test_export.zip'
+        )
+        exp_id, dst = setup_experiment(dataset=zip_path)
+        assert 'test_export.zip' in os.listdir(dst)
+
     def test_payment_type(self):
         config = get_config()
         with raises(TypeError):
@@ -264,6 +275,26 @@ class TestDebugServer(object):
             p.expect_exact('Recruitment is complete', timeout=600)
             p.expect_exact('Experiment completed', timeout=60)
             p.expect_exact('Local Heroku process terminated', timeout=10)
+        finally:
+            p.sendcontrol('c')
+            p.read()
+
+    def test_with_dataset(self):
+        zip_path = os.path.join(
+            self.orig_dir,
+            'tests',
+            'datasets',
+            'test_export.zip'
+        )
+        p = pexpect.spawn(
+            'dallinger',
+            ['debug', '--verbose', '--dataset', zip_path],
+            env=self.environ,
+        )
+        p.logfile = sys.stdout
+        try:
+            p.expect_exact('Server is running', timeout=300)
+            p.expect_exact('Ingesting dataset', timeout=600)
         finally:
             p.sendcontrol('c')
             p.read()

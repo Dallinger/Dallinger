@@ -215,7 +215,7 @@ def setup():
         shutil.copyfile(src, config_path)
 
 
-def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
+def setup_experiment(debug=True, verbose=False, app=None, exp_config=None, dataset=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
     log(header, chevrons=False)
 
@@ -266,6 +266,11 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     # Save the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
         file.write(generated_uid)
+
+    # Copy dataset zip folder, if requested.
+    if dataset:
+        if os.path.exists(dataset) and dataset.endswith('.zip'):
+            shutil.copy(dataset, dst)
 
     # Change directory to the temporary folder.
     cwd = os.getcwd()
@@ -399,7 +404,9 @@ def _handle_launch_data(url):
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--bot', is_flag=True, flag_value=True,
               help='Use bot to complete experiment')
-def debug(verbose, bot, exp_config=None):
+@click.option('--dataset', default='',
+              help='Load a zipped dataset as a starting state')
+def debug(verbose, bot, dataset, exp_config=None):
     """Run the experiment locally."""
     exp_config = exp_config or {}
     exp_config.update({
@@ -409,7 +416,7 @@ def debug(verbose, bot, exp_config=None):
     if bot:
         exp_config["recruiter"] = u"bots"
 
-    (id, tmp) = setup_experiment(verbose=verbose, exp_config=exp_config)
+    (id, tmp) = setup_experiment(verbose=verbose, dataset=dataset, exp_config=exp_config)
 
     # Switch to the temporary directory.
     cwd = os.getcwd()
@@ -464,6 +471,12 @@ def debug(verbose, bot, exp_config=None):
         if ready:
             base_url = get_base_url()
             log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+
+            # Bootstrap from dataset, if appropriate
+            if dataset:
+                zip_filename = os.path.basename(dataset)
+                log("Ingesting dataset from {}...".format(zip_filename))
+                data.ingest_zip(zip_filename)
 
             # Call endpoint to launch the experiment
             log("Launching the experiment...")
