@@ -276,8 +276,9 @@ def ingest_zip(path):
         "transmission",
     ]
     with ZipFile(path, 'r') as archive:
+        filenames = archive.namelist()
         for name in import_order:
-            filename = [f for f in archive.namelist() if name in f][0]
+            filename = [f for f in filenames if name in f][0]
             model_name = name.capitalize()
             model = getattr(models, model_name)
             file = archive.open(filename)
