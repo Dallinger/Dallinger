@@ -279,24 +279,39 @@ class TestDebugServer(object):
             p.sendcontrol('c')
             p.read()
 
-    def test_with_dataset(self):
+
+@pytest.fixture
+def env():
+    fake_home = tempfile.mkdtemp()
+    environ = os.environ.copy()
+    environ.update({'HOME': fake_home})
+    yield environ
+
+    shutil.rmtree(fake_home, ignore_errors=True)
+
+
+@pytest.mark.usefixtures('bartlett_dir')
+class TestLoad(object):
+
+    def test_load_runs(self, env, root):
         zip_path = os.path.join(
-            self.orig_dir,
+            root,
             'tests',
             'datasets',
             'test_export.zip'
         )
         p = pexpect.spawn(
             'dallinger',
-            ['debug', '--verbose', '--dataset', zip_path],
-            env=self.environ,
+            ['load', '--verbose', zip_path],
+            env=env,
         )
         p.logfile = sys.stdout
         try:
+            p.expect_exact('Ingesting dataset', timeout=300)
             p.expect_exact('Server is running', timeout=300)
-            p.expect_exact('Ingesting dataset', timeout=600)
         finally:
             p.sendcontrol('c')
+            p.expect_exact('Terminating dataset load', timeout=300)
             p.read()
 
 
