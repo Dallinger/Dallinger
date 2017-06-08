@@ -17,14 +17,21 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         """Initialize the experiment."""
         super(CoordinationChatroom, self).__init__(session)
         self.experiment_repeats = 1
-        self.num_participants = 2 #55 #55 #140 below
-        self.initial_recruitment_size = self.num_participants * 3 #note: can't do *2.5 here, won't run even if the end result is an integer
+        self.num_participants = 6 #55 #55 #140 below
+        self.initial_recruitment_size = self.num_participants * 1 #note: can't do *2.5 here, won't run even if the end result is an integer
         self.quorum = self.num_participants
         self.setup()
 
     def recruit(self):
         """Recruit one participant at a time until all networks are full."""
         pass
+
+    def recruit(self):
+        """Recruit one participant at a time until all networks are full."""
+        if self.networks(full=False):
+            self.recruiter().recruit(n=1)
+        else:
+            self.recruiter().close_recruitment()
 
     def setup(self):
         """Setup the networks.
