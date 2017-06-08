@@ -268,18 +268,15 @@ class MTurkRecruiter(Recruiter):
 
 class MTurkLargeRecruiter(MTurkRecruiter):
     def __init__(self, *args, **kwargs):
+        conn.set('num_recruited', 0)
         super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
-        self.num_recruited = 0
 
     def open_recruitment(self, n=1):
         if self.is_in_progress:
             # Already started... do nothing.
             return None
-        self.num_recruited += n
-        if n < 10:
-            to_recruit = 10
-        else:
-            to_recruit = n
+        conn.incr('num_recruited', n)
+        to_recruit = max(n, 10)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
     def recruit_participants(self, n=1):
@@ -287,15 +284,15 @@ class MTurkLargeRecruiter(MTurkRecruiter):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
         to_recruit = n
-        if self.num_recruited < 10:
-            self.num_recruited += n
+        if int(conn.get('num_recruited')) < 10:
+            num_recruited = conn.incr('num_recruited', n)
             logger.info('Recruited participant from preallocated pool')
-            if self.num_recruited > 10:
-                to_recruit = self.num_recruited - 10
+            if num_recruited > 10:
+                to_recruit = num_recruited - 10
             else:
                 to_recruit = 0
         else:
-            self.num_recruited += n
+             conn.incr('num_recruited', n)
         if to_recruit:
             return super(MTurkLargeRecruiter, self).recruit_participants(to_recruit)
 
