@@ -312,3 +312,50 @@ class TestEmailingHITMessager(object):
         nonwhimsical.server.quit.assert_called()
         assert data['subject'] == 'Dallinger automated email - major error.'
         assert 'Allowed time: 1.0' in data['message']
+
+
+@pytest.mark.usefixtures('bartlett_dir')
+class TestHerokuLocalRunner(object):
+
+    @pytest.fixture
+    def runner(self):
+        from dallinger.heroku.tools import HerokuLocalRunner
+        from dallinger.command_line import setup_experiment
+        cwd = os.getcwd()
+        config = get_config()
+        if not config.ready:
+            config.load()
+
+        (id, tmp) = setup_experiment(verbose=True, exp_config={})
+
+        log = mock.Mock()
+        error = mock.Mock()
+        blather = mock.Mock()
+        verbose = True
+
+        # Switch to the temporary directory.
+        os.chdir(tmp)
+
+        r = HerokuLocalRunner(config, log, error, blather, verbose)
+        yield r
+
+        os.chdir(cwd)
+
+    def test_start(self, runner):
+        assert runner.start()
+
+    def test_kill(self, runner):
+        runner.start()
+        runner.kill()
+        runner.log.assert_called_with('Local Heroku process terminated')
+
+    def test_start_when_shell_command_fails(self, runner):
+        runner.shell_command = 'nonsense'
+        with pytest.raises(OSError):
+            runner.start()
+            runner.error.assert_called_with(
+                "Couldn't start Heroku for local debugging.")
+
+    def test_kill_before_start_is_noop(self, runner):
+        runner.kill()
+        runner.log.assert_called_with("No local Heroku process was running.")
