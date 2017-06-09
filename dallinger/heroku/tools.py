@@ -80,16 +80,23 @@ def open_logs(app):
         ])
 
 
+class TimeoutError(Exception):
+    pass
+
+
 class HerokuLocalRunner(object):
 
     shell_command = 'heroku'
+    success_regex = '^.*? \d+ workers$'
 
-    def __init__(self, config, log, error, blather, verbose=False, env=None):
+    def __init__(self, config, log, error, blather, verbose=True, timeout=10, env=None):
         self.config = config
         self.log = log
         self.error = error
         self.blather = blather
         self.verbose = verbose
+        self.timeout = timeout
+        self._record = []
         if env is not None:
             self.env = env
         else:
@@ -99,7 +106,17 @@ class HerokuLocalRunner(object):
 
     def start(self):
         self._p = self.process()
+        signal.signal(signal.SIGALRM, self._handle_timeout)
+        signal.alarm(self.timeout)
+        try:
+            result = self._scan_output()
+        finally:
+            signal.alarm(0)
+        return result
+
+    def _scan_output(self):
         for line in iter(self._p.stdout.readline, ''):
+            self._record.append(line)
             if self.verbose:
                 self.blather(line)
             line = line.strip()
@@ -124,6 +141,11 @@ class HerokuLocalRunner(object):
                 )
         return False
 
+    def _handle_timeout(self, signum, frame):
+        msg = "Timeout of {} exceeded! {}".format(
+            self.timeout, ''.join(self._record))
+        raise TimeoutError(msg)
+
     def kill(self, int_signal=signal.SIGTERM):
         self.log("Cleaning up local Heroku process...")
         if not self._running:
@@ -139,7 +161,6 @@ class HerokuLocalRunner(object):
         finally:
             self._running = False
 
-    # @cached_property
     def process(self):
         port = self.config.get('port')
         web_dynos = self.config.get('num_dynos_web', 1)
@@ -163,7 +184,7 @@ class HerokuLocalRunner(object):
             raise
 
     def _up_and_running(self, line):
-        return re.match('^.*? \d+ workers$', line)
+        return re.match(self.success_regex, line)
 
     def _redis_not_running(self, line):
         return re.match('^.*? worker.1 .*? Connection refused.$', line)

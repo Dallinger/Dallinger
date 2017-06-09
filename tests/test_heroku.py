@@ -346,12 +346,11 @@ class TestHerokuLocalRunner(object):
         log = mock.Mock()
         error = mock.Mock()
         blather = mock.Mock()
-        verbose = True
 
         # Switch to the temporary directory.
         os.chdir(tmp)
 
-        r = HerokuLocalRunner(config, log, error, blather, verbose, env)
+        r = HerokuLocalRunner(config, log, error, blather, env=env)
         yield r
         try:
             r.kill()
@@ -361,6 +360,13 @@ class TestHerokuLocalRunner(object):
 
     def test_start(self, runner):
         assert runner.start()
+
+    def test_gives_up_after_timeout(self, runner):
+        from dallinger.heroku.tools import TimeoutError
+        runner.success_regex = 'not going to match anything'
+        runner.timeout = 1
+        with pytest.raises(TimeoutError):
+            runner.start()
 
     def test_kill(self, runner):
         runner.start()
