@@ -95,9 +95,11 @@ class HerokuLocalRunner(object):
         else:
             self.env = os.environ.copy()
         self._running = False
+        self._p = None
 
     def start(self):
-        for line in iter(self.process.stdout.readline, ''):
+        self._p = self.process()
+        for line in iter(self._p.stdout.readline, ''):
             if self.verbose:
                 self.blather(line)
             line = line.strip()
@@ -129,7 +131,7 @@ class HerokuLocalRunner(object):
             return
 
         try:
-            os.killpg(os.getpgid(self.process.pid), int_signal)
+            os.killpg(os.getpgid(self._p.pid), int_signal)
             self.log("Local Heroku process terminated")
         except OSError:
             self.log("Local Heroku process already terminated")
@@ -137,7 +139,7 @@ class HerokuLocalRunner(object):
         finally:
             self._running = False
 
-    @cached_property
+    # @cached_property
     def process(self):
         port = self.config.get('port')
         web_dynos = self.config.get('num_dynos_web', 1)
