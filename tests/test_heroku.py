@@ -5,6 +5,8 @@ import mock
 import pytest
 import dallinger.db
 import datetime
+import shutil
+import tempfile
 from dallinger.config import get_config
 from dallinger.heroku import app_name
 from dallinger.heroku.messages import EmailingHITMessager
@@ -25,6 +27,19 @@ def run_check():
     db.rollback()
     db.close()
     os.chdir('../..')
+
+
+@pytest.fixture
+def env():
+    # Heroku requires a home directory to start up
+    # We create a fake one using tempfile and set it into the
+    # environment to handle sandboxes on CI servers
+    fake_home = tempfile.mkdtemp()
+    environ = os.environ.copy()
+    environ.update({'HOME': fake_home})
+    yield environ
+
+    shutil.rmtree(fake_home, ignore_errors=True)
 
 
 class TestHeroku(object):
@@ -318,7 +333,7 @@ class TestEmailingHITMessager(object):
 class TestHerokuLocalRunner(object):
 
     @pytest.fixture
-    def runner(self):
+    def runner(self, env):
         from dallinger.heroku.tools import HerokuLocalRunner
         from dallinger.command_line import setup_experiment
         cwd = os.getcwd()
@@ -336,13 +351,14 @@ class TestHerokuLocalRunner(object):
         # Switch to the temporary directory.
         os.chdir(tmp)
 
-        r = HerokuLocalRunner(config, log, error, blather, verbose)
+        r = HerokuLocalRunner(config, log, error, blather, verbose, env)
         yield r
 
         os.chdir(cwd)
 
     def test_start(self, runner):
         assert runner.start()
+        raise Exception(runner.blather.call_args_list)
 
     def test_kill(self, runner):
         runner.start()

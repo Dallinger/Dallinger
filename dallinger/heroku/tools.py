@@ -80,12 +80,16 @@ class HerokuLocalRunner(object):
 
     shell_command = 'heroku'
 
-    def __init__(self, config, log, error, blather, verbose=False):
+    def __init__(self, config, log, error, blather, verbose=False, env=None):
         self.config = config
         self.log = log
         self.error = error
         self.blather = blather
         self.verbose = verbose
+        if env is not None:
+            self.env = env
+        else:
+            self.env = os.environ.copy()
         self._running = False
 
     def start(self):
@@ -112,6 +116,7 @@ class HerokuLocalRunner(object):
                     'There was an error while starting the server. '
                     'Run with --verbose for details.'
                 )
+        return False
 
     def kill(self, int_signal=signal.SIGINT):
         self.log("Cleaning up local Heroku process...")
@@ -136,14 +141,16 @@ class HerokuLocalRunner(object):
         port = self.config.get('port')
         web_dynos = self.config.get('num_dynos_web', 1)
         worker_dynos = self.config.get('num_dynos_worker', 1)
+        commands = [
+            self.shell_command, 'local', '-p', str(port),
+            "web={},worker={}".format(web_dynos, worker_dynos)
+        ]
         try:
             p = subprocess.Popen(
-                [
-                    self.shell_command, 'local', '-p', str(port),
-                    "web={},worker={}".format(web_dynos, worker_dynos)
-                ],
+                commands,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                env=self.env,
             )
             self._running = True
             return p
