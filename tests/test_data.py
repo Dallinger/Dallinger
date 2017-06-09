@@ -129,3 +129,7 @@ class TestData(object):
         path = dallinger.data.export("12345-12345-12345-12345", local=True)
         archive = ZipFile(path)
         assert 'data/info.csv' in archive.namelist()
+
+    def test_export_compatible_with_data(self):
+        path = dallinger.data.export("12345-12345-12345-12345", local=True)
+        data = dallinger.data.Data(path)
