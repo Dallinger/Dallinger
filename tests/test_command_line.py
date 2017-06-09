@@ -26,6 +26,10 @@ def found_in(name, path):
 
 @pytest.fixture
 def env():
+    # Heroku requires a home directory to start up
+    # We create a fake one using tempfile and set it into the
+    # environment to handle sandboxes on CI servers
+
     fake_home = tempfile.mkdtemp()
     environ = os.environ.copy()
     environ.update({'HOME': fake_home})
