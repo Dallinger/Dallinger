@@ -353,12 +353,14 @@ class TestHerokuLocalRunner(object):
 
         r = HerokuLocalRunner(config, log, error, blather, verbose, env)
         yield r
-
+        try:
+            r.kill()
+        except:
+            pass
         os.chdir(cwd)
 
     def test_start(self, runner):
         assert runner.start()
-        raise Exception(runner.blather.call_args_list)
 
     def test_kill(self, runner):
         runner.start()
