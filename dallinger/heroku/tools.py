@@ -122,17 +122,14 @@ class HerokuLocalRunner(object):
                 )
         return False
 
-    def kill(self, int_signal=signal.SIGINT):
+    def kill(self, int_signal=signal.SIGTERM):
         self.log("Cleaning up local Heroku process...")
         if not self._running:
             self.log("No local Heroku process was running.")
             return
 
         try:
-            # Explicitly kill all subprocesses with a SIGINT
-            for sub in psutil.Process(self.process.pid).children(recursive=True):
-                os.kill(sub.pid, int_signal)
-            self.process.terminate()
+            os.killpg(os.getpgid(self.process.pid), int_signal)
             self.log("Local Heroku process terminated")
         except OSError:
             self.log("Local Heroku process already terminated")
@@ -155,6 +152,7 @@ class HerokuLocalRunner(object):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 env=self.env,
+                preexec_fn=os.setsid,
             )
             self._running = True
             return p
