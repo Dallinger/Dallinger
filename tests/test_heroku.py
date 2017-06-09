@@ -364,14 +364,14 @@ class TestHerokuLocalRunner(object):
     def test_gives_up_after_timeout(self, runner):
         from dallinger.heroku.tools import TimeoutError
         runner.success_regex = 'not going to match anything'
-        runner.timeout = 1
         with pytest.raises(TimeoutError):
             runner.start()
 
-    # def test_kill(self, runner):
-    #     runner.start()
-    #     runner.kill()
-    #     runner.log.assert_called_with('Local Heroku process terminated')
+    @pytest.mark.xfail(reason="Fails on Heroku. Reason not yet understood.")
+    def test_kill(self, runner):
+        runner.start()
+        runner.kill()
+        runner.log.assert_called_with('Local Heroku process terminated')
 
     def test_start_when_shell_command_fails(self, runner):
         runner.shell_command = 'nonsense'

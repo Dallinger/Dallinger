@@ -3,7 +3,6 @@
 import signal
 import os
 import pexpect
-import psutil
 import re
 import subprocess
 import traceback
@@ -96,26 +95,21 @@ class HerokuLocalRunner(object):
         self.blather = blather
         self.verbose = verbose
         self.timeout = timeout
+        self.env = env if env is not None else os.environ.copy()
         self._record = []
-        if env is not None:
-            self.env = env
-        else:
-            self.env = os.environ.copy()
         self._running = False
-        self._p = None
 
     def start(self):
-        self._p = self.process()
         signal.signal(signal.SIGALRM, self._handle_timeout)
         signal.alarm(self.timeout)
         try:
-            result = self._scan_output()
+            result = self._verify_startup()
         finally:
             signal.alarm(0)
         return result
 
-    def _scan_output(self):
-        for line in iter(self._p.stdout.readline, ''):
+    def _verify_startup(self):
+        for line in iter(self.process.stdout.readline, ''):
             self._record.append(line)
             if self.verbose:
                 self.blather(line)
@@ -153,7 +147,7 @@ class HerokuLocalRunner(object):
             return
 
         try:
-            os.killpg(os.getpgid(self._p.pid), int_signal)
+            os.killpg(os.getpgid(self.process.pid), int_signal)
             self.log("Local Heroku process terminated")
         except OSError:
             self.log("Local Heroku process already terminated")
@@ -161,6 +155,7 @@ class HerokuLocalRunner(object):
         finally:
             self._running = False
 
+    @cached_property
     def process(self):
         port = self.config.get('port')
         web_dynos = self.config.get('num_dynos_web', 1)
