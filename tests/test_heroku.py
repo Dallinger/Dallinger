@@ -368,10 +368,10 @@ class TestHerokuLocalRunner(object):
         with pytest.raises(TimeoutError):
             runner.start()
 
-    def test_kill(self, runner):
-        runner.start()
-        runner.kill()
-        runner.log.assert_called_with('Local Heroku process terminated')
+    # def test_kill(self, runner):
+    #     runner.start()
+    #     runner.kill()
+    #     runner.log.assert_called_with('Local Heroku process terminated')
 
     def test_start_when_shell_command_fails(self, runner):
         runner.shell_command = 'nonsense'
