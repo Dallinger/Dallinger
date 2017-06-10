@@ -151,6 +151,18 @@ class HerokuLocalRunner(object):
         finally:
             self._running = False
 
+    def monitor(self, dispatch):
+        for line in iter(self.process.stdout.readline, ''):
+            self._record.append(line)
+            if self.verbose:
+                self.blather(line)
+            for regex, handler in dispatch.items():
+                match = re.search(regex, line)
+                if match:
+                    done = handler(match)
+                    if done:
+                        return
+
     @cached_property
     def process(self):
         port = self.config.get('port')

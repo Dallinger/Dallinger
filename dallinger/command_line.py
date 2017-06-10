@@ -401,6 +401,37 @@ def _handle_launch_data(url):
     return launch_data
 
 
+# Monitor output from server process
+def new_recruit(match):
+    log("new recruitment request!")
+    url = match.group(1)
+    webbrowser.open(url, new=1, autoraise=True)
+    return False
+
+
+def recruitment_closed(match):
+    base_url = get_base_url()
+    status_url = base_url + '/summary'
+    log("recruitment closed")
+    time.sleep(10)
+    try:
+        resp = requests.get(status_url)
+        exp_data = resp.json()
+    except (ValueError, requests.exceptions.RequestException):
+        error('Error fetching experiment status.')
+    log('Experiment summary: {}'.format(exp_data))
+    if exp_data.get('completed', False):
+        log('Experiment completed, all nodes filled.')
+        return True
+
+    return False
+
+dispatch = {
+    'New participant requested: (.*)$': new_recruit,
+    'Close recruitment.$': recruitment_closed,
+
+}
+
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--bot', is_flag=True, flag_value=True,
@@ -434,98 +465,28 @@ def debug(verbose, bot, exp_config=None):
 
     # Start up the local server
     log("Starting up the server...")
-    port = config.get('port')
-    try:
-        p = subprocess.Popen(
-            ['heroku', 'local', '-p', str(port),
-             "web={},worker={}".format(config.get('num_dynos_web', 1),
-                                       config.get('num_dynos_worker', 1))],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-    except OSError:
-        error("Couldn't start Heroku for local debugging.")
-        raise
+    runner = HerokuLocalRunner(
+        config, log, error, blather=sys.stdout.write, verbose=verbose)
 
     try:
-        # Wait for server to start
-        ready = False
-        for line in iter(p.stdout.readline, ''):
-            if verbose:
-                sys.stdout.write(line)
-            line = line.strip()
-            if re.match('^.*? worker.1 .*? Connection refused.$', line):
-                error('Could not connect to redis instance, experiment may not behave correctly.')
-            if not verbose and re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line):
-                error(line)
-            if not verbose and re.match('\[DONE\] Killing all processes', line):
-                error(
-                    'There was an error while starting the server. '
-                    'Run with --verbose for details.'
-                )
-            if re.match('^.*? \d+ workers$', line):
-                ready = True
-                break
-
-        if ready:
-            base_url = get_base_url()
-            log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
-
-            # Call endpoint to launch the experiment
-            log("Launching the experiment...")
-            time.sleep(4)
-            _handle_launch_data('{}/launch'.format(base_url))
-
-            closed = False
-            status_url = base_url + '/summary'
-            exp_data = {}
-            # Monitor output from server process
-            for line in iter(p.stdout.readline, ''):
-                if verbose:
-                    sys.stdout.write(line)
-
-                # start checking for completion status
-                if closed:
-                    time.sleep(10)
-                    try:
-                        resp = requests.get(status_url)
-                        exp_data = resp.json()
-                    except (ValueError, requests.exceptions.RequestException):
-                        error('Error fetching experiment status.')
-                    log('Experiment summary: {}'.format(exp_data))
-                    if exp_data.get('completed', False):
-                        log('Experiment completed, all nodes filled.')
-                        break
-                    continue
-
-                # Open browser for new participants
-                match = re.search('New participant requested: (.*)$', line)
-                if match:
-                    url = match.group(1)
-                    webbrowser.open(url, new=1, autoraise=True)
-
-                # Is recruitment over? We can end the loop, and check
-                # experiment status
-                match = re.search('Close recruitment.$', line)
-                if match:
-                    log('Recruitment is complete.')
-                    closed = True
-
+        runner.start()
+        base_url = get_base_url()
+        log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+        log("Launching the experiment...")
+        time.sleep(4)
+        _handle_launch_data('{}/launch'.format(base_url))
+        runner.monitor(dispatch)
+    except:
+        log("ouch")
     finally:
         try:
-            # It seems we need to explicitly kill all subprocesses with a SIGINT
             int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
-            for sub in psutil.Process(p.pid).children(recursive=True):
-                os.kill(sub.pid, int_signal)
-            p.terminate()
-            log("Local Heroku process terminated")
-        except OSError:
-            log("Local Heroku process already terminated")
-            log(traceback.format_exc())
+            runner.kill(int_signal)
+        finally:
+            log("Terminating dataset load for experiment {}".format(id))
 
-    log("Completed debugging of experiment with id " + id)
     os.chdir(cwd)
-
+    log("Completed debugging of experiment with id " + id)
 
 def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
