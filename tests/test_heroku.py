@@ -383,3 +383,27 @@ class TestHerokuLocalRunner(object):
     def test_kill_before_start_is_noop(self, runner):
         runner.kill()
         runner.log.assert_called_with("No local Heroku process was running.")
+
+    def test_monitor(self, runner):
+        runner.stream = mock.Mock(return_value=['apple', 'orange'])
+        apple_callback = mock.Mock()
+        orange_callback = mock.Mock()
+        dispatch = {
+            'apple': apple_callback,
+            'orange': orange_callback
+        }
+        runner.monitor(dispatch)
+        apple_callback.assert_called_once()
+        orange_callback.assert_called_once()
+
+    def test_monitor_stops_iterating_when_told(self, runner):
+        runner.stream = mock.Mock(return_value=['apple', 'orange'])
+        apple_callback = mock.Mock(return_value=runner.MONITOR_STOP)
+        orange_callback = mock.Mock()
+        dispatch = {
+            'apple': apple_callback,
+            'orange': orange_callback
+        }
+        runner.monitor(dispatch)
+        apple_callback.assert_called_once()
+        orange_callback.assert_not_called()
