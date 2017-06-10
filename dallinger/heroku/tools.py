@@ -87,6 +87,7 @@ class HerokuLocalRunner(object):
 
     shell_command = 'heroku'
     success_regex = '^.*? \d+ workers$'
+    MONITOR_STOP = object()
 
     def __init__(self, config, log, error, blather, verbose=True, timeout=10, env=None):
         self.config = config
@@ -108,8 +109,38 @@ class HerokuLocalRunner(object):
             signal.alarm(0)
         return result
 
+    def monitor(self, dispatch):
+        for line in self.stream():
+            self._record.append(line)
+            if self.verbose:
+                self.blather(line)
+            for regex, handler in dispatch.items():
+                match = re.search(regex, line)
+                if match:
+                    response = handler(match)
+                    if response is self.MONITOR_STOP:
+                        return
+
+    def stream(self):
+        return iter(self._process.stdout.readline, '')
+
+    def kill(self, int_signal=signal.SIGTERM):
+        self.log("Cleaning up local Heroku process...")
+        if not self._running:
+            self.log("No local Heroku process was running.")
+            return
+
+        try:
+            os.killpg(os.getpgid(self._process.pid), int_signal)
+            self.log("Local Heroku process terminated")
+        except OSError:
+            self.log("Local Heroku process already terminated")
+            self.log(traceback.format_exc())
+        finally:
+            self._running = False
+
     def _verify_startup(self):
-        for line in iter(self.process.stdout.readline, ''):
+        for line in iter(self._process.stdout.readline, ''):
             self._record.append(line)
             if self.verbose:
                 self.blather(line)
@@ -140,35 +171,8 @@ class HerokuLocalRunner(object):
             self.timeout, ''.join(self._record))
         raise TimeoutError(msg)
 
-    def kill(self, int_signal=signal.SIGTERM):
-        self.log("Cleaning up local Heroku process...")
-        if not self._running:
-            self.log("No local Heroku process was running.")
-            return
-
-        try:
-            os.killpg(os.getpgid(self.process.pid), int_signal)
-            self.log("Local Heroku process terminated")
-        except OSError:
-            self.log("Local Heroku process already terminated")
-            self.log(traceback.format_exc())
-        finally:
-            self._running = False
-
-    def monitor(self, dispatch):
-        for line in iter(self.process.stdout.readline, ''):
-            self._record.append(line)
-            if self.verbose:
-                self.blather(line)
-            for regex, handler in dispatch.items():
-                match = re.search(regex, line)
-                if match:
-                    done = handler(match)
-                    if done:
-                        return
-
     @cached_property
-    def process(self):
+    def _process(self):
         port = self.config.get('port')
         web_dynos = self.config.get('num_dynos_web', 1)
         worker_dynos = self.config.get('num_dynos_worker', 1)

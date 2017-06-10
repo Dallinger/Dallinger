@@ -409,7 +409,6 @@ def new_recruit(match):
     log("new recruitment request!")
     url = match.group(1)
     webbrowser.open(url, new=1, autoraise=True)
-    return False
 
 
 def recruitment_closed(match):
@@ -425,9 +424,8 @@ def recruitment_closed(match):
     log('Experiment summary: {}'.format(exp_data))
     if exp_data.get('completed', False):
         log('Experiment completed, all nodes filled.')
-        return True
+        return HerokuLocalRunner.MONITOR_STOP
 
-    return False
 
 dispatch = {
     'New participant requested: (.*)$': new_recruit,
