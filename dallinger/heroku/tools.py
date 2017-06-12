@@ -79,14 +79,18 @@ def open_logs(app):
         ])
 
 
-class TimeoutError(Exception):
-    pass
+class HerokuTimeoutError(RuntimeError):
+    """The Heroku subprocess does not appear to have started within
+    the maximum allowed time.
+    """
 
 
 class HerokuLocalRunner(object):
 
     shell_command = 'heroku'
     success_regex = '^.*? \d+ workers$'
+    # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
+    int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
     MONITOR_STOP = object()
 
     def __init__(self, config, log, error, blather, verbose=True, timeout=15, env=None):
@@ -109,29 +113,27 @@ class HerokuLocalRunner(object):
             signal.alarm(0)
         return result
 
-    def monitor(self, dispatch):
+    def monitor(self, listener):
+        """Relay the stream to listener until told to stop.
+        """
         for line in self.stream():
             self._record.append(line)
             if self.verbose:
                 self.blather(line)
-            for regex, handler in dispatch.items():
-                match = re.search(regex, line)
-                if match:
-                    response = handler(match)
-                    if response is self.MONITOR_STOP:
-                        return
+            if listener.notify(line) is self.MONITOR_STOP:
+                return
 
     def stream(self):
         return iter(self._process.stdout.readline, '')
 
-    def stop(self, int_signal=signal.SIGTERM):
+    def stop(self):
         self.log("Cleaning up local Heroku process...")
         if not self._running:
             self.log("No local Heroku process was running.")
             return
 
         try:
-            os.killpg(os.getpgid(self._process.pid), int_signal)
+            os.killpg(os.getpgid(self._process.pid), self.int_signal)
             self.log("Local Heroku process terminated")
         except OSError:
             self.log("Local Heroku process already terminated")
@@ -140,7 +142,7 @@ class HerokuLocalRunner(object):
             self._running = False
 
     def _verify_startup(self):
-        for line in iter(self._process.stdout.readline, ''):
+        for line in self.stream():
             self._record.append(line)
             if self.verbose:
                 self.blather(line)
@@ -155,7 +157,7 @@ class HerokuLocalRunner(object):
                 )
 
             if self.verbose:
-                continue
+                continue  # we already logged everything
 
             if self._worker_error(line):
                 self.error(line)
@@ -169,7 +171,7 @@ class HerokuLocalRunner(object):
     def _handle_timeout(self, signum, frame):
         msg = "Timeout of {} exceeded! {}".format(
             self.timeout, ''.join(self._record))
-        raise TimeoutError(msg)
+        raise HerokuTimeoutError(msg)
 
     @cached_property
     def _process(self):

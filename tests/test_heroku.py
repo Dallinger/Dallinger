@@ -353,7 +353,7 @@ class TestHerokuLocalRunner(object):
         r = HerokuLocalRunner(config, log, error, blather, env=env)
         yield r
         try:
-            r.kill()
+            r.stop()
         except:
             pass
         os.chdir(cwd)
@@ -362,15 +362,15 @@ class TestHerokuLocalRunner(object):
         assert runner.start()
 
     def test_gives_up_after_timeout(self, runner):
-        from dallinger.heroku.tools import TimeoutError
+        from dallinger.heroku.tools import HerokuTimeoutError
         runner.success_regex = 'not going to match anything'
-        with pytest.raises(TimeoutError):
+        with pytest.raises(HerokuTimeoutError):
             runner.start()
 
     @pytest.mark.xfail(reason="Fails on Heroku. Reason not yet understood.")
-    def test_kill(self, runner):
+    def test_stop(self, runner):
         runner.start()
-        runner.kill()
+        runner.stop()
         runner.log.assert_called_with('Local Heroku process terminated')
 
     def test_start_when_shell_command_fails(self, runner):
@@ -380,30 +380,24 @@ class TestHerokuLocalRunner(object):
             runner.error.assert_called_with(
                 "Couldn't start Heroku for local debugging.")
 
-    def test_kill_before_start_is_noop(self, runner):
-        runner.kill()
+    def test_stop_before_start_is_noop(self, runner):
+        runner.stop()
         runner.log.assert_called_with("No local Heroku process was running.")
 
     def test_monitor(self, runner):
         runner.stream = mock.Mock(return_value=['apple', 'orange'])
-        apple_callback = mock.Mock()
-        orange_callback = mock.Mock()
-        dispatch = {
-            'apple': apple_callback,
-            'orange': orange_callback
-        }
-        runner.monitor(dispatch)
-        apple_callback.assert_called_once()
-        orange_callback.assert_called_once()
+        listener = mock.Mock()
+        runner.monitor(listener)
+        listener.notify.assert_has_calls([
+            mock.call('apple'),
+            mock.call('orange'),
+        ])
 
     def test_monitor_stops_iterating_when_told(self, runner):
         runner.stream = mock.Mock(return_value=['apple', 'orange'])
-        apple_callback = mock.Mock(return_value=runner.MONITOR_STOP)
-        orange_callback = mock.Mock()
-        dispatch = {
-            'apple': apple_callback,
-            'orange': orange_callback
-        }
-        runner.monitor(dispatch)
-        apple_callback.assert_called_once()
-        orange_callback.assert_not_called()
+        listener = mock.Mock()
+        listener.notify.return_value = runner.MONITOR_STOP
+        runner.monitor(listener)
+        listener.notify.assert_has_calls([
+            mock.call('apple'),
+        ])
