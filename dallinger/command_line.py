@@ -482,7 +482,7 @@ def debug(verbose, bot, exp_config=None):
     finally:
         try:
             int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
-            runner.kill(int_signal)
+            runner.stop(int_signal)
         finally:
             log("Terminating dataset load for experiment {}".format(id))
 
@@ -842,7 +842,7 @@ def export(app, local, no_scrub):
 @click.argument('dataset', type=click.Path(exists=True))
 def load(dataset, verbose, exp_config=None):
     """Import database state from an exported zip file and leave the server
-    running until killing the process with <control>-c.
+    running until stopping the process with <control>-c.
     """
     exp_config = exp_config or {}
     exp_config.update({
@@ -888,9 +888,9 @@ def load(dataset, verbose, exp_config=None):
             time.sleep(10)
     finally:
         try:
-            # It seems we need to explicitly kill all subprocesses with a SIGINT
+            # Catch <control>-c
             int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
-            runner.kill(int_signal)
+            runner.stop(int_signal)
         finally:
             log("Terminating dataset load for experiment {}".format(id))
 
