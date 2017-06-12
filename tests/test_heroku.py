@@ -330,11 +330,11 @@ class TestEmailingHITMessager(object):
 
 
 @pytest.mark.usefixtures('bartlett_dir')
-class TestHerokuLocalRunner(object):
+class TestHerokuLocalWrapper(object):
 
     @pytest.fixture
-    def runner(self, env):
-        from dallinger.heroku.tools import HerokuLocalRunner
+    def heroku(self, env):
+        from dallinger.heroku.tools import HerokuLocalWrapper
         from dallinger.command_line import setup_experiment
         cwd = os.getcwd()
         config = get_config()
@@ -350,7 +350,7 @@ class TestHerokuLocalRunner(object):
         # Switch to the temporary directory.
         os.chdir(tmp)
 
-        r = HerokuLocalRunner(config, log, error, blather, env=env)
+        r = HerokuLocalWrapper(config, log, error, blather, env=env)
         yield r
         try:
             r.stop()
@@ -358,46 +358,46 @@ class TestHerokuLocalRunner(object):
             pass
         os.chdir(cwd)
 
-    def test_start(self, runner):
-        assert runner.start()
+    def test_start(self, heroku):
+        assert heroku.start()
 
-    def test_gives_up_after_timeout(self, runner):
+    def test_gives_up_after_timeout(self, heroku):
         from dallinger.heroku.tools import HerokuTimeoutError
-        runner.success_regex = 'not going to match anything'
+        heroku.success_regex = 'not going to match anything'
         with pytest.raises(HerokuTimeoutError):
-            runner.start()
+            heroku.start()
 
     @pytest.mark.xfail(reason="Fails on Heroku. Reason not yet understood.")
-    def test_stop(self, runner):
-        runner.start()
-        runner.stop()
-        runner.log.assert_called_with('Local Heroku process terminated')
+    def test_stop(self, heroku):
+        heroku.start()
+        heroku.stop()
+        heroku.log.assert_called_with('Local Heroku process terminated')
 
-    def test_start_when_shell_command_fails(self, runner):
-        runner.shell_command = 'nonsense'
+    def test_start_when_shell_command_fails(self, heroku):
+        heroku.shell_command = 'nonsense'
         with pytest.raises(OSError):
-            runner.start()
-            runner.error.assert_called_with(
+            heroku.start()
+            heroku.error.assert_called_with(
                 "Couldn't start Heroku for local debugging.")
 
-    def test_stop_before_start_is_noop(self, runner):
-        runner.stop()
-        runner.log.assert_called_with("No local Heroku process was running.")
+    def test_stop_before_start_is_noop(self, heroku):
+        heroku.stop()
+        heroku.log.assert_called_with("No local Heroku process was running.")
 
-    def test_monitor(self, runner):
-        runner.stream = mock.Mock(return_value=['apple', 'orange'])
+    def test_monitor(self, heroku):
+        heroku.stream = mock.Mock(return_value=['apple', 'orange'])
         listener = mock.Mock()
-        runner.monitor(listener)
+        heroku.monitor(listener)
         listener.notify.assert_has_calls([
             mock.call('apple'),
             mock.call('orange'),
         ])
 
-    def test_monitor_stops_iterating_when_told(self, runner):
-        runner.stream = mock.Mock(return_value=['apple', 'orange'])
+    def test_monitor_stops_iterating_when_told(self, heroku):
+        heroku.stream = mock.Mock(return_value=['apple', 'orange'])
         listener = mock.Mock()
-        listener.notify.return_value = runner.MONITOR_STOP
-        runner.monitor(listener)
+        listener.notify.return_value = heroku.MONITOR_STOP
+        heroku.monitor(listener)
         listener.notify.assert_has_calls([
             mock.call('apple'),
         ])

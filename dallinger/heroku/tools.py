@@ -81,7 +81,7 @@ class HerokuTimeoutError(RuntimeError):
     """
 
 
-class HerokuLocalRunner(object):
+class HerokuLocalWrapper(object):
 
     shell_command = 'heroku'
     success_regex = '^.*? \d+ workers$'
