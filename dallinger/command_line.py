@@ -43,6 +43,7 @@ from dallinger.heroku import (
 )
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalRunner
+from dallinger.heroku.tools import HerokuTimeoutError
 from dallinger.mturk import MTurkService
 from dallinger import registration
 from dallinger.utils import generate_random_id
@@ -401,34 +402,44 @@ def _handle_launch_data(url):
     return launch_data
 
 
-# Monitor output from server process
-def new_recruit(match):
-    log("new recruitment request!")
-    url = match.group(1)
-    webbrowser.open(url, new=1, autoraise=True)
+class DebugSessionListener(object):
 
+    dispatch = {
+        'New participant requested: (.*)$': 'new_recruit',
+        'Close recruitment.$': 'recruitment_closed',
+    }
 
-def recruitment_closed(match):
-    base_url = get_base_url()
-    status_url = base_url + '/summary'
-    log("recruitment closed")
-    time.sleep(10)
-    try:
-        resp = requests.get(status_url)
-        exp_data = resp.json()
-    except (ValueError, requests.exceptions.RequestException):
-        error('Error fetching experiment status.')
-    log('Experiment summary: {}'.format(exp_data))
-    if exp_data.get('completed', False):
-        log('Experiment completed, all nodes filled.')
-        return HerokuLocalRunner.MONITOR_STOP
+    def __init__(self, log, error):
+        self.log = log
+        self.error = error
 
+    def notify(self, message):
+        for regex, handler in self.dispatch.items():
+            match = re.search(regex, message)
+            if match:
+                handler = getattr(self, handler)
+                return handler(match)
 
-dispatch = {
-    'New participant requested: (.*)$': new_recruit,
-    'Close recruitment.$': recruitment_closed,
+    def new_recruit(self, match):
+        self.log("new recruitment request!")
+        url = match.group(1)
+        webbrowser.open(url, new=1, autoraise=True)
 
-}
+    def recruitment_closed(self, match):
+        base_url = get_base_url()
+        status_url = base_url + '/summary'
+        log("recruitment closed")
+        time.sleep(10)
+        try:
+            resp = requests.get(status_url)
+            exp_data = resp.json()
+        except (ValueError, requests.exceptions.RequestException):
+            self.error('Error fetching experiment status.')
+        self.log('Experiment summary: {}'.format(exp_data))
+        if exp_data.get('completed', False):
+            self.log('Experiment completed, all nodes filled.')
+            return HerokuLocalRunner.MONITOR_STOP
+
 
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
@@ -468,23 +479,22 @@ def debug(verbose, bot, exp_config=None):
 
     try:
         runner.start()
+    except (OSError, HerokuTimeoutError):
+        return
+    else:
         base_url = get_base_url()
         log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         log("Launching the experiment...")
         time.sleep(4)
         _handle_launch_data('{}/launch'.format(base_url))
-        runner.monitor(dispatch)
-    except:
-        log("ouch")
+        listener = DebugSessionListener(log, error)
+        runner.monitor(listener)
     finally:
-        try:
-            int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
-            runner.stop(int_signal)
-        finally:
-            log("Terminating dataset load for experiment {}".format(id))
+        runner.stop()
 
     os.chdir(cwd)
     log("Completed debugging of experiment with id " + id)
+
 
 def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
@@ -861,27 +871,22 @@ def load(dataset, verbose, exp_config=None):
 
     try:
         runner.start()
-    except OSError:
+    except (OSError, HerokuTimeoutError):
         return
     else:
-        # Bootstrap from dataset
         zip_filename = os.path.basename(dataset)
         log("Ingesting dataset from {}...".format(zip_filename))
         data.ingest_zip(zip_filename)
-
         base_url = get_base_url()
         log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+
+        # Just run until interrupted:
         while(True):
             time.sleep(10)
     finally:
-        try:
-            # Catch <control>-c
-            int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
-            runner.stop(int_signal)
-        finally:
-            log("Terminating dataset load for experiment {}".format(id))
-
-    os.chdir(cwd)
+        runner.stop()
+        log("Terminating dataset load for experiment {}".format(id))
+        os.chdir(cwd)
 
 
 @dallinger.command()
