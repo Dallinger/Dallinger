@@ -85,7 +85,7 @@ class HerokuLocalRunner(object):
     success_regex = '^.*? \d+ workers$'
     MONITOR_STOP = object()
 
-    def __init__(self, config, log, error, blather, verbose=True, timeout=10, env=None):
+    def __init__(self, config, log, error, blather, verbose=True, timeout=15, env=None):
         self.config = config
         self.log = log
         self.error = error
@@ -120,7 +120,7 @@ class HerokuLocalRunner(object):
     def stream(self):
         return iter(self._process.stdout.readline, '')
 
-    def kill(self, int_signal=signal.SIGTERM):
+    def stop(self, int_signal=signal.SIGTERM):
         self.log("Cleaning up local Heroku process...")
         if not self._running:
             self.log("No local Heroku process was running.")
