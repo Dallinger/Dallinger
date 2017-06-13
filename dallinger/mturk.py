@@ -153,10 +153,13 @@ class MTurkService(object):
 
         if not results:
             return None
-        if len(results) > 1:
-            raise MTurkServiceException("{} was not a unique name".format(query))
 
-        return self._translate_qtype(results[0])
+        translated = self._translate_qtype(results[0])
+        if len(results) > 1:
+            if translated['name'].upper() != query:
+                raise MTurkServiceException("{} was not a unique name".format(query))
+
+        return translated
 
     def assign_qualification(self, qualification_id, worker_id, score, notify=True):
         """Score a worker for a specific qualification"""
