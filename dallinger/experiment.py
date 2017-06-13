@@ -523,7 +523,7 @@ class Experiment(object):
             local = True
         filename = export(self.app_id, local=local)
         logger.debug('Data exported to %s' % filename)
-        return Data(filename)
+        return Data(self.app_id, filename)
 
     def end_experiment(self):
         """Terminates a running experiment"""

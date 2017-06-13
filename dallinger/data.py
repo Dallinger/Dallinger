@@ -54,7 +54,7 @@ def load(id):
         k.key = data_filename
         try:
             k.get_contents_to_filename(path_to_data)
-            return Data(path_to_data)
+            return Data(id, path_to_data)
         except boto.exception.S3ResponseError:
             pass
 
@@ -269,21 +269,19 @@ def _s3_connection():
 
 class Data(object):
     """Dallinger data object."""
-    def __init__(self, URL):
+    def __init__(self, id, URL):
 
         self.source = URL
-
         if self.source.endswith(".zip"):
 
             input_zip = ZipFile(URL)
             tmp_dir = tempfile.mkdtemp()
             input_zip.extractall(tmp_dir)
-
             for tab in table_names:
                 setattr(
                     self,
                     "{}s".format(tab),
-                    Table(os.path.join(tmp_dir, "data", "{}.csv").format(tab)),
+                    Table(os.path.join(tmp_dir, "data", id, "data", "{}.csv").format(tab)),
                 )
 
 
