@@ -160,12 +160,10 @@ class MTurkRecruiter(Recruiter):
         self._create_mturk_qualifications()
 
         blacklist = self._extract_blacklist_from_config()
-
         hit_request = {
             'max_assignments': n,
             'title': self.config.get('title'),
             'description': self.config.get('description'),
-            'keywords': self.config.get('keywords'),
             'reward': self.config.get('base_payment'),
             'duration_hours': self.config.get('duration'),
             'lifetime_days': self.config.get('lifetime'),
@@ -175,7 +173,7 @@ class MTurkRecruiter(Recruiter):
             'us_only': self.config.get('us_only'),
             'blacklist': blacklist,
             'blacklist_experience_limit': self.config.get(
-                'qualification_blacklist_experience_limit'
+                'qualification_blacklist_experience_limit', None
             )
 
         }
@@ -245,7 +243,7 @@ class MTurkRecruiter(Recruiter):
     def _extract_blacklist_from_config(self):
         # At some point we'll support lists, so all service code supports them,
         # but the config system only supports strings for now, so we convert:
-        blacklist = self.config.get('qualification_blacklist')
+        blacklist = self.config.get('qualification_blacklist', None)
         if blacklist:
             blacklist = tuple([item.strip() for item in blacklist.split(',')])
         else:
