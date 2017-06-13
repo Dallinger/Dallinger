@@ -3,6 +3,7 @@ import mock
 import os
 import pytest
 import socket
+import time
 from boto.resultset import ResultSet
 from boto.mturk.price import Price
 from boto.mturk.connection import Assignment
@@ -404,6 +405,44 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         for i in range(3):
             result = with_cleanup.get_qualification_type_by_name(qtype['name'])
             assert result is not None
+
+    def test_get_qualification_by_name_no_match(self, with_cleanup, worker_id, qtype):
+        # First query can be very slow, since the qtype was just added:
+        with_cleanup.max_wait_secs = 0
+        result = with_cleanup.get_qualification_type_by_name('nonsense')
+        assert result is None
+
+    def test_get_qualification_by_name_returns_shortest_if_multi(self,
+                                                                 with_cleanup,
+                                                                 worker_id,
+                                                                 qtype):
+        substr_name = qtype['name'][:32]
+        qtype2 = with_cleanup.create_qualification_type(
+            name=substr_name,
+            description=TEST_QUALIFICATION_DESCRIPTION,
+            status='Active',
+        )
+        time.sleep(10)  # wait for indexing... sigh.
+        result = with_cleanup.get_qualification_type_by_name(substr_name)
+        assert result['id'] == qtype2['id']
+        with_cleanup.dispose_qualification_type(qtype2['id'])
+
+    def test_get_qualification_by_name_must_match_exact_if_multi(self,
+                                                                 with_cleanup,
+                                                                 worker_id,
+                                                                 qtype):
+        substr_name = qtype['name'][:32]
+        qtype2 = with_cleanup.create_qualification_type(
+            name=substr_name,
+            description=TEST_QUALIFICATION_DESCRIPTION,
+            status='Active',
+        )
+        time.sleep(10)  # wait for indexing... sigh.
+        not_exact = substr_name[:16]
+        with pytest.raises(MTurkServiceException):
+            with_cleanup.get_qualification_type_by_name(not_exact)
+
+        with_cleanup.dispose_qualification_type(qtype2['id'])
 
     def test_get_current_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
