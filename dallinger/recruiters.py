@@ -210,7 +210,9 @@ class MTurkRecruiter(Recruiter):
 
         for name in self.qualifications:
             try:
-                self.mturkservice.increment_qualification_score(name, worker_id)
+                self.mturkservice.increment_qualification_score(
+                    name, worker_id, notify=False
+                )
             except QualificationNotFoundException, ex:
                 logger.exception(ex)
 
