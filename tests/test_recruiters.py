@@ -263,6 +263,7 @@ class TestMTurkRecruiter(object):
         recruiter.mturkservice.increment_qualification_score.assert_called_once_with(
             'some experiment uid',
             'some worker id',
+            notify=False,
         )
 
     def test_notify_recruited_when_group_name_specified(self, recruiter):
@@ -271,8 +272,8 @@ class TestMTurkRecruiter(object):
         recruiter.notify_recruited(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_has_calls([
-            mock.call('some experiment uid', 'some worker id'),
-            mock.call('some existing group_name', 'some worker id')
+            mock.call('some experiment uid', 'some worker id', notify=False),
+            mock.call('some existing group_name', 'some worker id', notify=False)
         ], any_order=True)
 
     def test_notify_recruited_nonexistent_qualification(self, recruiter):
