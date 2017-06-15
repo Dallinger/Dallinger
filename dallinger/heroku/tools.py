@@ -75,7 +75,11 @@ def scale_up_dynos(app):
         ])
 
 
-class HerokuTimeoutError(RuntimeError):
+class HerokuStartupError(RuntimeError):
+    """The Heroku subprocess did not start"""
+
+
+class HerokuTimeoutError(HerokuStartupError):
     """The Heroku subprocess does not appear to have started within
     the maximum allowed time.
     """
@@ -89,11 +93,9 @@ class HerokuLocalWrapper(object):
     int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
     MONITOR_STOP = object()
 
-    def __init__(self, config, log, error, blather, verbose=True, timeout=15, env=None):
+    def __init__(self, config, output, verbose=True, timeout=16, env=None):
         self.config = config
-        self.log = log
-        self.error = error
-        self.blather = blather
+        self.out = output
         self.verbose = verbose
         self.timeout = timeout
         self.env = env if env is not None else os.environ.copy()
@@ -104,10 +106,16 @@ class HerokuLocalWrapper(object):
         signal.signal(signal.SIGALRM, self._handle_timeout)
         signal.alarm(self.timeout)
         try:
-            result = self._verify_startup()
+            self._running = self._verify_startup()
         finally:
             signal.alarm(0)
-        return result
+
+        if not self._running:
+            raise HerokuStartupError(
+                "Failed to start for unknown reason: {}".format(self._record)
+            )
+
+        return True
 
     def monitor(self, listener):
         """Relay the stream to listener until told to stop.
@@ -115,7 +123,7 @@ class HerokuLocalWrapper(object):
         for line in self.stream():
             self._record.append(line)
             if self.verbose:
-                self.blather(line)
+                self.out.blather(line)
             if listener.notify(line) is self.MONITOR_STOP:
                 return
 
@@ -123,17 +131,17 @@ class HerokuLocalWrapper(object):
         return iter(self._process.stdout.readline, '')
 
     def stop(self):
-        self.log("Cleaning up local Heroku process...")
+        self.out.log("Cleaning up local Heroku process...")
         if not self._running:
-            self.log("No local Heroku process was running.")
+            self.out.log("No local Heroku process was running.")
             return
 
         try:
             os.killpg(os.getpgid(self._process.pid), self.int_signal)
-            self.log("Local Heroku process terminated")
+            self.out.log("Local Heroku process terminated")
         except OSError:
-            self.log("Local Heroku process already terminated")
-            self.log(traceback.format_exc())
+            self.out.log("Local Heroku process already terminated")
+            self.out.log(traceback.format_exc())
         finally:
             self._running = False
 
@@ -141,13 +149,13 @@ class HerokuLocalWrapper(object):
         for line in self.stream():
             self._record.append(line)
             if self.verbose:
-                self.blather(line)
+                self.out.blather(line)
             line = line.strip()
             if self._up_and_running(line):
                 return True
 
             if self._redis_not_running(line):
-                self.error(
+                self.out.error(
                     'Could not connect to redis instance, '
                     'experiment may not behave correctly.'
                 )
@@ -156,16 +164,16 @@ class HerokuLocalWrapper(object):
                 continue  # we already logged everything
 
             if self._worker_error(line):
-                self.error(line)
+                self.out.error(line)
             if self._startup_error(line):
-                self.error(
+                self.out.error(
                     'There was an error while starting the server. '
                     'Run with --verbose for details.'
                 )
         return False
 
     def _handle_timeout(self, signum, frame):
-        msg = "Timeout of {} exceeded! {}".format(
+        msg = "Timeout of {} seconds exceeded! {}".format(
             self.timeout, ''.join(self._record))
         raise HerokuTimeoutError(msg)
 
@@ -186,10 +194,9 @@ class HerokuLocalWrapper(object):
                 env=self.env,
                 preexec_fn=os.setsid,
             )
-            self._running = True
             return p
         except OSError:
-            self.error("Couldn't start Heroku for local debugging.")
+            self.out.error("Couldn't start Heroku for local debugging.")
             raise
 
     def _up_and_running(self, line):
@@ -203,3 +210,10 @@ class HerokuLocalWrapper(object):
 
     def _startup_error(self, line):
         return re.match('\[DONE\] Killing all processes', line)
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exctype, excinst, exctb):
+        self.stop()
