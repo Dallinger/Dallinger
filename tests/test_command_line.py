@@ -305,9 +305,7 @@ class TestLoad(object):
         return zip_path
 
     @pytest.fixture
-    def loader(self, db_session, env, output, dataset):
-        import os
-        os.environ.update(env)
+    def loader(self, db_session, env_with_home, output, dataset):
         from dallinger.command_line import LoadSessionRunner
         from dallinger.heroku.tools import HerokuLocalWrapper
         loader = LoadSessionRunner(dataset, output, verbose=True, exp_config={})
