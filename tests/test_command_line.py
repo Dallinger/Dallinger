@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import filecmp
+import mock
 import os
 import pytest
 import shutil
@@ -36,6 +37,28 @@ def env():
     yield environ
 
     shutil.rmtree(fake_home, ignore_errors=True)
+
+
+@pytest.fixture
+def env_with_home(env):
+    original_env = os.environ.copy()
+    if 'HOME' not in original_env:
+        os.environ.update(env)
+    yield
+    os.environ = original_env
+
+
+@pytest.fixture
+def output():
+
+    class Output(object):
+
+        def __init__(self):
+            self.log = mock.Mock()
+            self.error = mock.Mock()
+            self.blather = mock.Mock()
+
+    return Output()
 
 
 class TestCommandLine(object):
@@ -201,63 +224,49 @@ class TestSetupExperiment(object):
 @pytest.mark.usefixtures('bartlett_dir')
 class TestDebugServer(object):
 
-    def test_startup(self, env):
-        # Make sure debug server starts without error
-        p = pexpect.spawn(
-            'dallinger',
-            ['debug', '--verbose'],
-            env=env,
-        )
-        p.logfile = sys.stdout
-        try:
-            p.expect_exact('Server is running', timeout=120)
-        finally:
-            p.sendcontrol('c')
-            p.read()
+    @pytest.fixture
+    def debugger(self, env_with_home, output):
+        from dallinger.command_line import DebugSessionRunner
+        from dallinger.heroku.tools import HerokuLocalWrapper
 
-    def test_launch_failure(self, env):
-        # Make sure debug server starts without error
-        env['recruiter'] = u'bogus'
-        p = pexpect.spawn(
-            'dallinger',
-            ['debug', '--verbose'],
-            env=env,
-        )
-        p.logfile = sys.stdout
-        try:
-            p.expect_exact('Launching the experiment...', timeout=120)
-            p.expect_exact('Experiment launch failed, check web dyno logs for details.',
-                           timeout=60)
-            p.expect_exact('Failed to open recruitment, check experiment server log for details.',
-                           timeout=30)
-        finally:
-            try:
-                p.sendcontrol('c')
-            except IOError:
-                pass
-            p.read()
+        debugger = DebugSessionRunner(output, verbose=True, bot=False, exp_config={})
+        debugger.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
 
-    def test_warning_if_no_heroku_present(self, env):
-        # Remove the path item that has heroku in it
-        path_items = env['PATH'].split(':')
-        path_items = [
-            item for item in path_items
-            if not os.path.exists(os.path.join(item, 'heroku'))
-        ]
-        env.update({
-            'PATH': ':'.join(path_items)
-        })
-        p = pexpect.spawn(
-            'dallinger',
-            ['debug', '--verbose'],
-            env=env,
+        return debugger
+
+    def test_startup(self, debugger):
+        debugger.exp_config.update(
+            {'num_dynos_web': 2, 'num_dynos_worker': 2})
+        debugger.run_all()
+
+        "Server is running" in str(debugger.out.log.call_args_list[0])
+
+    def test_launch_failure(self, debugger):
+        from requests.exceptions import HTTPError
+        debugger.exp_config.update({'recruiter': u'bogus'})
+        with mock.patch('dallinger.command_line.requests.post') as mock_post:
+            mock_post.return_value = mock.Mock(
+                ok=False,
+                json=mock.Mock(return_value={'message': u'msg!'}),
+                raise_for_status=mock.Mock(side_effect=HTTPError)
+            )
+            with pytest.raises(HTTPError):
+                debugger.run_all()
+
+        debugger.out.error.assert_has_calls([
+            mock.call('Experiment launch failed, check web dyno logs for details.'),
+            mock.call(u'msg!')
+        ])
+
+    def test_raises_if_heroku_wont_start(self, debugger):
+        mock_wrapper = mock.Mock(
+            __enter__=mock.Mock(side_effect=OSError),
+            __exit__=mock.Mock(return_value=False)
         )
-        p.logfile = sys.stdout
-        try:
-            p.expect_exact("Couldn't start Heroku for local debugging", timeout=120)
-        finally:
-            p.sendcontrol('c')
-            p.read()
+        with mock.patch('dallinger.command_line.HerokuLocalWrapper') as Wrapper:
+            Wrapper.return_value = mock_wrapper
+            with pytest.raises(OSError):
+                debugger.run_all()
 
     @pytest.mark.skipif(not pytest.config.getvalue("runbot"),
                         reason="--runbot was specified")
@@ -275,33 +284,61 @@ class TestDebugServer(object):
             p.expect_exact('Experiment completed', timeout=60)
             p.expect_exact('Local Heroku process terminated', timeout=10)
         finally:
-            p.sendcontrol('c')
-            p.read()
+            try:
+                p.sendcontrol('c')
+                p.read()
+            except IOError:
+                pass
 
 
 @pytest.mark.usefixtures('bartlett_dir')
 class TestLoad(object):
 
-    def test_load_runs(self, env, root):
+    @pytest.fixture
+    def dataset(self, root):
         zip_path = os.path.join(
             root,
             'tests',
             'datasets',
             'test_export.zip'
         )
-        p = pexpect.spawn(
-            'dallinger',
-            ['load', '--verbose', zip_path],
-            env=env,
-        )
-        p.logfile = sys.stdout
-        try:
-            p.expect_exact('Ingesting dataset', timeout=300)
-            p.expect_exact('Server is running', timeout=300)
-        finally:
-            p.sendcontrol('c')
-            p.expect_exact('Terminating dataset load', timeout=300)
-            p.read()
+        return zip_path
+
+    @pytest.fixture
+    def loader(self, db_session, env, output, dataset):
+        import os
+        os.environ.update(env)
+        from dallinger.command_line import LoadSessionRunner
+        from dallinger.heroku.tools import HerokuLocalWrapper
+        loader = LoadSessionRunner(dataset, output, verbose=True, exp_config={})
+        loader.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
+
+        return loader
+
+    def test_load_runs(self, loader):
+        loader.keep_running = mock.Mock(return_value=False)
+        loader.run_all()
+
+        expected = [
+            mock.call('Ingesting dataset from test_export.zip...'),
+            mock.call('Server is running on http://0.0.0.0:5000. Press Ctrl+C to exit.'),
+            mock.call('Cleaning up local Heroku process...'),
+        ]
+        for call in expected:
+            assert call in loader.out.log.call_args_list
+
+
+class TestOutput(object):
+
+    @pytest.fixture
+    def output(self):
+        from dallinger.command_line import Output
+        return Output()
+
+    def test_outs(self, output):
+        output.log('logging')
+        output.error('an error')
+        output.blather('blah blah blah')
 
 
 class TestHeader(object):

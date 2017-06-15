@@ -40,7 +40,6 @@ from dallinger.heroku import (
 )
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
-from dallinger.heroku.tools import HerokuTimeoutError
 from dallinger.mturk import MTurkService
 from dallinger import registration
 from dallinger.utils import generate_random_id
@@ -384,7 +383,7 @@ def get_summary(app):
     return "\n".join(out)
 
 
-def _handle_launch_data(url):
+def _handle_launch_data(url, error=error):
     launch_request = requests.post(url)
     try:
         launch_data = launch_request.json()
@@ -409,10 +408,8 @@ def _handle_launch_data(url):
               help='Use bot to complete experiment')
 def debug(verbose, bot, exp_config=None):
     """Run the experiment locally."""
-    debugger = DebugSessionRunner(log, error, verbose, bot, exp_config)
-    debugger.configure()
-    debugger.setup()
-    debugger.run()
+    debugger = DebugSessionRunner(Output(), verbose, bot, exp_config)
+    debugger.run_all()
 
 
 def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=None):
@@ -763,6 +760,14 @@ def export(app, local, no_scrub):
     data.export(str(app), local=local, scrub_pii=(not no_scrub))
 
 
+class Output(object):
+
+    def __init__(self, log=log, error=error, blather=sys.stdout.write):
+        self.log = log
+        self.error = error
+        self.blather = sys.stdout.write
+
+
 class LocalSessionRunner(object):
 
     exp_id = None
@@ -786,22 +791,25 @@ class LocalSessionRunner(object):
             config.write()
 
     def run(self):
+        self.configure()
+        self.setup()
         self.update_dir()
         db.init_db(drop_all=True)
         log("Starting up the server...")
         config = get_config()
-        heroku = HerokuLocalWrapper(
-            config, self.log, self.error, blather=sys.stdout.write, verbose=self.verbose)
-        try:
-            heroku.start()
-        except (OSError, HerokuTimeoutError):
-            return
-        else:
-            self.execute(heroku)
-        finally:
-            heroku.stop()
-            os.chdir(self.original_dir)
-            self.cleanup()
+        with HerokuLocalWrapper(config, self.out, verbose=self.verbose) as wrapper:
+            try:
+                self.execute(wrapper)
+            except KeyboardInterrupt:
+                pass
+            finally:
+                os.chdir(self.original_dir)
+                self.cleanup()
+
+    def run_all(self):
+        self.configure()
+        self.setup()
+        self.run()
 
     def notify(self, message):
         for regex, handler in self.dispatch.items():
@@ -809,6 +817,9 @@ class LocalSessionRunner(object):
             if match:
                 handler = getattr(self, handler)
                 return handler(match)
+
+    def execute(self, heroku):
+        raise NotImplementedError()
 
 
 class DebugSessionRunner(LocalSessionRunner):
@@ -818,9 +829,8 @@ class DebugSessionRunner(LocalSessionRunner):
         'Close recruitment.$': 'recruitment_closed',
     }
 
-    def __init__(self, log, error, verbose, bot, exp_config):
-        self.log = log
-        self.error = error
+    def __init__(self, output, verbose, bot, exp_config):
+        self.out = output
         self.verbose = verbose
         self.bot = bot
         self.exp_config = exp_config or {}
@@ -837,42 +847,41 @@ class DebugSessionRunner(LocalSessionRunner):
 
     def execute(self, heroku):
         base_url = get_base_url()
-        self.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
-        self.log("Launching the experiment...")
+        self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+        self.out.log("Launching the experiment...")
         time.sleep(4)
-        _handle_launch_data('{}/launch'.format(base_url))
+        _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
         heroku.monitor(listener=self)
 
     def cleanup(self):
         log("Completed debugging of experiment with id " + self.exp_id)
 
     def new_recruit(self, match):
-        self.log("new recruitment request!")
+        self.out.log("new recruitment request!")
         url = match.group(1)
         webbrowser.open(url, new=1, autoraise=True)
 
     def recruitment_closed(self, match):
         base_url = get_base_url()
         status_url = base_url + '/summary'
-        log("recruitment closed")
+        log("Recruitment is complete. Waiting for experiment completion...")
         time.sleep(10)
         try:
             resp = requests.get(status_url)
             exp_data = resp.json()
         except (ValueError, requests.exceptions.RequestException):
-            self.error('Error fetching experiment status.')
-        self.log('Experiment summary: {}'.format(exp_data))
+            self.out.error('Error fetching experiment status.')
+        self.out.log('Experiment summary: {}'.format(exp_data))
         if exp_data.get('completed', False):
-            self.log('Experiment completed, all nodes filled.')
+            self.out.log('Experiment completed, all nodes filled.')
             return HerokuLocalWrapper.MONITOR_STOP
 
 
 class LoadSessionRunner(LocalSessionRunner):
 
-    def __init__(self, dataset, log, error, verbose, exp_config):
+    def __init__(self, dataset, output, verbose, exp_config):
         self.dataset = dataset
-        self.log = log
-        self.error = error
+        self.out = output
         self.verbose = verbose
         self.bot = bot
         self.exp_config = exp_config or {}
@@ -889,18 +898,23 @@ class LoadSessionRunner(LocalSessionRunner):
             verbose=self.verbose, dataset=self.dataset, exp_config=self.exp_config)
 
     def execute(self, heroku):
+        db.init_db(drop_all=True)
         zip_filename = os.path.basename(self.dataset)
-        self.log("Ingesting dataset from {}...".format(zip_filename))
+        self.out.log("Ingesting dataset from {}...".format(zip_filename))
         data.ingest_zip(zip_filename)
         base_url = get_base_url()
-        self.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+        self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
 
         # Just run until interrupted:
-        while(True):
+        while(self.keep_running()):
             time.sleep(1)
 
     def cleanup(self):
-        self.log("Terminating dataset load for experiment {}".format(self.exp_id))
+        self.out.log("Terminating dataset load for experiment {}".format(self.exp_id))
+
+    def keep_running(self):
+        # This is a separate method so that it can be replaced in tests
+        return True
 
 
 @dallinger.command()
@@ -910,10 +924,8 @@ def load(dataset, verbose, exp_config=None):
     """Import database state from an exported zip file and leave the server
     running until stopping the process with <control>-c.
     """
-    loader = LoadSessionRunner(dataset, log, error, verbose, exp_config)
-    loader.configure()
-    loader.setup()
-    loader.run()
+    loader = LoadSessionRunner(dataset, Output(), verbose, exp_config)
+    loader.run_all()
 
 
 @dallinger.command()
