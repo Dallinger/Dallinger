@@ -851,7 +851,7 @@ class DebugSessionRunner(LocalSessionRunner):
         self.out.log("Launching the experiment...")
         time.sleep(4)
         _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
-        heroku.monitor(listener=self)
+        heroku.monitor(listener=self.notify)
 
     def cleanup(self):
         log("Completed debugging of experiment with id " + self.exp_id)
