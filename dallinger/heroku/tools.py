@@ -3,6 +3,7 @@
 import signal
 import os
 import pexpect
+import psutil
 import re
 import subprocess
 import traceback
@@ -90,67 +91,99 @@ class HerokuTimeoutError(HerokuStartupError):
 
 
 class HerokuLocalWrapper(object):
+    """Wrapper around a heroku local subprocess.
+
+    Provides for verified startup and shutdown, and allows observers to register
+    to recieve subprocess output via 'monitor()'.
+
+    Implements a context manager pattern:
+
+        with HerokuLocalWrapper(config, output) as heroku:
+            heroku.monitor(my_callback)
+
+    Arg 'output' should implement log(), error() and blather() methods taking
+    strings as arguments.
+    """
 
     shell_command = 'heroku'
     success_regex = '^.*? \d+ workers$'
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
     MONITOR_STOP = object()
+    STREAM_SENTINEL = ' '
 
-    def __init__(self, config, output, verbose=True, timeout=16, env=None):
+    def __init__(self, config, output, verbose=True, env=None):
         self.config = config
         self.out = output
         self.verbose = verbose
-        self.timeout = timeout
         self.env = env if env is not None else os.environ.copy()
         self._record = []
-        self._running = False
+        self._process = None
 
-    def start(self):
-        signal.signal(signal.SIGALRM, self._handle_timeout)
-        signal.alarm(self.timeout)
+    def start(self, timeout_secs=30):
+        """Start the heroku local subprocess group and verify that
+        it has started successfully.
+
+        The subprocess output is checked for a line matching 'success_regex'
+        to indicate success. If no match is seen after 'timeout_secs',
+        a HerokuTimeoutError is raised.
+        """
+
+        def _handle_timeout(signum, frame):
+            raise HerokuTimeoutError(
+                "Failed to start after {} seconds.".format(
+                    timeout_secs, self._record)
+            )
+
+        signal.signal(signal.SIGALRM, _handle_timeout)
+        signal.alarm(timeout_secs)
+        self._boot()
         try:
-            self._running = self._verify_startup()
+            success = self._verify_startup()
         finally:
             signal.alarm(0)
 
-        if not self._running:
+        if not success:
+            self.stop(signal.SIGKILL)
             raise HerokuStartupError(
                 "Failed to start for unknown reason: {}".format(self._record)
             )
-
         return True
 
-    def monitor(self, listener):
-        """Relay the stream to listener until told to stop.
+    @property
+    def is_running(self):
+        return self._process is not None
+
+    def stop(self, signal=None):
+        """Stop the heroku local subprocess and all of its children.
         """
-        for line in self.stream():
-            self._record.append(line)
-            if self.verbose:
-                self.out.blather(line)
-            if listener.notify(line) is self.MONITOR_STOP:
-                return
-
-    def stream(self):
-        return iter(self._process.stdout.readline, '')
-
-    def stop(self):
+        signal = signal or self.int_signal
         self.out.log("Cleaning up local Heroku process...")
-        if not self._running:
+        if self._process is None:
             self.out.log("No local Heroku process was running.")
             return
 
         try:
-            os.killpg(os.getpgid(self._process.pid), self.int_signal)
-            self.out.log("Local Heroku process terminated")
+            os.killpg(os.getpgid(self._process.pid), signal)
+            self.out.log("Local Heroku process terminated.")
         except OSError:
-            self.out.log("Local Heroku process already terminated")
+            self.out.log("Local Heroku was already terminated.")
             self.out.log(traceback.format_exc())
         finally:
-            self._running = False
+            self._process = None
+
+    def monitor(self, listener):
+        """Relay the stream to listener until told to stop.
+        """
+        for line in self._stream():
+            self._record.append(line)
+            if self.verbose:
+                self.out.blather(line)
+            if listener(line) is self.MONITOR_STOP:
+                return
 
     def _verify_startup(self):
-        for line in self.stream():
+        for line in self._stream():
             self._record.append(line)
             if self.verbose:
                 self.out.blather(line)
@@ -176,13 +209,10 @@ class HerokuLocalWrapper(object):
                 )
         return False
 
-    def _handle_timeout(self, signum, frame):
-        msg = "Timeout of {} seconds exceeded! {}".format(
-            self.timeout, ''.join(self._record))
-        raise HerokuTimeoutError(msg)
+    def _boot(self):
+        if self.is_running:
+            return
 
-    @cached_property
-    def _process(self):
         port = self.config.get('port')
         web_dynos = self.config.get('num_dynos_web', 1)
         worker_dynos = self.config.get('num_dynos_worker', 1)
@@ -191,17 +221,19 @@ class HerokuLocalWrapper(object):
             "web={},worker={}".format(web_dynos, worker_dynos)
         ]
         try:
-            p = subprocess.Popen(
+            self._process = subprocess.Popen(
                 commands,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 env=self.env,
                 preexec_fn=os.setsid,
             )
-            return p
         except OSError:
             self.out.error("Couldn't start Heroku for local debugging.")
             raise
+
+    def _stream(self):
+        return iter(self._process.stdout.readline, self.STREAM_SENTINEL)
 
     def _up_and_running(self, line):
         return re.match(self.success_regex, line)
@@ -221,3 +253,22 @@ class HerokuLocalWrapper(object):
 
     def __exit__(self, exctype, excinst, exctb):
         self.stop()
+
+    def __repr__(self):
+        classname = self.__class__.__name__
+        if not self.is_running:
+            return "<{} (not running)>".format(classname)
+
+        reprs = []
+        for child in psutil.Process(self._process.pid).children(recursive=True):
+            if 'python' in child.name():
+                name = ''.join(child.cmdline())
+            else:
+                name = child.name()
+            reprs.append("<Process pid='{}', name='{}', status='{}'>".format(
+                child.pid, name, child.status())
+            )
+
+        return "<{} pid='{}', children: {}>".format(
+            classname, self._process.pid, reprs
+        )
