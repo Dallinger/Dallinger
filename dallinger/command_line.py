@@ -759,7 +759,7 @@ class LocalSessionRunner(object):
 
     exp_id = None
     tmp_dir = None
-    dispatch = {}  # Subclass my provide handlers for Heroku process output
+    dispatch = {}  # Subclass may provide handlers for Heroku process output
 
     def configure(self):
         self.exp_config.update({
@@ -782,7 +782,7 @@ class LocalSessionRunner(object):
         self.setup()
         self.update_dir()
         db.init_db(drop_all=True)
-        log("Starting up the server...")
+        self.out.log("Starting up the server...")
         config = get_config()
         with HerokuLocalWrapper(config, self.out, verbose=self.verbose) as wrapper:
             try:
@@ -851,7 +851,7 @@ class DebugSessionRunner(LocalSessionRunner):
     def recruitment_closed(self, match):
         base_url = get_base_url()
         status_url = base_url + '/summary'
-        log("Recruitment is complete. Waiting for experiment completion...")
+        self.out.log("Recruitment is complete. Waiting for experiment completion...")
         time.sleep(10)
         try:
             resp = requests.get(status_url)
