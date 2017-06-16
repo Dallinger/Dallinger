@@ -223,7 +223,9 @@ def archive_data(id, src, dst):
     with ZipFile(dst, 'w', ZIP_DEFLATED, allowZip64=True) as zf:
         for root, dirs, files in os.walk(src):
             for file in files:
-                zf.write(os.path.join(root, file))
+                filename = os.path.join(root, file)
+                arcname = filename.replace(src, '').lstrip('/')
+                zf.write(filename, arcname)
     shutil.rmtree(src)
     print("Done. Data available in {}-data.zip".format(id))
 
