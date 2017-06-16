@@ -222,10 +222,7 @@ class TestDebugServer(object):
         return debugger
 
     def test_startup(self, debugger):
-        debugger.exp_config.update(
-            {'num_dynos_web': 2, 'num_dynos_worker': 2})
         debugger.run_all()
-
         "Server is running" in str(debugger.out.log.call_args_list[0])
 
     def test_launch_failure(self, debugger):
