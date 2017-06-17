@@ -193,6 +193,57 @@ class TestSetupExperiment(object):
 
 
 @pytest.mark.usefixtures('bartlett_dir')
+class Test_handle_launch_data(object):
+
+    @pytest.fixture
+    def handler(self):
+        from dallinger.command_line import _handle_launch_data
+        return _handle_launch_data
+
+    def test_success(self, handler):
+        log = mock.Mock()
+        with mock.patch('dallinger.command_line.requests.post') as mock_post:
+            result = mock.Mock(
+                ok=True,
+                json=mock.Mock(return_value={'message': u'msg!'}),
+            )
+            mock_post.return_value = result
+            assert handler('/some-launch-url', error=log) == {'message': u'msg!'}
+
+    def test_failure(self, handler):
+        from requests.exceptions import HTTPError
+        log = mock.Mock()
+        with mock.patch('dallinger.command_line.requests.post') as mock_post:
+            mock_post.return_value = mock.Mock(
+                ok=False,
+                json=mock.Mock(return_value={'message': u'msg!'}),
+                raise_for_status=mock.Mock(side_effect=HTTPError)
+            )
+            with pytest.raises(HTTPError):
+                handler('/some-launch-url', error=log)
+
+        log.assert_has_calls([
+            mock.call('Experiment launch failed, check web dyno logs for details.'),
+            mock.call(u'msg!')
+        ])
+
+    def test_non_json_response_error(self, handler):
+        log = mock.Mock()
+        with mock.patch('dallinger.command_line.requests.post') as mock_post:
+            mock_post.return_value = mock.Mock(
+                json=mock.Mock(side_effect=ValueError),
+                text='Big, unexpected problem.'
+            )
+            with pytest.raises(ValueError):
+                handler('/some-launch-url', error=log)
+
+        log.assert_called_once_with(
+            'Error parsing response from /launch, check web dyno logs for details: '
+            'Big, unexpected problem.'
+        )
+
+
+@pytest.mark.usefixtures('bartlett_dir')
 class TestDebugServer(object):
 
     @pytest.fixture
@@ -208,23 +259,6 @@ class TestDebugServer(object):
     def test_startup(self, debugger):
         debugger.run_all()
         "Server is running" in str(debugger.out.log.call_args_list[0])
-
-    def test_launch_failure(self, debugger):
-        from requests.exceptions import HTTPError
-        debugger.exp_config.update({'recruiter': u'bogus'})
-        with mock.patch('dallinger.command_line.requests.post') as mock_post:
-            mock_post.return_value = mock.Mock(
-                ok=False,
-                json=mock.Mock(return_value={'message': u'msg!'}),
-                raise_for_status=mock.Mock(side_effect=HTTPError)
-            )
-            with pytest.raises(HTTPError):
-                debugger.run_all()
-
-        debugger.out.error.assert_has_calls([
-            mock.call('Experiment launch failed, check web dyno logs for details.'),
-            mock.call(u'msg!')
-        ])
 
     def test_raises_if_heroku_wont_start(self, debugger):
         mock_wrapper = mock.Mock(
