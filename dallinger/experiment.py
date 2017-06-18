@@ -467,7 +467,7 @@ class Experiment(object):
         import dallinger as dlgr
 
         if app_id is None:
-            app_id = str(uuid.uuid4())
+            app_id = self.make_uuid()
 
         self.app_id = app_id
         self.exp_config = exp_config or {}
@@ -491,6 +491,11 @@ class Experiment(object):
                 exp_config=exp_config
             )
         return self._finish_experiment()
+
+    @classmethod
+    def make_uuid(cls):
+        """Returns a new uuid"""
+        return str(uuid.uuid4())
 
     def _finish_experiment(self):
         # Debug runs synchronously

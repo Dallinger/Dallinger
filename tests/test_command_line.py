@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from uuid import UUID
 from ConfigParser import NoOptionError, SafeConfigParser
 
 import pexpect
@@ -53,6 +54,10 @@ class TestCommandLine(object):
 
     def test_empty_id_fails_verification(self):
         assert ValueError, dallinger.commandline.verify_id(None)
+
+    def test_new_uuid(self):
+        output = subprocess.check_output(["dallinger", "uuid"])
+        assert isinstance(UUID(output.strip(), version=4), UUID)
 
 
 class TestSetupExperiment(object):

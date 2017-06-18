@@ -21,7 +21,6 @@ import sys
 import tempfile
 import time
 import traceback
-import uuid
 import webbrowser
 
 import click
@@ -242,7 +241,8 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     pkg_resources.require(dependencies)
 
     # Generate a unique id for this experiment.
-    generated_uid = public_id = str(uuid.uuid4())
+    from dallinger.experiment import Experiment
+    generated_uid = public_id = Experiment.make_uuid()
 
     # If the user provided an app name, use it everywhere that's user-facing.
     if app:
@@ -351,6 +351,13 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 def summary(app):
     """Print a summary of a deployed app's status."""
     click.echo(get_summary(app))
+
+
+@dallinger.command()
+def uuid():
+    """Print a new UUID"""
+    from dallinger.experiment import Experiment
+    click.echo(Experiment.make_uuid())
 
 
 def get_summary(app):
