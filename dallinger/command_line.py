@@ -308,6 +308,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         "launch.py",
         "worker.py",
         "clock.py",
+        "runtime.txt",
     ]
 
     for filename in heroku_files:
