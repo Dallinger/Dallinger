@@ -422,7 +422,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
             description=TEST_QUALIFICATION_DESCRIPTION,
             status='Active',
         )
-        time.sleep(10)  # wait for indexing... sigh.
+        time.sleep(20)  # wait for indexing... sigh.
         result = with_cleanup.get_qualification_type_by_name(substr_name)
         assert result['id'] == qtype2['id']
         with_cleanup.dispose_qualification_type(qtype2['id'])
@@ -437,7 +437,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
             description=TEST_QUALIFICATION_DESCRIPTION,
             status='Active',
         )
-        time.sleep(10)  # wait for indexing... sigh.
+        time.sleep(20)  # wait for indexing... sigh.
         not_exact = substr_name[:16]
         with pytest.raises(MTurkServiceException):
             with_cleanup.get_qualification_type_by_name(not_exact)
