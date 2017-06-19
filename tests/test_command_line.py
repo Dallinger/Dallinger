@@ -260,7 +260,7 @@ class TestDebugServer(object):
         return debugger
 
     def test_startup(self, debugger):
-        debugger.run_all()
+        debugger.run()
         "Server is running" in str(debugger.out.log.call_args_list[0])
 
     def test_raises_if_heroku_wont_start(self, debugger):
@@ -271,7 +271,7 @@ class TestDebugServer(object):
         with mock.patch('dallinger.command_line.HerokuLocalWrapper') as Wrapper:
             Wrapper.return_value = mock_wrapper
             with pytest.raises(OSError):
-                debugger.run_all()
+                debugger.run()
 
     def test_recruitment_closed(self, debugger_unpatched):
         from dallinger.heroku.tools import HerokuLocalWrapper
@@ -336,7 +336,7 @@ class TestLoad(object):
 
     def test_load_runs(self, loader):
         loader.keep_running = mock.Mock(return_value=False)
-        loader.run_all()
+        loader.run()
 
         expected = [
             mock.call('Ingesting dataset from test_export.zip...'),
