@@ -145,14 +145,14 @@ class TestMTurkRecruiter(object):
             approve_requirement=95,
             description=u'fake HIT description',
             duration_hours=1.0,
-            keywords=(u'kw1', u'kw2', u'kw3'),
+            keywords=[u'kw1', u'kw2', u'kw3'],
             lifetime_days=1,
             max_assignments=1,
             notification_url=u'https://url-of-notification-route',
             reward=0.01,
             title=u'fake experiment title',
             us_only=True,
-            blacklist=(),
+            blacklist=[],
             blacklist_experience_limit=None,
         )
 
@@ -180,13 +180,13 @@ class TestMTurkRecruiter(object):
             description='fake HIT description',
             duration_hours=1.0,
             lifetime_days=1,
-            keywords=(u'kw1', u'kw2', u'kw3'),
+            keywords=[u'kw1', u'kw2', u'kw3'],
             max_assignments=1,
             notification_url='https://url-of-notification-route',
             reward=0.01,
             title='fake experiment title',
             us_only=True,
-            blacklist=('foo', 'bar'),
+            blacklist=['foo', 'bar'],
             blacklist_experience_limit=0,
         )
 
