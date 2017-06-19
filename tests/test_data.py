@@ -3,6 +3,7 @@
 from collections import OrderedDict
 import csv
 import os
+import requests
 import tempfile
 import uuid
 import shutil
@@ -133,3 +134,20 @@ class TestData(object):
     def test_export_compatible_with_data(self):
         path = dallinger.data.export("12345-12345-12345-12345", local=True)
         assert dallinger.data.Data(path)
+
+    def test_register_id(self):
+        new_uuid = "12345-12345-12345-12345"
+        url = dallinger.data.register(new_uuid, 'http://original-url.com/value')
+
+        # The registration creates a new file in the dallinger-registrations bucket
+        assert url.startswith('https://dallinger-registrations.')
+        assert new_uuid in url
+
+        # These files should be inaccessible to make it impossible to use the bucket
+        # as a file repository
+        res = requests.get(url)
+        assert res.status_code == 403
+
+        # We should be able to check that the UUID is registered
+        assert dallinger.data.is_registered(new_uuid) is True
+        assert dallinger.data.is_registered('bogus-uuid-value') is False

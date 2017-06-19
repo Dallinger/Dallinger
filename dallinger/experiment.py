@@ -18,6 +18,8 @@ from sqlalchemy import and_
 from dallinger.config import get_config, LOCAL_CONFIG
 from dallinger.data import Data
 from dallinger.data import export
+from dallinger.data import is_registered
+from dallinger.data import load as data_load
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.heroku import app_name
 from dallinger.information import Gene, Meme, State
@@ -491,6 +493,25 @@ class Experiment(object):
                 exp_config=exp_config
             )
         return self._finish_experiment()
+
+    def retrieve(self, app_id, exp_config=None, bot=False, **kwargs):
+        try:
+            results = data_load(app_id)
+            self.log(u'Data found for experiment {}, retrieving.'.format(app_id),
+                     key=u"Retrieve:")
+            return results
+        except IOError:
+            self.log(
+                u'Could not fetch data for id: {}, checking registry'.format(app_id),
+                key=u"Retrieve:"
+            )
+        if is_registered(app_id):
+            raise RuntimeError(u'The id {} is registered, '.format(app_id) +
+                               u'but you do not have permission to access to the data')
+
+        self.log(u'{} appears to be a new experiment id, running experiment.'.format(app_id),
+                 key=u"Retrieve:")
+        return self.run(exp_config, app_id, bot, **kwargs)
 
     @classmethod
     def make_uuid(cls):
