@@ -22,6 +22,7 @@ dyno
 dynos
 et
 frontend
+Gabriele
 GitHub
 Google
 Gmail
