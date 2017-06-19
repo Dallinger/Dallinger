@@ -159,11 +159,11 @@ class MTurkRecruiter(Recruiter):
 
         self._create_mturk_qualifications()
 
-        blacklist = self._extract_blacklist_from_config()
         hit_request = {
             'max_assignments': n,
             'title': self.config.get('title'),
             'description': self.config.get('description'),
+            'keywords': self._config_to_tuple('keywords'),
             'reward': self.config.get('base_payment'),
             'duration_hours': self.config.get('duration'),
             'lifetime_days': self.config.get('lifetime'),
@@ -171,7 +171,7 @@ class MTurkRecruiter(Recruiter):
             'notification_url': self.config.get('notification_url'),
             'approve_requirement': self.config.get('approve_requirement'),
             'us_only': self.config.get('us_only'),
-            'blacklist': blacklist,
+            'blacklist': self._config_to_tuple('qualification_blacklist'),
             'blacklist_experience_limit': self.config.get(
                 'qualification_blacklist_experience_limit', None
             )
@@ -242,16 +242,16 @@ class MTurkRecruiter(Recruiter):
         """
         logger.info("Close recruitment.")
 
-    def _extract_blacklist_from_config(self):
+    def _config_to_tuple(self, key):
         # At some point we'll support lists, so all service code supports them,
         # but the config system only supports strings for now, so we convert:
-        blacklist = self.config.get('qualification_blacklist', None)
-        if blacklist:
-            blacklist = tuple([item.strip() for item in blacklist.split(',')])
+        as_string = self.config.get(key, None)
+        if as_string:
+            tuplized = tuple([item.strip() for item in as_string.split(',')])
         else:
-            blacklist = ()
+            tuplized = ()
 
-        return blacklist
+        return tuplized
 
     def _create_mturk_qualifications(self):
         """Create MTurk Qualification for experiment ID, and for group_name

@@ -77,6 +77,7 @@ def stub_config():
         'duration': 1.0,
         'mode': u'sandbox',
         'id': u'some experiment uid',
+        'keywords': u'kw1, kw2, kw3',
         'server': '0.0.0.0',
         'organization_name': u'fake org name',
         'notification_url': u'https://url-of-notification-route',
