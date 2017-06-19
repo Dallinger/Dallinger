@@ -26,7 +26,6 @@ SENSITIVE_KEY_NAMES = (
 
 default_keys = (
     ('ad_group', unicode, []),
-    ('keywords', unicode, []),
     ('approve_requirement', int, []),
     ('auto_recruit', bool, []),
     ('aws_access_key_id', unicode, [], True),
@@ -48,7 +47,7 @@ default_keys = (
     ('heroku_team', unicode, ['team']),
     ('host', unicode, []),
     ('id', unicode, []),
-    ('port', int, ['PORT']),
+    ('keywords', unicode, []),
     ('lifetime', int, []),
     ('logfile', unicode, []),
     ('loglevel', int, []),
@@ -57,15 +56,16 @@ default_keys = (
     ('num_dynos_web', int, []),
     ('num_dynos_worker', int, []),
     ('organization_name', unicode, []),
+    ('port', int, ['PORT']),
     ('qualification_blacklist', unicode, []),
     ('qualification_blacklist_experience_limit', int, []),
     ('recruiter', unicode, []),
     ('threads', unicode, []),
     ('title', unicode, []),
     ('us_only', bool, []),
-    ('whimsical', bool, []),
     ('webdriver_type', unicode, []),
     ('webdriver_url', unicode, []),
+    ('whimsical', bool, []),
 )
 
 
