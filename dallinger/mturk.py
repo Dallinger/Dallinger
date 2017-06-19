@@ -140,7 +140,11 @@ class MTurkService(object):
         return self._translate_qtype(qtype)
 
     def get_qualification_type_by_name(self, name):
-        """Return a Qualification Type if there is just one with this name"""
+        """Return a Qualification Type by name. If the provided name matches
+        more than one Qualification, check to see if any of the results
+        match the provided name exactly. If there's an exact match, return
+        that Qualification. Otherwise, raise an exception.
+        """
         query = name.upper()
         start = time.time()
         results = self.mturk.search_qualification_types(query=query)
@@ -154,12 +158,15 @@ class MTurkService(object):
         if not results:
             return None
 
-        translated = self._translate_qtype(results[0])
-        if len(results) > 1:
-            if translated['name'].upper() != query:
-                raise MTurkServiceException("{} was not a unique name".format(query))
+        qualifications = [self._translate_qtype(r) for r in results]
+        if len(qualifications) > 1:
+            for qualification in qualifications:
+                if qualification['name'].upper() == query:
+                    return qualification
 
-        return translated
+            raise MTurkServiceException("{} was not a unique name".format(query))
+
+        return qualifications[0]
 
     def assign_qualification(self, qualification_id, worker_id, score, notify=True):
         """Score a worker for a specific qualification"""
