@@ -220,6 +220,11 @@ def qtype(aws_creds):
 @pytest.mark.mturk
 class TestMTurkService(object):
 
+    def loop_until_2_quals(self, mturk_helper, query):
+        while len(mturk_helper.mturk.search_qualification_types(query=query)) < 2:
+            time.sleep(1)
+        return True
+
     def test_check_credentials_good_credentials(self, mturk):
         is_authenticated = mturk.check_credentials()
         assert is_authenticated
@@ -334,6 +339,52 @@ class TestMTurkService(object):
         result = with_cleanup.get_qualification_type_by_name(qtype['name'])
         assert qtype == result
 
+    def test_get_qualification_by_name(self, with_cleanup, qtype):
+        # First query can be very slow, since the qtype was just added:
+        result = with_cleanup.get_qualification_type_by_name(qtype['name'])
+        assert result is not None
+        # After that they will be fast, so we can set the wait to 0
+        with_cleanup.max_wait_secs = 0
+        for i in range(3):
+            result = with_cleanup.get_qualification_type_by_name(qtype['name'])
+            assert result is not None
+
+    def test_get_qualification_by_name_no_match(self, with_cleanup, qtype):
+        # First query can be very slow, since the qtype was just added:
+        with_cleanup.max_wait_secs = 0
+        result = with_cleanup.get_qualification_type_by_name('nonsense')
+        assert result is None
+
+    def test_get_qualification_by_name_returns_shortest_if_multi(self,
+                                                                 with_cleanup,
+                                                                 qtype):
+        substr_name = qtype['name'][:-1]  # one char shorter name
+        qtype2 = with_cleanup.create_qualification_type(
+            name=substr_name,
+            description=TEST_QUALIFICATION_DESCRIPTION,
+            status='Active',
+        )
+        self.loop_until_2_quals(with_cleanup, substr_name)  # wait for indexing
+        result = with_cleanup.get_qualification_type_by_name(substr_name)
+        assert result['id'] == qtype2['id']
+        with_cleanup.dispose_qualification_type(qtype2['id'])
+
+    def test_get_qualification_by_name_must_match_exact_if_multi(self,
+                                                                 with_cleanup,
+                                                                 qtype):
+        substr_name = qtype['name'][:-1]  # one char shorter name
+        qtype2 = with_cleanup.create_qualification_type(
+            name=substr_name,
+            description=TEST_QUALIFICATION_DESCRIPTION,
+            status='Active',
+        )
+        self.loop_until_2_quals(with_cleanup, substr_name)  # wait for indexing
+        not_exact = substr_name[:-1]
+        with pytest.raises(MTurkServiceException):
+            with_cleanup.get_qualification_type_by_name(not_exact)
+
+        with_cleanup.dispose_qualification_type(qtype2['id'])
+
 
 @pytest.mark.mturk
 @pytest.mark.mturkworker
@@ -395,54 +446,6 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         new_score = with_cleanup.mturk.get_qualification_score(
             qtype['id'], worker_id)[0].IntegerValue
         assert new_score == '3'
-
-    def test_get_qualification_by_name(self, with_cleanup, worker_id, qtype):
-        # First query can be very slow, since the qtype was just added:
-        result = with_cleanup.get_qualification_type_by_name(qtype['name'])
-        assert result is not None
-        # After that they will be fast, so we can set the wait to 0
-        with_cleanup.max_wait_secs = 0
-        for i in range(3):
-            result = with_cleanup.get_qualification_type_by_name(qtype['name'])
-            assert result is not None
-
-    def test_get_qualification_by_name_no_match(self, with_cleanup, worker_id, qtype):
-        # First query can be very slow, since the qtype was just added:
-        with_cleanup.max_wait_secs = 0
-        result = with_cleanup.get_qualification_type_by_name('nonsense')
-        assert result is None
-
-    def test_get_qualification_by_name_returns_shortest_if_multi(self,
-                                                                 with_cleanup,
-                                                                 worker_id,
-                                                                 qtype):
-        substr_name = qtype['name'][:32]
-        qtype2 = with_cleanup.create_qualification_type(
-            name=substr_name,
-            description=TEST_QUALIFICATION_DESCRIPTION,
-            status='Active',
-        )
-        time.sleep(20)  # wait for indexing... sigh.
-        result = with_cleanup.get_qualification_type_by_name(substr_name)
-        assert result['id'] == qtype2['id']
-        with_cleanup.dispose_qualification_type(qtype2['id'])
-
-    def test_get_qualification_by_name_must_match_exact_if_multi(self,
-                                                                 with_cleanup,
-                                                                 worker_id,
-                                                                 qtype):
-        substr_name = qtype['name'][:32]
-        qtype2 = with_cleanup.create_qualification_type(
-            name=substr_name,
-            description=TEST_QUALIFICATION_DESCRIPTION,
-            status='Active',
-        )
-        time.sleep(20)  # wait for indexing... sigh.
-        not_exact = substr_name[:16]
-        with pytest.raises(MTurkServiceException):
-            with_cleanup.get_qualification_type_by_name(not_exact)
-
-        with_cleanup.dispose_qualification_type(qtype2['id'])
 
     def test_get_current_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
