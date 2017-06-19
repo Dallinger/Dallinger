@@ -1,6 +1,6 @@
 # Change Log
 
-## [v3.0.1](https://github.com/dallinger/dallinger/tree/v2.6.0) (2016-11-19)
+## [v3.0.1](https://github.com/dallinger/dallinger/tree/v3.0.1) (2017-06-19)
 
 - Add a `runtime.txt` file due to Heroku changes that require Python version specification.
 
