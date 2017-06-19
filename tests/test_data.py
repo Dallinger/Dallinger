@@ -132,4 +132,4 @@ class TestData(object):
 
     def test_export_compatible_with_data(self):
         path = dallinger.data.export("12345-12345-12345-12345", local=True)
-        data = dallinger.data.Data(path)
+        assert dallinger.data.Data(path)
