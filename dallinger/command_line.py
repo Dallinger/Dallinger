@@ -408,7 +408,7 @@ def _handle_launch_data(url, error=error):
 def debug(verbose, bot, exp_config=None):
     """Run the experiment locally."""
     debugger = DebugSessionRunner(Output(), verbose, bot, exp_config)
-    debugger.run_all()
+    debugger.run()
 
 
 def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=None):
@@ -790,6 +790,9 @@ class LocalSessionRunner(object):
             config.write()
 
     def run(self):
+        """Set up the environment, get a HerokuLocalWrapper instance, and pass
+        it to the concrete class's execute() method.
+        """
         self.configure()
         self.setup()
         self.update_dir()
@@ -805,12 +808,11 @@ class LocalSessionRunner(object):
                 os.chdir(self.original_dir)
                 self.cleanup()
 
-    def run_all(self):
-        self.configure()
-        self.setup()
-        self.run()
-
     def notify(self, message):
+        """Callback function which checks lines of output, tries to match
+        against regex defined in subclass's "dispatch" dict, and passes through
+        to a handler on match.
+        """
         for regex, handler in self.dispatch.items():
             match = re.search(regex, message)
             if match:
@@ -856,11 +858,19 @@ class DebugSessionRunner(LocalSessionRunner):
         log("Completed debugging of experiment with id " + self.exp_id)
 
     def new_recruit(self, match):
+        """Dispatched to by notify(). If a recruitment request has been issued,
+        open a browser window for the a new participant (in this case the
+        person doing local debugging).
+        """
         self.out.log("new recruitment request!")
         url = match.group(1)
         webbrowser.open(url, new=1, autoraise=True)
 
     def recruitment_closed(self, match):
+        """Recruitment is closed. Check the output of the summary route until
+        the experiment is complete, then we can stop monitoring Heroku
+        subprocess output.
+        """
         base_url = get_base_url()
         status_url = base_url + '/summary'
         self.out.log("Recruitment is complete. Waiting for experiment completion...")
@@ -897,6 +907,9 @@ class LoadSessionRunner(LocalSessionRunner):
             verbose=self.verbose, dataset=self.dataset, exp_config=self.exp_config)
 
     def execute(self, heroku):
+        """Start the server, load the zip file into the database, then loop
+        until terminated with <control>-c.
+        """
         db.init_db(drop_all=True)
         zip_filename = os.path.basename(self.dataset)
         self.out.log("Ingesting dataset from {}...".format(zip_filename))
@@ -924,7 +937,7 @@ def load(dataset, verbose, exp_config=None):
     running until stopping the process with <control>-c.
     """
     loader = LoadSessionRunner(dataset, Output(), verbose, exp_config)
-    loader.run_all()
+    loader.run()
 
 
 @dallinger.command()
