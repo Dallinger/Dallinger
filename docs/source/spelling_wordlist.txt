@@ -23,6 +23,7 @@ dynos
 et
 Firefox
 frontend
+Gabriele
 GitHub
 Google
 Gmail
