@@ -7,7 +7,6 @@ import psutil
 import re
 import subprocess
 import traceback
-from cached_property import cached_property
 
 from dallinger.config import get_config
 from dallinger.compat import unicode
