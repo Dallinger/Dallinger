@@ -247,13 +247,16 @@ class Test_handle_launch_data(object):
 class TestDebugServer(object):
 
     @pytest.fixture
-    def debugger(self, env_with_home, output):
+    def debugger_unpatched(self, env_with_home, output):
         from dallinger.command_line import DebugSessionRunner
-        from dallinger.heroku.tools import HerokuLocalWrapper
-
         debugger = DebugSessionRunner(output, verbose=True, bot=False, exp_config={})
-        debugger.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
+        return debugger
 
+    @pytest.fixture
+    def debugger(self, debugger_unpatched):
+        from dallinger.heroku.tools import HerokuLocalWrapper
+        debugger = debugger_unpatched
+        debugger.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
         return debugger
 
     def test_startup(self, debugger):
@@ -269,6 +272,22 @@ class TestDebugServer(object):
             Wrapper.return_value = mock_wrapper
             with pytest.raises(OSError):
                 debugger.run_all()
+
+    def test_recruitment_closed(self, debugger_unpatched):
+        from dallinger.heroku.tools import HerokuLocalWrapper
+        from dallinger.config import get_config
+        debugger = debugger_unpatched
+        get_config().load()
+        debugger.new_recruit = mock.Mock(return_value=None)
+        response = mock.Mock(
+            json=mock.Mock(return_value={'completed': True})
+        )
+        with mock.patch('dallinger.command_line.requests') as mock_requests:
+            mock_requests.get.return_value = response
+            response = debugger.notify("Close recruitment.")
+
+        assert response == HerokuLocalWrapper.MONITOR_STOP
+        debugger.out.log.assert_called_with('Experiment completed, all nodes filled.')
 
     @pytest.mark.skipif(not pytest.config.getvalue("runbot"),
                         reason="--runbot was specified")
