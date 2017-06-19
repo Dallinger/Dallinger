@@ -179,6 +179,7 @@ def setup_experiment(debug=True, verbose=False, app=None):
         "psiturkapp.py",
         "worker.py",
         "clock.py",
+        "runtime.txt",
     ]
 
     for filename in heroku_files:
