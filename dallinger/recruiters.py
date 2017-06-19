@@ -163,7 +163,7 @@ class MTurkRecruiter(Recruiter):
             'max_assignments': n,
             'title': self.config.get('title'),
             'description': self.config.get('description'),
-            'keywords': self._config_to_tuple('keywords'),
+            'keywords': self._config_to_list('keywords'),
             'reward': self.config.get('base_payment'),
             'duration_hours': self.config.get('duration'),
             'lifetime_days': self.config.get('lifetime'),
@@ -171,7 +171,7 @@ class MTurkRecruiter(Recruiter):
             'notification_url': self.config.get('notification_url'),
             'approve_requirement': self.config.get('approve_requirement'),
             'us_only': self.config.get('us_only'),
-            'blacklist': self._config_to_tuple('qualification_blacklist'),
+            'blacklist': self._config_to_list('qualification_blacklist'),
             'blacklist_experience_limit': self.config.get(
                 'qualification_blacklist_experience_limit', None
             )
@@ -242,16 +242,11 @@ class MTurkRecruiter(Recruiter):
         """
         logger.info("Close recruitment.")
 
-    def _config_to_tuple(self, key):
+    def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
         # but the config system only supports strings for now, so we convert:
-        as_string = self.config.get(key, None)
-        if as_string:
-            tuplized = tuple([item.strip() for item in as_string.split(',')])
-        else:
-            tuplized = ()
-
-        return tuplized
+        as_string = self.config.get(key, '')
+        return [item.strip() for item in as_string.split(',') if item.strip()]
 
     def _create_mturk_qualifications(self):
         """Create MTurk Qualification for experiment ID, and for group_name
