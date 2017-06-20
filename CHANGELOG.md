@@ -1,5 +1,9 @@
 # Change Log
 
+## [v2.7.3](https://github.com/dallinger/dallinger/tree/v2.7.3) (2017-06-19)
+
+- Add runtime.txt for heroku change requiring python version specification.
+
 ## [v2.7.1](https://github.com/dallinger/dallinger/tree/v2.7.1) (2017-02-25)
 
 - Fix issue with 2.x documentation pointing to 3.x demos.
