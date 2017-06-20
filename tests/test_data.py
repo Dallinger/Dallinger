@@ -100,6 +100,13 @@ class TestData(object):
         assert data
         assert data.networks.csv
 
+    def test_local_data_loading(self):
+        local_data_id = "77777-77777-77777-77777"
+        dallinger.data.export(local_data_id, local=True)
+        data = dallinger.data.load(local_data_id)
+        assert data
+        assert data.networks.csv
+
     def test_export_of_nonexistent_database(self):
         nonexistent_local_db = str(uuid.uuid4())
         with pytest.raises(psycopg2.OperationalError):

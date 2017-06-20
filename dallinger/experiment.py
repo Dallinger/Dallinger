@@ -489,6 +489,11 @@ class Experiment(object):
 
     def retrieve(self, app_id, exp_config=None, bot=False, **kwargs):
         try:
+            orig_path = os.getcwd()
+            new_path = os.path.dirname(
+                sys.modules[self.__class__.__module__].__file__
+            )
+            os.chdir(new_path)
             results = data_load(app_id)
             self.log(u'Data found for experiment {}, retrieving.'.format(app_id),
                      key=u"Retrieve:")
@@ -498,9 +503,15 @@ class Experiment(object):
                 u'Could not fetch data for id: {}, checking registry'.format(app_id),
                 key=u"Retrieve:"
             )
+        finally:
+            os.chdir(orig_path)
+
+        exp_config = exp_config or {}
         if is_registered(app_id):
             raise RuntimeError(u'The id {} is registered, '.format(app_id) +
                                u'but you do not have permission to access to the data')
+        elif kwargs.get('mode') == u'debug' or exp_config.get('mode') == u'debug':
+            raise RuntimeError(u'No remote or local data found for id {}'.format(app_id))
 
         self.log(u'{} appears to be a new experiment id, running experiment.'.format(app_id),
                  key=u"Retrieve:")
