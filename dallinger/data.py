@@ -41,7 +41,22 @@ table_names = [
 
 def load(id):
     """Load the data from wherever it is found."""
+    # Check locally first
+    cwd = os.getcwd()
     data_filename = '{}-data.zip'.format(id)
+    path_to_data = os.path.join(cwd, "data", data_filename)
+    if os.path.exists(path_to_data):
+        try:
+            return Data(path_to_data)
+        except IOError:
+            from dallinger import logger
+            logger.exception(
+                "Error reading local data file {}, checking remote.".format(
+                    path_to_data
+                )
+            )
+
+    # Get remote file instead
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
     buckets = [
