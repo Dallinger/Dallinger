@@ -13,6 +13,7 @@ from boto.mturk.connection import Qualification
 from boto.mturk.connection import QualificationType
 from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
+from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
@@ -332,7 +333,7 @@ class TestMTurkService(object):
         assert with_cleanup.dispose_qualification_type(result['id'])
 
     def test_create_qualification_type_with_existing_name_raises(self, with_cleanup, qtype):
-        with pytest.raises(MTurkRequestError):
+        with pytest.raises(DuplicateQualificationNameError):
             with_cleanup.create_qualification_type(qtype['name'], 'desc', 'Active')
 
     def test_get_qualification_type_by_name_with_valid_name(self, with_cleanup, qtype):
