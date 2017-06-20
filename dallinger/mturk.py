@@ -134,7 +134,7 @@ class MTurkService(object):
         return quals
 
     def create_qualification_type(self, name, description, status='Active'):
-        """Passthrough. Create a new qualification Workers can be scored for.
+        """Create a new qualification Workers can be scored for.
         """
         try:
             qtype = self.mturk.create_qualification_type(name, description, status)[0]
@@ -280,8 +280,8 @@ class MTurkService(object):
         mturk_question = ExternalQuestion(ad_url, frame_height)
         if blacklist is not None and blacklist_experience_limit is None:
             raise MTurkServiceException(
-                "If you specify a qualification_blacklist you must also specify"
-                " qualification_blacklist_experience_limit"
+                "If you specify a blacklist you must also specify"
+                " blacklist_experience_limit"
             )
 
         qualifications = self.build_hit_qualifications(

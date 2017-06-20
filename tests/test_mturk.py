@@ -523,7 +523,8 @@ class TestInteractive(object):
         hit = with_cleanup.create_hit(
             **standard_hit_config(
                 title="Dallinger: Blacklist",
-                blacklist=[qtype['name']]
+                blacklist=[qtype['name']],
+                blacklist_experience_limit=0,
             )
         )
 
