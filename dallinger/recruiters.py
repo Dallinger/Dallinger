@@ -5,6 +5,7 @@ from dallinger.config import get_config
 from dallinger.heroku.worker import conn
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
+from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
@@ -250,10 +251,14 @@ class MTurkRecruiter(Recruiter):
 
     def _create_mturk_qualifications(self):
         """Create MTurk Qualification for experiment ID, and for group_name
-        if it's been set.
+        if it's been set. Qualifications with these names already exist, but
+        it's faster to try and fail than to check, then try.
         """
         for name, desc in self.qualifications.items():
-            self.mturkservice.create_qualification_type(name, desc)
+            try:
+                self.mturkservice.create_qualification_type(name, desc)
+            except DuplicateQualificationNameError:
+                pass
 
 
 class BotRecruiter(Recruiter):

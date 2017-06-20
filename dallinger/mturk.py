@@ -23,6 +23,10 @@ class MTurkServiceException(Exception):
     """Custom exception type"""
 
 
+class DuplicateQualificationNameError(MTurkServiceException):
+    """A Qualification with the given name already exists"""
+
+
 class QualificationNotFoundException(MTurkServiceException):
     """A Qualification searched for by name does not exist"""
 
@@ -132,7 +136,12 @@ class MTurkService(object):
     def create_qualification_type(self, name, description, status='Active'):
         """Passthrough. Create a new qualification Workers can be scored for.
         """
-        qtype = self.mturk.create_qualification_type(name, description, status)[0]
+        try:
+            qtype = self.mturk.create_qualification_type(name, description, status)[0]
+        except MTurkRequestError, ex:
+            if u'already created a QualificationType with this name' in ex.message:
+                raise DuplicateQualificationNameError(ex.message)
+
         if qtype.IsValid != 'True':
             raise MTurkServiceException(
                 "Qualification creation request was invalid for unknown reason.")

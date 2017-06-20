@@ -170,6 +170,14 @@ class TestMTurkRecruiter(object):
             mock.call(u'some group name', 'Experiment group qualification')
         ], any_order=True)
 
+    def test_open_recruitment_when_qualification_already_exists(self, recruiter):
+        from dallinger.mturk import DuplicateQualificationNameError
+        mturk = recruiter.mturkservice
+        mturk.create_qualification_type.side_effect = DuplicateQualificationNameError
+
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_hit.assert_called_once()
+
     def test_open_recruitment_with_blacklist(self, recruiter):
         recruiter.config.set('qualification_blacklist', u'foo, bar')
         recruiter.config.set('qualification_blacklist_experience_limit', 0)
