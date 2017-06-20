@@ -1,5 +1,9 @@
 # Change Log
 
+## [v3.0.1](https://github.com/dallinger/dallinger/tree/v3.0.1) (2017-06-19)
+
+- Add a `runtime.txt` file due to Heroku changes that require Python version specification.
+
 ## [v3.0.0](https://github.com/dallinger/dallinger/tree/v3.0.0) (2017-03-31)
 
 Welcome to Dallinger 3. This release comes with several new features, some of which are breaking changes that will require you to edit your `.dallingerconfig` file and experiment code. This changelog will be updated to reflect any new
