@@ -46,6 +46,7 @@ def exp_class_working_dir(meth):
             config.load_from_file(LOCAL_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
+            config._reset()
             os.chdir(orig_path)
     return new_meth
 
@@ -487,7 +488,16 @@ class Experiment(object):
             )
         return self._finish_experiment()
 
-    def retrieve(self, app_id, exp_config=None, bot=False, **kwargs):
+    def collect(self, app_id, exp_config=None, bot=False, **kwargs):
+        """Collect data for the provided experiment id.
+
+        The ``app_id`` parameter must be a valid UUID.
+        If an existing data file is found for the UUID it will
+        be returned, otherwise - if the UUID is not already registered -
+        the experiment will be run and data collected.
+
+        See ``run`` method above for other parameters
+        """
         try:
             orig_path = os.getcwd()
             new_path = os.path.dirname(
@@ -512,6 +522,11 @@ class Experiment(object):
                                u'but you do not have permission to access to the data')
         elif kwargs.get('mode') == u'debug' or exp_config.get('mode') == u'debug':
             raise RuntimeError(u'No remote or local data found for id {}'.format(app_id))
+
+        try:
+            assert isinstance(uuid.UUID(app_id, version=4), uuid.UUID)
+        except (ValueError, AssertionError):
+            raise ValueError('Invalid UUID supplied {}'.format(app_id))
 
         self.log(u'{} appears to be a new experiment id, running experiment.'.format(app_id),
                  key=u"Retrieve:")

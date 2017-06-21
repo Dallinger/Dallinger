@@ -300,7 +300,7 @@ def dallinger_s3_bucket():
 
 
 def registration_s3_bucket():
-    """The public `dallinger` S3 bucket."""
+    """The public write-only `dallinger-registration` S3 bucket."""
     conn = _s3_connection(dallinger_region=True)
     return conn.get_bucket("dallinger-registrations")
 
