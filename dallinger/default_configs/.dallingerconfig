@@ -6,3 +6,7 @@ aws_region = us-east-1
 [Email Access]
 dallinger_email_address = ???
 dallinger_email_password = ???
+
+[Server]
+host = 0.0.0.0
+port = 5000
