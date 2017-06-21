@@ -81,7 +81,13 @@ class MTurkService(object):
             self.mturk.set_rest_notification(hit_type_id, url, event_types=all_events)
         )
 
-    def register_hit_type(self, title, description, reward, duration_hours, keywords):
+    def register_hit_type(self,
+                          title,
+                          description,
+                          reward,
+                          duration_hours,
+                          keywords,
+                          qualifications):
         """Register HIT Type for this HIT and return the type's ID, which
         is required for creating a HIT.
         """
@@ -94,7 +100,7 @@ class MTurkService(object):
             duration_hours,
             keywords=keywords,
             approval_delay=None,
-            qual_req=None)[0]
+            qual_req=qualifications)[0]
 
         return hit_type.HITTypeId
 
@@ -287,8 +293,9 @@ class MTurkService(object):
         qualifications = self.build_hit_qualifications(
             approve_requirement, us_only, blacklist, blacklist_experience_limit
         )
+        # We need a HIT_Type in order to register for REST notifications
         hit_type_id = self.register_hit_type(
-            title, description, reward, duration_hours, keywords
+            title, description, reward, duration_hours, keywords, qualifications
         )
         self.set_rest_notification(notification_url, hit_type_id)
 
@@ -297,13 +304,8 @@ class MTurkService(object):
             'question': mturk_question,
             'lifetime': datetime.timedelta(days=lifetime_days),
             'max_assignments': max_assignments,
-            'title': title,
-            'description': description,
-            'keywords': keywords,
-            'reward': Price(reward),
             'duration': datetime.timedelta(hours=duration_hours),
             'approval_delay': None,
-            'qualifications': qualifications,
             'response_groups': [
                 'Minimal',
                 'HITDetail',
@@ -375,6 +377,7 @@ class MTurkService(object):
             'title': hit.Title,
             'description': hit.Description,
             'keywords': hit.Keywords.split(', '),
+            'qualification': getattr(hit, 'QualificationTypeId', None),
             'reward': float(hit.Amount),
             'review_status': hit.HITReviewStatus,
             'status': hit.HITStatus,

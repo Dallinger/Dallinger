@@ -77,6 +77,8 @@ def fake_hit_response(**kwargs):
         'NumberOfAssignmentsAvailable': u'1',
         'NumberOfAssignmentsCompleted': u'0',
         'NumberOfAssignmentsPending': u'0',
+        'QualificationRequirement': '',
+        'QualificationTypeId': u'3GNL8ZDCG7GKFUI7UX2M1UC2GNPOIL',
         'Question': (
             u'<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
             u'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
@@ -248,7 +250,8 @@ class TestMTurkService(object):
             'description': 'Test Description',
             'keywords': ['testkw1', 'testkw1'],
             'reward': .01,
-            'duration_hours': .25
+            'duration_hours': .25,
+            'qualifications': mturk.build_hit_qualifications(95, True, None, None)
         }
         hit_type_id = mturk.register_hit_type(**config)
 
@@ -260,7 +263,8 @@ class TestMTurkService(object):
             'description': 'Test Description',
             'keywords': ['testkw1', 'testkw1'],
             'reward': .01,
-            'duration_hours': .25
+            'duration_hours': .25,
+            'qualifications': mturk.build_hit_qualifications(95, True, None, None)
         }
         url = 'https://url-of-notification-route'
         hit_type_id = mturk.register_hit_type(**config)
@@ -310,7 +314,6 @@ class TestMTurkService(object):
 
     def test_get_hits_returns_all_by_default(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
-
         assert hit in with_cleanup.get_hits()
 
     def test_get_hits_excludes_based_on_filter(self, with_cleanup):
@@ -587,12 +590,14 @@ class TestMTurkServiceWithFakeConnection(object):
             service.check_credentials()
 
     def test_register_hit_type(self, with_mock):
+        quals = with_mock.build_hit_qualifications(95, True, None, None)
         config = {
             'title': 'Test Title',
             'description': 'Test Description',
             'keywords': ['testkw1', 'testkw2'],
             'reward': .01,
-            'duration_hours': .25
+            'duration_hours': .25,
+            'qualifications': quals
         }
         with_mock.mturk.configure_mock(**{
             'get_account_balance.return_value': fake_balance_response(),
@@ -608,7 +613,7 @@ class TestMTurkServiceWithFakeConnection(object):
             datetime.timedelta(hours=.25),
             keywords=['testkw1', 'testkw2'],
             approval_delay=None,
-            qual_req=None
+            qual_req=quals
         )
 
     def test_set_rest_notification(self, with_mock):
