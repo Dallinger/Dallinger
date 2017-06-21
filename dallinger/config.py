@@ -77,14 +77,17 @@ class Configuration(object):
     }
 
     def __init__(self):
+        self._reset()
+
+    def set(self, key, value):
+        return self.extend({key: value})
+
+    def _reset(self):
         self.data = deque()
         self.types = {}
         self.synonyms = {}
         self.sensitive = set()
         self.ready = False
-
-    def set(self, key, value):
-        return self.extend({key: value})
 
     def extend(self, mapping, cast_types=False, strict=False):
         normalized_mapping = {}
