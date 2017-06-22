@@ -107,13 +107,11 @@ class MTurkService(object):
     def build_hit_qualifications(self,
                                  approve_requirement,
                                  restrict_to_usa,
-                                 blacklist,
-                                 blacklist_experience_limit):
+                                 blacklist):
         """Translate restrictions/qualifications to boto Qualifications objects
 
-        @blacklist is a list of Qualifications names, and
-        @blacklist_experience_limit is a Qualification score workers must
-        not exceed in order to see and accept the HIT.
+        @blacklist is a list of names for Qualifications workers must
+        not already hold in order to see and accept the HIT.
         """
         quals = Qualifications()
         quals.add(
@@ -278,19 +276,12 @@ class MTurkService(object):
 
     def create_hit(self, title, description, keywords, reward, duration_hours,
                    lifetime_days, ad_url, notification_url, approve_requirement,
-                   max_assignments, us_only, blacklist=None,
-                   blacklist_experience_limit=None):
+                   max_assignments, us_only, blacklist=None):
         """Create the actual HIT and return a dict with its useful properties."""
         frame_height = 600
         mturk_question = ExternalQuestion(ad_url, frame_height)
-        if blacklist is not None and blacklist_experience_limit is None:
-            raise MTurkServiceException(
-                "If you specify a blacklist you must also specify"
-                " blacklist_experience_limit"
-            )
-
         qualifications = self.build_hit_qualifications(
-            approve_requirement, us_only, blacklist, blacklist_experience_limit
+            approve_requirement, us_only, blacklist
         )
         # We need a HIT_Type in order to register for REST notifications
         hit_type_id = self.register_hit_type(

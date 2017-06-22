@@ -153,7 +153,6 @@ class TestMTurkRecruiter(object):
             title=u'fake experiment title',
             us_only=True,
             blacklist=[],
-            blacklist_experience_limit=None,
         )
 
     def test_open_recruitment_creates_qualifications_for_experiment_app_id(self, recruiter):
@@ -180,7 +179,6 @@ class TestMTurkRecruiter(object):
 
     def test_open_recruitment_with_blacklist(self, recruiter):
         recruiter.config.set('qualification_blacklist', u'foo, bar')
-        recruiter.config.set('qualification_blacklist_experience_limit', 0)
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url='http://fake-domain/ad',
@@ -195,7 +193,6 @@ class TestMTurkRecruiter(object):
             title='fake experiment title',
             us_only=True,
             blacklist=['foo', 'bar'],
-            blacklist_experience_limit=0,
         )
 
     def test_open_recruitment_is_noop_if_experiment_in_progress(self, recruiter, db_session):

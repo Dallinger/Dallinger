@@ -173,10 +173,6 @@ class MTurkRecruiter(Recruiter):
             'approve_requirement': self.config.get('approve_requirement'),
             'us_only': self.config.get('us_only'),
             'blacklist': self._config_to_list('qualification_blacklist'),
-            'blacklist_experience_limit': self.config.get(
-                'qualification_blacklist_experience_limit', None
-            )
-
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
         if self.config.get('mode') == "sandbox":

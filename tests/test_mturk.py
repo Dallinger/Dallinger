@@ -282,12 +282,7 @@ class TestMTurkService(object):
         assert hit['max_assignments'] == 2
 
     def test_create_hit_with_valid_blacklist(self, with_cleanup, qtype):
-        hit = with_cleanup.create_hit(
-            **standard_hit_config(
-                blacklist=[qtype['name']],
-                blacklist_experience_limit=2
-            )
-        )
+        hit = with_cleanup.create_hit(**standard_hit_config(blacklist=[qtype['name']]))
         assert hit['status'] == 'Assignable'
 
     def test_extend_hit_with_valid_hit_id(self, with_cleanup):
@@ -524,11 +519,7 @@ class TestInteractive(object):
         raw_input("Any key to continue...")
 
         hit = with_cleanup.create_hit(
-            **standard_hit_config(
-                title="Dallinger: Blacklist",
-                blacklist=[qtype['name']],
-                blacklist_experience_limit=0,
-            )
+            **standard_hit_config(title="Dallinger: Blacklist", blacklist=[qtype['name']])
         )
 
         print 'MANUAL STEP: Should NOT be able to see "{}"" as available HIT'.format(hit['title'])
@@ -637,16 +628,6 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.create_hit(**standard_hit_config())
 
         with_mock.mturk.create_hit.assert_called_once()
-
-    def test_create_hit_with_blacklist_but_no_limit_raises(self, with_mock):
-        with_mock.mturk.configure_mock(**{
-            'register_hit_type.return_value': fake_hit_type_response(),
-            'set_rest_notification.return_value': ResultSet(),
-            'create_hit.return_value': fake_hit_response(),
-        })
-
-        with pytest.raises(MTurkServiceException):
-            with_mock.create_hit(**standard_hit_config(blacklist="foo"))
 
     def test_create_hit_translates_response_back_from_mturk(self, with_mock):
         with_mock.mturk.configure_mock(**{
