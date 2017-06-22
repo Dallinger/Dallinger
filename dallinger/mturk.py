@@ -131,8 +131,7 @@ class MTurkService(object):
                     quals.add(
                         Requirement(
                             qtype['id'],
-                            "LessThan",
-                            integer_value=blacklist_experience_limit + 1,
+                            "DoesNotExist",
                             required_to_preview=True
                         )
                     )
