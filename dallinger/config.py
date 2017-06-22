@@ -58,7 +58,6 @@ default_keys = (
     ('organization_name', unicode, []),
     ('port', int, ['PORT']),
     ('qualification_blacklist', unicode, []),
-    ('qualification_blacklist_experience_limit', int, []),
     ('recruiter', unicode, []),
     ('threads', unicode, []),
     ('title', unicode, []),

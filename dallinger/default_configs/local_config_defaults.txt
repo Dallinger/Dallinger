@@ -1,6 +1,5 @@
 [Experiment]
 mode = debug
-qualification_blacklist_experience_limit = 0
 
 [Database]
 database_url = postgresql://postgres@localhost/dallinger
