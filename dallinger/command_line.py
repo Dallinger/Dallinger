@@ -630,7 +630,7 @@ def qualify(qualification, value, worker):
             worker)
     )
 
-    if mturk.set_qualification_score(qualification, worker, value):
+    if mturk.set_qualification_score(qualification, worker, value, notify=True):
         click.echo('OK')
 
     # print out the current set of workers with the qualification
