@@ -37,21 +37,12 @@ class TestAPI(object):
 
         # In debug mode an unknown UUID fails
         unknown_uuid = "c85d5086-2fa7-4baf-9103-e142b9170cca"
-        try:
+        with pytest.raises(RuntimeError):
             data = exp.collect(unknown_uuid, mode=u'debug', recruiter=u'bots')
-        except RuntimeError:
-            # This is expected for an already registered UUID with no accessible data
-            pass
-        else:
-            pytest.fail('Did not raise RuntimeError for unknown debug UUID')
 
     def test_collect_requires_valid_uuid(self):
         from dallinger.experiments import Bartlett1932
         exp = Bartlett1932()
         existing_uuid = "totally-bogus-id"
-        try:
+        with pytest.raises(ValueError):
             exp.collect(existing_uuid, recruiter=u'bots')
-        except ValueError:
-            pass
-        else:
-            pytest.fail('Did not raise error for invalid UUID')
