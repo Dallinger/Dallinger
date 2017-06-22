@@ -251,7 +251,7 @@ class TestMTurkService(object):
             'keywords': ['testkw1', 'testkw1'],
             'reward': .01,
             'duration_hours': .25,
-            'qualifications': mturk.build_hit_qualifications(95, True, None, None)
+            'qualifications': mturk.build_hit_qualifications(95, True, None)
         }
         hit_type_id = mturk.register_hit_type(**config)
 
@@ -264,7 +264,7 @@ class TestMTurkService(object):
             'keywords': ['testkw1', 'testkw1'],
             'reward': .01,
             'duration_hours': .25,
-            'qualifications': mturk.build_hit_qualifications(95, True, None, None)
+            'qualifications': mturk.build_hit_qualifications(95, True, None)
         }
         url = 'https://url-of-notification-route'
         hit_type_id = mturk.register_hit_type(**config)
@@ -391,23 +391,23 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 
     def test_assign_qualification(self, with_cleanup, worker_id, qtype):
         assert with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2, notify=False)
+            qtype['id'], worker_id, score=2)
 
     def test_assign_already_granted_qualification_raises(self,
                                                          with_cleanup,
                                                          worker_id,
                                                          qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2, notify=False
+            qtype['id'], worker_id, score=2
         )
 
         with pytest.raises(MTurkRequestError):
             with_cleanup.assign_qualification(
-                qtype['id'], worker_id, score=2, notify=False)
+                qtype['id'], worker_id, score=2)
 
     def test_update_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2, notify=False)
+            qtype['id'], worker_id, score=2)
 
         with_cleanup.update_qualification_score(
             qtype['id'], worker_id, score=3)
@@ -418,7 +418,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 
     def test_get_workers_with_qualification(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2, notify=False)
+            qtype['id'], worker_id, score=2)
 
         workers = with_cleanup.get_workers_with_qualification(qtype['id'])
 
@@ -426,7 +426,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 
     def test_set_qualification_score_with_new_qualification(self, with_cleanup, worker_id, qtype):
         with_cleanup.set_qualification_score(
-            qtype['id'], worker_id, score=2, notify=False)
+            qtype['id'], worker_id, score=2)
 
         new_score = with_cleanup.mturk.get_qualification_score(
             qtype['id'], worker_id)[0].IntegerValue
@@ -437,10 +437,10 @@ class TestMTurkServiceWithRequesterAndWorker(object):
                                                                  worker_id,
                                                                  qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2, notify=False)
+            qtype['id'], worker_id, score=2)
 
         with_cleanup.set_qualification_score(
-            qtype['id'], worker_id, score=3, notify=False)
+            qtype['id'], worker_id, score=3)
 
         new_score = with_cleanup.mturk.get_qualification_score(
             qtype['id'], worker_id)[0].IntegerValue
@@ -448,7 +448,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 
     def test_get_current_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2, notify=False)
+            qtype['id'], worker_id, score=2)
 
         result = with_cleanup.get_current_qualification_score(qtype['name'], worker_id)
 
@@ -463,17 +463,17 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 
     def test_increment_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2, notify=False)
+            qtype['id'], worker_id, score=2)
 
         result = with_cleanup.increment_qualification_score(
-            qtype['name'], worker_id, notify=False)
+            qtype['name'], worker_id)
 
         assert result['qtype']['id'] == qtype['id']
         assert result['score'] == 3
 
     def test_increment_qualification_score_worker_unscored(self, with_cleanup, worker_id, qtype):
         result = with_cleanup.increment_qualification_score(
-            qtype['name'], worker_id, notify=False)
+            qtype['name'], worker_id)
 
         assert result['qtype']['id'] == qtype['id']
         assert result['score'] == 1
@@ -482,7 +482,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         with_cleanup.max_wait_secs = 0  # we know the name doesn't exist, so no need to wait
         with pytest.raises(QualificationNotFoundException):
             with_cleanup.increment_qualification_score(
-                'nonexistent', worker_id, notify=False
+                'nonexistent', worker_id
             )
 
 
@@ -497,7 +497,7 @@ class TestInteractive(object):
                                                                      worker_id,
                                                                      qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=1, notify=False)
+            qtype['id'], worker_id, score=1)
 
         print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name'])
         raw_input("Any key to continue...")
@@ -513,7 +513,7 @@ class TestInteractive(object):
                                                                     worker_id,
                                                                     qtype):
         with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=1, notify=False)
+            qtype['id'], worker_id, score=1)
 
         print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name'])
         raw_input("Any key to continue...")
@@ -581,7 +581,7 @@ class TestMTurkServiceWithFakeConnection(object):
             service.check_credentials()
 
     def test_register_hit_type(self, with_mock):
-        quals = with_mock.build_hit_qualifications(95, True, None, None)
+        quals = with_mock.build_hit_qualifications(95, True, None)
         config = {
             'title': 'Test Title',
             'description': 'Test Description',
@@ -753,7 +753,7 @@ class TestMTurkServiceWithFakeConnection(object):
         })
         assert with_mock.assign_qualification('qid', 'worker', 'score')
         with_mock.mturk.assign_qualification.assert_called_once_with(
-            'qid', 'worker', 'score', True
+            'qid', 'worker', 'score', False
         )
 
     def test_update_qualification_score(self, with_mock):
@@ -808,7 +808,7 @@ class TestMTurkServiceWithFakeConnection(object):
         assert with_mock.set_qualification_score('qid', 'workerid', 4)
         with_mock.get_workers_with_qualification.assert_called_once_with('qid')
         with_mock.assign_qualification.assert_called_once_with(
-            'qid', 'workerid', 4, True
+            'qid', 'workerid', 4, False
         )
 
     def test_get_current_qualification_score(self, with_mock):
@@ -858,7 +858,7 @@ class TestMTurkServiceWithFakeConnection(object):
 
         assert result['score'] == 1
         with_mock.mturk.assign_qualification.assert_called_once_with(
-            'qtype_id', worker_id, 1, True
+            'qtype_id', worker_id, 1, False
         )
 
     def test_increment_qualification_score_nonexisting_qual_raises(self, with_mock):

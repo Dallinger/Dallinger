@@ -180,7 +180,7 @@ class MTurkService(object):
 
         return qualifications[0]
 
-    def assign_qualification(self, qualification_id, worker_id, score, notify=True):
+    def assign_qualification(self, qualification_id, worker_id, score, notify=False):
         """Score a worker for a specific qualification"""
         return self._is_ok(self.mturk.assign_qualification(
             qualification_id,
@@ -211,7 +211,7 @@ class MTurkService(object):
             'score': None
         }
 
-    def increment_qualification_score(self, name, worker_id, notify=True):
+    def increment_qualification_score(self, name, worker_id, notify=False):
         """Increment the current qualification score for a worker, on a
         qualification with the provided name.
         """
@@ -263,7 +263,7 @@ class MTurkService(object):
             else:
                 done = True
 
-    def set_qualification_score(self, qualification_id, worker_id, score, notify=True):
+    def set_qualification_score(self, qualification_id, worker_id, score, notify=False):
         """Convenience method will set a qualification score regardless of
         whether the worker already has a score for the specified qualification.
         """
