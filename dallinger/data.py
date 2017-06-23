@@ -41,15 +41,23 @@ table_names = [
 ]
 
 
-def load(id):
-    """Load the data from wherever it is found."""
+def find_experiment_export(app_id):
+    """Attempt to find a zipped export of an experiment with the ID provided
+    and return its path. Returns None if not found.
+
+    Search order:
+        1. local "data" subdirectory
+        2. user S3 bucket
+        3. Dallinger S3 bucket
+    """
+
     # Check locally first
     cwd = os.getcwd()
-    data_filename = '{}-data.zip'.format(id)
+    data_filename = '{}-data.zip'.format(app_id)
     path_to_data = os.path.join(cwd, "data", data_filename)
     if os.path.exists(path_to_data):
         try:
-            return Data(path_to_data)
+            Data(path_to_data)
         except IOError:
             from dallinger import logger
             logger.exception(
@@ -57,6 +65,8 @@ def load(id):
                     path_to_data
                 )
             )
+        else:
+            return path_to_data
 
     # Get remote file instead
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
@@ -71,11 +81,19 @@ def load(id):
         k.key = data_filename
         try:
             k.get_contents_to_filename(path_to_data)
-            return Data(path_to_data)
         except boto.exception.S3ResponseError:
             pass
+        else:
+            return path_to_data
 
-    raise IOError("Dataset {} could not be found.".format(id))
+
+def load(app_id):
+    """Load the data from wherever it is found."""
+    path_to_data = find_experiment_export(app_id)
+    if path_to_data is None:
+        raise IOError("Dataset {} could not be found.".format(app_id))
+
+    return Data(path_to_data)
 
 
 def dump_database(id):

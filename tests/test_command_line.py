@@ -178,17 +178,6 @@ class TestSetupExperiment(object):
         with raises(NoOptionError):
             deploy_config.get('Parameters', 'something_sensitive')
 
-    def test_setup_copies_dataset_archive(self, root):
-        from dallinger.command_line import setup_experiment
-        zip_path = os.path.join(
-            root,
-            'tests',
-            'datasets',
-            'test_export.zip'
-        )
-        exp_id, dst = setup_experiment(dataset=zip_path)
-        assert 'test_export.zip' in os.listdir(dst)
-
     def test_payment_type(self):
         config = get_config()
         with raises(TypeError):
@@ -329,20 +318,13 @@ class TestDebugServer(object):
 class TestLoad(object):
 
     @pytest.fixture
-    def dataset(self, root):
-        zip_path = os.path.join(
-            root,
-            'tests',
-            'datasets',
-            'test_export.zip'
-        )
-        return zip_path
-
-    @pytest.fixture
-    def loader(self, db_session, env_with_home, output, dataset):
+    def loader(self, db_session, env_with_home, output):
         from dallinger.command_line import LoadSessionRunner
         from dallinger.heroku.tools import HerokuLocalWrapper
-        loader = LoadSessionRunner(dataset, output, verbose=True, exp_config={})
+        from dallinger.data import export
+        exp_id = "some_experiment_id"
+        export(exp_id, local=True)
+        loader = LoadSessionRunner(exp_id, output, verbose=True, exp_config={})
         loader.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
 
         return loader
@@ -351,13 +333,14 @@ class TestLoad(object):
         loader.keep_running = mock.Mock(return_value=False)
         loader.run()
 
-        expected = [
-            mock.call('Ingesting dataset from test_export.zip...'),
+        loader.out.log.assert_has_calls([
+            mock.call('Starting up the server...'),
+            mock.call('Ingesting dataset from some_experiment_id-data.zip...'),
             mock.call('Server is running on http://0.0.0.0:5000. Press Ctrl+C to exit.'),
+            mock.call('Terminating dataset load for experiment some_experiment_id'),
             mock.call('Cleaning up local Heroku process...'),
-        ]
-        for call in expected:
-            assert call in loader.out.log.call_args_list
+            mock.call('Local Heroku process terminated.')
+        ])
 
 
 class TestOutput(object):
