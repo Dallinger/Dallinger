@@ -24,12 +24,6 @@ def log_in():
     p.interact()
 
 
-def open_logs(app):
-    subprocess.check_call([
-        "heroku", "addons:open", "papertrail", "--app", app_name(app)
-    ])
-
-
 def db_uri(app):
     output = subprocess.check_output([
         "heroku",
@@ -68,4 +62,14 @@ def scale_up_dynos(app):
             "ps:scale",
             "clock=1:{}".format(dyno_type),
             "--app", app,
+        ])
+
+
+def open_logs(app):
+    """Show the logs."""
+    if app is None:
+        raise TypeError("Select an experiment using the --app flag.")
+    else:
+        subprocess.check_call([
+            "heroku", "addons:open", "papertrail", "--app", app_name(app)
         ])

@@ -322,11 +322,7 @@ class Experiment(object):
         until all networks are full.
 
         """
-        if self.networks(full=False):
-            self.log("Network space available: recruiting 1 more participant",
-                     "-----")
-            self.recruiter().recruit_participants(n=1)
-        else:
+        if not self.networks(full=False):
             self.log("All networks full: closing recruitment", "-----")
             self.recruiter().close_recruitment()
 
@@ -469,16 +465,13 @@ class Experiment(object):
         if app_id is None:
             app_id = self.make_uuid()
 
-        self.app_id = app_id
-        self.exp_config = exp_config or {}
-
         if bot:
             kwargs['recruiter'] = 'bots'
 
-        if kwargs:
-            self.exp_config.update(kwargs)
+        self.app_id = app_id
+        self.exp_config = exp_config or kwargs
 
-        if self.exp_config.get('mode') == u'debug':
+        if self.exp_config.get("mode") == u"debug":
             dlgr.command_line.debug.callback(
                 verbose=True,
                 bot=bot,
@@ -488,7 +481,7 @@ class Experiment(object):
             dlgr.command_line.deploy_sandbox_shared_setup(
                 app=app_id,
                 verbose=self.verbose,
-                exp_config=exp_config
+                exp_config=self.exp_config
             )
         return self._finish_experiment()
 

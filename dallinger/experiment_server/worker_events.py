@@ -82,7 +82,7 @@ class AssignmentSubmitted(WorkerEvent):
 
         if not self.data_is_ok():
             self.fail_data_check()
-            self.recruiter.recruit_participants(n=1)
+            self.recruiter.recruit(n=1)
 
             return
 
@@ -100,7 +100,7 @@ class AssignmentSubmitted(WorkerEvent):
             self.experiment.recruit()
         else:
             self.fail_submission()
-            self.recruiter.recruit_participants(n=1)
+            self.recruiter.recruit(n=1)
 
     def data_is_ok(self):
         """Run a check on our participant's data"""

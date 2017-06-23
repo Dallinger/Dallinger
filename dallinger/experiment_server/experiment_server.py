@@ -1395,9 +1395,6 @@ def worker_function(event_type, assignment_id, participant_id):
             participant, assignment_id, exp, session, config, datetime.now()
         )
         runner()
-    else:
-        exp.log("Error: unknown event_type {}".format(event_type), key)
-
     session.commit()
 
 

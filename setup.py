@@ -6,7 +6,7 @@ from setuptools import setup
 setup_args = dict(
     name='dallinger',
     packages=['dallinger', 'demos'],
-    version="2.7.0",
+    version="3.0.1",
     description='Laboratory automation for the behavioral and social sciences',
     url='http://github.com/Dallinger/Dallinger',
     maintainer='Jordan Suchow',

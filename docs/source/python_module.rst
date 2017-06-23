@@ -9,8 +9,8 @@ Dallinger experiments can be run through a high-level Python API.
 
     experiment = dallinger.experiments.Bartlett1932()
     data = experiment.run({
-        "mode": u"live",
-        "base_payment": 1.00,
+        mode=live,
+        base_payment=1.00,
     })
 
 All parameters in ``config.txt`` and ``.dallingerconfig`` can be specified

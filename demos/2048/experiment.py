@@ -19,3 +19,8 @@ class TwentyFortyEight(dallinger.experiments.Experiment):
         self.initial_recruitment_size = N
         if session:
             self.setup()
+
+    def recruit(self):
+        """Recruitment."""
+        if not self.networks(full=False):
+            self.recruiter().close_recruitment()

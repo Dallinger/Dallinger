@@ -14,9 +14,9 @@ class TestRecruiters(object):
         with pytest.raises(NotImplementedError):
             recruiter.open_recruitment()
 
-    def test_recruit_participants(self, recruiter):
+    def test_recruit(self, recruiter):
         with pytest.raises(NotImplementedError):
-            recruiter.recruit_participants()
+            recruiter.recruit()
 
     def test_close_recruitment(self, recruiter):
         with pytest.raises(NotImplementedError):
@@ -43,8 +43,8 @@ class TestHotAirRecruiter(object):
     def test_open_recruitment(self, recruiter):
         recruiter.open_recruitment()
 
-    def test_recruit_participants(self, recruiter):
-        recruiter.recruit_participants()
+    def test_recruit(self, recruiter):
+        recruiter.recruit()
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
@@ -68,8 +68,8 @@ class TestBotRecruiter(object):
         recruiter.open_recruitment()
 
     @pytest.mark.xfail
-    def test_recruit_participants(self, recruiter):
-        recruiter.recruit_participants()
+    def test_recruit(self, recruiter):
+        recruiter.recruit()
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
@@ -184,10 +184,10 @@ class TestMTurkRecruiter(object):
     def test_current_hit_id_with_no_active_experiment(self, recruiter):
         assert recruiter.current_hit_id() is None
 
-    def test_recruit_participants_auto_recruit_on_recruits_for_current_hit(self, recruiter):
+    def test_recruit_auto_recruit_on_recruits_for_current_hit(self, recruiter):
         fake_hit_id = 'fake HIT id'
         recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
-        recruiter.recruit_participants()
+        recruiter.recruit()
 
         recruiter.mturkservice.extend_hit.assert_called_once_with(
             fake_hit_id,
@@ -195,17 +195,17 @@ class TestMTurkRecruiter(object):
             duration_hours=1.0
         )
 
-    def test_recruit_participants_auto_recruit_off_does_not_extend_hit(self, recruiter):
+    def test_recruit_auto_recruit_off_does_not_extend_hit(self, recruiter):
         recruiter.config['auto_recruit'] = False
         fake_hit_id = 'fake HIT id'
         recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
-        recruiter.recruit_participants()
+        recruiter.recruit()
 
         assert not recruiter.mturkservice.extend_hit.called
 
-    def test_recruit_participants_no_current_hit_does_not_extend_hit(self, recruiter):
+    def test_recruit_no_current_hit_does_not_extend_hit(self, recruiter):
         recruiter.current_hit_id = mock.Mock(return_value=None)
-        recruiter.recruit_participants()
+        recruiter.recruit()
 
         assert not recruiter.mturkservice.extend_hit.called
 

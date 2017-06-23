@@ -1,13 +1,15 @@
 """Replicate Rogers' paradox by simulating evolution with people."""
 
+import random
+
 from dallinger.experiments import Experiment
 from dallinger.information import Meme
-from dallinger.nodes import Agent, Environment
+from dallinger.models import Network
+from dallinger.models import Node
+from dallinger.models import Participant
 from dallinger.networks import DiscreteGenerational
-from dallinger.models import Node, Network, Participant
-from sqlalchemy.sql.expression import false
-from sqlalchemy import and_
-import random
+from dallinger.nodes import Agent
+from dallinger.nodes import Environment
 
 
 class RogersExperiment(Experiment):
@@ -27,14 +29,15 @@ class RogersExperiment(Experiment):
         import models
         self.models = models
         self.verbose = False
-        self.experiment_repeats = 1
+        self.experiment_repeats = 10
         self.practice_repeats = 0
         self.catch_repeats = 0  # a subset of experiment repeats
         self.practice_difficulty = 0.80
         self.difficulties = [0.525, 0.5625, 0.65] * self.experiment_repeats
         self.catch_difficulty = 0.80
         self.min_acceptable_performance = 10 / float(12)
-        self.generation_size = 40
+        self.generation_size = 4
+        self.generations = 4
         self.bonus_payment = 1.0
         self.initial_recruitment_size = self.generation_size
         self.known_classes["LearningGene"] = self.models.LearningGene
@@ -76,8 +79,10 @@ class RogersExperiment(Experiment):
     def create_network(self):
         """Create a new network."""
         return DiscreteGenerational(
-            generations=4, generation_size=self.generation_size,
-            initial_source=True)
+            generations=self.generations,
+            generation_size=self.generation_size,
+            initial_source=True
+        )
 
     def create_node(self, network, participant):
         """Make a new node for participants."""
@@ -97,95 +102,50 @@ class RogersExperiment(Experiment):
 
     def submission_successful(self, participant):
         """Run when a participant submits successfully."""
-        key = participant.uniqueid[0:5]
-
-        finished_participants = Participant.query.filter_by(status=101).all()
-        num_finished_participants = len(finished_participants)
-        current_generation = int((num_finished_participants - 1) /
-                                 float(self.generation_size))
-
-        if num_finished_participants % self.generation_size == 0:
-            if (current_generation + 1) % 10 == 0:
-                self.log("Participant was final particpant in generation {}: \
-                          environment stepping"
-                         .format(current_generation), key)
-                environments = Environment.query.all()
-                for e in environments:
-                    e.step()
-            else:
-                self.log("Participant was final participant in generation {}: \
-                          not stepping".format(current_generation), key)
-        else:
-            self.log("Participant was not final in generation {}: \
-                      not stepping".format(current_generation), key)
+        num_approved = len(Participant.query.filter_by(status="approved").all())
+        current_generation = participant.nodes()[0].generation
+        if num_approved % self.generation_size == 0 and current_generation % 10 == 0:
+            for e in Environment.query.all():
+                e.step()
 
     def recruit(self):
-        """Recruit more participants."""
-        participants = Participant.query.\
-            with_entities(Participant.status).all()
+        """Recruit participants if necessary."""
+        num_approved = len(Participant.query.filter_by(status="approved").all())
+        end_of_generation = num_approved % self.generation_size == 0
+        incomplete = num_approved < (self.generations * self.generation_size)
+        if end_of_generation and incomplete:
+            self.log("generation finished, recruiting another")
+            self.recruiter().recruit(n=self.generation_size)
 
-        # if all networks are full, close recruitment,
-        if not self.networks(full=False):
-            print "All networks are full, closing recruitment."
-            self.recruiter().close_recruitment()
-
-        # if anyone is still working, don't recruit
-        elif [p for p in participants if p.status < 100]:
-            print "People are still participating: not recruiting."
-
-        # we only need to recruit if the current generation is complete
-        elif (len([p for p in participants if p.status == 101]) %
-              self.generation_size) == 0:
-            print "Recruiting another generation."
-            self.recruiter().recruit_participants(n=self.generation_size)
-        # otherwise do nothing
-        else:
-            print "not recruiting."
-
-    def bonus(self, participant=None):
+    def bonus(self, participant):
         """Calculate a participants bonus."""
-        if participant is None:
-            raise(ValueError("You must specify the participant to \
-                              calculate the bonus."))
-        participant_id = participant.uniqueid
-        key = participant_id[0:5]
+        nodes = participant.nodes()
+        nets = Network.query.filter_by(role="experiment").all()
+        net_ids = [net.id for net in nets]
+        nodes = [node for node in nodes if node.network_id in net_ids]
 
-        nodes = Node.query.join(Node.network)\
-                    .filter(and_(Node.participant_id == participant_id,
-                                 Network.role == "experiment"))\
-                    .all()
-
-        if len(nodes) == 0:
-            self.log("Participant has 0 nodes - cannot calculate bonus!", key)
-            return 0
-        self.log("calculating bonus...", key)
         score = [node.score for node in nodes]
         average = float(sum(score)) / float(len(score))
         bonus = round(max(0.0, ((average - 0.5) * 2)) * self.bonus_payment, 2)
-        self.log("bonus calculated, returning {}".format(bonus), key)
         return bonus
 
     def attention_check(self, participant=None):
         """Check a participant paid attention."""
-        participant_nodes = Node.query.join(Node.network)\
-            .filter(and_(Node.participant_id == participant.uniqueid,
-                         Network.role == "catch"))\
-            .all()
-        scores = [n.score for n in participant_nodes]
-
-        if participant_nodes:
-            avg = sum(scores) / float(len(scores))
-        else:
+        if self.catch_repeats == 0:
             return True
 
-        is_passing = avg >= self.min_acceptable_performance
-        return is_passing
+        nodes = participant.nodes()
+        nets = Network.query.filter_by(role="catch").all()
+        net_ids = [net.id for net in nets]
+        nodes = [node for node in nodes if node.network_id in net_ids]
+
+        scores = [n.score for n in nodes]
+        avg = sum(scores) / float(len(scores))
+        return avg >= self.min_acceptable_performance
 
     def data_check(self, participant):
         """Check a participants data."""
-        participant_id = participant.uniqueid
-
-        nodes = Node.query.filter_by(participant_id=participant_id).all()
+        nodes = Node.query.filter_by(participant_id=participant.id).all()
 
         if len(nodes) != self.experiment_repeats + self.practice_repeats:
             print("Error: Participant has {} nodes. Data check failed"
@@ -221,9 +181,9 @@ class RogersExperiment(Experiment):
         if (gene == "social"):
             agent_model = self.models.RogersAgent
             prev_agents = agent_model.query\
-                .filter(and_(agent_model.failed == false(),
-                             agent_model.network_id == network.id,
-                             agent_model.generation == node.generation - 1))\
+                .filter_by(failed=False,
+                           network_id=network.id,
+                           generation=node.generation - 1)\
                 .all()
             parent = random.choice(prev_agents)
             parent.connect(whom=node)

@@ -398,7 +398,7 @@ class TestAssignmentSubmitted(object):
     def test_recruits_another_on_failed_data_check(self, runner):
         runner.experiment.data_check.return_value = False
         runner()
-        runner.experiment.recruiter().recruit_participants.assert_called_once_with(
+        runner.experiment.recruiter().recruit.assert_called_once_with(
             n=1
         )
 

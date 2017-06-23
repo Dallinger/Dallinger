@@ -133,3 +133,12 @@ class TestData(object):
     def test_export_compatible_with_data(self):
         path = dallinger.data.export("12345-12345-12345-12345", local=True)
         assert dallinger.data.Data(path)
+
+    def test_scrub_pii(self):
+        path_to_data = os.path.join("tests", "datasets", "pii")
+        dallinger.data._scrub_participant_table(path_to_data)
+        with open(os.path.join(path_to_data, "participant.csv"), 'rb') as f:
+            reader = csv.reader(f, delimiter=',')
+            next(reader)  # Skip the header
+            for row in reader:
+                assert "PII" not in row

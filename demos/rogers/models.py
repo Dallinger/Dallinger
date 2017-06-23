@@ -1,11 +1,13 @@
-from dallinger.information import Gene, Meme, State
-from dallinger.nodes import Source, Agent, Environment
-from dallinger import transformations
-from sqlalchemy import Integer, Float
-from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.sql.expression import cast
 from operator import attrgetter
 import random
+
+from sqlalchemy import Float, Integer
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.sql.expression import cast
+
+from dallinger import transformations
+from dallinger.information import Gene, Meme, State
+from dallinger.nodes import Agent, Environment, Source
 
 
 class LearningGene(Gene):
