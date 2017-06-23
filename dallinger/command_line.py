@@ -213,7 +213,7 @@ def setup():
         shutil.copyfile(src, config_path)
 
 
-def setup_experiment(debug=True, verbose=False, app=None, exp_config=None, dataset=None):
+def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
     log(header, chevrons=False)
 
@@ -264,11 +264,6 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None, datas
     # Save the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
         file.write(generated_uid)
-
-    # Copy dataset zip folder, if requested.
-    if dataset:
-        if os.path.exists(dataset) and dataset.endswith('.zip'):
-            shutil.copy(dataset, dst)
 
     # Change directory to the temporary folder.
     cwd = os.getcwd()
@@ -766,6 +761,10 @@ class LocalSessionRunner(object):
             "loglevel": 0,
         })
 
+    def setup(self):
+        self.exp_id, self.tmp_dir = setup_experiment(
+            verbose=self.verbose, exp_config=self.exp_config)
+
     def update_dir(self):
         os.chdir(self.tmp_dir)
         # Update the logfile to the new directory
@@ -829,10 +828,6 @@ class DebugSessionRunner(LocalSessionRunner):
         if self.bot:
             self.exp_config["recruiter"] = u"bots"
 
-    def setup(self):
-        (self.exp_id, self.tmp_dir) = setup_experiment(
-            verbose=self.verbose, exp_config=self.exp_config)
-
     def execute(self, heroku):
         base_url = get_base_url()
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
@@ -875,13 +870,14 @@ class DebugSessionRunner(LocalSessionRunner):
 
 class LoadSessionRunner(LocalSessionRunner):
 
-    def __init__(self, dataset, output, verbose, exp_config):
-        self.dataset = dataset
+    def __init__(self, app_id, output, verbose, exp_config):
+        self.app_id = app_id
         self.out = output
         self.verbose = verbose
         self.bot = bot
         self.exp_config = exp_config or {}
         self.original_dir = os.getcwd()
+        self.zip_path = None
 
     def configure(self):
         self.exp_config.update({
@@ -889,18 +885,22 @@ class LoadSessionRunner(LocalSessionRunner):
             "loglevel": 0,
         })
 
+        self.zip_path = data.find_experiment_export(self.app_id)
+        if self.zip_path is None:
+            msg = u'Dataset export for app id "{}" could not be found.'
+            raise IOError(msg.format(self.app_id))
+
     def setup(self):
-        (self.exp_id, self.tmp_dir) = setup_experiment(
-            verbose=self.verbose, dataset=self.dataset, exp_config=self.exp_config)
+        self.exp_id, self.tmp_dir = setup_experiment(
+            app=self.app_id, verbose=self.verbose, exp_config=self.exp_config)
 
     def execute(self, heroku):
         """Start the server, load the zip file into the database, then loop
         until terminated with <control>-c.
         """
         db.init_db(drop_all=True)
-        zip_filename = os.path.basename(self.dataset)
-        self.out.log("Ingesting dataset from {}...".format(zip_filename))
-        data.ingest_zip(zip_filename)
+        self.out.log("Ingesting dataset from {}...".format(os.path.basename(self.zip_path)))
+        data.ingest_zip(self.zip_path)
         base_url = get_base_url()
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
 
@@ -917,13 +917,13 @@ class LoadSessionRunner(LocalSessionRunner):
 
 
 @dallinger.command()
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-@click.argument('dataset', type=click.Path(exists=True))
-def load(dataset, verbose, exp_config=None):
+def load(app, verbose, exp_config=None):
     """Import database state from an exported zip file and leave the server
     running until stopping the process with <control>-c.
     """
-    loader = LoadSessionRunner(dataset, Output(), verbose, exp_config)
+    loader = LoadSessionRunner(app, Output(), verbose, exp_config)
     loader.run()
 
 
