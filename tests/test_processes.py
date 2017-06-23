@@ -1,21 +1,14 @@
-from dallinger import processes, networks, nodes, db, models
+from dallinger import processes, networks, nodes, models
 from dallinger.nodes import Agent
 
 
 class TestProcesses(object):
 
-    def setup(self):
-        self.db = db.init_db(drop_all=True)
-
-    def teardown(self):
-        self.db.rollback()
-        self.db.close()
-
-    def test_random_walk_from_source(self):
+    def test_random_walk_from_source(self, db_session):
 
         net = models.Network()
-        self.db.add(net)
-        self.db.commit()
+        db_session.add(net)
+        db_session.commit()
 
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
@@ -45,17 +38,17 @@ class TestProcesses(object):
 
         assert msg == agent3.infos()[0].contents
 
-    def test_moran_process_cultural(self):
+    def test_moran_process_cultural(self, db_session):
 
         # Create a fully-connected network.
         net = models.Network()
-        self.db.add(net)
-        self.db.commit()
+        db_session.add(net)
+        db_session.commit()
 
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)
         agent3 = nodes.ReplicatorAgent(network=net)
-        self.db.commit()
+        db_session.commit()
 
         agent1.connect(whom=agent2)
         agent1.connect(whom=agent3)
@@ -92,12 +85,12 @@ class TestProcesses(object):
             max(agent1.infos(), key=attrgetter('creation_time')).contents
         )
 
-    def test_moran_process_sexual(self):
+    def test_moran_process_sexual(self, db_session):
 
         # Create a fully-connected network.
         net = networks.Network()
-        self.db.add(net)
-        self.db.commit()
+        db_session.add(net)
+        db_session.commit()
 
         agent1 = nodes.ReplicatorAgent(network=net)
         agent2 = nodes.ReplicatorAgent(network=net)

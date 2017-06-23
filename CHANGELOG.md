@@ -1,5 +1,63 @@
 # Change Log
 
+## [v3.1.0](https://github.com/dallinger/dallinger/tree/v3.0.1) (2017-06-23)
+
+- **BREAKING** The fitness parameter of `dallinger.nodes.Agent` is now a
+  floating point number, rather than an integer.
+
+- **FEATURE** The `dallinger uuid` command line tool has been added to generate
+  a UUID for an experiment.
+
+- **FEATURE** Recruiters now have a `reward_bonus`
+  method which allows an assignment to be paid extra and a reason given.
+
+- **FEATURE** Experiments may now set `prevent_exit` to enable Javascript unload
+  protection on pages. Calling `allow_exit` disables the protection.
+
+- **FEATURE** The `dallinger debug` command now supports the `num_dynos_web`
+  configuration parameter, for better performance when under heavy usage.
+
+- **FEATURE** Dallinger experiments may now be packaged as normal Python 
+  distributions. An example is `dallinger.bartlett1932`.
+
+- **FEATURE** Experiments may now include implementations of computer-controlled
+  participants through the Bot framework. The documentation includes 
+  [instructions on running bots](http://docs.dallinger.io/en/latest/running_bots.html).
+  The demos bartlett1932 and chatroom contain example bot implementations.
+
+- **FEATURE** An implementation of [waiting rooms](http://docs.dallinger.io/en/latest/waiting_rooms.html)
+   is now available for use by experiments, as demonstrated by chatroom demo.
+
+- Exports and the :class:`dallinger.data.Data` class now use the same zip
+  layout.
+
+- Datasets above 800mb can now be downloaded, fixing [\#588](https://github.com/Dallinger/Dallinger/issues/588)
+
+- The Dallinger tests have had speed and code style improvements.
+
+- Experiments with missing dependencies now raise an `ImportError` early in
+  the Dallinger process lifecycle, rather than seemingly unrelated errors later.
+
+- Conflicts between templates available in Dallinger core and an experiment now
+  favour the version provided by the experiment.
+
+- A new `Dallinger` namespace is available in JavaScript, that includes the
+  function `Dallinger.submitQuestionnaire` which handles serialization and
+  submission of questionnaire data.
+
+- Ads created on the Mechanical Turk sandbox now include the experiment UUID
+  to make it easier to find the ad aimed at a particular experiment run while
+  testing.
+
+- A bug was fixed in the MCMCP demo that caused chains to
+  break in approximately 2% of cases. [\#587](https://github.com/Dallinger/Dallinger/issues/587)
+
+- Command line tools now use a full UUID, rather than a short id starting with
+  `dlgr-`
+
+- A bug in the chatroom demo was fixed which improves 
+  reliability and simplifies the connection to the backend. [\#537](https://github.com/Dallinger/Dallinger/issues/537)
+
 ## [v3.0.1](https://github.com/dallinger/dallinger/tree/v3.0.1) (2017-06-19)
 
 - Add a `runtime.txt` file due to Heroku changes that require Python version specification.

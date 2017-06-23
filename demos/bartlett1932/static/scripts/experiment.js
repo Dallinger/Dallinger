@@ -1,5 +1,10 @@
+var my_node_id;
+
 // Consent to the experiment.
 $(document).ready(function() {
+
+    // do not allow user to close or reload
+    prevent_exit = true;
 
     // Print the consent form.
     $("#print-consent").click(function() {
@@ -21,7 +26,7 @@ $(document).ready(function() {
     // Consent to the experiment.
     $("#no-consent").click(function() {
         allow_exit();
-        self.close();
+        window.close();
     });
 
     // Consent to the experiment.
@@ -46,7 +51,7 @@ $(document).ready(function() {
         $("#submit-response").addClass('disabled');
         $("#submit-response").html('Sending...');
 
-        response = $("#reproduction").val();
+        var response = $("#reproduction").val();
 
         $("#reproduction").val("");
 
@@ -70,12 +75,14 @@ $(document).ready(function() {
 });
 
 // Create the agent.
-create_agent = function() {
+var create_agent = function() {
+    $('#finish-reading').prop('disabled', true);
     reqwest({
         url: "/node/" + participant_id,
         method: 'post',
         type: 'json',
         success: function (resp) {
+            $('#finish-reading').prop('disabled', false);
             my_node_id = resp.node.id;
             get_info(my_node_id);
         },
@@ -92,14 +99,14 @@ create_agent = function() {
     });
 };
 
-get_info = function() {
+var get_info = function() {
     reqwest({
         url: "/node/" + my_node_id + "/received_infos",
         method: 'get',
         type: 'json',
         success: function (resp) {
-            story = resp.infos[0].contents;
-            storyHTML = markdown.toHTML(story);
+            var story = resp.infos[0].contents;
+            var storyHTML = markdown.toHTML(story);
             $("#story").html(storyHTML);
             $("#stimulus").show();
             $("#response-form").hide();
@@ -107,8 +114,14 @@ get_info = function() {
         },
         error: function (err) {
             console.log(err);
-            errorResponse = JSON.parse(err.response);
+            var errorResponse = JSON.parse(err.response);
             $('body').html(errorResponse.html);
         }
     });
+};
+
+var create_agent_failsafe = function() {
+    if ($("#story").html == '<< loading >>') {
+        create_agent();
+    }
 };

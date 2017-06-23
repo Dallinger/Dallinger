@@ -7,9 +7,14 @@ Vagrant.configure("2") do |config|
   config.vm.provider "virtualbox" do |vb|
       vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
       vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      vb.cpus = 2
+      vb.memory = 4096
   end
 
-  config.vm.network "forwarded_port", guest: 5000, host: 5000, auto_correct: true
+
+
+  config.vm.network "public_network",
+    use_dhcp_assigned_default_route: true
 
   config.vm.provision "shell", privileged: false, inline: <<-SHELL
     sudo apt-get update
@@ -28,6 +33,7 @@ Vagrant.configure("2") do |config|
     # Virtual environment
     echo 'source ~/venv/bin/activate' >> ~/.bashrc
     echo 'cd /vagrant' >> ~/.bashrc
+    echo 'export HOST=`ifconfig | grep Ethernet -A1 | grep addr: | tail -n1 | cut -d: -f2 | cut -d " " -f1`' >> ~/.bashrc
     sudo pip install virtualenv
     virtualenv --no-site-packages ~/venv
     source ~/venv/bin/activate

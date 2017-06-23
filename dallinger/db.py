@@ -5,9 +5,13 @@ from functools import wraps
 import logging
 import os
 
+from psycopg2.extensions import TransactionRollbackError
 from sqlalchemy import create_engine
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.exc import OperationalError
 
 
 logger = logging.getLogger('dallinger.db')
@@ -50,8 +54,7 @@ def scoped_session_decorator(func):
     """Manage contexts and add debugging to db sessions."""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        from dallinger.db import session as dallinger_session
-        with sessions_scope(dallinger_session):
+        with sessions_scope(session):
             # The session used in func comes from the funcs globals, but
             # it will be a proxied thread local var from the session
             # registry, and will therefore be identical to the one returned
@@ -69,3 +72,60 @@ def init_db(drop_all=False):
     Base.metadata.create_all(bind=engine)
 
     return session
+
+
+def serialized(func):
+    """Run a function within a db transaction using SERIALIZABLE isolation.
+
+    With this isolation level, committing will fail if this transaction
+    read data that was since modified by another transaction. So we need
+    to handle that case and retry the transaction.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kw):
+        attempts = 100
+        while attempts > 0:
+            try:
+                session.connection(
+                    execution_options={'isolation_level': 'SERIALIZABLE'})
+                with sessions_scope(session, commit=True):
+                    return func(*args, **kw)
+            except OperationalError as exc:
+                if isinstance(exc.orig, TransactionRollbackError):
+                    if attempts > 0:
+                        attempts -= 1
+                    else:
+                        raise Exception(
+                            'Could not commit serialized transaction '
+                            'after 100 attempts.')
+                else:
+                    raise
+    return wrapper
+
+
+# Reset outbox when session begins
+@event.listens_for(Session, 'after_begin')
+def after_begin(session, transaction, connection):
+    session.info['outbox'] = []
+
+
+# Reset outbox after rollback
+@event.listens_for(Session, 'after_soft_rollback')
+def after_soft_rollback(session, previous_transaction):
+    session.info['outbox'] = []
+
+
+def queue_message(channel, message):
+    session.info['outbox'].append((channel, message))
+
+
+# Publish messages to redis after commit
+@event.listens_for(Session, 'after_commit')
+def after_commit(session):
+    from dallinger.heroku.worker import conn as redis
+
+    for channel, message in session.info.get('outbox', ()):
+        logger.debug(
+            'Publishing message to {}: {}'.format(channel, message))
+        redis.publish(channel, message)

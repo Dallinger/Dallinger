@@ -14,10 +14,6 @@ class TestExamples(object):
     def teardown(self):
         os.chdir("..")
 
-    def add(self, *args):
-        self.db.add_all(args)
-        self.db.commit()
-
     def verify_demo(self, demo):
         os.chdir(demo)
         is_passing = dallinger.command_line.verify_package()

@@ -1,6 +1,8 @@
 """Recruiters manage the flow of participants to the experiment."""
 
+from rq import Queue
 from dallinger.config import get_config
+from dallinger.heroku.worker import conn
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
 from dallinger.utils import get_base_url
@@ -9,6 +11,9 @@ import logging
 import os
 
 logger = logging.getLogger(__file__)
+
+# Connect to Redis Queue for recruiter calls
+q = Queue('low', connection=conn)
 
 
 class Recruiter(object):
@@ -27,6 +32,10 @@ class Recruiter(object):
         raise NotImplementedError
 
     def close_recruitment(self):
+        """Throw an error."""
+        raise NotImplementedError
+
+    def reward_bonus(self, assignment_id, amount, reason):
         """Throw an error."""
         raise NotImplementedError
 
@@ -58,16 +67,16 @@ class HotAirRecruiter(object):
         """Talk about closing recruitment."""
         logger.info("Close recruitment.")
 
-    def reward_bonus(self, assignment_id, amount, reason):
-        """Taking about rewarding the participant with a bonus."""
-        logger.info("Awarding bonus of {} for assignment {}.".format(
-            amount,
-            assignment_id,
-        ))
-
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
         return True
+
+    def reward_bonus(self, assignment_id, amount, reason):
+        """Logging-only, Hot Air implementation"""
+        logger.info(
+            "Were this a real Recruiter, we'd be awarding ${} for assignment {}, "
+            'with reason "{}"'.format(amount, assignment_id, reason)
+        )
 
 
 class SimulatedRecruiter(object):
@@ -191,4 +200,56 @@ class MTurkRecruiter(object):
         This does nothing, because the fact that this is called means
         that all MTurk HITs that were created were already completed.
         """
-        pass
+        logger.info("Close recruitment.")
+
+
+class BotRecruiter(object):
+    """Recruit bot participants using a queue"""
+
+    @classmethod
+    def from_current_config(cls):
+        config = get_config()
+        if not config.ready:
+            config.load_config()
+        return cls(config)
+
+    def __init__(self, config):
+        logger.info("Initialized recruiter.")
+        self.config = config
+
+    def open_recruitment(self, n=1):
+        """Start recruiting right away."""
+        logger.info("Open recruitment.")
+        self.recruit(n)
+
+    def recruit(self, n=1):
+        """Recruit n new participant bots to the queue"""
+        from dallinger_experiment import Bot
+
+        for _ in range(n):
+            base_url = get_base_url()
+            worker = generate_random_id()
+            hit = generate_random_id()
+            assignment = generate_random_id()
+            ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
+            ad_parameters = ad_parameters.format(assignment, hit, worker)
+            url = '{}/ad?{}'.format(base_url, ad_parameters)
+            bot = Bot(url, assignment_id=assignment, worker_id=worker)
+            job = q.enqueue(bot.run_experiment, timeout=60*20)
+            logger.info("Created job {} for url {}.".format(job.id, url))
+
+    def approve_hit(self, assignment_id):
+        return True
+
+    def close_recruitment(self):
+        """Clean up once the experiment is complete.
+
+        This does nothing at this time.
+        """
+        logger.info("Close recruitment.")
+
+    def reward_bonus(self, assignment_id, amount, reason):
+        """Logging only. These are bots."""
+        logger.info(
+            "Bots don't get bonuses. Sorry, bots."
+        )

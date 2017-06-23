@@ -21,6 +21,7 @@ dallingerconfig
 dyno
 dynos
 et
+Firefox
 frontend
 Gabriele
 GitHub
@@ -41,6 +42,7 @@ js
 Kalish
 Kegl
 Lewandowsky
+macOS
 md
 Meme
 microfluidics
@@ -49,6 +51,7 @@ neighbour
 ons
 pandoc
 Papertrail
+phantomJS
 Populi
 Postgres
 PostgreSQL
@@ -61,6 +64,7 @@ Redis
 Richerson
 Sanborn
 Senghas
+serializable
 Sforza
 Shiffrin
 silico
@@ -77,6 +81,7 @@ virtualization
 Vox
 walkthrough
 walkthroughs
+WebDriver
 Webhook
 webpage
 Wikipedia

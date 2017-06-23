@@ -15,7 +15,7 @@ from dallinger.nodes import Environment
 class RogersExperiment(Experiment):
     """The experiment class."""
 
-    def __init__(self, session):
+    def __init__(self, session=None):
         """Call the same function in the super (see experiments.py in dallinger).
 
         The models module is imported here because it must be imported at
@@ -42,9 +42,16 @@ class RogersExperiment(Experiment):
         self.initial_recruitment_size = self.generation_size
         self.known_classes["LearningGene"] = self.models.LearningGene
 
-        if not self.networks():
+        if session and not self.networks():
             self.setup()
         self.save()
+
+    @property
+    def public_properties(self):
+        return {
+            'practice_repeats': self.practice_repeats,
+            'experiment_repeats': self.experiment_repeats,
+        }
 
     def setup(self):
         """First time setup."""
@@ -108,7 +115,7 @@ class RogersExperiment(Experiment):
         incomplete = num_approved < (self.generations * self.generation_size)
         if end_of_generation and incomplete:
             self.log("generation finished, recruiting another")
-            self.recruiter().recruit_participants(n=self.generation_size)
+            self.recruiter().recruit(n=self.generation_size)
 
     def bonus(self, participant):
         """Calculate a participants bonus."""

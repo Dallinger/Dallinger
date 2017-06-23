@@ -5,6 +5,7 @@ import csv
 import os
 import tempfile
 import uuid
+import shutil
 
 import pandas as pd
 import psycopg2
@@ -117,6 +118,21 @@ class TestData(object):
             reader = csv.reader(f, delimiter=',')
             header = next(reader)
             assert "creation_time" in header
+
+    def test_export(self):
+        dallinger.data.export("12345-12345-12345-12345", local=True)
+        assert os.path.isfile("data/12345-12345-12345-12345-data.zip")
+        shutil.rmtree('data')
+
+    def test_export_directory_format(self):
+        from zipfile import ZipFile
+        path = dallinger.data.export("12345-12345-12345-12345", local=True)
+        archive = ZipFile(path)
+        assert 'data/info.csv' in archive.namelist()
+
+    def test_export_compatible_with_data(self):
+        path = dallinger.data.export("12345-12345-12345-12345", local=True)
+        assert dallinger.data.Data(path)
 
     def test_scrub_pii(self):
         path_to_data = os.path.join("tests", "datasets", "pii")

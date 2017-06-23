@@ -36,6 +36,9 @@ what to do with the database when the server receives requests from outside.
   .. autoinstanceattribute:: known_classes
     :annotation:
 
+  .. autoinstanceattribute:: public_properties
+    :annotation:
+
   .. automethod:: __init__
 
   .. automethod:: add_node_to_network
@@ -79,6 +82,8 @@ what to do with the database when the server receives requests from outside.
   .. automethod:: node_post_request
 
   .. automethod:: recruit
+
+  .. automethod:: run
 
   .. automethod:: save
 

@@ -1,6 +1,7 @@
 """Miscellaneous tools for Heroku."""
 
 import pexpect
+import re
 import subprocess
 
 from dallinger.config import get_config
@@ -21,6 +22,17 @@ def log_in():
     """Ensure that the user is logged in to Heroku."""
     p = pexpect.spawn("heroku auth:whoami")
     p.interact()
+
+
+def db_uri(app):
+    output = subprocess.check_output([
+        "heroku",
+        "pg:credentials",
+        "DATABASE",
+        "--app", app_name(app)
+    ])
+    match = re.search('(postgres://.*)$', output)
+    return match.group(1)
 
 
 def scale_up_dynos(app):

@@ -8,7 +8,7 @@ import logging
 
 logger = logging.getLogger(__file__)
 
-app = util.import_app("dallinger.experiment_server.experiment_server:app")
+WORKER_CLASS = 'geventwebsocket.gunicorn.workers.GeventWebSocketWorker'
 
 
 def when_ready(arbiter):
@@ -45,7 +45,7 @@ class StandaloneServer(Application):
 
     def load(self):
         """Return our application to be run."""
-        return app
+        return util.import_app("dallinger.experiment_server.sockets:app")
 
     def load_user_config(self):
         config = get_config()
@@ -59,10 +59,11 @@ class StandaloneServer(Application):
         self.options = {
             'bind': bind_address,
             'workers': workers,
+            'worker_class': WORKER_CLASS,
             'loglevels': self.loglevels,
             'loglevel': self.loglevels[config.get("loglevel")],
-            'accesslog': config.get("logfile"),
-            'errorlog': config.get("logfile"),
+            'errorlog': '-',
+            'accesslog': '-',
             'proc_name': 'dallinger_experiment_server',
             'limit_request_line': '0',
             'when_ready': when_ready,
@@ -71,6 +72,7 @@ class StandaloneServer(Application):
 
 def launch():
     config = get_config()
+    config.load()
     LOG_LEVELS = [
         logging.DEBUG,
         logging.INFO,
@@ -82,9 +84,19 @@ def launch():
     logging.basicConfig(format='%(asctime)s %(message)s', level=LOG_LEVEL)
 
     # Avoid duplicate logging to stderr
-    if config.get('logfile') == '-':
-        logging.getLogger('gunicorn.error').propagate = False
-        logging.getLogger('gunicorn.access').propagate = False
+    error_logger = logging.getLogger('gunicorn.error')
+    error_logger.propagate = False
+    access_logger = logging.getLogger('gunicorn.access')
+    access_logger.propagate = False
+
+    # Set up logging to file
+    # (We're not using gunicorn's errorlog and accesslog settings
+    # for this because it redirects stdout and stderr)
+    logfile = config.get('logfile')
+    if config.get('logfile') != '-':
+        handler = logging.FileHandler(logfile)
+        error_logger.addHandler(handler)
+        access_logger.addHandler(handler)
 
     StandaloneServer().run()
 

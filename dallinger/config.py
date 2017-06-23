@@ -6,6 +6,7 @@ import distutils.util
 import imp
 import logging
 import os
+import sys
 import threading
 
 from .compat import unicode
@@ -45,6 +46,7 @@ default_keys = (
     ('heroku_auth_token', unicode, [], True),
     ('heroku_team', unicode, ['team']),
     ('host', unicode, []),
+    ('id', unicode, []),
     ('port', int, ['PORT']),
     ('lifetime', int, []),
     ('logfile', unicode, []),
@@ -54,10 +56,13 @@ default_keys = (
     ('num_dynos_web', int, []),
     ('num_dynos_worker', int, []),
     ('organization_name', unicode, []),
+    ('recruiter', unicode, []),
     ('threads', unicode, []),
     ('title', unicode, []),
     ('us_only', bool, []),
     ('whimsical', bool, []),
+    ('webdriver_type', unicode, []),
+    ('webdriver_url', unicode, []),
 )
 
 
@@ -100,7 +105,7 @@ class Configuration(object):
                 except ValueError:
                     pass
             if not isinstance(value, expected_type):
-                raise ValueError(
+                raise TypeError(
                     'Got {value} for {key}, expected {expected_type}'
                     .format(
                         value=repr(value),
@@ -135,13 +140,23 @@ class Configuration(object):
         except KeyError:
             raise AttributeError
 
+    def as_dict(self):
+        d = {}
+        for key in self.types:
+            if key not in self.sensitive:
+                try:
+                    d[key] = self.get(key)
+                except KeyError:
+                    pass
+        return d
+
     def register(self, key, type_, synonyms=None, sensitive=False):
         if synonyms is None:
             synonyms = set()
         if key in self.types:
             raise KeyError('Config key {} is already registered'.format(key))
         if type_ not in self.SUPPORTED_TYPES:
-            raise ValueError(
+            raise TypeError(
                 '{type} is not a supported type'.format(
                     type=type_
                 )
@@ -178,9 +193,6 @@ class Configuration(object):
         self.extend(os.environ, cast_types=True)
 
     def load(self):
-        if self.ready:
-            raise ValueError("Already loaded")
-
         # Apply extra parameters before loading the configs
         self.register_extra_parameters()
 
@@ -208,24 +220,29 @@ class Configuration(object):
 
     def register_extra_parameters(self):
         extra_parameters = None
+        cwd = os.getcwd()
+        sys.path.append(cwd)
+        path_index = len(sys.path) - 1
         try:
             from dallinger_experiment import extra_parameters
         except ImportError:
             try:
                 exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
                 extra_parameters = getattr(exp, 'extra_parameters', None)
-            except (ImportError, IOError):
+            except IOError:
                 pass
             if extra_parameters is None:
                 try:
                     # We may be in the original source directory, try experiment.py
                     exp = imp.load_source('dallinger_experiment', "experiment.py")
                     extra_parameters = getattr(exp, 'extra_parameters', None)
-                except (ImportError, IOError):
+                except IOError:
                     pass
         if extra_parameters is not None and getattr(extra_parameters, 'loaded', None) is None:
             extra_parameters()
             extra_parameters.loaded = True
+        # Remove path element we added
+        sys.path.pop(path_index)
 
 
 configurations = threading.local()

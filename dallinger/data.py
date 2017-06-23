@@ -8,7 +8,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from zipfile import ZipFile
+from zipfile import ZipFile, ZIP_DEFLATED
 
 import boto
 from boto.s3.key import Key
@@ -23,6 +23,7 @@ except ImportError:
     pass
 
 from dallinger import heroku
+from dallinger import db
 
 
 table_names = [
@@ -122,7 +123,10 @@ def copy_heroku_to_local(id):
 
 def copy_local_to_csv(local_db, path, scrub_pii=False):
     """Copy a local database to a set of CSV files."""
-    conn = psycopg2.connect(database=local_db, user="postgres")
+    if "postgresql://" in local_db:
+        conn = psycopg2.connect(dsn=local_db)
+    else:
+        conn = psycopg2.connect(database=local_db, user="postgres")
     cur = conn.cursor()
     for table in table_names:
         csv_path = os.path.join(path, "{}.csv".format(table))
@@ -157,7 +161,11 @@ def export(id, local=False, scrub_pii=False):
 
     print("Preparing to export the data...")
 
-    copy_heroku_to_local(id)
+    if local:
+        local_db = db.db_url
+    else:
+        local_db = heroku.app_name(id)
+        copy_heroku_to_local(id)
 
     # Create the data package if it doesn't already exist.
     subdata_path = os.path.join("data", id, "data")
@@ -169,7 +177,7 @@ def export(id, local=False, scrub_pii=False):
             raise
 
     # Copy in the data.
-    copy_local_to_csv(heroku.app_name(id), subdata_path, scrub_pii=scrub_pii)
+    copy_local_to_csv(local_db, subdata_path, scrub_pii=scrub_pii)
 
     # Copy the experiment code into a code/ subdirectory.
     try:
@@ -188,27 +196,34 @@ def export(id, local=False, scrub_pii=False):
     with open(os.path.join("data", id, "experiment_id.md"), "a+") as file:
         file.write(id)
 
-    print("Zipping up the package...")
-    shutil.make_archive(
-        os.path.join("data", id + "-data"),
-        "zip",
-        os.path.join("data", id)
-    )
-
-    shutil.rmtree(os.path.join("data", id))
-
-    print("Done. Data available in {}-data.zip".format(id))
+    # Zip data
+    src = os.path.join("data", id)
+    dst = os.path.join("data", id + "-data.zip")
+    archive_data(id, src, dst)
 
     cwd = os.getcwd()
     data_filename = '{}-data.zip'.format(id)
     path_to_data = os.path.join(cwd, "data", data_filename)
 
-    # Backup data on S3.
-    k = Key(user_s3_bucket())
-    k.key = data_filename
-    k.set_contents_from_filename(path_to_data)
+    # Backup data on S3 unless run locally
+    if not local:
+        k = Key(user_s3_bucket())
+        k.key = data_filename
+        k.set_contents_from_filename(path_to_data)
 
     return path_to_data
+
+
+def archive_data(id, src, dst):
+    print("Zipping up the package...")
+    with ZipFile(dst, 'w', ZIP_DEFLATED, allowZip64=True) as zf:
+        for root, dirs, files in os.walk(src):
+            for file in files:
+                filename = os.path.join(root, file)
+                arcname = filename.replace(src, '').lstrip('/')
+                zf.write(filename, arcname)
+    shutil.rmtree(src)
+    print("Done. Data available in {}-data.zip".format(id))
 
 
 def user_s3_bucket(canonical_user_id=None):

@@ -2,16 +2,19 @@
 # -*- coding: utf-8 -*-
 import filecmp
 import os
+import pytest
 import shutil
 import subprocess
 import sys
 import tempfile
+from uuid import UUID
 from ConfigParser import NoOptionError, SafeConfigParser
 
 import pexpect
 from pytest import raises
 
 import dallinger.command_line
+from dallinger.command_line import verify_package
 from dallinger.compat import unicode
 from dallinger.config import LOCAL_CONFIG, get_config
 import dallinger.version
@@ -29,6 +32,32 @@ class TestCommandLine(object):
     def test_dallinger_no_args(self):
         output = subprocess.check_output(["dallinger"])
         assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
+
+    def test_log_empty(self):
+        id = "dlgr-3b9c2aeb"
+        assert ValueError, subprocess.call(["dallinger", "logs", "--app", id])
+
+    def test_log_no_flag(self):
+        assert TypeError, subprocess.call(["dallinger", "logs"])
+
+    def test_deploy_empty(self):
+        id = "dlgr-3b9c2aeb"
+        assert ValueError, subprocess.call(["dallinger", "deploy", "--app", id])
+
+    def test_sandbox_empty(self):
+        id = "dlgr-3b9c2aeb"
+        assert ValueError, subprocess.call(["dallinger", "sandbox", "--app", id])
+
+    def test_verify_id_short_fails(self):
+        id = "dlgr-3b9c2aeb"
+        assert ValueError, dallinger.commandline.verify_id(id)
+
+    def test_empty_id_fails_verification(self):
+        assert ValueError, dallinger.commandline.verify_id(None)
+
+    def test_new_uuid(self):
+        output = subprocess.check_output(["dallinger", "uuid"])
+        assert isinstance(UUID(output.strip(), version=4), UUID)
 
     def test_dallinger_help(self):
         output = subprocess.check_output(["dallinger", "--help"])
@@ -139,6 +168,21 @@ class TestSetupExperiment(object):
         with raises(NoOptionError):
             deploy_config.get('Parameters', 'something_sensitive')
 
+    def test_payment_type(self):
+        config = get_config()
+        with raises(TypeError):
+            config['base_payment'] = 12
+
+    def test_large_float_payment(self):
+        config = get_config()
+        config['base_payment'] = 1.2342
+        assert(verify_package() is False)
+
+    def test_negative_payment(self):
+        config = get_config()
+        config['base_payment'] = -1.99
+        assert(verify_package() is False)
+
 
 class TestDebugServer(object):
 
@@ -146,60 +190,96 @@ class TestDebugServer(object):
         """Set up the environment by moving to the demos directory."""
         self.orig_dir = os.getcwd()
         os.chdir("demos/bartlett1932")
+        # Heroku requires a home directory to start up
+        # We create a fake one using tempfile and set it into the
+        # environment to handle sandboxes on CI servers
+        self.fake_home = tempfile.mkdtemp()
+
+        self.environ = os.environ.copy()
+        self.environ.update({'HOME': self.fake_home})
 
     def teardown(self):
+        shutil.rmtree(self.fake_home, ignore_errors=True)
         os.chdir(self.orig_dir)
 
     def test_startup(self):
-        # Heroku requires a home directory to start up
-        # We create a fake one using tempfile and set it into the
-        # environment to handle sandboxes on CI servers
-        fake_home = tempfile.mkdtemp()
         # Make sure debug server starts without error
+        p = pexpect.spawn(
+            'dallinger',
+            ['debug', '--verbose'],
+            env=self.environ,
+        )
+        p.logfile = sys.stdout
         try:
-            environ = os.environ.copy()
-            environ.update({'HOME': fake_home})
-            p = pexpect.spawn(
-                'dallinger',
-                ['debug', '--verbose'],
-                env=environ,
-            )
-            p.logfile = sys.stdout
             p.expect_exact('Server is running', timeout=120)
+        finally:
             p.sendcontrol('c')
             p.read()
+
+    def test_launch_failure(self):
+        # Make sure debug server starts without error
+        environ = self.environ.copy()
+        environ['recruiter'] = u'bogus'
+        p = pexpect.spawn(
+            'dallinger',
+            ['debug', '--verbose'],
+            env=environ,
+        )
+        p.logfile = sys.stdout
+        try:
+            p.expect_exact('Launching the experiment...', timeout=120)
+            p.expect_exact('Experiment launch failed, check web dyno logs for details.',
+                           timeout=60)
+            p.expect_exact('Failed to open recruitment, check experiment server log for details.',
+                           timeout=30)
         finally:
-            shutil.rmtree(fake_home)
+            try:
+                p.sendcontrol('c')
+            except IOError:
+                pass
+            p.read()
 
     def test_warning_if_no_heroku_present(self):
-        # Heroku requires a home directory to start up
-        # We create a fake one using tempfile and set it into the
-        # environment to handle sandboxes on CI servers
-        fake_home = tempfile.mkdtemp()
-        # Make sure debug server starts without error
+        environ = self.environ.copy()
+        # Remove the path item that has heroku in it
+        path_items = environ['PATH'].split(':')
+        path_items = [
+            item for item in path_items
+            if not os.path.exists(os.path.join(item, 'heroku'))
+        ]
+        environ.update({
+            'PATH': ':'.join(path_items)
+        })
+        p = pexpect.spawn(
+            'dallinger',
+            ['debug', '--verbose'],
+            env=environ,
+        )
+        p.logfile = sys.stdout
         try:
-            environ = os.environ.copy()
-            # Remove the path item that has heroku in it
-            path_items = environ['PATH'].split(':')
-            path_items = [
-                item for item in path_items
-                if not os.path.exists(os.path.join(item, 'heroku'))
-            ]
-            environ.update({
-                'HOME': fake_home,
-                'PATH': ':'.join(path_items)
-            })
-            p = pexpect.spawn(
-                'dallinger',
-                ['debug', '--verbose'],
-                env=environ,
-            )
-            p.logfile = sys.stdout
             p.expect_exact("Couldn't start Heroku for local debugging", timeout=120)
+        finally:
             p.sendcontrol('c')
             p.read()
+
+    @pytest.mark.skipif(not pytest.config.getvalue("runbot"),
+                        reason="--runbot was specified")
+    def test_debug_bots(self):
+        # Make sure debug server runs to completion with bots
+        p = pexpect.spawn(
+            'dallinger',
+            ['debug', '--verbose', '--bot'],
+            env=self.environ,
+        )
+        p.logfile = sys.stdout
+        try:
+            p.expect_exact('Server is running', timeout=300)
+            p.expect_exact('Recruitment is complete', timeout=600)
+            p.expect_exact('Experiment completed', timeout=60)
+            p.expect_exact('Local Heroku process terminated', timeout=10)
         finally:
-            shutil.rmtree(fake_home)
+            p.sendcontrol('c')
+            p.read()
 
 
 class TestHeader(object):

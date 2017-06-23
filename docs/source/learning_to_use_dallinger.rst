@@ -41,6 +41,7 @@ Experimental design
 -  Using properties 1 through 5
 -  Processes
 -  Failing
+-  :doc:`waiting_rooms`
 
 Running experiments
 '''''''''''''''''''

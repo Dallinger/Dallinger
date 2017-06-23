@@ -1,36 +1,24 @@
-from dallinger import models, information, db
+from dallinger import models, information
 
 
 class TestInformation(object):
 
-    def setup(self):
-        """Set up the environment by resetting the tables."""
-        self.db = db.init_db(drop_all=True)
-
-    def teardown(self):
-        self.db.rollback()
-        self.db.close()
-
-    def add(self, *args):
-        self.db.add_all(args)
-        self.db.commit()
-
-    def test_create_genome(self):
+    def test_create_genome(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         node = models.Node(network=net)
         info = information.Gene(origin=node)
-        self.db.commit()
+        db_session.commit()
 
         assert info.type == "gene"
         assert info.contents is None
 
-    def test_create_memome(self):
+    def test_create_memome(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         node = models.Node(network=net)
         info = information.Meme(origin=node)
-        self.db.commit()
+        db_session.commit()
 
         assert info.type == "meme"
         assert info.contents is None

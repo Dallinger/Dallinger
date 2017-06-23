@@ -11,7 +11,7 @@ from operator import attrgetter
 class MCMCP(Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session):
+    def __init__(self, session=None):
         """Call the same function in the super (see experiments.py in dallinger).
 
         The models module is imported here because it must be imported at
@@ -26,7 +26,8 @@ class MCMCP(Experiment):
         self.models = models
         self.experiment_repeats = 1
         self.trials_per_participant = 10
-        self.setup()
+        if session:
+            self.setup()
 
     def create_node(self, network, participant):
         """Create a node for a participant."""
@@ -56,6 +57,11 @@ class MCMCP(Experiment):
         parent = node.neighbors(direction="from")[0]
         parent.transmit()
         node.receive()
+
+    def data_check(self, participant):
+        """Make sure each trial contains exactly one chosen info."""
+        infos = participant.infos()
+        return len([info for info in infos if info.chosen])*2 == len(infos)
 
 
 extra_routes = Blueprint(

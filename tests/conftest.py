@@ -18,6 +18,13 @@ def cwd():
     os.chdir(root)
 
 
+@pytest.fixture(scope="class")
+def experiment_dir():
+    os.chdir('tests/experiment')
+    yield
+    cwd()
+
+
 @pytest.fixture(scope='class', autouse=True)
 def reset_config():
     yield
@@ -44,3 +51,26 @@ def aws_creds():
         'aws_secret_access_key': config.get('aws_secret_access_key')
     }
     return creds
+
+
+@pytest.fixture
+def db_session():
+    import dallinger.db
+    # The drop_all call can hang without this; see:
+    # https://stackoverflow.com/questions/13882407/sqlalchemy-blocked-on-dropping-tables
+    dallinger.db.session.close()
+    session = dallinger.db.init_db(drop_all=True)
+    yield session
+    session.rollback()
+    session.close()
+
+
+def pytest_addoption(parser):
+    parser.addoption("--firefox", action="store_true", help="Run firefox bot tests")
+    parser.addoption("--chrome", action="store_true", help="Run chrome bot tests")
+    parser.addoption("--phantomjs", action="store_true", help="Run phantomjs bot tests")
+    parser.addoption("--webdriver", nargs="?", action="store",
+                     help="URL of selenium server including /wd/hub to run remote tests against",
+                     metavar='URL')
+    parser.addoption("--runbot", action="store_true",
+                     help="Run an experiment using a bot during tests")

@@ -1,7 +1,6 @@
 import mock
 import os
 import pytest
-from dallinger import db
 
 
 class TestRecruiters(object):
@@ -22,6 +21,10 @@ class TestRecruiters(object):
     def test_close_recruitment(self, recruiter):
         with pytest.raises(NotImplementedError):
             recruiter.close_recruitment()
+
+    def test_reward_bonus(self, recruiter):
+        with pytest.raises(NotImplementedError):
+            recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
 
 class TestHotAirRecruiter(object):
@@ -49,25 +52,33 @@ class TestHotAirRecruiter(object):
     def test_approve_hit(self, recruiter):
         assert recruiter.approve_hit('any assignment id')
 
+    def test_reward_bonus(self, recruiter):
+        recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
-class TestSimulatedRecruiter(object):
+
+class TestBotRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):
-        from dallinger.recruiters import SimulatedRecruiter
-        return SimulatedRecruiter()
+        from dallinger.recruiters import BotRecruiter
+        return BotRecruiter(config={})
 
+    @pytest.mark.xfail
     def test_open_recruitment(self, recruiter):
         recruiter.open_recruitment()
 
+    @pytest.mark.xfail
     def test_recruit(self, recruiter):
         recruiter.recruit()
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
 
+    def test_reward_bonus(self, recruiter):
+        recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
-def stub_config(**kwargs):
+
+def stub_config():
     defaults = {
         'auto_recruit': True,
         'aws_access_key_id': 'fake key',
@@ -86,43 +97,28 @@ def stub_config(**kwargs):
         'description': 'fake HIT description',
         'keywords': ['kw1', 'kw2', 'kw3'],
     }
-    defaults.update(kwargs)
 
-    return defaults
+    return defaults.copy()
 
 
+@pytest.mark.usefixtures('experiment_dir')
 class TestMTurkRecruiterAssumesConfigFileInCWD(object):
-
-    def setup(self):
-        self.db = db.init_db(drop_all=True)
-        os.chdir(os.path.join("demos", "bartlett1932"))
-
-    def teardown(self):
-        self.db.rollback()
-        self.db.close()
-        os.chdir("../..")
 
     def test_instantiation_from_current_config(self):
         from dallinger.recruiters import MTurkRecruiter
         recruiter = MTurkRecruiter.from_current_config()
-        assert recruiter.config.get('title') == 'War of the Ghosts'
+        assert recruiter.config.get('title') == 'Stroop task'
 
 
 class TestMTurkRecruiter(object):
 
-    def setup(self):
-        self.db = db.init_db(drop_all=True)
-
-    def teardown(self):
-        self.db.rollback()
-        self.db.close()
-
-    def make_one(self, **kwargs):
+    @pytest.fixture
+    def recruiter(self):
         from dallinger.mturk import MTurkService
         from dallinger.recruiters import MTurkRecruiter
         mockservice = mock.create_autospec(MTurkService)
         r = MTurkRecruiter(
-            config=stub_config(**kwargs),
+            config=stub_config(),
             hit_domain='fake-domain',
             ad_url='http://fake-domain/ad'
         )
@@ -133,30 +129,26 @@ class TestMTurkRecruiter(object):
         }
         return r
 
-    def test_config_passed_to_constructor(self):
-        recruiter = self.make_one()
+    def test_config_passed_to_constructor(self, recruiter):
         assert recruiter.config.get('title') == 'fake experiment title'
 
-    def test_open_recruitment_raises_if_no_external_hit_domain_configured(self):
+    def test_open_recruitment_raises_if_no_external_hit_domain_configured(self, recruiter):
         from dallinger.recruiters import MTurkRecruiterException
-        recruiter = self.make_one()
         recruiter.hit_domain = None
         with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment(n=1)
 
-    def test_open_recruitment_raises_in_debug_mode(self):
+    def test_open_recruitment_raises_in_debug_mode(self, recruiter):
         from dallinger.recruiters import MTurkRecruiterException
-        recruiter = self.make_one(mode='debug')
+        recruiter.config['mode'] = 'debug'
         with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment()
 
-    def test_open_recruitment_check_creds_before_calling_create_hit(self):
-        recruiter = self.make_one()
+    def test_open_recruitment_check_creds_before_calling_create_hit(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.check_credentials.assert_called_once()
 
-    def test_open_recruitment_single_recruitee(self):
-        recruiter = self.make_one()
+    def test_open_recruitment_single_recruitee(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url='http://fake-domain/ad',
@@ -172,32 +164,27 @@ class TestMTurkRecruiter(object):
             us_only=True
         )
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self):
+    def test_open_recruitment_is_noop_if_experiment_in_progress(self, recruiter, db_session):
         from dallinger.models import Participant
         participant = Participant(
             worker_id='1', hit_id='1', assignment_id='1', mode="test")
-        self.db.add(participant)
-        recruiter = self.make_one()
+        db_session.add(participant)
         recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
 
-    def test_current_hit_id_with_active_experiment(self):
+    def test_current_hit_id_with_active_experiment(self, recruiter, db_session):
         from dallinger.models import Participant
         participant = Participant(
             worker_id='1', hit_id='the hit!', assignment_id='1', mode="test")
-        self.db.add(participant)
-        recruiter = self.make_one()
+        db_session.add(participant)
 
         assert recruiter.current_hit_id() == 'the hit!'
 
-    def test_current_hit_id_with_no_active_experiment(self):
-        recruiter = self.make_one()
-
+    def test_current_hit_id_with_no_active_experiment(self, recruiter):
         assert recruiter.current_hit_id() is None
 
-    def test_recruit_auto_recruit_on_recruits_for_current_hit(self):
-        recruiter = self.make_one()
+    def test_recruit_auto_recruit_on_recruits_for_current_hit(self, recruiter):
         fake_hit_id = 'fake HIT id'
         recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
         recruiter.recruit()
@@ -208,23 +195,21 @@ class TestMTurkRecruiter(object):
             duration_hours=1.0
         )
 
-    def test_recruit_auto_recruit_off_does_not_extend_hit(self):
-        recruiter = self.make_one(auto_recruit=False)
+    def test_recruit_auto_recruit_off_does_not_extend_hit(self, recruiter):
+        recruiter.config['auto_recruit'] = False
         fake_hit_id = 'fake HIT id'
         recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
         recruiter.recruit()
 
         assert not recruiter.mturkservice.extend_hit.called
 
-    def test_recruit_no_current_hit_does_not_extend_hit(self):
-        recruiter = self.make_one()
+    def test_recruit_no_current_hit_does_not_extend_hit(self, recruiter):
         recruiter.current_hit_id = mock.Mock(return_value=None)
         recruiter.recruit()
 
         assert not recruiter.mturkservice.extend_hit.called
 
-    def test_reward_bonus_is_simple_passthrough(self):
-        recruiter = self.make_one()
+    def test_reward_bonus_is_simple_passthrough(self, recruiter):
         recruiter.reward_bonus(
             assignment_id='fake assignment id',
             amount=2.99,
@@ -237,14 +222,12 @@ class TestMTurkRecruiter(object):
             reason='well done!'
         )
 
-    def test_approve_hit(self):
-        recruiter = self.make_one()
+    def test_approve_hit(self, recruiter):
         fake_id = 'fake assignment id'
         recruiter.approve_hit(fake_id)
 
         recruiter.mturkservice.approve_assignment.assert_called_once_with(fake_id)
 
-    def test_close_recruitment(self):
-        recruiter = self.make_one()
+    def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
         # This test is for coverage; the method doesn't do anything.

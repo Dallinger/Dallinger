@@ -1,36 +1,24 @@
-from dallinger import nodes, db, information, models
+from dallinger import nodes, information, models
 
 
 class TestEnvironments(object):
 
-    def setup(self):
-        """Set up the environment by resetting the tables."""
-        self.db = db.init_db(drop_all=True)
-
-    def teardown(self):
-        self.db.rollback()
-        self.db.close()
-
-    def add(self, *args):
-        self.db.add_all(args)
-        self.db.commit()
-
-    def test_create_environment(self):
+    def test_create_environment(self, db_session):
         """Create an environment"""
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         environment = nodes.Environment(network=net)
         information.State(origin=environment, contents="foo")
-        self.db.commit()
+        db_session.commit()
 
         assert isinstance(environment.id, int)
         assert environment.type == "environment"
         assert environment.creation_time
         assert environment.state().contents == "foo"
 
-    def test_create_environment_get_observed(self):
+    def test_create_environment_get_observed(self, db_session):
         net = models.Network()
-        self.db.add(net)
+        db_session.add(net)
         environment = nodes.Environment(network=net)
         information.State(origin=environment, contents="foo")
 
@@ -41,3 +29,14 @@ class TestEnvironments(object):
         agent.receive()
 
         assert agent.infos()[0].contents == "foo"
+
+    def test_environment_update(self, db_session):
+        net = models.Network()
+        db_session.add(net)
+        environment = nodes.Environment(network=net)
+        environment.update("some content")
+        db_session.commit()
+
+        state = environment.state()
+
+        assert state.contents == u'some content'
