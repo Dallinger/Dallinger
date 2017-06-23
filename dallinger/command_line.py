@@ -887,7 +887,6 @@ class LoadSessionRunner(LocalSessionRunner):
         self.app_id = app_id
         self.out = output
         self.verbose = verbose
-        self.bot = bot
         self.exp_config = exp_config or {}
         self.original_dir = os.getcwd()
         self.zip_path = None

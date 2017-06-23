@@ -127,12 +127,15 @@ class HerokuLocalWrapper(object):
         to indicate success. If no match is seen after 'timeout_secs',
         a HerokuTimeoutError is raised.
         """
-
         def _handle_timeout(signum, frame):
             raise HerokuTimeoutError(
                 "Failed to start after {} seconds.".format(
                     timeout_secs, self._record)
             )
+
+        if self.is_running:
+            self.out.log("Local Heroku is already running.")
+            return
 
         signal.signal(signal.SIGALRM, _handle_timeout)
         signal.alarm(timeout_secs)
@@ -209,9 +212,6 @@ class HerokuLocalWrapper(object):
         return False
 
     def _boot(self):
-        if self.is_running:
-            return
-
         port = self.config.get('port')
         web_dynos = self.config.get('num_dynos_web', 1)
         worker_dynos = self.config.get('num_dynos_worker', 1)
