@@ -317,19 +317,26 @@ class TestDebugServer(object):
 @pytest.mark.usefixtures('bartlett_dir')
 class TestLoad(object):
 
+    exp_id = "some_experiment_id"
+
+    @pytest.fixture
+    def export(self):
+        # Data export created, then removed after test[s]
+        from dallinger.data import export
+        path = export(self.exp_id, local=True)
+        yield path
+        os.remove(path)
+
     @pytest.fixture
     def loader(self, db_session, env_with_home, output):
         from dallinger.command_line import LoadSessionRunner
         from dallinger.heroku.tools import HerokuLocalWrapper
-        from dallinger.data import export
-        exp_id = "some_experiment_id"
-        export(exp_id, local=True)
-        loader = LoadSessionRunner(exp_id, output, verbose=True, exp_config={})
+        loader = LoadSessionRunner(self.exp_id, output, verbose=True, exp_config={})
         loader.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
 
-        return loader
+        yield loader
 
-    def test_load_runs(self, loader):
+    def test_load_runs(self, loader, export):
         loader.keep_running = mock.Mock(return_value=False)
         loader.run()
 

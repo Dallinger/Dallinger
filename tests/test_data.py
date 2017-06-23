@@ -21,6 +21,12 @@ from dallinger.utils import generate_random_id
 
 class TestData(object):
 
+    @pytest.fixture
+    def export(self):
+        path = dallinger.data.export("12345-12345-12345-12345", local=True)
+        yield path
+        shutil.rmtree('data')
+
     data_path = os.path.join(
         "tests",
         "datasets",
@@ -129,20 +135,16 @@ class TestData(object):
             header = next(reader)
             assert "creation_time" in header
 
-    def test_export(self):
-        dallinger.data.export("12345-12345-12345-12345", local=True)
+    def test_export(self, export):
         assert os.path.isfile("data/12345-12345-12345-12345-data.zip")
-        shutil.rmtree('data')
 
-    def test_export_directory_format(self):
+    def test_export_directory_format(self, export):
         from zipfile import ZipFile
-        path = dallinger.data.export("12345-12345-12345-12345", local=True)
-        archive = ZipFile(path)
+        archive = ZipFile(export)
         assert 'data/info.csv' in archive.namelist()
 
-    def test_export_compatible_with_data(self):
-        path = dallinger.data.export("12345-12345-12345-12345", local=True)
-        assert dallinger.data.Data(path)
+    def test_export_compatible_with_data(self, export):
+        assert dallinger.data.Data(export)
 
     def test_scrub_pii(self):
         path_to_data = os.path.join("tests", "datasets", "pii")
@@ -174,6 +176,13 @@ class TestData(object):
 class TestImport(object):
 
     @pytest.fixture
+    def network_file(self):
+        data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
+1,2001-01-01 09:46:40.133536,,,,,,f,,fully-connected,4,f,experiment'''
+        f = io.StringIO(initial_value=data)
+        return f
+
+    @pytest.fixture
     def zip_path(self):
         return os.path.join(
             "tests",
@@ -181,12 +190,8 @@ class TestImport(object):
             "test_export.zip"
         )
 
-    def test_ingest_to_model(self, db_session):
-        data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
-1,2001-01-01 09:46:40.133536,,,,,,f,,fully-connected,4,f,experiment'''
-        f = io.StringIO(initial_value=data)
-
-        dallinger.data.ingest_to_model(f, dallinger.models.Network)
+    def test_ingest_to_model(self, db_session, network_file):
+        dallinger.data.ingest_to_model(network_file, dallinger.models.Network)
 
         networks = dallinger.models.Network.query.all()
         assert len(networks) == 1
@@ -195,12 +200,8 @@ class TestImport(object):
         assert network.creation_time == datetime(2001, 1, 1, 9, 46, 40, 133536)
         assert network.role == 'experiment'
 
-    def test_ingest_to_model_allows_subsequent_insert(self, db_session):
-        data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
-1,2001-01-01 09:46:40.133536,,,,,,f,,fully-connected,4,f,experiment'''
-        f = io.StringIO(initial_value=data)
-
-        dallinger.data.ingest_to_model(f, dallinger.models.Network)
+    def test_ingest_to_model_allows_subsequent_insert(self, db_session, network_file):
+        dallinger.data.ingest_to_model(network_file, dallinger.models.Network)
 
         db_session.add(dallinger.models.Network())
         db_session.flush()
