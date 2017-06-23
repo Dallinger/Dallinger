@@ -45,6 +45,12 @@ class TestData(object):
 
     config = get_config()
 
+    bartlett_export = os.path.join(
+        "tests",
+        "datasets",
+        "bartlett_bots.zip"
+    )
+
     def test_connection_to_s3(self):
         conn = dallinger.data._s3_connection()
         assert conn
@@ -178,6 +184,30 @@ class TestData(object):
         path = dallinger.data.export('test_export', local=True, scrub_pii=True)
         p_file = ZipFile(path).open('data/participant.csv')
         assert len(p_file.readlines()) == 5  # 4 Participants + header row
+
+    def test_export_includes_participant_data(self, db_session):
+        dallinger.data.ingest_zip(self.bartlett_export)
+        export_dir = tempfile.mkdtemp()
+        dallinger.data.copy_local_to_csv("dallinger", export_dir, scrub_pii=False)
+        participant_table_path = os.path.join(export_dir, "participant.csv")
+        assert os.path.isfile(participant_table_path)
+        with open(participant_table_path, 'rb') as f:
+            reader = csv.reader(f, delimiter=',')
+            header = next(reader)
+            row1 = next(reader)
+            assert row1[header.index("worker_id")] == "SM6DMD"
+
+    def test_export_includes_scrubbed_participant_data(self, db_session):
+        dallinger.data.ingest_zip(self.bartlett_export)
+        export_dir = tempfile.mkdtemp()
+        dallinger.data.copy_local_to_csv("dallinger", export_dir, scrub_pii=True)
+        participant_table_path = os.path.join(export_dir, "participant.csv")
+        assert os.path.isfile(participant_table_path)
+        with open(participant_table_path, 'rb') as f:
+            reader = csv.reader(f, delimiter=',')
+            header = next(reader)
+            row1 = next(reader)
+            assert row1[header.index("worker_id")] == "1"
 
 
 class TestImport(object):
