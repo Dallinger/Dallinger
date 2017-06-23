@@ -1,5 +1,7 @@
 import os
 import pytest
+import shutil
+import tempfile
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -10,19 +12,30 @@ def subprocess_coverage():
     os.environ['COVERAGE_FILE'] = os.path.join(coverage_path, '.coverage')
 
 
+@pytest.fixture(scope='session')
+def root():
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+
 # This fixture is used automatically and ensures that
 # the current working directory is reset if other test classes changed it.
 @pytest.fixture(scope="class")
-def cwd():
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+def cwd(root):
     os.chdir(root)
 
 
 @pytest.fixture(scope="class")
-def experiment_dir():
+def experiment_dir(root):
     os.chdir('tests/experiment')
     yield
-    cwd()
+    cwd(root)
+
+
+@pytest.fixture(scope="class")
+def bartlett_dir(root):
+    os.chdir('demos/bartlett1932')
+    yield
+    cwd(root)
 
 
 @pytest.fixture(scope='class', autouse=True)
@@ -38,6 +51,20 @@ def reset_config():
     from dallinger.config import configurations
     if hasattr(configurations, 'config'):
         del configurations.config
+
+
+@pytest.fixture
+def env():
+    # Heroku requires a home directory to start up
+    # We create a fake one using tempfile and set it into the
+    # environment to handle sandboxes on CI servers
+
+    fake_home = tempfile.mkdtemp()
+    environ = os.environ.copy()
+    environ.update({'HOME': fake_home})
+    yield environ
+
+    shutil.rmtree(fake_home, ignore_errors=True)
 
 
 @pytest.fixture
