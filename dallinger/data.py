@@ -189,8 +189,8 @@ def copy_local_to_csv(local_db, path, scrub_pii=False):
         with open(csv_path, "w") as f:
             sql = "COPY {} TO STDOUT WITH CSV HEADER".format(table)
             cur.copy_expert(sql, f)
-            if table is "participant" and scrub_pii:
-                _scrub_participant_table(csv_path)
+        if table is "participant" and scrub_pii:
+            _scrub_participant_table(csv_path)
 
 
 def _scrub_participant_table(path):
