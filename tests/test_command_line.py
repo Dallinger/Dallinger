@@ -336,6 +336,12 @@ class TestLoad(object):
             mock.call('Local Heroku process terminated.')
         ])
 
+    def test_load_raises_on_nonexistent_id(self, loader):
+        loader.app_id = 'nonsense'
+        loader.keep_running = mock.Mock(return_value=False)
+        with pytest.raises(IOError):
+            loader.run()
+
 
 class TestOutput(object):
 

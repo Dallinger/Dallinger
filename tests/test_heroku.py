@@ -379,6 +379,12 @@ class TestHerokuLocalWrapper(object):
         heroku.stop(signal.SIGKILL)
         heroku.out.log.assert_called_with('Local Heroku process terminated.')
 
+    def test_stop_on_killed_process_no_error(self, heroku):
+        heroku.start()
+        heroku._process.terminate()
+        heroku.stop()
+        mock.call("Local Heroku was already terminated.") in heroku.out.log.mock_calls
+
     def test_start_when_shell_command_fails(self, heroku):
         heroku.shell_command = 'nonsense'
         with pytest.raises(OSError):
@@ -389,6 +395,11 @@ class TestHerokuLocalWrapper(object):
     def test_stop_before_start_is_noop(self, heroku):
         heroku.stop()
         heroku.out.log.assert_called_with("No local Heroku process was running.")
+
+    def test_start_when_already_started_is_noop(self, heroku):
+        heroku.start()
+        heroku.start()
+        heroku.out.log.assert_called_with("Local Heroku is already running.")
 
     def test_monitor(self, heroku):
         heroku._stream = mock.Mock(return_value=['apple', 'orange'])

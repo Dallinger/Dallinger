@@ -32,10 +32,14 @@ def zip_path():
 class TestData(object):
 
     @pytest.fixture
-    def export(self):
-        path = dallinger.data.export("12345-12345-12345-12345", local=True)
-        yield path
+    def cleanup(self):
+        yield
         shutil.rmtree('data')
+
+    @pytest.fixture
+    def export(self, cleanup):
+        path = dallinger.data.export("12345-12345-12345-12345", local=True)
+        return path
 
     data_path = os.path.join(
         "tests",
@@ -161,6 +165,7 @@ class TestData(object):
     def test_export_compatible_with_data(self, export):
         assert dallinger.data.Data(export)
 
+<<<<<<< HEAD
     def test_register_id(self):
         new_uuid = "12345-12345-12345-12345"
         url = dallinger.data.register(new_uuid, 'http://original-url.com/value')
@@ -178,14 +183,14 @@ class TestData(object):
         assert dallinger.data.is_registered(new_uuid) is True
         assert dallinger.data.is_registered('bogus-uuid-value') is False
 
-    def test_scrub_pii_preserves_participants(self, db_session, zip_path):
+    def test_scrub_pii_preserves_participants(self, db_session, zip_path, cleanup):
         dallinger.data.ingest_zip(zip_path)
         assert len(dallinger.models.Participant.query.all()) == 4
         path = dallinger.data.export('test_export', local=True, scrub_pii=True)
         p_file = ZipFile(path).open('data/participant.csv')
         assert len(p_file.readlines()) == 5  # 4 Participants + header row
 
-    def test_export_includes_participant_data(self, db_session):
+    def test_copy_local_to_csv_includes_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
         export_dir = tempfile.mkdtemp()
         dallinger.data.copy_local_to_csv("dallinger", export_dir, scrub_pii=False)
@@ -197,7 +202,7 @@ class TestData(object):
             row1 = next(reader)
             assert row1[header.index("worker_id")] == "SM6DMD"
 
-    def test_export_includes_scrubbed_participant_data(self, db_session):
+    def test_copy_local_to_csv_includes_scrubbed_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
         export_dir = tempfile.mkdtemp()
         dallinger.data.copy_local_to_csv("dallinger", export_dir, scrub_pii=True)
