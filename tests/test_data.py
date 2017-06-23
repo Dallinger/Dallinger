@@ -165,7 +165,6 @@ class TestData(object):
     def test_export_compatible_with_data(self, export):
         assert dallinger.data.Data(export)
 
-<<<<<<< HEAD
     def test_register_id(self):
         new_uuid = "12345-12345-12345-12345"
         url = dallinger.data.register(new_uuid, 'http://original-url.com/value')
