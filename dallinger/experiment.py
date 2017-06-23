@@ -18,6 +18,8 @@ from sqlalchemy import and_
 from dallinger.config import get_config, LOCAL_CONFIG
 from dallinger.data import Data
 from dallinger.data import export
+from dallinger.data import is_registered
+from dallinger.data import load as data_load
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.heroku import app_name
 from dallinger.information import Gene, Meme, State
@@ -44,6 +46,7 @@ def exp_class_working_dir(meth):
             config.load_from_file(LOCAL_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
+            config._reset()
             os.chdir(orig_path)
     return new_meth
 
@@ -491,6 +494,50 @@ class Experiment(object):
                 exp_config=exp_config
             )
         return self._finish_experiment()
+
+    def collect(self, app_id, exp_config=None, bot=False, **kwargs):
+        """Collect data for the provided experiment id.
+
+        The ``app_id`` parameter must be a valid UUID.
+        If an existing data file is found for the UUID it will
+        be returned, otherwise - if the UUID is not already registered -
+        the experiment will be run and data collected.
+
+        See ``run`` method above for other parameters
+        """
+        try:
+            orig_path = os.getcwd()
+            new_path = os.path.dirname(
+                sys.modules[self.__class__.__module__].__file__
+            )
+            os.chdir(new_path)
+            results = data_load(app_id)
+            self.log(u'Data found for experiment {}, retrieving.'.format(app_id),
+                     key=u"Retrieve:")
+            return results
+        except IOError:
+            self.log(
+                u'Could not fetch data for id: {}, checking registry'.format(app_id),
+                key=u"Retrieve:"
+            )
+        finally:
+            os.chdir(orig_path)
+
+        exp_config = exp_config or {}
+        if is_registered(app_id):
+            raise RuntimeError(u'The id {} is registered, '.format(app_id) +
+                               u'but you do not have permission to access to the data')
+        elif kwargs.get('mode') == u'debug' or exp_config.get('mode') == u'debug':
+            raise RuntimeError(u'No remote or local data found for id {}'.format(app_id))
+
+        try:
+            assert isinstance(uuid.UUID(app_id, version=4), uuid.UUID)
+        except (ValueError, AssertionError):
+            raise ValueError('Invalid UUID supplied {}'.format(app_id))
+
+        self.log(u'{} appears to be a new experiment id, running experiment.'.format(app_id),
+                 key=u"Retrieve:")
+        return self.run(exp_config, app_id, bot, **kwargs)
 
     @classmethod
     def make_uuid(cls):

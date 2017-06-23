@@ -36,4 +36,5 @@ __all__ = (
     "experiment",
     "experiments",
     "registration",
+    "logger",
 )

@@ -41,7 +41,22 @@ table_names = [
 
 def load(id):
     """Load the data from wherever it is found."""
+    # Check locally first
+    cwd = os.getcwd()
     data_filename = '{}-data.zip'.format(id)
+    path_to_data = os.path.join(cwd, "data", data_filename)
+    if os.path.exists(path_to_data):
+        try:
+            return Data(path_to_data)
+        except IOError:
+            from dallinger import logger
+            logger.exception(
+                "Error reading local data file {}, checking remote.".format(
+                    path_to_data
+                )
+            )
+
+    # Get remote file instead
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
     buckets = [
@@ -99,6 +114,27 @@ def backup(id):
     k.set_contents_from_filename(filename)
     url = k.generate_url(expires_in=0, query_auth=False)
     return url
+
+
+def registration_key(id):
+    return '{}.reg'.format(id)
+
+
+def register(id, url=None):
+    """Register a UUID key in the global S3 bucket."""
+    k = Key(registration_s3_bucket())
+    k.key = registration_key(id)
+    k.set_contents_from_string(url or 'missing')
+    reg_url = k.generate_url(expires_in=0, query_auth=False)
+    return reg_url
+
+
+def is_registered(id):
+    """Check if a UUID is already registered"""
+    # We can't use key.exists() unless the user has GET access,
+    # exists() would scale much better though.
+    key_names = set(k.key for k in list(registration_s3_bucket().list()))
+    return registration_key(id) in key_names
 
 
 def copy_heroku_to_local(id):
@@ -214,6 +250,10 @@ def export(id, local=False, scrub_pii=False):
         k = Key(user_s3_bucket())
         k.key = data_filename
         k.set_contents_from_filename(path_to_data)
+        url = k.generate_url(expires_in=0, query_auth=False)
+
+        # Register experiment UUID with dallinger
+        register(id, url)
 
     return path_to_data
 
@@ -239,10 +279,17 @@ def user_s3_bucket(canonical_user_id=None):
     s3_bucket_name = "dallinger-{}".format(
         hashlib.sha256(canonical_user_id).hexdigest()[0:8])
 
+    config = get_config()
+    location = config.get('aws_region')
+
+    # us-east-1 is the default and should not be included as location
+    if not location or location == u'us-east-1':
+        location = boto.s3.connection.Location.DEFAULT
+
     if not conn.lookup(s3_bucket_name):
         bucket = conn.create_bucket(
             s3_bucket_name,
-            location=boto.s3.connection.Location.DEFAULT
+            location=location
         )
     else:
         bucket = conn.get_bucket(s3_bucket_name)
@@ -252,18 +299,25 @@ def user_s3_bucket(canonical_user_id=None):
 
 def dallinger_s3_bucket():
     """The public `dallinger` S3 bucket."""
-    conn = _s3_connection()
+    conn = _s3_connection(dallinger_region=True)
     return conn.get_bucket("dallinger")
 
 
-def _s3_connection():
+def registration_s3_bucket():
+    """The public write-only `dallinger-registration` S3 bucket."""
+    conn = _s3_connection(dallinger_region=True)
+    return conn.get_bucket("dallinger-registrations")
+
+
+def _s3_connection(dallinger_region=False):
     """An S3 connection using the AWS keys in the config."""
     config = get_config()
     if not config.ready:
         config.load()
 
+    region = 'us-east-1' if dallinger_region else config.get('aws_region')
     return boto.s3.connect_to_region(
-        config.get('aws_region'),
+        region,
         aws_access_key_id=config.get('aws_access_key_id'),
         aws_secret_access_key=config.get('aws_secret_access_key'),
     )
