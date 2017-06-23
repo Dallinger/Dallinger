@@ -9,6 +9,7 @@ import requests
 import tempfile
 import uuid
 import shutil
+from zipfile import ZipFile
 
 import pandas as pd
 import psycopg2
@@ -17,6 +18,15 @@ import pytest
 import dallinger
 from dallinger.config import get_config
 from dallinger.utils import generate_random_id
+
+
+@pytest.fixture
+def zip_path():
+    return os.path.join(
+        "tests",
+        "datasets",
+        "test_export.zip"
+    )
 
 
 class TestData(object):
@@ -139,7 +149,6 @@ class TestData(object):
         assert os.path.isfile("data/12345-12345-12345-12345-data.zip")
 
     def test_export_directory_format(self, export):
-        from zipfile import ZipFile
         archive = ZipFile(export)
         assert 'data/info.csv' in archive.namelist()
 
@@ -172,6 +181,13 @@ class TestData(object):
         assert dallinger.data.is_registered(new_uuid) is True
         assert dallinger.data.is_registered('bogus-uuid-value') is False
 
+    def test_scrub_pii_preserves_participants(self, db_session, zip_path):
+        dallinger.data.ingest_zip(zip_path)
+        assert len(dallinger.models.Participant.query.all()) == 4
+        path = dallinger.data.export('test_export', local=True, scrub_pii=True)
+        p_file = ZipFile(path).open('data/participant.csv')
+        assert len(p_file.readlines()) == 5  # 4 Participants + header row
+
 
 class TestImport(object):
 
@@ -181,14 +197,6 @@ class TestImport(object):
 1,2001-01-01 09:46:40.133536,,,,,,f,,fully-connected,4,f,experiment'''
         f = io.StringIO(initial_value=data)
         return f
-
-    @pytest.fixture
-    def zip_path(self):
-        return os.path.join(
-            "tests",
-            "datasets",
-            "test_export.zip"
-        )
 
     def test_ingest_to_model(self, db_session, network_file):
         dallinger.data.ingest_to_model(network_file, dallinger.models.Network)
