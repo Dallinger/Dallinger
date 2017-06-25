@@ -45,6 +45,13 @@ def output():
     return Output()
 
 
+@pytest.mark.usefixtures('bartlett_dir')
+class TestVerify(object):
+
+    def test_verify(self):
+        subprocess.check_call(["dallinger", "verify"])
+
+
 class TestCommandLine(object):
 
     def test_dallinger_no_args(self):
@@ -80,11 +87,6 @@ class TestCommandLine(object):
     def test_dallinger_help(self):
         output = subprocess.check_output(["dallinger", "--help"])
         assert("Commands:" in output)
-
-    def test_verify(self):
-        os.chdir("bartlett1932")
-        subprocess.check_call(["dallinger", "verify"])
-        os.chdir("..")
 
     def test_setup(self):
         subprocess.check_call(["dallinger", "setup"])
