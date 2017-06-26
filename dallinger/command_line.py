@@ -146,10 +146,11 @@ def verify_package(verbose=True):
         os.chdir(cwd)
         sys.path.remove(clone_dir)
 
-    # Check base_payment is correct
     config = get_config()
     if not config.ready:
         config.load()
+
+    # Check base_payment is correct
     base_pay = config.get('base_payment')
     dollarFormat = "{:.2f}".format(base_pay)
 
@@ -629,7 +630,7 @@ def qualify(qualification, value, worker):
             worker)
     )
 
-    if mturk.set_qualification_score(qualification, worker, value):
+    if mturk.set_qualification_score(qualification, worker, value, notify=True):
         click.echo('OK')
 
     # print out the current set of workers with the qualification

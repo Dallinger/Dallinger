@@ -68,6 +68,37 @@ def env():
 
 
 @pytest.fixture
+def stub_config():
+    defaults = {
+        'auto_recruit': True,
+        'aws_access_key_id': u'fake key',
+        'aws_secret_access_key': u'fake secret',
+        'base_payment': 0.01,
+        'duration': 1.0,
+        'mode': u'sandbox',
+        'id': u'some experiment uid',
+        'keywords': u'kw1, kw2, kw3',
+        'server': '0.0.0.0',
+        'organization_name': u'fake org name',
+        'notification_url': u'https://url-of-notification-route',
+        'approve_requirement': 95,
+        'us_only': True,
+        'lifetime': 1,
+        'title': u'fake experiment title',
+        'description': u'fake HIT description',
+    }
+    from dallinger.config import default_keys
+    from dallinger.config import Configuration
+    config = Configuration()
+    for key in default_keys:
+        config.register(*key)
+    config.extend(defaults.copy())
+    config.ready = True
+
+    return config
+
+
+@pytest.fixture(scope='class')
 def aws_creds():
     from dallinger.config import get_config
     config = get_config()
@@ -101,3 +132,5 @@ def pytest_addoption(parser):
                      metavar='URL')
     parser.addoption("--runbot", action="store_true",
                      help="Run an experiment using a bot during tests")
+    parser.addoption("--manual", action="store_true",
+                     help="Run manual interactive tests during test run")

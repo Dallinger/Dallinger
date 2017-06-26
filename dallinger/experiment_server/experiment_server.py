@@ -31,6 +31,7 @@ from dallinger import experiment
 from dallinger import models
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
+from dallinger.recruiters import Recruiter
 
 from .worker_events import WorkerEvent
 from .utils import nocache
@@ -578,11 +579,16 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         'participant': participant.__json__()
     }
 
+    exp = Experiment(session)
+
+    # Ping back to the recruiter that one of their participants has joined:
+    recruiter = Recruiter.for_experiment(exp)
+    recruiter.notify_recruited(participant)
+
     # Queue notification to others in waiting room
-    experiment = Experiment(session)
-    if experiment.quorum:
+    if exp.quorum:
         quorum = {
-            'q': experiment.quorum,
+            'q': exp.quorum,
             'n': waiting_count,
         }
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
