@@ -1,6 +1,11 @@
 # Change Log
 
-## [v3.1.0](https://github.com/dallinger/dallinger/tree/v3.0.1) (2017-06-23)
+## [v3.2.0](https://github.com/dallinger/dallinger/tree/v3.2.0) (2017-06-25)
+
+- **Feature** Datasets in zip files can now be import to an experiment server
+  via a new CLI command, `dallinger load`.
+
+## [v3.1.0](https://github.com/dallinger/dallinger/tree/v3.1.0) (2017-06-23)
 
 - **FEATURE** The `dallinger uuid` command line tool has been added to generate
   a UUID for an experiment.
