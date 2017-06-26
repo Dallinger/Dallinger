@@ -342,11 +342,6 @@ class TestMTurkService(object):
         # First query can be very slow, since the qtype was just added:
         result = with_cleanup.get_qualification_type_by_name(qtype['name'])
         assert result is not None
-        # After that they will be fast, so we can set the wait to 0
-        with_cleanup.max_wait_secs = 0
-        for i in range(3):
-            result = with_cleanup.get_qualification_type_by_name(qtype['name'])
-            assert result is not None
 
     def test_get_qualification_by_name_no_match(self, with_cleanup, qtype):
         # First query can be very slow, since the qtype was just added:
