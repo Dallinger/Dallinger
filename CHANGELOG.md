@@ -2,9 +2,6 @@
 
 ## [v3.1.0](https://github.com/dallinger/dallinger/tree/v3.0.1) (2017-06-23)
 
-- **BREAKING** The fitness parameter of `dallinger.nodes.Agent` is now a
-  floating point number, rather than an integer.
-
 - **FEATURE** The `dallinger uuid` command line tool has been added to generate
   a UUID for an experiment.
 
@@ -57,6 +54,9 @@
 
 - A bug in the chatroom demo was fixed which improves 
   reliability and simplifies the connection to the backend. [\#537](https://github.com/Dallinger/Dallinger/issues/537)
+
+- The fitness parameter of `dallinger.nodes.Agent` is now a
+  floating point number, rather than an integer.
 
 ## [v3.0.1](https://github.com/dallinger/dallinger/tree/v3.0.1) (2017-06-19)
 
