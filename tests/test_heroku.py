@@ -5,6 +5,7 @@ import mock
 import pytest
 import dallinger.db
 import datetime
+import signal
 from dallinger.config import get_config
 from dallinger.heroku import app_name
 from dallinger.heroku.messages import EmailingHITMessager
@@ -312,3 +313,114 @@ class TestEmailingHITMessager(object):
         nonwhimsical.server.quit.assert_called()
         assert data['subject'] == 'Dallinger automated email - major error.'
         assert 'Allowed time: 1.0' in data['message']
+
+
+@pytest.mark.usefixtures('bartlett_dir')
+class TestHerokuLocalWrapper(object):
+
+    @pytest.fixture
+    def config(self):
+        from dallinger.command_line import setup_experiment
+        cwd = os.getcwd()
+        config = get_config()
+        if not config.ready:
+            config.load()
+
+        (id, tmp) = setup_experiment(verbose=True, exp_config={})
+
+        os.chdir(tmp)
+        yield config
+        os.chdir(cwd)
+
+    @pytest.fixture
+    def output(self):
+
+        class Output(object):
+
+            def __init__(self):
+                self.log = mock.Mock()
+                self.error = mock.Mock()
+                self.blather = mock.Mock()
+
+        return Output()
+
+    @pytest.fixture
+    def heroku(self, config, env, output):
+        from dallinger.heroku.tools import HerokuLocalWrapper
+        wrapper = HerokuLocalWrapper(config, output, env=env)
+        yield wrapper
+        try:
+            print "Calling stop() on {}".format(wrapper)
+            wrapper.stop(signal.SIGKILL)
+        except:
+            pass
+
+    def test_start(self, heroku):
+        assert heroku.start()
+        assert heroku.is_running
+
+    def test_gives_up_after_timeout(self, heroku):
+        from dallinger.heroku.tools import HerokuTimeoutError
+        with pytest.raises(HerokuTimeoutError):
+            heroku.start(timeout_secs=1)
+
+    def test_start_fails_if_stream_ends_without_matching_success_regex(self, heroku):
+        from dallinger.heroku.tools import HerokuStartupError
+        heroku._stream = mock.Mock(
+            return_value=['apple', 'orange', heroku.STREAM_SENTINEL]
+        )
+        heroku.success_regex = 'not going to match anything'
+        with pytest.raises(HerokuStartupError):
+            heroku.start()
+        assert not heroku.is_running
+
+    def test_stop(self, heroku):
+        heroku.start()
+        heroku.stop(signal.SIGKILL)
+        heroku.out.log.assert_called_with('Local Heroku process terminated.')
+
+    def test_stop_on_killed_process_no_error(self, heroku):
+        heroku.start()
+        heroku._process.terminate()
+        heroku.stop()
+        mock.call("Local Heroku was already terminated.") in heroku.out.log.mock_calls
+
+    def test_start_when_shell_command_fails(self, heroku):
+        heroku.shell_command = 'nonsense'
+        with pytest.raises(OSError):
+            heroku.start()
+            heroku.out.error.assert_called_with(
+                "Couldn't start Heroku for local debugging.")
+
+    def test_stop_before_start_is_noop(self, heroku):
+        heroku.stop()
+        heroku.out.log.assert_called_with("No local Heroku process was running.")
+
+    def test_start_when_already_started_is_noop(self, heroku):
+        heroku.start()
+        heroku.start()
+        heroku.out.log.assert_called_with("Local Heroku is already running.")
+
+    def test_monitor(self, heroku):
+        heroku._stream = mock.Mock(return_value=['apple', 'orange'])
+        listener = mock.Mock()
+        heroku.monitor(listener)
+        listener.assert_has_calls([
+            mock.call('apple'),
+            mock.call('orange'),
+        ])
+
+    def test_monitor_stops_iterating_when_told(self, heroku):
+        heroku._stream = mock.Mock(return_value=['apple', 'orange'])
+        listener = mock.Mock()
+        listener.return_value = heroku.MONITOR_STOP
+        heroku.monitor(listener)
+        listener.assert_has_calls([
+            mock.call('apple'),
+        ])
+
+    def test_as_context_manager(self, config, env, output):
+        from dallinger.heroku.tools import HerokuLocalWrapper
+        with HerokuLocalWrapper(config, output, env=env) as heroku:
+            assert heroku.is_running
+        assert not heroku.is_running

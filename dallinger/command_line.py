@@ -7,7 +7,6 @@ import imp
 import inspect
 import os
 import pkg_resources
-import psutil
 import re
 try:
     from pipes import quote
@@ -15,12 +14,10 @@ except ImportError:
     # Python >= 3.3
     from shlex import quote
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
 import time
-import traceback
 import webbrowser
 
 import click
@@ -41,6 +38,7 @@ from dallinger.heroku import (
     app_name,
 )
 from dallinger.heroku.worker import conn
+from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.mturk import MTurkService
 from dallinger import registration
 from dallinger.utils import generate_random_id
@@ -379,7 +377,7 @@ def get_summary(app):
     return "\n".join(out)
 
 
-def _handle_launch_data(url):
+def _handle_launch_data(url, error=error):
     launch_request = requests.post(url)
     try:
         launch_data = launch_request.json()
@@ -404,124 +402,8 @@ def _handle_launch_data(url):
               help='Use bot to complete experiment')
 def debug(verbose, bot, exp_config=None):
     """Run the experiment locally."""
-    exp_config = exp_config or {}
-    exp_config.update({
-        "mode": u"debug",
-        "loglevel": 0,
-    })
-    if bot:
-        exp_config["recruiter"] = u"bots"
-
-    (id, tmp) = setup_experiment(verbose=verbose, exp_config=exp_config)
-
-    # Switch to the temporary directory.
-    cwd = os.getcwd()
-    os.chdir(tmp)
-
-    # Set the mode to debug.
-    config = get_config()
-    logfile = config.get('logfile')
-    if logfile and logfile != '-':
-        logfile = os.path.join(cwd, logfile)
-        config.extend({'logfile': logfile})
-        config.write()
-
-    # Drop all the tables from the database.
-    db.init_db(drop_all=True)
-
-    # Start up the local server
-    log("Starting up the server...")
-    port = config.get('port')
-    try:
-        p = subprocess.Popen(
-            ['heroku', 'local', '-p', str(port),
-             "web={},worker={}".format(config.get('num_dynos_web', 1),
-                                       config.get('num_dynos_worker', 1))],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-    except OSError:
-        error("Couldn't start Heroku for local debugging.")
-        raise
-
-    try:
-        # Wait for server to start
-        ready = False
-        for line in iter(p.stdout.readline, ''):
-            if verbose:
-                sys.stdout.write(line)
-            line = line.strip()
-            if re.match('^.*? worker.1 .*? Connection refused.$', line):
-                error('Could not connect to redis instance, experiment may not behave correctly.')
-            if not verbose and re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line):
-                error(line)
-            if not verbose and re.match('\[DONE\] Killing all processes', line):
-                error(
-                    'There was an error while starting the server. '
-                    'Run with --verbose for details.'
-                )
-            if re.match('^.*? \d+ workers$', line):
-                ready = True
-                break
-
-        if ready:
-            base_url = get_base_url()
-            log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
-
-            # Call endpoint to launch the experiment
-            log("Launching the experiment...")
-            time.sleep(4)
-            _handle_launch_data('{}/launch'.format(base_url))
-
-            closed = False
-            status_url = base_url + '/summary'
-            exp_data = {}
-            # Monitor output from server process
-            for line in iter(p.stdout.readline, ''):
-                if verbose:
-                    sys.stdout.write(line)
-
-                # start checking for completion status
-                if closed:
-                    time.sleep(10)
-                    try:
-                        resp = requests.get(status_url)
-                        exp_data = resp.json()
-                    except (ValueError, requests.exceptions.RequestException):
-                        error('Error fetching experiment status.')
-                    log('Experiment summary: {}'.format(exp_data))
-                    if exp_data.get('completed', False):
-                        log('Experiment completed, all nodes filled.')
-                        break
-                    continue
-
-                # Open browser for new participants
-                match = re.search('New participant requested: (.*)$', line)
-                if match:
-                    url = match.group(1)
-                    webbrowser.open(url, new=1, autoraise=True)
-
-                # Is recruitment over? We can end the loop, and check
-                # experiment status
-                match = re.search('Close recruitment.$', line)
-                if match:
-                    log('Recruitment is complete.')
-                    closed = True
-
-    finally:
-        try:
-            # It seems we need to explicitly kill all subprocesses with a SIGINT
-            int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
-            for sub in psutil.Process(p.pid).children(recursive=True):
-                os.kill(sub.pid, int_signal)
-            p.terminate()
-            log("Local Heroku process terminated")
-        except OSError:
-            log("Local Heroku process already terminated")
-            log(traceback.format_exc())
-
-    log("Completed debugging of experiment with id " + id)
-    os.chdir(cwd)
+    debugger = DebugSessionRunner(Output(), verbose, bot, exp_config)
+    debugger.run()
 
 
 def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=None):
@@ -870,6 +752,191 @@ def export(app, local, no_scrub):
     """Export the data."""
     log(header, chevrons=False)
     data.export(str(app), local=local, scrub_pii=(not no_scrub))
+
+
+class Output(object):
+
+    def __init__(self, log=log, error=error, blather=sys.stdout.write):
+        self.log = log
+        self.error = error
+        self.blather = sys.stdout.write
+
+
+class LocalSessionRunner(object):
+
+    exp_id = None
+    tmp_dir = None
+    dispatch = {}  # Subclass may provide handlers for Heroku process output
+
+    def configure(self):
+        self.exp_config.update({
+            "mode": u"debug",
+            "loglevel": 0,
+        })
+
+    def setup(self):
+        self.exp_id, self.tmp_dir = setup_experiment(
+            verbose=self.verbose, exp_config=self.exp_config)
+
+    def update_dir(self):
+        os.chdir(self.tmp_dir)
+        # Update the logfile to the new directory
+        config = get_config()
+        logfile = config.get('logfile')
+        if logfile and logfile != '-':
+            logfile = os.path.join(self.original_dir, logfile)
+            config.extend({'logfile': logfile})
+            config.write()
+
+    def run(self):
+        """Set up the environment, get a HerokuLocalWrapper instance, and pass
+        it to the concrete class's execute() method.
+        """
+        self.configure()
+        self.setup()
+        self.update_dir()
+        db.init_db(drop_all=True)
+        self.out.log("Starting up the server...")
+        config = get_config()
+        with HerokuLocalWrapper(config, self.out, verbose=self.verbose) as wrapper:
+            try:
+                self.execute(wrapper)
+            except KeyboardInterrupt:
+                pass
+            finally:
+                os.chdir(self.original_dir)
+                self.cleanup()
+
+    def notify(self, message):
+        """Callback function which checks lines of output, tries to match
+        against regex defined in subclass's "dispatch" dict, and passes through
+        to a handler on match.
+        """
+        for regex, handler in self.dispatch.items():
+            match = re.search(regex, message)
+            if match:
+                handler = getattr(self, handler)
+                return handler(match)
+
+    def execute(self, heroku):
+        raise NotImplementedError()
+
+
+class DebugSessionRunner(LocalSessionRunner):
+
+    dispatch = {
+        'New participant requested: (.*)$': 'new_recruit',
+        'Close recruitment.$': 'recruitment_closed',
+    }
+
+    def __init__(self, output, verbose, bot, exp_config):
+        self.out = output
+        self.verbose = verbose
+        self.bot = bot
+        self.exp_config = exp_config or {}
+        self.original_dir = os.getcwd()
+
+    def configure(self):
+        super(DebugSessionRunner, self).configure()
+        if self.bot:
+            self.exp_config["recruiter"] = u"bots"
+
+    def execute(self, heroku):
+        base_url = get_base_url()
+        self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+        self.out.log("Launching the experiment...")
+        time.sleep(4)
+        _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
+        heroku.monitor(listener=self.notify)
+
+    def cleanup(self):
+        log("Completed debugging of experiment with id " + self.exp_id)
+
+    def new_recruit(self, match):
+        """Dispatched to by notify(). If a recruitment request has been issued,
+        open a browser window for the a new participant (in this case the
+        person doing local debugging).
+        """
+        self.out.log("new recruitment request!")
+        url = match.group(1)
+        webbrowser.open(url, new=1, autoraise=True)
+
+    def recruitment_closed(self, match):
+        """Recruitment is closed. Check the output of the summary route until
+        the experiment is complete, then we can stop monitoring Heroku
+        subprocess output.
+        """
+        base_url = get_base_url()
+        status_url = base_url + '/summary'
+        self.out.log("Recruitment is complete. Waiting for experiment completion...")
+        time.sleep(10)
+        try:
+            resp = requests.get(status_url)
+            exp_data = resp.json()
+        except (ValueError, requests.exceptions.RequestException):
+            self.out.error('Error fetching experiment status.')
+        self.out.log('Experiment summary: {}'.format(exp_data))
+        if exp_data.get('completed', False):
+            self.out.log('Experiment completed, all nodes filled.')
+            return HerokuLocalWrapper.MONITOR_STOP
+
+
+class LoadSessionRunner(LocalSessionRunner):
+
+    def __init__(self, app_id, output, verbose, exp_config):
+        self.app_id = app_id
+        self.out = output
+        self.verbose = verbose
+        self.exp_config = exp_config or {}
+        self.original_dir = os.getcwd()
+        self.zip_path = None
+
+    def configure(self):
+        self.exp_config.update({
+            "mode": u"debug",
+            "loglevel": 0,
+        })
+
+        self.zip_path = data.find_experiment_export(self.app_id)
+        if self.zip_path is None:
+            msg = u'Dataset export for app id "{}" could not be found.'
+            raise IOError(msg.format(self.app_id))
+
+    def setup(self):
+        self.exp_id, self.tmp_dir = setup_experiment(
+            app=self.app_id, verbose=self.verbose, exp_config=self.exp_config)
+
+    def execute(self, heroku):
+        """Start the server, load the zip file into the database, then loop
+        until terminated with <control>-c.
+        """
+        db.init_db(drop_all=True)
+        self.out.log("Ingesting dataset from {}...".format(os.path.basename(self.zip_path)))
+        data.ingest_zip(self.zip_path)
+        base_url = get_base_url()
+        self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+
+        # Just run until interrupted:
+        while(self.keep_running()):
+            time.sleep(1)
+
+    def cleanup(self):
+        self.out.log("Terminating dataset load for experiment {}".format(self.exp_id))
+
+    def keep_running(self):
+        # This is a separate method so that it can be replaced in tests
+        return True
+
+
+@dallinger.command()
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
+@click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
+def load(app, verbose, exp_config=None):
+    """Import database state from an exported zip file and leave the server
+    running until stopping the process with <control>-c.
+    """
+    loader = LoadSessionRunner(app, Output(), verbose, exp_config)
+    loader.run()
 
 
 @dallinger.command()
