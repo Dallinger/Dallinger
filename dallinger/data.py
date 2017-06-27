@@ -4,6 +4,7 @@ from config import get_config
 
 import csv
 import errno
+import logging
 import os
 import shutil
 import subprocess
@@ -21,6 +22,8 @@ from dallinger import heroku
 from dallinger import db
 from dallinger import models
 
+logger = logging.getLogger(__name__)
+
 with warnings.catch_warnings():
     warnings.simplefilter(action='ignore', category=FutureWarning)
     try:
@@ -28,7 +31,7 @@ with warnings.catch_warnings():
         import pandas as pd
         import tablib
     except ImportError:
-        pass
+        logger.debug("Failed to import odo, pandas, or tablib.")
 
 
 table_names = [
