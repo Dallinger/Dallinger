@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import warnings
 from zipfile import ZipFile, ZIP_DEFLATED
 
 import boto
@@ -16,16 +17,18 @@ import hashlib
 import postgres_copy
 import psycopg2
 
-try:
-    import odo
-    import pandas as pd
-    import tablib
-except ImportError:
-    pass
-
 from dallinger import heroku
 from dallinger import db
 from dallinger import models
+
+with warnings.catch_warnings():
+    warnings.simplefilter(action='ignore', category=FutureWarning)
+    try:
+        import odo
+        import pandas as pd
+        import tablib
+    except ImportError:
+        pass
 
 
 table_names = [
