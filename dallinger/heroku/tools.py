@@ -212,7 +212,7 @@ class HerokuLocalWrapper(object):
         return False
 
     def _boot(self):
-        port = self.config.get('port')
+        port = self.config.get('base_port')
         web_dynos = self.config.get('num_dynos_web', 1)
         worker_dynos = self.config.get('num_dynos_worker', 1)
         commands = [
