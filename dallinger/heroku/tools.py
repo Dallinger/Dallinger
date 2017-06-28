@@ -213,6 +213,8 @@ class HerokuLocalWrapper(object):
 
     def _boot(self):
         port = self.config.get('base_port')
+        self.out.log("In _boot(), port is: {}".format(port))
+        self.out.log("'port', by layer: {}".format(self.config.by_layer('base_port')))
         web_dynos = self.config.get('num_dynos_web', 1)
         worker_dynos = self.config.get('num_dynos_worker', 1)
         commands = [

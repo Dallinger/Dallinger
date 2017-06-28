@@ -134,6 +134,17 @@ class Configuration(object):
             raise KeyError(key)
         return default
 
+    def by_layer(self, key, default=marker):
+        in_order = []
+        if not self.ready:
+            raise RuntimeError('Config not loaded')
+        for layer in self.data:
+            try:
+                in_order.append(layer[key])
+            except KeyError:
+                continue
+        return in_order
+
     def __getitem__(self, key):
         return self.get(key)
 
