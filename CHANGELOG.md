@@ -1,5 +1,14 @@
 # Change Log
 
+## [v3.3.0](https://github.com/dallinger/dallinger/tree/v3.3.0) (2017-06-27)
+
+- **Feature** Experiments can now be associated with a group name via the
+  `group_name` config variable. This enables you to prevent MTurk workers from
+   accepting, or even seeing, future HITs with one or more group names, via
+   the `qualification_blacklist` config variable.
+
+- Suppress a deprecation warning from pandas.
+
 ## [v3.2.0](https://github.com/dallinger/dallinger/tree/v3.2.0) (2017-06-25)
 
 - **Feature** Datasets in zip files can now be import to an experiment server
