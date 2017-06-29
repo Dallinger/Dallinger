@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from gunicorn.app.base import Application
 from gunicorn import util
 import multiprocessing
+import os
 from dallinger.config import get_config
 import logging
 
@@ -32,6 +33,11 @@ class StandaloneServer(Application):
         self.load_user_config()
         self.do_load_config()
 
+    @property
+    def port(self):
+        """Heroku sets the port its running on as an environment variable"""
+        return os.environ.get('PORT')
+
     def init(self, *args):
         """init method
         Takes our custom options from self.options and creates a config
@@ -54,8 +60,7 @@ class StandaloneServer(Application):
             workers = str(multiprocessing.cpu_count() * 2 + 1)
 
         host = config.get("host")
-        port = config.get("port")
-        bind_address = "{}:{}".format(host, port)
+        bind_address = "{}:{}".format(host, self.port)
         self.options = {
             'bind': bind_address,
             'workers': workers,

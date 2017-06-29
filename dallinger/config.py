@@ -57,7 +57,6 @@ default_keys = (
     ('num_dynos_web', int, []),
     ('num_dynos_worker', int, []),
     ('organization_name', unicode, []),
-    ('port', int, ['PORT']),
     ('qualification_blacklist', unicode, []),
     ('recruiter', unicode, []),
     ('threads', unicode, []),
@@ -133,17 +132,6 @@ class Configuration(object):
         if default is marker:
             raise KeyError(key)
         return default
-
-    def by_layer(self, key, default=marker):
-        in_order = []
-        if not self.ready:
-            raise RuntimeError('Config not loaded')
-        for layer in self.data:
-            try:
-                in_order.append(layer[key])
-            except KeyError:
-                continue
-        return in_order
 
     def __getitem__(self, key):
         return self.get(key)

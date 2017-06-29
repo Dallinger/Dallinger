@@ -67,7 +67,7 @@ class HotAirRecruiter(Recruiter):
         """Talk about recruiting participants."""
         for i in range(n):
             ad_url = "{}/ad?assignmentId=debug{}&hitId={}&workerId={}&mode=debug".format(
-                get_base_url(logger.info), generate_random_id(), generate_random_id(), generate_random_id(),
+                get_base_url(), generate_random_id(), generate_random_id(), generate_random_id(),
             )
             logger.info('New participant requested: {}'.format(ad_url))
 
