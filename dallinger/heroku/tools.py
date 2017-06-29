@@ -199,16 +199,15 @@ class HerokuLocalWrapper(object):
                     'experiment may not behave correctly.'
                 )
 
-            if self.verbose:
-                continue  # we already logged everything
+            if self._worker_error(line) or self._startup_error(line):
+                if not self.verbose:
+                    self.out.error(
+                        'There was an error while starting the server. '
+                        'Run with --verbose for details.'
+                    )
+                    self.out.error("Sign of error found in line: ".format(line))
+                return False
 
-            if self._worker_error(line):
-                self.out.error(line)
-            if self._startup_error(line):
-                self.out.error(
-                    'There was an error while starting the server. '
-                    'Run with --verbose for details.'
-                )
         return False
 
     def _boot(self):
