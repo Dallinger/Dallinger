@@ -15,7 +15,7 @@ import uuid
 
 from sqlalchemy import and_
 
-from dallinger.config import get_config, LOCAL_CONFIG
+from dallinger.config import get_config, LOCAL_CONFIG, unset_config
 from dallinger.data import Data
 from dallinger.data import export
 from dallinger.data import is_registered
@@ -46,7 +46,7 @@ def exp_class_working_dir(meth):
             config.load_from_file(LOCAL_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
-            config._reset()
+            unset_config()
             os.chdir(orig_path)
     return new_meth
 

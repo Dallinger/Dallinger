@@ -260,3 +260,6 @@ def get_config():
         configurations.config.register(*registration)
 
     return configurations.config
+
+def unset_config():
+    del configurations.config
