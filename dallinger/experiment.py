@@ -29,13 +29,13 @@ from dallinger.transformations import Mutation, Replication
 from dallinger.networks import Empty
 
 logger = logging.getLogger(__file__)
-config = get_config()
 
 
 def exp_class_working_dir(meth):
     @wraps(meth)
     def new_meth(self, *args, **kwargs):
         try:
+            config = get_config()
             orig_path = os.getcwd()
             new_path = os.path.dirname(
                 sys.modules[self.__class__.__module__].__file__
@@ -141,6 +141,7 @@ class Experiment(object):
         from dallinger.recruiters import MTurkRecruiter
         from dallinger.recruiters import BotRecruiter
 
+        config = get_config()
         try:
             debug_mode = config.get('mode', None) == 'debug'
         except RuntimeError:
