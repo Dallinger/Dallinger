@@ -1,68 +1,44 @@
 import json
 import mock
-import os
 import pytest
-import unittest
 from datetime import datetime
 from dallinger.config import get_config
 
-config = get_config()
-if not config.ready:
-    config.load()
 
-
-class FlaskAppTest(unittest.TestCase):
-    """Base test case class for tests of the flask app."""
-
-    experiment_dir = 'tests/experiment'
-
-    def setUp(self, case=None):
-        # The flask app assumes it is imported
-        # while in an experiment directory.
-        # `tests/experiment` mimics the files that are put
-        # in place by dallinger.command_line.setup_experiment
-        # when running via the CLI
-        self.orig_dir = os.getcwd()
-        os.chdir(self.experiment_dir)
-        from dallinger.experiment_server import sockets
-        app = sockets.app
-        app.config['DEBUG'] = True
-        app.config['TESTING'] = True
-        self.app = app.test_client()
-
-        import dallinger.db
-        self.db = dallinger.db.init_db(drop_all=True)
-        self.exp_config = config
-
-    def tearDown(self):
-        self.db.rollback()
-        self.db.close()
-        os.chdir(self.orig_dir)
-
-        # Make sure the greenlet handling chat is stopped
-        from dallinger.experiment_server.sockets import chat_backend
-        chat_backend.stop()
-
-
-class TestExperimentServer(FlaskAppTest):
+@pytest.mark.usefixtures('experiment_dir')
+class TestExperimentServer(object):
     worker_counter = 0
     hit_counter = 0
     assignment_counter = 0
 
-    def _create_participant(self):
+    @pytest.fixture
+    def app(self, db_session):
+        from dallinger.experiment_server import sockets
+        config = get_config()
+        if not config.ready:
+            config.load()
+        app = sockets.app
+        app.config['DEBUG'] = True
+        app.config['TESTING'] = True
+        client = app.test_client()
+        yield client
+
+    @pytest.fixture
+    def participant_id(self, app):
         worker_id = self.worker_counter
         hit_id = self.hit_counter
         assignment_id = self.assignment_counter
         self.worker_counter += 1
         self.hit_counter += 1
         self.assignment_counter += 1
-        resp = self.app.post('/participant/{}/{}/{}/debug'.format(
+        resp = app.post('/participant/{}/{}/{}/debug'.format(
             worker_id, hit_id, assignment_id
         ))
         return json.loads(resp.data).get('participant', {}).get('id')
 
-    def _create_node(self, participant_id):
-        resp = self.app.post('/node/{}'.format(participant_id))
+    @pytest.fixture
+    def node_id(self, app, participant_id):
+        resp = app.post('/node/{}'.format(participant_id))
         return json.loads(resp.data)['node']['id']
 
     def _update_participant_status(self, participant_id, status):
@@ -70,21 +46,21 @@ class TestExperimentServer(FlaskAppTest):
         participant = Participant.query.get(participant_id)
         participant.status = status
 
-    def test_root(self):
-        resp = self.app.get('/')
+    def test_root(self, app):
+        resp = app.get('/')
         assert resp.status_code == 404
 
-    def test_favicon(self):
-        resp = self.app.get('/favicon.ico')
+    def test_favicon(self, app):
+        resp = app.get('/favicon.ico')
         assert resp.content_type == 'image/x-icon'
         assert resp.content_length > 0
 
-    def test_robots(self):
-        resp = self.app.get('/robots.txt')
+    def test_robots(self, app):
+        resp = app.get('/robots.txt')
         assert 'User-agent' in resp.data
 
-    def test_ad(self):
-        resp = self.app.get('/ad', query_string={
+    def test_ad(self, app):
+        resp = app.get('/ad', query_string={
             'hitId': 'debug',
             'assignmentId': '1',
             'mode': 'debug',
@@ -93,8 +69,8 @@ class TestExperimentServer(FlaskAppTest):
         assert 'Please click the "Accept HIT" button on the Amazon site' not in resp.data
         assert 'Begin Experiment' in resp.data
 
-    def test_ad_before_acceptance(self):
-        resp = self.app.get('/ad', query_string={
+    def test_ad_before_acceptance(self, app):
+        resp = app.get('/ad', query_string={
             'hitId': 'debug',
             'assignmentId': 'ASSIGNMENT_ID_NOT_AVAILABLE',
             'mode': 'debug',
@@ -102,13 +78,13 @@ class TestExperimentServer(FlaskAppTest):
         assert 'Please click the "Accept HIT" button on the Amazon site' in resp.data
         assert 'Begin Experiment' not in resp.data
 
-    def test_ad_no_params(self):
-        resp = self.app.get('/ad')
+    def test_ad_no_params(self, app):
+        resp = app.get('/ad')
         assert resp.status_code == 500
         assert 'Psychology Experiment - Error' in resp.data
 
-    def test_consent(self):
-        resp = self.app.get('/consent', query_string={
+    def test_consent(self, app):
+        resp = app.get('/consent', query_string={
             'hit_id': 'debug',
             'assignment_id': '1',
             'worker_id': '1',
@@ -116,33 +92,29 @@ class TestExperimentServer(FlaskAppTest):
         })
         assert 'Informed Consent Form' in resp.data
 
-    def test_participant_info(self):
-        p_id = self._create_participant()
-        resp = self.app.get('/participant/{}'.format(p_id))
+    def test_participant_info(self, app, participant_id):
+        resp = app.get('/participant/{}'.format(participant_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('participant').get('status') == u'working'
 
-    def test_prevent_duplicate_participant_for_worker(self):
+    def test_prevent_duplicate_participant_for_worker(self, app, participant_id):
         worker_id = self.worker_counter
         hit_id = self.hit_counter
         assignment_id = self.assignment_counter
-        self.worker_counter += 1
-        self.hit_counter += 1
-        self.assignment_counter += 1
-        resp = self.app.post('/participant/{}/{}/{}/debug'.format(
+        resp = app.post('/participant/{}/{}/{}/debug'.format(
             worker_id, hit_id, assignment_id
         ))
 
         assert resp.status_code == 200
 
-        resp = self.app.post('/participant/{}/{}/{}/debug'.format(
+        resp = app.post('/participant/{}/{}/{}/debug'.format(
             worker_id, hit_id, assignment_id
         ))
 
         assert resp.status_code == 403
 
-    def test_notifies_recruiter_when_participant_joins(self):
+    def test_notifies_recruiter_when_participant_joins(self, app):
         from dallinger.recruiters import Recruiter
         from dallinger.models import Participant
 
@@ -154,30 +126,26 @@ class TestExperimentServer(FlaskAppTest):
         with mock.patch(class_to_patch) as mock_rec_class:
             mock_recruiter = mock.Mock(spec=Recruiter)
             mock_rec_class.for_experiment.return_value = mock_recruiter
-            self.app.post('/participant/{}/{}/{}/debug'.format(
+            app.post('/participant/{}/{}/{}/debug'.format(
                 worker_id, hit_id, assignment_id
             ))
             args, _ = mock_recruiter.notify_recruited.call_args
             assert isinstance(args[0], Participant)
 
-    def test_node_vectors(self):
-        p_id = self._create_participant()
-        n_id = self._create_node(p_id)
-        resp = self.app.get('/node/{}/vectors'.format(n_id))
+    def test_node_vectors(self, app, node_id):
+        resp = app.get('/node/{}/vectors'.format(node_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('vectors') == []
 
-    def test_node_infos(self):
-        p_id = self._create_participant()
-        n_id = self._create_node(p_id)
-        resp = self.app.get('/node/{}/infos'.format(n_id))
+    def test_node_infos(self, app, node_id):
+        resp = app.get('/node/{}/infos'.format(node_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('infos') == []
 
-    def test_summary(self):
-        resp = self.app.get('/summary')
+    def test_summary_no_participants(self, app):
+        resp = app.get('/summary')
         assert resp.status_code == 200
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
@@ -187,9 +155,8 @@ class TestExperimentServer(FlaskAppTest):
         assert data.get('nodes_remaining') == 2
         assert data.get('summary') == []
 
-        p1_id = self._create_participant()
-        self._create_node(p1_id)
-        resp = self.app.get('/summary')
+    def test_summary_one_participant(self, app, node_id):
+        resp = app.get('/summary')
         data = json.loads(resp.data)
         assert data.get('completed') is False
         assert data.get('nodes_remaining') == 1
@@ -197,9 +164,9 @@ class TestExperimentServer(FlaskAppTest):
         assert len(worker_summary) == 1
         assert worker_summary[0] == [u'working', 1]
 
-        p2_id = self._create_participant()
-        self._create_node(p2_id)
-        resp = self.app.get('/summary')
+    def test_summary_two_participants_and_still_working(self, app, node_id):
+        self.node_id(app, self.participant_id(app))
+        resp = app.get('/summary')
         data = json.loads(resp.data)
         assert data.get('completed') is False
         assert data.get('nodes_remaining') == 0
@@ -207,10 +174,16 @@ class TestExperimentServer(FlaskAppTest):
         assert len(worker_summary) == 1
         assert worker_summary[0] == [u'working', 2]
 
+    def test_summary_two_participants_with_different_status(self, app):
+        p1_id = self.participant_id(app)
+        p2_id = self.participant_id(app)
+        self.node_id(app, p1_id)
+        self.node_id(app, p2_id)
+
         self._update_participant_status(p1_id, 'submitted')
         self._update_participant_status(p2_id, 'approved')
 
-        resp = self.app.get('/summary')
+        resp = app.get('/summary')
         data = json.loads(resp.data)
         assert data.get('completed') is True
         worker_summary = data.get('summary')
@@ -218,24 +191,22 @@ class TestExperimentServer(FlaskAppTest):
         assert worker_summary[0] == [u'approved', 1]
         assert worker_summary[1] == [u'submitted', 1]
 
-    def test_existing_experiment_property(self):
-        p_id = self._create_participant()
-        resp = self.app.get('/experiment/exists'.format(p_id))
+    def test_existing_experiment_property(self, app, participant_id):
+        resp = app.get('/experiment/exists'.format(participant_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('exists') is True
 
-    def test_nonexisting_experiment_property(self):
-        p_id = self._create_participant()
-        resp = self.app.get('/experiment/missing'.format(p_id))
+    def test_nonexisting_experiment_property(self, app, participant_id):
+        resp = app.get('/experiment/missing'.format(participant_id))
         assert resp.status_code == 404
 
-    def test_not_found(self):
-        resp = self.app.get('/BOGUS')
+    def test_not_found(self, app):
+        resp = app.get('/BOGUS')
         assert resp.status_code == 404
 
-    def test_launch(self):
-        resp = self.app.post('/launch', {})
+    def test_launch(self, app):
+        resp = app.post('/launch', {})
         assert resp.status_code == 200
         data = json.loads(resp.get_data())
         assert 'recruitment_url' in data
