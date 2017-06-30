@@ -41,6 +41,15 @@ class TestExperimentServer(object):
         resp = app.post('/node/{}'.format(participant_id))
         return json.loads(resp.data)['node']['id']
 
+    @pytest.fixture
+    def network_id(self, db_session):
+        from dallinger.networks import Network
+        net = Network()
+        db_session.add(net)
+        db_session.commit()
+
+        return net.id
+
     def _update_participant_status(self, participant_id, status):
         from dallinger.models import Participant
         participant = Participant.query.get(participant_id)
@@ -98,6 +107,13 @@ class TestExperimentServer(object):
         assert data.get('status') == 'success'
         assert data.get('participant').get('status') == u'working'
 
+    def test_participant_invalid(self, app, participant_id):
+        nonexistent_participant_id = 999
+        resp = app.get('/participant/{}'.format(nonexistent_participant_id))
+        data = json.loads(resp.data)
+        assert data.get('status') == 'error'
+        assert 'no participant found' in data.get('html')
+
     def test_prevent_duplicate_participant_for_worker(self, app, participant_id):
         worker_id = self.worker_counter
         hit_id = self.hit_counter
@@ -131,6 +147,19 @@ class TestExperimentServer(object):
             ))
             args, _ = mock_recruiter.notify_recruited.call_args
             assert isinstance(args[0], Participant)
+
+    def test_get_network(self, app, network_id):
+        resp = app.get('/network/{}'.format(network_id))
+        data = json.loads(resp.data)
+        assert data.get('status') == 'success'
+        assert data.get('network').get('id') == network_id
+
+    def test_get_network_invalid(self, app):
+        nonexistent_network_id = 999
+        resp = app.get('/network/{}'.format(nonexistent_network_id))
+        data = json.loads(resp.data)
+        assert data.get('status') == 'error'
+        assert 'no network found' in data.get('html')
 
     def test_node_vectors(self, app, node_id):
         resp = app.get('/node/{}/vectors'.format(node_id))
