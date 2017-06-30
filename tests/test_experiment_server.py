@@ -240,6 +240,17 @@ class TestExperimentServer(object):
         data = json.loads(resp.get_data())
         assert 'recruitment_url' in data
 
+    def test_launch_logging_fails(self, app):
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            bad_log = mock.Mock(side_effect=IOError)
+            mock_exp = mock.Mock(log=bad_log)
+            mock_class.return_value = mock_exp
+            resp = app.post('/launch', {})
+
+        assert resp.status_code == 500
+        data = json.loads(resp.get_data())
+        assert 'IOError writing to experiment log' in data['message']
+
 
 @pytest.mark.xfail(reason="TestExperiment class mysteriously None when called via super()")
 @pytest.mark.usefixtures('experiment_dir')

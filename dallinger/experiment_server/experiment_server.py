@@ -224,7 +224,14 @@ def inject_experiment():
 def launch():
     """Launch the experiment."""
     exp = Experiment(db.init_db(drop_all=False))
-    exp.log("Launching experiment...", "-----")
+    try:
+        exp.log("Launching experiment...", "-----")
+    except IOError as ex:
+        return error_response(
+            error_text=u"IOError writing to experiment log: {}".format(ex.message),
+            status=500, simple=True
+        )
+
     try:
         url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
         session.commit()
