@@ -1179,10 +1179,8 @@ class Node(Base, SharedMixin):
                         "a connection to them".format(self, tw))
                 t = Transmission(info=w, vector=vector)
                 transmissions.append(t)
-        if len(transmissions) == 1:
-            return transmissions[0]
-        else:
-            return transmissions
+
+        return transmissions
 
     def _what(self):
         """What to transmit if what is not specified.

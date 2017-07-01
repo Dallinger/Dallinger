@@ -31,6 +31,7 @@ class TestExperimentServer(object):
         self.worker_counter += 1
         self.hit_counter += 1
         self.assignment_counter += 1
+
         resp = app.post('/participant/{}/{}/{}/debug'.format(
             worker_id, hit_id, assignment_id
         ))
@@ -172,6 +173,29 @@ class TestExperimentServer(object):
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('infos') == []
+
+    def test_node_transmit_content_and_no_target_does_nothing(self, app, node_id):
+        resp = app.post('/node/{}/transmit'.format(node_id))
+        data = json.loads(resp.data)
+        assert data['status'] == 'success'
+        assert data['transmissions'] == []
+
+    def test_node_transmit_info_creates_transmission(self, db_session, app, node_id):
+        from dallinger import models
+        node_id_2 = self.node_id(app, self.participant_id(app))
+        node1 = models.Node.query.get(node_id)
+        info = models.Info(origin=node1)
+        db_session.add(info)
+        db_session.commit()
+
+        resp = app.post(
+            '/node/{}/transmit?what={}&to_whom={}'.format(node_id, info.id, node_id_2),
+        )
+        data = json.loads(resp.data)
+        assert data['status'] == 'success'
+        assert len(data['transmissions']) == 1
+        assert data['transmissions'][0]['origin_id'] == node_id
+        assert data['transmissions'][0]['destination_id'] == node_id_2
 
     def test_summary_no_participants(self, app):
         resp = app.get('/summary')
