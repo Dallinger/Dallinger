@@ -1141,19 +1141,19 @@ class Node(Base, SharedMixin):
                 have a not-failed connection with.
         """
         whats = set()
-        for i, what in enumerate(self.flatten([what])):
+        for what in self.flatten([what]):
             if what is None:
-                whats.update(self.infos(type=self._what()))
-            elif inspect.isclass(what) and issubclass(what, Info):
+                what = self._what()
+            if inspect.isclass(what) and issubclass(what, Info):
                 whats.update(self.infos(type=what))
             else:
                 whats.add(what)
 
         to_whoms = set()
-        for i, to_whom in enumerate(self.flatten([to_whom])):
+        for to_whom in self.flatten([to_whom]):
             if to_whom is None:
-                to_whoms.update(self.neighbors(direction="to", type=self._to_whom()))
-            elif inspect.isclass(to_whom) and issubclass(to_whom, Node):
+                to_whom = self._to_whom()
+            if inspect.isclass(to_whom) and issubclass(to_whom, Node):
                 to_whoms.update(self.neighbors(direction="to", type=to_whom))
             else:
                 to_whoms.add(to_whom)
