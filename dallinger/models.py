@@ -1140,44 +1140,36 @@ class Node(Base, SharedMixin):
             (3) to_whom is/contains a node that the transmitting node does not
                 have a not-failed connection with.
         """
-        # make the list of what
-        what = self.flatten([what])
-        for i in range(len(what)):
-            if what[i] is None:
-                what[i] = self._what()
-            elif inspect.isclass(what[i]) and issubclass(what[i], Info):
-                what[i] = self.infos(type=what[i])
-        what = self.flatten(what)
-        for i in range(len(what)):
-            if inspect.isclass(what[i]) and issubclass(what[i], Info):
-                what[i] = self.infos(type=what[i])
-        what = list(set(self.flatten(what)))
+        whats = set()
+        for i, what in enumerate(self.flatten([what])):
+            if what is None:
+                whats.update(self.infos(type=self._what()))
+            elif inspect.isclass(what) and issubclass(what, Info):
+                whats.update(self.infos(type=what))
+            else:
+                whats.add(what)
 
-        # make the list of to_whom
-        to_whom = self.flatten([to_whom])
-        for i in range(len(to_whom)):
-            if to_whom[i] is None:
-                to_whom[i] = self._to_whom()
-            elif inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
-                to_whom[i] = self.neighbors(direction="to", type=to_whom[i])
-        to_whom = self.flatten(to_whom)
-        for i in range(len(to_whom)):
-            if inspect.isclass(to_whom[i]) and issubclass(to_whom[i], Node):
-                to_whom[i] = self.neighbors(direction="to", type=to_whom[i])
-        to_whom = list(set(self.flatten(to_whom)))
+        to_whoms = set()
+        for i, to_whom in enumerate(self.flatten([to_whom])):
+            if to_whom is None:
+                to_whoms.update(self.neighbors(direction="to", type=self._to_whom()))
+            elif inspect.isclass(to_whom) and issubclass(to_whom, Node):
+                to_whoms.update(self.neighbors(direction="to", type=to_whom))
+            else:
+                to_whoms.add(to_whom)
 
         transmissions = []
         vectors = self.vectors(direction="outgoing")
-        for w in what:
-            for tw in to_whom:
+        for what in whats:
+            for to_whom in to_whoms:
                 try:
                     vector = [v for v in vectors
-                              if v.destination_id == tw.id][0]
-                except:
+                              if v.destination_id == to_whom.id][0]
+                except IndexError:
                     raise ValueError(
                         "{} cannot transmit to {} as it does not have "
-                        "a connection to them".format(self, tw))
-                t = Transmission(info=w, vector=vector)
+                        "a connection to them".format(self, to_whom))
+                t = Transmission(info=what, vector=vector)
                 transmissions.append(t)
 
         return transmissions

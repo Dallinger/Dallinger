@@ -510,6 +510,49 @@ class TestModels(object):
         assert transmission.vector == vector
         assert vector.transmissions() == [transmission]
 
+    def test_transmit_none_finds_all_infos(self, db_session):
+        net = models.Network()
+        agent1 = nodes.ReplicatorAgent(network=net)
+        agent2 = nodes.ReplicatorAgent(network=net)
+        agent1.connect(whom=agent2)
+
+        info1 = models.Info(origin=agent1, contents="foo")
+        info2 = models.Info(origin=agent1, contents="bar")
+        self.add(db_session, info1, info2)
+        transmissions = agent1.transmit(what=None, to_whom=agent2)
+
+        assert len(transmissions) == 2
+        for t in transmissions:
+            assert t.origin is agent1
+            assert t.destination is agent2
+
+    def test_transmit_to_class_finds_nodes_in_network(self, db_session):
+        net = models.Network()
+        agent1 = nodes.ReplicatorAgent(network=net)
+        agent2 = nodes.ReplicatorAgent(network=net)
+        agent1.connect(whom=agent2)
+
+        info1 = models.Info(origin=agent1, contents="foo")
+        self.add(db_session, info1)
+        transmissions = agent1.transmit(what=info1, to_whom=nodes.ReplicatorAgent)
+        assert len(transmissions) == 1
+        assert transmissions[0].origin is agent1
+        assert transmissions[0].destination is agent2
+
+    def test_transmit_raises_if_no_connection_to_destination(self, db_session):
+        net1 = models.Network()
+        net2 = models.Network()
+        agent1 = nodes.ReplicatorAgent(network=net1)
+        agent2 = nodes.ReplicatorAgent(network=net2)
+
+        info1 = models.Info(origin=agent1, contents="foo")
+        info2 = models.Info(origin=agent1, contents="bar")
+        self.add(db_session, info1, info2)
+
+        with raises(ValueError) as excinfo:
+            agent1.transmit(what=None, to_whom=agent2)
+            assert excinfo.match('cannot transmit to {}'.format(agent2))
+
     def test_transmission_repr(self, db_session):
         net = models.Network()
         db_session.add(net)
