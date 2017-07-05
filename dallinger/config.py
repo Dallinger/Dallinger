@@ -57,6 +57,7 @@ default_keys = (
     ('num_dynos_web', int, []),
     ('num_dynos_worker', int, []),
     ('organization_name', unicode, []),
+    ('port', int, ['PORT']),
     ('qualification_blacklist', unicode, []),
     ('recruiter', unicode, []),
     ('threads', unicode, []),
