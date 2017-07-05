@@ -32,6 +32,7 @@ default_keys = (
     ('aws_region', unicode, []),
     ('aws_secret_access_key', unicode, [], True),
     ('base_payment', float, []),
+    ('base_port', int, []),
     ('browser_exclude_rule', unicode, []),
     ('clock_on', bool, []),
     ('contact_email_on_error', unicode, []),

@@ -47,7 +47,7 @@ Vagrant.configure("2") do |config|
     # Dallinger install
     python setup.py develop
     dallinger setup
-    echo 'port = 5000' >> ~/.dallingerconfig
+    echo 'base_port = 5000' >> ~/.dallingerconfig
 
     # Heroku CLI installation
     sudo apt-get install software-properties-common

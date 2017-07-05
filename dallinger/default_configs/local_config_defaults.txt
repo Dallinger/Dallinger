@@ -6,7 +6,7 @@ database_url = postgresql://postgres@localhost/dallinger
 
 [Server]
 host = localhost
-port = 5000
+base_port = 5000
 logfile = server.log
 loglevel = 0
 threads = auto

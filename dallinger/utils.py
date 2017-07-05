@@ -11,11 +11,10 @@ def get_base_url():
         base_url = "https://{}".format(host)
     else:
         # debug mode
-        base_port = config.get('port')
+        base_port = config.get('base_port')
         port_range = range(base_port, base_port + config.get('num_dynos_web', 1))
-        base_url = "http://{}:{}".format(
-            host, random.choice(port_range)
-        )
+        base_url = "http://{}:{}".format(host, random.choice(port_range))
+
     return base_url
 
 

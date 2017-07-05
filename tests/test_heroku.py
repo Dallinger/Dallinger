@@ -364,6 +364,13 @@ class TestHerokuLocalWrapper(object):
         with pytest.raises(HerokuTimeoutError):
             heroku.start(timeout_secs=1)
 
+    def test_quits_on_gunicorn_startup_error(self, heroku):
+        from dallinger.heroku.tools import HerokuStartupError
+        heroku.verbose = False  # more coverage
+        heroku._stream = mock.Mock(return_value=['[DONE] Killing all processes'])
+        with pytest.raises(HerokuStartupError):
+            heroku.start()
+
     def test_start_fails_if_stream_ends_without_matching_success_regex(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
         heroku._stream = mock.Mock(
