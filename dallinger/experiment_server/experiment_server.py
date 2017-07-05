@@ -1099,7 +1099,6 @@ def node_transmit(node_id):
     });
     """
     exp = Experiment(session)
-
     what = request_parameter(parameter="what", optional=True)
     to_whom = request_parameter(parameter="to_whom", optional=True)
 
@@ -1107,12 +1106,11 @@ def node_transmit(node_id):
     node = models.Node.query.get(node_id)
     if node is None:
         return error_response(error_type="/node/transmit, node does not exist")
-
     # create what
     if what is not None:
         try:
             what = int(what)
-            what = models.Info.get(what)
+            what = models.Info.query.get(what)
             if what is None:
                 return error_response(
                     error_type="/node/transmit POST, info does not exist",
@@ -1120,26 +1118,28 @@ def node_transmit(node_id):
         except Exception:
             try:
                 what = exp.known_classes[what]
-            except Exception:
+            except KeyError:
+                msg = '/node/transmit POST, {} not in experiment.known_classes'
                 return error_response(
-                    error_type="/node/transmit POST, info does not exist",
+                    error_type=msg.format(what),
                     participant=node.participant)
 
     # create to_whom
     if to_whom is not None:
         try:
             to_whom = int(to_whom)
-            to_whom = models.Node.get(to_whom)
-            if what is None:
+            to_whom = models.Node.query.get(to_whom)
+            if to_whom is None:
                 return error_response(
-                    error_type="/node/transmit POST, info does not exist",
+                    error_type="/node/transmit POST, recipient Node does not exist",
                     participant=node.participant)
         except Exception:
             try:
                 to_whom = exp.known_classes[to_whom]
-            except Exception:
+            except KeyError:
+                msg = '/node/transmit POST, {} not in experiment.known_classes'
                 return error_response(
-                    error_type="/node/transmit POST, info does not exist",
+                    error_type=msg.format(to_whom),
                     participant=node.participant)
 
     # execute the request

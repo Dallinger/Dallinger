@@ -31,6 +31,7 @@ class TestExperimentServer(object):
         self.worker_counter += 1
         self.hit_counter += 1
         self.assignment_counter += 1
+
         resp = app.post('/participant/{}/{}/{}/debug'.format(
             worker_id, hit_id, assignment_id
         ))
@@ -172,6 +173,78 @@ class TestExperimentServer(object):
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('infos') == []
+
+    def test_node_transmit_info_creates_transmission(self, db_session, app, node_id):
+        from dallinger import models
+        node_id_2 = self.node_id(app, self.participant_id(app))
+        node1 = models.Node.query.get(node_id)
+        info = models.Info(origin=node1)
+        db_session.add(info)
+        db_session.commit()
+
+        resp = app.post(
+            '/node/{}/transmit?what={}&to_whom={}'.format(node_id, info.id, node_id_2),
+        )
+        data = json.loads(resp.data)
+        assert data['status'] == 'success'
+        assert len(data['transmissions']) == 1
+        assert data['transmissions'][0]['origin_id'] == node_id
+        assert data['transmissions'][0]['destination_id'] == node_id_2
+
+    def test_node_transmit_nonexistent_sender_returns_error(self, app):
+        nonexistent_node_id = 999
+        resp = app.post('/node/{}/transmit'.format(nonexistent_node_id))
+        data = json.loads(resp.data)
+        assert data['status'] == 'error'
+        assert 'node does not exist' in data['html']
+
+    def test_node_transmit_content_and_no_target_does_nothing(self, app, node_id):
+        resp = app.post('/node/{}/transmit'.format(node_id))
+        data = json.loads(resp.data)
+        assert data['status'] == 'success'
+        assert data['transmissions'] == []
+
+    def test_node_transmit_invalid_info_id_returns_error(self, app, node_id):
+        nonexistent_info_id = 999
+        resp = app.post('/node/{}/transmit?what={}'.format(node_id, nonexistent_info_id))
+        data = json.loads(resp.data)
+        assert data['status'] == 'error'
+        assert 'info does not exist' in data['html']
+
+    def test_node_transmit_invalid_info_subclass_returns_error(self, app, node_id):
+        nonexistent_subclass = 'Nonsense'
+        resp = app.post('/node/{}/transmit?what={}'.format(node_id, nonexistent_subclass))
+        data = json.loads(resp.data)
+        assert data['status'] == 'error'
+        assert 'Nonsense not in experiment.known_classes' in data['html']
+
+    def test_node_transmit_invalid_recipient_subclass_returns_error(self, db_session, app, node_id):
+        from dallinger import models
+        node1 = models.Node.query.get(node_id)
+        info = models.Info(origin=node1)
+        db_session.add(info)
+        db_session.commit()
+        nonexistent_subclass = 'Nonsense'
+        resp = app.post('/node/{}/transmit?what={}&to_whom={}'.format(
+            node_id, info.id, nonexistent_subclass)
+        )
+        data = json.loads(resp.data)
+        assert data['status'] == 'error'
+        assert 'Nonsense not in experiment.known_classes' in data['html']
+
+    def test_node_transmit_invalid_recipient_id_returns_error(self, db_session, app, node_id):
+        from dallinger import models
+        node1 = models.Node.query.get(node_id)
+        info = models.Info(origin=node1)
+        db_session.add(info)
+        db_session.commit()
+        nonexistent_id = 999
+        resp = app.post('/node/{}/transmit?what={}&to_whom={}'.format(
+            node_id, info.id, nonexistent_id)
+        )
+        data = json.loads(resp.data)
+        assert data['status'] == 'error'
+        assert 'recipient Node does not exist' in data['html']
 
     def test_summary_no_participants(self, app):
         resp = app.get('/summary')
