@@ -15,7 +15,7 @@ $(document).ready(function() {
     store.set("mode", getUrlParameter("mode"));
 
     allow_exit();
-    window.location.href = "/instructions/instructions-1";
+    window.location.href = '/instructions';
   });
 
   // Do not consent to the experiment.
@@ -263,46 +263,46 @@ createThenWait = function() {
   });
 };
 
-quorum = 1000000;
-waitForQuorum = function() {
-  // If we haven't gotten the quorum yet, get it. else if (
-  if (quorum >= 1000000 - 1) {
-    getQuorum();
-    // Otherwise, see if we have enough participants to proceed.
-  } else {
-    reqwest({
-      url: "/summary",
-      method: "get",
-      success: function(resp) {
-        summary = resp.summary;
-        n = numReady(resp.summary);
-        percent = Math.round(n / quorum * 100) + "%";
-        $("#waiting-progress-bar").css("width", percent);
-        $("#progress-percentage").text(percent);
-        if (n >= quorum) {
-          allow_exit();
-          go_to_page("exp");
-        }
-      }
-    });
-  }
-  setTimeout(
-    function() {
-      waitForQuorum();
-    },
-    1000
-  );
-};
+// quorum = 1000000;
+// waitForQuorum = function() {
+//   // If we haven't gotten the quorum yet, get it. else if (
+//   if (quorum >= 1000000 - 1) {
+//     getQuorum();
+//     // Otherwise, see if we have enough participants to proceed.
+//   } else {
+//     reqwest({
+//       url: "/summary",
+//       method: "get",
+//       success: function(resp) {
+//         summary = resp.summary;
+//         n = numReady(resp.summary);
+//         percent = Math.round(n / quorum * 100) + "%";
+//         $("#waiting-progress-bar").css("width", percent);
+//         $("#progress-percentage").text(percent);
+//         if (n >= quorum) {
+//           allow_exit();
+//           go_to_page("exp");
+//         }
+//       }
+//     });
+//   }
+//   setTimeout(
+//     function() {
+//       waitForQuorum();
+//     },
+//     1000
+//   );
+// };
 
-getQuorum = function() {
-  reqwest({
-    url: "/experiment/quorum",
-    method: "get",
-    success: function(resp) {
-      quorum = resp.quorum;
-    }
-  });
-};
+// getQuorum = function() {
+//   reqwest({
+//     url: "/experiment/quorum",
+//     method: "get",
+//     success: function(resp) {
+//       quorum = resp.quorum;
+//     }
+//   });
+// };
 
 numReady = function(summary) {
   for (var i = 0; i < summary.length; i++) {
