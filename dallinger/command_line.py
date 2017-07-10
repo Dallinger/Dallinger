@@ -617,6 +617,9 @@ def deploy(verbose, app):
 @click.argument('workers', nargs=-1)
 def qualify(workers, qualification, value, notify):
     """Assign a qualification to 1 or more workers"""
+    if not workers:
+        raise click.BadParameter('Must specify at least one worker ID')
+
     config = get_config()
     config.load()
     mturk = MTurkService(

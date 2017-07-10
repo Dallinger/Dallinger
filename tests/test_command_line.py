@@ -412,6 +412,18 @@ class TestQualify(object):
         )
         mturk.get_workers_with_qualification.assert_called_once_with('some qid')
 
+    def test_raises_with_no_worker(self, qualify, stub_config, mturk):
+        qual_value = 1
+        result = CliRunner().invoke(
+            qualify,
+            [
+                '--qualification', 'some qid',
+                '--value', qual_value,
+            ]
+        )
+        assert result.exit_code != 0
+        assert 'Must specify at least one worker ID' in result.output
+
     def test_can_elect_to_notify_worker(self, qualify, stub_config, mturk):
         qual_value = 1
         result = CliRunner().invoke(
