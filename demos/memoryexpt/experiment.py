@@ -17,7 +17,7 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         """Initialize the experiment."""
         super(CoordinationChatroom, self).__init__(session)
         self.experiment_repeats = 1
-        self.num_participants = 6 #55 #55 #140 below
+        self.num_participants = 3 #55 #55 #140 below
         self.initial_recruitment_size = self.num_participants * 1 #note: can't do *2.5 here, won't run even if the end result is an integer
         self.quorum = self.num_participants
         self.setup()
@@ -70,6 +70,8 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         node.receive()  # new node receives everything
 
         all_edges = []
+
+        all_edges = [(0,1), (0,2), (1,2)] # TEMPORARY
 
         # here are all the edges that need to be connected
         # BABY_NETWORK:
