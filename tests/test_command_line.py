@@ -422,7 +422,7 @@ class TestQualify(object):
             ]
         )
         assert result.exit_code != 0
-        assert 'Must specify at least one worker ID' in result.output
+        assert 'at least one worker ID' in result.output
 
     def test_can_elect_to_notify_worker(self, qualify, stub_config, mturk):
         qual_value = 1
