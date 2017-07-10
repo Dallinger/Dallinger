@@ -611,28 +611,29 @@ def deploy(verbose, app):
 
 
 @dallinger.command()
+@click.argument('workers', nargs=-1)
 @click.option('--qualification')
 @click.option('--value')
-@click.option('--worker')
-def qualify(qualification, value, worker):
+@click.option('--notify', is_flag=True, flag_value=True, help='Notify worker by email')
+def qualify(workers, qualification, value, notify):
     """Assign a qualification to a worker."""
     config = get_config()
     config.load()
     mturk = MTurkService(
         aws_access_key_id=config.get('aws_access_key_id'),
         aws_secret_access_key=config.get('aws_secret_access_key'),
-        sandbox=(config.get('mode') == "sandbox"),
+        sandbox=config.get('mode', 'sandbox') == "sandbox",
     )
 
     click.echo(
-        "Assigning qualification {} with value {} to worker {}".format(
+        "Assigning qualification {} with value {} to {} workers...".format(
             qualification,
             value,
-            worker)
+            len(workers))
     )
-
-    if mturk.set_qualification_score(qualification, worker, value, notify=True):
-        click.echo('OK')
+    for worker in workers:
+        if mturk.set_qualification_score(qualification, worker, value, notify=notify):
+            click.echo('{} OK'.format(worker))
 
     # print out the current set of workers with the qualification
     results = list(mturk.get_workers_with_qualification(qualification))
