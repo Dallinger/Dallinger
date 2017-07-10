@@ -401,9 +401,9 @@ class TestQualify(object):
         result = CliRunner().invoke(
             qualify,
             [
-                'some worker id',
                 '--qualification', 'some qid',
                 '--value', qual_value,
+                'some worker id',
             ]
         )
         assert result.exit_code == 0
@@ -417,10 +417,10 @@ class TestQualify(object):
         result = CliRunner().invoke(
             qualify,
             [
-                'some worker id',
                 '--qualification', 'some qid',
                 '--value', qual_value,
-                '--notify'
+                '--notify',
+                'some worker id',
             ]
         )
         assert result.exit_code == 0
@@ -433,13 +433,12 @@ class TestQualify(object):
         result = CliRunner().invoke(
             qualify,
             [
-                'worker1', 'worker2',
                 '--qualification', 'some qid',
                 '--value', qual_value,
+                'worker1', 'worker2',
             ]
         )
         assert result.exit_code == 0
-        assert 'worker1 OK\nworker2 OK' in result.output
         mturk.set_qualification_score.assert_has_calls([
             mock.call(u'some qid', u'worker1', 1, notify=False),
             mock.call(u'some qid', u'worker2', 1, notify=False)

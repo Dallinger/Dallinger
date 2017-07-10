@@ -611,12 +611,12 @@ def deploy(verbose, app):
 
 
 @dallinger.command()
-@click.argument('workers', nargs=-1)
 @click.option('--qualification')
 @click.option('--value')
 @click.option('--notify', is_flag=True, flag_value=True, help='Notify worker by email')
+@click.argument('workers', nargs=-1)
 def qualify(workers, qualification, value, notify):
-    """Assign a qualification to a worker."""
+    """Assign a qualification to 1 or more workers"""
     config = get_config()
     config.load()
     mturk = MTurkService(
@@ -626,10 +626,11 @@ def qualify(workers, qualification, value, notify):
     )
 
     click.echo(
-        "Assigning qualification {} with value {} to {} workers...".format(
+        "Assigning qualification {} with value {} to {} worker{}...".format(
             qualification,
             value,
-            len(workers))
+            len(workers),
+            's' if len(workers) > 1 else '')
     )
     for worker in workers:
         if mturk.set_qualification_score(qualification, worker, value, notify=notify):
