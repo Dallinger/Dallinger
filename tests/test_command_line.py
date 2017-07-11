@@ -455,3 +455,36 @@ class TestQualify(object):
             mock.call(u'some qid', u'worker1', 1, notify=False),
             mock.call(u'some qid', u'worker2', 1, notify=False)
         ])
+
+    def test_use_qualification_name(self, qualify, stub_config, mturk):
+        qual_value = 1
+        mturk.get_qualification_type_by_name.return_value = {'id': 'some qid'}
+        result = CliRunner().invoke(
+            qualify,
+            [
+                '--qualification', 'some qual name',
+                '--value', qual_value,
+                '--by_name',
+                'some worker id',
+            ]
+        )
+        assert result.exit_code == 0
+        mturk.set_qualification_score.assert_called_once_with(
+            'some qid', 'some worker id', qual_value, notify=False
+        )
+        mturk.get_workers_with_qualification.assert_called_once_with('some qid')
+
+    def test_use_qualification_name_with_bad_name(self, qualify, stub_config, mturk):
+        qual_value = 1
+        mturk.get_qualification_type_by_name.return_value = None
+        result = CliRunner().invoke(
+            qualify,
+            [
+                '--qualification', 'some qual name',
+                '--value', qual_value,
+                '--by_name',
+                'some worker id',
+            ]
+        )
+        assert result.exit_code == 2
+        assert 'No qualification with name "some qual name" exists.' in result.output
