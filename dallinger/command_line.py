@@ -613,7 +613,8 @@ def deploy(verbose, app):
 @dallinger.command()
 @click.option('--qualification')
 @click.option('--value')
-@click.option('--by_name', is_flag=True, flag_value=True, help='Use a qualification name, not an ID')
+@click.option('--by_name', is_flag=True, flag_value=True,
+              help='Use a qualification name, not an ID')
 @click.option('--notify', is_flag=True, flag_value=True, help='Notify worker by email')
 @click.argument('workers', nargs=-1)
 def qualify(workers, qualification, value, by_name, notify):
