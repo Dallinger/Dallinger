@@ -616,8 +616,9 @@ def deploy(verbose, app):
 @click.option('--by_name', is_flag=True, flag_value=True,
               help='Use a qualification name, not an ID')
 @click.option('--notify', is_flag=True, flag_value=True, help='Notify worker by email')
+@click.option('--sandbox', is_flag=True, flag_value=True, help='Use the MTurk sandbox')
 @click.argument('workers', nargs=-1)
-def qualify(workers, qualification, value, by_name, notify):
+def qualify(workers, qualification, value, by_name, notify, sandbox):
     """Assign a qualification to 1 or more workers"""
     if not (workers and qualification and value):
         raise click.BadParameter(
@@ -629,7 +630,7 @@ def qualify(workers, qualification, value, by_name, notify):
     mturk = MTurkService(
         aws_access_key_id=config.get('aws_access_key_id'),
         aws_secret_access_key=config.get('aws_secret_access_key'),
-        sandbox=config.get('mode', 'sandbox') == "sandbox",
+        sandbox=sandbox,
     )
     if by_name:
         result = mturk.get_qualification_type_by_name(qualification)
@@ -642,7 +643,7 @@ def qualify(workers, qualification, value, by_name, notify):
         qid = qualification
 
     click.echo(
-        "Assigning qualification {} with value {} to {} worker {}...".format(
+        "Assigning qualification {} with value {} to {} worker{}...".format(
             qid,
             value,
             len(workers),

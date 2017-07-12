@@ -412,6 +412,21 @@ class TestQualify(object):
         )
         mturk.get_workers_with_qualification.assert_called_once_with('some qid')
 
+    def test_uses_mturk_sandbox_if_specified(self, qualify, stub_config):
+        qual_value = 1
+        with mock.patch('dallinger.command_line.MTurkService') as mock_mturk:
+            mock_mturk.return_value = mock.Mock()
+            CliRunner().invoke(
+                qualify,
+                [
+                    '--sandbox',
+                    '--qualification', 'some qid',
+                    '--value', qual_value,
+                    'some worker id',
+                ]
+            )
+            assert 'sandbox=True' in str(mock_mturk.call_args_list[0])
+
     def test_raises_with_no_worker(self, qualify, stub_config, mturk):
         qual_value = 1
         result = CliRunner().invoke(
