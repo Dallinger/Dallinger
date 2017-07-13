@@ -22,17 +22,6 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         self.quorum = self.num_participants
         self.setup()
 
-    def recruit(self):
-        """Recruit one participant at a time until all networks are full."""
-        pass
-
-    def recruit(self):
-        """Recruit one participant at a time until all networks are full."""
-        if self.networks(full=False):
-            self.recruiter().recruit(n=1)
-        else:
-            self.recruiter().close_recruitment()
-
     def setup(self):
         """Setup the networks.
 
@@ -221,39 +210,14 @@ class FreeRecallListSource(Source):
 
     def _contents(self):
         """Define the contents of new Infos.
-
         transmit() -> _what() -> create_information() -> _contents().
         """
 
-        # randomly shuffles categories, randomly shuffles words in categories,
-        # but presents lists by categories
-
-        # load in the wordlists
-        #wordlist = [
-        #    "animals.md",
-        #    "dwelling.md",
-        #    "earth.md",
-        #    "gardener.md",
-        #    "profession.md",
-        #    "reading.md"
-        #]
-        #full_wordlist = []
-
-        #categ = list(range(6))  # walk through categories
-        #random.shuffle(categ)
-        #for x in categ:  # categories are randomly shuffled
-        #    with open("static/stimuli/{}".format(wordlist[x]), "r") as f:
-        #        wordlist_temp = f.read().splitlines()
-        #        random.shuffle(wordlist_temp)  # words within categories are randomly shuffled
-        #    full_wordlist.extend(wordlist_temp)  # add on words to the end
-        #return json.dumps(full_wordlist)
-
         # shuffles all words
-
-        #wordlist = "60words.md" #random.choice(wordlists)
-        wordlist = "groupwordlist.md"
+        wordlist = "60words.md" 
+        #wordlist = "groupwordlist.md"
         with open("static/stimuli/{}".format(wordlist), "r") as f:
             wordlist = f.read().splitlines()
-            return json.dumps(random.sample(wordlist,60))
+            return json.dumps(random.sample(wordlist,5))
         #    random.shuffle(wordlist)
         #    return json.dumps(wordlist)

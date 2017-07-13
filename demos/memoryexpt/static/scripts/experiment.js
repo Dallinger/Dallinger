@@ -138,14 +138,12 @@ get_transmissions = function() {
       for (var i = transmissions.length - 1; i >= 0; i--) {
         displayInfo(transmissions[i].info_id);
       }
+      setTimeout(function () { get_transmissions(my_node_id); }, 100);
     },
-    complete: function(err) {
-      setTimeout(
-        function() {
-          get_transmissions();
-        },
-        1000
-      );
+    error: function (err) {
+      console.log(err);
+      errorResponse = JSON.parse(err.response);
+      $("body").html(errorResponse.html);
     }
   });
 };
@@ -162,6 +160,10 @@ displayInfo = function(infoId) {
         uniqueWords.push(word);
         $("#reply").append("<p>" + word + "</p>");
       }
+    },
+    error: function (err) {
+      errorResponse = JSON.parse(err.response);
+      $("body").html(errorResponse.html);
     }
   });
 };
@@ -218,16 +220,3 @@ $(document).keypress(function(e) {
     return false;
   }
 });
-
-numReady = function(summary) {
-  for (var i = 0; i < summary.length; i++) {
-    if (summary[i][0] == "working") {
-      return summary[i][1];
-    }
-  }
-};
-
-// hack for Dallinger 2.0
-submitResponses = function() {
-  submitNextResponse(0);
-};
