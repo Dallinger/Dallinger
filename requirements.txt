@@ -9,7 +9,7 @@ gevent==1.2.1
 greenlet==0.4.12
 gunicorn==19.7.1
 localconfig==0.4.2
-pexpect==4.2.1
+-e git+git://github.com/MatthewWilkes/pexpect.git@jupyter-compatibility#egg=pexpect
 psycopg2==2.7.1
 redis==2.10.5
 requests==2.13.0

@@ -24,7 +24,7 @@ def auth_token():
 
 def log_in():
     """Ensure that the user is logged in to Heroku."""
-    p = pexpect.spawn("heroku auth:whoami")
+    p = pexpect.pty_spawn.jupyter_spawn("heroku auth:whoami")
     p.interact()
 
 
