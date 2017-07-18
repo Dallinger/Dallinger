@@ -396,4 +396,3 @@ class TestMTurkLargeRecruiter(object):
             duration_hours=1.0,
             number=6
         )
-

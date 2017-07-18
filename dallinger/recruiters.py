@@ -266,6 +266,7 @@ class MTurkRecruiter(Recruiter):
             except DuplicateQualificationNameError:
                 pass
 
+
 class MTurkLargeRecruiter(MTurkRecruiter):
     def __init__(self, *args, **kwargs):
         conn.set('num_recruited', 0)
@@ -292,7 +293,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
             else:
                 to_recruit = 0
         else:
-             conn.incr('num_recruited', n)
+            conn.incr('num_recruited', n)
         if to_recruit:
             return super(MTurkLargeRecruiter, self).recruit(to_recruit)
 
