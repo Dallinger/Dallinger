@@ -4,6 +4,7 @@ from datetime import datetime
 import gevent
 from json import dumps
 from operator import attrgetter
+import os
 import re
 import sys
 import user_agents
@@ -212,9 +213,12 @@ def shutdown_session(_=None):
 
 @app.context_processor
 def inject_experiment():
-    """Inject the experiment variable into the template context."""
+    """Inject experiment and enviroment variables into the template context."""
     exp = Experiment(session)
-    return dict(experiment=exp)
+    return dict(
+        experiment=exp,
+        env=os.environ,
+    )
 
 
 """Define routes for managing an experiment and the participants."""
