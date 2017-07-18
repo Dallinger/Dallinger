@@ -66,6 +66,7 @@ default_keys = (
     ('webdriver_type', unicode, []),
     ('webdriver_url', unicode, []),
     ('whimsical', bool, []),
+    ('sentry', bool, []),
 )
 
 
