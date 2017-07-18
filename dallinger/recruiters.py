@@ -279,7 +279,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         to_recruit = max(n, 10)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
-    def recruit_participants(self, n=1):
+    def recruit(self, n=1):
         if not self.config.get('auto_recruit', False):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
@@ -294,7 +294,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         else:
              conn.incr('num_recruited', n)
         if to_recruit:
-            return super(MTurkLargeRecruiter, self).recruit_participants(to_recruit)
+            return super(MTurkLargeRecruiter, self).recruit(to_recruit)
 
 
 class BotRecruiter(Recruiter):
