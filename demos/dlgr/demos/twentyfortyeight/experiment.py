@@ -8,7 +8,7 @@ def extra_parameters():
     config.register('n', int)
 
 
-class TwentyFortyEight(dallinger.experiments.Experiment):
+class TwentyFortyEight(dallinger.experiment.Experiment):
     """Define the structure of the experiment."""
 
     def __init__(self, session=None):

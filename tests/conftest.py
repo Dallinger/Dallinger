@@ -33,7 +33,7 @@ def experiment_dir(root):
 
 @pytest.fixture(scope="class")
 def bartlett_dir(root):
-    os.chdir('demos/bartlett1932')
+    os.chdir('demos/dlgr/demos/bartlett1932')
     yield
     cwd(root)
 

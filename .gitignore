@@ -10,6 +10,7 @@
 *.db-journal
 demos/*/data/*
 demos/*/snapshots/*
+docs/source/demos
 docs/source/_static/*.zip
 .env
 .tox
@@ -21,7 +22,6 @@ dist/*
 src/*
 _build/*
 docs/build
-docs/source/demos
 .DS_Store
 README.rst
 .netrc

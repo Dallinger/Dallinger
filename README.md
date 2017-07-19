@@ -14,7 +14,6 @@ Features
 --------
 - Performs laboratory automation for the behavioral and social sciences
 - Coordinates participant recruitment using Mechanical Turk
-- Includes demos of common experimental paradigms
 
 Install
 -------
@@ -23,6 +22,10 @@ To install Dallinger, see [the instructions](http://dallinger.readthedocs.io/).
 Documentation
 -------------
 Documentation is available on the [documentation website](http://dallinger.readthedocs.io/).
+
+Demos
+-----
+Demonstration experiments are distributed separately in the `dlgr.demos` package.
 
 Contribute
 ----------

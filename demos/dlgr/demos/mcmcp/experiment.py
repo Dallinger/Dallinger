@@ -1,7 +1,7 @@
 """Monte Carlo Markov Chains with people."""
 
 from dallinger.networks import Chain
-from dallinger.experiments import Experiment
+from dallinger.experiment import Experiment
 from dallinger import db
 import random
 from flask import Blueprint, Response

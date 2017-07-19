@@ -9,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from dallinger.bots import BotBase
 from dallinger.networks import Chain
-from dallinger.experiments import Experiment
+from dallinger.experiment import Experiment
 
 
 logger = logging.getLogger(__file__)
