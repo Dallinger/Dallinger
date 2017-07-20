@@ -1,3 +1,5 @@
+/*globals Spinner, reqwest, store */
+
 // load essential variables
 var getUrlParameter = function getUrlParameter(sParam) {
     var sPageURL = decodeURIComponent(window.location.search.substring(1)),
@@ -13,6 +15,7 @@ var getUrlParameter = function getUrlParameter(sParam) {
         }
     }
 };
+
 
 var Dallinger = (function () {
   var dlgr = {};
@@ -36,6 +39,55 @@ var Dallinger = (function () {
       success: callback,
     });
   };
+
+
+  dlgr.BusyForm = (function () {
+
+    /**
+    Loads a spinner as a visual cue that something is happening
+    and disables any jQuery objects passed to freeze().
+    **/
+
+    var defaults = {
+      spinnerSettings: {scale: 3}, // See http://spin.js.org/ for all settings
+      spinnerID: 'spinner',  // ID for HTML element where spinner will be inserted
+    };
+
+    var BusyForm = function (options) {
+      if (!(this instanceof BusyForm)) {
+          return new BusyForm(options);
+      }
+      var settings = $.extend(true, {}, defaults, options);
+      this.spinner = new Spinner(settings.spinnerSettings);
+      this.target = document.getElementById(settings.spinnerID);
+      if (this.target === null) {
+        throw new Error(
+          'Target HTML element for spinner with ID "' + settings.spinnerID +
+          '" does not exist.');
+      }
+      this.$elements = [];
+    };
+
+    BusyForm.prototype.freeze = function ($elements) {
+      this.$elements = $elements;
+      this.$elements.forEach(function ($element) {
+        $element.attr("disabled", true);
+      });
+      this.spinner.spin(this.target);
+    };
+
+    BusyForm.prototype.unfreeze = function () {
+      this.$elements.forEach(function ($element) {
+        $element.attr("disabled", false);
+      });
+      this.spinner.stop();
+      this.$elements = [];
+    };
+
+
+    return BusyForm;
+  }());
+
   return dlgr;
 })();
 
