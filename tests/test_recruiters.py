@@ -396,3 +396,11 @@ class TestMTurkLargeRecruiter(object):
             duration_hours=1.0,
             number=6
         )
+
+    def test_recruit_auto_recruit_off_does_not_extend_hit(self, recruiter):
+        recruiter.config['auto_recruit'] = False
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.recruit()
+
+        assert not recruiter.mturkservice.extend_hit.called
