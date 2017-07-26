@@ -7,6 +7,7 @@ import pytest
 import subprocess
 import sys
 from uuid import UUID
+from click.testing import CliRunner
 from ConfigParser import NoOptionError, SafeConfigParser
 
 import pexpect
@@ -376,3 +377,129 @@ class TestHeader(object):
     def test_header_contains_version_number(self):
         # Make sure header contains the version number.
         assert dallinger.version.__version__ in dallinger.command_line.header
+
+
+class TestQualify(object):
+
+    @pytest.fixture
+    def qualify(self):
+        from dallinger.command_line import qualify
+        return qualify
+
+    @pytest.fixture
+    def mturk(self):
+        with mock.patch('dallinger.command_line.MTurkService') as mock_mturk:
+            mock_results = [{'id': 'some qid', 'score': 1}]
+            mock_instance = mock.Mock()
+            mock_instance.get_workers_with_qualification.return_value = mock_results
+            mock_mturk.return_value = mock_instance
+
+            yield mock_instance
+
+    def test_qualify_single_worker(self, qualify, stub_config, mturk):
+        qual_value = 1
+        result = CliRunner().invoke(
+            qualify,
+            [
+                '--qualification', 'some qid',
+                '--value', qual_value,
+                'some worker id',
+            ]
+        )
+        assert result.exit_code == 0
+        mturk.set_qualification_score.assert_called_once_with(
+            'some qid', 'some worker id', qual_value, notify=False
+        )
+        mturk.get_workers_with_qualification.assert_called_once_with('some qid')
+
+    def test_uses_mturk_sandbox_if_specified(self, qualify, stub_config):
+        qual_value = 1
+        with mock.patch('dallinger.command_line.MTurkService') as mock_mturk:
+            mock_mturk.return_value = mock.Mock()
+            CliRunner().invoke(
+                qualify,
+                [
+                    '--sandbox',
+                    '--qualification', 'some qid',
+                    '--value', qual_value,
+                    'some worker id',
+                ]
+            )
+            assert 'sandbox=True' in str(mock_mturk.call_args_list[0])
+
+    def test_raises_with_no_worker(self, qualify, stub_config, mturk):
+        qual_value = 1
+        result = CliRunner().invoke(
+            qualify,
+            [
+                '--qualification', 'some qid',
+                '--value', qual_value,
+            ]
+        )
+        assert result.exit_code != 0
+        assert 'at least one worker ID' in result.output
+
+    def test_can_elect_to_notify_worker(self, qualify, stub_config, mturk):
+        qual_value = 1
+        result = CliRunner().invoke(
+            qualify,
+            [
+                '--qualification', 'some qid',
+                '--value', qual_value,
+                '--notify',
+                'some worker id',
+            ]
+        )
+        assert result.exit_code == 0
+        mturk.set_qualification_score.assert_called_once_with(
+            'some qid', 'some worker id', qual_value, notify=True
+        )
+
+    def test_qualify_multiple_workers(self, qualify, stub_config, mturk):
+        qual_value = 1
+        result = CliRunner().invoke(
+            qualify,
+            [
+                '--qualification', 'some qid',
+                '--value', qual_value,
+                'worker1', 'worker2',
+            ]
+        )
+        assert result.exit_code == 0
+        mturk.set_qualification_score.assert_has_calls([
+            mock.call(u'some qid', u'worker1', 1, notify=False),
+            mock.call(u'some qid', u'worker2', 1, notify=False)
+        ])
+
+    def test_use_qualification_name(self, qualify, stub_config, mturk):
+        qual_value = 1
+        mturk.get_qualification_type_by_name.return_value = {'id': 'some qid'}
+        result = CliRunner().invoke(
+            qualify,
+            [
+                '--qualification', 'some qual name',
+                '--value', qual_value,
+                '--by_name',
+                'some worker id',
+            ]
+        )
+        assert result.exit_code == 0
+        mturk.set_qualification_score.assert_called_once_with(
+            'some qid', 'some worker id', qual_value, notify=False
+        )
+        mturk.get_workers_with_qualification.assert_called_once_with('some qid')
+
+    def test_use_qualification_name_with_bad_name(self, qualify, stub_config, mturk):
+        qual_value = 1
+        mturk.get_qualification_type_by_name.return_value = None
+        result = CliRunner().invoke(
+            qualify,
+            [
+                '--qualification', 'some qual name',
+                '--value', qual_value,
+                '--by_name',
+                'some worker id',
+            ]
+        )
+        assert result.exit_code == 2
+        assert 'No qualification with name "some qual name" exists.' in result.output

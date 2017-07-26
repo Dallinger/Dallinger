@@ -613,33 +613,52 @@ def deploy(verbose, app):
 @dallinger.command()
 @click.option('--qualification')
 @click.option('--value')
-@click.option('--worker')
-def qualify(qualification, value, worker):
-    """Assign a qualification to a worker."""
+@click.option('--by_name', is_flag=True, flag_value=True,
+              help='Use a qualification name, not an ID')
+@click.option('--notify', is_flag=True, flag_value=True, help='Notify worker by email')
+@click.option('--sandbox', is_flag=True, flag_value=True, help='Use the MTurk sandbox')
+@click.argument('workers', nargs=-1)
+def qualify(workers, qualification, value, by_name, notify, sandbox):
+    """Assign a qualification to 1 or more workers"""
+    if not (workers and qualification and value):
+        raise click.BadParameter(
+            'Must specify a qualification ID, value/score, and at least one worker ID'
+        )
+
     config = get_config()
     config.load()
     mturk = MTurkService(
         aws_access_key_id=config.get('aws_access_key_id'),
         aws_secret_access_key=config.get('aws_secret_access_key'),
-        sandbox=(config.get('mode') == "sandbox"),
+        sandbox=sandbox,
     )
+    if by_name:
+        result = mturk.get_qualification_type_by_name(qualification)
+        if result is None:
+            raise click.BadParameter(
+                'No qualification with name "{}" exists.'.format(qualification))
+
+        qid = result['id']
+    else:
+        qid = qualification
 
     click.echo(
-        "Assigning qualification {} with value {} to worker {}".format(
-            qualification,
+        "Assigning qualification {} with value {} to {} worker{}...".format(
+            qid,
             value,
-            worker)
+            len(workers),
+            's' if len(workers) > 1 else '')
     )
-
-    if mturk.set_qualification_score(qualification, worker, value, notify=True):
-        click.echo('OK')
+    for worker in workers:
+        if mturk.set_qualification_score(qid, worker, value, notify=notify):
+            click.echo('{} OK'.format(worker))
 
     # print out the current set of workers with the qualification
-    results = list(mturk.get_workers_with_qualification(qualification))
+    results = list(mturk.get_workers_with_qualification(qid))
 
     click.echo("{} workers with qualification {}:".format(
         len(results),
-        qualification))
+        qid))
 
     for score, count in Counter([r['score'] for r in results]).items():
         click.echo("{} with value {}".format(count, score))
