@@ -133,6 +133,7 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("static", "scripts", "dallinger.js"), dst)
         assert found_in(os.path.join("static", "scripts", "reconnecting-websocket.js"), dst)
         assert found_in(os.path.join("static", "scripts", "reqwest.min.js"), dst)
+        assert found_in(os.path.join("static", "scripts", "spin.min.js"), dst)
         assert found_in(os.path.join("static", "robots.txt"), dst)
         assert found_in(os.path.join("templates", "error.html"), dst)
         assert found_in(os.path.join("templates", "launch.html"), dst)
