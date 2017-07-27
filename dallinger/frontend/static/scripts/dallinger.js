@@ -49,7 +49,7 @@ var Dallinger = (function () {
     **/
 
     var defaults = {
-      spinnerSettings: {scale: 3}, // See http://spin.js.org/ for all settings
+      spinnerSettings: {scale: 1.5}, // See http://spin.js.org/ for all settings
       spinnerID: 'spinner',  // ID for HTML element where spinner will be inserted
     };
 
