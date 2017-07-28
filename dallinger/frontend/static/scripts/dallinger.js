@@ -18,26 +18,38 @@ var getUrlParameter = function getUrlParameter(sParam) {
 
 
 var Dallinger = (function () {
-  var dlgr = {};
+  var dlgr = {},
+      participantId = getUrlParameter("participant_id");
 
-  participantId = getUrlParameter("participant_id");
+  dlgr.submitQuestionnaire = function (name) {
+    var formSerialized = $("form").serializeArray(),
+        formDict = {},
+        deferred = $.Deferred();
 
-  dlgr.submitQuestionnaire = function (name, callback) {
-    formSerialized = $("form").serializeArray();
-    var formDict = {};
     formSerialized.forEach(function (field) {
         formDict[field.name] = field.value;
     });
-    $.ajax({
-      type: "POST",
+
+    reqwest({
+      method: "post",
       url: "/question/" + participantId,
       data: {
         question: name || "questionnaire",
         number: 1,
         response: JSON.stringify(formDict),
       },
-      success: callback,
+      type: "json",
+      success: function (resp) {
+        deferred.resolve();
+      },
+      error: function (err) {
+        deferred.reject();
+        var errorResponse = JSON.parse(err.response);
+        $("body").html(errorResponse.html);
+      }
     });
+
+    return deferred;
   };
 
 
@@ -125,6 +137,7 @@ var go_to_page = function(page) {
 
 // report assignment complete
 var submitAssignment = function() {
+    var deferred = $.Deferred();
     reqwest({
         url: "/participant/" + participant_id,
         method: "get",
@@ -143,10 +156,12 @@ var submitAssignment = function() {
                     "uniqueId": worker_id + ":" + assignment_id
                 },
                 success: function (resp) {
+                    deferred.resolve();
                     allow_exit();
                     window.location = "/complete";
                 },
                 error: function (err) {
+                    deferred.reject();
                     console.log(err);
                     var errorResponse = JSON.parse(err.response);
                     $("body").html(errorResponse.html);
@@ -154,10 +169,11 @@ var submitAssignment = function() {
             });
         }
     });
+    return deferred;
 };
 
 var submit_assignment = function () {
-    submitAssignment();
+    return submitAssignment();
 };
 
 // make a new participant
