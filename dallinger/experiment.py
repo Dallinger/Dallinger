@@ -46,7 +46,7 @@ def exp_class_working_dir(meth):
             config.load_from_file(LOCAL_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
-            config._reset()
+            config.clear()
             os.chdir(orig_path)
     return new_meth
 
