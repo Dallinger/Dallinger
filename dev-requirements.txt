@@ -2,7 +2,7 @@ alabaster==0.7.9
 coverage==4.4.1
 coverage_pth==0.0.1
 codecov==2.0.9
-flake8==3.2.1
+flake8==3.4.1
 mock==2.0.0
 pypandoc==1.4
 pytest==3.1.3
