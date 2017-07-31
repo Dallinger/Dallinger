@@ -9,7 +9,7 @@ def extra_parameters():
     config.register('num_participants', int)
 
 
-class ConcentrationGame(dallinger.experiments.Experiment):
+class ConcentrationGame(dallinger.experiment.Experiment):
     """Define the structure of the experiment."""
 
     def __init__(self, session=None):

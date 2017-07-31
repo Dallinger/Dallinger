@@ -9,10 +9,10 @@ class TestExamples(object):
 
     def setup(self):
         """Set up the environment by resetting the tables."""
-        os.chdir("demos")
+        os.chdir(os.path.join("demos", "dlgr", "demos"))
 
     def teardown(self):
-        os.chdir("..")
+        os.chdir(os.path.join("..", "..", ".."))
 
     def verify_demo(self, demo):
         os.chdir(demo)
@@ -24,4 +24,4 @@ class TestExamples(object):
         self.verify_demo("bartlett1932")
 
     def test_verify_demo_function_learning(self):
-        self.verify_demo("function-learning")
+        self.verify_demo("function_learning")

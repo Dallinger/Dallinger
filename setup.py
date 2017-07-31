@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup_args = dict(
     name='dallinger',
-    packages=['dallinger', 'demos'],
+    packages=['dallinger'],
     version="3.3.0",
     description='Laboratory automation for the behavioral and social sciences',
     url='http://github.com/Dallinger/Dallinger',
@@ -27,9 +27,7 @@ setup_args = dict(
         'console_scripts': [
             'dallinger = dallinger.command_line:dallinger',
         ],
-        'dallinger.experiments': [
-            'Bartlett1932 = demos.bartlett1932.experiment:Bartlett1932',
-        ],
+        'dallinger.experiments': [],
     },
     extras_require={
         'data': [

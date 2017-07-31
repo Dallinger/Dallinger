@@ -2,7 +2,7 @@
 
 import random
 
-from dallinger.experiments import Experiment
+from dallinger.experiment import Experiment
 from dallinger.information import Meme
 from dallinger.models import Network
 from dallinger.models import Node

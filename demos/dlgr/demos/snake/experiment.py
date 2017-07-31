@@ -8,7 +8,7 @@ def extra_parameters():
     config.register('n', int)
 
 
-class SnakeGame(dlgr.experiments.Experiment):
+class SnakeGame(dlgr.experiment.Experiment):
     """Define the structure of the experiment."""
 
     def __init__(self, session=None):
