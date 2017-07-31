@@ -7,6 +7,7 @@ from pytest import raises
 import pexpect
 
 from dallinger.config import Configuration
+from dallinger.config import get_config, LOCAL_CONFIG
 
 
 class TestConfiguration(object):
@@ -170,4 +171,18 @@ worldwide = false
         finally:
             python.sendcontrol('d')
             python.read()
+            os.chdir('../..')
+
+    def test_reload_config(self):
+        # replicate the experiment API runner config loading
+        config = get_config()
+        os.chdir('tests/experiment')
+        try:
+            config.register_extra_parameters()
+            config.load_from_file(LOCAL_CONFIG)
+            # Failse with _reset()
+            config.clear()
+            config.register_extra_parameters()
+            config.load_from_file(LOCAL_CONFIG)
+        finally:
             os.chdir('../..')
