@@ -483,6 +483,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         ["heroku", "addons:create", "heroku-redis:premium-0"],
         ["heroku", "addons:create", "papertrail"],
     ]
+
+    if config["sentry"]:
+        cmds.append(["heroku", "addons:create", "sentry"])
+
     for cmd in cmds:
         subprocess.check_call(cmd + ["--app", app_name(id)], stdout=out)
 
