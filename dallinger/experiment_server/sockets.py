@@ -108,6 +108,7 @@ def chat(ws):
     """
     # Subscribe to messages on the specified channel.
     channel = request.args.get('channel')
+    lag_tolerance_secs = float(request.args.get('tolerance', 0.1))
     chat_backend.subscribe(ws, channel)
 
     # Send heartbeat ping every 30s
@@ -116,7 +117,7 @@ def chat(ws):
 
     while not ws.closed:
         # Sleep to prevent *constant* context-switches.
-        gevent.sleep(0.1)
+        gevent.sleep(lag_tolerance_secs)
 
         # Publish messages from client
         message = ws.receive()
