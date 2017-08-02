@@ -155,6 +155,22 @@ NB: To stop working on the virtual environment, run ``deactivate``. To
 list all available virtual environments, run ``workon`` with no
 arguments.
 
+If you plan to do a lot of work with Dallinger, you can make your shell
+execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
+do that, assuming you use a Linux compatible system, type:
+
+::
+
+    echo "source $(which virtualenvwrapper.sh)" >> ~/.bashrc
+
+I you use Mac OsX, type this instead:
+
+::
+
+    echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
+
+From then on, you only need to use the ``workon`` command before starting.
+
 Install prerequisites for building documentation
 ------------------------------------------------
 
