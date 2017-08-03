@@ -1,5 +1,17 @@
 # Change Log
 
+## [v3.4.0](https://github.com/dallinger/dallinger/tree/v3.4.0) (2017-08-01)
+
+- **Feature** `dallinger qualify` now supports multiple worker ID's and gives
+the option of sending (or not) notifications to qualified workers.
+
+- **Feature** Dallinger ads are no longer caught by ad blockers.
+
+- **Feature** [Sentry](https://sentry.io/) is now available on experiments
+launched via Heroku through the `sentry` flag.
+
+- Miscellaneous bug fixes.
+
 ## [v3.3.0](https://github.com/dallinger/dallinger/tree/v3.3.0) (2017-06-27)
 
 - **Feature** Experiments can now be associated with a group name via the
