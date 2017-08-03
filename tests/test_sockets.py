@@ -28,6 +28,24 @@ def chat(sockets, pubsub):
     gevent.wait()
 
 
+@pytest.fixture
+def mocksocket():
+    class MockSocket(Mock):
+        """We need a property that returns False the first time
+        and True after that. Doesn't seem possible with Mock.
+        """
+        calls = []
+
+        @property
+        def closed(self):
+            if self.calls:
+                return True
+            self.calls.append('called')
+            return False
+
+    return MockSocket()
+
+
 @pytest.mark.usefixtures("experiment_dir")
 class TestChatBackend:
 
@@ -106,30 +124,27 @@ class TestChatBackend:
     def test_chat_subscribes_to_requested_channel(self, sockets):
         ws = Mock()
         sockets.request = Mock()
-        sockets.request.args.get.return_value = 'special'
+        sockets.request.args = {'channel': 'special'}
         sockets.chat(ws)
         assert ws in sockets.chat_backend.clients['special']
 
-    def test_chat_publishes_message_to_requested_channel(self, sockets, pubsub):
-        class MockSocket(Mock):
-            """We need a property that returns False the first time
-            and True after that. Doesn't seem possible with Mock.
-            """
-            calls = []
-
-            @property
-            def closed(self):
-                if self.calls:
-                    return True
-                self.calls.append('called')
-                return False
-
-        ws = MockSocket()
+    def test_chat_publishes_message_to_requested_channel(self, sockets, pubsub, mocksocket):
+        ws = mocksocket
         ws.receive.return_value = 'special:incoming message!'
         sockets.request = Mock()
+        sockets.request.args = {'tolerance': '.5'}
         sockets.conn = Mock()
         sockets.chat_backend.pubsub = pubsub
         sockets.chat(ws)
         sockets.conn.publish.assert_called_once_with(
             'special', 'incoming message!'
         )
+
+    def test_sleeps_for_requested_time(self, sockets, mocksocket):
+        ws = mocksocket
+        ws.receive.return_value = 'somechannel:incoming message!'
+        sockets.request = Mock()
+        sockets.request.args.get.return_value = '.5'
+        sockets.gevent = Mock()
+        sockets.chat(ws)
+        sockets.gevent.sleep.assert_called_once_with(0.5)
