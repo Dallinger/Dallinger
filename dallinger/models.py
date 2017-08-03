@@ -252,6 +252,9 @@ class Participant(Base, SharedMixin):
             for n in self.nodes():
                 n.fail()
 
+            for q in self.questions():
+                q.fail()
+
 
 class Question(Base, SharedMixin):
     """Responses of a participant to debriefing questions."""
