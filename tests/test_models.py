@@ -634,3 +634,41 @@ class TestModels(object):
         node = models.Node(network=net)
         self.add(db_session, node)
         assert node.creation_time is not None
+
+    ##################################################################
+    # Participant
+    ##################################################################
+
+    def test_create_participant(self, db_session):
+        participant = models.Participant(
+            worker_id=str(1), hit_id=str(1), assignment_id=str(1), mode="test")
+        db_session.add(participant)
+        db_session.commit()
+
+        assert isinstance(participant.id, int)
+        assert participant.type == "participant"
+
+    def test_fail_participant(self, db_session):
+        net = models.Network()
+        db_session.add(net)
+        participant = models.Participant(
+            worker_id=str(1), hit_id=str(1), assignment_id=str(1), mode="test")
+        db_session.add(participant)
+        db_session.commit()
+        node = models.Node(network=net, participant=participant)
+        db_session.add(node)
+        question = models.Question(
+            participant=participant, number=1, question="what?", response="???")
+        db_session.add(question)
+
+        assert len(participant.nodes()) == 1
+        assert len(participant.questions()) == 1
+        assert participant.failed is False
+
+        participant.fail()
+
+        assert participant.failed is True
+        assert len(participant.nodes()) == 0
+        assert len(participant.nodes(failed=True)) == 1
+        assert len(participant.questions()) == 1
+        assert participant.questions()[0].failed is True
