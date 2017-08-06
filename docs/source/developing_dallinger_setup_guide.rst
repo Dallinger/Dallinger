@@ -74,39 +74,29 @@ Create the Database
 -------------------
 
 After installing Postgres, you will need to create a database for your
-experiments to use. First, open the Postgres.app. Then, run the
-following command from the command line:
+experiments to use. It is recommended that you also create a database user.
+First, open the Postgres.app. Then, run the following commands from the
+command line:
 
 ::
 
-    psql -c 'create database dallinger;' -U postgres
+    createuser -P dallinger
+    (Password: dallinger)
+    createdb -O dallinger dallinger
 
-If you get the following error...
+The first command will create a user named ``dallinger`` and prompt you for a
+password. The seconf command will create the ``dallinger`` database, setting
+the newly created user as the owner.
+
+If you get an error like the following...
 
 ::
 
-    psql: could not connect to server: No such file or directory
+    createuser: could not connect to database postgres: could not connect to server:
         Is the server running locally and accepting
         connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
 
 ...then you probably did not start the app.
-
-If you get the following error...
-
-::
-
-    dyld: Library not loaded: /usr/local/opt/readline/lib/libreadline.6.dylib
-        Referenced from: /usr/local/bin/psql
-        Reason: image not found
-    Abort trap: 6
-
-... then type the following command into the command line:
-
-::
-
-    createdb -U postgres dallinger
-    
-(This error may arise if you are running Python 2.7 with Anaconda within a virtual environment.)
 
 Set up a virtual environment
 ----------------------------
