@@ -965,6 +965,7 @@ class Node(Base, SharedMixin):
                     .filter(and_(Transmission.failed == false(),
                                  or_(Transmission.destination_id == self.id,
                                      Transmission.origin_id == self.id)))\
+                    .order_by('creation_time')\
                     .all()
             else:
                 return Transmission.query\
@@ -972,28 +973,33 @@ class Node(Base, SharedMixin):
                                  Transmission.status == status,
                                  or_(Transmission.destination_id == self.id,
                                      Transmission.origin_id == self.id)))\
+                    .order_by('creation_time')\
                     .all()
         if direction == "incoming":
             if status == "all":
                 return Transmission.query\
                     .filter_by(failed=False, destination_id=self.id)\
+                    .order_by('creation_time')\
                     .all()
             else:
                 return Transmission.query\
                     .filter(and_(Transmission.failed == false(),
                                  Transmission.destination_id == self.id,
                                  Transmission.status == status))\
+                    .order_by('creation_time')\
                     .all()
         if direction == "outgoing":
             if status == "all":
                 return Transmission.query\
                     .filter_by(failed=False, origin_id=self.id)\
+                    .order_by('creation_time')\
                     .all()
             else:
                 return Transmission.query\
                     .filter(and_(Transmission.failed == false(),
                                  Transmission.origin_id == self.id,
                                  Transmission.status == status))\
+                    .order_by('creation_time')\
                     .all()
 
     def transformations(self, type=None, failed=False):
