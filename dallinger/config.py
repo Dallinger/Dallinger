@@ -43,6 +43,8 @@ default_keys = (
     ('description', unicode, []),
     ('duration', float, []),
     ('dyno_type', unicode, []),
+    ('github_user', unicode, []),
+    ('github_token', unicode, [], True),
     ('group_name', unicode, []),
     ('heroku_auth_token', unicode, [], True),
     ('heroku_team', unicode, ['team']),

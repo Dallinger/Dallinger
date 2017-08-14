@@ -4,8 +4,10 @@ from config import get_config
 
 import csv
 import errno
+import hashlib
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -14,13 +16,20 @@ from zipfile import ZipFile, ZIP_DEFLATED
 
 import boto
 from boto.s3.key import Key
-import hashlib
+import boto3
+import botocore
+from github import Github
+from nbconvert.preprocessors import Preprocessor
+from nbconvert.exporters import NotebookExporter
 import postgres_copy
 import psycopg2
+import traitlets
+
 
 from dallinger import heroku
 from dallinger import db
 from dallinger import models
+import dallinger.version
 
 logger = logging.getLogger(__name__)
 
@@ -77,20 +86,29 @@ def find_experiment_export(app_id):
     # Get remote file instead
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
-    buckets = [
-        user_s3_bucket(),
-        dallinger_s3_bucket(),
-    ]
+    config = get_config()
+    config.load()
+    if config.get("aws_access_key_id") != u"YourAccessKeyId":
+        buckets = [
+            user_s3_bucket(),
+            dallinger_s3_bucket(),
+        ]
 
-    for bucket in buckets:
-        k = Key(bucket)
-        k.key = data_filename
-        try:
-            k.get_contents_to_filename(path_to_data)
-        except boto.exception.S3ResponseError:
-            pass
-        else:
-            return path_to_data
+        for bucket in buckets:
+            k = Key(bucket)
+            k.key = data_filename
+            try:
+                k.get_contents_to_filename(path_to_data)
+            except boto.exception.S3ResponseError:
+                pass
+            else:
+                return path_to_data
+
+    else:
+        cfg = botocore.config.Config(signature_version=botocore.UNSIGNED)
+        s3 = boto3.client('s3', config=cfg)
+        s3.download_file('dallinger', data_filename, path_to_data)
+        return path_to_data
 
 
 def load(app_id):
@@ -99,7 +117,7 @@ def load(app_id):
     if path_to_data is None:
         raise IOError("Dataset {} could not be found.".format(app_id))
 
-    return Data(path_to_data)
+    return Data(path_to_data, app_id=app_id)
 
 
 def dump_database(id):
@@ -392,9 +410,10 @@ def _s3_connection(dallinger_region=False):
 
 class Data(object):
     """Dallinger data object."""
-    def __init__(self, URL):
+    def __init__(self, URL, app_id=None):
 
         self.source = URL
+        self.app_id = app_id
 
         if self.source.endswith(".zip"):
 
@@ -408,6 +427,64 @@ class Data(object):
                     "{}s".format(tab),
                     Table(os.path.join(tmp_dir, "data", "{}.csv".format(tab))),
                 )
+
+    def publish(self, target="github"):
+        """Publish a dataset to GitHub."""
+        if target is "github":
+            self.create_binder_repo()
+        else:
+            raise NotImplementedError
+
+    def create_notebook(self):
+        """Create a sample Jupyter notebook that imports the given dataset."""
+        class UUIDPreprocessor(Preprocessor):
+            uuid_value = traitlets.Unicode(
+                "",
+                help="UUID value to be replaced."
+            ).tag(config=True)
+
+            def preprocess_cell(self, cell, resources, cell_index):
+                cell.source = re.sub("UUID", self.uuid_value, cell.source)
+                return cell, resources
+
+        c = traitlets.config.Config({"UUIDPreprocessor": {
+            "uuid_value": self.app_id,
+        }})
+        exporter = NotebookExporter(config=c)
+        exporter.register_preprocessor(UUIDPreprocessor, enabled=True)
+
+        nb, _ = exporter.from_filename("notebook.ipynb")
+        return nb
+
+    def create_binder_repo(self):
+        """Create a binder-compatible repo for the given dataset."""
+        config = get_config()
+        config.load()
+        g = Github(config.get("github_token"))
+        user = g.get_user()
+        repo = user.create_repo(self.app_id)
+        notebook = self.create_notebook()
+        repo.create_file('/index.ipynb', 'Create notebook', notebook)
+        README = """[![Binder](http://mybinder.org/badge.svg)](
+        http://beta.mybinder.org/v2/gh/{}/{}/master)
+        """.format(
+            config.get("github_user"),
+            self.app_id,
+        )
+        repo.create_file('/README.md', 'Create readme', README)
+        repo.create_file('/runtime.txt', 'Specify runtime', 'python-2.7')
+        requirements = "dallinger=={}".format(dallinger.version.__version__)
+        repo.create_file('/requirements.txt', 'Requirements', requirements)
+        repo.edit(
+            self.app_id,
+            "Repository for Dallinger dataset {}".format(self.app_id),
+            "http://vincent-jacques.net/PyGithub",
+            private=False,
+            has_issues=False,
+            has_wiki=False,
+            has_downloads=False,
+            has_projects=False,
+        )
 
 
 class Table(object):
