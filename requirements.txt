@@ -12,7 +12,7 @@ localconfig==0.4.2
 pexpect==4.2.1
 psycopg2==2.7.3
 redis==2.10.5
-requests==2.18.3
+requests==2.18.4
 rq==0.8.1
 selenium==3.5.0
 SQLAlchemy==1.1.13
