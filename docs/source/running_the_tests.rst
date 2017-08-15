@@ -21,6 +21,11 @@ The tests include:
   for the Python code is above the desired threshold.
 * Making sure the docs build without error.
 
+If you see ImportErrors related to demo packages, this most likely means you
+have not installed the ``dlgr.demos`` sub-package. See the 
+:doc:`Dallinger development installation instructions 
+<developing_dallinger_setup_guide>` for details.
+
 Amazon Mechanical Turk Integration Tests
 ----------------------------------------
 

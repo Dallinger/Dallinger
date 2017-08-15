@@ -230,3 +230,18 @@ please see the special :doc:`dallinger_with_anaconda`.
 
 Next, you'll need :doc:`access keys for AWS, Heroku,
 etc. <aws_etc_keys>`.
+
+Install the dlgr.demos sub-package
+----------------------------------
+
+Both the test suite and the included demo experiments require installing the
+``dlgr.demos`` sub-package in order to run. Install this in "develop mode"
+with the ``-e`` option, so that any changes you make to a demo will be 
+immediately reflected on your next test or debug session.
+
+From the root ``Dallinger`` directory you created in the previous step, run the 
+installation command:
+
+::
+
+    pip install -e demos
