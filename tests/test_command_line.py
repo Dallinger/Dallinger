@@ -442,6 +442,38 @@ class TestSandboxAndDeploy(object):
         assert get_config().get('mode') == u'live'
 
 
+class TestSummary(object):
+
+    @pytest.fixture
+    def summary(self):
+        from dallinger.command_line import summary
+        return summary
+
+    @pytest.fixture
+    def patched_summary_route(self):
+        response = mock.Mock()
+        response.json.return_value = {
+            u'completed': True,
+            u'nodes_remaining': 0,
+            u'required_nodes': 0,
+            u'status': u'success',
+            u'summary': [[u'approved', 1], [u'submitted', 1]],
+            u'unfilled_networks': 0
+        }
+        with mock.patch('dallinger.command_line.requests') as req:
+            req.get.return_value = response
+            yield req
+
+    def test_summary(self, summary, patched_summary_route):
+        result = CliRunner().invoke(
+            summary,
+            [
+                '--app', 'some app id',
+            ]
+        )
+        assert "Yield: 50.00%" in result.output
+
+
 class TestQualify(object):
 
     @pytest.fixture
