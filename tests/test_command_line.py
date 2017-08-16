@@ -442,6 +442,83 @@ class TestSandboxAndDeploy(object):
         assert get_config().get('mode') == u'live'
 
 
+class TestSummary(object):
+
+    @pytest.fixture
+    def summary(self):
+        from dallinger.command_line import summary
+        return summary
+
+    @pytest.fixture
+    def patched_summary_route(self):
+        response = mock.Mock()
+        response.json.return_value = {
+            u'completed': True,
+            u'nodes_remaining': 0,
+            u'required_nodes': 0,
+            u'status': u'success',
+            u'summary': [[u'approved', 1], [u'submitted', 1]],
+            u'unfilled_networks': 0
+        }
+        with mock.patch('dallinger.command_line.requests') as req:
+            req.get.return_value = response
+            yield req
+
+    def test_summary(self, summary, patched_summary_route):
+        result = CliRunner().invoke(
+            summary,
+            [
+                '--app', 'some app id',
+            ]
+        )
+        assert "Yield: 50.00%" in result.output
+
+
+@pytest.mark.usefixtures('bartlett_dir')
+class TestBot(object):
+
+    @pytest.fixture
+    def bot_command(self):
+        from dallinger.command_line import bot
+        return bot
+
+    @pytest.fixture
+    def mock_bot(self):
+        bot = mock.Mock()
+        with mock.patch('dallinger.command_line.bot_factory') as bot_factory:
+            bot_factory.return_value = bot
+            yield bot
+
+    def test_bot_factory(self):
+        from dallinger.command_line import bot_factory
+        from dallinger.command_line import setup_experiment
+        from dallinger.bots import BotBase
+        setup_experiment()
+        bot = bot_factory('some url')
+        assert isinstance(bot, BotBase)
+
+    def test_bot_no_debug_url(self, bot_command, mock_bot):
+        CliRunner().invoke(
+            bot_command,
+            [
+                '--app', 'some app id',
+            ]
+        )
+
+        assert mock_bot.run_experiment.called
+
+    def test_bot_with_debug_url(self, bot_command, mock_bot):
+        CliRunner().invoke(
+            bot_command,
+            [
+                '--app', 'some app id',
+                '--debug', 'some url'
+            ]
+        )
+
+        assert mock_bot.run_experiment.called
+
+
 class TestQualify(object):
 
     @pytest.fixture
