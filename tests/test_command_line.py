@@ -474,6 +474,51 @@ class TestSummary(object):
         assert "Yield: 50.00%" in result.output
 
 
+@pytest.mark.usefixtures('bartlett_dir')
+class TestBot(object):
+
+    @pytest.fixture
+    def bot_command(self):
+        from dallinger.command_line import bot
+        return bot
+
+    @pytest.fixture
+    def mock_bot(self):
+        bot = mock.Mock()
+        with mock.patch('dallinger.command_line.bot_factory') as bot_factory:
+            bot_factory.return_value = bot
+            yield bot
+
+    def test_bot_factory(self):
+        from dallinger.command_line import bot_factory
+        from dallinger.command_line import setup_experiment
+        from dallinger.bots import BotBase
+        setup_experiment()
+        bot = bot_factory('some url')
+        assert isinstance(bot, BotBase)
+
+    def test_bot_no_debug_url(self, bot_command, mock_bot):
+        CliRunner().invoke(
+            bot_command,
+            [
+                '--app', 'some app id',
+            ]
+        )
+
+        assert mock_bot.run_experiment.called
+
+    def test_bot_with_debug_url(self, bot_command, mock_bot):
+        CliRunner().invoke(
+            bot_command,
+            [
+                '--app', 'some app id',
+                '--debug', 'some url'
+            ]
+        )
+
+        assert mock_bot.run_experiment.called
+
+
 class TestQualify(object):
 
     @pytest.fixture

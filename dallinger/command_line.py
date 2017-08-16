@@ -984,6 +984,14 @@ def monitor(app):
         time.sleep(10)
 
 
+def bot_factory(url):
+    """Import the current Bot class, which must be done at runtime, then
+    return an instance.
+    """
+    from dallinger_experiment import Bot
+    return Bot(url)
+
+
 @dallinger.command()
 @click.option('--app', default=None, help='Experiment id')
 @click.option('--debug', default=None,
@@ -1006,9 +1014,7 @@ def bot(app, debug):
         ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
         ad_parameters = ad_parameters.format(assignment, hit, worker)
         url = '{}?{}'.format(ad_url, ad_parameters)
-
-    from dallinger_experiment import Bot
-    bot = Bot(url)
+    bot = bot_factory(url)
     bot.run_experiment()
 
 
