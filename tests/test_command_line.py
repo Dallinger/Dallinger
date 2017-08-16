@@ -380,6 +380,68 @@ class TestHeader(object):
         assert dallinger.version.__version__ in dallinger.command_line.header
 
 
+class TestSandboxAndDeploy(object):
+
+    @pytest.fixture
+    def sandbox(self):
+        from dallinger.command_line import sandbox
+        return sandbox
+
+    @pytest.fixture
+    def deploy(self):
+        from dallinger.command_line import deploy
+        return deploy
+
+    @pytest.fixture
+    def dsss(self):
+        with mock.patch('dallinger.command_line.deploy_sandbox_shared_setup') as mock_dsss:
+            yield mock_dsss
+
+    def test_sandbox_with_app_id(self, sandbox, dsss):
+        CliRunner().invoke(
+            sandbox,
+            [
+                '--verbose',
+                '--app', 'some app id',
+            ]
+        )
+        dsss.assert_called_once_with(app=u'some app id', verbose=True)
+        assert get_config().get('mode') == u'sandbox'
+
+    def test_sandbox_with_no_app_id(self, sandbox, dsss):
+        CliRunner().invoke(
+            sandbox,
+            [
+                '--verbose',
+            ]
+        )
+        dsss.assert_called_once_with(app=None, verbose=True)
+        assert get_config().get('mode') == u'sandbox'
+
+    def test_sandbox_with_invalid_app_id(self, sandbox, dsss):
+        result = CliRunner().invoke(
+            sandbox,
+            [
+                '--verbose',
+                '--app', 'dlgr-some app id',
+            ]
+        )
+        dsss.assert_not_called()
+        assert result.exit_code == -1
+        assert 'The --app flag requires the full UUID' in result.exception.message
+
+    def test_deploy_with_app_id(self, deploy, dsss):
+        CliRunner().invoke(
+            deploy,
+            [
+                '--verbose',
+                '--app', 'some app id',
+            ]
+        )
+        dsss.assert_called_once_with(app=u'some app id', verbose=True)
+        assert get_config().get('mode') == u'live'
+
+
 class TestQualify(object):
 
     @pytest.fixture

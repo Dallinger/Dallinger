@@ -571,11 +571,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     log("Completed deployment of experiment " + id + ".")
 
 
-@dallinger.command()
-@click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-@click.option('--app', default=None, help='Experiment id')
-def sandbox(verbose, app):
-    """Deploy app using Heroku to the MTurk Sandbox."""
+def _deploy_in_mode(mode, app, verbose):
     # Load configuration.
     if app:
         verify_id(None, None, app)
@@ -585,12 +581,20 @@ def sandbox(verbose, app):
 
     # Set the mode.
     config.extend({
-        "mode": u"sandbox",
+        "mode": mode,
         "logfile": u"-",
     })
 
     # Do shared setup.
     deploy_sandbox_shared_setup(verbose=verbose, app=app)
+
+
+@dallinger.command()
+@click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
+@click.option('--app', default=None, help='Experiment id')
+def sandbox(verbose, app):
+    """Deploy app using Heroku to the MTurk Sandbox."""
+    _deploy_in_mode(u'sandbox', app, verbose)
 
 
 @dallinger.command()
@@ -598,21 +602,7 @@ def sandbox(verbose, app):
 @click.option('--app', default=None, help='ID of the deployed experiment')
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
-    if app:
-        verify_id(None, None, app)
-
-    # Load configuration.
-    config = get_config()
-    config.load()
-
-    # Set the mode.
-    config.extend({
-        "mode": u"live",
-        "logfile": u"-",
-    })
-
-    # Do shared setup.
-    deploy_sandbox_shared_setup(verbose=verbose, app=app)
+    _deploy_in_mode(u'live', app, verbose)
 
 
 @dallinger.command()
