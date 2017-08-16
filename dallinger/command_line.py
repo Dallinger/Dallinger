@@ -484,7 +484,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         ["heroku", "addons:create", "papertrail"],
     ]
 
-    if config["sentry"]:
+    if config.get("sentry", False):
         cmds.append(["heroku", "addons:create", "sentry"])
 
     for cmd in cmds:
