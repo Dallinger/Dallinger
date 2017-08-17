@@ -478,7 +478,7 @@ class Data(object):
         repo.edit(
             self.app_id,
             "Repository for Dallinger dataset {}".format(self.app_id),
-            "http://vincent-jacques.net/PyGithub",
+            "http://docs.dallinger.io",
             private=False,
             has_issues=False,
             has_wiki=False,
