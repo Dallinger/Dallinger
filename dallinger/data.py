@@ -473,7 +473,8 @@ class Data(object):
         )
         repo.create_file('/README.md', 'Create readme', README)
         repo.create_file('/runtime.txt', 'Specify runtime', 'python-2.7')
-        requirements = "dallinger=={}".format(dallinger.version.__version__)
+        requirements = "dallinger=={}[data]".format(
+            dallinger.version.__version__)
         repo.create_file('/requirements.txt', 'Requirements', requirements)
         repo.edit(
             self.app_id,
