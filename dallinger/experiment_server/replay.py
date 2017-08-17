@@ -21,9 +21,13 @@ class ReplayBackend(object):
     def __call__(self):
         gevent.sleep(0.200)
 
-        logger.info('Replay ready: {}{}'.format(
-            get_base_url(), self.experiment.replay_path)
-        )
+        try:
+            logger.info('Replay ready: {}{}'.format(
+                get_base_url(), self.experiment.replay_path)
+            )
+        except RuntimeError:
+            # config not loaded, we may be in unit tests
+            pass
 
         while not self.experiment.replay_started():
             gevent.sleep(0.01)
@@ -33,6 +37,7 @@ class ReplayBackend(object):
         events = self.experiment.events_for_replay()
 
         if not events.count():
+            self.experiment.replay_finish()
             return
 
         first_timestamp = timestamp(events[0].creation_time)
