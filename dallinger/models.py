@@ -78,6 +78,9 @@ class Participant(Base, SharedMixin):
         'polymorphic_identity': 'participant'
     }
 
+    #: A String, the fingerprint hash of the participant.
+    fingerprint_hash = Column(String(50), nullable=True)
+
     #: A String, the worker id of the participant.
     worker_id = Column(String(50), nullable=False)
 
@@ -138,13 +141,14 @@ class Participant(Base, SharedMixin):
         default="working",
         index=True)
 
-    def __init__(self, worker_id, assignment_id, hit_id, mode):
+    def __init__(self, worker_id, assignment_id, hit_id, mode, fingerprint_hash=None):
         """Create a participant."""
         self.worker_id = worker_id
         self.assignment_id = assignment_id
         self.hit_id = hit_id
         self.unique_id = worker_id + ":" + assignment_id
         self.mode = mode
+        self.fingerprint_hash = fingerprint_hash
 
     def __json__(self):
         """Return json description of a participant."""
