@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import textwrap
 import warnings
 from zipfile import ZipFile, ZIP_DEFLATED
 
@@ -417,6 +418,9 @@ class Data(object):
 
         if self.source.endswith(".zip"):
 
+            self.raw = open(self.source, 'rb').read()
+            self.checksum = hashlib.sha256(self.raw).hexdigest()
+
             input_zip = ZipFile(URL)
             tmp_dir = tempfile.mkdtemp()
             input_zip.extractall(tmp_dir)
@@ -465,11 +469,18 @@ class Data(object):
         repo = user.create_repo(self.app_id)
         notebook = self.create_notebook()
         repo.create_file('/index.ipynb', 'Create notebook', notebook)
-        README = """[![Binder](http://mybinder.org/badge.svg)](
+        README_TEMPLATE = """
+        [![Binder](http://mybinder.org/badge.svg)](
         http://beta.mybinder.org/v2/gh/{}/{}/master)
-        """.format(
-            config.get("github_user"),
-            self.app_id,
+
+        SHA-256 hash: `{}`
+        """
+        README = textwrap.dedent(
+            README_TEMPLATE.format(
+                config.get("github_user"),
+                self.app_id,
+                self.checksum,
+            )
         )
         repo.create_file('/README.md', 'Create readme', README)
         repo.create_file('/runtime.txt', 'Specify runtime', 'python-2.7')
