@@ -208,12 +208,20 @@ class TestDeploySandboxSharedSetup(object):
         from dallinger.command_line import deploy_sandbox_shared_setup
         return deploy_sandbox_shared_setup
 
-    def test_end_to_end(self, dsss):
+    @pytest.fixture
+    def launch(self):
         with mock.patch('dallinger.command_line._handle_launch_data') as hld:
             hld.return_value = {'recruitment_url': 'fake recruitment_url'}
-            # Patch addon since we're using a free app which doesn't support them:
-            with mock.patch('dallinger.heroku.addon'):
-                result = dsss(exp_config={'heroku_team': u'', 'sentry': True})
+            yield hld
+
+    @pytest.fixture
+    def addon(self):
+        # Patch addon since we're using a free app which doesn't support them:
+        with mock.patch('dallinger.heroku.addon') as addon:
+            yield addon
+
+    def test_end_to_end(self, dsss, launch, addon):
+        result = dsss(exp_config={'heroku_team': u'', 'sentry': True})
 
         app_name = result.get('app_name')
         assert app_name.startswith('dlgr')
