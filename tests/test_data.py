@@ -232,6 +232,26 @@ class TestImport(object):
         f = io.StringIO(initial_value=data)
         return f
 
+    @pytest.fixture
+    def missing_column_required(self):
+        """Test participant table without worker_id column"""
+        data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,worker_id,\
+assignment_id,unique_id,hit_id,mode,end_time,base_pay,bonus,status
+1,2001-01-01 09:46:40.133536,,,,,,f,,participant,,8,8:36V4Q8R5ZLTJWMX0SFF0G6R67PCQMI,\
+3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,,,returned'''
+        f = io.StringIO(initial_value=data)
+        return f
+
+    @pytest.fixture
+    def missing_column_not_required(self):
+        """Test participant table without fingerprint_hash column"""
+        data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,worker_id,\
+assignment_id,unique_id,hit_id,mode,end_time,base_pay,bonus,status
+1,2001-01-01 09:46:40.133536,,,,,,f,,participant,8,36V4Q8R5ZLTJWMX0SFF0G6R67PCQMI,8:36V4Q8R5ZLTJWM\
+X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,,,returned'''
+        f = io.StringIO(initial_value=data)
+        return f
+
     def test_ingest_to_model(self, db_session, network_file):
         dallinger.data.ingest_to_model(network_file, dallinger.models.Network)
 
@@ -251,6 +271,18 @@ class TestImport(object):
 
         networks = dallinger.models.Network.query.all()
         assert networks[1].id == 2
+
+    def test_missing_column_required(self, db_session, missing_column_required):
+        with pytest.raises(psycopg2.IntegrityError):
+            dallinger.data.ingest_to_model(missing_column_required, dallinger.models.Participant)
+
+    def test_missing_column_not_required(self, db_session, missing_column_not_required):
+        dallinger.data.ingest_to_model(missing_column_not_required, dallinger.models.Participant)
+
+        participant = dallinger.models.Participant.query.all()
+        assert len(participant) == 1
+        participant = participant[0]
+        assert participant.creation_time == datetime(2001, 1, 1, 9, 46, 40, 133536)
 
     def test_ingest_zip_recreates_network(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
