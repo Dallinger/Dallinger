@@ -483,7 +483,6 @@ class Data(object):
             has_issues=False,
             has_wiki=False,
             has_downloads=False,
-            has_projects=False,
         )
 
 
