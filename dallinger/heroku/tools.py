@@ -21,12 +21,33 @@ def auth_token():
     """A Heroku authenication token."""
     return unicode(subprocess.check_output(["heroku", "auth:token"]).rstrip())
 
+def create(id, out, team=None):
+    """Create a new Heroku app"""
+    create_cmd = [
+        "heroku",
+        "apps:create",
+        app_name(id),
+        "--buildpack",
+        "https://github.com/thenovices/heroku-buildpack-scipy",
+    ]
+
+    # If a team is specified, assign the app to the team.
+    if team:
+        create_cmd.extend(["--org", team])
+
+    subprocess.check_call(create_cmd, stdout=out)
+
+def addon(app, name, out):
+    """Add an extension to an app"""
+    cmd = ["heroku", "addons:create", name, "--app", app]
+    subprocess.check_call(cmd, stdout=out)
 
 def log_in():
     """Ensure that the user is logged in to Heroku."""
-    p = pexpect.spawn("heroku auth:whoami")
-    p.interact()
-
+    try:
+        subprocess.check_output(["heroku", "auth:whoami"])
+    except Exception:
+        raise Exception("You are not logged into Heroku.")
 
 def db_uri(app):
     output = subprocess.check_output([
@@ -77,6 +98,13 @@ def open_logs(app):
         subprocess.check_call([
             "heroku", "addons:open", "papertrail", "--app", app_name(app)
         ])
+
+def destroy(app):
+    """Destroy an app and all its add-ons"""
+    result = subprocess.check_output(
+        ["heroku", "apps:destroy", "--app", app, "--confirm", app]
+    )
+    return result
 
 
 class HerokuStartupError(RuntimeError):

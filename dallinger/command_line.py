@@ -419,8 +419,12 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     (id, tmp) = setup_experiment(debug=False, verbose=verbose, app=app,
                                  exp_config=exp_config)
 
-    # Register the experiment using all configured registration services.
+    # Load configuration.
     config = get_config()
+    if not config.ready:
+        config.load()
+
+    # Register the experiment using all configured registration services.
     if config.get("mode") == u"live":
         log("Registering the experiment on configured services...")
         registration.register(id, snapshot=None)
@@ -443,31 +447,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         stdout=out,
     )
 
-    # Load configuration.
-    config = get_config()
-    if not config.ready:
-        config.load()
-
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
-
-    create_cmd = [
-        "heroku",
-        "apps:create",
-        app_name(id),
-        "--buildpack",
-        "https://github.com/thenovices/heroku-buildpack-scipy",
-    ]
-
-    # If a team is specified, assign the app to the team.
-    try:
-        team = config.get("heroku_team", None)
-        if team:
-            create_cmd.extend(["--org", team])
-    except Exception:
-        pass
-
-    subprocess.check_call(create_cmd, stdout=out)
+    team = config.get("heroku_team", '').strip()
+    heroku.create(id, out, team)
 
     subprocess.check_call([
         "heroku",
@@ -475,20 +458,19 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         "https://github.com/stomita/heroku-buildpack-phantomjs",
     ])
 
+    # Set up add-ons and AWS environment variables.
     database_size = config.get('database_size')
-
-    # Set up postgres database and AWS environment variables.
-    cmds = [
-        ["heroku", "addons:create", "heroku-postgresql:{}".format(quote(database_size))],
-        ["heroku", "addons:create", "heroku-redis:premium-0"],
-        ["heroku", "addons:create", "papertrail"],
+    addons = [
+        "heroku-postgresql:{}".format(quote(database_size)),
+        "heroku-redis:premium-0",
+        "papertrail"
     ]
 
     if config.get("sentry", False):
-        cmds.append(["heroku", "addons:create", "sentry"])
+        addons.append("sentry")
 
-    for cmd in cmds:
-        subprocess.check_call(cmd + ["--app", app_name(id)], stdout=out)
+    for name in addons:
+        heroku.addon(app_name(id), name, out)
 
     heroku_config = {
         "HOST": "{}.herokuapp.com".format(app_name(id)),
@@ -559,16 +541,21 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
     # Launch the experiment.
     log("Launching the experiment on MTurk...")
-
     launch_data = _handle_launch_data('https://{}.herokuapp.com/launch'.format(app_name(id)))
+    result = {
+        'app_name': app_name(id),
+        'app_home': "https://{}.herokuapp.com/".format(app_name(id)),
+        'recruitment_url': launch_data.get('recruitment_url', None),
+    }
     log("URLs:")
-    log("App home: https://{}.herokuapp.com/".format(app_name(id)), chevrons=False)
-    log("Initial recruitment: {}".format(launch_data.get('recruitment_url', None)), chevrons=False)
+    log("App home: {}".format(result['app_home']), chevrons=False)
+    log("Initial recruitment: {}".format(result['recruitment_url']), chevrons=False)
 
     # Return to the branch whence we came.
     os.chdir(cwd)
 
     log("Completed deployment of experiment " + id + ".")
+    return result
 
 
 def _deploy_in_mode(mode, app, verbose):
