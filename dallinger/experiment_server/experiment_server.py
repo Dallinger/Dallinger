@@ -22,7 +22,7 @@ from flask import (
 from jinja2 import TemplateNotFound
 from rq import get_current_job
 from rq import Queue
-from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import exc
 from sqlalchemy import func
 from sqlalchemy.sql.expression import true
@@ -550,6 +550,21 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     defined in reference to the participant object. You must specify the
     worker_id, hit_id, assignment_id, and mode in the url.
     """
+    fingerprint_hash = request.args.get('fingerprint_hash')
+    try:
+        fingerprint_found = models.Participant.query.\
+            filter_by(fingerprint_hash=fingerprint_hash).one_or_none()
+    except MultipleResultsFound:
+        fingerprint_found = True
+
+    if fingerprint_found:
+        db.logger.warning("Same browser fingerprint detected.")
+
+        if mode == 'live':
+            return error_response(
+                error_type="/participant POST: Same participant dectected.",
+                status=403)
+
     already_participated = models.Participant.query.\
         filter_by(worker_id=worker_id).one_or_none()
 
@@ -582,7 +597,8 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         worker_id=worker_id,
         assignment_id=assignment_id,
         hit_id=hit_id,
-        mode=mode
+        mode=mode,
+        fingerprint_hash=fingerprint_hash,
     )
     session.add(participant)
     session.flush()  # Make sure we know the id for the new row
