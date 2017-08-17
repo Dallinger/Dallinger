@@ -2,7 +2,6 @@
 
 import signal
 import os
-import pexpect
 import psutil
 import re
 import subprocess
@@ -21,6 +20,7 @@ def auth_token():
     """A Heroku authenication token."""
     return unicode(subprocess.check_output(["heroku", "auth:token"]).rstrip())
 
+
 def create(id, out, team=None):
     """Create a new Heroku app"""
     create_cmd = [
@@ -37,10 +37,12 @@ def create(id, out, team=None):
 
     subprocess.check_call(create_cmd, stdout=out)
 
+
 def addon(app, name, out):
     """Add an extension to an app"""
     cmd = ["heroku", "addons:create", name, "--app", app]
     subprocess.check_call(cmd, stdout=out)
+
 
 def log_in():
     """Ensure that the user is logged in to Heroku."""
@@ -48,6 +50,7 @@ def log_in():
         subprocess.check_output(["heroku", "auth:whoami"])
     except Exception:
         raise Exception("You are not logged into Heroku.")
+
 
 def db_uri(app):
     output = subprocess.check_output([
@@ -98,6 +101,7 @@ def open_logs(app):
         subprocess.check_call([
             "heroku", "addons:open", "papertrail", "--app", app_name(app)
         ])
+
 
 def destroy(app):
     """Destroy an app and all its add-ons"""
