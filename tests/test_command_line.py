@@ -336,9 +336,30 @@ class TestLoad(object):
     def loader(self, db_session, env_with_home, output):
         from dallinger.command_line import LoadSessionRunner
         from dallinger.heroku.tools import HerokuLocalWrapper
-        loader = LoadSessionRunner(self.exp_id, output, verbose=True, exp_config={})
+        loader = LoadSessionRunner(self.exp_id, output, verbose=True,
+                                   exp_config={})
         loader.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
 
+        yield loader
+
+    @pytest.fixture
+    def replay_loader(self, db_session, env_with_home, output):
+        from dallinger.command_line import LoadSessionRunner
+        loader = LoadSessionRunner(self.exp_id, output, verbose=True,
+                                   exp_config={'replay': True})
+        loader.keep_running = mock.Mock(return_value=False)\
+
+
+        def launch_and_finish(self):
+            from dallinger.heroku.tools import HerokuLocalWrapper
+            loader.out.log("Launching replay browser...")
+            return HerokuLocalWrapper.MONITOR_STOP
+
+
+        loader.start_replay = mock.Mock(
+            return_value=None,
+            side_effect=launch_and_finish
+        )
         yield loader
 
     def test_load_runs(self, loader, export):
@@ -359,6 +380,20 @@ class TestLoad(object):
         loader.keep_running = mock.Mock(return_value=False)
         with pytest.raises(IOError):
             loader.run()
+
+    def test_load_with_replay(self, replay_loader, export):
+        replay_loader.run()
+
+        replay_loader.out.log.assert_has_calls([
+            mock.call('Starting up the server...'),
+            mock.call('Ingesting dataset from some_experiment_id-data.zip...'),
+            mock.call('Server is running on http://0.0.0.0:5000. Press Ctrl+C to exit.'),
+            mock.call('Launching the experiment...'),
+            mock.call('Launching replay browser...'),
+            mock.call('Terminating dataset load for experiment some_experiment_id'),
+            mock.call('Cleaning up local Heroku process...'),
+            mock.call('Local Heroku process terminated.')
+        ])
 
 
 class TestOutput(object):

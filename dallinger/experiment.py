@@ -581,7 +581,7 @@ class Experiment(object):
         """Be default we return all infos in order for replay"""
         return self.session.query(Info).order_by(Info.creation_time)
 
-    def replay_event(self, index, event):
+    def replay_event(self, event):
         pass
 
     def replay_finish(self):
