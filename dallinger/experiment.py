@@ -59,6 +59,7 @@ class Experiment(object):
     # method, since this is where messages from Redis will be sent.
     channel = None
     exp_config = None
+    replay_path = '/'
 
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
@@ -575,6 +576,19 @@ class Experiment(object):
         """Terminates a running experiment"""
         import dallinger as dlgr
         dlgr.command_line.destroy_server(self.app_id)
+
+    def events_for_replay(self):
+        """Be default we return all infos in order for replay"""
+        return self.session.query(Info).order_by(Info.creation_time)
+
+    def replay_event(self, index, event):
+        pass
+
+    def replay_finish(self):
+        pass
+
+    def replay_started(self):
+        return True
 
 
 def load():

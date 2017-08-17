@@ -898,6 +898,9 @@ class DebugSessionRunner(LocalSessionRunner):
 
 
 class LoadSessionRunner(LocalSessionRunner):
+    dispatch = {
+        'Replay ready: (.*)$': 'start_replay',
+    }
 
     def __init__(self, app_id, output, verbose, exp_config):
         self.app_id = app_id
@@ -932,9 +935,24 @@ class LoadSessionRunner(LocalSessionRunner):
         base_url = get_base_url()
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
 
+        if self.exp_config.get('replay', False):
+            self.out.log("Launching the experiment...")
+            time.sleep(4)
+            _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
+            heroku.monitor(listener=self.notify)
+
         # Just run until interrupted:
         while(self.keep_running()):
             time.sleep(1)
+
+    def start_replay(self, match):
+        """Dispatched to by notify(). If a recruitment request has been issued,
+        open a browser window for the a new participant (in this case the
+        person doing local debugging).
+        """
+        self.out.log("replay ready!")
+        url = match.group(1)
+        webbrowser.open(url, new=1, autoraise=True)
 
     def cleanup(self):
         self.out.log("Terminating dataset load for experiment {}".format(self.exp_id))
@@ -947,10 +965,14 @@ class LoadSessionRunner(LocalSessionRunner):
 @dallinger.command()
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def load(app, verbose, exp_config=None):
+@click.option('--replay', is_flag=True, flag_value=True, help='Replay mode')
+def load(app, verbose, replay, exp_config=None):
     """Import database state from an exported zip file and leave the server
     running until stopping the process with <control>-c.
     """
+    if replay:
+        exp_config = exp_config or {}
+        exp_config['replay'] = True
     loader = LoadSessionRunner(app, Output(), verbose, exp_config)
     loader.run()
 
