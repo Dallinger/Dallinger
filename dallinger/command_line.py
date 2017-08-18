@@ -39,6 +39,7 @@ from dallinger.heroku import (
 )
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
+from dallinger.heroku.tools import HerokuApp
 from dallinger.mturk import MTurkService
 from dallinger import registration
 from dallinger.utils import generate_random_id
@@ -449,14 +450,9 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
-    team = config.get("heroku_team", '').strip()
-    heroku.create(id, out, team)
-
-    subprocess.check_call([
-        "heroku",
-        "buildpacks:add",
-        "https://github.com/stomita/heroku-buildpack-phantomjs",
-    ])
+    team = config.get("heroku_team", '').strip() or None
+    heroku_app = HerokuApp(dallinger_uid=id, output=out, team=team)
+    heroku_app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
 
     # Set up add-ons and AWS environment variables.
     database_size = config.get('database_size')
@@ -470,7 +466,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         addons.append("sentry")
 
     for name in addons:
-        heroku.addon(app_name(id), name, out)
+        heroku_app.addon(name)
 
     heroku_config = {
         "HOST": "{}.herokuapp.com".format(app_name(id)),
@@ -483,22 +479,14 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         "whimsical": config["whimsical"],
     }
 
-    for key in heroku_config:
-        subprocess.check_call([
-            "heroku",
-            "config:set",
-            "{}={}".format(key, quote(str(heroku_config[key]))),
-            "--app", app_name(id)
-        ], stdout=out)
+    for k, v in heroku_config.items():
+        heroku_app.set(k, v)
 
     # Wait for Redis database to be ready.
     log("Waiting for Redis...")
     ready = False
     while not ready:
-        redis_url = subprocess.check_output([
-            "heroku", "config:get", "REDIS_URL", "--app", app_name(id),
-        ])
-        r = redis.from_url(redis_url)
+        r = redis.from_url(heroku_app.redis_url)
         try:
             r.set("foo", "bar")
             ready = True
@@ -506,15 +494,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
             time.sleep(2)
 
     log("Saving the URL of the postgres database...")
-    subprocess.check_call(["heroku", "pg:wait", "--app", app_name(id)])
-    db_url = subprocess.check_output([
-        "heroku", "config:get", "DATABASE_URL", "--app", app_name(id)
-    ])
-
     # Set the notification URL and database URL in the config file.
     config.extend({
-        "notification_url": u"http://" + app_name(id) + ".herokuapp.com/notifications",
-        "database_url": db_url.rstrip().decode('utf8'),
+        "notification_url": u"http://" + heroku_app.name + ".herokuapp.com/notifications",
+        "database_url": heroku_app.db_url,
     })
     config.write()
 
@@ -535,7 +518,12 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     )
 
     log("Scaling up the dynos...")
-    heroku.scale_up_dynos(app_name(id))
+    heroku_app.scale_up_dynos(
+        config.get('dyno_type'),
+        config.get('num_dynos_web'),
+        config.get('num_dynos_worker'),
+        config.get('clock_on'),
+    )
 
     time.sleep(8)
 
@@ -543,8 +531,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     log("Launching the experiment on MTurk...")
     launch_data = _handle_launch_data('https://{}.herokuapp.com/launch'.format(app_name(id)))
     result = {
-        'app_name': app_name(id),
-        'app_home': "https://{}.herokuapp.com/".format(app_name(id)),
+        'app_name': heroku_app.name,
+        'app_home': heroku_app.url,
         'recruitment_url': launch_data.get('recruitment_url', None),
     }
     log("URLs:")

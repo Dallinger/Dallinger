@@ -4,11 +4,130 @@ import signal
 import os
 import psutil
 import re
+try:
+    from pipes import quote
+except ImportError:
+    # Python >= 3.3
+    from shlex import quote
 import subprocess
 import traceback
 
 from dallinger.config import get_config
 from dallinger.compat import unicode
+
+
+class HerokuApp(object):
+    """Representation of a Heroku app"""
+
+    def __init__(self, dallinger_uid, output, team=None):
+        self.dallinger_uid = dallinger_uid
+        self.out = output
+        self.team = team
+
+        cmd = [
+            "heroku",
+            "apps:create",
+            self.name,
+            "--buildpack",
+            "https://github.com/thenovices/heroku-buildpack-scipy",
+        ]
+
+        # If a team is specified, assign the app to the team.
+        if self.team:
+            cmd.extend(["--org", self.team])
+
+        self._run_command(cmd)
+
+    @property
+    def name(self):
+        return "dlgr-" + self.dallinger_uid[0:8]
+
+    @property
+    def url(self):
+        return "https://{}.herokuapp.com/".format(self.name)
+
+    def addon(self, name):
+        """Set up an addon"""
+        cmd = ["heroku", "addons:create", name, "--app", self.name]
+        self._run_command(cmd)
+
+    def buildpack(self, url):
+        """Add a buildpack by URL."""
+        cmd = ["heroku", "buildpacks:add", url, "--app", self.name]
+        self._run_command(cmd)
+
+    @property
+    def db_uri(self):
+        """Not sure what this returns"""
+        output = self.get("DATABASE", subcommand="pg:credentials")
+        match = re.search('(postgres://.*)$', output)
+        return match.group(1)
+
+    @property
+    def db_url(self):
+        """Return the URL for the app's database once we know
+        it's fully built
+        """
+        subprocess.check_call(["heroku", "pg:wait", "--app", self.name])
+        url = self.get('DATABASE_URL')
+        return url.rstrip().decode('utf8')
+
+    def destroy(self):
+        """Destroy an app and all its add-ons"""
+        result = subprocess.check_output(
+            ["heroku", "apps:destroy", "--app", self.name, "--confirm", self.name]
+        )
+        return result
+
+    def get(self, key, subcommand="config:get"):
+        """Get a app config value by name"""
+        cmd = ["heroku", subcommand, key, "--app", self.name]
+        return subprocess.check_output(cmd)
+
+    def open_logs(self):
+        """Show the logs."""
+        cmd = ["heroku", "addons:open", "papertrail", "--app", self.name]
+        self._run_command(cmd)
+
+    @property
+    def redis_url(self):
+        return self.get("REDIS_URL")
+
+    def scale_up_dynos(self, dyno_type, web_count, worker_count, clock_on=False):
+        """Scale up the Heroku dynos."""
+        dynos = {
+            "web": web_count,
+            "worker": worker_count,
+        }
+
+        for process, count in dynos.items():
+            subprocess.check_call([
+                "heroku",
+                "ps:scale",
+                "{}={}:{}".format(process, count, dyno_type),
+                "--app", self.name,
+            ])
+
+        if clock_on:
+            subprocess.check_call([
+                "heroku",
+                "ps:scale",
+                "clock=1:{}".format(dyno_type),
+                "--app", self.name,
+            ])
+
+    def set(self, key, value):
+        """Configure an app key/value pair"""
+        cmd = [
+            "heroku",
+            "config:set",
+            "{}={}".format(key, quote(str(value))),
+            "--app", self.name
+        ]
+        subprocess.check_call(cmd, stdout=self.out)
+
+    def _run_command(self, cmd):
+        return subprocess.check_call(cmd, stdout=self.out)
 
 
 def app_name(id):

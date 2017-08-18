@@ -315,6 +315,26 @@ class TestEmailingHITMessager(object):
         assert 'Allowed time: 1.0' in data['message']
 
 
+class TestHerokuApp(object):
+
+    @pytest.fixture
+    def app(self):
+        from dallinger.heroku.tools import HerokuApp
+        the_app = HerokuApp(dallinger_uid='fake-uid', output=None, team=None)
+        yield the_app
+        the_app.destroy()
+
+    def test_full_monty(self, app):
+        assert app.name == 'dlgr-fake-uid'
+        assert app.url == 'https://dlgr-fake-uid.herokuapp.com/'
+        app.set('auto_recruit', True)
+        assert app.redis_url == "\n"  # Redis not installed
+        app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
+        app.scale_up_dynos(
+            dyno_type='free', web_count=1, worker_count=1, clock_on=False
+        )
+
+
 @pytest.mark.usefixtures('bartlett_dir')
 class TestHerokuLocalWrapper(object):
 
