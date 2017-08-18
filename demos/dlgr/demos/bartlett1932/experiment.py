@@ -67,13 +67,7 @@ class Bartlett1932(Experiment):
     def recruit(self):
         """Recruit one participant at a time until all networks are full."""
         if self.networks(full=False):
-
-            participants = Participant.query\
-                .filter_by(not_(status="working"))\
-                .all()
-
-            if len(participants) >= self.initial_recruitment_size:
-                self.recruiter().recruit(n=1)
+            self.recruiter().recruit(n=1)
 
         else:
             self.recruiter().close_recruitment()
