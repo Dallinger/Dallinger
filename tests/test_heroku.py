@@ -315,7 +315,8 @@ class TestEmailingHITMessager(object):
         assert 'Allowed time: 1.0' in data['message']
 
 
-@pytest.mark.heroku
+@pytest.mark.skipif(not pytest.config.getvalue("heroku"),
+                    reason="--heroku was not specified")
 class TestHerokuApp(object):
 
     @pytest.fixture

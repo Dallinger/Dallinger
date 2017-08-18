@@ -199,7 +199,6 @@ class TestSetupExperiment(object):
         assert verify_package() is False
 
 
-@pytest.mark.heroku
 @pytest.mark.usefixtures('bartlett_dir')
 class TestDeploySandboxSharedSetup(object):
 
@@ -226,6 +225,13 @@ class TestDeploySandboxSharedSetup(object):
             instance.destroy()
 
     def test_end_to_end(self, dsss, launch, herokuapp):
+    @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
+                        reason="--heroku was not specified")
+    def test_with_real_heroku(self, dsss, launch, herokuapp):
+        result = dsss(exp_config={'heroku_team': u'', 'sentry': True})
+        app_name = result.get('app_name')
+        assert app_name.startswith('dlgr')
+
         result = dsss(exp_config={'heroku_team': u'', 'sentry': True})
         app_name = result.get('app_name')
         assert app_name.startswith('dlgr')
