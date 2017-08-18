@@ -315,7 +315,26 @@ class TestEmailingHITMessager(object):
         assert 'Allowed time: 1.0' in data['message']
 
 
+@pytest.mark.heroku
 class TestHerokuApp(object):
+
+    @pytest.fixture
+    def temp_repo(self, stub_config):
+        import subprocess
+        import tempfile
+        cwd = os.getcwd()
+        tmp = tempfile.mkdtemp()
+        os.chdir(tmp)
+        stub_config.write()
+        subprocess.check_call(["git", "init"], stdout=None)
+        subprocess.check_call(["git", "add", "--all"], stdout=None)
+        subprocess.check_call(
+            ["git", "commit", "-m", '"test experiment repo"'.format(id)],
+            stdout=None,
+        )
+
+        yield tmp
+        os.chdir(cwd)
 
     @pytest.fixture
     def app(self):
@@ -324,15 +343,13 @@ class TestHerokuApp(object):
         yield the_app
         the_app.destroy()
 
-    def test_full_monty(self, app):
+    def test_full_monty(self, app, temp_repo):
         assert app.name == 'dlgr-fake-uid'
         assert app.url == 'https://dlgr-fake-uid.herokuapp.com/'
+        app.bootstrap()
+        app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
         app.set('auto_recruit', True)
         assert app.redis_url == "\n"  # Redis not installed
-        app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
-        app.scale_up_dynos(
-            dyno_type='free', web_count=1, worker_count=1, clock_on=False
-        )
 
 
 @pytest.mark.usefixtures('bartlett_dir')

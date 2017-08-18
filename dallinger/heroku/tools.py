@@ -24,6 +24,10 @@ class HerokuApp(object):
         self.out = output
         self.team = team
 
+    def bootstrap(self):
+        """Creates the heroku app and local git remote. Call this once you're
+        in the local repo you're going to use.
+        """
         cmd = [
             "heroku",
             "apps:create",

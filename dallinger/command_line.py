@@ -452,6 +452,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     log("Initializing app on Heroku...")
     team = config.get("heroku_team", '').strip() or None
     heroku_app = HerokuApp(dallinger_uid=id, output=out, team=team)
+    heroku_app.bootstrap()
     heroku_app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
 
     # Set up add-ons and AWS environment variables.
