@@ -44,6 +44,7 @@ from dallinger.mturk import MTurkService
 from dallinger import registration
 from dallinger.utils import generate_random_id
 from dallinger.utils import get_base_url
+from dallinger.utils import GitClient
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -441,12 +442,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     os.chdir(tmp)
 
     # Commit Heroku-specific files to tmp folder's git repo.
-    subprocess.check_call(["git", "init"], stdout=out)
-    subprocess.check_call(["git", "add", "--all"], stdout=out)
-    subprocess.check_call(
-        ["git", "commit", "-m", '"Experiment {}"'.format(id)],
-        stdout=out,
-    )
+    git = GitClient(output=out)
+    git.init()
+    git.add("--all")
+    git.commit('"Experiment {}"'.format(id))
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
@@ -462,7 +461,6 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         "heroku-redis:premium-0",
         "papertrail"
     ]
-
     if config.get("sentry", False):
         addons.append("sentry")
 
@@ -501,22 +499,14 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         "database_url": heroku_app.db_url,
     })
     config.write()
-
-    subprocess.check_call(["git", "add", "config.txt"], stdout=out),
+    git.add("config.txt")
     time.sleep(0.25)
-    subprocess.check_call(
-        ["git", "commit", "-m", '"Save URLs for database and notifications"'],
-        stdout=out
-    )
+    git.commit("Save URLs for database and notifications")
     time.sleep(0.25)
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
-    subprocess.check_call(
-        ["git", "push", "heroku", "HEAD:master"],
-        stdout=out,
-        stderr=out
-    )
+    git.push(remote="heroku", branch="HEAD:master")
 
     log("Scaling up the dynos...")
     heroku_app.scale_up_dynos(

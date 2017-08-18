@@ -214,6 +214,11 @@ class TestDeploySandboxSharedSetup(object):
             yield hld
 
     @pytest.fixture
+    def fake_git(self):
+        with mock.patch('dallinger.command_line.GitClient') as git:
+            yield git
+
+    @pytest.fixture
     def herokuapp(self):
         # Patch addon since we're using a free app which doesn't support them:
         from dallinger.heroku.tools import HerokuApp
@@ -224,7 +229,21 @@ class TestDeploySandboxSharedSetup(object):
             yield instance
             instance.destroy()
 
-    def test_end_to_end(self, dsss, launch, herokuapp):
+    @pytest.fixture
+    def heroku_mock(self):
+        # Patch addon since we're using a free app which doesn't support them:
+        from dallinger.heroku.tools import HerokuApp
+        instance = mock.Mock(spec=HerokuApp)
+        instance.redis_url = '\n'
+        instance.name = u'dlgr-fake-uid'
+        instance.url = u'fake-url'
+        instance.db_url = u'fake-url'
+        with mock.patch('dallinger.command_line.heroku') as heroku_module:
+            heroku_module.auth_token.return_value = u'fake token'
+            with mock.patch('dallinger.command_line.HerokuApp') as mock_app_class:
+                mock_app_class.return_value = instance
+                yield instance
+
     @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
                         reason="--heroku was not specified")
     def test_with_real_heroku(self, dsss, launch, herokuapp):
@@ -232,6 +251,7 @@ class TestDeploySandboxSharedSetup(object):
         app_name = result.get('app_name')
         assert app_name.startswith('dlgr')
 
+    def test_with_fakes(self, dsss, launch, heroku_mock, fake_git):
         result = dsss(exp_config={'heroku_team': u'', 'sentry': True})
         app_name = result.get('app_name')
         assert app_name.startswith('dlgr')

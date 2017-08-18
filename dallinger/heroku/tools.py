@@ -274,7 +274,7 @@ class HerokuLocalWrapper(object):
         self._record = []
         self._process = None
 
-    def start(self, timeout_secs=30):
+    def start(self, timeout_secs=45):
         """Start the heroku local subprocess group and verify that
         it has started successfully.
 
