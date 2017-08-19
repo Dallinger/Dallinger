@@ -203,7 +203,6 @@ class TestGitClient(object):
 
     def test_client(self, tempdir, stub_config):
         from dallinger.utils import GitClient
-        import subprocess
         stub_config.write()
         git = GitClient(output=None)
         git.init()
