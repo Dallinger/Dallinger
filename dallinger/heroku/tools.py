@@ -12,7 +12,6 @@ except ImportError:
 import subprocess
 import traceback
 
-from dallinger.config import get_config
 from dallinger.compat import unicode
 
 
