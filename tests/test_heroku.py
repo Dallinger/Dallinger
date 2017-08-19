@@ -320,22 +320,13 @@ class TestEmailingHITMessager(object):
 class TestHerokuApp(object):
 
     @pytest.fixture
-    def temp_repo(self, stub_config):
-        import subprocess
-        import tempfile
-        cwd = os.getcwd()
-        tmp = tempfile.mkdtemp()
-        os.chdir(tmp)
+    def temp_repo(self, tempdir, stub_config):
+        from dallinger.utils import GitClient
         stub_config.write()
-        subprocess.check_call(["git", "init"], stdout=None)
-        subprocess.check_call(["git", "add", "--all"], stdout=None)
-        subprocess.check_call(
-            ["git", "commit", "-m", '"test experiment repo"'.format(id)],
-            stdout=None,
-        )
-
-        yield tmp
-        os.chdir(cwd)
+        git = GitClient(output=None)
+        git.init()
+        git.add("--all")
+        git.commit("Test Repo")
 
     @pytest.fixture
     def app(self):

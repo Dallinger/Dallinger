@@ -199,6 +199,20 @@ class TestSetupExperiment(object):
         assert verify_package() is False
 
 
+class TestGitClient(object):
+
+    def test_client(self, tempdir, stub_config):
+        from dallinger.utils import GitClient
+        import subprocess
+        stub_config.write()
+        git = GitClient(output=None)
+        git.init()
+        git.add("--all")
+        git.commit("Test Repo")
+
+        assert "Test Repo" in subprocess.check_output(['git', 'log'])
+
+
 @pytest.mark.usefixtures('bartlett_dir')
 class TestDeploySandboxSharedSetup(object):
 

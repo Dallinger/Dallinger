@@ -98,6 +98,17 @@ def stub_config():
     return config
 
 
+@pytest.fixture
+def tempdir():
+    cwd = os.getcwd()
+    tmp = tempfile.mkdtemp()
+    os.chdir(tmp)
+    yield tmp
+
+    os.chdir(cwd)
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
 @pytest.fixture(scope='class')
 def aws_creds():
     from dallinger.config import get_config
