@@ -19,7 +19,7 @@ from dallinger.compat import unicode
 class HerokuApp(object):
     """Representation of a Heroku app"""
 
-    def __init__(self, dallinger_uid, output, team=None):
+    def __init__(self, dallinger_uid, output=None, team=None):
         self.dallinger_uid = dallinger_uid
         self.out = output
         self.team = team
@@ -144,29 +144,6 @@ def auth_token():
     return unicode(subprocess.check_output(["heroku", "auth:token"]).rstrip())
 
 
-def create(id, out, team=None):
-    """Create a new Heroku app"""
-    create_cmd = [
-        "heroku",
-        "apps:create",
-        app_name(id),
-        "--buildpack",
-        "https://github.com/thenovices/heroku-buildpack-scipy",
-    ]
-
-    # If a team is specified, assign the app to the team.
-    if team:
-        create_cmd.extend(["--org", team])
-
-    subprocess.check_call(create_cmd, stdout=out)
-
-
-def addon(app, name, out):
-    """Add an extension to an app"""
-    cmd = ["heroku", "addons:create", name, "--app", app]
-    subprocess.check_call(cmd, stdout=out)
-
-
 def log_in():
     """Ensure that the user is logged in to Heroku."""
     try:
@@ -226,14 +203,6 @@ def open_logs(app):
         ])
 
 
-def destroy(app):
-    """Destroy an app and all its add-ons"""
-    result = subprocess.check_output(
-        ["heroku", "apps:destroy", "--app", app, "--confirm", app]
-    )
-    return result
-
-
 class HerokuStartupError(RuntimeError):
     """The Heroku subprocess did not start"""
 
@@ -274,7 +243,7 @@ class HerokuLocalWrapper(object):
         self._record = []
         self._process = None
 
-    def start(self, timeout_secs=45):
+    def start(self, timeout_secs=60):
         """Start the heroku local subprocess group and verify that
         it has started successfully.
 
