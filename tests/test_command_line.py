@@ -204,11 +204,11 @@ class TestGitClient(object):
     def test_client(self, tempdir, stub_config):
         from dallinger.utils import GitClient
         stub_config.write()
+        config = {'user.name': 'Test User', 'user.email': 'test@example.com'}
         git = GitClient(output=None)
-        git.init()
+        git.init(config=config)
         git.add("--all")
         git.commit("Test Repo")
-
         assert "Test Repo" in subprocess.check_output(['git', 'log'])
 
 
