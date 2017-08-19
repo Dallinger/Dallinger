@@ -315,16 +315,15 @@ class TestEmailingHITMessager(object):
         assert 'Allowed time: 1.0' in data['message']
 
 
-@pytest.mark.skipif(not pytest.config.getvalue("heroku"),
-                    reason="--heroku was not specified")
 class TestHerokuApp(object):
 
     @pytest.fixture
     def temp_repo(self, tempdir, stub_config):
         from dallinger.utils import GitClient
         stub_config.write()
+        config = {'user.name': 'Test User', 'user.email': 'test@example.com'}
         git = GitClient(output=None)
-        git.init()
+        git.init(config=config)
         git.add("--all")
         git.commit("Test Repo")
 
@@ -335,6 +334,33 @@ class TestHerokuApp(object):
         yield the_app
         the_app.destroy()
 
+    @pytest.fixture
+    def dumb_app(self):
+        from dallinger.heroku.tools import HerokuApp
+        with mock.patch('dallinger.heroku.tools.subprocess'):
+            the_app = HerokuApp(
+                dallinger_uid='fake-uid', output=None, team="fake team"
+            )
+            yield the_app
+
+    def test_no_integration(self, dumb_app):
+        app = dumb_app
+        assert app.name == 'dlgr-fake-uid'
+        assert app.url == 'https://dlgr-fake-uid.herokuapp.com/'
+        app.bootstrap()
+        app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
+        app.set('auto_recruit', True)
+        app.addon('some-fake-addon')
+        app.pg_wait()
+        app.redis_url
+        app.restore('some-fake-url')
+        app.scale_up_dynos('fake_type', 1, 1)
+        app.db_url
+        app.open_logs()
+        app.destroy()
+
+    @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
+                        reason="--heroku was not specified")
     def test_full_monty(self, app, temp_repo):
         assert app.name == 'dlgr-fake-uid'
         assert app.url == 'https://dlgr-fake-uid.herokuapp.com/'

@@ -39,7 +39,7 @@ class HerokuApp(object):
         if self.team:
             cmd.extend(["--org", self.team])
 
-        self._run_command(cmd)
+        self._run(cmd)
 
     @property
     def name(self):
@@ -52,12 +52,12 @@ class HerokuApp(object):
     def addon(self, name):
         """Set up an addon"""
         cmd = ["heroku", "addons:create", name, "--app", self.name]
-        self._run_command(cmd)
+        self._run(cmd)
 
     def buildpack(self, url):
         """Add a buildpack by URL."""
         cmd = ["heroku", "buildpacks:add", url, "--app", self.name]
-        self._run_command(cmd)
+        self._run(cmd)
 
     @property
     def db_uri(self):
@@ -71,13 +71,13 @@ class HerokuApp(object):
         """Return the URL for the app's database once we know
         it's fully built
         """
-        subprocess.check_call(["heroku", "pg:wait", "--app", self.name])
+        self._run(["heroku", "pg:wait", "--app", self.name])
         url = self.get('DATABASE_URL')
         return url.rstrip().decode('utf8')
 
     def destroy(self):
         """Destroy an app and all its add-ons"""
-        result = subprocess.check_output(
+        result = self._result(
             ["heroku", "apps:destroy", "--app", self.name, "--confirm", self.name]
         )
         return result
@@ -85,16 +85,16 @@ class HerokuApp(object):
     def get(self, key, subcommand="config:get"):
         """Get a app config value by name"""
         cmd = ["heroku", subcommand, key, "--app", self.name]
-        return subprocess.check_output(cmd)
+        return self._result(cmd)
 
     def open_logs(self):
         """Show the logs."""
         cmd = ["heroku", "addons:open", "papertrail", "--app", self.name]
-        self._run_command(cmd)
+        self._run(cmd)
 
     def pg_wait(self):
         """Wait for the DB to be fired up."""
-        subprocess.check_call(["heroku", "pg:wait", "--app", self.name])
+        self._run(["heroku", "pg:wait", "--app", self.name])
 
     @property
     def redis_url(self):
@@ -102,7 +102,7 @@ class HerokuApp(object):
 
     def restore(self, url):
         """Restore the remote database from the URL of a backup."""
-        subprocess.check_call([
+        self._run([
             "heroku", "pg:backups:restore", "{}".format(url), "DATABASE_URL",
             "--app", self.name,
             "--confirm", self.name,
@@ -116,7 +116,7 @@ class HerokuApp(object):
         }
 
         for process, count in dynos.items():
-            subprocess.check_call([
+            self._run([
                 "heroku",
                 "ps:scale",
                 "{}={}:{}".format(process, count, dyno_type),
@@ -124,7 +124,7 @@ class HerokuApp(object):
             ])
 
         if clock_on:
-            subprocess.check_call([
+            self._run([
                 "heroku",
                 "ps:scale",
                 "clock=1:{}".format(dyno_type),
@@ -139,10 +139,13 @@ class HerokuApp(object):
             "{}={}".format(key, quote(str(value))),
             "--app", self.name
         ]
-        subprocess.check_call(cmd, stdout=self.out)
+        self._run(cmd)
 
-    def _run_command(self, cmd):
+    def _run(self, cmd):
         return subprocess.check_call(cmd, stdout=self.out)
+
+    def _result(self, cmd):
+        return subprocess.check_output(cmd)
 
 
 def app_name(id):
