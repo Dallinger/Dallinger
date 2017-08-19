@@ -93,9 +93,21 @@ class HerokuApp(object):
         cmd = ["heroku", "addons:open", "papertrail", "--app", self.name]
         self._run_command(cmd)
 
+    def pg_wait(self):
+        """Wait for the DB to be fired up."""
+        subprocess.check_call(["heroku", "pg:wait", "--app", self.name])
+
     @property
     def redis_url(self):
         return self.get("REDIS_URL")
+
+    def restore(self, url):
+        """Restore the remote database from the URL of a backup."""
+        subprocess.check_call([
+            "heroku", "pg:backups:restore", "{}".format(url), "DATABASE_URL",
+            "--app", self.name,
+            "--confirm", self.name,
+        ])
 
     def scale_up_dynos(self, dyno_type, web_count, worker_count, clock_on=False):
         """Scale up the Heroku dynos."""
@@ -150,57 +162,6 @@ def log_in():
         subprocess.check_output(["heroku", "auth:whoami"])
     except Exception:
         raise Exception("You are not logged into Heroku.")
-
-
-def db_uri(app):
-    output = subprocess.check_output([
-        "heroku",
-        "pg:credentials",
-        "DATABASE",
-        "--app", app_name(app)
-    ])
-    match = re.search('(postgres://.*)$', output)
-    return match.group(1)
-
-
-def scale_up_dynos(app):
-    """Scale up the Heroku dynos."""
-    config = get_config()
-    if not config.ready:
-        config.load()
-
-    dyno_type = config.get('dyno_type')
-
-    num_dynos = {
-        "web": config.get('num_dynos_web'),
-        "worker": config.get('num_dynos_worker'),
-    }
-
-    for process in ["web", "worker"]:
-        subprocess.check_call([
-            "heroku",
-            "ps:scale",
-            "{}={}:{}".format(process, num_dynos[process], dyno_type),
-            "--app", app,
-        ])
-
-    if config.get('clock_on'):
-        subprocess.check_call([
-            "heroku",
-            "ps:scale",
-            "clock=1:{}".format(dyno_type),
-            "--app", app,
-        ])
-
-
-def open_logs(app):
-    """Show the logs."""
-    if app is None:
-        raise TypeError("Select an experiment using the --app flag.")
-    else:
-        subprocess.check_call([
-            "heroku", "addons:open", "papertrail", "--app", app_name(app)
-        ])
 
 
 class HerokuStartupError(RuntimeError):

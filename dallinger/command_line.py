@@ -691,37 +691,28 @@ def awaken(app, databaseurl):
     config = get_config()
     config.load()
 
-    subprocess.check_call([
-        "heroku",
-        "addons:create",
-        "heroku-postgresql:{}".format(config.get('database_size')),
-        "--app", app_name(id),
-    ])
-
     bucket = data.user_s3_bucket()
     key = bucket.lookup('{}.dump'.format(id))
     url = key.generate_url(expires_in=300)
 
+    heroku_app = HerokuApp(id, output=None, team=None)
+    heroku_app.addon("heroku-postgresql:{}".format(config.get('database_size')))
     time.sleep(60)
 
-    subprocess.check_call(["heroku", "pg:wait", "--app", app_name(id)])
-
+    heroku_app.pg_wait()
     time.sleep(10)
 
-    subprocess.check_call([
-        "heroku", "addons:create", "heroku-redis:premium-0",
-        "--app", app_name(id)
-    ])
-
-    subprocess.check_call([
-        "heroku", "pg:backups:restore", "{}".format(url), "DATABASE_URL",
-        "--app", app_name(id),
-        "--confirm", app_name(id),
-    ])
+    heroku_app.addon("heroku-redis:premium-0")
+    heroku_app.restore(url)
 
     # Scale up the dynos.
     log("Scaling up the dynos...")
-    heroku.scale_up_dynos(app_name(id))
+    heroku_app.scale_up_dynos(
+        config.get('dyno_type'),
+        config.get('num_dynos_web'),
+        config.get('num_dynos_worker'),
+        config.get('clock_on'),
+    )
 
 
 @dallinger.command()
@@ -924,9 +915,11 @@ def load(app, verbose, exp_config=None):
 @dallinger.command()
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def logs(app):
-    heroku.open_logs(app)
     """Show the logs."""
-    heroku.open_logs(app)
+    if app is None:
+        raise TypeError("Select an experiment using the --app flag.")
+
+    HerokuApp(dallinger_uid=app).open_logs()
 
 
 @dallinger.command()
@@ -939,8 +932,9 @@ def monitor(app):
     dash_url = "https://dashboard.heroku.com/apps/{}".format(app_name(app))
     webbrowser.open(dash_url)
     webbrowser.open("https://requester.mturk.com/mturk/manageHITs")
-    heroku.open_logs(app)
-    subprocess.call(["open", heroku.db_uri(app)])
+    heroku_app = HerokuApp(dallinger_uid=app)
+    heroku_app.open_logs()
+    subprocess.call(["open", heroku_app.db_uri])
     while True:
         summary = get_summary(app)
         click.clear()
