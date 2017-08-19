@@ -27,18 +27,24 @@ def generate_random_id(size=6, chars=string.ascii_uppercase + string.digits):
 class GitClient(object):
     """Minimal wrapper, mostly for mocking"""
 
-    def __init__(self, output):
+    def __init__(self, output=None):
         self.out = output
 
-    def init(self):
-        subprocess.check_call(["git", "init"], stdout=self.out)
+    def init(self, config=None):
+        self._run(["git", "init"])
+        if config is not None:
+            for k, v in config.items():
+                self._run(["git", "config", k, v])
 
     def add(self, what):
-        subprocess.check_call(["git", "add", what])
+        self._run(["git", "add", what])
 
     def commit(self, msg):
-        subprocess.check_call(["git", "commit", "-m", '"{}"'.format(msg)])
+        self._run(["git", "commit", "-m", '"{}"'.format(msg)])
 
     def push(self, remote, branch):
         cmd = ["git", "push", remote, branch]
+        self._run(cmd)
+
+    def _run(self, cmd):
         subprocess.check_call(cmd, stdout=self.out, stderr=self.out)
