@@ -400,12 +400,13 @@ class TestHerokuLocalWrapper(object):
         return Output()
 
     @pytest.fixture
-    def heroku(self, config, env, output):
+    def heroku(self, config, env, output, clear_workers):
         from dallinger.heroku.tools import HerokuLocalWrapper
         wrapper = HerokuLocalWrapper(config, output, env=env)
         yield wrapper
         try:
             print "Calling stop() on {}".format(wrapper)
+            print wrapper._record[-1]
             wrapper.stop(signal.SIGKILL)
         except:
             pass
@@ -481,7 +482,7 @@ class TestHerokuLocalWrapper(object):
             mock.call('apple'),
         ])
 
-    def test_as_context_manager(self, config, env, output):
+    def test_as_context_manager(self, config, env, output, clear_workers):
         from dallinger.heroku.tools import HerokuLocalWrapper
         with HerokuLocalWrapper(config, output, env=env) as heroku:
             assert heroku.is_running

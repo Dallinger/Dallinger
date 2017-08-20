@@ -12,6 +12,27 @@ def subprocess_coverage():
     os.environ['COVERAGE_FILE'] = os.path.join(coverage_path, '.coverage')
 
 
+@pytest.fixture()
+def clear_workers():
+    import subprocess
+
+    def _zap():
+        kills = [
+            ['pkill', 'gunicorn'],
+            ['pkill', '-f', 'python worker.py'],
+        ]
+        for kill in kills:
+            try:
+                subprocess.check_call(kill)
+            except Exception as e:
+                if e.returncode != 1:
+                    raise
+
+    _zap()
+    yield
+    _zap()
+
+
 @pytest.fixture(scope='session')
 def root():
     return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))

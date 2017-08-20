@@ -325,7 +325,7 @@ class Test_handle_launch_data(object):
 class TestDebugServer(object):
 
     @pytest.fixture
-    def debugger_unpatched(self, env_with_home, output):
+    def debugger_unpatched(self, env_with_home, output, clear_workers):
         from dallinger.command_line import DebugSessionRunner
         debugger = DebugSessionRunner(output, verbose=True, bot=False, exp_config={})
         return debugger
