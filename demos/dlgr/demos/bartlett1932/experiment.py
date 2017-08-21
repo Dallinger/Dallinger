@@ -6,12 +6,10 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from sqlalchemy import not_
 
 from dallinger.bots import BotBase
 from dallinger.networks import DelayedChain
 from dallinger.experiment import Experiment
-from dallinger.models import Participant
 
 
 logger = logging.getLogger(__file__)
