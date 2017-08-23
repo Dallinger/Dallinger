@@ -40,6 +40,8 @@ class HerokuApp(object):
             cmd.extend(["--org", self.team])
 
         self._run(cmd)
+        # Set HOST value
+        self.set("HOST", self.url)
 
     @property
     def name(self):
@@ -54,10 +56,23 @@ class HerokuApp(object):
         cmd = ["heroku", "addons:create", name, "--app", self.name]
         self._run(cmd)
 
+    def addon_destroy(self, name):
+        """Destroy an addon"""
+        self._run([
+            "heroku",
+            "addons:destroy", name,
+            "--app", self.name,
+            "--confirm", self.name
+        ])
+
     def buildpack(self, url):
         """Add a buildpack by URL."""
         cmd = ["heroku", "buildpacks:add", url, "--app", self.name]
         self._run(cmd)
+
+    @property
+    def dashboard_url(self):
+        return "https://dashboard.heroku.com/apps/{}".format(self.name)
 
     @property
     def db_uri(self):
@@ -71,9 +86,23 @@ class HerokuApp(object):
         """Return the URL for the app's database once we know
         it's fully built
         """
-        self._run(["heroku", "pg:wait", "--app", self.name])
+        self.pg_wait()
         url = self.get('DATABASE_URL')
         return url.rstrip().decode('utf8')
+
+    def backup_capture(self):
+        """Capture a backup of the app."""
+        self._run(
+            ["heroku", "pg:backups:capture", "--app", self.name],
+            pass_stderr=True
+        )
+
+    def backup_download(self):
+        """Download a backup to the current working directory."""
+        self._run(
+            ["heroku", "pg:backups:download", "--app", self.name],
+            pass_stderr=True
+        )
 
     def destroy(self):
         """Destroy an app and all its add-ons"""
@@ -92,6 +121,14 @@ class HerokuApp(object):
         cmd = ["heroku", "addons:open", "papertrail", "--app", self.name]
         self._run(cmd)
 
+    def pg_pull(self):
+        """Pull remote data from a Heroku Postgres database to a database
+        of the same name on your local machine.
+        """
+        self._run(
+            ["heroku", "pg:pull", "DATABASE_URL", self.name, "--app", self.name]
+        )
+
     def pg_wait(self):
         """Wait for the DB to be fired up."""
         self._run(["heroku", "pg:wait", "--app", self.name])
@@ -108,28 +145,22 @@ class HerokuApp(object):
             "--confirm", self.name,
         ])
 
-    def scale_up_dynos(self, dyno_type, web_count, worker_count, clock_on=False):
-        """Scale up the Heroku dynos."""
-        dynos = {
-            "web": web_count,
-            "worker": worker_count,
-        }
+    def scale_up_dyno(self, process, quantity, size):
+        """Scale up a dyno."""
+        self._run([
+            "heroku",
+            "ps:scale",
+            "{}={}:{}".format(process, quantity, size),
+            "--app", self.name,
+        ])
 
-        for process, count in dynos.items():
-            self._run([
-                "heroku",
-                "ps:scale",
-                "{}={}:{}".format(process, count, dyno_type),
-                "--app", self.name,
-            ])
-
-        if clock_on:
-            self._run([
-                "heroku",
-                "ps:scale",
-                "clock=1:{}".format(dyno_type),
-                "--app", self.name,
-            ])
+    def scale_down_dyno(self, process):
+        """Turn off a dyno by setting its process count to 0"""
+        self._run([
+            "heroku",
+            "ps:scale", "{}=0".format(process),
+            "--app", self.name
+        ])
 
     def set(self, key, value):
         """Configure an app key/value pair"""
@@ -141,7 +172,9 @@ class HerokuApp(object):
         ]
         self._run(cmd)
 
-    def _run(self, cmd):
+    def _run(self, cmd, pass_stderr=False):
+        if pass_stderr:
+            return subprocess.check_call(cmd, stdout=self.out, stderr=self.out)
         return subprocess.check_call(cmd, stdout=self.out)
 
     def _result(self, cmd):
