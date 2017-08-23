@@ -34,9 +34,6 @@ from collections import Counter
 from dallinger import data
 from dallinger import db
 from dallinger import heroku
-from dallinger.heroku import (
-    app_name,
-)
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp
@@ -367,7 +364,8 @@ def uuid():
 
 
 def get_summary(app):
-    r = requests.get('https://{}.herokuapp.com/summary'.format(app_name(app)))
+    heroku_app = HerokuApp(app)
+    r = requests.get('{}/summary'.format(heroku_app.url))
     summary = r.json()['summary']
     out = []
     out.append("\nstatus    | count")
@@ -421,10 +419,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     (id, tmp) = setup_experiment(debug=False, verbose=verbose, app=app,
                                  exp_config=exp_config)
 
-    # Load configuration.
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config()  # We know it's ready; setup_experiment() does this.
 
     # Register the experiment using all configured registration services.
     if config.get("mode") == u"live":
@@ -468,7 +463,6 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         heroku_app.addon(name)
 
     heroku_config = {
-        "HOST": "{}.herokuapp.com".format(app_name(id)),
         "aws_access_key_id": config["aws_access_key_id"],
         "aws_secret_access_key": config["aws_secret_access_key"],
         "aws_region": config["aws_region"],
@@ -509,18 +503,18 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     git.push(remote="heroku", branch="HEAD:master")
 
     log("Scaling up the dynos...")
-    heroku_app.scale_up_dynos(
-        config.get('dyno_type'),
-        config.get('num_dynos_web'),
-        config.get('num_dynos_worker'),
-        config.get('clock_on'),
-    )
+    size = config.get("dyno_type")
+    for process in ["web", "worker"]:
+        qty = config.get("num_dynos_" + process)
+        heroku_app.scale_up_dyno(process, qty, size)
+    if config.get("clock_on"):
+        heroku_app.scale_up_dyno("clock", 1, size)
 
     time.sleep(8)
 
     # Launch the experiment.
     log("Launching the experiment on MTurk...")
-    launch_data = _handle_launch_data('https://{}.herokuapp.com/launch'.format(app_name(id)))
+    launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url))
     result = {
         'app_name': heroku_app.name,
         'app_home': heroku_app.url,
@@ -634,19 +628,9 @@ def hibernate(app):
     log(backup_url)
 
     log("Scaling down the web servers...")
-
-    for process in ["web", "worker"]:
-        subprocess.check_call([
-            "heroku",
-            "ps:scale", "{}=0".format(process),
-            "--app", app_name(app)
-        ])
-
-    subprocess.call([
-        "heroku",
-        "ps:scale", "clock=0",
-        "--app", app_name(app)
-    ])
+    heroku_app = HerokuApp(app)
+    for process in ["web", "worker", "clock"]:
+        heroku_app.scale_down_dyno(process)
 
     log("Removing addons...")
 
@@ -656,12 +640,7 @@ def hibernate(app):
         "heroku-redis",
     ]
     for addon in addons:
-        subprocess.check_call([
-            "heroku",
-            "addons:destroy", addon,
-            "--app", app_name(app),
-            "--confirm", app_name(app)
-        ])
+        heroku_app.addon_destroy(addon)
 
 
 @dallinger.command()
@@ -669,17 +648,7 @@ def hibernate(app):
 @click.confirmation_option(prompt='Are you sure you want to destroy the app?')
 def destroy(app):
     """Tear down an experiment server."""
-    destroy_server(app)
-
-
-def destroy_server(app):
-    """Tear down an experiment server."""
-    subprocess.check_call([
-        "heroku",
-        "destroy",
-        "--app", app_name(app),
-        "--confirm", app_name(app),
-    ])
+    HerokuApp(app).destroy()
 
 
 @dallinger.command()
@@ -707,12 +676,12 @@ def awaken(app, databaseurl):
 
     # Scale up the dynos.
     log("Scaling up the dynos...")
-    heroku_app.scale_up_dynos(
-        config.get('dyno_type'),
-        config.get('num_dynos_web'),
-        config.get('num_dynos_worker'),
-        config.get('clock_on'),
-    )
+    size = config.get("dyno_type")
+    for process in ["web", "worker"]:
+        qty = config.get("num_dynos_" + process)
+        heroku_app.scale_up_dyno(process, qty, size)
+    if config.get("clock_on"):
+        heroku_app.scale_up_dyno("clock", 1, size)
 
 
 @dallinger.command()
@@ -928,11 +897,9 @@ def monitor(app):
     """Set up application monitoring."""
     if app is None:
         raise TypeError("Select an experiment using the --app flag.")
-
-    dash_url = "https://dashboard.heroku.com/apps/{}".format(app_name(app))
-    webbrowser.open(dash_url)
-    webbrowser.open("https://requester.mturk.com/mturk/manageHITs")
     heroku_app = HerokuApp(dallinger_uid=app)
+    webbrowser.open(heroku_app.dashboard_url)
+    webbrowser.open("https://requester.mturk.com/mturk/manageHITs")
     heroku_app.open_logs()
     subprocess.call(["open", heroku_app.db_uri])
     while True:
@@ -966,11 +933,11 @@ def bot(app, debug):
     if debug:
         url = debug
     else:
-        host = app_name(app)
+        heroku_app = HerokuApp(dallinger_uid=app)
         worker = generate_random_id()
         hit = generate_random_id()
         assignment = generate_random_id()
-        ad_url = 'https://{}.herokuapp.com/ad'.format(host)
+        ad_url = '{}/ad'.format(heroku_app.url)
         ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
         ad_parameters = ad_parameters.format(assignment, hit, worker)
         url = '{}?{}'.format(ad_url, ad_parameters)

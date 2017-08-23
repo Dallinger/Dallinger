@@ -21,7 +21,7 @@ from dallinger.data import export
 from dallinger.data import is_registered
 from dallinger.data import load as data_load
 from dallinger.models import Network, Node, Info, Transformation, Participant
-from dallinger.heroku import app_name
+from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
@@ -550,9 +550,8 @@ class Experiment(object):
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
         completed"""
-        status_url = 'https://{}.herokuapp.com/summary'.format(
-            app_name(self.app_id)
-        )
+        heroku_app = HerokuApp(self.app_id)
+        status_url = '/summary'.format(heroku_app.url)
         data = {}
         try:
             resp = requests.get(status_url)
@@ -573,8 +572,7 @@ class Experiment(object):
 
     def end_experiment(self):
         """Terminates a running experiment"""
-        import dallinger as dlgr
-        dlgr.command_line.destroy_server(self.app_id)
+        HerokuApp(self.app_id).destroy()
 
 
 def load():
