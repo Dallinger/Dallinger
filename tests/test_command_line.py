@@ -201,7 +201,7 @@ class TestSetupExperiment(object):
 
 class TestGitClient(object):
 
-    def test_client(self, tempdir, stub_config):
+    def test_client(self, in_tempdir, stub_config):
         from dallinger.utils import GitClient
         stub_config.write()
         config = {'user.name': 'Test User', 'user.email': 'test@example.com'}
@@ -219,6 +219,17 @@ class TestDeploySandboxSharedSetup(object):
     def dsss(self):
         from dallinger.command_line import deploy_sandbox_shared_setup
         return deploy_sandbox_shared_setup
+
+    @pytest.fixture
+    def faster(self, tempdir, stub_config):
+        with mock.patch.multiple('dallinger.command_line',
+                                 time=mock.DEFAULT,
+                                 setup_experiment=mock.DEFAULT,
+                                 get_config=mock.DEFAULT) as mocks:
+            mocks['setup_experiment'].return_value = ('fake-uid', tempdir)
+            mocks['get_config'].return_value = stub_config
+
+            yield mocks
 
     @pytest.fixture
     def launch(self):
@@ -243,7 +254,7 @@ class TestDeploySandboxSharedSetup(object):
             instance.destroy()
 
     @pytest.fixture
-    def heroku_mock(self):
+    def heroku_mock(self, faster):
         # Patch addon since we're using a free app which doesn't support them:
         from dallinger.heroku.tools import HerokuApp
         instance = mock.Mock(spec=HerokuApp)
@@ -260,14 +271,38 @@ class TestDeploySandboxSharedSetup(object):
     @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
                         reason="--heroku was not specified")
     def test_with_real_heroku(self, dsss, launch, herokuapp):
-        result = dsss(exp_config={'heroku_team': u'', 'sentry': True})
+        overrides = {'heroku_team': u'', 'clock_on': False, 'sentry': True}
+        result = dsss(exp_config=overrides)
         app_name = result.get('app_name')
         assert app_name.startswith('dlgr')
 
     def test_with_fakes(self, dsss, launch, heroku_mock, fake_git):
-        result = dsss(exp_config={'heroku_team': u'', 'sentry': True})
+        overrides = {
+            'database_size': u'standard-0',
+            'heroku_team': u'',
+            'clock_on': True,
+            'sentry': True
+        }
+        result = dsss(exp_config=overrides)
         app_name = result.get('app_name')
+
         assert app_name.startswith('dlgr')
+        heroku_mock.bootstrap.assert_called_once()
+        heroku_mock.buildpack.assert_called_once_with(
+            'https://github.com/stomita/heroku-buildpack-phantomjs'
+        )
+        heroku_mock.addon.assert_has_calls([
+            mock.call('heroku-postgresql:standard-0'),
+            mock.call('heroku-redis:premium-0'),
+            mock.call('papertrail'),
+            mock.call('sentry')
+        ])
+        assert heroku_mock.set.called
+        heroku_mock.scale_up_dyno.assert_has_calls([
+            mock.call('web', 1, u'free'),
+            mock.call('worker', 1, u'free'),
+            mock.call('clock', 1, u'free')
+        ])
 
 
 @pytest.mark.usefixtures('bartlett_dir')
