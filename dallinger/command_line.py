@@ -409,7 +409,7 @@ def debug(verbose, bot, exp_config=None):
     debugger.run()
 
 
-def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=None):
+def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
         out = None
