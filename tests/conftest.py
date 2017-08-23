@@ -1,3 +1,4 @@
+import mock
 import os
 import pytest
 import shutil
@@ -128,6 +129,13 @@ def tempdir():
 
     os.chdir(cwd)
     shutil.rmtree(tmp, ignore_errors=True)
+
+
+
+@pytest.fixture
+def subproc():
+    with mock.patch('dallinger.heroku.tools.subprocess') as sp:
+        yield sp
 
 
 @pytest.fixture(scope='class')
