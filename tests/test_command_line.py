@@ -4,6 +4,7 @@ import filecmp
 import mock
 import os
 import pytest
+import re
 import subprocess
 import sys
 from uuid import UUID
@@ -51,6 +52,12 @@ def sleepless():
     # Use this fixture to ignore sleep() calls, for speed.
     with mock.patch('dallinger.command_line.time.sleep'):
         yield
+
+
+@pytest.fixture
+def browser():
+    with mock.patch('dallinger.command_line.webbrowser') as mock_browser:
+        yield mock_browser
 
 
 @pytest.mark.usefixtures('bartlett_dir')
@@ -408,6 +415,14 @@ class TestDebugServer(object):
 
         assert response == HerokuLocalWrapper.MONITOR_STOP
         debugger.out.log.assert_called_with('Experiment completed, all nodes filled.')
+
+    def test_new_recruit(self, debugger, browser):
+        match = re.search('URL: (.*)$', 'URL: some-fake-url')
+        debugger.new_recruit(match)
+
+        browser.open.assert_called_once_with(
+            'some-fake-url', autoraise=True, new=1
+        )
 
     @pytest.mark.skipif(not pytest.config.getvalue("runbot"),
                         reason="--runbot was specified")
