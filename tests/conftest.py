@@ -1,4 +1,3 @@
-import mock
 import os
 import pytest
 import shutil
