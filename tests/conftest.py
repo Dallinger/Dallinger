@@ -160,12 +160,6 @@ def in_tempdir(tempdir):
     os.chdir(cwd)
 
 
-@pytest.fixture
-def subproc():
-    with mock.patch('dallinger.heroku.tools.subprocess') as sp:
-        yield sp
-
-
 @pytest.fixture(scope='class')
 def aws_creds():
     from dallinger.config import get_config

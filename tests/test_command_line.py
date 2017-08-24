@@ -60,6 +60,27 @@ def browser():
         yield mock_browser
 
 
+@pytest.fixture
+def heroku():
+    from dallinger.heroku.tools import HerokuApp
+    instance = mock.Mock(spec=HerokuApp)
+    with mock.patch('dallinger.command_line.HerokuApp') as mock_app_class:
+        mock_app_class.return_value = instance
+        yield instance
+
+
+@pytest.fixture
+def data():
+    with mock.patch('dallinger.command_line.data') as mock_data:
+        mock_data.backup.return_value = 'fake backup url'
+        mock_bucket = mock.Mock()
+        mock_key = mock.Mock()
+        mock_key.generate_url.return_value = 'fake restore url'
+        mock_bucket.lookup.return_value = mock_key
+        mock_data.user_s3_bucket.return_value = mock_bucket
+        yield mock_data
+
+
 @pytest.mark.usefixtures('bartlett_dir')
 class TestVerify(object):
 
@@ -776,20 +797,6 @@ class TestQualify(object):
 class TestHibernate(object):
 
     @pytest.fixture
-    def heroku(self):
-        from dallinger.heroku.tools import HerokuApp
-        instance = mock.Mock(spec=HerokuApp)
-        with mock.patch('dallinger.command_line.HerokuApp') as mock_app_class:
-            mock_app_class.return_value = instance
-            yield instance
-
-    @pytest.fixture
-    def data(self):
-        with mock.patch('dallinger.command_line.data') as mock_data:
-            mock_data.backup.return_value = 'fake backup url'
-            yield mock_data
-
-    @pytest.fixture
     def hibernate(self, sleepless):
         from dallinger.command_line import hibernate
         return hibernate
@@ -824,25 +831,6 @@ class TestHibernate(object):
 
 
 class TestAwaken(object):
-
-    @pytest.fixture
-    def heroku(self):
-        from dallinger.heroku.tools import HerokuApp
-        instance = mock.Mock(spec=HerokuApp)
-        with mock.patch('dallinger.command_line.HerokuApp') as mock_app_class:
-            mock_app_class.return_value = instance
-            yield instance
-
-    @pytest.fixture
-    def data(self):
-        with mock.patch('dallinger.command_line.data') as mock_data:
-            mock_data.backup.return_value = 'fake backup url'
-            mock_bucket = mock.Mock()
-            mock_key = mock.Mock()
-            mock_key.generate_url.return_value = 'fake restore url'
-            mock_bucket.lookup.return_value = mock_key
-            mock_data.user_s3_bucket.return_value = mock_bucket
-            yield mock_data
 
     @pytest.fixture
     def config(self, stub_config):
@@ -891,3 +879,114 @@ class TestAwaken(object):
             mock.call('worker', worker_count, size),
             mock.call('clock', 1, size)
         ])
+
+
+class TestDestroy(object):
+
+    @pytest.fixture
+    def destroy(self):
+        from dallinger.command_line import destroy
+        return destroy
+
+    def test_calls_destroy(self, destroy, heroku):
+        CliRunner().invoke(
+            destroy,
+            ['--app', 'some-app-uid', '--yes']
+        )
+        heroku.destroy.assert_called_once()
+
+    def test_requires_confirmation(self, destroy, heroku):
+        CliRunner().invoke(
+            destroy,
+            ['--app', 'some-app-uid']
+        )
+        heroku.destroy.assert_not_called()
+
+
+class TestLogs(object):
+
+    @pytest.fixture
+    def logs(self):
+        from dallinger.command_line import logs
+        return logs
+
+    def test_opens_logs(self, logs, heroku):
+        CliRunner().invoke(
+            logs,
+            ['--app', 'some-app-uid', ]
+        )
+        heroku.open_logs.assert_called_once()
+
+
+class TestMonitor(object):
+
+    def _twice(self):
+        count = [2]
+
+        def countdown():
+            if count[0]:
+                count[0] -= 1
+                return True
+            return False
+
+        return countdown
+
+    @pytest.fixture
+    def subproc(self):
+        with mock.patch('dallinger.command_line.subprocess') as sub:
+            yield sub
+
+    @pytest.fixture
+    def summary(self):
+        with mock.patch('dallinger.command_line.get_summary') as sm:
+            sm.return_value = 'fake summary'
+            yield sm
+
+    @pytest.fixture
+    def two_summary_checks(self):
+        countdown = self._twice()
+        counter_factory = mock.Mock(return_value=countdown)
+        with mock.patch('dallinger.command_line._keep_running',
+                        new_callable=counter_factory):
+            yield
+
+    @pytest.fixture
+    def monitor(self, sleepless, summary, two_summary_checks):
+        from dallinger.command_line import monitor
+        return monitor
+
+    def test_opens_browsers(self, monitor, heroku, browser, subproc):
+        heroku.dashboard_url = 'fake-dashboard-url'
+        CliRunner().invoke(
+            monitor,
+            ['--app', 'some-app-uid', ]
+        )
+        browser.open.assert_has_calls([
+            mock.call('fake-dashboard-url'),
+            mock.call('https://requester.mturk.com/mturk/manageHITs')
+        ])
+
+    def test_calls_open_with_db_uri(self, monitor, heroku, browser, subproc):
+        heroku.db_uri = 'fake-db-uri'
+        CliRunner().invoke(
+            monitor,
+            ['--app', 'some-app-uid', ]
+        )
+        subproc.call.assert_called_once_with(['open', 'fake-db-uri'])
+
+    def test_shows_summary_in_output(self, monitor, heroku, browser, subproc):
+        heroku.db_uri = 'fake-db-uri'
+        result = CliRunner().invoke(
+            monitor,
+            ['--app', 'some-app-uid', ]
+        )
+
+        assert len(re.findall('fake summary', result.output)) == 2
+
+    def test_raises_on_null_app_id(self, monitor, heroku, browser, subproc):
+        heroku.db_uri = 'fake-db-uri'
+        result = CliRunner().invoke(
+            monitor,
+            ['--app', None, ]
+        )
+        assert result.exception.message == 'Select an experiment using the --app flag.'

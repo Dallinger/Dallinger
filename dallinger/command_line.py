@@ -895,20 +895,23 @@ def logs(app):
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def monitor(app):
     """Set up application monitoring."""
-    if app is None:
-        raise TypeError("Select an experiment using the --app flag.")
     heroku_app = HerokuApp(dallinger_uid=app)
     webbrowser.open(heroku_app.dashboard_url)
     webbrowser.open("https://requester.mturk.com/mturk/manageHITs")
     heroku_app.open_logs()
     subprocess.call(["open", heroku_app.db_uri])
-    while True:
+    while _keep_running():
         summary = get_summary(app)
         click.clear()
         click.echo(header)
         click.echo("\nExperiment {}\n".format(app))
         click.echo(summary)
         time.sleep(10)
+
+
+def _keep_running():
+    """Patchable version of True"""
+    return True
 
 
 def bot_factory(url):

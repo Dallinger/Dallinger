@@ -28,6 +28,12 @@ def run_check():
     os.chdir('../..')
 
 
+@pytest.fixture
+def subproc():
+    with mock.patch('dallinger.heroku.tools.subprocess') as sp:
+        yield sp
+
+
 class TestHeroku(object):
 
     def test_heroku_app_name(self):
