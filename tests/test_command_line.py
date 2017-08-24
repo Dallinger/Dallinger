@@ -46,6 +46,13 @@ def output():
     return Output()
 
 
+@pytest.fixture
+def sleepless():
+    # Use this fixture to ignore sleep() calls, for speed.
+    with mock.patch('dallinger.command_line.time.sleep'):
+        yield
+
+
 @pytest.mark.usefixtures('bartlett_dir')
 class TestVerify(object):
 
@@ -749,3 +756,123 @@ class TestQualify(object):
         )
         assert result.exit_code == 2
         assert 'No qualification with name "some qual name" exists.' in result.output
+
+
+class TestHibernate(object):
+
+    @pytest.fixture
+    def heroku(self):
+        from dallinger.heroku.tools import HerokuApp
+        instance = mock.Mock(spec=HerokuApp)
+        with mock.patch('dallinger.command_line.HerokuApp') as mock_app_class:
+            mock_app_class.return_value = instance
+            yield instance
+
+    @pytest.fixture
+    def data(self):
+        with mock.patch('dallinger.command_line.data') as mock_data:
+            mock_data.backup.return_value = 'fake backup url'
+            yield mock_data
+
+    @pytest.fixture
+    def hibernate(self, sleepless):
+        from dallinger.command_line import hibernate
+        return hibernate
+
+    def test_creates_backup(self, hibernate, heroku, data):
+        CliRunner().invoke(
+            hibernate,
+            ['--app', 'some-app-uid', ]
+        )
+        data.backup.assert_called_once_with('some-app-uid')
+
+    def test_scales_down_dynos(self, hibernate, heroku, data):
+        CliRunner().invoke(
+            hibernate,
+            ['--app', 'some-app-uid', ]
+        )
+        heroku.scale_down_dyno.assert_has_calls([
+            mock.call('web'),
+            mock.call('worker'),
+            mock.call('clock')
+        ])
+
+    def test_kills_addons(self, hibernate, heroku, data):
+        CliRunner().invoke(
+            hibernate,
+            ['--app', 'some-app-uid', ]
+        )
+        heroku.addon_destroy.assert_has_calls([
+            mock.call('heroku-postgresql'),
+            mock.call('heroku-redis')
+        ])
+
+
+class TestAwaken(object):
+
+    @pytest.fixture
+    def heroku(self):
+        from dallinger.heroku.tools import HerokuApp
+        instance = mock.Mock(spec=HerokuApp)
+        with mock.patch('dallinger.command_line.HerokuApp') as mock_app_class:
+            mock_app_class.return_value = instance
+            yield instance
+
+    @pytest.fixture
+    def data(self):
+        with mock.patch('dallinger.command_line.data') as mock_data:
+            mock_data.backup.return_value = 'fake backup url'
+            mock_bucket = mock.Mock()
+            mock_key = mock.Mock()
+            mock_key.generate_url.return_value = 'fake restore url'
+            mock_bucket.lookup.return_value = mock_key
+            mock_data.user_s3_bucket.return_value = mock_bucket
+            yield mock_data
+
+    @pytest.fixture
+    def config(self, stub_config):
+        with mock.patch('dallinger.command_line.get_config') as getter:
+            getter.return_value = stub_config
+            yield stub_config
+
+    @pytest.fixture
+    def awaken(self, sleepless):
+        from dallinger.command_line import awaken
+        return awaken
+
+    def test_creates_database_of_configured_size(self, awaken, heroku, data, config):
+        CliRunner().invoke(
+            awaken,
+            ['--app', 'some-app-uid', ]
+        )
+        size = config.get('database_size')
+        expected = mock.call('heroku-postgresql:{}'.format(size))
+        assert expected == heroku.addon.call_args_list[0]
+
+    def test_adds_redis(self, awaken, heroku, data, config):
+        CliRunner().invoke(
+            awaken,
+            ['--app', 'some-app-uid', ]
+        )
+        assert mock.call('heroku-redis:premium-0') == heroku.addon.call_args_list[1]
+
+    def test_restores_database_from_backup(self, awaken, heroku, data, config):
+        CliRunner().invoke(
+            awaken,
+            ['--app', 'some-app-uid', ]
+        )
+        heroku.restore.assert_called_once_with('fake restore url')
+
+    def test_scales_up_dynos(self, awaken, heroku, data, config):
+        CliRunner().invoke(
+            awaken,
+            ['--app', 'some-app-uid', ]
+        )
+        web_count = config.get('num_dynos_web')
+        worker_count = config.get('num_dynos_worker')
+        size = config.get('dyno_type')
+        heroku.scale_up_dyno.assert_has_calls([
+            mock.call('web', web_count, size),
+            mock.call('worker', worker_count, size),
+            mock.call('clock', 1, size)
+        ])
