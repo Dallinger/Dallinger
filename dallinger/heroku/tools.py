@@ -4,6 +4,7 @@ import signal
 import os
 import psutil
 import re
+import sys
 try:
     from pipes import quote
 except ImportError:
@@ -22,6 +23,8 @@ class HerokuApp(object):
         self.dallinger_uid = dallinger_uid
         self.out = output
         self.team = team
+        # Encoding of strings returned from subprocess calls:
+        self.sys_encoding = sys.getdefaultencoding()
 
     def bootstrap(self):
         """Creates the heroku app and local git remote. Call this once you're
@@ -45,11 +48,11 @@ class HerokuApp(object):
 
     @property
     def name(self):
-        return "dlgr-" + self.dallinger_uid[0:8]
+        return u"dlgr-" + self.dallinger_uid[0:8]
 
     @property
     def url(self):
-        return "https://{}.herokuapp.com/".format(self.name)
+        return u"https://{}.herokuapp.com".format(self.name)
 
     def addon(self, name):
         """Set up an addon"""
@@ -72,7 +75,7 @@ class HerokuApp(object):
 
     @property
     def dashboard_url(self):
-        return "https://dashboard.heroku.com/apps/{}".format(self.name)
+        return u"https://dashboard.heroku.com/apps/{}".format(self.name)
 
     @property
     def db_uri(self):
@@ -88,7 +91,7 @@ class HerokuApp(object):
         """
         self.pg_wait()
         url = self.get('DATABASE_URL')
-        return url.rstrip().decode('utf8')
+        return url.strip()
 
     def backup_capture(self):
         """Capture a backup of the app."""
@@ -178,7 +181,7 @@ class HerokuApp(object):
         return subprocess.check_call(cmd, stdout=self.out)
 
     def _result(self, cmd):
-        return subprocess.check_output(cmd)
+        return subprocess.check_output(cmd).decode(self.sys_encoding)
 
 
 def app_name(id):

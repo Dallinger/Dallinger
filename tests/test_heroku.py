@@ -372,13 +372,13 @@ class TestHerokuApp(object):
             yield the_app
 
     def test_name(self, app):
-        assert app.name == 'dlgr-fake-uid'
+        assert app.name == u'dlgr-fake-uid'
 
     def test_url(self, app):
-        assert app.url == 'https://dlgr-fake-uid.herokuapp.com/'
+        assert app.url == u'https://dlgr-fake-uid.herokuapp.com'
 
     def test_dashboard_url(self, app):
-        assert app.dashboard_url == 'https://dashboard.heroku.com/apps/dlgr-fake-uid'
+        assert app.dashboard_url == u'https://dashboard.heroku.com/apps/dlgr-fake-uid'
 
     def test_bootstrap_creates_app_with_team(self, app, subproc):
         app.team = 'some-team'
@@ -394,7 +394,7 @@ class TestHerokuApp(object):
         app.bootstrap()
         subproc.check_call.assert_has_calls([
             mock.call(['heroku', 'config:set',
-                       'HOST=https://dlgr-fake-uid.herokuapp.com/',
+                       'HOST=https://dlgr-fake-uid.herokuapp.com',
                        '--app', 'dlgr-fake-uid'], stdout=None)
         ])
 
@@ -426,7 +426,7 @@ class TestHerokuApp(object):
 
     def test_db_uri(self, app, subproc):
         subproc.check_output.return_value = 'blahblahpostgres://foobar'
-        assert app.db_uri == 'postgres://foobar'
+        assert app.db_uri == u'postgres://foobar'
 
     def test_db_url(self, app, subproc):
         subproc.check_output.return_value = 'some url    '
@@ -459,7 +459,7 @@ class TestHerokuApp(object):
 
     def test_get(self, app, subproc):
         subproc.check_output.return_value = 'some value'
-        assert app.get('some key') == 'some value'
+        assert app.get('some key') == u'some value'
         subproc.check_output.assert_called_once_with(
             ["heroku", "config:get", "some key", "--app", app.name],
         )
@@ -551,8 +551,9 @@ class TestHerokuApp(object):
                         reason="--heroku was not specified")
     def test_full_monty(self, full_app, temp_repo):
         app = full_app
-        assert app.name == 'dlgr-fake-uid'
-        assert app.url == 'https://dlgr-fake-uid.herokuapp.com/'
+        assert app.name == u'dlgr-fake-uid'
+        assert app.url == u'https://dlgr-fake-uid.herokuapp.com'
+        assert app.dashboard_url == u"https://dashboard.heroku.com/apps/dlgr-fake-uid"
         app.bootstrap()
         app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
         app.set('auto_recruit', True)
