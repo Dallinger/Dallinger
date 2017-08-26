@@ -199,5 +199,7 @@ def pytest_addoption(parser):
                      help="Run an experiment using a bot during tests")
     parser.addoption("--manual", action="store_true",
                      help="Run manual interactive tests during test run")
+    parser.addoption("--mturkfull", action="store_true",
+                     help="Run comprehensive MTurk integration tests during test run")
     parser.addoption("--heroku", action="store_true",
                      help="Run tests requiring heroku login")

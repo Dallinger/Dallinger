@@ -240,6 +240,16 @@ class TestMTurkRecruiter(object):
 
         assert not recruiter.mturkservice.extend_hit.called
 
+    def test_recruit_extend_hit_error_is_logged_politely(self, recruiter):
+        from dallinger.mturk import MTurkServiceException
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.mturkservice.extend_hit.side_effect = MTurkServiceException("Boom!")
+        with mock.patch('dallinger.recruiters.logger') as mock_logger:
+            recruiter.recruit()
+
+        mock_logger.exception.assert_called_once_with("Boom!")
+
     def test_reward_bonus_is_simple_passthrough(self, recruiter):
         recruiter.reward_bonus(
             assignment_id='fake assignment id',
@@ -253,11 +263,27 @@ class TestMTurkRecruiter(object):
             reason='well done!'
         )
 
+    def test_reward_bonus_logs_exception(self, recruiter):
+        from dallinger.mturk import MTurkServiceException
+        recruiter.mturkservice.grant_bonus.side_effect = MTurkServiceException("Boom!")
+        with mock.patch('dallinger.recruiters.logger') as mock_logger:
+            recruiter.reward_bonus('fake-assignment', 2.99, 'fake reason')
+
+        mock_logger.exception.assert_called_once_with("Boom!")
+
     def test_approve_hit(self, recruiter):
         fake_id = 'fake assignment id'
         recruiter.approve_hit(fake_id)
 
         recruiter.mturkservice.approve_assignment.assert_called_once_with(fake_id)
+
+    def test_approve_hit_logs_exception(self, recruiter):
+        from dallinger.mturk import MTurkServiceException
+        recruiter.mturkservice.approve_assignment.side_effect = MTurkServiceException("Boom!")
+        with mock.patch('dallinger.recruiters.logger') as mock_logger:
+            recruiter.approve_hit('fake-hit-id')
+
+        mock_logger.exception.assert_called_once_with("Boom!")
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
