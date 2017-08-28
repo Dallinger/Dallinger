@@ -427,7 +427,12 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
-    heroku.log_in()
+    try:
+        heroku.log_in()
+    except RuntimeError:
+        # Cannot cause a login because stdin isn't a tty
+        error("Can't log in to heroku, run heroku login on the command line")
+        raise
     config.set("heroku_auth_token", heroku.auth_token())
     click.echo("")
 

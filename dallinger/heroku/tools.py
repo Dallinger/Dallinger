@@ -7,6 +7,7 @@ import psutil
 import re
 import subprocess
 import traceback
+import termios
 
 from dallinger.config import get_config
 from dallinger.compat import unicode
@@ -25,7 +26,17 @@ def auth_token():
 def log_in():
     """Ensure that the user is logged in to Heroku."""
     p = pexpect.spawn("heroku auth:whoami")
-    p.interact()
+    p.wait()
+    if p.status == 0:
+        return
+    else:
+        try:
+            p = pexpect.spawn("heroku login")
+            p.interact()
+        except termios.error:
+            raise RuntimeError()
+        else:
+            return log_in()
 
 
 def db_uri(app):
