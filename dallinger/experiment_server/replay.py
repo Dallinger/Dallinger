@@ -28,7 +28,7 @@ class ReplayBackend(object):
         except RuntimeError:
             # config not loaded, we may be in unit tests
             logger.info('Replay failed.')
-            pass
+            return
 
         while not self.experiment.replay_started():
             gevent.sleep(0.01)
