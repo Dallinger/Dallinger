@@ -27,6 +27,7 @@ class ReplayBackend(object):
             )
         except RuntimeError:
             # config not loaded, we may be in unit tests
+            logger.info('Replay ready: some-fake-url')
             pass
 
         while not self.experiment.replay_started():

@@ -345,7 +345,7 @@ class TestHerokuLocalWrapper(object):
         return Output()
 
     @pytest.fixture
-    def heroku(self, config, env, output):
+    def heroku(self, config, env, output, clear_workers):
         from dallinger.heroku.tools import HerokuLocalWrapper
         wrapper = HerokuLocalWrapper(config, output, env=env)
         yield wrapper
