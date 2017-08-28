@@ -14,7 +14,6 @@ except ImportError:
     # Python >= 3.3
     from shlex import quote
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -43,6 +42,7 @@ from dallinger.mturk import MTurkService
 from dallinger import registration
 from dallinger.utils import generate_random_id
 from dallinger.utils import get_base_url
+from dallinger.utils import call, check_call, check_output
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -441,9 +441,9 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     os.chdir(tmp)
 
     # Commit Heroku-specific files to tmp folder's git repo.
-    subprocess.check_call(["git", "init"], stdout=out)
-    subprocess.check_call(["git", "add", "--all"], stdout=out)
-    subprocess.check_call(
+    check_call(["git", "init"], stdout=out)
+    check_call(["git", "add", "--all"], stdout=out)
+    check_call(
         ["git", "commit", "-m", '"Experiment {}"'.format(id)],
         stdout=out,
     )
@@ -472,9 +472,9 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     except Exception:
         pass
 
-    subprocess.check_call(create_cmd, stdout=out)
+    check_call(create_cmd, stdout=out)
 
-    subprocess.check_call([
+    check_call([
         "heroku",
         "buildpacks:add",
         "https://github.com/stomita/heroku-buildpack-phantomjs",
@@ -493,7 +493,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
         cmds.append(["heroku", "addons:create", "sentry"])
 
     for cmd in cmds:
-        subprocess.check_call(cmd + ["--app", app_name(id)], stdout=out)
+        check_call(cmd + ["--app", app_name(id)], stdout=out)
 
     heroku_config = {
         "HOST": "{}.herokuapp.com".format(app_name(id)),
@@ -507,7 +507,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     }
 
     for key in heroku_config:
-        subprocess.check_call([
+        check_call([
             "heroku",
             "config:set",
             "{}={}".format(key, quote(str(heroku_config[key]))),
@@ -518,7 +518,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     log("Waiting for Redis...")
     ready = False
     while not ready:
-        redis_url = subprocess.check_output([
+        redis_url = check_output([
             "heroku", "config:get", "REDIS_URL", "--app", app_name(id),
         ])
         r = redis.from_url(redis_url)
@@ -529,8 +529,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
             time.sleep(2)
 
     log("Saving the URL of the postgres database...")
-    subprocess.check_call(["heroku", "pg:wait", "--app", app_name(id)])
-    db_url = subprocess.check_output([
+    check_call(["heroku", "pg:wait", "--app", app_name(id)])
+    db_url = check_output([
         "heroku", "config:get", "DATABASE_URL", "--app", app_name(id)
     ])
 
@@ -541,9 +541,9 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
     })
     config.write()
 
-    subprocess.check_call(["git", "add", "config.txt"], stdout=out),
+    check_call(["git", "add", "config.txt"], stdout=out),
     time.sleep(0.25)
-    subprocess.check_call(
+    check_call(
         ["git", "commit", "-m", '"Save URLs for database and notifications"'],
         stdout=out
     )
@@ -551,7 +551,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, web_procs=1, exp_config=
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
-    subprocess.check_call(
+    check_call(
         ["git", "push", "heroku", "HEAD:master"],
         stdout=out,
         stderr=out
@@ -675,13 +675,13 @@ def hibernate(app):
     log("Scaling down the web servers...")
 
     for process in ["web", "worker"]:
-        subprocess.check_call([
+        check_call([
             "heroku",
             "ps:scale", "{}=0".format(process),
             "--app", app_name(app)
         ])
 
-    subprocess.call([
+    call([
         "heroku",
         "ps:scale", "clock=0",
         "--app", app_name(app)
@@ -695,7 +695,7 @@ def hibernate(app):
         "heroku-redis",
     ]
     for addon in addons:
-        subprocess.check_call([
+        check_call([
             "heroku",
             "addons:destroy", addon,
             "--app", app_name(app),
@@ -713,7 +713,7 @@ def destroy(app):
 
 def destroy_server(app):
     """Tear down an experiment server."""
-    subprocess.check_call([
+    check_call([
         "heroku",
         "destroy",
         "--app", app_name(app),
@@ -730,7 +730,7 @@ def awaken(app, databaseurl):
     config = get_config()
     config.load()
 
-    subprocess.check_call([
+    check_call([
         "heroku",
         "addons:create",
         "heroku-postgresql:{}".format(config.get('database_size')),
@@ -743,16 +743,16 @@ def awaken(app, databaseurl):
 
     time.sleep(60)
 
-    subprocess.check_call(["heroku", "pg:wait", "--app", app_name(id)])
+    check_call(["heroku", "pg:wait", "--app", app_name(id)])
 
     time.sleep(10)
 
-    subprocess.check_call([
+    check_call([
         "heroku", "addons:create", "heroku-redis:premium-0",
         "--app", app_name(id)
     ])
 
-    subprocess.check_call([
+    check_call([
         "heroku", "pg:backups:restore", "{}".format(url), "DATABASE_URL",
         "--app", app_name(id),
         "--confirm", app_name(id),
@@ -979,7 +979,7 @@ def monitor(app):
     webbrowser.open(dash_url)
     webbrowser.open("https://requester.mturk.com/mturk/manageHITs")
     heroku.open_logs(app)
-    subprocess.call(["open", heroku.db_uri(app)])
+    call(["open", heroku.db_uri(app)])
     while True:
         summary = get_summary(app)
         click.clear()

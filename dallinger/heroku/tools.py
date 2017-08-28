@@ -11,6 +11,7 @@ import termios
 
 from dallinger.config import get_config
 from dallinger.compat import unicode
+from dallinger.utils import check_call, check_output
 
 
 def app_name(id):
@@ -20,7 +21,7 @@ def app_name(id):
 
 def auth_token():
     """A Heroku authenication token."""
-    return unicode(subprocess.check_output(["heroku", "auth:token"]).rstrip())
+    return unicode(check_output(["heroku", "auth:token"]).rstrip())
 
 
 def log_in():
@@ -40,7 +41,7 @@ def log_in():
 
 
 def db_uri(app):
-    output = subprocess.check_output([
+    output = check_output([
         "heroku",
         "pg:credentials",
         "DATABASE",
@@ -64,7 +65,7 @@ def scale_up_dynos(app):
     }
 
     for process in ["web", "worker"]:
-        subprocess.check_call([
+        check_call([
             "heroku",
             "ps:scale",
             "{}={}:{}".format(process, num_dynos[process], dyno_type),
@@ -72,7 +73,7 @@ def scale_up_dynos(app):
         ])
 
     if config.get('clock_on'):
-        subprocess.check_call([
+        check_call([
             "heroku",
             "ps:scale",
             "clock=1:{}".format(dyno_type),
@@ -85,7 +86,7 @@ def open_logs(app):
     if app is None:
         raise TypeError("Select an experiment using the --app flag.")
     else:
-        subprocess.check_call([
+        check_call([
             "heroku", "addons:open", "papertrail", "--app", app_name(app)
         ])
 
