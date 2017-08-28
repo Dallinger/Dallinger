@@ -900,6 +900,7 @@ class DebugSessionRunner(LocalSessionRunner):
 class LoadSessionRunner(LocalSessionRunner):
     dispatch = {
         'Replay ready: (.*)$': 'start_replay',
+        'Replay failed': 'replay_failed',
     }
 
     def __init__(self, app_id, output, verbose, exp_config):
@@ -938,12 +939,17 @@ class LoadSessionRunner(LocalSessionRunner):
         if self.exp_config.get('replay', False):
             self.out.log("Launching the experiment...")
             time.sleep(4)
-            _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
-            heroku.monitor(listener=self.notify)
+            result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
+            if result['status'] == u'success':
+                heroku.monitor(listener=self.notify)
 
         # Just run until interrupted:
         while(self.keep_running()):
             time.sleep(1)
+
+    def replay_failed(self, match):
+        self.out.log("Launching in replay mode failed")
+        return HerokuLocalWrapper.MONITOR_STOP
 
     def start_replay(self, match):
         """Dispatched to by notify(). If a recruitment request has been issued,

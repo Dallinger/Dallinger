@@ -53,6 +53,27 @@ def reset_config():
         del configurations.config
 
 
+@pytest.fixture()
+def clear_workers():
+    import subprocess
+
+    def _zap():
+        kills = [
+            ['pkill', 'gunicorn'],
+            ['pkill', '-f', 'python worker.py'],
+        ]
+        for kill in kills:
+            try:
+                subprocess.check_call(kill)
+            except Exception as e:
+                if e.returncode != 1:
+                    raise
+
+    _zap()
+    yield
+    _zap()
+
+
 @pytest.fixture
 def env():
     # Heroku requires a home directory to start up

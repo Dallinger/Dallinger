@@ -228,7 +228,14 @@ def inject_experiment():
 @app.route('/launch', methods=['POST'])
 def launch():
     """Launch the experiment."""
-    exp = Experiment(db.init_db(drop_all=False))
+    try:
+        exp = Experiment(db.init_db(drop_all=False))
+    except Exception as ex:
+        return error_response(
+            u'Failed to instantiate Experiment instance: {}'.format(ex.message),
+            status=500, simple=True
+        )
+
     try:
         exp.log("Launching experiment...", "-----")
     except IOError as ex:
