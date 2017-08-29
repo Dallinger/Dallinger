@@ -12,15 +12,24 @@ from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 import logging
 import os
+import sys
 
 logger = logging.getLogger(__file__)
 
-# Connect to Redis Queue for recruiter calls
-q = Queue('low', connection=conn)
+
+def get_queue():
+    # Connect to Redis Queue
+    return Queue('low', connection=conn)
 
 
 class Recruiter(object):
     """The base recruiter."""
+
+    def __init__(self):
+        """For now, the contract of a Recruiter is that it takes no
+        arguments.
+        """
+        pass
 
     @staticmethod
     def for_experiment(experiment):
@@ -28,14 +37,14 @@ class Recruiter(object):
 
         This provides a seam for testing.
         """
-        return experiment.recruiter()
+        return experiment.recruiter
 
     def open_recruitment(self):
-        """Throw an error."""
+        """Return a list of one or more initial recruitment URLs.
+        """
         raise NotImplementedError
 
     def recruit(self, n=1):
-        """Throw an error."""
         raise NotImplementedError
 
     def close_recruitment(self):
@@ -53,24 +62,36 @@ class Recruiter(object):
         pass
 
 
-class HotAirRecruiter(Recruiter):
-    """A dummy recruiter.
-
-    Talks the talk, but does not walk the walk.
+class CLIRecruiter(Recruiter):
+    """A recruiter which prints out /ad URLs to the console for direct
+    assigment.
     """
+
+    def __init__(self):
+        super(CLIRecruiter, self).__init__()
+        self.config = get_config()
 
     def open_recruitment(self, n=1):
         """Talk about opening recruitment."""
         logger.info("Opening recruitment.")
-        self.recruit(n)
+        return self.recruit(n)
 
     def recruit(self, n=1):
-        """Talk about recruiting participants."""
+        """Generate experiemnt URLs and print them to the console."""
+        urls = []
+        template = "{}/ad?assignmentId={}&hitId={}&workerId={}&mode={}"
         for i in range(n):
-            ad_url = "{}/ad?assignmentId=debug{}&hitId={}&workerId={}&mode=debug".format(
-                get_base_url(), generate_random_id(), generate_random_id(), generate_random_id(),
+            ad_url = template.format(
+                get_base_url(),
+                generate_random_id(),
+                generate_random_id(),
+                generate_random_id(),
+                self._get_mode()
             )
             logger.info('New participant requested: {}'.format(ad_url))
+            urls.append(ad_url)
+
+        return urls
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
@@ -78,7 +99,28 @@ class HotAirRecruiter(Recruiter):
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
+        logger.info(
+            "Assignment {} has been marked for approval".format(assignment_id)
+        )
         return True
+
+    def reward_bonus(self, assignment_id, amount, reason):
+        """Print out bonus info for the assignment"""
+        logger.info(
+            'Award ${} for assignment {}, with reason "{}"'.format(
+                amount, assignment_id, reason)
+        )
+
+    def _get_mode(self):
+        return self.config.get('mode')
+
+
+class HotAirRecruiter(CLIRecruiter):
+    """A dummy recruiter: talks the talk, but does not walk the walk.
+
+    - Always invokes templates in debug mode
+    - Prints experiment /ad URLs to the console
+    """
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Logging-only, Hot Air implementation"""
@@ -87,21 +129,21 @@ class HotAirRecruiter(Recruiter):
             'with reason "{}"'.format(amount, assignment_id, reason)
         )
 
+    def _get_mode(self):
+        # Ignore config settings and always use debug mode
+        return u'debug'
 
-class SimulatedRecruiter(object):
+
+class SimulatedRecruiter(Recruiter):
     """A recruiter that recruits simulated participants."""
-
-    def __init__(self):
-        """Create a simulated recruiter."""
-        super(SimulatedRecruiter, self).__init__()
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
-        self.recruit(n)
+        return self.recruit(n)
 
     def recruit(self, n=1):
         """Recruit n participants."""
-        pass
+        return []
 
     def close_recruitment(self):
         """Do nothing."""
@@ -118,19 +160,11 @@ class MTurkRecruiter(Recruiter):
     experiment_qualification_desc = 'Experiment-specific qualification'
     group_qualification_desc = 'Experiment group qualification'
 
-    @classmethod
-    def from_current_config(cls):
-        config = get_config()
-        if not config.ready:
-            config.load()
-        ad_url = '{}/ad'.format(get_base_url())
-        hit_domain = os.getenv('HOST')
-        return cls(config, hit_domain, ad_url)
-
-    def __init__(self, config, hit_domain, ad_url):
-        self.config = config
-        self.ad_url = ad_url
-        self.hit_domain = hit_domain
+    def __init__(self):
+        super(MTurkRecruiter, self).__init__()
+        self.config = get_config()
+        self.ad_url = '{}/ad'.format(get_base_url())
+        self.hit_domain = os.getenv('HOST')
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
             self.config.get('aws_secret_access_key'),
@@ -181,7 +215,7 @@ class MTurkRecruiter(Recruiter):
         else:
             lookup_url = "https://worker.mturk.com/mturk/preview?groupId={type_id}"
 
-        return lookup_url.format(**hit_info)
+        return [lookup_url.format(**hit_info), ]
 
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
@@ -301,26 +335,21 @@ class MTurkLargeRecruiter(MTurkRecruiter):
 class BotRecruiter(Recruiter):
     """Recruit bot participants using a queue"""
 
-    @classmethod
-    def from_current_config(cls):
-        config = get_config()
-        if not config.ready:
-            config.load_config()
-        return cls(config)
-
-    def __init__(self, config):
-        logger.info("Initialized recruiter.")
-        self.config = config
+    def __init__(self):
+        super(BotRecruiter, self).__init__()
+        self.config = get_config()
+        logger.info("Initialized BotRecruiter.")
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
         logger.info("Open recruitment.")
-        self.recruit(n)
+        return self.recruit(n)
 
     def recruit(self, n=1):
         """Recruit n new participant bots to the queue"""
-        from dallinger_experiment import Bot
-
+        bot_class = self._get_bot_class()
+        urls = []
+        q = get_queue()
         for _ in range(n):
             base_url = get_base_url()
             worker = generate_random_id()
@@ -329,9 +358,12 @@ class BotRecruiter(Recruiter):
             ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
             ad_parameters = ad_parameters.format(assignment, hit, worker)
             url = '{}/ad?{}'.format(base_url, ad_parameters)
-            bot = Bot(url, assignment_id=assignment, worker_id=worker)
+            urls.append(url)
+            bot = bot_class(url, assignment_id=assignment, worker_id=worker)
             job = q.enqueue(bot.run_experiment, timeout=60 * 20)
             logger.info("Created job {} for url {}.".format(job.id, url))
+
+        return urls
 
     def approve_hit(self, assignment_id):
         return True
@@ -348,3 +380,24 @@ class BotRecruiter(Recruiter):
         logger.info(
             "Bots don't get bonuses. Sorry, bots."
         )
+
+    def _get_bot_class(self):
+        # Must be imported at run-time
+        from dallinger_experiment import Bot
+        return Bot
+
+
+def by_name(name):
+    """Attempt to return a recruiter class by name. Actual class names and
+    known nicknames are both supported.
+    """
+    nicknames = {
+        'bots': BotRecruiter
+    }
+    if name in nicknames:
+        return nicknames[name]
+
+    this_module = sys.modules[__name__]
+    thing = getattr(this_module, name, None)
+    if thing is not None and issubclass(thing, Recruiter):
+        return thing
