@@ -18,7 +18,7 @@ import hashlib
 import postgres_copy
 import psycopg2
 
-from dallinger import heroku
+from dallinger.heroku.tools import HerokuApp
 from dallinger import db
 from dallinger import models
 
@@ -110,18 +110,9 @@ def dump_database(id):
     os.chdir(tmp_dir)
 
     FNULL = open(os.devnull, 'w')
-
-    subprocess.call([
-        "heroku",
-        "pg:backups:capture",
-        "--app", heroku.app_name(id)
-    ], stdout=FNULL, stderr=FNULL)
-
-    subprocess.call([
-        "heroku",
-        "pg:backups:download",
-        "--app", heroku.app_name(id)
-    ], stdout=FNULL, stderr=FNULL)
+    heroku_app = HerokuApp(dallinger_uid=id, output=FNULL)
+    heroku_app.backup_capture()
+    heroku_app.backup_download()
 
     for filename in os.listdir(tmp_dir):
         if filename.startswith("latest.dump"):
@@ -165,22 +156,16 @@ def is_registered(id):
 
 def copy_heroku_to_local(id):
     """Copy a Heroku database locally."""
-
+    heroku_app = HerokuApp(dallinger_uid=id)
     try:
         subprocess.call([
             "dropdb",
-            heroku.app_name(id),
+            heroku_app.name,
         ])
     except Exception:
         pass
 
-    subprocess.call([
-        "heroku",
-        "pg:pull",
-        "DATABASE_URL",
-        heroku.app_name(id),
-        "--app", heroku.app_name(id),
-    ])
+    heroku_app.pg_pull()
 
 
 def copy_local_to_csv(local_db, path, scrub_pii=False):
@@ -227,7 +212,7 @@ def export(id, local=False, scrub_pii=False):
     if local:
         local_db = db.db_url
     else:
-        local_db = heroku.app_name(id)
+        local_db = HerokuApp(id).name
         copy_heroku_to_local(id)
 
     # Create the data package if it doesn't already exist.

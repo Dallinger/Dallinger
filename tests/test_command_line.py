@@ -4,6 +4,7 @@ import filecmp
 import mock
 import os
 import pytest
+import re
 import subprocess
 import sys
 from uuid import UUID
@@ -44,6 +45,40 @@ def output():
             self.blather = mock.Mock()
 
     return Output()
+
+
+@pytest.fixture
+def sleepless():
+    # Use this fixture to ignore sleep() calls, for speed.
+    with mock.patch('dallinger.command_line.time.sleep'):
+        yield
+
+
+@pytest.fixture
+def browser():
+    with mock.patch('dallinger.command_line.webbrowser') as mock_browser:
+        yield mock_browser
+
+
+@pytest.fixture
+def heroku():
+    from dallinger.heroku.tools import HerokuApp
+    instance = mock.Mock(spec=HerokuApp)
+    with mock.patch('dallinger.command_line.HerokuApp') as mock_app_class:
+        mock_app_class.return_value = instance
+        yield instance
+
+
+@pytest.fixture
+def data():
+    with mock.patch('dallinger.command_line.data') as mock_data:
+        mock_data.backup.return_value = 'fake backup url'
+        mock_bucket = mock.Mock()
+        mock_key = mock.Mock()
+        mock_key.generate_url.return_value = 'fake restore url'
+        mock_bucket.lookup.return_value = mock_key
+        mock_data.user_s3_bucket.return_value = mock_bucket
+        yield mock_data
 
 
 @pytest.mark.usefixtures('bartlett_dir')
@@ -199,6 +234,112 @@ class TestSetupExperiment(object):
         assert verify_package() is False
 
 
+class TestGitClient(object):
+
+    def test_client(self, in_tempdir, stub_config):
+        from dallinger.utils import GitClient
+        stub_config.write()
+        config = {'user.name': 'Test User', 'user.email': 'test@example.com'}
+        git = GitClient(output=None)
+        git.init(config=config)
+        git.add("--all")
+        git.commit("Test Repo")
+        assert "Test Repo" in subprocess.check_output(['git', 'log'])
+
+
+@pytest.mark.usefixtures('bartlett_dir')
+class TestDeploySandboxSharedSetup(object):
+
+    @pytest.fixture
+    def dsss(self):
+        from dallinger.command_line import deploy_sandbox_shared_setup
+        return deploy_sandbox_shared_setup
+
+    @pytest.fixture
+    def faster(self, tempdir, stub_config):
+        with mock.patch.multiple('dallinger.command_line',
+                                 time=mock.DEFAULT,
+                                 setup_experiment=mock.DEFAULT,
+                                 get_config=mock.DEFAULT) as mocks:
+            mocks['setup_experiment'].return_value = ('fake-uid', tempdir)
+            mocks['get_config'].return_value = stub_config
+
+            yield mocks
+
+    @pytest.fixture
+    def launch(self):
+        with mock.patch('dallinger.command_line._handle_launch_data') as hld:
+            hld.return_value = {'recruitment_url': 'fake recruitment_url'}
+            yield hld
+
+    @pytest.fixture
+    def fake_git(self):
+        with mock.patch('dallinger.command_line.GitClient') as git:
+            yield git
+
+    @pytest.fixture
+    def herokuapp(self):
+        # Patch addon since we're using a free app which doesn't support them:
+        from dallinger.heroku.tools import HerokuApp
+        instance = HerokuApp('fake-uid', output=None, team=None)
+        instance.addon = mock.Mock()
+        with mock.patch('dallinger.command_line.HerokuApp') as mock_app_class:
+            mock_app_class.return_value = instance
+            yield instance
+            instance.destroy()
+
+    @pytest.fixture
+    def heroku_mock(self, faster):
+        # Patch addon since we're using a free app which doesn't support them:
+        from dallinger.heroku.tools import HerokuApp
+        instance = mock.Mock(spec=HerokuApp)
+        instance.redis_url = '\n'
+        instance.name = u'dlgr-fake-uid'
+        instance.url = u'fake-url'
+        instance.db_url = u'fake-url'
+        with mock.patch('dallinger.command_line.heroku') as heroku_module:
+            heroku_module.auth_token.return_value = u'fake token'
+            with mock.patch('dallinger.command_line.HerokuApp') as mock_app_class:
+                mock_app_class.return_value = instance
+                yield instance
+
+    @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
+                        reason="--heroku was not specified")
+    def test_with_real_heroku(self, dsss, launch, herokuapp):
+        overrides = {'heroku_team': u'', 'clock_on': False, 'sentry': True}
+        result = dsss(exp_config=overrides)
+        app_name = result.get('app_name')
+        assert app_name.startswith('dlgr')
+
+    def test_with_fakes(self, dsss, launch, heroku_mock, fake_git):
+        overrides = {
+            'database_size': u'standard-0',
+            'heroku_team': u'',
+            'clock_on': True,
+            'sentry': True
+        }
+        result = dsss(exp_config=overrides)
+        app_name = result.get('app_name')
+
+        assert app_name.startswith('dlgr')
+        heroku_mock.bootstrap.assert_called_once()
+        heroku_mock.buildpack.assert_called_once_with(
+            'https://github.com/stomita/heroku-buildpack-phantomjs'
+        )
+        heroku_mock.addon.assert_has_calls([
+            mock.call('heroku-postgresql:standard-0'),
+            mock.call('heroku-redis:premium-0'),
+            mock.call('papertrail'),
+            mock.call('sentry')
+        ])
+        assert heroku_mock.set.called
+        heroku_mock.scale_up_dyno.assert_has_calls([
+            mock.call('web', 1, u'free'),
+            mock.call('worker', 1, u'free'),
+            mock.call('clock', 1, u'free')
+        ])
+
+
 @pytest.mark.usefixtures('bartlett_dir')
 class Test_handle_launch_data(object):
 
@@ -254,7 +395,7 @@ class Test_handle_launch_data(object):
 class TestDebugServer(object):
 
     @pytest.fixture
-    def debugger_unpatched(self, env_with_home, output):
+    def debugger_unpatched(self, env_with_home, output, clear_workers):
         from dallinger.command_line import DebugSessionRunner
         debugger = DebugSessionRunner(output, verbose=True, bot=False, exp_config={})
         return debugger
@@ -295,6 +436,14 @@ class TestDebugServer(object):
 
         assert response == HerokuLocalWrapper.MONITOR_STOP
         debugger.out.log.assert_called_with('Experiment completed, all nodes filled.')
+
+    def test_new_recruit(self, debugger, browser):
+        match = re.search('URL: (.*)$', 'URL: some-fake-url')
+        debugger.new_recruit(match)
+
+        browser.open.assert_called_once_with(
+            'some-fake-url', autoraise=True, new=1
+        )
 
     @pytest.mark.skipif(not pytest.config.getvalue("runbot"),
                         reason="--runbot was specified")
@@ -643,3 +792,201 @@ class TestQualify(object):
         )
         assert result.exit_code == 2
         assert 'No qualification with name "some qual name" exists.' in result.output
+
+
+class TestHibernate(object):
+
+    @pytest.fixture
+    def hibernate(self, sleepless):
+        from dallinger.command_line import hibernate
+        return hibernate
+
+    def test_creates_backup(self, hibernate, heroku, data):
+        CliRunner().invoke(
+            hibernate,
+            ['--app', 'some-app-uid', ]
+        )
+        data.backup.assert_called_once_with('some-app-uid')
+
+    def test_scales_down_dynos(self, hibernate, heroku, data):
+        CliRunner().invoke(
+            hibernate,
+            ['--app', 'some-app-uid', ]
+        )
+        heroku.scale_down_dyno.assert_has_calls([
+            mock.call('web'),
+            mock.call('worker'),
+            mock.call('clock')
+        ])
+
+    def test_kills_addons(self, hibernate, heroku, data):
+        CliRunner().invoke(
+            hibernate,
+            ['--app', 'some-app-uid', ]
+        )
+        heroku.addon_destroy.assert_has_calls([
+            mock.call('heroku-postgresql'),
+            mock.call('heroku-redis')
+        ])
+
+
+class TestAwaken(object):
+
+    @pytest.fixture
+    def config(self, stub_config):
+        with mock.patch('dallinger.command_line.get_config') as getter:
+            getter.return_value = stub_config
+            yield stub_config
+
+    @pytest.fixture
+    def awaken(self, sleepless):
+        from dallinger.command_line import awaken
+        return awaken
+
+    def test_creates_database_of_configured_size(self, awaken, heroku, data, config):
+        CliRunner().invoke(
+            awaken,
+            ['--app', 'some-app-uid', ]
+        )
+        size = config.get('database_size')
+        expected = mock.call('heroku-postgresql:{}'.format(size))
+        assert expected == heroku.addon.call_args_list[0]
+
+    def test_adds_redis(self, awaken, heroku, data, config):
+        CliRunner().invoke(
+            awaken,
+            ['--app', 'some-app-uid', ]
+        )
+        assert mock.call('heroku-redis:premium-0') == heroku.addon.call_args_list[1]
+
+    def test_restores_database_from_backup(self, awaken, heroku, data, config):
+        CliRunner().invoke(
+            awaken,
+            ['--app', 'some-app-uid', ]
+        )
+        heroku.restore.assert_called_once_with('fake restore url')
+
+    def test_scales_up_dynos(self, awaken, heroku, data, config):
+        CliRunner().invoke(
+            awaken,
+            ['--app', 'some-app-uid', ]
+        )
+        web_count = config.get('num_dynos_web')
+        worker_count = config.get('num_dynos_worker')
+        size = config.get('dyno_type')
+        heroku.scale_up_dyno.assert_has_calls([
+            mock.call('web', web_count, size),
+            mock.call('worker', worker_count, size),
+            mock.call('clock', 1, size)
+        ])
+
+
+class TestDestroy(object):
+
+    @pytest.fixture
+    def destroy(self):
+        from dallinger.command_line import destroy
+        return destroy
+
+    def test_calls_destroy(self, destroy, heroku):
+        CliRunner().invoke(
+            destroy,
+            ['--app', 'some-app-uid', '--yes']
+        )
+        heroku.destroy.assert_called_once()
+
+    def test_requires_confirmation(self, destroy, heroku):
+        CliRunner().invoke(
+            destroy,
+            ['--app', 'some-app-uid']
+        )
+        heroku.destroy.assert_not_called()
+
+
+class TestLogs(object):
+
+    @pytest.fixture
+    def logs(self):
+        from dallinger.command_line import logs
+        return logs
+
+    def test_opens_logs(self, logs, heroku):
+        CliRunner().invoke(
+            logs,
+            ['--app', 'some-app-uid', ]
+        )
+        heroku.open_logs.assert_called_once()
+
+
+class TestMonitor(object):
+
+    def _twice(self):
+        count = [2]
+
+        def countdown():
+            if count[0]:
+                count[0] -= 1
+                return True
+            return False
+
+        return countdown
+
+    @pytest.fixture
+    def subproc(self):
+        with mock.patch('dallinger.command_line.subprocess') as sub:
+            yield sub
+
+    @pytest.fixture
+    def summary(self):
+        with mock.patch('dallinger.command_line.get_summary') as sm:
+            sm.return_value = 'fake summary'
+            yield sm
+
+    @pytest.fixture
+    def two_summary_checks(self):
+        countdown = self._twice()
+        counter_factory = mock.Mock(return_value=countdown)
+        with mock.patch('dallinger.command_line._keep_running',
+                        new_callable=counter_factory):
+            yield
+
+    @pytest.fixture
+    def monitor(self, sleepless, summary, two_summary_checks):
+        from dallinger.command_line import monitor
+        return monitor
+
+    def test_opens_browsers(self, monitor, heroku, browser, subproc):
+        heroku.dashboard_url = 'fake-dashboard-url'
+        CliRunner().invoke(
+            monitor,
+            ['--app', 'some-app-uid', ]
+        )
+        browser.open.assert_has_calls([
+            mock.call('fake-dashboard-url'),
+            mock.call('https://requester.mturk.com/mturk/manageHITs')
+        ])
+
+    def test_calls_open_with_db_uri(self, monitor, heroku, browser, subproc):
+        heroku.db_uri = 'fake-db-uri'
+        CliRunner().invoke(
+            monitor,
+            ['--app', 'some-app-uid', ]
+        )
+        subproc.call.assert_called_once_with(['open', 'fake-db-uri'])
+
+    def test_shows_summary_in_output(self, monitor, heroku, browser, subproc):
+        heroku.db_uri = 'fake-db-uri'
+        result = CliRunner().invoke(
+            monitor,
+            ['--app', 'some-app-uid', ]
+        )
+
+        assert len(re.findall('fake summary', result.output)) == 2
+
+    def test_raises_on_null_app_id(self, monitor, heroku, browser, subproc):
+        heroku.db_uri = 'fake-db-uri'
+        result = CliRunner().invoke(
+            monitor,
+            ['--app', None, ]
+        )
+        assert result.exception.message == 'Select an experiment using the --app flag.'

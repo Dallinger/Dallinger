@@ -2,14 +2,186 @@
 
 import signal
 import os
-import pexpect
 import psutil
 import re
+import sys
+try:
+    from pipes import quote
+except ImportError:
+    # Python >= 3.3
+    from shlex import quote
 import subprocess
 import traceback
 
-from dallinger.config import get_config
 from dallinger.compat import unicode
+
+
+class HerokuApp(object):
+    """Representation of a Heroku app"""
+
+    def __init__(self, dallinger_uid, output=None, team=None):
+        self.dallinger_uid = dallinger_uid
+        self.out = output
+        self.team = team
+        # Encoding of strings returned from subprocess calls:
+        self.sys_encoding = sys.getdefaultencoding()
+
+    def bootstrap(self):
+        """Creates the heroku app and local git remote. Call this once you're
+        in the local repo you're going to use.
+        """
+        cmd = [
+            "heroku",
+            "apps:create",
+            self.name,
+            "--buildpack",
+            "https://github.com/thenovices/heroku-buildpack-scipy",
+        ]
+
+        # If a team is specified, assign the app to the team.
+        if self.team:
+            cmd.extend(["--org", self.team])
+
+        self._run(cmd)
+        # Set HOST value
+        self.set("HOST", self.url)
+
+    @property
+    def name(self):
+        return u"dlgr-" + self.dallinger_uid[0:8]
+
+    @property
+    def url(self):
+        return u"https://{}.herokuapp.com".format(self.name)
+
+    def addon(self, name):
+        """Set up an addon"""
+        cmd = ["heroku", "addons:create", name, "--app", self.name]
+        self._run(cmd)
+
+    def addon_destroy(self, name):
+        """Destroy an addon"""
+        self._run([
+            "heroku",
+            "addons:destroy", name,
+            "--app", self.name,
+            "--confirm", self.name
+        ])
+
+    def buildpack(self, url):
+        """Add a buildpack by URL."""
+        cmd = ["heroku", "buildpacks:add", url, "--app", self.name]
+        self._run(cmd)
+
+    @property
+    def dashboard_url(self):
+        return u"https://dashboard.heroku.com/apps/{}".format(self.name)
+
+    @property
+    def db_uri(self):
+        """Not sure what this returns"""
+        output = self.get("DATABASE", subcommand="pg:credentials")
+        match = re.search('(postgres://.*)$', output)
+        return match.group(1)
+
+    @property
+    def db_url(self):
+        """Return the URL for the app's database once we know
+        it's fully built
+        """
+        self.pg_wait()
+        url = self.get('DATABASE_URL')
+        return url.strip()
+
+    def backup_capture(self):
+        """Capture a backup of the app."""
+        self._run(
+            ["heroku", "pg:backups:capture", "--app", self.name],
+            pass_stderr=True
+        )
+
+    def backup_download(self):
+        """Download a backup to the current working directory."""
+        self._run(
+            ["heroku", "pg:backups:download", "--app", self.name],
+            pass_stderr=True
+        )
+
+    def destroy(self):
+        """Destroy an app and all its add-ons"""
+        result = self._result(
+            ["heroku", "apps:destroy", "--app", self.name, "--confirm", self.name]
+        )
+        return result
+
+    def get(self, key, subcommand="config:get"):
+        """Get a app config value by name"""
+        cmd = ["heroku", subcommand, key, "--app", self.name]
+        return self._result(cmd)
+
+    def open_logs(self):
+        """Show the logs."""
+        cmd = ["heroku", "addons:open", "papertrail", "--app", self.name]
+        self._run(cmd)
+
+    def pg_pull(self):
+        """Pull remote data from a Heroku Postgres database to a database
+        of the same name on your local machine.
+        """
+        self._run(
+            ["heroku", "pg:pull", "DATABASE_URL", self.name, "--app", self.name]
+        )
+
+    def pg_wait(self):
+        """Wait for the DB to be fired up."""
+        self._run(["heroku", "pg:wait", "--app", self.name])
+
+    @property
+    def redis_url(self):
+        return self.get("REDIS_URL")
+
+    def restore(self, url):
+        """Restore the remote database from the URL of a backup."""
+        self._run([
+            "heroku", "pg:backups:restore", "{}".format(url), "DATABASE_URL",
+            "--app", self.name,
+            "--confirm", self.name,
+        ])
+
+    def scale_up_dyno(self, process, quantity, size):
+        """Scale up a dyno."""
+        self._run([
+            "heroku",
+            "ps:scale",
+            "{}={}:{}".format(process, quantity, size),
+            "--app", self.name,
+        ])
+
+    def scale_down_dyno(self, process):
+        """Turn off a dyno by setting its process count to 0"""
+        self._run([
+            "heroku",
+            "ps:scale", "{}=0".format(process),
+            "--app", self.name
+        ])
+
+    def set(self, key, value):
+        """Configure an app key/value pair"""
+        cmd = [
+            "heroku",
+            "config:set",
+            "{}={}".format(key, quote(str(value))),
+            "--app", self.name
+        ]
+        self._run(cmd)
+
+    def _run(self, cmd, pass_stderr=False):
+        if pass_stderr:
+            return subprocess.check_call(cmd, stdout=self.out, stderr=self.out)
+        return subprocess.check_call(cmd, stdout=self.out)
+
+    def _result(self, cmd):
+        return subprocess.check_output(cmd).decode(self.sys_encoding)
 
 
 def app_name(id):
@@ -24,59 +196,10 @@ def auth_token():
 
 def log_in():
     """Ensure that the user is logged in to Heroku."""
-    p = pexpect.spawn("heroku auth:whoami")
-    p.interact()
-
-
-def db_uri(app):
-    output = subprocess.check_output([
-        "heroku",
-        "pg:credentials",
-        "DATABASE",
-        "--app", app_name(app)
-    ])
-    match = re.search('(postgres://.*)$', output)
-    return match.group(1)
-
-
-def scale_up_dynos(app):
-    """Scale up the Heroku dynos."""
-    config = get_config()
-    if not config.ready:
-        config.load()
-
-    dyno_type = config.get('dyno_type')
-
-    num_dynos = {
-        "web": config.get('num_dynos_web'),
-        "worker": config.get('num_dynos_worker'),
-    }
-
-    for process in ["web", "worker"]:
-        subprocess.check_call([
-            "heroku",
-            "ps:scale",
-            "{}={}:{}".format(process, num_dynos[process], dyno_type),
-            "--app", app,
-        ])
-
-    if config.get('clock_on'):
-        subprocess.check_call([
-            "heroku",
-            "ps:scale",
-            "clock=1:{}".format(dyno_type),
-            "--app", app,
-        ])
-
-
-def open_logs(app):
-    """Show the logs."""
-    if app is None:
-        raise TypeError("Select an experiment using the --app flag.")
-    else:
-        subprocess.check_call([
-            "heroku", "addons:open", "papertrail", "--app", app_name(app)
-        ])
+    try:
+        subprocess.check_output(["heroku", "auth:whoami"])
+    except Exception:
+        raise Exception("You are not logged into Heroku.")
 
 
 class HerokuStartupError(RuntimeError):
@@ -119,7 +242,7 @@ class HerokuLocalWrapper(object):
         self._record = []
         self._process = None
 
-    def start(self, timeout_secs=30):
+    def start(self, timeout_secs=60):
         """Start the heroku local subprocess group and verify that
         it has started successfully.
 

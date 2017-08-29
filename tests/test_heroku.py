@@ -28,6 +28,12 @@ def run_check():
     os.chdir('../..')
 
 
+@pytest.fixture
+def subproc():
+    with mock.patch('dallinger.heroku.tools.subprocess') as sp:
+        yield sp
+
+
 class TestHeroku(object):
 
     def test_heroku_app_name(self):
@@ -315,6 +321,244 @@ class TestEmailingHITMessager(object):
         assert 'Allowed time: 1.0' in data['message']
 
 
+class TestHerokuUtilFunctions(object):
+
+    @pytest.fixture
+    def heroku(self):
+        from dallinger.heroku import tools
+        return tools
+
+    def test_auth_token(self, heroku, subproc):
+        subproc.check_output.return_value = 'some response '
+        assert heroku.auth_token() == u'some response'
+
+    def test_log_in_ok(self, heroku, subproc):
+        subproc.check_output.return_value = 'all good'
+        heroku.log_in()
+
+    def test_log_in_fails(self, heroku, subproc):
+        subproc.check_output.side_effect = Exception('boom!')
+        with pytest.raises(Exception) as excinfo:
+            heroku.log_in()
+        assert excinfo.match('You are not logged into Heroku.')
+
+
+class TestHerokuApp(object):
+
+    @pytest.fixture
+    def temp_repo(self, in_tempdir, stub_config):
+        from dallinger.utils import GitClient
+        stub_config.write()
+        config = {'user.name': 'Test User', 'user.email': 'test@example.com'}
+        git = GitClient(output=None)
+        git.init(config=config)
+        git.add("--all")
+        git.commit("Test Repo")
+
+    @pytest.fixture
+    def full_app(self):
+        from dallinger.heroku.tools import HerokuApp
+        the_app = HerokuApp(dallinger_uid='fake-uid', output=None, team=None)
+        yield the_app
+        the_app.destroy()
+
+    @pytest.fixture
+    def app(self):
+        from dallinger.heroku.tools import HerokuApp
+        with mock.patch('dallinger.heroku.tools.subprocess'):
+            the_app = HerokuApp(
+                dallinger_uid='fake-uid', output=None, team="fake team"
+            )
+            yield the_app
+
+    def test_name(self, app):
+        assert app.name == u'dlgr-fake-uid'
+
+    def test_url(self, app):
+        assert app.url == u'https://dlgr-fake-uid.herokuapp.com'
+
+    def test_dashboard_url(self, app):
+        assert app.dashboard_url == u'https://dashboard.heroku.com/apps/dlgr-fake-uid'
+
+    def test_bootstrap_creates_app_with_team(self, app, subproc):
+        app.team = 'some-team'
+        app.bootstrap()
+        subproc.check_call.assert_has_calls([
+            mock.call(['heroku', 'apps:create', 'dlgr-fake-uid', '--buildpack',
+                       'https://github.com/thenovices/heroku-buildpack-scipy',
+                       '--org', 'some-team'], stdout=None),
+        ])
+
+    def test_bootstrap_sets_hostname(self, app, subproc):
+        app.team = 'some-team'
+        app.bootstrap()
+        subproc.check_call.assert_has_calls([
+            mock.call(['heroku', 'config:set',
+                       'HOST=https://dlgr-fake-uid.herokuapp.com',
+                       '--app', 'dlgr-fake-uid'], stdout=None)
+        ])
+
+    def test_addon(self, app, subproc):
+        app.addon('some-fake-addon')
+        subproc.check_call.assert_called_once_with(
+            ["heroku", "addons:create", "some-fake-addon", "--app", app.name],
+            stdout=None
+        )
+
+    def test_addon_destroy(self, app, subproc):
+        app.addon_destroy('some-fake-addon')
+        subproc.check_call.assert_called_once_with(
+            [
+                "heroku",
+                "addons:destroy", 'some-fake-addon',
+                "--app", app.name,
+                "--confirm", app.name
+            ],
+            stdout=None
+        )
+
+    def test_buildpack(self, app, subproc):
+        app.buildpack('some-fake-buildpack')
+        subproc.check_call.assert_called_once_with(
+            ["heroku", "buildpacks:add", "some-fake-buildpack", "--app", app.name],
+            stdout=None
+        )
+
+    def test_db_uri(self, app, subproc):
+        subproc.check_output.return_value = 'blahblahpostgres://foobar'
+        assert app.db_uri == u'postgres://foobar'
+
+    def test_db_url(self, app, subproc):
+        subproc.check_output.return_value = 'some url    '
+        assert app.db_url == u'some url'
+        subproc.check_call.assert_called_once_with(
+            ["heroku", "pg:wait", "--app", app.name],
+            stdout=None
+        )
+
+    def test_backup_capture(self, app, subproc):
+        app.backup_capture()
+        subproc.check_call.assert_called_once_with(
+            ["heroku", "pg:backups:capture", "--app", app.name],
+            stdout=None, stderr=None
+        )
+
+    def test_backup_download(self, app, subproc):
+        app.backup_download()
+        subproc.check_call.assert_called_once_with(
+            ["heroku", "pg:backups:download", "--app", app.name],
+            stdout=None, stderr=None
+        )
+
+    def test_destroy(self, app, subproc):
+        subproc.check_output.return_value = 'some response message'
+        assert app.destroy() == 'some response message'
+        subproc.check_output.assert_called_once_with(
+            ["heroku", "apps:destroy", "--app", app.name, "--confirm", app.name],
+        )
+
+    def test_get(self, app, subproc):
+        subproc.check_output.return_value = 'some value'
+        assert app.get('some key') == u'some value'
+        subproc.check_output.assert_called_once_with(
+            ["heroku", "config:get", "some key", "--app", app.name],
+        )
+
+    def test_open_logs(self, app, subproc):
+        app.open_logs()
+        subproc.check_call.assert_called_once_with(
+            ["heroku", "addons:open", "papertrail", "--app", app.name],
+            stdout=None
+        )
+
+    def test_pg_pull(self, app, subproc):
+        app.pg_pull()
+        subproc.check_call.assert_called_once_with(
+            ["heroku", "pg:pull", "DATABASE_URL", app.name, "--app", app.name],
+            stdout=None
+        )
+
+    def test_pg_wait(self, app, subproc):
+        app.pg_wait()
+        subproc.check_call.assert_called_once_with(
+            ["heroku", "pg:wait", "--app", app.name],
+            stdout=None
+        )
+
+    def test_redis_url(self, app, subproc):
+        subproc.check_output.return_value = 'some url'
+        assert app.redis_url == u'some url'
+        subproc.check_output.assert_called_once_with(
+            ["heroku", "config:get", "REDIS_URL", "--app", app.name],
+        )
+
+    def test_restore(self, app, subproc):
+        app.restore('some url')
+        subproc.check_call.assert_called_once_with(
+            [
+                "heroku",
+                "pg:backups:restore",
+                "some url",
+                "DATABASE_URL",
+                "--app",
+                app.name,
+                "--confirm",
+                app.name,
+            ],
+            stdout=None
+        )
+
+    def test_scale_up_dyno(self, app, subproc):
+        app.scale_up_dyno('some process', quantity=1, size='free')
+        subproc.check_call.assert_called_once_with(
+            [
+                "heroku",
+                "ps:scale",
+                "some process=1:free",
+                "--app",
+                app.name,
+            ],
+            stdout=None
+        )
+
+    def test_scale_down_dyno(self, app, subproc):
+        app.scale_down_dyno('some process')
+        subproc.check_call.assert_called_once_with(
+            [
+                "heroku",
+                "ps:scale",
+                "some process=0",
+                "--app",
+                app.name,
+            ],
+            stdout=None
+        )
+
+    def test_set(self, app, subproc):
+        app.set('some key', 'some value')
+        subproc.check_call.assert_called_once_with(
+            [
+                "heroku",
+                "config:set",
+                "some key='some value'",
+                "--app",
+                app.name,
+            ],
+            stdout=None
+        )
+
+    @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
+                        reason="--heroku was not specified")
+    def test_full_monty(self, full_app, temp_repo):
+        app = full_app
+        assert app.name == u'dlgr-fake-uid'
+        assert app.url == u'https://dlgr-fake-uid.herokuapp.com'
+        assert app.dashboard_url == u"https://dashboard.heroku.com/apps/dlgr-fake-uid"
+        app.bootstrap()
+        app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
+        app.set('auto_recruit', True)
+
+
 @pytest.mark.usefixtures('bartlett_dir')
 class TestHerokuLocalWrapper(object):
 
@@ -345,12 +589,13 @@ class TestHerokuLocalWrapper(object):
         return Output()
 
     @pytest.fixture
-    def heroku(self, config, env, output):
+    def heroku(self, config, env, output, clear_workers):
         from dallinger.heroku.tools import HerokuLocalWrapper
         wrapper = HerokuLocalWrapper(config, output, env=env)
         yield wrapper
         try:
             print "Calling stop() on {}".format(wrapper)
+            print wrapper._record[-1]
             wrapper.stop(signal.SIGKILL)
         except:
             pass
@@ -426,7 +671,7 @@ class TestHerokuLocalWrapper(object):
             mock.call('apple'),
         ])
 
-    def test_as_context_manager(self, config, env, output):
+    def test_as_context_manager(self, config, env, output, clear_workers):
         from dallinger.heroku.tools import HerokuLocalWrapper
         with HerokuLocalWrapper(config, output, env=env) as heroku:
             assert heroku.is_running

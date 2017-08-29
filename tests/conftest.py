@@ -12,6 +12,27 @@ def subprocess_coverage():
     os.environ['COVERAGE_FILE'] = os.path.join(coverage_path, '.coverage')
 
 
+@pytest.fixture()
+def clear_workers():
+    import subprocess
+
+    def _zap():
+        kills = [
+            ['pkill', 'gunicorn'],
+            ['pkill', '-f', 'python worker.py'],
+        ]
+        for kill in kills:
+            try:
+                subprocess.check_call(kill)
+            except Exception as e:
+                if e.returncode != 1:
+                    raise
+
+    _zap()
+    yield
+    _zap()
+
+
 @pytest.fixture(scope='session')
 def root():
     return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -70,22 +91,42 @@ def env():
 @pytest.fixture
 def stub_config():
     defaults = {
-        'auto_recruit': True,
-        'aws_access_key_id': u'fake key',
-        'aws_secret_access_key': u'fake secret',
-        'base_payment': 0.01,
-        'duration': 1.0,
-        'mode': u'sandbox',
-        'id': u'some experiment uid',
-        'keywords': u'kw1, kw2, kw3',
-        'server': '0.0.0.0',
-        'organization_name': u'fake org name',
-        'notification_url': u'https://url-of-notification-route',
-        'approve_requirement': 95,
-        'us_only': True,
-        'lifetime': 1,
-        'title': u'fake experiment title',
-        'description': u'fake HIT description',
+        u'ad_group': u'Test ad group',
+        u'approve_requirement': 95,
+        u'auto_recruit': True,
+        u'aws_access_key_id': u'fake aws key',
+        u'aws_secret_access_key': u'fake aws secret',
+        u'aws_region': u'us-east-1',
+        u'base_payment': 0.01,
+        u'base_port': 5000,
+        u'browser_exclude_rule': u'MSIE, mobile, tablet',
+        u'clock_on': True,
+        u'contact_email_on_error': u'test@mailinator.com',
+        u'dallinger_email_address': u'test@example.com',
+        u'dallinger_email_password': u'fake password',
+        u'database_size': u'standard-0',
+        u'database_url': u'postgresql://postgres@localhost/dallinger',
+        u'description': u'fake HIT description',
+        u'duration': 1.0,
+        u'dyno_type': u'free',
+        u'heroku_team': u'',
+        u'host': u'0.0.0.0',
+        u'id': u'some experiment uid',
+        u'keywords': u'kw1, kw2, kw3',
+        u'lifetime': 1,
+        u'logfile': u'-',
+        u'loglevel': 0,
+        u'mode': u'sandbox',
+        u'notification_url': u'https://url-of-notification-route',
+        u'num_dynos_web': 1,
+        u'num_dynos_worker': 1,
+        u'organization_name': u'Monsters University',
+        u'sentry': True,
+        u'threads': u'1',
+        u'title': u'fake experiment title',
+        u'us_only': True,
+        u'webdriver_type': u'phantomjs',
+        u'whimsical': True
     }
     from dallinger.config import default_keys
     from dallinger.config import Configuration
@@ -96,6 +137,26 @@ def stub_config():
     config.ready = True
 
     return config
+
+
+@pytest.fixture
+def tempdir():
+    cwd = os.getcwd()
+    tmp = tempfile.mkdtemp()
+    os.chdir(tmp)
+    yield tmp
+
+    os.chdir(cwd)
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
+@pytest.fixture
+def in_tempdir(tempdir):
+    cwd = os.getcwd()
+    os.chdir(tempdir)
+    yield tempdir
+
+    os.chdir(cwd)
 
 
 @pytest.fixture(scope='class')
@@ -134,3 +195,5 @@ def pytest_addoption(parser):
                      help="Run an experiment using a bot during tests")
     parser.addoption("--manual", action="store_true",
                      help="Run manual interactive tests during test run")
+    parser.addoption("--heroku", action="store_true",
+                     help="Run tests requiring heroku login")
