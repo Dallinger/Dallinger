@@ -43,3 +43,9 @@ end
 if release && !git.modified_files.include?("CHANGELOG.md")
     fail("Please update the change log for this release.")
 end
+
+mturk_changed = git.modified_files.include?("dallinger/mturk.py")
+mturk_tests_changed = git.modified_files.include?("test/test_mturk.py")
+if mturk_changed || mturk_tests_changed
+    warn("MTurk code has changed, please test it using `pytest --mturkfull`.")
+end
