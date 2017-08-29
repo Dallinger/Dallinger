@@ -115,7 +115,7 @@ class RogersExperiment(Experiment):
         incomplete = num_approved < (self.generations * self.generation_size)
         if end_of_generation and incomplete:
             self.log("generation finished, recruiting another")
-            self.recruiter().recruit(n=self.generation_size)
+            self.recruiter.recruit(n=self.generation_size)
 
     def bonus(self, participant):
         """Calculate a participants bonus."""

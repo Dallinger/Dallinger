@@ -30,7 +30,7 @@ class WorkerEvent(object):
 
     @property
     def recruiter(self):
-        return self.experiment.recruiter()
+        return self.experiment.recruiter
 
     def commit(self):
         self.session.commit()
