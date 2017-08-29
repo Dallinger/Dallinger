@@ -475,7 +475,7 @@ class TestLoad(object):
         os.remove(path)
 
     @pytest.fixture
-    def loader(self, db_session, env, output):
+    def loader(self, db_session, env, output, clear_workers):
         from dallinger.command_line import LoadSessionRunner
         from dallinger.heroku.tools import HerokuLocalWrapper
         loader = LoadSessionRunner(self.exp_id, output, verbose=True,
@@ -485,7 +485,7 @@ class TestLoad(object):
         yield loader
 
     @pytest.fixture
-    def replay_loader(self, db_session, env_with_home, output):
+    def replay_loader(self, db_session, env, output, clear_workers):
         from dallinger.command_line import LoadSessionRunner
         loader = LoadSessionRunner(self.exp_id, output, verbose=True,
                                    exp_config={'replay': True})
@@ -496,7 +496,6 @@ class TestLoad(object):
             from dallinger.heroku.tools import HerokuLocalWrapper
             loader.out.log("Launching replay browser...")
             return HerokuLocalWrapper.MONITOR_STOP
-
 
         loader.start_replay = mock.Mock(
             return_value=None,
