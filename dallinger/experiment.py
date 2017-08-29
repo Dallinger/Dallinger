@@ -140,6 +140,7 @@ class Experiment(object):
         from dallinger.recruiters import HotAirRecruiter
         from dallinger.recruiters import MTurkRecruiter
         from dallinger.recruiters import BotRecruiter
+        from dallinger import recruiters
 
         config = get_config()
         try:
@@ -152,6 +153,10 @@ class Experiment(object):
         if recruiter == 'bogus':
             # For forcing failures in tests
             raise NotImplementedError
+        if recruiter is not None:
+            klass = getattr(recruiters, recruiter, None)
+            if klass is not None:
+                return klass
         if debug_mode and recruiter != 'bots':
             return HotAirRecruiter
         if recruiter == 'bots':
