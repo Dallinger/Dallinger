@@ -484,7 +484,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
         "whimsical": config["whimsical"],
     }
 
-    for k, v in heroku_config.items():
+    for k, v in sorted(heroku_config.items()):  # sorted for testablility
         heroku_app.set(k, v)
 
     # Wait for Redis database to be ready.
@@ -525,16 +525,16 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     time.sleep(8)
 
     # Launch the experiment.
-    log("Launching the experiment on MTurk...")
+    log("Launching the experiment on the remote server and starting recruitment...")
     launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url))
     result = {
         'app_name': heroku_app.name,
         'app_home': heroku_app.url,
-        'recruitment_url': launch_data.get('recruitment_url', None),
+        'recruitment_msg': launch_data.get('recruitment_msg', None),
     }
     log("URLs:")
     log("App home: {}".format(result['app_home']), chevrons=False)
-    log("Initial recruitment: {}".format(result['recruitment_url']), chevrons=False)
+    log("Initial recruitment:\n{}".format(result['recruitment_msg']), chevrons=False)
 
     # Return to the branch whence we came.
     os.chdir(cwd)

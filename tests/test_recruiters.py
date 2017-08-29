@@ -1,11 +1,31 @@
 import mock
-import os
 import pytest
 from dallinger.models import Participant
 from dallinger.experiment import Experiment
 
 
-class TestRecruiters(object):
+class TestModuleFunctions(object):
+
+    @pytest.fixture
+    def mod(self):
+        from dallinger import recruiters
+        return recruiters
+
+    def test_get_queue(self, mod):
+        from rq import Queue
+        assert isinstance(mod.get_queue(), Queue)
+
+    def test_by_name_with_valid_name(self, mod):
+        assert mod.by_name('CLIRecruiter') == mod.CLIRecruiter
+
+    def test_by_name_with_valid_nickname(self, mod):
+        assert mod.by_name('bots') == mod.BotRecruiter
+
+    def test_by_name_with_invalid_name(self, mod):
+        assert mod.by_name('blah') is None
+
+
+class TestRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):
@@ -31,33 +51,42 @@ class TestRecruiters(object):
     def test_for_experiment(self):
         from dallinger.recruiters import Recruiter
         mock_exp = mock.MagicMock(spec=Experiment)
-        Recruiter.for_experiment(mock_exp)
-
-        mock_exp.recruiter.assert_called()
+        mock_exp.recruiter = mock.sentinel.some_object
+        assert Recruiter.for_experiment(mock_exp) is mock_exp.recruiter
 
     def test_notify_recruited(self, recruiter):
         dummy = mock.NonCallableMock()
         recruiter.notify_recruited(participant=dummy)
 
 
-class TestHotAirRecruiter(object):
+@pytest.mark.usefixtures('active_config')
+class TestCLIRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):
-        from dallinger.recruiters import HotAirRecruiter
-        from dallinger.config import get_config
-        os.chdir('tests/experiment')
-        config = get_config()
-        if not config.ready:
-            config.load()
-        yield HotAirRecruiter()
-        os.chdir('../..')
+        from dallinger.recruiters import CLIRecruiter
+        yield CLIRecruiter()
 
-    def test_open_recruitment(self, recruiter):
-        recruiter.open_recruitment()
+    def test_recruit_recruits_one_by_default(self, recruiter):
+        result = recruiter.recruit()
+        assert len(result) == 1
 
-    def test_recruit(self, recruiter):
-        recruiter.recruit()
+    def test_recruit_results_are_urls(self, recruiter):
+        assert '/ad?assignmentId=' in recruiter.recruit()[0]
+
+    def test_recruit_multiple(self, recruiter):
+        assert len(recruiter.recruit(n=3)) == 3
+
+    def test_open_recruitment_recruits_one_by_default(self, recruiter):
+        result = recruiter.open_recruitment()
+        assert len(result) == 1
+
+    def test_open_recruitment_multiple(self, recruiter):
+        result = recruiter.open_recruitment(n=3)
+        assert len(result) == 3
+
+    def test_open_recruitment_results_are_urls(self, recruiter):
+        assert '/ad?assignmentId=' in recruiter.open_recruitment()[0]
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
@@ -68,21 +97,102 @@ class TestHotAirRecruiter(object):
     def test_reward_bonus(self, recruiter):
         recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
+    def test_open_recruitment_uses_configured_mode(self, recruiter, active_config):
+        active_config.extend({'mode': u'new_mode'})
+        assert 'mode=new_mode' in recruiter.open_recruitment()[0]
+
+
+@pytest.mark.usefixtures('active_config')
+class TestHotAirRecruiter(object):
+
+    @pytest.fixture
+    def recruiter(self):
+        from dallinger.recruiters import HotAirRecruiter
+        yield HotAirRecruiter()
+
+    def test_recruit_recruits_one_by_default(self, recruiter):
+        result = recruiter.recruit()
+        assert len(result) == 1
+
+    def test_recruit_results_are_urls(self, recruiter):
+        assert '/ad?assignmentId=' in recruiter.recruit()[0]
+
+    def test_recruit_multiple(self, recruiter):
+        assert len(recruiter.recruit(n=3)) == 3
+
+    def test_open_recruitment_recruits_one_by_default(self, recruiter):
+        result = recruiter.open_recruitment()
+        assert len(result) == 1
+
+    def test_open_recruitment_multiple(self, recruiter):
+        result = recruiter.open_recruitment(n=3)
+        assert len(result) == 3
+
+    def test_open_recruitment_results_are_urls(self, recruiter):
+        assert '/ad?assignmentId=' in recruiter.open_recruitment()[0]
+
+    def test_close_recruitment(self, recruiter):
+        recruiter.close_recruitment()
+
+    def test_approve_hit(self, recruiter):
+        assert recruiter.approve_hit('any assignment id')
+
+    def test_reward_bonus(self, recruiter):
+        recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
+
+    def test_open_recruitment_ignores_configured_mode(self, recruiter, active_config):
+        active_config.extend({'mode': u'new_mode'})
+        assert 'mode=debug' in recruiter.open_recruitment()[0]
+
+
+class TestSimulatedRecruiter(object):
+
+    @pytest.fixture
+    def recruiter(self):
+        from dallinger.recruiters import SimulatedRecruiter
+        return SimulatedRecruiter()
+
+    def test_recruit_returns_empty_result(self, recruiter):
+        assert recruiter.recruit() == []
+
+    def test_recruit_multiple_returns_empty_result(self, recruiter):
+        assert recruiter.recruit(n=3) == []
+
+    def test_open_recruitment_returns_empty_result(self, recruiter):
+        assert recruiter.open_recruitment() == []
+
+    def test_open_recruitment_multiple_returns_empty_result(self, recruiter):
+        assert recruiter.open_recruitment(n=3) == []
+
 
 class TestBotRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import BotRecruiter
-        return BotRecruiter(config={})
+        with mock.patch.multiple('dallinger.recruiters',
+                                 get_queue=mock.DEFAULT,
+                                 get_base_url=mock.DEFAULT) as mocks:
+            mocks['get_base_url'].return_value = 'fake_base_url'
+            r = BotRecruiter()
+            r._get_bot_class = mock.Mock()
+            yield r
 
-    @pytest.mark.xfail
-    def test_open_recruitment(self, recruiter):
-        recruiter.open_recruitment()
+    def test_recruit_returns_list(self, recruiter):
+        result = recruiter.recruit(n=2)
+        assert len(result) == 2
 
-    @pytest.mark.xfail
-    def test_recruit(self, recruiter):
-        recruiter.recruit()
+    def test_recruit_returns_urls(self, recruiter):
+        result = recruiter.recruit()
+        assert result[0].startswith('fake_base_url')
+
+    def test_open_recruitment_returns_list(self, recruiter):
+        result = recruiter.open_recruitment(n=2)
+        assert len(result) == 2
+
+    def test_open_recruitment_returns_urls(self, recruiter):
+        result = recruiter.open_recruitment()
+        assert result[0].startswith('fake_base_url')
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
@@ -91,36 +201,37 @@ class TestBotRecruiter(object):
         recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
 
-@pytest.mark.usefixtures('experiment_dir')
-class TestMTurkRecruiterAssumesConfigFileInCWD(object):
-
-    def test_instantiation_from_current_config(self):
-        from dallinger.recruiters import MTurkRecruiter
-        recruiter = MTurkRecruiter.from_current_config()
-        assert recruiter.config.get('title') == 'Stroop task'
-
-
+@pytest.mark.usefixtures('active_config', 'db_session')
 class TestMTurkRecruiter(object):
 
     @pytest.fixture
-    def recruiter(self, stub_config):
+    def recruiter(self):
         from dallinger.mturk import MTurkService
         from dallinger.recruiters import MTurkRecruiter
-        mockservice = mock.create_autospec(MTurkService)
-        r = MTurkRecruiter(
-            config=stub_config,
-            hit_domain='fake-domain',
-            ad_url='http://fake-domain/ad'
-        )
-        r.mturkservice = mockservice('fake key', 'fake secret')
-        r.mturkservice.check_credentials = mock.Mock(return_value=True)
-        r.mturkservice.create_hit = mock.Mock(return_value={
-            'type_id': 'fake type id'
-        })
-        return r
+        with mock.patch.multiple('dallinger.recruiters',
+                                 os=mock.DEFAULT,
+                                 get_base_url=mock.DEFAULT) as mocks:
+            mocks['get_base_url'].return_value = 'http://fake-domain'
+            mocks['os'].getenv.return_value = 'fake-host-domain'
+            mockservice = mock.create_autospec(MTurkService)
+            r = MTurkRecruiter()
+            r.mturkservice = mockservice('fake key', 'fake secret')
+            r.mturkservice.check_credentials = mock.Mock(return_value=True)
+            r.mturkservice.create_hit = mock.Mock(return_value={
+                'type_id': 'fake type id'
+            })
+            return r
 
     def test_config_passed_to_constructor(self, recruiter):
         assert recruiter.config.get('title') == 'fake experiment title'
+
+    def test_open_recruitment_returns_one_item_list(self, recruiter):
+        result = recruiter.open_recruitment(n=2)
+        assert len(result) == 1
+
+    def test_open_recruitment_returns_urls(self, recruiter):
+        result = recruiter.open_recruitment(n=1)
+        assert result[0] == 'https://workersandbox.mturk.com/mturk/preview?groupId=fake type id'
 
     def test_open_recruitment_raises_if_no_external_hit_domain_configured(self, recruiter):
         from dallinger.recruiters import MTurkRecruiterException
@@ -138,7 +249,7 @@ class TestMTurkRecruiter(object):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.check_credentials.assert_called_once()
 
-    def test_open_recruitment_single_recruitee(self, recruiter):
+    def test_open_recruitment_single_recruitee_builds_hit(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url='http://fake-domain/ad',
@@ -195,20 +306,14 @@ class TestMTurkRecruiter(object):
             blacklist=['foo', 'bar'],
         )
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self, recruiter, db_session):
-        from dallinger.models import Participant
-        participant = Participant(
-            worker_id='1', hit_id='1', assignment_id='1', mode="test")
-        db_session.add(participant)
+    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
+        a.participant()
         recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
 
-    def test_current_hit_id_with_active_experiment(self, recruiter, db_session):
-        from dallinger.models import Participant
-        participant = Participant(
-            worker_id='1', hit_id='the hit!', assignment_id='1', mode="test")
-        db_session.add(participant)
+    def test_current_hit_id_with_active_experiment(self, a, recruiter):
+        a.participant(hit_id=u'the hit!')
 
         assert recruiter.current_hit_id() == 'the hit!'
 
