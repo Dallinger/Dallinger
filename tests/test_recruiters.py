@@ -271,6 +271,9 @@ class TestBotRecruiter(object):
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
 
+    def test_approve_hit(self, recruiter):
+        assert recruiter.approve_hit('any assignment id')
+
     def test_reward_bonus(self, recruiter):
         recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
