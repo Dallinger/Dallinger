@@ -119,7 +119,7 @@ showFillerTask = function() {
 
 showExperiment = function() {
   $("#fillertask-form").hide();
-  submitResponses();
+  //submitResponses();
   $("#response-form").show();
   $("#send-message").removeClass("disabled");
   $("#send-message").html("Send");
