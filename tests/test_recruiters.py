@@ -54,10 +54,10 @@ class TestHotAirRecruiter(object):
         os.chdir('../..')
 
     def test_open_recruitment(self, recruiter):
-        recruiter.open_recruitment()
+        assert '/ad?assignmentId=debug' in recruiter.open_recruitment()
 
     def test_recruit(self, recruiter):
-        recruiter.recruit()
+        assert '/ad?assignmentId=debug' in recruiter.recruit()
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()

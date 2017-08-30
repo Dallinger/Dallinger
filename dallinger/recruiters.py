@@ -62,7 +62,7 @@ class HotAirRecruiter(Recruiter):
     def open_recruitment(self, n=1):
         """Talk about opening recruitment."""
         logger.info("Opening recruitment.")
-        self.recruit(n)
+        return self.recruit(n)
 
     def recruit(self, n=1):
         """Talk about recruiting participants."""
@@ -71,6 +71,7 @@ class HotAirRecruiter(Recruiter):
                 get_base_url(), generate_random_id(), generate_random_id(), generate_random_id(),
             )
             logger.info('New participant requested: {}'.format(ad_url))
+            return ad_url
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
