@@ -34,10 +34,11 @@ install:
 - gem install chandler
 before_script:
 - bundle exec danger
-- createdb dallinger -U postgres
+- createuser dallinger
+- createdb -O dallinger dallinger
 env:
   global:
-  - DATABASE_URL=postgresql://postgres@localhost/dallinger
+  - DATABASE_URL=postgresql://dallinger@localhost/dallinger
   - PORT=5000
   - threads=1
   - secure: isabc6zJWlMBizW/5MbjmWJ9Q2shDj0rjTPmtQmq7QZrrmxczjWfgiQE0i6tcw3wPvBIOgsA4M806ddgM/oeUPWt892BlPHUESb7j96zHtig9B/P4kwH11EPK4pEPcvg90NfVeDCqYHVSNcMtsRTSf93Fg7aT081URb7vRUykxg=

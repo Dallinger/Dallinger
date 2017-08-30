@@ -16,7 +16,7 @@ from sqlalchemy.exc import OperationalError
 
 logger = logging.getLogger('dallinger.db')
 
-db_url_default = "postgresql://postgres@localhost/dallinger"
+db_url_default = "postgresql://dallinger:dallinger@localhost/dallinger"
 db_url = os.environ.get("DATABASE_URL", db_url_default)
 engine = create_engine(db_url, pool_size=1000)
 session = scoped_session(sessionmaker(autocommit=False,
