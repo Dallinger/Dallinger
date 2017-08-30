@@ -53,11 +53,26 @@ class TestHotAirRecruiter(object):
         yield HotAirRecruiter()
         os.chdir('../..')
 
-    def test_open_recruitment(self, recruiter):
-        assert '/ad?assignmentId=debug' in recruiter.open_recruitment()
+    def test_recruit_recruits_one_by_default(self, recruiter):
+        result = recruiter.recruit()
+        assert len(result) == 1
 
-    def test_recruit(self, recruiter):
-        assert '/ad?assignmentId=debug' in recruiter.recruit()
+    def test_recruit_results_are_urls(self, recruiter):
+        assert '/ad?assignmentId=debug' in recruiter.recruit()[0]
+
+    def test_recruit_multiple(self, recruiter):
+        assert len(recruiter.recruit(n=3)) == 3
+
+    def test_open_recruitment_recruits_one_by_default(self, recruiter):
+        result = recruiter.open_recruitment()
+        assert len(result) == 1
+
+    def test_open_recruitment_multiple(self, recruiter):
+        result = recruiter.open_recruitment(n=3)
+        assert len(result) == 3
+
+    def test_open_recruitment_results_are_urls(self, recruiter):
+        assert '/ad?assignmentId=debug' in recruiter.open_recruitment()[0]
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
@@ -69,20 +84,54 @@ class TestHotAirRecruiter(object):
         recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
 
+class TestSimulatedRecruiter(object):
+
+    @pytest.fixture
+    def recruiter(self):
+        from dallinger.recruiters import SimulatedRecruiter
+        return SimulatedRecruiter()
+
+    def test_recruit_returns_empty_result(self, recruiter):
+        assert recruiter.recruit() == []
+
+    def test_recruit_multiple_returns_empty_result(self, recruiter):
+        assert recruiter.recruit(n=3) == []
+
+    def test_open_recruitment_returns_empty_result(self, recruiter):
+        assert recruiter.open_recruitment() == []
+
+    def test_open_recruitment_multiple_returns_empty_result(self, recruiter):
+        assert recruiter.open_recruitment(n=3) == []
+
+
 class TestBotRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import BotRecruiter
-        return BotRecruiter(config={})
+        with mock.patch.multiple('dallinger.recruiters',
+                                 q=mock.DEFAULT,
+                                 get_base_url=mock.DEFAULT) as mocks:
+            mocks['get_base_url'].return_value = 'fake_base_url'
+            r = BotRecruiter(config={})
+            r._get_bot_class = mock.Mock()
+            yield r
 
-    @pytest.mark.xfail
-    def test_open_recruitment(self, recruiter):
-        recruiter.open_recruitment()
+    def test_recruit_returns_list(self, recruiter):
+        result = recruiter.recruit(n=2)
+        assert len(result) == 2
 
-    @pytest.mark.xfail
-    def test_recruit(self, recruiter):
-        recruiter.recruit()
+    def test_recruit_returns_urls(self, recruiter):
+        result = recruiter.recruit()
+        assert result[0].startswith('fake_base_url')
+
+    def test_open_recruitment_returns_list(self, recruiter):
+        result = recruiter.open_recruitment(n=2)
+        assert len(result) == 2
+
+    def test_open_recruitment_returns_urls(self, recruiter):
+        result = recruiter.open_recruitment()
+        assert result[0].startswith('fake_base_url')
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
@@ -122,6 +171,14 @@ class TestMTurkRecruiter(object):
     def test_config_passed_to_constructor(self, recruiter):
         assert recruiter.config.get('title') == 'fake experiment title'
 
+    def test_open_recruitment_returns_one_item_list(self, recruiter):
+        result = recruiter.open_recruitment(n=2)
+        assert len(result) == 1
+
+    def test_open_recruitment_returns_urls(self, recruiter):
+        result = recruiter.open_recruitment(n=1)
+        assert result[0] == 'https://workersandbox.mturk.com/mturk/preview?groupId=fake type id'
+
     def test_open_recruitment_raises_if_no_external_hit_domain_configured(self, recruiter):
         from dallinger.recruiters import MTurkRecruiterException
         recruiter.hit_domain = None
@@ -138,7 +195,7 @@ class TestMTurkRecruiter(object):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.check_credentials.assert_called_once()
 
-    def test_open_recruitment_single_recruitee(self, recruiter):
+    def test_open_recruitment_single_recruitee_builds_hit(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url='http://fake-domain/ad',

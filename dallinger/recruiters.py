@@ -31,11 +31,11 @@ class Recruiter(object):
         return experiment.recruiter()
 
     def open_recruitment(self):
-        """Throw an error."""
+        """Return a list of one or more initial recruitment URLs.
+        """
         raise NotImplementedError
 
     def recruit(self, n=1):
-        """Throw an error."""
         raise NotImplementedError
 
     def close_recruitment(self):
@@ -66,12 +66,15 @@ class HotAirRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Talk about recruiting participants."""
+        urls = []
         for i in range(n):
             ad_url = "{}/ad?assignmentId=debug{}&hitId={}&workerId={}&mode=debug".format(
                 get_base_url(), generate_random_id(), generate_random_id(), generate_random_id(),
             )
             logger.info('New participant requested: {}'.format(ad_url))
-            return ad_url
+            urls.append(ad_url)
+
+        return urls
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
@@ -89,20 +92,16 @@ class HotAirRecruiter(Recruiter):
         )
 
 
-class SimulatedRecruiter(object):
+class SimulatedRecruiter(Recruiter):
     """A recruiter that recruits simulated participants."""
-
-    def __init__(self):
-        """Create a simulated recruiter."""
-        super(SimulatedRecruiter, self).__init__()
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
-        self.recruit(n)
+        return self.recruit(n)
 
     def recruit(self, n=1):
         """Recruit n participants."""
-        pass
+        return []
 
     def close_recruitment(self):
         """Do nothing."""
@@ -182,7 +181,7 @@ class MTurkRecruiter(Recruiter):
         else:
             lookup_url = "https://worker.mturk.com/mturk/preview?groupId={type_id}"
 
-        return lookup_url.format(**hit_info)
+        return [lookup_url.format(**hit_info), ]
 
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
@@ -285,12 +284,12 @@ class BotRecruiter(Recruiter):
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
         logger.info("Open recruitment.")
-        self.recruit(n)
+        return self.recruit(n)
 
     def recruit(self, n=1):
         """Recruit n new participant bots to the queue"""
-        from dallinger_experiment import Bot
-
+        bot_class = self._get_bot_class()
+        urls = []
         for _ in range(n):
             base_url = get_base_url()
             worker = generate_random_id()
@@ -299,9 +298,12 @@ class BotRecruiter(Recruiter):
             ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
             ad_parameters = ad_parameters.format(assignment, hit, worker)
             url = '{}/ad?{}'.format(base_url, ad_parameters)
-            bot = Bot(url, assignment_id=assignment, worker_id=worker)
+            urls.append(url)
+            bot = bot_class(url, assignment_id=assignment, worker_id=worker)
             job = q.enqueue(bot.run_experiment, timeout=60 * 20)
             logger.info("Created job {} for url {}.".format(job.id, url))
+
+        return urls
 
     def approve_hit(self, assignment_id):
         return True
@@ -318,3 +320,8 @@ class BotRecruiter(Recruiter):
         logger.info(
             "Bots don't get bonuses. Sorry, bots."
         )
+
+    def _get_bot_class(self):
+        # Must be imported at run-time
+        from dallinger_experiment import Bot
+        return Bot
