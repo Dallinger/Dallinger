@@ -151,9 +151,7 @@ class Participant(Base, SharedMixin):
         return {
             "id": self.id,
             "type": self.type,
-            "worker_id": self.worker_id,
             "assignment_id": self.assignment_id,
-            "unique_id": self.unique_id,
             "hit_id": self.hit_id,
             "mode": self.mode,
             "end_time": self.end_time,
