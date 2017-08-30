@@ -156,7 +156,7 @@ class TestSetupExperiment(object):
         )
 
         assert found_in(os.path.join("static", "css", "dallinger.css"), dst)
-        assert found_in(os.path.join("static", "scripts", "dallinger.js"), dst)
+        assert found_in(os.path.join("static", "scripts", "dallinger2.js"), dst)
         assert found_in(os.path.join("static", "scripts", "reconnecting-websocket.js"), dst)
         assert found_in(os.path.join("static", "scripts", "reqwest.min.js"), dst)
         assert found_in(os.path.join("static", "scripts", "spin.min.js"), dst)
