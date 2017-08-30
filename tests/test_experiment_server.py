@@ -56,6 +56,12 @@ class TestExperimentServer(object):
         participant = Participant.query.get(participant_id)
         participant.status = status
 
+    def test_success_response(self):
+        from dallinger.experiment_server.experiment_server import success_response
+        result = success_response(some_key="foo\nbar")
+        as_dict = json.loads(result.response[0])
+        assert as_dict == {u'status': u'success', u'some_key': u'foo\nbar'}
+
     def test_root(self, app):
         resp = app.get('/')
         assert resp.status_code == 404
@@ -311,7 +317,7 @@ class TestExperimentServer(object):
         resp = app.post('/launch', {})
         assert resp.status_code == 200
         data = json.loads(resp.get_data())
-        assert 'recruitment_url' in data
+        assert 'recruitment_msg' in data
 
     def test_launch_logging_fails(self, app):
         with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:

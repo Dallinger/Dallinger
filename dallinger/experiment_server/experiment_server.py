@@ -270,7 +270,7 @@ def launch():
                 status=500, simple=True
             )
 
-    return success_response(recruitment_msg=recruitment_urls.join('\n'))
+    return success_response(recruitment_msg=u'\n'.join(recruitment_urls))
 
 
 @app.route('/ad', methods=['GET'])

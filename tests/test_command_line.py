@@ -260,7 +260,7 @@ class TestDeploySandboxSharedSetup(object):
     @pytest.fixture
     def launch(self):
         with mock.patch('dallinger.command_line._handle_launch_data') as hld:
-            hld.return_value = {'recruitment_url': 'fake recruitment_url'}
+            hld.return_value = {'recruitment_msg': 'fake\nrecruitment\nlist'}
             yield hld
 
     @pytest.fixture
