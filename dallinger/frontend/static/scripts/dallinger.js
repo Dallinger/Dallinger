@@ -137,39 +137,23 @@ var go_to_page = function(page) {
 
 // report assignment complete
 var submitAssignment = function() {
-    var deferred = $.Deferred();
     reqwest({
-        url: "/participant/" + participant_id,
+        url: '/worker_complete',
         method: "get",
         type: "json",
+        data: {
+            "participantId": participant_id,
+        },
         success: function (resp) {
-            mode = resp.participant.mode;
-            hit_id = resp.participant.hit_id;
-            assignment_id = resp.participant.assignment_id;
-            worker_id = resp.participant.worker_id;
-            var worker_complete = '/worker_complete';
-            reqwest({
-                url: worker_complete,
-                method: "get",
-                type: "json",
-                data: {
-                    "uniqueId": worker_id + ":" + assignment_id
-                },
-                success: function (resp) {
-                    deferred.resolve();
-                    allow_exit();
-                    window.location = "/complete";
-                },
-                error: function (err) {
-                    deferred.reject();
-                    console.log(err);
-                    var errorResponse = JSON.parse(err.response);
-                    $("body").html(errorResponse.html);
-                }
-            });
+            allow_exit();
+            window.location = "/complete";
+        },
+        error: function (err) {
+            console.log(err);
+            var errorResponse = JSON.parse(err.response);
+            $("body").html(errorResponse.html);
         }
     });
-    return deferred;
 };
 
 var submit_assignment = function () {
