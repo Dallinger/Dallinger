@@ -619,6 +619,41 @@ class TestModels(object):
         assert len(agent2.transmissions(direction="outgoing")) == 0
         assert len(agent3.transmissions(direction="outgoing")) == 0
 
+    def test_transmission_order(self, db_session):
+        net = models.Network()
+        db_session.add(net)
+        agent1 = nodes.ReplicatorAgent(network=net)
+        agent2 = nodes.ReplicatorAgent(network=net)
+        agent3 = nodes.ReplicatorAgent(network=net)
+        self.add(db_session, agent1, agent2, agent3)
+        db_session.commit()
+
+        agent1.connect(whom=agent2)
+        agent1.connect(whom=agent3)
+        self.add(db_session, agent1, agent2, agent3)
+
+        info1 = models.Info(origin=agent1, contents="foo")
+        info2 = models.Info(origin=agent1, contents="bar")
+        info3 = models.Info(origin=agent1, contents="baz")
+        info4 = models.Info(origin=agent1, contents="spam")
+        self.add(db_session, info1, info2, info3, info4)
+
+        agent1.transmit(what=info1, to_whom=agent2)
+        agent2.receive()
+        agent1.transmit(what=info2, to_whom=agent3)
+        agent3.receive()
+        agent1.transmit(what=info3, to_whom=agent2)
+        agent2.receive()
+        agent1.transmit(what=info4, to_whom=agent3)
+        agent3.receive()
+        db_session.commit()
+
+        transmissions = agent1.transmissions()
+        assert len(transmissions) == 4
+        assert transmissions[0].receive_time < transmissions[1].receive_time
+        assert transmissions[1].receive_time < transmissions[2].receive_time
+        assert transmissions[2].receive_time < transmissions[3].receive_time
+
     def test_property_node(self, db_session):
         net = models.Network()
         db_session.add(net)
