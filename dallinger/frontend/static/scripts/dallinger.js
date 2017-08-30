@@ -1,3 +1,9 @@
+/*
+NOTE: This file is deprecated and will be removed
+in the next major release of Dallinger. Update your
+experiments to use dallinger2.js instead.
+*/
+
 /*globals Spinner, reqwest, store */
 
 // load essential variables
