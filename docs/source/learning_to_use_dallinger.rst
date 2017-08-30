@@ -21,7 +21,7 @@ Experimental design
 
 -  :doc:`required_experimental_files`
 -  config.txt
--  Dallinger.js
+-  dallinger2.js
 
 Example walkthroughs
 ''''''''''''''''''''

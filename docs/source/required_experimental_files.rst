@@ -47,9 +47,9 @@ name. The files are as follows:
    that require multiple users at once.
 -  robots.txt - this file is returned to bots (e.g. from Google) that
    bump into the experiment when crawling the internet.
--  dallinger.js - this is a javascript library with a number of helpful
+-  dallinger2.js - this is a javascript library with a number of helpful
    functions.
 -  `reqwest.min.js <https://github.com/ded/reqwest>`__ - this is
-   required for dallinger.js to work.
+   required for dallinger2.js to work.
 -  dallinger.css - this contains several css classes that are used in the
    demos.

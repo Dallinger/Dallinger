@@ -202,8 +202,7 @@ Game = (function(_super) {
     this.step_idx++;
     if (this.testCollision(x, y)) {
       this.endGame();
-      allow_exit();
-      go_to_page('questionnaire');
+      dallinger.goToPage('questionnaire');
       return;
     }
     this.snake.unshift([x, y]);
