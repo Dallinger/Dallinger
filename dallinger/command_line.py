@@ -522,7 +522,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     }
     log("URLs:")
     log("App home: {}".format(result['app_home']), chevrons=False)
-    log("Initial recruitment: {}".format(result['recruitment_url']), chevrons=False)
+    log("Initial recruitment:\n{}".format(result['recruitment_msg']), chevrons=False)
 
     # Return to the branch whence we came.
     os.chdir(cwd)
