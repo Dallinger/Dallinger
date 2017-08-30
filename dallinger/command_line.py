@@ -171,6 +171,7 @@ def verify_package(verbose=True):
         os.path.join("templates", "thanks.html"),
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "robots.txt")
     ]
@@ -325,6 +326,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     frontend_files = [
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "scripts", "reconnecting-websocket.js"),
         os.path.join("static", "scripts", "spin.min.js"),

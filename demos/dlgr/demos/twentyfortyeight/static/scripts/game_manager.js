@@ -184,19 +184,18 @@ GameManager.prototype.move = function (direction) {
     this.addRandomTile();
 
     reqwest({
-        url: "/info/" + my_node_id,
-        method: 'post',
-        data: {
-            contents: JSON.stringify(game.serialize()),
-            info_type: "State"
-        },
+      url: "/info/" + my_node_id,
+      method: 'post',
+      data: {
+        contents: JSON.stringify(game.serialize()),
+        info_type: "State"
+      }
     });
 
     if (!this.movesAvailable()) {
       this.over = true; // Game over!
       setTimeout(function(){
-          allow_exit();
-          go_to_page('questionnaire');
+        dallinger.goToPage('questionnaire');
       }, 2000);
     }
     this.actuate();
