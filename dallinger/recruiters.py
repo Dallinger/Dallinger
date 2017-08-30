@@ -222,7 +222,7 @@ class MTurkRecruiter(Recruiter):
         try:
             return self.mturkservice.grant_bonus(assignment_id, amount, reason)
         except MTurkServiceException as ex:
-            logger.exception((ex.message))
+            logger.exception(ex.message)
 
     @property
     def is_in_progress(self):
