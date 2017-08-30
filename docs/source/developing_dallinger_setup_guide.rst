@@ -85,7 +85,7 @@ command line:
     createdb -O dallinger dallinger
 
 The first command will create a user named ``dallinger`` and prompt you for a
-password. The seconf command will create the ``dallinger`` database, setting
+password. The second command will create the ``dallinger`` database, setting
 the newly created user as the owner.
 
 If you get an error like the following...
