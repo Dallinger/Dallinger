@@ -1,5 +1,4 @@
 import mock
-import os
 import pytest
 from dallinger.models import Participant
 from dallinger.experiment import Experiment
@@ -40,18 +39,13 @@ class TestRecruiters(object):
         recruiter.notify_recruited(participant=dummy)
 
 
+@pytest.mark.usefixtures('active_config')
 class TestHotAirRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import HotAirRecruiter
-        from dallinger.config import get_config
-        os.chdir('tests/experiment')
-        config = get_config()
-        if not config.ready:
-            config.load()
         yield HotAirRecruiter()
-        os.chdir('../..')
 
     def test_recruit_recruits_one_by_default(self, recruiter):
         result = recruiter.recruit()
@@ -72,7 +66,11 @@ class TestHotAirRecruiter(object):
         assert len(result) == 3
 
     def test_open_recruitment_results_are_urls(self, recruiter):
-        assert '/ad?assignmentId=debug' in recruiter.open_recruitment()[0]
+        assert '/ad?assignmentId=' in recruiter.open_recruitment()[0]
+
+    def test_open_recruitment_uses_configured_mode_urls(self, recruiter, active_config):
+        active_config.extend({'mode': u'new_mode'})
+        assert 'mode=new_mode' in recruiter.open_recruitment()[0]
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()

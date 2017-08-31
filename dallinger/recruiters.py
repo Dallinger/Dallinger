@@ -67,9 +67,15 @@ class HotAirRecruiter(Recruiter):
     def recruit(self, n=1):
         """Talk about recruiting participants."""
         urls = []
+        config = get_config()
+        template = "{}/ad?assignmentId=debug{}&hitId={}&workerId={}&mode={}"
         for i in range(n):
-            ad_url = "{}/ad?assignmentId=debug{}&hitId={}&workerId={}&mode=debug".format(
-                get_base_url(), generate_random_id(), generate_random_id(), generate_random_id(),
+            ad_url = template.format(
+                get_base_url(),
+                generate_random_id(),
+                generate_random_id(),
+                generate_random_id(),
+                config.get('mode')
             )
             logger.info('New participant requested: {}'.format(ad_url))
             urls.append(ad_url)

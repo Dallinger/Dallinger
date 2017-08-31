@@ -94,6 +94,10 @@ def env():
 
 @pytest.fixture
 def stub_config():
+    """Builds a standardized Configuration object and returns it, but does
+    not load it as the active configuration returned by
+    dallinger.config.get_config()
+    """
     defaults = {
         u'ad_group': u'Test ad group',
         u'approve_requirement': 95,
@@ -140,6 +144,21 @@ def stub_config():
     config.extend(defaults.copy())
     config.ready = True
 
+    return config
+
+
+@pytest.fixture
+def active_config(stub_config):
+    """Loads the standard config as the active configuration returned by
+    dallinger.config.get_config() and returns it. Note that changes to the
+    active config will be reverted by the reset_config() fixture above,
+    which is automatically envoked after each test class finishes via
+    autouse=True.
+    """
+    from dallinger.config import get_config
+    config = get_config()
+    config.load()
+    config.extend(stub_config.as_dict())
     return config
 
 
