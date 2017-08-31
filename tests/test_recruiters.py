@@ -40,19 +40,19 @@ class TestRecruiters(object):
 
 
 @pytest.mark.usefixtures('active_config')
-class TestHotAirRecruiter(object):
+class TestCLIRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):
-        from dallinger.recruiters import HotAirRecruiter
-        yield HotAirRecruiter()
+        from dallinger.recruiters import CLIRecruiter
+        yield CLIRecruiter()
 
     def test_recruit_recruits_one_by_default(self, recruiter):
         result = recruiter.recruit()
         assert len(result) == 1
 
     def test_recruit_results_are_urls(self, recruiter):
-        assert '/ad?assignmentId=debug' in recruiter.recruit()[0]
+        assert '/ad?assignmentId=' in recruiter.recruit()[0]
 
     def test_recruit_multiple(self, recruiter):
         assert len(recruiter.recruit(n=3)) == 3
@@ -68,9 +68,48 @@ class TestHotAirRecruiter(object):
     def test_open_recruitment_results_are_urls(self, recruiter):
         assert '/ad?assignmentId=' in recruiter.open_recruitment()[0]
 
-    def test_open_recruitment_uses_configured_mode_urls(self, recruiter, active_config):
+    def test_close_recruitment(self, recruiter):
+        recruiter.close_recruitment()
+
+    def test_approve_hit(self, recruiter):
+        assert recruiter.approve_hit('any assignment id')
+
+    def test_reward_bonus(self, recruiter):
+        recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
+
+    def test_open_recruitment_uses_configured_mode(self, recruiter, active_config):
         active_config.extend({'mode': u'new_mode'})
         assert 'mode=new_mode' in recruiter.open_recruitment()[0]
+
+
+@pytest.mark.usefixtures('active_config')
+class TestHotAirRecruiter(object):
+
+    @pytest.fixture
+    def recruiter(self):
+        from dallinger.recruiters import HotAirRecruiter
+        yield HotAirRecruiter()
+
+    def test_recruit_recruits_one_by_default(self, recruiter):
+        result = recruiter.recruit()
+        assert len(result) == 1
+
+    def test_recruit_results_are_urls(self, recruiter):
+        assert '/ad?assignmentId=' in recruiter.recruit()[0]
+
+    def test_recruit_multiple(self, recruiter):
+        assert len(recruiter.recruit(n=3)) == 3
+
+    def test_open_recruitment_recruits_one_by_default(self, recruiter):
+        result = recruiter.open_recruitment()
+        assert len(result) == 1
+
+    def test_open_recruitment_multiple(self, recruiter):
+        result = recruiter.open_recruitment(n=3)
+        assert len(result) == 3
+
+    def test_open_recruitment_results_are_urls(self, recruiter):
+        assert '/ad?assignmentId=' in recruiter.open_recruitment()[0]
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
@@ -80,6 +119,10 @@ class TestHotAirRecruiter(object):
 
     def test_reward_bonus(self, recruiter):
         recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
+
+    def test_open_recruitment_ignores_configured_mode(self, recruiter, active_config):
+        active_config.extend({'mode': u'new_mode'})
+        assert 'mode=debug' in recruiter.open_recruitment()[0]
 
 
 class TestSimulatedRecruiter(object):

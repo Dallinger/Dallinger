@@ -53,10 +53,9 @@ class Recruiter(object):
         pass
 
 
-class HotAirRecruiter(Recruiter):
-    """A dummy recruiter.
-
-    Talks the talk, but does not walk the walk.
+class CLIRecruiter(Recruiter):
+    """A recruiter which prints out /ad URLs to the console for direct
+    assigment.
     """
 
     def open_recruitment(self, n=1):
@@ -65,17 +64,16 @@ class HotAirRecruiter(Recruiter):
         return self.recruit(n)
 
     def recruit(self, n=1):
-        """Talk about recruiting participants."""
+        """Generate experiemnt URLs and print them to the console."""
         urls = []
-        config = get_config()
-        template = "{}/ad?assignmentId=debug{}&hitId={}&workerId={}&mode={}"
+        template = "{}/ad?assignmentId={}&hitId={}&workerId={}&mode={}"
         for i in range(n):
             ad_url = template.format(
                 get_base_url(),
                 generate_random_id(),
                 generate_random_id(),
                 generate_random_id(),
-                config.get('mode')
+                self._get_mode()
             )
             logger.info('New participant requested: {}'.format(ad_url))
             urls.append(ad_url)
@@ -91,11 +89,33 @@ class HotAirRecruiter(Recruiter):
         return True
 
     def reward_bonus(self, assignment_id, amount, reason):
+        """Print out bonus info for the assignment"""
+        logger.info(
+            'Award ${} for assignment {}, with reason "{}"'.format(
+                amount, assignment_id, reason)
+        )
+
+    def _get_mode(self):
+        config = get_config()
+        return config.get('mode')
+
+
+class HotAirRecruiter(CLIRecruiter):
+    """A dummy recruiter.
+
+    Talks the talk, but does not walk the walk.
+    """
+
+    def reward_bonus(self, assignment_id, amount, reason):
         """Logging-only, Hot Air implementation"""
         logger.info(
             "Were this a real Recruiter, we'd be awarding ${} for assignment {}, "
             'with reason "{}"'.format(amount, assignment_id, reason)
         )
+
+    def _get_mode(self):
+        # Ignore config settings and always use debug mode
+        return u'debug'
 
 
 class SimulatedRecruiter(Recruiter):
