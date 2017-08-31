@@ -968,7 +968,7 @@ class TestWorkerFunctionIntegration(object):
 
     def test_tracking_event(self, worker_func, db_session):
         from dallinger.models import Participant
-        from dallinger.models import Info
+        from dallinger.information import TrackingEvent
         from dallinger.experiment_server.experiment_server import Experiment
 
         participant = Participant(
@@ -992,8 +992,7 @@ class TestWorkerFunctionIntegration(object):
             details={'test': True}
         )
 
-        events = db_session.query(Info).filter(
-            Info.contents == 'TrackingEvent').all()
+        events = db_session.query(TrackingEvent).all()
         assert len(events) == 1
         event = events[0]
         assert event.origin.id == node_id

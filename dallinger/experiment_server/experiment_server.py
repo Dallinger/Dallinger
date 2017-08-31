@@ -30,6 +30,7 @@ from sqlalchemy.sql.expression import true
 from dallinger import db
 from dallinger import experiment
 from dallinger import models
+from dallinger import information
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger import recruiters
@@ -1483,7 +1484,7 @@ def worker_function(event_type, assignment_id, participant_id, details=None):
                     "TrackingEvent notification.", key)
             return
         node = max(nodes, key=attrgetter('creation_time'))
-        info = models.Info(origin=node, contents="TrackingEvent", details=details)
+        info = information.TrackingEvent(origin=node, details=details)
         session.add(info)
         session.commit()
         return
