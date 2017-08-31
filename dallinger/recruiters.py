@@ -15,8 +15,10 @@ import os
 
 logger = logging.getLogger(__file__)
 
-# Connect to Redis Queue for recruiter calls
-q = Queue('low', connection=conn)
+
+def get_queue():
+    # Connect to Redis Queue
+    return Queue('low', connection=conn)
 
 
 class Recruiter(object):
@@ -316,6 +318,7 @@ class BotRecruiter(Recruiter):
         """Recruit n new participant bots to the queue"""
         bot_class = self._get_bot_class()
         urls = []
+        q = get_queue()
         for _ in range(n):
             base_url = get_base_url()
             worker = generate_random_id()

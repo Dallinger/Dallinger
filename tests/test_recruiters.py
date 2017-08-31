@@ -151,7 +151,7 @@ class TestBotRecruiter(object):
     def recruiter(self):
         from dallinger.recruiters import BotRecruiter
         with mock.patch.multiple('dallinger.recruiters',
-                                 q=mock.DEFAULT,
+                                 get_queue=mock.DEFAULT,
                                  get_base_url=mock.DEFAULT) as mocks:
             mocks['get_base_url'].return_value = 'fake_base_url'
             r = BotRecruiter(config={})
