@@ -64,6 +64,11 @@ To run all tests except those that require a MTurk Worker ID, run::
 
 	pytest -m "not mturkworker"
 
+To run the complete, comprehensive suite of tests which interact Mechanical Turk,
+add the ``mturkfull`` option when running the tests::
+
+  pytest --mturkfull
+
 To build documentation::
 
 	tox -e docs

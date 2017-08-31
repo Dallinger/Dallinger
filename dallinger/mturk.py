@@ -315,12 +315,14 @@ class MTurkService(object):
         try:
             self.mturk.extend_hit(hit_id, expiration_increment=duration_as_secs)
         except MTurkRequestError:
-            logger.exception("Failed to extend time until expiration of HIT")
+            raise MTurkServiceException(
+                "Failed to extend time until expiration of HIT")
 
         try:
             self.mturk.extend_hit(hit_id, assignments_increment=number)
         except MTurkRequestError:
-            logger.exception("Error: failed to add {} assignments to HIT".format(number))
+            raise MTurkServiceException(
+                "Error: failed to add {} assignments to HIT".format(number))
 
         updated_hit = self.mturk.get_hit(hit_id)[0]
 
@@ -352,10 +354,11 @@ class MTurkService(object):
                 self.mturk.grant_bonus(worker_id, assignment_id, amount, reason)
             )
         except MTurkRequestError:
-            logger.exception("Failed to pay assignment {} bonus of {}".format(
+            error = "Failed to pay assignment {} bonus of {}".format(
                 assignment_id,
                 amount
-            ))
+            )
+            raise MTurkServiceException(error)
 
     def _translate_hit(self, hit):
         translated = {
@@ -391,6 +394,6 @@ class MTurkService(object):
         try:
             self.mturk.approve_assignment(assignment_id, feedback=None)
         except MTurkRequestError:
-            logger.exception(
+            raise MTurkServiceException(
                 "Failed to approve assignment {}".format(assignment_id))
         return True

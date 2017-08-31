@@ -221,6 +221,42 @@ def qtype(aws_creds):
 
 
 @pytest.mark.mturk
+@pytest.mark.mturkworker
+class TestMTurkServiceIntegrationSmokeTest(object):
+    """Hits about 75% of the MTurkService class with actual boto.mturk network
+    calls. For comprehensive system tests, run with the --mturkfull option.
+    """
+
+    def test_create_hit_lifecycle(self, with_cleanup, qtype, worker_id):
+        result = with_cleanup.get_qualification_type_by_name(qtype['name'])
+        assert qtype == result
+
+        with_cleanup.assign_qualification(qtype['id'], worker_id, score=2)
+
+        workers = with_cleanup.get_workers_with_qualification(qtype['id'])
+
+        assert worker_id in [w['id'] for w in workers]
+
+        result = with_cleanup.increment_qualification_score(
+            qtype['name'], worker_id)
+
+        assert result['score'] == 3
+
+        config = standard_hit_config(
+            max_assignments=2,
+            blacklist=[qtype['name']]
+        )
+        hit = with_cleanup.create_hit(**config)
+        assert hit['status'] == 'Assignable'
+        assert hit['max_assignments'] == 2
+        updated = with_cleanup.extend_hit(hit['id'], number=1, duration_hours=.25)
+        assert updated['max_assignments'] == 3
+        assert with_cleanup.disable_hit(hit['id'])
+
+
+@pytest.mark.mturk
+@pytest.mark.skipif(not pytest.config.getvalue("mturkfull"),
+                    reason="--mturkfull was not specified")
 class TestMTurkService(object):
 
     def loop_until_2_quals(self, mturk_helper, query):
@@ -296,7 +332,7 @@ class TestMTurkService(object):
         assert updated['expiration'] >= hit['expiration'] + expected_extension
 
     def test_extend_hit_with_invalid_hit_id_raises(self, mturk):
-        with pytest.raises(MTurkRequestError):
+        with pytest.raises(MTurkServiceException):
             mturk.extend_hit('dud', number=1, duration_hours=.25)
 
     def test_disable_hit_with_valid_hit_id(self, with_cleanup):
@@ -377,6 +413,8 @@ class TestMTurkService(object):
 
 @pytest.mark.mturk
 @pytest.mark.mturkworker
+@pytest.mark.skipif(not pytest.config.getvalue("mturkfull"),
+                    reason="--mturkfull was not specified")
 class TestMTurkServiceWithRequesterAndWorker(object):
 
     def test_assign_qualification(self, with_cleanup, worker_id, qtype):
@@ -570,6 +608,43 @@ class TestMTurkServiceWithFakeConnection(object):
         with pytest.raises(MTurkServiceException):
             service.check_credentials()
 
+    def test_build_hit_qualifications_with_blacklist(self, with_mock):
+        qtypes = fake_qualification_type_response()
+        with_mock.mturk.search_qualification_types.return_value = qtypes
+        qtype = qtypes[0]
+        quals = with_mock.build_hit_qualifications(
+            95, False, blacklist=[qtypes[0].QualificationTypeId]
+        )
+        assert quals.requirements[-1].qualification_type_id == qtype.QualificationTypeId
+        assert quals.requirements[-1].comparator == "DoesNotExist"
+
+    def test_build_hit_qualifications_with_region_restriction(self, with_mock):
+        quals = with_mock.build_hit_qualifications(
+            95, restrict_to_usa=True, blacklist=None
+        )
+        assert quals.requirements[-1].comparator == "EqualTo"
+        assert quals.requirements[-1].locale == "US"
+
+    def test_get_qualification_type_by_name_with_invalid_name_returns_none(self, with_mock):
+        with_mock.mturk.search_qualification_types.return_value = []
+        with_mock.max_wait_secs = 1
+        assert with_mock.get_qualification_type_by_name("foo") is None
+
+    def test_get_qualification_type_by_name_raises_if_not_unique_and_not_exact_match(self,
+                                                                                     with_mock):
+        qtype = fake_qualification_type_response()[0]
+        qtypes = as_resultset([qtype, qtype])
+        with_mock.mturk.search_qualification_types.return_value = qtypes
+        with pytest.raises(MTurkServiceException):
+            with_mock.get_qualification_type_by_name(qtype.Name[:6])
+
+    def test_get_qualification_type_by_name_works_if_not_unique_but_is_exact_match(self,
+                                                                                   with_mock):
+        qtype = fake_qualification_type_response()[0]
+        qtypes = as_resultset([qtype, qtype])
+        with_mock.mturk.search_qualification_types.return_value = qtypes
+        assert with_mock.get_qualification_type_by_name(qtype.Name)['name'] == qtype.Name
+
     def test_register_hit_type(self, with_mock):
         quals = with_mock.build_hit_qualifications(95, True, None)
         config = {
@@ -656,6 +731,15 @@ class TestMTurkServiceWithFakeConnection(object):
             mock.call('hit1', assignments_increment=2),
         ])
 
+    def test_extend_hit_wraps_exception_helpfully(self, with_mock):
+        with_mock.mturk.configure_mock(**{
+            'extend_hit.side_effect': MTurkRequestError(1, "Boom!"),
+        })
+        with pytest.raises(MTurkServiceException) as execinfo:
+            with_mock.extend_hit(hit_id='hit1', number=2, duration_hours=1.0)
+
+        assert execinfo.match("Failed to extend time until expiration of HIT")
+
     def test_disable_hit_simple_passthrough(self, with_mock):
         with_mock.mturk.configure_mock(**{
             'disable_hit.return_value': ResultSet(),
@@ -708,6 +792,24 @@ class TestMTurkServiceWithFakeConnection(object):
             'above and beyond'
         )
 
+    def test_grant_bonus_wraps_exception_helpfully(self, with_mock):
+        fake_assignment = Assignment(None)
+        fake_assignment.WorkerId = 'some worker id'
+        with_mock.mturk.configure_mock(**{
+            'get_assignment.return_value': as_resultset(fake_assignment),
+            'grant_bonus.side_effect': MTurkRequestError(1, "Boom!"),
+        })
+        with pytest.raises(MTurkServiceException) as execinfo:
+            with_mock.grant_bonus(
+                assignment_id='some assignment id',
+                amount=2.99,
+                reason='above and beyond'
+            )
+
+            assert execinfo.match(
+                "Failed to pay assignment some assignment id bonus of 2.99"
+            )
+
     def test_approve_assignment(self, with_mock):
         with_mock.mturk.configure_mock(**{
             'approve_assignment.return_value': ResultSet(),
@@ -717,6 +819,16 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.mturk.approve_assignment.assert_called_once_with(
             'fake id', feedback=None
         )
+
+    def test_approve_assignment_wraps_exception_helpfully(self, with_mock):
+        with_mock.mturk.configure_mock(**{
+            'approve_assignment.side_effect': MTurkRequestError(1, "Boom!")
+        })
+
+        with pytest.raises(MTurkServiceException) as execinfo:
+            with_mock.approve_assignment('fake_id')
+
+        assert execinfo.match("Failed to approve assignment fake_id")
 
     def test_create_qualification_type(self, with_mock):
         with_mock.mturk.configure_mock(**{
@@ -735,6 +847,17 @@ class TestMTurkServiceWithFakeConnection(object):
             'create_qualification_type.return_value': response,
         })
         with pytest.raises(MTurkServiceException):
+            with_mock.create_qualification_type('name', 'desc', 'status')
+
+    def test_create_qualification_type_raises_on_duplicate_name(self, with_mock):
+        error = MTurkRequestError(
+            1, u'already created a QualificationType with this name'
+        )
+        error.message = error.reason
+        with_mock.mturk.configure_mock(**{
+            'create_qualification_type.side_effect': error,
+        })
+        with pytest.raises(DuplicateQualificationNameError):
             with_mock.create_qualification_type('name', 'desc', 'status')
 
     def test_assign_qualification(self, with_mock):

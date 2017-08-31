@@ -6,6 +6,7 @@ from dallinger.heroku.worker import conn
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
 from dallinger.mturk import DuplicateQualificationNameError
+from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
@@ -193,11 +194,14 @@ class MTurkRecruiter(Recruiter):
             logger.info('no HIT in progress: recruitment aborted')
             return
 
-        return self.mturkservice.extend_hit(
-            hit_id,
-            number=n,
-            duration_hours=self.config.get('duration')
-        )
+        try:
+            return self.mturkservice.extend_hit(
+                hit_id,
+                number=n,
+                duration_hours=self.config.get('duration')
+            )
+        except MTurkServiceException as ex:
+            logger.exception(ex.message)
 
     def notify_recruited(self, participant):
         """Assign a Qualification to the Participant for the experiment ID,
@@ -215,7 +219,10 @@ class MTurkRecruiter(Recruiter):
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
-        return self.mturkservice.grant_bonus(assignment_id, amount, reason)
+        try:
+            return self.mturkservice.grant_bonus(assignment_id, amount, reason)
+        except MTurkServiceException as ex:
+            logger.exception(ex.message)
 
     @property
     def is_in_progress(self):
@@ -229,7 +236,10 @@ class MTurkRecruiter(Recruiter):
             return str(any_participant_record.hit_id)
 
     def approve_hit(self, assignment_id):
-        return self.mturkservice.approve_assignment(assignment_id)
+        try:
+            return self.mturkservice.approve_assignment(assignment_id)
+        except MTurkServiceException as ex:
+            logger.exception(ex.message)
 
     def close_recruitment(self):
         """Clean up once the experiment is complete.
