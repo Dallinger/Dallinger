@@ -238,7 +238,7 @@ class TestGitClient(object):
         assert "Test Repo" in subprocess.check_output(['git', 'log'])
 
 
-@pytest.mark.usefixtures('bartlett_dir')
+@pytest.mark.usefixtures('bartlett_dir', 'active_config')
 class TestDeploySandboxSharedSetup(object):
 
     @pytest.fixture
@@ -247,13 +247,11 @@ class TestDeploySandboxSharedSetup(object):
         return deploy_sandbox_shared_setup
 
     @pytest.fixture
-    def faster(self, tempdir, stub_config):
+    def faster(self, tempdir):
         with mock.patch.multiple('dallinger.command_line',
                                  time=mock.DEFAULT,
-                                 setup_experiment=mock.DEFAULT,
-                                 get_config=mock.DEFAULT) as mocks:
+                                 setup_experiment=mock.DEFAULT) as mocks:
             mocks['setup_experiment'].return_value = ('fake-uid', tempdir)
-            mocks['get_config'].return_value = stub_config
 
             yield mocks
 
@@ -676,7 +674,7 @@ class TestQualify(object):
 
             yield mock_instance
 
-    def test_qualify_single_worker(self, qualify, stub_config, mturk):
+    def test_qualify_single_worker(self, qualify, mturk):
         qual_value = 1
         result = CliRunner().invoke(
             qualify,
@@ -692,7 +690,7 @@ class TestQualify(object):
         )
         mturk.get_workers_with_qualification.assert_called_once_with('some qid')
 
-    def test_uses_mturk_sandbox_if_specified(self, qualify, stub_config):
+    def test_uses_mturk_sandbox_if_specified(self, qualify):
         qual_value = 1
         with mock.patch('dallinger.command_line.MTurkService') as mock_mturk:
             mock_mturk.return_value = mock.Mock()
@@ -707,7 +705,7 @@ class TestQualify(object):
             )
             assert 'sandbox=True' in str(mock_mturk.call_args_list[0])
 
-    def test_raises_with_no_worker(self, qualify, stub_config, mturk):
+    def test_raises_with_no_worker(self, qualify, mturk):
         qual_value = 1
         result = CliRunner().invoke(
             qualify,
@@ -719,7 +717,7 @@ class TestQualify(object):
         assert result.exit_code != 0
         assert 'at least one worker ID' in result.output
 
-    def test_can_elect_to_notify_worker(self, qualify, stub_config, mturk):
+    def test_can_elect_to_notify_worker(self, qualify, mturk):
         qual_value = 1
         result = CliRunner().invoke(
             qualify,
@@ -735,7 +733,7 @@ class TestQualify(object):
             'some qid', 'some worker id', qual_value, notify=True
         )
 
-    def test_qualify_multiple_workers(self, qualify, stub_config, mturk):
+    def test_qualify_multiple_workers(self, qualify, mturk):
         qual_value = 1
         result = CliRunner().invoke(
             qualify,
@@ -751,7 +749,7 @@ class TestQualify(object):
             mock.call(u'some qid', u'worker2', 1, notify=False)
         ])
 
-    def test_use_qualification_name(self, qualify, stub_config, mturk):
+    def test_use_qualification_name(self, qualify, mturk):
         qual_value = 1
         mturk.get_qualification_type_by_name.return_value = {'id': 'some qid'}
         result = CliRunner().invoke(
@@ -769,7 +767,7 @@ class TestQualify(object):
         )
         mturk.get_workers_with_qualification.assert_called_once_with('some qid')
 
-    def test_use_qualification_name_with_bad_name(self, qualify, stub_config, mturk):
+    def test_use_qualification_name_with_bad_name(self, qualify, mturk):
         qual_value = 1
         mturk.get_qualification_type_by_name.return_value = None
         result = CliRunner().invoke(
@@ -821,50 +819,45 @@ class TestHibernate(object):
         ])
 
 
+@pytest.mark.usefixtures('active_config')
 class TestAwaken(object):
-
-    @pytest.fixture
-    def config(self, stub_config):
-        with mock.patch('dallinger.command_line.get_config') as getter:
-            getter.return_value = stub_config
-            yield stub_config
 
     @pytest.fixture
     def awaken(self, sleepless):
         from dallinger.command_line import awaken
         return awaken
 
-    def test_creates_database_of_configured_size(self, awaken, heroku, data, config):
+    def test_creates_database_of_configured_size(self, awaken, heroku, data, active_config):
         CliRunner().invoke(
             awaken,
             ['--app', 'some-app-uid', ]
         )
-        size = config.get('database_size')
+        size = active_config.get('database_size')
         expected = mock.call('heroku-postgresql:{}'.format(size))
         assert expected == heroku.addon.call_args_list[0]
 
-    def test_adds_redis(self, awaken, heroku, data, config):
+    def test_adds_redis(self, awaken, heroku, data):
         CliRunner().invoke(
             awaken,
             ['--app', 'some-app-uid', ]
         )
         assert mock.call('heroku-redis:premium-0') == heroku.addon.call_args_list[1]
 
-    def test_restores_database_from_backup(self, awaken, heroku, data, config):
+    def test_restores_database_from_backup(self, awaken, heroku, data):
         CliRunner().invoke(
             awaken,
             ['--app', 'some-app-uid', ]
         )
         heroku.restore.assert_called_once_with('fake restore url')
 
-    def test_scales_up_dynos(self, awaken, heroku, data, config):
+    def test_scales_up_dynos(self, awaken, heroku, data, active_config):
         CliRunner().invoke(
             awaken,
             ['--app', 'some-app-uid', ]
         )
-        web_count = config.get('num_dynos_web')
-        worker_count = config.get('num_dynos_worker')
-        size = config.get('dyno_type')
+        web_count = active_config.get('num_dynos_web')
+        worker_count = active_config.get('num_dynos_worker')
+        size = active_config.get('dyno_type')
         heroku.scale_up_dyno.assert_has_calls([
             mock.call('web', web_count, size),
             mock.call('worker', worker_count, size),
