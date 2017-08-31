@@ -380,11 +380,11 @@ class Test_handle_launch_data(object):
         )
 
 
-@pytest.mark.usefixtures('bartlett_dir')
+@pytest.mark.usefixtures('bartlett_dir', 'clear_workers', 'env')
 class TestDebugServer(object):
 
     @pytest.fixture
-    def debugger_unpatched(self, env, output, clear_workers):
+    def debugger_unpatched(self, output):
         from dallinger.command_line import DebugSessionRunner
         debugger = DebugSessionRunner(output, verbose=True, bot=False, exp_config={})
         return debugger
@@ -457,7 +457,7 @@ class TestDebugServer(object):
                 pass
 
 
-@pytest.mark.usefixtures('bartlett_dir')
+@pytest.mark.usefixtures('bartlett_dir', 'clear_workers', 'env')
 class TestLoad(object):
 
     exp_id = "some_experiment_id"
@@ -471,7 +471,7 @@ class TestLoad(object):
         os.remove(path)
 
     @pytest.fixture
-    def loader(self, db_session, env, output):
+    def loader(self, db_session, output):
         from dallinger.command_line import LoadSessionRunner
         from dallinger.heroku.tools import HerokuLocalWrapper
         loader = LoadSessionRunner(self.exp_id, output, verbose=True, exp_config={})
