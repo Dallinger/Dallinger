@@ -15,6 +15,7 @@ import uuid
 
 from sqlalchemy import and_
 
+from dallinger import recruiters
 from dallinger.config import get_config, LOCAL_CONFIG
 from dallinger.data import Data
 from dallinger.data import export
@@ -137,11 +138,6 @@ class Experiment(object):
         If recruiter param in config is set, there can be other recuiters. This
         last part could (should) be made pluggable.
         """
-        from dallinger.recruiters import HotAirRecruiter
-        from dallinger.recruiters import MTurkRecruiter
-        from dallinger.recruiters import BotRecruiter
-        from dallinger import recruiters
-
         config = get_config()
         try:
             debug_mode = config.get('mode', None) == 'debug'
@@ -158,10 +154,10 @@ class Experiment(object):
             if klass is not None:
                 return klass
         if debug_mode and recruiter != 'bots':
-            return HotAirRecruiter
+            return recruiters.HotAirRecruiter
         if recruiter == 'bots':
-            return BotRecruiter.from_current_config
-        return MTurkRecruiter.from_current_config
+            return recruiters.BotRecruiter.from_current_config
+        return recruiters.MTurkRecruiter.from_current_config
 
     def send(self, raw_message):
         """socket interface implementation, and point of entry for incoming
