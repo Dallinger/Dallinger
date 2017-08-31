@@ -14,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     Float
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql.expression import false
 from sqlalchemy.orm import relationship, validates
 
@@ -63,6 +64,9 @@ class SharedMixin(object):
 
     #: the time at which failing occurred
     time_of_death = Column(DateTime, default=None)
+
+    #: a generic column for storing structured JSON data
+    details = Column(JSONB, nullable=False, server_default="{}", default=lambda: {})
 
 
 class Participant(Base, SharedMixin):

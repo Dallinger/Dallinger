@@ -3,6 +3,7 @@
 from datetime import datetime
 import gevent
 from json import dumps
+from json import loads
 from operator import attrgetter
 import os
 import re
@@ -1319,12 +1320,17 @@ def transformation_post(node_id, info_in_id, info_out_id):
 def api_notifications():
     """Receive MTurk REST notifications."""
     event_type = request.values['Event.1.EventType']
-    assignment_id = request.values['Event.1.AssignmentId']
+    assignment_id = request.values.get('Event.1.AssignmentId')
+    participant_id = request.values.get('participant_id')
+    details = request.values.get('details')
+    if details:
+        details = loads(details)
 
     # Add the notification to the queue.
     db.logger.debug('rq: Queueing %s with id: %s for worker_function',
                     event_type, assignment_id)
-    q.enqueue(worker_function, event_type, assignment_id, None)
+    q.enqueue(worker_function, event_type, assignment_id,
+              participant_id, details)
     db.logger.debug('rq: Submitted Queue Length: %d (%s)', len(q),
                     ', '.join(q.job_ids))
 
@@ -1432,7 +1438,7 @@ def _worker_failed(participant_id):
 
 
 @db.scoped_session_decorator
-def worker_function(event_type, assignment_id, participant_id):
+def worker_function(event_type, assignment_id, participant_id, details=None):
     """Process the notification."""
     try:
         db.logger.debug("rq: worker_function working on job id: %s",
@@ -1448,11 +1454,20 @@ def worker_function(event_type, assignment_id, participant_id):
     exp.log("Received an {} notification for assignment {}, participant {}"
             .format(event_type, assignment_id, participant_id), key)
 
+    if event_type == 'TrackingEvent' and participant_id and not assignment_id:
+        # Lookup assignment_id to create notifications
+        participant = models.Participant.query\
+            .filter_by(id=participant_id).all()[0]
+        assignment_id = participant.assignment_id
+        if not details:
+            details = {}
+
     if assignment_id is not None:
         # save the notification to the notification table
         notif = models.Notification(
             assignment_id=assignment_id,
-            event_type=event_type)
+            event_type=event_type,
+            details=details)
         session.add(notif)
         session.commit()
 
@@ -1485,7 +1500,8 @@ def worker_function(event_type, assignment_id, participant_id):
     runner_cls = WorkerEvent.for_name(event_type)
     if runner_cls:
         runner = runner_cls(
-            participant, assignment_id, exp, session, _config(), datetime.now()
+            participant, assignment_id, exp, session, _config(), datetime.now(),
+            details
         )
         runner()
     session.commit()

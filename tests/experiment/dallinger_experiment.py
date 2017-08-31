@@ -1,6 +1,5 @@
 from dallinger.config import get_config
-from dallinger.experiments import Experiment
-from dallinger.networks import Star
+from dallinger.experiment import Experiment
 
 config = get_config()
 
@@ -8,7 +7,14 @@ config = get_config()
 class TestExperiment(Experiment):
 
     def __init__(self, session=None):
-        super(TestExperiment, self).__init__(session)
+        try:
+            super(TestExperiment, self).__init__(session)
+        except TypeError:
+            self.practice_repeats = 0
+            self.verbose = True
+            if session:
+                self.session = session
+                self.configure()
         self.experiment_repeats = 1
         self.quorum = 1
         if session:
@@ -22,6 +28,7 @@ class TestExperiment(Experiment):
 
     def create_network(self):
         """Return a new network."""
+        from dallinger.networks import Star
         return Star(max_size=2)
 
 
