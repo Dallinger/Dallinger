@@ -7,13 +7,22 @@ var ScribeDallingerTracker = function(config) {
 ScribeDallingerTracker.prototype.tracker = function(info) {
   var config = this.config;
   var path = info.path;
-  var value = info.value;
+  var value = info.value || {};
   var data = new FormData(); 
-   if (config.base_url) {
+  if (config.base_url) {
     // Only track events
     if (path.indexOf('/events/') < 0) {
       return;
     }
+
+    // Remove possible PII
+    if (value.fingerprint) {
+      delete value.fingerprint;
+    }
+    if (value.visitorId) {
+      delete value.visitorId;
+    }
+
     data.append('Event.1.EventType', 'TrackingEvent');
     if (config.participant_id) data.append('participant_id', config.participant_id);
     if (config.assignment_id) data.append('Event.1.AssignmentId', config.assignment_id);
