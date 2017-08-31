@@ -968,22 +968,36 @@ class TestWorkerFunctionIntegration(object):
 
     def test_tracking_event(self, worker_func, db_session):
         from dallinger.models import Participant
-        from dallinger.models import Notification
+        from dallinger.models import Info
+        from dallinger.experiment_server.experiment_server import Experiment
+
         participant = Participant(
             worker_id='1', hit_id='1', assignment_id='1', mode="test")
+
         db_session.add(participant)
         db_session.commit()
+        participant_id = participant.id
+
+        exp = Experiment(db_session)
+        network = exp.get_network_for_participant(participant)
+        node = exp.create_node(participant, network)
+        exp.add_node_to_network(node, network)
+        db_session.commit()
+        node_id = node.id
+
         worker_func(
             event_type='TrackingEvent',
             assignment_id=None,
-            participant_id=participant.id,
+            participant_id=participant_id,
             details={'test': True}
         )
-        events = db_session.query(Notification).filter(
-            Notification.event_type == 'TrackingEvent').all()
+
+        events = db_session.query(Info).filter(
+            Info.contents == 'TrackingEvent').all()
         assert len(events) == 1
         event = events[0]
-        assert event.assignment_id == '1'
+        assert event.origin.id == node_id
+        assert event.origin.participant_id == participant_id
         assert event.details['test'] is True
 
 

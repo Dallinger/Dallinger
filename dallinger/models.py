@@ -1449,7 +1449,7 @@ class Info(Base, SharedMixin):
     #: the contents of the info. Must be stored as a String.
     contents = Column(Text(), default=None)
 
-    def __init__(self, origin, contents=None):
+    def __init__(self, origin, contents=None, details=None):
         """Create an info."""
         # check the origin hasn't failed
         if origin.failed:
@@ -1461,6 +1461,8 @@ class Info(Base, SharedMixin):
         self.contents = contents
         self.network_id = origin.network_id
         self.network = origin.network
+        if details:
+            self.details = details
 
     @validates("contents")
     def _write_once(self, key, value):
@@ -1488,7 +1490,8 @@ class Info(Base, SharedMixin):
             "property2": self.property2,
             "property3": self.property3,
             "property4": self.property4,
-            "property5": self.property5
+            "property5": self.property5,
+            "details": self.details,
         }
 
     def fail(self):

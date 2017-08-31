@@ -1454,13 +1454,39 @@ def worker_function(event_type, assignment_id, participant_id, details=None):
     exp.log("Received an {} notification for assignment {}, participant {}"
             .format(event_type, assignment_id, participant_id), key)
 
-    if event_type == 'TrackingEvent' and participant_id and not assignment_id:
-        # Lookup assignment_id to create notifications
-        participant = models.Participant.query\
-            .filter_by(id=participant_id).all()[0]
-        assignment_id = participant.assignment_id
+    if event_type == 'TrackingEvent':
+        participant = None
+        if participant_id:
+            # Lookup assignment_id to create notifications
+            participant = models.Participant.query\
+                .filter_by(id=participant_id).all()[0]
+            assignment_id = participant.assignment_id
+        elif assignment_id:
+            participants = models.Participant.query\
+                .filter_by(assignment_id=assignment_id)\
+                .all()
+            # if there are one or more participants select the most recent
+            if participants:
+                participant = max(participants,
+                                  key=attrgetter('creation_time'))
+                participant_id = participant.id
+        if not participant:
+            exp.log("Warning: No participant associated with this "
+                    "TrackingEvent notification.", key)
+            return
+
         if not details:
             details = {}
+        nodes = participant.nodes()
+        if not nodes:
+            exp.log("Warning: No node associated with this "
+                    "TrackingEvent notification.", key)
+            return
+        node = max(nodes, key=attrgetter('creation_time'))
+        info = models.Info(origin=node, contents="TrackingEvent", details=details)
+        session.add(info)
+        session.commit()
+        return
 
     if assignment_id is not None:
         # save the notification to the notification table
