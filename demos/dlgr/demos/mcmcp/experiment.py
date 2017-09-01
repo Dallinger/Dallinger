@@ -12,7 +12,7 @@ from selenium.common.exceptions import TimeoutException
 from dallinger.bots import BotBase
 from dallinger.experiment import Experiment
 from dallinger import db
-from dallinger.networks import DelayedChain
+from dallinger.networks import Chain
 
 
 class MCMCP(Experiment):
@@ -49,7 +49,7 @@ class MCMCP(Experiment):
 
     def create_network(self):
         """Create a new network."""
-        return DelayedChain(max_size=100)
+        return Chain(max_size=100)
 
     def get_network_for_participant(self, participant):
         if len(participant.nodes(failed="all")) < self.trials_per_participant:
