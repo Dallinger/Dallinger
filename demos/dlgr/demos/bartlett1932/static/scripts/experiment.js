@@ -85,7 +85,7 @@ var create_agent = function() {
 };
 
 var get_info = function() {
-  dallinger.getReceivedInfo(my_node_id)
+  dallinger.getReceivedInfos(my_node_id)
     .done(function (resp) {
       var story = resp.infos[0].contents;
       var storyHTML = markdown.toHTML(story);

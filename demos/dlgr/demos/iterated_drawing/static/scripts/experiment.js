@@ -13,7 +13,7 @@ create_agent = function() {
 };
 
 get_info = function() {
-  dallinger.getReceivedInfo(my_node_id).done(function (resp) {
+  dallinger.getReceivedInfos(my_node_id).done(function (resp) {
     contents = JSON.parse(resp.infos[0].contents);
     console.log(contents);
     $("#image").attr("src", contents.image);

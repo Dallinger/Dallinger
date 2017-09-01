@@ -19,7 +19,7 @@ create_agent = function() {
 };
 
 get_info = function() {
-  dallinger.getReceivedInfo(my_node_id).done(function (resp) {
+  dallinger.getReceivedInfos(my_node_id).done(function (resp) {
     r = resp.infos[0].contents;
     data = JSON.parse(r);
 
