@@ -2,29 +2,15 @@ var trial = 0;
 var lock = true;
 var my_node_id;
 
-reqwest({
-  url: "/experiment/practice_repeats",
-  method: "get",
-  type: "json",
-  success: function (resp) {
+dallinger.getExperimentProperty('practice_repeats')
+  .done(function (resp) {
     num_practice_trials = resp.practice_repeats;
-  },
-  error: function (err) {
-    console.log(err);
-  }
-});
+  });
 
-reqwest({
-  url: "/experiment/experiment_repeats",
-  method: "get",
-  type: "json",
-  success: function (resp) {
+dallinger.getExperimentProperty('experiment_repeats')
+  .done(function (resp) {
     num_experiment_trials = resp.experiment_repeats;
-  },
-  error: function (err) {
-    console.log(err);
-  }
-});
+  });
 
 create_agent = function() {
   dallinger.createAgent()
@@ -38,25 +24,14 @@ create_agent = function() {
 };
 
 get_infos = function() {
-  reqwest({
-    url: "/node/" + my_node_id + "/infos",
-    method: 'get',
-    data: {info_type: "LearningGene"},
-    type: 'json',
-    success: function (resp) {
-      learning_strategy = resp.infos[0].contents;
-      get_received_infos();
-    },
-    error: function (err) {
-      console.log(err);
-      errorResponse = JSON.parse(err.response);
-      $('body').html(errorResponse.html);
-    }
+  dallinger.getInfos(my_node_id).done(function (resp) {
+    learning_strategy = resp.infos[0].contents;
+    get_received_infos();
   });
 };
 
 get_received_infos = function() {
-  dallinger.getReceivedInfo(my_node_id).done(function (resp) {
+  dallinger.getReceivedInfos(my_node_id).done(function (resp) {
     infos = resp.infos;
     for (i = 0; i < infos.length; i++) {
       if (infos[i].type !== "learning_gene") {
@@ -200,18 +175,13 @@ report = function (color) {
     $("#more-yellow").addClass('disabled');
     $("#reproduction").val("");
 
-    reqwest({
-      url: "/info/" + my_node_id,
-      method: 'post',
-      data: {
-        contents: color,
-        info_type: "Meme"
-      },
-      success: function (resp) {
-        $("#more-blue").removeClass('disabled');
-        $("#more-yellow").removeClass('disabled');
-        create_agent();
-      }
+    dallinger.createInfo(my_node_id, {
+      contents: color,
+      info_type: 'Meme'
+    }).done(function (resp) {
+      $("#more-blue").removeClass('disabled');
+      $("#more-yellow").removeClass('disabled');
+      create_agent();
     });
     lock = true;
   }
