@@ -12,6 +12,7 @@ from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 import logging
 import os
+import sys
 
 logger = logging.getLogger(__file__)
 
@@ -349,3 +350,19 @@ class BotRecruiter(Recruiter):
         # Must be imported at run-time
         from dallinger_experiment import Bot
         return Bot
+
+
+def by_name(name):
+    """Attempt to return a recruiter class by name. Actual class names and
+    known nicknames are both supported.
+    """
+    nicknames = {
+        'bots': BotRecruiter
+    }
+    if name in nicknames:
+        return nicknames[name]
+
+    this_module = sys.modules[__name__]
+    thing = getattr(this_module, name, None)
+    if thing is not None and issubclass(thing, Recruiter):
+        return thing

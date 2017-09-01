@@ -4,7 +4,28 @@ from dallinger.models import Participant
 from dallinger.experiment import Experiment
 
 
-class TestRecruiters(object):
+class TestModuleFunctions(object):
+
+    @pytest.fixture
+    def mod(self):
+        from dallinger import recruiters
+        return recruiters
+
+    def test_get_queue(self, mod):
+        from rq import Queue
+        assert isinstance(mod.get_queue(), Queue)
+
+    def test_by_name_with_valid_name(self, mod):
+        assert mod.by_name('CLIRecruiter') == mod.CLIRecruiter
+
+    def test_by_name_with_valid_nickname(self, mod):
+        assert mod.by_name('bots') == mod.BotRecruiter
+
+    def test_by_name_with_invalid_name(self, mod):
+        assert mod.by_name('blah') is None
+
+
+class TestRecruiter(object):
 
     @pytest.fixture
     def recruiter(self):

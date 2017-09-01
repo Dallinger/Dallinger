@@ -145,18 +145,16 @@ class Experiment(object):
             # Config not yet loaded
             debug_mode = False
 
-        recruiter = config.get('recruiter', None)
-        if recruiter == 'bogus':
-            # For forcing failures in tests
-            raise NotImplementedError
-        if recruiter is not None:
-            klass = getattr(recruiters, recruiter, None)
+        name = config.get('recruiter', None)
+
+        if name is not None:
+            klass = recruiters.by_name(name)
             if klass is not None:
                 return klass
-        if debug_mode and recruiter != 'bots':
+            raise NotImplementedError
+
+        if debug_mode:
             return recruiters.HotAirRecruiter
-        if recruiter == 'bots':
-            return recruiters.BotRecruiter
 
         return recruiters.MTurkRecruiter
 
