@@ -25,37 +25,6 @@ var dallinger = (function () {
     participantId: dlgr.getUrlParameter('participant_id')
   };
 
-  dlgr.submitQuestionnaire = function (name) {
-    var formSerialized = $("form").serializeArray(),
-      formDict = {},
-      deferred = $.Deferred();
-
-    formSerialized.forEach(function (field) {
-      formDict[field.name] = field.value;
-    });
-
-    reqwest({
-      method: "post",
-      url: "/question/" + dlgr.identity.participantId,
-      data: {
-        question: name || "questionnaire",
-        number: 1,
-        response: JSON.stringify(formDict)
-      },
-      type: "json",
-      success: function (resp) {
-        deferred.resolve();
-      },
-      error: function (err) {
-        deferred.reject();
-        var errorResponse = JSON.parse(err.response);
-        $("body").html(errorResponse.html);
-      }
-    });
-
-    return deferred;
-  };
-
   dlgr.BusyForm = (function () {
     /**
     Loads a spinner as a visual cue that something is happening
@@ -126,39 +95,59 @@ var dallinger = (function () {
     window.location = "/" + page + "?participant_id=" + dlgr.identity.participantId;
   };
 
+  // AJAX helpers
+
+  var ajax = function (method, route, data) {
+    var deferred = $.Deferred();
+    var options = {
+      url: route,
+      method: method,
+      type: 'json',
+      success: function (resp) { deferred.resolve(resp); },
+      error: function (err) {
+        console.log(err);
+        var errorResponse = JSON.parse(err.response);
+        if (errorResponse.hasOwnProperty("html")) {
+          $("body").html(errorResponse.html);
+        }
+        deferred.reject(err);
+      }
+    };
+    if (data !== undefined) {
+      options.data = data;
+    }
+    reqwest(options);
+    return deferred;
+  };
+
+  dlgr.get = function (route, data) {
+    return ajax('get', route, data);
+  }
+
+  dlgr.post = function (route, data) {
+    return ajax('post', route, data);
+  }
+
   // report assignment complete
   dlgr.submitAssignment = function() {
     var deferred = $.Deferred();
-    reqwest({
-      url: "/participant/" + dlgr.identity.participantId,
-      method: "get",
-      type: "json",
-      success: function (resp) {
-        dlgr.identity.mode = resp.participant.mode;
-        dlgr.identity.hitId = resp.participant.hit_id;
-        dlgr.identity.assignmentId = resp.participant.assignment_id;
-        dlgr.identity.workerId = resp.participant.worker_id;
-        var workerComplete = '/worker_complete';
-        reqwest({
-          url: workerComplete,
-          method: "get",
-          type: "json",
-          data: {
-            "uniqueId": dlgr.identity.workerId + ":" + dlgr.identity.assignmentId
-          },
-          success: function (resp) {
-            deferred.resolve();
-            dallinger.allowExit();
-            window.location = "/complete";
-          },
-          error: function (err) {
-            deferred.reject();
-            console.log(err);
-            var errorResponse = JSON.parse(err.response);
-            $("body").html(errorResponse.html);
-          }
-        });
-      }
+    dlgr.get('/participant/' + dlgr.identity.participantId).done(function (resp) {
+      dlgr.identity.mode = resp.participant.mode;
+      dlgr.identity.hitId = resp.participant.hit_id;
+      dlgr.identity.assignmentId = resp.participant.assignment_id;
+      dlgr.identity.workerId = resp.participant.worker_id;
+      var workerComplete = '/worker_complete';
+      dlgr.get('/worker_complete', {
+        'uniqueId': dlgr.identity.workerId + ":" + dlgr.identity.assignmentId
+      }).done(function (resp) {
+        deferred.resolve();
+        dallinger.allowExit();
+        window.location = "/complete";
+      }).fail(function (err) {
+        deferred.reject(err);
+      });
+    }).fail(function (err) {
+      deferred.reject(err);
     });
     return deferred;
   };
@@ -187,33 +176,24 @@ var dallinger = (function () {
     } else {
       $(function () {
         $('.btn-success').prop('disabled', true);
-        reqwest({
-          url: url,
-          method: "post",
-          type: "json",
-          success: function(resp) {
-            console.log(resp);
-            $('.btn-success').prop('disabled', false);
-            dlgr.identity.participantId = resp.participant.id;
-            if (resp.quorum) {
-              if (resp.quorum.n === resp.quorum.q) {
-                // reached quorum; resolve immediately
-                deferred.resolve();
-              } else {
-                // wait for quorum, then resolve
-                dlgr.updateProgressBar(resp.quorum.n, resp.quorum.q);
-                dlgr.waitForQuorum().done(function () {
-                  deferred.resolve();
-                });
-              }
-            } else {
-              // no quorum; resolve immediately
+        dlgr.post(url).done(function (resp) {
+          console.log(resp);
+          $('.btn-success').prop('disabled', false);
+          dlgr.identity.participantId = resp.participant.id;
+          if (resp.quorum) {
+            if (resp.quorum.n === resp.quorum.q) {
+              // reached quorum; resolve immediately
               deferred.resolve();
+            } else {
+              // wait for quorum, then resolve
+              dlgr.updateProgressBar(resp.quorum.n, resp.quorum.q);
+              dlgr.waitForQuorum().done(function () {
+                deferred.resolve();
+              });
             }
-          },
-          error: function (err) {
-            var errorResponse = JSON.parse(err.response);
-            $("body").html(errorResponse.html);
+          } else {
+            // no quorum; resolve immediately
+            deferred.resolve();
           }
         });
       });
@@ -222,48 +202,32 @@ var dallinger = (function () {
   };
 
   dlgr.createAgent = function () {
-    var deferred = $.Deferred();
-    reqwest({
-      url: "/node/" + dallinger.identity.participantId,
-      method: 'post',
-      type: 'json',
-      success: function (resp) { deferred.resolve(resp); },
-      error: function (err) {
-        console.log(err);
-        var errorResponse = JSON.parse(err.response);
-        if (errorResponse.hasOwnProperty("html")) {
-          $("body").html(errorResponse.html);
-        } else {
-          deferred.reject(err);
-        }
-      }
-    });
-    return deferred;
+    return dlgr.post('/node/' + dallinger.identity.participantId);
   };
 
   dlgr.createInfo = function (nodeId, data) {
-    var deferred = $.Deferred();
-    reqwest({
-      url: "/info/" + nodeId,
-      method: 'post',
-      data: data,
-      success: function (resp) { deferred.resolve(resp); },
-      error: function (err) { deferred.reject(err); }
-    });
-    return deferred;
+    return dlgr.post('/info/' + nodeId, data);
   };
 
-  dlgr.getReceivedInfo = function (nodeId) {
-    var deferred = $.Deferred();
-    reqwest({
-      url: "/node/" + nodeId + "/received_infos",
-      method: 'get',
-      type: 'json',
-      success: function (resp) { deferred.resolve(resp); },
-      error: function (err) { deferred.reject(err); }
-    });
-    return deferred;
-  }
+  dlgr.getExperimentProperty = function (prop) {
+    return dlgr.get('/experiment/' + prop);
+  };
+
+  dlgr.getInfo = function (nodeId, infoId) {
+    return dlgr.get('/info/' + nodeId + '/' + infoId);
+  };
+
+  dlgr.getInfos = function (nodeId) {
+    return dlgr.get('/node/' + nodeId + '/infos');
+  };
+
+  dlgr.getReceivedInfos = function (nodeId) {
+    return dlgr.get('/node/' + nodeId + '/received_infos');
+  };
+
+  dlgr.getTransmissions = function (nodeId, data) {
+    return dlgr.get('/node/' + nodeId + '/transmissions', data);
+  };
 
   dlgr.submitResponses = function () {
     dlgr.submitNextResponse(0);
@@ -278,26 +242,29 @@ var dallinger = (function () {
       }
     );
 
-    reqwest({
-      url: "/question/" + dlgr.identity.participantId,
-      method: "post",
-      type: "json",
-      data: {
-        question: $("#" + ids[n]).attr("name"),
-        number: n + 1,
-        response: $("#" + ids[n]).val()
-      },
-      success: function() {
-        if (n <= ids.length) {
-          dlgr.submitNextResponse(n + 1);
-        }
-      },
-      error: function (err) {
-        var errorResponse = JSON.parse(err.response);
-        if (errorResponse.hasOwnProperty("html")) {
-          $("body").html(errorResponse.html);
-        }
+    dlgr.post('/question/' + dlgr.identity.participantId, {
+      question: $("#" + ids[n]).attr("name"),
+      number: n + 1,
+      response: $("#" + ids[n]).val()
+    }).done(function (resp) {
+      if (n <= ids.length) {
+        dlgr.submitNextResponse(n + 1);
       }
+    });
+  };
+
+  dlgr.submitQuestionnaire = function (name) {
+    var formSerialized = $("form").serializeArray(),
+      formDict = {};
+
+    formSerialized.forEach(function (field) {
+      formDict[field.name] = field.value;
+    });
+
+    return dlgr.post('/question/' + dlgr.identity.participantId, {
+      question: name || "questionnaire",
+      number: 1,
+      response: JSON.stringify(formDict)
     });
   };
 

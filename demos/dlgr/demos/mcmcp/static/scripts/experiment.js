@@ -13,11 +13,8 @@ create_agent = function() {
 };
 
 get_infos = function() {
-  reqwest({
-    url: "/node/" + my_node_id + "/infos",
-    method: 'get',
-    type: 'json',
-    success: function (resp) {
+  dallinger.getInfos(my_node_id)
+    .done(function (resp) {
       sides_switched = Math.random() < 0.5;
 
       if (resp.infos[0].id > resp.infos[1].id) {
@@ -35,14 +32,8 @@ get_infos = function() {
         drawAnimal(animal_1, "left");
         drawAnimal(animal_0, "right");
       }
-      $(".submit-response").attr('disabled',false);
-    },
-    error: function (err) {
-      console.log(err);
-      errorResponse = JSON.parse(err.response);
-      $('body').html(errorResponse.html);
-    }
-  });
+      $(".submit-response").attr('disabled', false);
+    });
 };
 
 submit_response = function(choice) {
@@ -52,16 +43,10 @@ submit_response = function(choice) {
   $(".submit-response").attr('disabled',true);
   paper.clear();
 
-  reqwest({
-    url: "/choice/" + my_node_id + "/" + choice,
-    method: 'post',
-    success: function (resp) {
+  dallinger.post('/choice/' + my_node_id + '/' + choice)
+    .then(function () {
       create_agent();
-    },
-    error: function (resp) {
-      create_agent();
-    }
-  });
+    });
 };
 
 //
