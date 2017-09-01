@@ -472,7 +472,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
         "whimsical": config["whimsical"],
     }
 
-    for k, v in heroku_config.items():
+    for k, v in sorted(heroku_config.items()):  # sorted for test determinism
         heroku_app.set(k, v)
 
     # Wait for Redis database to be ready.
