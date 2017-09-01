@@ -77,12 +77,8 @@ create_agent = function() {
 };
 
 createInfo = function (info_type, contents) {
-  reqwest({
-    url: "/info/" + dallinger.identity.participantId,
-    method: 'post',
-    data: {
-      contents: contents,
-      info_type: info_type
-    }
+  dallinger.createInfo(my_node_id, {
+    contents: contents,
+    info_type: info_type
   });
 };
