@@ -24,6 +24,12 @@ def get_queue():
 class Recruiter(object):
     """The base recruiter."""
 
+    def __init__(self):
+        """For now, the contract of a Recruiter is that it takes no
+        arguments.
+        """
+        pass
+
     @staticmethod
     def for_experiment(experiment):
         """Return the Recruiter instance for the specified Experiment.
@@ -59,6 +65,10 @@ class CLIRecruiter(Recruiter):
     """A recruiter which prints out /ad URLs to the console for direct
     assigment.
     """
+
+    def __init__(self):
+        super(CLIRecruiter, self).__init__()
+        self.config = get_config()
 
     def open_recruitment(self, n=1):
         """Talk about opening recruitment."""
@@ -98,8 +108,7 @@ class CLIRecruiter(Recruiter):
         )
 
     def _get_mode(self):
-        config = get_config()
-        return config.get('mode')
+        return self.config.get('mode')
 
 
 class HotAirRecruiter(CLIRecruiter):
@@ -146,19 +155,11 @@ class MTurkRecruiter(Recruiter):
     experiment_qualification_desc = 'Experiment-specific qualification'
     group_qualification_desc = 'Experiment group qualification'
 
-    @classmethod
-    def from_current_config(cls):
-        config = get_config()
-        if not config.ready:
-            config.load()
-        ad_url = '{}/ad'.format(get_base_url())
-        hit_domain = os.getenv('HOST')
-        return cls(config, hit_domain, ad_url)
-
-    def __init__(self, config, hit_domain, ad_url):
-        self.config = config
-        self.ad_url = ad_url
-        self.hit_domain = hit_domain
+    def __init__(self):
+        super(MTurkRecruiter, self).__init__()
+        self.config = get_config()
+        self.ad_url = '{}/ad'.format(get_base_url())
+        self.hit_domain = os.getenv('HOST')
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
             self.config.get('aws_secret_access_key'),
@@ -298,16 +299,10 @@ class MTurkRecruiter(Recruiter):
 class BotRecruiter(Recruiter):
     """Recruit bot participants using a queue"""
 
-    @classmethod
-    def from_current_config(cls):
-        config = get_config()
-        if not config.ready:
-            config.load_config()
-        return cls(config)
-
     def __init__(self, config):
-        logger.info("Initialized recruiter.")
-        self.config = config
+        super(BotRecruiter, self).__init__()
+        self.config = get_config()
+        logger.info("Initialized BotRecruiter.")
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""

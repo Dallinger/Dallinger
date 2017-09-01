@@ -181,33 +181,26 @@ class TestBotRecruiter(object):
         recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
 
-@pytest.mark.usefixtures('experiment_dir')
-class TestMTurkRecruiterAssumesConfigFileInCWD(object):
-
-    def test_instantiation_from_current_config(self):
-        from dallinger.recruiters import MTurkRecruiter
-        recruiter = MTurkRecruiter.from_current_config()
-        assert recruiter.config.get('title') == 'Stroop task'
-
-
+@pytest.mark.usefixtures('active_config')
 class TestMTurkRecruiter(object):
 
     @pytest.fixture
-    def recruiter(self, stub_config):
+    def recruiter(self):
         from dallinger.mturk import MTurkService
         from dallinger.recruiters import MTurkRecruiter
-        mockservice = mock.create_autospec(MTurkService)
-        r = MTurkRecruiter(
-            config=stub_config,
-            hit_domain='fake-domain',
-            ad_url='http://fake-domain/ad'
-        )
-        r.mturkservice = mockservice('fake key', 'fake secret')
-        r.mturkservice.check_credentials = mock.Mock(return_value=True)
-        r.mturkservice.create_hit = mock.Mock(return_value={
-            'type_id': 'fake type id'
-        })
-        return r
+        with mock.patch.multiple('dallinger.recruiters',
+                                 os=mock.DEFAULT,
+                                 get_base_url=mock.DEFAULT) as mocks:
+            mocks['get_base_url'].return_value = 'http://fake-domain'
+            mocks['os'].getenv.return_value = 'fake-host-domain'
+            mockservice = mock.create_autospec(MTurkService)
+            r = MTurkRecruiter()
+            r.mturkservice = mockservice('fake key', 'fake secret')
+            r.mturkservice.check_credentials = mock.Mock(return_value=True)
+            r.mturkservice.create_hit = mock.Mock(return_value={
+                'type_id': 'fake type id'
+            })
+            return r
 
     def test_config_passed_to_constructor(self, recruiter):
         assert recruiter.config.get('title') == 'fake experiment title'

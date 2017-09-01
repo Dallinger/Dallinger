@@ -156,8 +156,9 @@ class Experiment(object):
         if debug_mode and recruiter != 'bots':
             return recruiters.HotAirRecruiter
         if recruiter == 'bots':
-            return recruiters.BotRecruiter.from_current_config
-        return recruiters.MTurkRecruiter.from_current_config
+            return recruiters.BotRecruiter
+
+        return recruiters.MTurkRecruiter
 
     def send(self, raw_message):
         """socket interface implementation, and point of entry for incoming

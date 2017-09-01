@@ -150,15 +150,13 @@ def stub_config():
 @pytest.fixture
 def active_config(stub_config):
     """Loads the standard config as the active configuration returned by
-    dallinger.config.get_config() and returns it. Note that changes to the
-    active config will be reverted by the reset_config() fixture above,
-    which is automatically envoked after each test class finishes via
-    autouse=True.
+    dallinger.config.get_config() and returns it.
     """
+    from copy import deepcopy
     from dallinger.config import get_config
     config = get_config()
-    config.load()
-    config.extend(stub_config.as_dict())
+    config.data = deepcopy(stub_config.data)
+    config.ready = True
     return config
 
 
