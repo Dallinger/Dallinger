@@ -518,7 +518,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     result = {
         'app_name': heroku_app.name,
         'app_home': heroku_app.url,
-        'recruitment_msg': launch_data.get('recruitment_url', None),
+        'recruitment_msg': launch_data.get('recruitment_msg', None),
     }
     log("URLs:")
     log("App home: {}".format(result['app_home']), chevrons=False)
