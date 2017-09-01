@@ -1,5 +1,6 @@
 """The base experiment class."""
 
+from cached_property import cached_property
 from collections import Counter
 from functools import wraps
 import imp
@@ -131,7 +132,7 @@ class Experiment(object):
         """
         return []
 
-    @property
+    @cached_property
     def recruiter(self):
         """Recruiter, the Dallinger class that recruits participants.
         Default is HotAirRecruiter in debug mode and MTurkRecruiter in other modes.
@@ -150,13 +151,13 @@ class Experiment(object):
         if name is not None:
             klass = recruiters.by_name(name)
             if klass is not None:
-                return klass
+                return klass()
             raise NotImplementedError
 
         if debug_mode:
-            return recruiters.HotAirRecruiter
+            return recruiters.HotAirRecruiter()
 
-        return recruiters.MTurkRecruiter
+        return recruiters.MTurkRecruiter()
 
     def send(self, raw_message):
         """socket interface implementation, and point of entry for incoming
@@ -328,7 +329,7 @@ class Experiment(object):
         """
         if not self.networks(full=False):
             self.log("All networks full: closing recruitment", "-----")
-            self.recruiter().close_recruitment()
+            self.recruiter.close_recruitment()
 
     def log(self, text, key="?????", force=False):
         """Print a string to the logs."""

@@ -50,6 +50,6 @@ class FunctionLearning(Experiment):
     def recruit(self):
         """Recruit one participant at a time until all networks are full."""
         if self.networks(full=False):
-            self.recruiter().recruit(n=1)
+            self.recruiter.recruit(n=1)
         else:
-            self.recruiter().close_recruitment()
+            self.recruiter.close_recruitment()

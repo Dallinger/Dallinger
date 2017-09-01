@@ -237,7 +237,7 @@ def launch():
         )
 
     try:
-        recruitment_urls = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+        recruitment_urls = exp.recruiter.open_recruitment(n=exp.initial_recruitment_size)
         session.commit()
     except Exception:
         return error_response(

@@ -51,9 +51,8 @@ class TestRecruiter(object):
     def test_for_experiment(self):
         from dallinger.recruiters import Recruiter
         mock_exp = mock.MagicMock(spec=Experiment)
-        Recruiter.for_experiment(mock_exp)
-
-        mock_exp.recruiter.assert_called()
+        mock_exp.recruiter = mock.sentinel.some_object
+        assert Recruiter.for_experiment(mock_exp) is mock_exp.recruiter
 
     def test_notify_recruited(self, recruiter):
         dummy = mock.NonCallableMock()

@@ -442,7 +442,7 @@ class TestAssignmentSubmitted(object):
     def test_calls_reward_bonus_if_experiment_returns_bonus_more_than_one_cent(self, runner):
         runner.experiment.bonus.return_value = .02
         runner()
-        runner.experiment.recruiter().reward_bonus.assert_called_once_with(
+        runner.experiment.recruiter.reward_bonus.assert_called_once_with(
             'some assignment id',
             .02,
             "You rock."
@@ -450,7 +450,7 @@ class TestAssignmentSubmitted(object):
 
     def test_no_reward_bonus_if_experiment_returns_bonus_less_than_one_cent(self, runner):
         runner()
-        runner.experiment.recruiter().reward_bonus.assert_not_called()
+        runner.experiment.recruiter.reward_bonus.assert_not_called()
         assert "NOT paying bonus" in str(runner.experiment.log.call_args_list)
 
     def test_sets_participant_bonus_regardless(self, runner):
@@ -460,7 +460,7 @@ class TestAssignmentSubmitted(object):
 
     def test_approve_hit_called_on_recruiter(self, runner):
         runner()
-        runner.experiment.recruiter().approve_hit.assert_called_once_with(
+        runner.experiment.recruiter.approve_hit.assert_called_once_with(
             'some assignment id'
         )
 
@@ -506,7 +506,7 @@ class TestAssignmentSubmitted(object):
     def test_recruits_another_on_failed_data_check(self, runner):
         runner.experiment.data_check.return_value = False
         runner()
-        runner.experiment.recruiter().recruit.assert_called_once_with(
+        runner.experiment.recruiter.recruit.assert_called_once_with(
             n=1
         )
 
@@ -551,7 +551,7 @@ class TestBotAssignmentSubmitted(object):
 
     def test_approve_hit_called_on_recruiter(self, runner):
         runner()
-        runner.experiment.recruiter().approve_hit.assert_called_once_with(
+        runner.experiment.recruiter.approve_hit.assert_called_once_with(
             'some assignment id'
         )
 

@@ -37,7 +37,7 @@ class Recruiter(object):
 
         This provides a seam for testing.
         """
-        return experiment.recruiter()
+        return experiment.recruiter
 
     def open_recruitment(self):
         """Return a list of one or more initial recruitment URLs.
@@ -99,6 +99,9 @@ class CLIRecruiter(Recruiter):
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
+        logger.info(
+            "Assignment {} has been marked for approval".format(assignment_id)
+        )
         return True
 
     def reward_bonus(self, assignment_id, amount, reason):
@@ -113,9 +116,10 @@ class CLIRecruiter(Recruiter):
 
 
 class HotAirRecruiter(CLIRecruiter):
-    """A dummy recruiter.
+    """A dummy recruiter: talks the talk, but does not walk the walk.
 
-    Talks the talk, but does not walk the walk.
+    - Always invokes templates in debug mode
+    - Prints experiment /ad URLs to the console
     """
 
     def reward_bonus(self, assignment_id, amount, reason):
