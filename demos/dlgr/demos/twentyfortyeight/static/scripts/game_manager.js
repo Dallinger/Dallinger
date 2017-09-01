@@ -183,13 +183,9 @@ GameManager.prototype.move = function (direction) {
   if (moved) {
     this.addRandomTile();
 
-    reqwest({
-      url: "/info/" + my_node_id,
-      method: 'post',
-      data: {
-        contents: JSON.stringify(game.serialize()),
-        info_type: "State"
-      }
+    dallinger.createInfo(my_node_id, {
+      contents: JSON.stringify(game.serialize()),
+      info_type: "State"
     });
 
     if (!this.movesAvailable()) {

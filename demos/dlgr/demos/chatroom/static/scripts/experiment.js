@@ -64,14 +64,8 @@ create_agent = function () {
 };
 
 get_transmissions = function (my_node_id) {
-  reqwest({
-    url: "/node/" + my_node_id + "/transmissions",
-    method: "get",
-    type: "json",
-    data: {
-      status: "pending"
-    },
-    success: function (resp) {
+  dallinger.getTransmissions(my_node_id, { status: 'pending' })
+    .done(function (resp) {
       console.log(resp);
       transmissions = resp.transmissions;
       for (var i = transmissions.length - 1; i >= 0; i--) {
@@ -79,30 +73,15 @@ get_transmissions = function (my_node_id) {
         display_info(transmissions[i].info_id);
       }
       setTimeout(function () { get_transmissions(my_node_id); }, 100);
-    },
-    error: function (err) {
-      console.log(err);
-      errorResponse = JSON.parse(err.response);
-      $("body").html(errorResponse.html);
-    }
-  });
+    });
 };
 
 display_info = function(info_id) {
-  reqwest({
-    url: "/info/" + my_node_id + "/" + info_id,
-    method: "get",
-    type: "json",
-    success: function (resp) {
+  dallinger.getInfo(my_node_id, info_id)
+    .done(function (resp) {
       console.log(resp.info.contents);
       $("#story").append("<p>" + resp.info.contents + "</p>");
-    },
-    error: function (err) {
-      console.log(err);
-      errorResponse = JSON.parse(err.response);
-      $("body").html(errorResponse.html);
-    }
-  });
+    });
 };
 
 send_message = function() {
@@ -114,18 +93,13 @@ send_message = function() {
   $("#story").append("<p style='color: #1693A5;'>" + response + "</p>");
   $("#reproduction").focus();
 
-  reqwest({
-    url: "/info/" + my_node_id,
-    method: "post",
-    data: {
-      contents: response,
-      info_type: "Info"
-    },
-    success: function (resp) {
-      console.log("sent!");
-      $("#send-message").removeClass("disabled");
-      $("#send-message").html("Send");
-    }
+  dallinger.createInfo(my_node_id, {
+    contents: response,
+    info_type: "Info"
+  }).done(function (resp) {
+    console.log("sent!");
+    $("#send-message").removeClass("disabled");
+    $("#send-message").html("Send");
   });
 };
 
