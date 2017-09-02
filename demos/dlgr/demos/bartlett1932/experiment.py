@@ -32,6 +32,7 @@ class Bartlett1932(Experiment):
         import models
         self.models = models
         self.experiment_repeats = 1
+        self.initial_recruitment_size = 1
         if session:
             self.setup()
 
@@ -65,6 +66,7 @@ class Bartlett1932(Experiment):
         """Recruit one participant at a time until all networks are full."""
         if self.networks(full=False):
             self.recruiter().recruit(n=1)
+
         else:
             self.recruiter().close_recruitment()
 

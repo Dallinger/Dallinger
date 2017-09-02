@@ -267,6 +267,37 @@ class MTurkRecruiter(Recruiter):
                 pass
 
 
+class MTurkLargeRecruiter(MTurkRecruiter):
+    def __init__(self, *args, **kwargs):
+        conn.set('num_recruited', 0)
+        super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
+
+    def open_recruitment(self, n=1):
+        if self.is_in_progress:
+            # Already started... do nothing.
+            return None
+        conn.incr('num_recruited', n)
+        to_recruit = max(n, 10)
+        return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
+
+    def recruit(self, n=1):
+        if not self.config.get('auto_recruit', False):
+            logger.info('auto_recruit is False: recruitment suppressed')
+            return
+        to_recruit = n
+        if int(conn.get('num_recruited')) < 10:
+            num_recruited = conn.incr('num_recruited', n)
+            logger.info('Recruited participant from preallocated pool')
+            if num_recruited > 10:
+                to_recruit = num_recruited - 10
+            else:
+                to_recruit = 0
+        else:
+            conn.incr('num_recruited', n)
+        if to_recruit:
+            return super(MTurkLargeRecruiter, self).recruit(to_recruit)
+
+
 class BotRecruiter(Recruiter):
     """Recruit bot participants using a queue"""
 

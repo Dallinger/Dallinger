@@ -238,6 +238,21 @@ class TestNetworks(object):
             "0 infos, 0 transmissions and 0 transformations>"
         )
 
+    def test_create_delayed_chain(self, db_session):
+        net = networks.DelayedChain()
+        db_session.add(net)
+        db_session.commit()
+
+        source = nodes.RandomBinaryStringSource(network=net)
+        net.add_node(source)
+
+        for i in range(15):
+            agent = nodes.Agent(network=net)
+            net.add_node(agent)
+
+        source_ids = [node.vectors()[0].origin.id for node in net.nodes()]
+        assert source_ids == [15, 14, 13, 12, 11, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+
     def test_create_fully_connected(self, db_session):
         net = networks.FullyConnected()
         db_session.add(net)
