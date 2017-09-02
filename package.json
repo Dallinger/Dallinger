@@ -1,0 +1,32 @@
+{
+  "name": "dallinger",
+  "version": "0.1.0",
+  "description": "Dallinger experiment server",
+  "dependencies": {
+  },
+  "devDependencies": {
+    "browser-sync": "^2.18.8",
+    "browser-sync-webpack-plugin": "^1.1.4",
+    "webpack": "^2.4.1",
+    "uglify-es": "^3.0.28"
+  },
+  "scripts": {
+    "build": "webpack"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dallinger/Dallinger.git"
+  },
+  "keywords": [
+    "experiment",
+    "web",
+    "social",
+    "science"
+  ],
+  "author": "Jordan W. Suchow",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Dallinger/Dallinger/issues"
+  },
+  "homepage": "https://github.com/Dallinger/Dallinger#readme"
+}

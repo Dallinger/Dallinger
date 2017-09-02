@@ -1461,7 +1461,6 @@ def worker_function(event_type, assignment_id, participant_id, details=None):
             # Lookup assignment_id to create notifications
             participant = models.Participant.query\
                 .filter_by(id=participant_id).all()[0]
-            assignment_id = participant.assignment_id
         elif assignment_id:
             participants = models.Participant.query\
                 .filter_by(assignment_id=assignment_id)\

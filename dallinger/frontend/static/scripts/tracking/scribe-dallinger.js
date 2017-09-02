@@ -1,3 +1,6 @@
+/*global module */
+/*jshint esversion: 6 */
+
 var ScribeDallingerTracker = function(config) {
   if (!(this instanceof ScribeDallingerTracker)) return new ScribeDallingerTracker(config);
 
@@ -16,11 +19,15 @@ ScribeDallingerTracker.prototype.tracker = function(info) {
     }
 
     // Remove possible PII
-    if (value.fingerprint) {
-      delete value.fingerprint;
+    if (value.fingerprint) delete value.fingerprint;
+    if (value.visitorId) delete value.visitorId;
+    if (value.source && value.source.url && value.source.url.query) {
+      if (value.source.url.query.worker_id) delete value.source.url.query.worker_id;
+      if (value.source.url.query.workerId) delete value.source.url.query.workerId;
     }
-    if (value.visitorId) {
-      delete value.visitorId;
+    if (value.target && value.target.url && value.target.url.query) {
+      if (value.target.url.query.worker_id) delete value.target.url.query.worker_id;
+      if (value.target.url.query.workerId) delete value.target.url.query.workerId;
     }
 
     data.append('Event.1.EventType', 'TrackingEvent');
@@ -40,3 +47,5 @@ ScribeDallingerTracker.prototype.tracker = function(info) {
     if(info.failure) setTimeout(info.failure, 0);
   }
 };
+
+module.exports.ScribeDallingerTracker = ScribeDallingerTracker;
