@@ -24,7 +24,9 @@ create_agent = function() {
 };
 
 get_infos = function() {
-  dallinger.getInfos(my_node_id).done(function (resp) {
+  dallinger.getInfos(my_node_id, {
+    info_type: "LearningGene"
+  }).done(function (resp) {
     learning_strategy = resp.infos[0].contents;
     get_received_infos();
   });
