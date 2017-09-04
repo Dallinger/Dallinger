@@ -93,6 +93,17 @@ def env():
         shutil.rmtree(fake_home, ignore_errors=True)
 
 
+@pytest.fixture(scope='session')
+def webapp():
+    from dallinger.experiment_server import sockets
+
+    app = sockets.app
+    app.config['DEBUG'] = True
+    app.config['TESTING'] = True
+    client = app.test_client()
+    yield client
+
+
 @pytest.fixture
 def a(db_session):
     """ Provides a standard way of building model objects in tests.

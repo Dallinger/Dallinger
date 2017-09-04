@@ -2,89 +2,64 @@ import json
 import mock
 import pytest
 from datetime import datetime
-from dallinger.config import get_config
-
-
-@pytest.fixture
-def app(db_session):
-    from dallinger.experiment_server import sockets
-    config = get_config()
-    if not config.ready:
-        config.load()
-    app = sockets.app
-    app.config['DEBUG'] = True
-    app.config['TESTING'] = True
-    client = app.test_client()
-    yield client
 
 
 @pytest.mark.usefixtures('experiment_dir', 'active_config', 'db_session')
 class TestWorkerComplete(object):
 
-    def test_with_no_participant_id_returns_error(self, app):
-        resp = app.get('/worker_complete')
+    def test_with_no_participant_id_returns_error(self, webapp):
+        pass
+        resp = webapp.get('/worker_complete')
         assert resp.status_code == 400
         assert 'uniqueId parameter is required' in resp.data
 
-    def test_with_invalid_participant_id_returns_error(self, app):
-        resp = app.get('/worker_complete?uniqueId=nonsense')
+    def test_with_invalid_participant_id_returns_error(self, webapp):
+        resp = webapp.get('/worker_complete?uniqueId=nonsense')
         assert resp.status_code == 400
         assert 'UniqueId not found: nonsense' in resp.data
 
-    def test_with_valid_participant_id_returns_success(self, a, app):
+    def test_with_valid_participant_id_returns_success(self, a, webapp):
         participant = a.participant()
 
-        resp = app.get('/worker_complete?uniqueId={}'.format(
+        resp = webapp.get('/worker_complete?uniqueId={}'.format(
             participant.unique_id)
         )
         assert resp.status_code == 200
 
-    def test_sets_end_time(self, a, app, db_session):
+    def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
-        app.get('/worker_complete?uniqueId={}'.format(
+        webapp.get('/worker_complete?uniqueId={}'.format(
             participant.unique_id)
         )
         assert db_session.merge(participant).end_time is not None
 
-    def test_records_notification_if_debug_mode(self, a, app, active_config):
+    def test_records_notification_if_debug_mode(self, a, webapp, active_config):
         from dallinger.models import Notification
         active_config.extend({'mode': u'debug'})
         participant = a.participant()
-        app.get('/worker_complete?uniqueId={}'.format(
+        webapp.get('/worker_complete?uniqueId={}'.format(
             participant.unique_id)
         )
         assert Notification.query.one().event_type == u'AssignmentSubmitted'
 
-    def test_records_notification_if_bot_recruiter(self, a, app, active_config):
+    def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
         from dallinger.models import Notification
         active_config.extend({'recruiter': u'bots'})
         participant = a.participant()
-        app.get('/worker_complete?uniqueId={}'.format(
+        webapp.get('/worker_complete?uniqueId={}'.format(
             participant.unique_id)
         )
         assert Notification.query.one().event_type == u'BotAssignmentSubmitted'
 
 
-@pytest.mark.usefixtures('experiment_dir')
+@pytest.mark.usefixtures('experiment_dir', 'active_config', 'db_session')
 class TestExperimentServer(object):
     worker_counter = 0
     hit_counter = 0
     assignment_counter = 0
 
     @pytest.fixture
-    def app(self, db_session):
-        from dallinger.experiment_server import sockets
-        config = get_config()
-        if not config.ready:
-            config.load()
-        app = sockets.app
-        app.config['DEBUG'] = True
-        app.config['TESTING'] = True
-        client = app.test_client()
-        yield client
-
-    @pytest.fixture
-    def participant_id(self, app):
+    def participant_id(self, webapp):
         worker_id = self.worker_counter
         hit_id = self.hit_counter
         assignment_id = self.assignment_counter
@@ -92,14 +67,14 @@ class TestExperimentServer(object):
         self.hit_counter += 1
         self.assignment_counter += 1
 
-        resp = app.post('/participant/{}/{}/{}/debug'.format(
+        resp = webapp.post('/participant/{}/{}/{}/debug'.format(
             worker_id, hit_id, assignment_id
         ))
         return json.loads(resp.data).get('participant', {}).get('id')
 
     @pytest.fixture
-    def node_id(self, app, participant_id):
-        resp = app.post('/node/{}'.format(participant_id))
+    def node_id(self, webapp, participant_id):
+        resp = webapp.post('/node/{}'.format(participant_id))
         return json.loads(resp.data)['node']['id']
 
     @pytest.fixture
@@ -122,21 +97,21 @@ class TestExperimentServer(object):
         as_dict = json.loads(result.response[0])
         assert as_dict == {u'status': u'success', u'some_key': u'foo\nbar'}
 
-    def test_root(self, app):
-        resp = app.get('/')
+    def test_root(self, webapp):
+        resp = webapp.get('/')
         assert resp.status_code == 404
 
-    def test_favicon(self, app):
-        resp = app.get('/favicon.ico')
+    def test_favicon(self, webapp):
+        resp = webapp.get('/favicon.ico')
         assert resp.content_type == 'image/x-icon'
         assert resp.content_length > 0
 
-    def test_robots(self, app):
-        resp = app.get('/robots.txt')
+    def test_robots(self, webapp):
+        resp = webapp.get('/robots.txt')
         assert 'User-agent' in resp.data
 
-    def test_ad(self, app):
-        resp = app.get('/ad', query_string={
+    def test_ad(self, webapp):
+        resp = webapp.get('/ad', query_string={
             'hitId': 'debug',
             'assignmentId': '1',
             'mode': 'debug',
@@ -145,8 +120,8 @@ class TestExperimentServer(object):
         assert 'Please click the "Accept HIT" button on the Amazon site' not in resp.data
         assert 'Begin Experiment' in resp.data
 
-    def test_ad_before_acceptance(self, app):
-        resp = app.get('/ad', query_string={
+    def test_ad_before_acceptance(self, webapp):
+        resp = webapp.get('/ad', query_string={
             'hitId': 'debug',
             'assignmentId': 'ASSIGNMENT_ID_NOT_AVAILABLE',
             'mode': 'debug',
@@ -154,13 +129,13 @@ class TestExperimentServer(object):
         assert 'Please click the "Accept HIT" button on the Amazon site' in resp.data
         assert 'Begin Experiment' not in resp.data
 
-    def test_ad_no_params(self, app):
-        resp = app.get('/ad')
+    def test_ad_no_params(self, webapp):
+        resp = webapp.get('/ad')
         assert resp.status_code == 500
         assert 'Psychology Experiment - Error' in resp.data
 
-    def test_consent(self, app):
-        resp = app.get('/consent', query_string={
+    def test_consent(self, webapp):
+        resp = webapp.get('/consent', query_string={
             'hit_id': 'debug',
             'assignment_id': '1',
             'worker_id': '1',
@@ -168,36 +143,36 @@ class TestExperimentServer(object):
         })
         assert 'Informed Consent Form' in resp.data
 
-    def test_participant_info(self, app, participant_id):
-        resp = app.get('/participant/{}'.format(participant_id))
+    def test_participant_info(self, webapp, participant_id):
+        resp = webapp.get('/participant/{}'.format(participant_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('participant').get('status') == u'working'
 
-    def test_participant_invalid(self, app, participant_id):
+    def test_participant_invalid(self, webapp, participant_id):
         nonexistent_participant_id = 999
-        resp = app.get('/participant/{}'.format(nonexistent_participant_id))
+        resp = webapp.get('/participant/{}'.format(nonexistent_participant_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'error'
         assert 'no participant found' in data.get('html')
 
-    def test_prevent_duplicate_participant_for_worker(self, app, participant_id):
+    def test_prevent_duplicate_participant_for_worker(self, webapp, participant_id):
         worker_id = self.worker_counter
         hit_id = self.hit_counter
         assignment_id = self.assignment_counter
-        resp = app.post('/participant/{}/{}/{}/debug'.format(
+        resp = webapp.post('/participant/{}/{}/{}/debug'.format(
             worker_id, hit_id, assignment_id
         ))
 
         assert resp.status_code == 200
 
-        resp = app.post('/participant/{}/{}/{}/debug'.format(
+        resp = webapp.post('/participant/{}/{}/{}/debug'.format(
             worker_id, hit_id, assignment_id
         ))
 
         assert resp.status_code == 403
 
-    def test_notifies_recruiter_when_participant_joins(self, app):
+    def test_notifies_recruiter_when_participant_joins(self, webapp):
         from dallinger.recruiters import Recruiter
         from dallinger.models import Participant
 
@@ -209,46 +184,46 @@ class TestExperimentServer(object):
         with mock.patch(class_to_patch) as mock_rec_class:
             mock_recruiter = mock.Mock(spec=Recruiter)
             mock_rec_class.for_experiment.return_value = mock_recruiter
-            app.post('/participant/{}/{}/{}/debug'.format(
+            webapp.post('/participant/{}/{}/{}/debug'.format(
                 worker_id, hit_id, assignment_id
             ))
             args, _ = mock_recruiter.notify_recruited.call_args
             assert isinstance(args[0], Participant)
 
-    def test_get_network(self, app, network_id):
-        resp = app.get('/network/{}'.format(network_id))
+    def test_get_network(self, webapp, network_id):
+        resp = webapp.get('/network/{}'.format(network_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('network').get('id') == network_id
 
-    def test_get_network_invalid(self, app):
+    def test_get_network_invalid(self, webapp):
         nonexistent_network_id = 999
-        resp = app.get('/network/{}'.format(nonexistent_network_id))
+        resp = webapp.get('/network/{}'.format(nonexistent_network_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'error'
         assert 'no network found' in data.get('html')
 
-    def test_node_vectors(self, app, node_id):
-        resp = app.get('/node/{}/vectors'.format(node_id))
+    def test_node_vectors(self, webapp, node_id):
+        resp = webapp.get('/node/{}/vectors'.format(node_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('vectors') == []
 
-    def test_node_infos(self, app, node_id):
-        resp = app.get('/node/{}/infos'.format(node_id))
+    def test_node_infos(self, webapp, node_id):
+        resp = webapp.get('/node/{}/infos'.format(node_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('infos') == []
 
-    def test_node_transmit_info_creates_transmission(self, db_session, app, node_id):
+    def test_node_transmit_info_creates_transmission(self, db_session, webapp, node_id):
         from dallinger import models
-        node_id_2 = self.node_id(app, self.participant_id(app))
+        node_id_2 = self.node_id(webapp, self.participant_id(webapp))
         node1 = models.Node.query.get(node_id)
         info = models.Info(origin=node1)
         db_session.add(info)
         db_session.commit()
 
-        resp = app.post(
+        resp = webapp.post(
             '/node/{}/transmit?what={}&to_whom={}'.format(node_id, info.id, node_id_2),
         )
         data = json.loads(resp.data)
@@ -257,63 +232,63 @@ class TestExperimentServer(object):
         assert data['transmissions'][0]['origin_id'] == node_id
         assert data['transmissions'][0]['destination_id'] == node_id_2
 
-    def test_node_transmit_nonexistent_sender_returns_error(self, app):
+    def test_node_transmit_nonexistent_sender_returns_error(self, webapp):
         nonexistent_node_id = 999
-        resp = app.post('/node/{}/transmit'.format(nonexistent_node_id))
+        resp = webapp.post('/node/{}/transmit'.format(nonexistent_node_id))
         data = json.loads(resp.data)
         assert data['status'] == 'error'
         assert 'node does not exist' in data['html']
 
-    def test_node_transmit_content_and_no_target_does_nothing(self, app, node_id):
-        resp = app.post('/node/{}/transmit'.format(node_id))
+    def test_node_transmit_content_and_no_target_does_nothing(self, webapp, node_id):
+        resp = webapp.post('/node/{}/transmit'.format(node_id))
         data = json.loads(resp.data)
         assert data['status'] == 'success'
         assert data['transmissions'] == []
 
-    def test_node_transmit_invalid_info_id_returns_error(self, app, node_id):
+    def test_node_transmit_invalid_info_id_returns_error(self, webapp, node_id):
         nonexistent_info_id = 999
-        resp = app.post('/node/{}/transmit?what={}'.format(node_id, nonexistent_info_id))
+        resp = webapp.post('/node/{}/transmit?what={}'.format(node_id, nonexistent_info_id))
         data = json.loads(resp.data)
         assert data['status'] == 'error'
         assert 'info does not exist' in data['html']
 
-    def test_node_transmit_invalid_info_subclass_returns_error(self, app, node_id):
+    def test_node_transmit_invalid_info_subclass_returns_error(self, webapp, node_id):
         nonexistent_subclass = 'Nonsense'
-        resp = app.post('/node/{}/transmit?what={}'.format(node_id, nonexistent_subclass))
+        resp = webapp.post('/node/{}/transmit?what={}'.format(node_id, nonexistent_subclass))
         data = json.loads(resp.data)
         assert data['status'] == 'error'
         assert 'Nonsense not in experiment.known_classes' in data['html']
 
-    def test_node_transmit_invalid_recipient_subclass_returns_error(self, db_session, app, node_id):
+    def test_node_transmit_invalid_recipient_subclass_returns_error(self, db_session, webapp, node_id):
         from dallinger import models
         node1 = models.Node.query.get(node_id)
         info = models.Info(origin=node1)
         db_session.add(info)
         db_session.commit()
         nonexistent_subclass = 'Nonsense'
-        resp = app.post('/node/{}/transmit?what={}&to_whom={}'.format(
+        resp = webapp.post('/node/{}/transmit?what={}&to_whom={}'.format(
             node_id, info.id, nonexistent_subclass)
         )
         data = json.loads(resp.data)
         assert data['status'] == 'error'
         assert 'Nonsense not in experiment.known_classes' in data['html']
 
-    def test_node_transmit_invalid_recipient_id_returns_error(self, db_session, app, node_id):
+    def test_node_transmit_invalid_recipient_id_returns_error(self, db_session, webapp, node_id):
         from dallinger import models
         node1 = models.Node.query.get(node_id)
         info = models.Info(origin=node1)
         db_session.add(info)
         db_session.commit()
         nonexistent_id = 999
-        resp = app.post('/node/{}/transmit?what={}&to_whom={}'.format(
+        resp = webapp.post('/node/{}/transmit?what={}&to_whom={}'.format(
             node_id, info.id, nonexistent_id)
         )
         data = json.loads(resp.data)
         assert data['status'] == 'error'
         assert 'recipient Node does not exist' in data['html']
 
-    def test_summary_no_participants(self, app):
-        resp = app.get('/summary')
+    def test_summary_no_participants(self, webapp):
+        resp = webapp.get('/summary')
         assert resp.status_code == 200
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
@@ -323,8 +298,8 @@ class TestExperimentServer(object):
         assert data.get('nodes_remaining') == 2
         assert data.get('summary') == []
 
-    def test_summary_one_participant(self, app, node_id):
-        resp = app.get('/summary')
+    def test_summary_one_participant(self, webapp, node_id):
+        resp = webapp.get('/summary')
         data = json.loads(resp.data)
         assert data.get('completed') is False
         assert data.get('nodes_remaining') == 1
@@ -332,9 +307,9 @@ class TestExperimentServer(object):
         assert len(worker_summary) == 1
         assert worker_summary[0] == [u'working', 1]
 
-    def test_summary_two_participants_and_still_working(self, app, node_id):
-        self.node_id(app, self.participant_id(app))
-        resp = app.get('/summary')
+    def test_summary_two_participants_and_still_working(self, webapp, node_id):
+        self.node_id(webapp, self.participant_id(webapp))
+        resp = webapp.get('/summary')
         data = json.loads(resp.data)
         assert data.get('completed') is False
         assert data.get('nodes_remaining') == 0
@@ -342,16 +317,16 @@ class TestExperimentServer(object):
         assert len(worker_summary) == 1
         assert worker_summary[0] == [u'working', 2]
 
-    def test_summary_two_participants_with_different_status(self, app):
-        p1_id = self.participant_id(app)
-        p2_id = self.participant_id(app)
-        self.node_id(app, p1_id)
-        self.node_id(app, p2_id)
+    def test_summary_two_participants_with_different_status(self, webapp):
+        p1_id = self.participant_id(webapp)
+        p2_id = self.participant_id(webapp)
+        self.node_id(webapp, p1_id)
+        self.node_id(webapp, p2_id)
 
         self._update_participant_status(p1_id, 'submitted')
         self._update_participant_status(p2_id, 'approved')
 
-        resp = app.get('/summary')
+        resp = webapp.get('/summary')
         data = json.loads(resp.data)
         assert data.get('completed') is True
         worker_summary = data.get('summary')
@@ -359,32 +334,32 @@ class TestExperimentServer(object):
         assert worker_summary[0] == [u'approved', 1]
         assert worker_summary[1] == [u'submitted', 1]
 
-    def test_existing_experiment_property(self, app, participant_id):
-        resp = app.get('/experiment/exists'.format(participant_id))
+    def test_existing_experiment_property(self, webapp, participant_id):
+        resp = webapp.get('/experiment/exists'.format(participant_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('exists') is True
 
-    def test_nonexisting_experiment_property(self, app, participant_id):
-        resp = app.get('/experiment/missing'.format(participant_id))
+    def test_nonexisting_experiment_property(self, webapp, participant_id):
+        resp = webapp.get('/experiment/missing'.format(participant_id))
         assert resp.status_code == 404
 
-    def test_not_found(self, app):
-        resp = app.get('/BOGUS')
+    def test_not_found(self, webapp):
+        resp = webapp.get('/BOGUS')
         assert resp.status_code == 404
 
-    def test_launch(self, app):
-        resp = app.post('/launch', {})
+    def test_launch(self, webapp):
+        resp = webapp.post('/launch', {})
         assert resp.status_code == 200
         data = json.loads(resp.get_data())
         assert 'recruitment_msg' in data
 
-    def test_launch_logging_fails(self, app):
+    def test_launch_logging_fails(self, webapp):
         with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
             bad_log = mock.Mock(side_effect=IOError)
             mock_exp = mock.Mock(log=bad_log)
             mock_class.return_value = mock_exp
-            resp = app.post('/launch', {})
+            resp = webapp.post('/launch', {})
 
         assert resp.status_code == 500
         data = json.loads(resp.get_data())
