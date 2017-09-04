@@ -472,7 +472,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
         "whimsical": config["whimsical"],
     }
 
-    for k, v in sorted(heroku_config.items()):  # sorted for test determinism
+    for k, v in sorted(heroku_config.items()):  # sorted for testablility
         heroku_app.set(k, v)
 
     # Wait for Redis database to be ready.
@@ -513,7 +513,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     time.sleep(8)
 
     # Launch the experiment.
-    log("Launching the experiment on MTurk...")
+    log("Launching the experiment on the remote server and starting recruitment...")
     launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url))
     result = {
         'app_name': heroku_app.name,
