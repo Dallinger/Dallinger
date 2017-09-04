@@ -5,6 +5,66 @@ from datetime import datetime
 from dallinger.config import get_config
 
 
+@pytest.fixture
+def app(db_session):
+    from dallinger.experiment_server import sockets
+    config = get_config()
+    if not config.ready:
+        config.load()
+    app = sockets.app
+    app.config['DEBUG'] = True
+    app.config['TESTING'] = True
+    client = app.test_client()
+    yield client
+
+
+@pytest.mark.usefixtures('experiment_dir', 'active_config', 'db_session')
+class TestWorkerComplete(object):
+
+    def test_with_no_participant_id_returns_error(self, app):
+        resp = app.get('/worker_complete')
+        assert resp.status_code == 400
+        assert 'uniqueId parameter is required' in resp.data
+
+    def test_with_invalid_participant_id_returns_error(self, app):
+        resp = app.get('/worker_complete?uniqueId=nonsense')
+        assert resp.status_code == 400
+        assert 'UniqueId not found: nonsense' in resp.data
+
+    def test_with_valid_participant_id_returns_success(self, a, app):
+        participant = a.participant()
+
+        resp = app.get('/worker_complete?uniqueId={}'.format(
+            participant.unique_id)
+        )
+        assert resp.status_code == 200
+
+    def test_sets_end_time(self, a, app, db_session):
+        participant = a.participant()
+        app.get('/worker_complete?uniqueId={}'.format(
+            participant.unique_id)
+        )
+        assert db_session.merge(participant).end_time is not None
+
+    def test_records_notification_if_debug_mode(self, a, app, active_config):
+        from dallinger.models import Notification
+        active_config.extend({'mode': u'debug'})
+        participant = a.participant()
+        app.get('/worker_complete?uniqueId={}'.format(
+            participant.unique_id)
+        )
+        assert Notification.query.one().event_type == u'AssignmentSubmitted'
+
+    def test_records_notification_if_bot_recruiter(self, a, app, active_config):
+        from dallinger.models import Notification
+        active_config.extend({'recruiter': u'bots'})
+        participant = a.participant()
+        app.get('/worker_complete?uniqueId={}'.format(
+            participant.unique_id)
+        )
+        assert Notification.query.one().event_type == u'BotAssignmentSubmitted'
+
+
 @pytest.mark.usefixtures('experiment_dir')
 class TestExperimentServer(object):
     worker_counter = 0
