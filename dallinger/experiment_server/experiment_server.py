@@ -1326,20 +1326,23 @@ def check_for_duplicate_assignments(participant):
 def worker_complete():
     """Complete worker."""
     if not request.args.get('uniqueId'):
-        status = "bad request"
-    else:
-        participants = models.Participant.query.filter_by(
-            unique_id=request.args['uniqueId'],
-        ).all()
-        if not len(participants):
-            return error_response(error_type='UniqueId not found: {}'.format(
-                request.args['uniqueId']
-            ))
-        participant = participants[0]
-        participant.end_time = datetime.now()
-        session.add(participant)
-        session.commit()
-        status = "success"
+        return error_response(
+            error_type="bad request",
+            error_text=u'uniqueId parameter is required'
+        )
+
+    participants = models.Participant.query.filter_by(
+        unique_id=request.args['uniqueId'],
+    ).all()
+    if not len(participants):
+        return error_response(error_type='UniqueId not found: {}'.format(
+            request.args['uniqueId']
+        ))
+    participant = participants[0]
+    participant.end_time = datetime.now()
+    session.add(participant)
+    session.commit()
+    status = "success"
     if config.get('recruiter', 'mturk') == u'bots':
         # Trigger notification directly
         # Bot submissions skip all attention and bonus checks
