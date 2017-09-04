@@ -3,6 +3,7 @@ import pytest
 import shutil
 import tempfile
 from dallinger import models
+from dallinger import networks
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -93,6 +94,20 @@ def env():
         shutil.rmtree(fake_home, ignore_errors=True)
 
 
+@pytest.fixture()
+def webapp():
+    from dallinger.experiment_server import sockets
+    from dallinger.config import get_config
+    config = get_config()
+    if not config.ready:
+        config.load()
+    app = sockets.app
+    app.config['DEBUG'] = True
+    app.config['TESTING'] = True
+    client = app.test_client()
+    yield client
+
+
 @pytest.fixture
 def a(db_session):
     """ Provides a standard way of building model objects in tests.
@@ -111,9 +126,10 @@ def a(db_session):
 
         def info(self, **kw):
             defaults = {
-                'origin': self.node(),
+                'origin': self.star_network,
                 'contents': None,
             }
+
             defaults.update(kw)
             return self._build(models.Info, defaults)
 
@@ -132,14 +148,26 @@ def a(db_session):
             defaults.update(kw)
             return self._build(models.Network, defaults)
 
+        def star_network(self, **kw):
+            defaults = {
+                'max_size': 2,
+            }
+            defaults.update(kw)
+            return self._build(networks.Star, defaults)
+
         def node(self, **kw):
             defaults = {
-                'network': self.network()
+                'network': self.star_network
             }
             defaults.update(kw)
             return self._build(models.Node, defaults)
 
         def _build(self, klass, attrs):
+            # Some of our default values are factories:
+            for k, v in attrs.items():
+                if callable(v):
+                    attrs[k] = v()
+
             obj = klass(**attrs)
             self._insert(obj)
             return obj
@@ -183,7 +211,7 @@ def stub_config():
         u'lifetime': 1,
         u'logfile': u'-',
         u'loglevel': 0,
-        u'mode': u'sandbox',
+        u'mode': u'debug',
         u'notification_url': u'https://url-of-notification-route',
         u'num_dynos_web': 1,
         u'num_dynos_worker': 1,
