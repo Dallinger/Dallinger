@@ -51,7 +51,10 @@ WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')
 
-Experiment = experiment.load()
+
+def Experiment(args):
+    klass = experiment.load()
+    return klass(args)
 
 
 """Load the experiment's extra routes, if any."""
