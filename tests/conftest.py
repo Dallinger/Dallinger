@@ -2,6 +2,7 @@ import os
 import pytest
 import shutil
 import tempfile
+from dallinger import models
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -90,6 +91,64 @@ def env():
         yield environ_patched
         os.environ = environ_orig
         shutil.rmtree(fake_home, ignore_errors=True)
+
+
+@pytest.fixture
+def a(db_session):
+    """ Provides a standard way of building model objects in tests.
+
+        def test_using_all_defaults(self, a):
+            assert a.info()
+
+        def test_with_participant_node(self, a):
+            participant = a.participant(worker_id=42)
+            info = a.info(origin=a.node(participant=participant))
+    """
+    class ModelFactory(object):
+
+        def __init__(self, db):
+            self.db = db
+
+        def info(self, **kw):
+            defaults = {
+                'origin': self.node(),
+                'contents': None,
+            }
+            defaults.update(kw)
+            return self._build(models.Info, defaults)
+
+        def participant(self, **kw):
+            defaults = {
+                'worker_id': '1',
+                'assignment_id': '1',
+                'hit_id': '1',
+                'mode': 'test'
+            }
+            defaults.update(kw)
+            return self._build(models.Participant, defaults)
+
+        def network(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(models.Network, defaults)
+
+        def node(self, **kw):
+            defaults = {
+                'network': self.network()
+            }
+            defaults.update(kw)
+            return self._build(models.Node, defaults)
+
+        def _build(self, klass, attrs):
+            obj = klass(**attrs)
+            self._insert(obj)
+            return obj
+
+        def _insert(self, thing):
+            db_session.add(thing)
+            db_session.flush()  # This gets us an ID and sets relationships
+
+    return ModelFactory(db_session)
 
 
 @pytest.fixture
