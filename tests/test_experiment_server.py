@@ -53,6 +53,7 @@ class TestWorkerComplete(object):
 
 
 @pytest.mark.usefixtures('experiment_dir', 'active_config', 'db_session')
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestExperimentServer(object):
     worker_counter = 0
     hit_counter = 0
