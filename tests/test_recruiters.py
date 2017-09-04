@@ -174,7 +174,7 @@ class TestBotRecruiter(object):
                                  get_queue=mock.DEFAULT,
                                  get_base_url=mock.DEFAULT) as mocks:
             mocks['get_base_url'].return_value = 'fake_base_url'
-            r = BotRecruiter(config={})
+            r = BotRecruiter()
             r._get_bot_class = mock.Mock()
             yield r
 
@@ -201,7 +201,7 @@ class TestBotRecruiter(object):
         recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
 
-@pytest.mark.usefixtures('active_config')
+@pytest.mark.usefixtures('active_config', 'db_session')
 class TestMTurkRecruiter(object):
 
     @pytest.fixture
@@ -306,20 +306,14 @@ class TestMTurkRecruiter(object):
             blacklist=['foo', 'bar'],
         )
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self, recruiter, db_session):
-        from dallinger.models import Participant
-        participant = Participant(
-            worker_id='1', hit_id='1', assignment_id='1', mode="test")
-        db_session.add(participant)
+    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
+        a.participant()
         recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
 
-    def test_current_hit_id_with_active_experiment(self, recruiter, db_session):
-        from dallinger.models import Participant
-        participant = Participant(
-            worker_id='1', hit_id='the hit!', assignment_id='1', mode="test")
-        db_session.add(participant)
+    def test_current_hit_id_with_active_experiment(self, a, recruiter):
+        a.participant(hit_id=u'the hit!')
 
         assert recruiter.current_hit_id() == 'the hit!'
 
