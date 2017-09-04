@@ -19,6 +19,7 @@ from flask import (
     Response,
     send_from_directory,
 )
+from flask_crossdomain import crossdomain
 from jinja2 import TemplateNotFound
 from rq import get_current_job
 from rq import Queue
@@ -1318,6 +1319,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
 
 
 @app.route("/notifications", methods=["POST", "GET"])
+@crossdomain(origin='*')
 def api_notifications():
     """Receive MTurk REST notifications."""
     event_type = request.values['Event.1.EventType']
