@@ -137,7 +137,7 @@ module.exports.ScribeDallingerTracker = ScribeDallingerTracker;
 var require;/*global getUrlParameter, require */
 /*jshint esversion: 6 */
 
-var dlgr = window.dlgr || {};
+var dlgr = window.dlgr = (window.dlgr || {});
 
 (function (getUrlParameter, require) {
 
@@ -145,6 +145,7 @@ var dlgr = window.dlgr || {};
   var ScribeDallinger = __webpack_require__(1);
 
   function getParticipantId() {
+      if (dlgr.participant_id) return dlgr.participant_id;
       var participant_id = getUrlParameter("participant_id");
       return participant_id === true ? null : participant_id;
   }
@@ -155,6 +156,7 @@ var dlgr = window.dlgr || {};
   }
 
   function getBaseUrl() {
+      if (dlgr.experiment_url) return dlgr.experiment_url;
       return '/';
   }
 
@@ -168,7 +170,7 @@ var dlgr = window.dlgr || {};
 
   if (!dlgr.tracker) {
       dlgr.tracker = new Scribe({
-        tracker:    configuredTracker(), 
+        tracker:    configuredTracker(),
         trackPageViews:   true,
         trackClicks:      true,
         trackHashChanges: true,

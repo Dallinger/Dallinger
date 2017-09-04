@@ -1,7 +1,7 @@
 /*global getUrlParameter, require */
 /*jshint esversion: 6 */
 
-var dlgr = window.dlgr || {};
+var dlgr = window.dlgr = (window.dlgr || {});
 
 (function (getUrlParameter, require) {
 
@@ -9,6 +9,7 @@ var dlgr = window.dlgr || {};
   var ScribeDallinger = require('./scribe-dallinger');
 
   function getParticipantId() {
+      if (dlgr.participant_id) return dlgr.participant_id;
       var participant_id = getUrlParameter("participant_id");
       return participant_id === true ? null : participant_id;
   }
@@ -19,6 +20,7 @@ var dlgr = window.dlgr || {};
   }
 
   function getBaseUrl() {
+      if (dlgr.experiment_url) return dlgr.experiment_url;
       return '/';
   }
 
