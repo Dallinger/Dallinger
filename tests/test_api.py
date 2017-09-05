@@ -1,7 +1,10 @@
 """Test python experiment API"""
-import dallinger
-import pytest
+import random
 from uuid import UUID
+
+import pytest
+
+import dallinger
 
 
 class TestAPI(object):
@@ -16,6 +19,18 @@ class TestAPI(object):
         exp = Experiment()
         exp_uuid = exp.make_uuid()
         assert isinstance(UUID(exp_uuid, version=4), UUID)
+
+    def test_uuid_reproducibility(self):
+        from dallinger.experiment import Experiment
+        exp = Experiment()
+        random.seed(1)
+        exp_uuid1 = exp.make_uuid()
+        exp_uuid2 = exp.make_uuid()
+        random.seed(1)
+        exp_uuid3 = exp.make_uuid()
+
+        assert exp_uuid1 != exp_uuid2
+        assert exp_uuid1 == exp_uuid3
 
     def test_collect(self):
         from dallinger.experiments import Bartlett1932
