@@ -220,6 +220,7 @@ class TestMTurkRecruiter(object):
             r.mturkservice.create_hit = mock.Mock(return_value={
                 'type_id': 'fake type id'
             })
+            r.config.set('mode', u'sandbox')
             return r
 
     def test_config_passed_to_constructor(self, recruiter):

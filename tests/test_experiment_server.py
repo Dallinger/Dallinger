@@ -34,7 +34,6 @@ class TestWorkerComplete(object):
 
     def test_records_notification_if_debug_mode(self, a, webapp, active_config):
         from dallinger.models import Notification
-        active_config.extend({'mode': u'debug'})
         participant = a.participant()
         webapp.get('/worker_complete?uniqueId={}'.format(
             participant.unique_id)
