@@ -538,8 +538,8 @@ class Experiment(object):
 
     @classmethod
     def make_uuid(cls):
-        """Returns a new uuid"""
-        return str(uuid.uuid4())
+        """Generate a new uuid."""
+        return str(uuid.UUID(int=random.getrandbits(128)))
 
     def _finish_experiment(self):
         # Debug runs synchronously
