@@ -32,7 +32,7 @@ class TestWorkerComplete(object):
         )
         assert db_session.merge(participant).end_time is not None
 
-    def test_records_notification_if_debug_mode(self, a, webapp, active_config):
+    def test_records_notification_if_debug_mode(self, a, webapp):
         from dallinger.models import Notification
         participant = a.participant()
         webapp.get('/worker_complete?uniqueId={}'.format(
@@ -50,44 +50,8 @@ class TestWorkerComplete(object):
         assert Notification.query.one().event_type == u'BotAssignmentSubmitted'
 
 
-@pytest.mark.usefixtures('experiment_dir', 'db_session')
-class TestExperimentServer(object):
-    worker_counter = 0
-    hit_counter = 0
-    assignment_counter = 0
-
-    @pytest.fixture
-    def participant_id(self, webapp):
-        worker_id = self.worker_counter
-        hit_id = self.hit_counter
-        assignment_id = self.assignment_counter
-        self.worker_counter += 1
-        self.hit_counter += 1
-        self.assignment_counter += 1
-
-        resp = webapp.post('/participant/{}/{}/{}/debug'.format(
-            worker_id, hit_id, assignment_id
-        ))
-        return json.loads(resp.data).get('participant', {}).get('id')
-
-    @pytest.fixture
-    def node_id(self, webapp, participant_id):
-        resp = webapp.post('/node/{}'.format(participant_id))
-        return json.loads(resp.data)['node']['id']
-
-    @pytest.fixture
-    def network_id(self, db_session):
-        from dallinger.networks import Network
-        net = Network()
-        db_session.add(net)
-        db_session.commit()
-
-        return net.id
-
-    def _update_participant_status(self, participant_id, status):
-        from dallinger.models import Participant
-        participant = Participant.query.get(participant_id)
-        participant.status = status
+@pytest.mark.usefixtures('experiment_dir')
+class TestSimpleGETRoutes(object):
 
     def test_success_response(self):
         from dallinger.experiment_server.experiment_server import success_response
@@ -107,6 +71,32 @@ class TestExperimentServer(object):
     def test_robots(self, webapp):
         resp = webapp.get('/robots.txt')
         assert 'User-agent' in resp.data
+
+    def test_consent(self, webapp):
+        resp = webapp.get('/consent', query_string={
+            'hit_id': 'debug',
+            'assignment_id': '1',
+            'worker_id': '1',
+            'mode': 'debug',
+        })
+        assert 'Informed Consent Form' in resp.data
+
+    def test_not_found(self, webapp):
+        resp = webapp.get('/BOGUS')
+        assert resp.status_code == 404
+
+    def test_existing_experiment_property(self, webapp):
+        resp = webapp.get('/experiment/exists')
+        data = json.loads(resp.data)
+        assert data == {u'exists': True, u'status': u'success'}
+
+    def test_nonexisting_experiment_property(self, webapp):
+        resp = webapp.get('/experiment/missing')
+        assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures('experiment_dir')
+class TestAdRoute(object):
 
     def test_ad(self, webapp):
         resp = webapp.get('/ad', query_string={
@@ -132,40 +122,38 @@ class TestExperimentServer(object):
         assert resp.status_code == 500
         assert 'Psychology Experiment - Error' in resp.data
 
-    def test_consent(self, webapp):
-        resp = webapp.get('/consent', query_string={
-            'hit_id': 'debug',
-            'assignment_id': '1',
-            'worker_id': '1',
-            'mode': 'debug',
-        })
-        assert 'Informed Consent Form' in resp.data
 
-    def test_participant_info(self, webapp, participant_id):
-        resp = webapp.get('/participant/{}'.format(participant_id))
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestParticipantRoute(object):
+
+    def test_participant_info(self, a, webapp):
+        p = a.participant()
+        resp = webapp.get('/participant/{}'.format(p.id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('participant').get('status') == u'working'
 
-    def test_participant_invalid(self, webapp, participant_id):
+    def test_participant_invalid(self, webapp):
         nonexistent_participant_id = 999
         resp = webapp.get('/participant/{}'.format(nonexistent_participant_id))
         data = json.loads(resp.data)
         assert data.get('status') == 'error'
         assert 'no participant found' in data.get('html')
 
-    def test_prevent_duplicate_participant_for_worker(self, webapp, participant_id):
-        worker_id = self.worker_counter
-        hit_id = self.hit_counter
-        assignment_id = self.assignment_counter
+    def test_creates_participant_if_worker_id_unique(self, webapp):
+        worker_id = '1'
+        hit_id = '1'
+        assignment_id = '1'
         resp = webapp.post('/participant/{}/{}/{}/debug'.format(
             worker_id, hit_id, assignment_id
         ))
 
         assert resp.status_code == 200
 
+    def test_prevent_duplicate_participant_for_worker(self, a, webapp):
+        p = a.participant()
         resp = webapp.post('/participant/{}/{}/{}/debug'.format(
-            worker_id, hit_id, assignment_id
+            p.worker_id, p.hit_id, p.assignment_id
         ))
 
         assert resp.status_code == 403
@@ -174,9 +162,9 @@ class TestExperimentServer(object):
         from dallinger.recruiters import Recruiter
         from dallinger.models import Participant
 
-        worker_id = self.worker_counter
-        hit_id = self.hit_counter
-        assignment_id = self.assignment_counter
+        worker_id = '1'
+        hit_id = '1'
+        assignment_id = '1'
         class_to_patch = 'dallinger.experiment_server.experiment_server.Recruiter'
 
         with mock.patch(class_to_patch) as mock_rec_class:
@@ -188,47 +176,130 @@ class TestExperimentServer(object):
             args, _ = mock_recruiter.notify_recruited.call_args
             assert isinstance(args[0], Participant)
 
-    def test_get_network(self, webapp, network_id):
-        resp = webapp.get('/network/{}'.format(network_id))
-        data = json.loads(resp.data)
-        assert data.get('status') == 'success'
-        assert data.get('network').get('id') == network_id
 
-    def test_get_network_invalid(self, webapp):
+@pytest.mark.usefixtures('experiment_dir')
+class TestSummaryRoute(object):
+
+    def test_summary_no_participants(self, a, webapp):
+        resp = webapp.get('/summary')
+        data = json.loads(resp.data)
+        assert data == {
+            u'completed': False,
+            u'nodes_remaining': 2,
+            u'required_nodes': 2,
+            u'status': u'success',
+            u'summary': [],
+            u'unfilled_networks': 1
+        }
+
+    def test_summary_one_participant(self, a, webapp):
+        network = a.star_network()
+        network.add_node(a.node(network=network, participant=a.participant()))
+        resp = webapp.get('/summary')
+        data = json.loads(resp.data)
+        assert data == {
+            u'completed': False,
+            u'nodes_remaining': 1,
+            u'required_nodes': 2,
+            u'status': u'success',
+            u'summary': [[u'working', 1]],
+            u'unfilled_networks': 1
+        }
+
+    def test_summary_two_participants_and_still_working(self, a, webapp):
+        network = a.star_network()
+        network.add_node(a.node(network=network, participant=a.participant()))
+        network.add_node(a.node(network=network, participant=a.participant()))
+
+        resp = webapp.get('/summary')
+        data = json.loads(resp.data)
+        assert data == {
+            u'completed': False,
+            u'nodes_remaining': 0,
+            u'required_nodes': 0,
+            u'status': u'success',
+            u'summary': [[u'working', 2]],
+            u'unfilled_networks': 0
+        }
+
+    def test_summary_two_participants_with_different_status(self, a, webapp):
+        p1 = a.participant()
+        p2 = a.participant()
+        network = a.star_network()
+        network.add_node(a.node(network=network, participant=p1))
+        network.add_node(a.node(network=network, participant=p2))
+        p1.status = 'submitted'
+        p2.status = 'approved'
+
+        resp = webapp.get('/summary')
+        data = json.loads(resp.data)
+        assert data == {
+            u'completed': True,
+            u'nodes_remaining': 0,
+            u'required_nodes': 0,
+            u'status': u'success',
+            u'summary': [[u'approved', 1], [u'submitted', 1]],
+            u'unfilled_networks': 0
+        }
+
+
+@pytest.mark.usefixtures('experiment_dir')
+class TestNetworkRoute(object):
+
+    def test_get_network(self, a, webapp):
+        network = a.network()
+        resp = webapp.get('/network/{}'.format(network.id))
+        data = json.loads(resp.data)
+        assert data.get('network').get('id') == network.id
+
+    def test_get_network_invalid_returns_error(self, webapp):
         nonexistent_network_id = 999
         resp = webapp.get('/network/{}'.format(nonexistent_network_id))
         data = json.loads(resp.data)
-        assert data.get('status') == 'error'
         assert 'no network found' in data.get('html')
 
-    def test_node_vectors(self, webapp, node_id):
-        resp = webapp.get('/node/{}/vectors'.format(node_id))
+    def test_get_network_includes_error_message(self, webapp):
+        nonexistent_network_id = 999
+        resp = webapp.get('/network/{}'.format(nonexistent_network_id))
+        data = json.loads(resp.data)
+        assert 'no network found' in data.get('html')
+
+
+@pytest.mark.usefixtures('experiment_dir')
+class TestNodeRouteGET(object):
+
+    def test_node_vectors(self, a, webapp):
+        node = a.node()
+        resp = webapp.get('/node/{}/vectors'.format(node.id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('vectors') == []
 
-    def test_node_infos(self, webapp, node_id):
-        resp = webapp.get('/node/{}/infos'.format(node_id))
+    def test_node_infos(self, a, webapp):
+        node = a.node()
+        resp = webapp.get('/node/{}/infos'.format(node.id))
         data = json.loads(resp.data)
         assert data.get('status') == 'success'
         assert data.get('infos') == []
 
-    def test_node_transmit_info_creates_transmission(self, db_session, webapp, node_id):
-        from dallinger import models
-        node_id_2 = self.node_id(webapp, self.participant_id(webapp))
-        node1 = models.Node.query.get(node_id)
-        info = models.Info(origin=node1)
-        db_session.add(info)
-        db_session.commit()
 
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestNodeRoutePOST(object):
+
+    def test_node_transmit_info_creates_transmission(self, a, webapp, db_session):
+        network = a.star_network()
+        node1 = a.node(network=network, participant=a.participant())
+        network.add_node(node1)
+        node2 = a.node(network=network, participant=a.participant())
+        network.add_node(node2)
+        info = a.info(origin=node1)
         resp = webapp.post(
-            '/node/{}/transmit?what={}&to_whom={}'.format(node_id, info.id, node_id_2),
+            '/node/{}/transmit?what={}&to_whom={}'.format(node1.id, info.id, node2.id),
         )
         data = json.loads(resp.data)
-        assert data['status'] == 'success'
         assert len(data['transmissions']) == 1
-        assert data['transmissions'][0]['origin_id'] == node_id
-        assert data['transmissions'][0]['destination_id'] == node_id_2
+        assert data['transmissions'][0]['origin_id'] == db_session.merge(node1).id
+        assert data['transmissions'][0]['destination_id'] == db_session.merge(node2).id
 
     def test_node_transmit_nonexistent_sender_returns_error(self, webapp):
         nonexistent_node_id = 999
@@ -237,118 +308,57 @@ class TestExperimentServer(object):
         assert data['status'] == 'error'
         assert 'node does not exist' in data['html']
 
-    def test_node_transmit_content_and_no_target_does_nothing(self, webapp, node_id):
-        resp = webapp.post('/node/{}/transmit'.format(node_id))
+    def test_node_transmit_content_and_no_target_does_nothing(self, a, webapp):
+        node = a.node()
+        resp = webapp.post('/node/{}/transmit'.format(node.id))
         data = json.loads(resp.data)
         assert data['status'] == 'success'
         assert data['transmissions'] == []
 
-    def test_node_transmit_invalid_info_id_returns_error(self, webapp, node_id):
+    def test_node_transmit_invalid_info_id_returns_error(self, a, webapp):
+        node = a.node()
         nonexistent_info_id = 999
-        resp = webapp.post('/node/{}/transmit?what={}'.format(node_id, nonexistent_info_id))
+        resp = webapp.post('/node/{}/transmit?what={}'.format(node.id, nonexistent_info_id))
         data = json.loads(resp.data)
         assert data['status'] == 'error'
         assert 'info does not exist' in data['html']
 
-    def test_node_transmit_invalid_info_subclass_returns_error(self, webapp, node_id):
+    def test_node_transmit_invalid_info_subclass_returns_error(self, a, webapp):
+        node = a.node()
         nonexistent_subclass = 'Nonsense'
-        resp = webapp.post('/node/{}/transmit?what={}'.format(node_id, nonexistent_subclass))
+        resp = webapp.post('/node/{}/transmit?what={}'.format(node.id, nonexistent_subclass))
         data = json.loads(resp.data)
         assert data['status'] == 'error'
         assert 'Nonsense not in experiment.known_classes' in data['html']
 
-    def test_node_transmit_invalid_recipient_subclass_returns_error(self, db_session, webapp, node_id):
-        from dallinger import models
-        node1 = models.Node.query.get(node_id)
-        info = models.Info(origin=node1)
-        db_session.add(info)
-        db_session.commit()
+    def test_node_transmit_invalid_recipient_subclass_returns_error(self, a, webapp):
+        node = a.node()
+        info = a.info(origin=node)
         nonexistent_subclass = 'Nonsense'
         resp = webapp.post('/node/{}/transmit?what={}&to_whom={}'.format(
-            node_id, info.id, nonexistent_subclass)
+            node.id, info.id, nonexistent_subclass)
         )
         data = json.loads(resp.data)
         assert data['status'] == 'error'
         assert 'Nonsense not in experiment.known_classes' in data['html']
 
-    def test_node_transmit_invalid_recipient_id_returns_error(self, db_session, webapp, node_id):
-        from dallinger import models
-        node1 = models.Node.query.get(node_id)
-        info = models.Info(origin=node1)
-        db_session.add(info)
-        db_session.commit()
+    def test_node_transmit_invalid_recipient_id_returns_error(self, a, webapp):
+        node = a.node()
+        info = a.info(origin=node)
         nonexistent_id = 999
         resp = webapp.post('/node/{}/transmit?what={}&to_whom={}'.format(
-            node_id, info.id, nonexistent_id)
+            node.id, info.id, nonexistent_id)
         )
         data = json.loads(resp.data)
         assert data['status'] == 'error'
         assert 'recipient Node does not exist' in data['html']
 
-    def test_summary_no_participants(self, webapp):
-        resp = webapp.get('/summary')
-        assert resp.status_code == 200
-        data = json.loads(resp.data)
-        assert data.get('status') == 'success'
-        assert data.get('completed') is False
-        assert data.get('unfilled_networks') == 1
-        assert data.get('required_nodes') == 2
-        assert data.get('nodes_remaining') == 2
-        assert data.get('summary') == []
 
-    def test_summary_one_participant(self, webapp, node_id):
-        resp = webapp.get('/summary')
-        data = json.loads(resp.data)
-        assert data.get('completed') is False
-        assert data.get('nodes_remaining') == 1
-        worker_summary = data.get('summary')
-        assert len(worker_summary) == 1
-        assert worker_summary[0] == [u'working', 1]
-
-    def test_summary_two_participants_and_still_working(self, webapp, node_id):
-        self.node_id(webapp, self.participant_id(webapp))
-        resp = webapp.get('/summary')
-        data = json.loads(resp.data)
-        assert data.get('completed') is False
-        assert data.get('nodes_remaining') == 0
-        worker_summary = data.get('summary')
-        assert len(worker_summary) == 1
-        assert worker_summary[0] == [u'working', 2]
-
-    def test_summary_two_participants_with_different_status(self, webapp):
-        p1_id = self.participant_id(webapp)
-        p2_id = self.participant_id(webapp)
-        self.node_id(webapp, p1_id)
-        self.node_id(webapp, p2_id)
-
-        self._update_participant_status(p1_id, 'submitted')
-        self._update_participant_status(p2_id, 'approved')
-
-        resp = webapp.get('/summary')
-        data = json.loads(resp.data)
-        assert data.get('completed') is True
-        worker_summary = data.get('summary')
-        assert len(worker_summary) == 2
-        assert worker_summary[0] == [u'approved', 1]
-        assert worker_summary[1] == [u'submitted', 1]
-
-    def test_existing_experiment_property(self, webapp, participant_id):
-        resp = webapp.get('/experiment/exists'.format(participant_id))
-        data = json.loads(resp.data)
-        assert data.get('status') == 'success'
-        assert data.get('exists') is True
-
-    def test_nonexisting_experiment_property(self, webapp, participant_id):
-        resp = webapp.get('/experiment/missing'.format(participant_id))
-        assert resp.status_code == 404
-
-    def test_not_found(self, webapp):
-        resp = webapp.get('/BOGUS')
-        assert resp.status_code == 404
+@pytest.mark.usefixtures('experiment_dir')
+class TestLaunchRoute(object):
 
     def test_launch(self, webapp):
         resp = webapp.post('/launch', {})
-        assert resp.status_code == 200
         data = json.loads(resp.get_data())
         assert 'recruitment_msg' in data
 
@@ -361,7 +371,10 @@ class TestExperimentServer(object):
 
         assert resp.status_code == 500
         data = json.loads(resp.get_data())
-        assert 'IOError writing to experiment log' in data['message']
+        assert data == {
+            u'message': u'IOError writing to experiment log: ',
+            u'status': u'error'
+        }
 
 
 @pytest.mark.usefixtures('experiment_dir')
@@ -381,11 +394,8 @@ class TestWorkerFunctionIntegration(object):
     def test_all_invalid_values(self, worker_func):
         worker_func('foo', 'bar', 'baz')
 
-    def test_uses_assignment_id(self, worker_func, db_session):
-        from dallinger.models import Participant
-        participant = Participant(
-            worker_id='1', hit_id='1', assignment_id='1', mode="test")
-        db_session.add(participant)
+    def test_uses_assignment_id(self, a, worker_func):
+        participant = a.participant()
 
         with mock.patch(self.dispatcher) as mock_baseclass:
             runner = mock.Mock()
@@ -398,12 +408,8 @@ class TestWorkerFunctionIntegration(object):
             mock_baseclass.for_name.assert_called_once_with('MockEvent')
             runner.call_args[0][0] is participant
 
-    def test_uses_participant_id(self, worker_func, db_session):
-        from dallinger.models import Participant
-        participant = Participant(
-            worker_id='1', hit_id='1', assignment_id='1', mode="test")
-        db_session.add(participant)
-        db_session.commit()
+    def test_uses_participant_id(self, a, worker_func):
+        participant = a.participant()
 
         with mock.patch(self.dispatcher) as mock_baseclass:
             runner = mock.Mock()
