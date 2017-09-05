@@ -8,7 +8,6 @@ from datetime import datetime
 class TestWorkerComplete(object):
 
     def test_with_no_participant_id_returns_error(self, webapp):
-        pass
         resp = webapp.get('/worker_complete')
         assert resp.status_code == 400
         assert 'uniqueId parameter is required' in resp.data
@@ -52,7 +51,6 @@ class TestWorkerComplete(object):
         assert Notification.query.one().event_type == u'BotAssignmentSubmitted'
 
 
-@pytest.mark.usefixtures('experiment_dir', 'active_config', 'db_session')
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestExperimentServer(object):
     worker_counter = 0
@@ -367,7 +365,6 @@ class TestExperimentServer(object):
         assert 'IOError writing to experiment log' in data['message']
 
 
-@pytest.mark.xfail(reason="TestExperiment class mysteriously None when called via super()")
 @pytest.mark.usefixtures('experiment_dir')
 class TestWorkerFunctionIntegration(object):
 
