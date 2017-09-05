@@ -3,6 +3,7 @@ import pytest
 import shutil
 import tempfile
 from dallinger import models
+from dallinger import networks
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -125,9 +126,10 @@ def a(db_session):
 
         def info(self, **kw):
             defaults = {
-                'origin': self.node(),
+                'origin': self.star_network,
                 'contents': None,
             }
+
             defaults.update(kw)
             return self._build(models.Info, defaults)
 
@@ -146,14 +148,26 @@ def a(db_session):
             defaults.update(kw)
             return self._build(models.Network, defaults)
 
+        def star_network(self, **kw):
+            defaults = {
+                'max_size': 2,
+            }
+            defaults.update(kw)
+            return self._build(networks.Star, defaults)
+
         def node(self, **kw):
             defaults = {
-                'network': self.network()
+                'network': self.star_network
             }
             defaults.update(kw)
             return self._build(models.Node, defaults)
 
         def _build(self, klass, attrs):
+            # Some of our default values are factories:
+            for k, v in attrs.items():
+                if callable(v):
+                    attrs[k] = v()
+
             obj = klass(**attrs)
             self._insert(obj)
             return obj
