@@ -1278,8 +1278,8 @@ def api_notifications():
     return success_response()
 
 
-def _debug_notify(assignment_id, participant_id=None,
-                  event_type='AssignmentSubmitted'):
+def _handle_worker_event(
+        assignment_id, participant_id=None, event_type='AssignmentSubmitted'):
     return worker_function(event_type, assignment_id, participant_id)
 
 
@@ -1300,40 +1300,48 @@ def check_for_duplicate_assignments(participant):
 @db.scoped_session_decorator
 def worker_complete():
     """Complete worker."""
-    if not request.args.get('uniqueId'):
+    unique_id = request.args.get('uniqueId')
+    if not unique_id:
         return error_response(
             error_type="bad request",
             error_text=u'uniqueId parameter is required'
         )
 
-    participants = models.Participant.query.filter_by(
-        unique_id=request.args['uniqueId'],
-    ).all()
-    if not len(participants):
-        return error_response(error_type='UniqueId not found: {}'.format(
-            request.args['uniqueId']
-        ))
+    try:
+        _worker_complete(unique_id)
+    except KeyError:
+        return error_response(
+            error_type='UniqueId not found: {}'.format(unique_id)
+        )
+
+    return success_response(status="success")
+
+
+def _worker_complete(unique_id):
+    participants = models.Participant.query.filter_by(unique_id=unique_id).all()
+    if not participants:
+        raise KeyError()
+
     participant = participants[0]
     participant.end_time = datetime.now()
     session.add(participant)
     session.commit()
-    status = "success"
-    if config.get('recruiter', 'mturk') == u'bots':
-        # Trigger notification directly
-        # Bot submissions skip all attention and bonus checks
-        _debug_notify(
-            assignment_id=participant.assignment_id,
-            participant_id=participant.id,
-            event_type='BotAssignmentSubmitted',
-        )
-    elif config.get('mode') == "debug":
-        # Trigger notification directly in debug mode,
-        # because there won't be one from MTurk
-        _debug_notify(
-            assignment_id=participant.assignment_id,
-            participant_id=participant.id,
-        )
-    return success_response(status=status)
+    recruiter = config.get('recruiter', 'mturk')
+    mode = config.get('mode')
+    if recruiter == 'mturk' and mode != 'debug':
+        # MTurk sends its own notifications
+        return
+
+    if recruiter == 'bots':
+        event_type = 'BotAssignmentSubmitted'
+    else:
+        event_type = 'AssignmentSubmitted'
+
+    _handle_worker_event(
+        assignment_id=participant.assignment_id,
+        participant_id=participant.id,
+        event_type=event_type,
+    )
 
 
 @app.route('/worker_failed', methods=['GET'])
@@ -1351,7 +1359,7 @@ def worker_failed():
         session.commit()
         status = "success"
     if config.get('recruiter', 'mturk') == 'bots':
-        _debug_notify(
+        _handle_worker_event(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
             event_type='BotAssignmentRejected',

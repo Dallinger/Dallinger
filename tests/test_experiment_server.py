@@ -49,6 +49,25 @@ class TestWorkerComplete(object):
         )
         assert Notification.query.one().event_type == u'BotAssignmentSubmitted'
 
+    def test_records_no_notification_mturk_recruiter_and_nondebug(self, a, webapp, active_config):
+        from dallinger.models import Notification
+        active_config.extend({'mode': u'sandbox'})
+        participant = a.participant()
+        webapp.get('/worker_complete?uniqueId={}'.format(
+            participant.unique_id)
+        )
+        assert Notification.query.all() == []
+
+    def test_records_notification_for_non_mturk_recruiter(self, a, webapp, active_config):
+        from dallinger.models import Notification
+        active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
+
+        participant = a.participant()
+        webapp.get('/worker_complete?uniqueId={}'.format(
+            participant.unique_id)
+        )
+        assert Notification.query.one().event_type == u'AssignmentSubmitted'
+
 
 @pytest.mark.usefixtures('experiment_dir')
 class TestSimpleGETRoutes(object):
