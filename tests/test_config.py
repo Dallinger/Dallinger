@@ -164,8 +164,7 @@ worldwide = false
             python.read_nonblocking(10000)
             python.setecho(False)
             python.sendline('from dallinger.experiment_server import experiment_server')
-            python.sendline('from dallinger.config import get_config')
-            python.sendline('config = get_config()')
+            python.sendline('config = experiment_server._config()')
             python.sendline('print config.types')
             python.expect_exact("custom_parameter': <type 'int'>")
         finally:
