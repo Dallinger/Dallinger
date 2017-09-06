@@ -39,10 +39,6 @@ from .worker_events import WorkerEvent
 from .utils import nocache
 
 
-config = get_config()
-if not config.ready:
-    config.load()
-
 # Initialize the Dallinger database.
 session = db.session
 
@@ -51,6 +47,14 @@ q = Queue(connection=redis)
 WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')
+
+
+def _config():
+    config = get_config()
+    if not config.ready:
+        config.load()
+
+    return config
 
 
 def Experiment(args):
@@ -126,6 +130,7 @@ def error_response(error_type="Internal server error",
 def error_page(participant=None, error_text=None, compensate=True,
                error_type="default"):
     """Render HTML for error page."""
+    config = _config()
     if error_text is None:
 
         error_text = """There has been an error and so you are unable to
@@ -305,6 +310,7 @@ def advertisement():
     user_agent_string = request.user_agent.string
     user_agent_obj = user_agents.parse(user_agent_string)
     browser_ok = True
+    config = _config()
     for rule in config.get('browser_exclude_rule', '').split(','):
         myrule = rule.strip()
         if myrule in ["mobile", "tablet", "touchcapable", "pc", "bot"]:
@@ -463,6 +469,7 @@ def get_page_from_directory(directory, page):
 @app.route("/consent")
 def consent():
     """Return the consent form. Here for backwards-compatibility with 2.x."""
+    config = _config()
     return render_template(
         "consent.html",
         hit_id=request.args['hit_id'],
@@ -677,6 +684,7 @@ def create_question(participant_id):
     You should pass the question (string) number (int) and response
     (string) as arguments.
     """
+    config = _config()
     # Get the participant.
     try:
         ppt = models.Participant.query.filter_by(id=participant_id).one()
@@ -684,18 +692,23 @@ def create_question(participant_id):
         return error_response(error_type="/question POST no participant found",
                               status=403)
 
-    # Make sure the participant status is "working" or we're in debug mode
-    if ppt.status != "working" and config.get('mode', None) != 'debug':
-        error_type = "/question POST, status = {}".format(ppt.status)
-        return error_response(error_type=error_type,
-                              participant=ppt)
-
     question = request_parameter(parameter="question")
     response = request_parameter(parameter="response")
     number = request_parameter(parameter="number", parameter_type="int")
     for x in [question, response, number]:
-        if type(x) == Response:
+        if isinstance(x, Response):
             return x
+
+    # Make sure the participant status is "working" if we're using the
+    # MTurkRecruiter (unless we're in debug mode)
+    recruiter = config.get('recruiter', 'mturk')
+    mode = config.get('mode')
+    # XXX Should be a method/property on the Recruiter
+    if recruiter == 'mturk' and mode != 'debug' and ppt.status != "working":
+        return error_response(
+            error_type="/question POST, status = {}".format(ppt.status),
+            participant=ppt
+        )
 
     try:
         # execute the request
@@ -1352,6 +1365,7 @@ def _worker_complete(unique_id):
     participant.end_time = datetime.now()
     session.add(participant)
     session.commit()
+    config = _config()
     recruiter = config.get('recruiter', 'mturk')
     mode = config.get('mode')
     if recruiter == 'mturk' and mode != 'debug':
@@ -1392,6 +1406,7 @@ def worker_failed():
 
 
 def _worker_failed(unique_id):
+    config = _config()
     participants = models.Participant.query.filter_by(unique_id=unique_id).all()
     if not participants:
         raise KeyError()
@@ -1462,7 +1477,7 @@ def worker_function(event_type, assignment_id, participant_id):
     runner_cls = WorkerEvent.for_name(event_type)
     if runner_cls:
         runner = runner_cls(
-            participant, assignment_id, exp, session, config, datetime.now()
+            participant, assignment_id, exp, session, _config(), datetime.now()
         )
         runner()
     session.commit()
