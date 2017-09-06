@@ -120,7 +120,7 @@ class TestCommandLine(object):
         subprocess.check_call(["dallinger", "setup"])
 
 
-@pytest.mark.usefixtures('bartlett_dir')
+@pytest.mark.usefixtures('bartlett_dir', 'active_config')
 class TestSetupExperiment(object):
 
     def test_setup_creates_new_experiment(self):
