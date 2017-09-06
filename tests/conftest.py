@@ -95,12 +95,8 @@ def env():
 
 
 @pytest.fixture()
-def webapp():
+def webapp(active_config):
     from dallinger.experiment_server import sockets
-    from dallinger.config import get_config
-    config = get_config()
-    if not config.ready:
-        config.load()
     app = sockets.app
     app.config['DEBUG'] = True
     app.config['TESTING'] = True
