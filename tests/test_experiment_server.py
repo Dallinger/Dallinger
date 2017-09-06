@@ -5,7 +5,7 @@ from datetime import datetime
 from dallinger.models import Notification
 
 
-@pytest.mark.usefixtures('experiment_dir', 'active_config', 'db_session')
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestWorkerComplete(object):
 
     def test_with_no_participant_id_returns_error(self, webapp):
@@ -59,7 +59,7 @@ class TestWorkerComplete(object):
         assert Notification.query.one().event_type == u'AssignmentSubmitted'
 
 
-@pytest.mark.usefixtures('experiment_dir', 'active_config', 'db_session')
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestWorkerFailed(object):
 
     def test_with_no_participant_id_returns_error(self, webapp):
