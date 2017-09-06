@@ -1310,9 +1310,7 @@ def worker_complete():
     try:
         _worker_complete(unique_id)
     except KeyError:
-        return error_response(
-            error_type='UniqueId not found: {}'.format(unique_id)
-        )
+        return error_response(error_type='UniqueId not found: {}'.format(unique_id))
 
     return success_response(status="success")
 
@@ -1348,25 +1346,38 @@ def _worker_complete(unique_id):
 @db.scoped_session_decorator
 def worker_failed():
     """Fail worker. Used by bots only for now."""
-    if 'uniqueId' not in request.args:
-        status = "bad request"
-    else:
-        participant = models.Participant.query.filter_by(
-            unique_id=request.args['uniqueId'],
-        ).all()[0]
-        participant.end_time = datetime.now()
-        session.add(participant)
-        session.commit()
-        status = "success"
+    unique_id = request.args.get('uniqueId')
+    if not unique_id:
+        return error_response(
+            error_type="bad request",
+            error_text=u'uniqueId parameter is required'
+        )
+
+    try:
+        _worker_failed(unique_id)
+    except KeyError:
+        return error_response(error_type='UniqueId not found: {}'.format(unique_id))
+
+    return success_response(field="status",
+                            data="success",
+                            request_type="worker failed")
+
+
+def _worker_failed(unique_id):
+    participants = models.Participant.query.filter_by(unique_id=unique_id).all()
+    if not participants:
+        raise KeyError()
+
+    participant = participants[0]
+    participant.end_time = datetime.now()
+    session.add(participant)
+    session.commit()
     if config.get('recruiter', 'mturk') == 'bots':
         _handle_worker_event(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
             event_type='BotAssignmentRejected',
         )
-    return success_response(field="status",
-                            data=status,
-                            request_type="worker failed")
 
 
 @db.scoped_session_decorator
