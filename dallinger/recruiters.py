@@ -387,6 +387,26 @@ class BotRecruiter(Recruiter):
         return Bot
 
 
+def from_config(config):
+    """Return a Recruiter instance based on the configuration.
+
+    Default is HotAirRecruiter in debug mode and MTurkRecruiter in other modes.
+    """
+    debug_mode = config.get('mode', None) == 'debug'
+    name = config.get('recruiter', None)
+
+    if name is not None:
+        klass = by_name(name)
+        if klass is not None:
+            return klass()
+        raise NotImplementedError
+
+    if debug_mode:
+        return HotAirRecruiter()
+
+    return MTurkRecruiter()
+
+
 def by_name(name):
     """Attempt to return a recruiter class by name. Actual class names and
     known nicknames are both supported.
