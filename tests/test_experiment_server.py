@@ -19,10 +19,8 @@ class TestWorkerComplete(object):
         assert 'UniqueId not found: nonsense' in resp.data
 
     def test_with_valid_participant_id_returns_success(self, a, webapp):
-        participant = a.participant()
-
         resp = webapp.get('/worker_complete?uniqueId={}'.format(
-            participant.unique_id)
+            a.participant().unique_id)
         )
         assert resp.status_code == 200
 
@@ -34,34 +32,32 @@ class TestWorkerComplete(object):
         assert db_session.merge(participant).end_time is not None
 
     def test_records_notification_if_debug_mode(self, a, webapp):
-        from dallinger.models import Notification
-        participant = a.participant()
         webapp.get('/worker_complete?uniqueId={}'.format(
-            participant.unique_id)
+            a.participant().unique_id)
         )
         assert Notification.query.one().event_type == u'AssignmentSubmitted'
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
-        from dallinger.models import Notification
         active_config.extend({'recruiter': u'bots'})
-        participant = a.participant()
         webapp.get('/worker_complete?uniqueId={}'.format(
-            participant.unique_id)
+            a.participant().unique_id)
         )
         assert Notification.query.one().event_type == u'BotAssignmentSubmitted'
 
     def test_records_no_notification_mturk_recruiter_and_nondebug(self, a, webapp, active_config):
-        from dallinger.models import Notification
         active_config.extend({'mode': u'sandbox'})
-        participant = a.participant()
         webapp.get('/worker_complete?uniqueId={}'.format(
-            participant.unique_id)
+            a.participant().unique_id)
         )
         assert Notification.query.all() == []
 
     def test_records_notification_for_non_mturk_recruiter(self, a, webapp, active_config):
-        from dallinger.models import Notification
         active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
+        webapp.get('/worker_complete?uniqueId={}'.format(
+            a.participant().unique_id)
+        )
+        assert Notification.query.one().event_type == u'AssignmentSubmitted'
+
 
 @pytest.mark.usefixtures('experiment_dir', 'active_config', 'db_session')
 class TestWorkerFailed(object):
