@@ -2,6 +2,7 @@ import json
 import mock
 import pytest
 from datetime import datetime
+from dallinger.models import Notification
 
 
 @pytest.mark.usefixtures('experiment_dir', 'active_config', 'db_session')
@@ -62,11 +63,44 @@ class TestWorkerComplete(object):
         from dallinger.models import Notification
         active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
 
+@pytest.mark.usefixtures('experiment_dir', 'active_config', 'db_session')
+class TestWorkerFailed(object):
+
+    def test_with_no_participant_id_returns_error(self, webapp):
+        resp = webapp.get('/worker_failed')
+        assert resp.status_code == 400
+        assert 'uniqueId parameter is required' in resp.data
+
+    def test_with_invalid_participant_id_returns_error(self, webapp):
+        resp = webapp.get('/worker_failed?uniqueId=nonsense')
+        assert resp.status_code == 400
+        assert 'UniqueId not found: nonsense' in resp.data
+
+    def test_with_valid_participant_id_returns_success(self, a, webapp):
+        resp = webapp.get('/worker_failed?uniqueId={}'.format(
+            a.participant().unique_id)
+        )
+        assert resp.status_code == 200
+
+    def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
-        webapp.get('/worker_complete?uniqueId={}'.format(
+        webapp.get('/worker_failed?uniqueId={}'.format(
             participant.unique_id)
         )
-        assert Notification.query.one().event_type == u'AssignmentSubmitted'
+        assert db_session.merge(participant).end_time is not None
+
+    def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
+        active_config.extend({'recruiter': u'bots'})
+        webapp.get('/worker_failed?uniqueId={}'.format(
+            a.participant().unique_id)
+        )
+        assert Notification.query.one().event_type == u'BotAssignmentRejected'
+
+    def test_records_no_notification_if_mturk_recruiter(self, a, webapp):
+        webapp.get('/worker_failed?uniqueId={}'.format(
+            a.participant().unique_id)
+        )
+        assert Notification.query.all() == []
 
 
 @pytest.mark.usefixtures('experiment_dir')
