@@ -135,30 +135,10 @@ class Experiment(object):
 
     @cached_property
     def recruiter(self):
-        """Recruiter, the Dallinger class that recruits participants.
-        Default is HotAirRecruiter in debug mode and MTurkRecruiter in other modes.
-        If recruiter param in config is set, there can be other recuiters. This
-        last part could (should) be made pluggable.
+        """Reference to a Recruiter, the Dallinger class that recruits
+        participants.
         """
-        config = get_config()
-        try:
-            debug_mode = config.get('mode', None) == 'debug'
-        except RuntimeError:
-            # Config not yet loaded
-            debug_mode = False
-
-        name = config.get('recruiter', None)
-
-        if name is not None:
-            klass = recruiters.by_name(name)
-            if klass is not None:
-                return klass()
-            raise NotImplementedError
-
-        if debug_mode:
-            return recruiters.HotAirRecruiter()
-
-        return recruiters.MTurkRecruiter()
+        return recruiters.from_config(get_config())
 
     def send(self, raw_message):
         """socket interface implementation, and point of entry for incoming
