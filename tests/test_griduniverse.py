@@ -1,11 +1,7 @@
 """
 Tests for `dlgr.griduniverse` module.
 """
-import mock
-import os
 import pytest
-import shutil
-import tempfile
 from dallinger.experiments import Griduniverse
 
 
