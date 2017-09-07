@@ -23,7 +23,8 @@ class TestQuestion(object):
         )
         assert models.Question.query.all()
 
-    def test_nonworking_participants_accepted_if_debug(self, a, webapp):
+    def test_nonworking_mturk_participants_accepted_if_debug(self, a, webapp, active_config):
+        active_config.extend({'recruiter': u'mturk'})
         participant = a.participant()
         participant.status = 'submitted'
         webapp.post(
@@ -31,8 +32,8 @@ class TestQuestion(object):
         )
         assert models.Question.query.all()
 
-    def test_nonworking_participants_denied_if_not_debug(self, a, webapp, active_config):
-        active_config.extend({'mode': u'sandbox'})
+    def test_nonworking_mturk_participants_denied_if_not_debug(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox', 'recruiter': u'mturk'})
         participant = a.participant()
         participant.status = 'submitted'
         webapp.post(
@@ -48,6 +49,15 @@ class TestQuestion(object):
         )
         assert resp.status_code == 400
         assert 'non-numeric number: not a number' in resp.data
+
+    def test_nonworking_nonmturk_participants_accepted(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
+        participant = a.participant()
+        participant.status = 'submitted'
+        webapp.post(
+            '/question/{}?question=q&response=r&number=1'.format(participant.id)
+        )
+        assert models.Question.query.all()
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
