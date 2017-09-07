@@ -295,6 +295,10 @@ def advertisement():
         These arguments will have appropriate values and we should enter the
         person in the database and provide a link to the experiment popup.
     """
+    if not ('hitId' in request.args and 'assignmentId' in request.args):
+        raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
+
+    # Browser rule validation, if configured:
     user_agent_string = request.user_agent.string
     user_agent_obj = user_agents.parse(user_agent_string)
     browser_ok = True
@@ -312,47 +316,48 @@ def advertisement():
             browser_ok = False
 
     if not browser_ok:
-        # Handler for IE users if IE is not supported.
         raise ExperimentError('browser_type_not_allowed')
 
-    if not ('hitId' in request.args and 'assignmentId' in request.args):
-        raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
     hit_id = request.args['hitId']
     assignment_id = request.args['assignmentId']
-    already_in_db = False
-    if 'workerId' in request.args:
-        worker_id = request.args['workerId']
-        # First check if this workerId has completed the task before (v1).
-        nrecords = models.Participant.query.\
-            filter(models.Participant.assignment_id != assignment_id).\
-            filter(models.Participant.worker_id == worker_id).\
-            count()
+    app_id = config.get('id', 'unknown')
+    mode = config.get('mode')
+    debug_mode = mode == 'debug'
+    worker_id = request.args.get('workerId')
+    status = None
 
-        if nrecords > 0:  # Already completed task
-            already_in_db = True
-    else:  # If worker has not accepted the hit
-        worker_id = None
-    try:
-        part = models.Participant.query.\
-            filter(models.Participant.hit_id == hit_id).\
-            filter(models.Participant.assignment_id == assignment_id).\
-            filter(models.Participant.worker_id == worker_id).\
-            one()
-        status = part.status
-    except exc.SQLAlchemyError:
-        status = None
-    try:
-        app_id = config.get('id')
-    except KeyError:
-        app_id = 'unknown'
-    debug_mode = config.get('mode') == 'debug'
+    if worker_id is not None:
+        # First check if this workerId has completed the task before
+        # under a different assignment (v1):
+        already_participated = bool(
+            models.Participant.query
+            .filter(models.Participant.assignment_id != assignment_id)
+            .filter(models.Participant.worker_id == worker_id)
+            .count()
+        )
+
+        if already_participated and not debug_mode:
+            raise ExperimentError('already_did_exp_hit')
+
+        # Next, check for participants already associated with this very
+        # assignment, and retain their status, if found:
+        try:
+            part = models.Participant.query.\
+                filter(models.Participant.hit_id == hit_id).\
+                filter(models.Participant.assignment_id == assignment_id).\
+                filter(models.Participant.worker_id == worker_id).\
+                one()
+        except exc.SQLAlchemyError:
+            pass
+        else:
+            status = part.status
+
     if ((status == 'working' and part.end_time is not None) or
             (debug_mode and status in ('submitted', 'approved'))):
         # They've done the debriefing but perhaps haven't submitted the HIT
         # yet.. Turn asignmentId into original assignment id before sending it
         # back to AMT
-        is_sandbox = config.get('mode') == "sandbox"
-        if is_sandbox:
+        if mode == "sandbox":
             external_submit_url = "https://workersandbox.mturk.com/mturk/externalSubmit"
         else:
             external_submit_url = "https://www.mturk.com/mturk/externalSubmit"
@@ -369,9 +374,8 @@ def advertisement():
         # Once participants have finished the instructions, we do not allow
         # them to start the task again.
         raise ExperimentError('already_started_exp_mturk')
-    elif already_in_db and not debug_mode:
-        raise ExperimentError('already_did_exp_hit')
-    elif not status or debug_mode:
+
+    if not status or debug_mode:
         # Participant has not yet agreed to the consent. They might not
         # even have accepted the HIT.
         with open('templates/ad.html', 'r') as temp_file:
