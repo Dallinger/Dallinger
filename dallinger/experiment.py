@@ -482,7 +482,8 @@ class Experiment(object):
             dlgr.command_line.debug.callback(
                 verbose=True,
                 bot=bot,
-                exp_config=self.exp_config
+                proxy=None,
+                exp_config=self.exp_config,
             )
         else:
             dlgr.command_line.deploy_sandbox_shared_setup(
