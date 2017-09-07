@@ -666,9 +666,10 @@ def create_question(participant_id):
 
     # Make sure the participant status is "working" or we're in debug mode
     if ppt.status != "working" and config.get('mode', None) != 'debug':
-        error_type = "/question POST, status = {}".format(ppt.status)
-        return error_response(error_type=error_type,
-                              participant=ppt)
+        return error_response(
+            error_type="/question POST, status = {}".format(ppt.status),
+            participant=ppt
+        )
 
     question = request_parameter(parameter="question")
     response = request_parameter(parameter="response")

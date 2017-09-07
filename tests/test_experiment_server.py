@@ -2,7 +2,52 @@ import json
 import mock
 import pytest
 from datetime import datetime
-from dallinger.models import Notification
+from dallinger import models
+
+
+@pytest.mark.usefixtures('experiment_dir')
+class TestQuestion(object):
+
+    def test_with_no_participant_id_fails_to_match_route_returns_405(self, webapp):
+        # I found this surprising, so leaving the test here.
+        resp = webapp.post('/question')
+        assert resp.status_code == 405
+
+    def test_with_invalid_participant_id_returns_error(self, webapp):
+        resp = webapp.post('/question/123')
+        assert resp.status_code == 403
+
+    def test_working_participants_accepted(self, a, webapp):
+        webapp.post(
+            '/question/{}?question=q&response=r&number=1'.format(a.participant().id)
+        )
+        assert models.Question.query.all()
+
+    def test_nonworking_participants_accepted_if_debug(self, a, webapp):
+        participant = a.participant()
+        participant.status = 'submitted'
+        webapp.post(
+            '/question/{}?question=q&response=r&number=1'.format(participant.id)
+        )
+        assert models.Question.query.all()
+
+    def test_nonworking_participants_denied_if_not_debug(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox'})
+        participant = a.participant()
+        participant.status = 'submitted'
+        webapp.post(
+            '/question/{}?question=q&response=r&number=1'.format(participant.id)
+        )
+        assert models.Question.query.all() == []
+
+    def test_invalid_question_data_returns_error(self, a, webapp):
+        resp = webapp.post(
+            '/question/{}?question=q&response=r&number=not a number'.format(
+                a.participant().id
+            )
+        )
+        assert resp.status_code == 400
+        assert 'non-numeric number: not a number' in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
@@ -35,28 +80,28 @@ class TestWorkerComplete(object):
         webapp.get('/worker_complete?uniqueId={}'.format(
             a.participant().unique_id)
         )
-        assert Notification.query.one().event_type == u'AssignmentSubmitted'
+        assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
         active_config.extend({'recruiter': u'bots'})
         webapp.get('/worker_complete?uniqueId={}'.format(
             a.participant().unique_id)
         )
-        assert Notification.query.one().event_type == u'BotAssignmentSubmitted'
+        assert models.Notification.query.one().event_type == u'BotAssignmentSubmitted'
 
     def test_records_no_notification_mturk_recruiter_and_nondebug(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
         webapp.get('/worker_complete?uniqueId={}'.format(
             a.participant().unique_id)
         )
-        assert Notification.query.all() == []
+        assert models.Notification.query.all() == []
 
     def test_records_notification_for_non_mturk_recruiter(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
         webapp.get('/worker_complete?uniqueId={}'.format(
             a.participant().unique_id)
         )
-        assert Notification.query.one().event_type == u'AssignmentSubmitted'
+        assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
@@ -90,13 +135,13 @@ class TestWorkerFailed(object):
         webapp.get('/worker_failed?uniqueId={}'.format(
             a.participant().unique_id)
         )
-        assert Notification.query.one().event_type == u'BotAssignmentRejected'
+        assert models.Notification.query.one().event_type == u'BotAssignmentRejected'
 
     def test_records_no_notification_if_mturk_recruiter(self, a, webapp):
         webapp.get('/worker_failed?uniqueId={}'.format(
             a.participant().unique_id)
         )
-        assert Notification.query.all() == []
+        assert models.Notification.query.all() == []
 
 
 @pytest.mark.usefixtures('experiment_dir')
