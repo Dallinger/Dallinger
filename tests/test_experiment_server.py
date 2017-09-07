@@ -6,6 +6,133 @@ from dallinger import models
 
 
 @pytest.mark.usefixtures('experiment_dir')
+class TestAdvertisement(object):
+
+    def test_returns_error_without_hitId_and_assignmentId(self, webapp):
+        resp = webapp.get('/ad')
+        assert resp.status_code == 500
+        assert 'hit_assign_worker_id_not_set_in_mturk' in resp.data
+
+    def test_with_no_worker_id_and_nonexistent_hit_and_assignment(self, webapp):
+        resp = webapp.get('/ad?hitId=foo&assignmentId=bar')
+        assert 'Thanks for accepting this HIT.' in resp.data
+
+    def test_with_nonexistent_hit_worker_and_assignment(self, webapp):
+        resp = webapp.get('/ad?hitId=foo&assignmentId=bar&workerId=baz')
+        assert 'Thanks for accepting this HIT.' in resp.data
+
+    def test_checks_browser_exclusion_rules(self, webapp, active_config):
+        active_config.extend({'browser_exclude_rule': u'tablet, bot'})
+        resp = webapp.get(
+            '/ad?hitId=foo&assignmentId=bar',
+            environ_base={'HTTP_USER_AGENT': 'Googlebot/2.1 (+http://www.google.com/bot.html)'}
+        )
+        assert resp.status_code == 500
+        assert 'browser_type_not_allowed' in resp.data
+
+    def test_participant_still_working_in_debug_mode_returns_error(self, a, webapp):
+        p = a.participant()
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert resp.status_code == 500
+        assert 'already_started_exp_mturk' in resp.data
+
+    def test_already_started_hit_fails_if_not_debug(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox'})
+        p = a.participant()  # status == 'working'
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert resp.status_code == 500
+        assert 'already_started_exp_mturk' in resp.data
+
+    def test_previously_completed_same_hit_fails_if_not_debug(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox'})
+        p = a.participant()
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, 'some_previous_assignmentID', p.worker_id
+            )
+        )
+        assert resp.status_code == 500
+        assert 'already_did_exp_hit' in resp.data
+
+    def test_submitted_hit_shows_thanks_page_in_debug(self, a, webapp):
+        p = a.participant()
+        p.status = u'submitted'
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert 'If this were a real HIT, you would push a button to finish' in resp.data
+
+    def test_shows_thanks_page_if_participant_is_working_but_has_end_time(self, a, webapp):
+        from datetime import datetime
+        p = a.participant()
+        p.end_time = datetime.now()
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert 'If this were a real HIT, you would push a button to finish' in resp.data
+
+    def test_working_hit_shows_thanks_page_in_sandbox_mode(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox'})
+        from datetime import datetime
+        p = a.participant()
+        p.end_time = datetime.now()
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert 'action="https://workersandbox.mturk.com/mturk/externalSubmit"' in resp.data
+
+    def test_working_hit_shows_thanks_page_in_live_mode(self, a, webapp, active_config):
+        active_config.extend({'mode': u'live'})
+        from datetime import datetime
+        p = a.participant()
+        p.end_time = datetime.now()
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert 'action="https://www.mturk.com/mturk/externalSubmit"' in resp.data
+
+    @pytest.mark.skip(reason="fails pending support for different recruiters")
+    def test_submitted_hit_shows_thanks_page_in_sandbox(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox'})
+        p = a.participant()
+        p.status = u'submitted'
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert 'To complete the HIT, simply press the button below.' in resp.data
+
+    def test_submitted_hit_returns_error_in_sandbox(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox'})
+        p = a.participant()
+        p.status = u'submitted'
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert resp.status_code == 500
+        assert 'status_incorrectly_set' in resp.data
+
+
+@pytest.mark.usefixtures('experiment_dir')
 class TestQuestion(object):
 
     def test_with_no_participant_id_fails_to_match_route_returns_405(self, webapp):
