@@ -664,19 +664,19 @@ def create_question(participant_id):
         return error_response(error_type="/question POST no participant found",
                               status=403)
 
+    question = request_parameter(parameter="question")
+    response = request_parameter(parameter="response")
+    number = request_parameter(parameter="number", parameter_type="int")
+    for x in [question, response, number]:
+        if isinstance(x, Response):
+            return x
+
     # Make sure the participant status is "working" or we're in debug mode
     if ppt.status != "working" and config.get('mode', None) != 'debug':
         return error_response(
             error_type="/question POST, status = {}".format(ppt.status),
             participant=ppt
         )
-
-    question = request_parameter(parameter="question")
-    response = request_parameter(parameter="response")
-    number = request_parameter(parameter="number", parameter_type="int")
-    for x in [question, response, number]:
-        if type(x) == Response:
-            return x
 
     try:
         # execute the request
