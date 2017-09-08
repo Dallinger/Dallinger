@@ -246,7 +246,7 @@ def launch():
         )
 
     try:
-        recruitment_urls = exp.recruiter.open_recruitment(n=exp.initial_recruitment_size)
+        recruitment_details = exp.recruiter.open_recruitment(n=exp.initial_recruitment_size)
         session.commit()
     except Exception:
         return error_response(
@@ -290,7 +290,12 @@ def launch():
                 status=500, simple=True
             )
 
-    return success_response(recruitment_msg=u'\n'.join(recruitment_urls))
+    message = "\n".join((
+        "Initial recruitment list:\n{}".format("\n".join(recruitment_details['items'])),
+        "Additional details:\n{}".format(recruitment_details['message'])
+    ))
+
+    return success_response(recruitment_msg=message)
 
 
 @app.route('/ad', methods=['GET'])
@@ -364,21 +369,19 @@ def advertisement():
         else:
             status = part.status
 
-    if ((status == 'working' and part.end_time is not None) or
-            (debug_mode and status in ('submitted', 'approved'))):
-        # They've done the debriefing but perhaps haven't submitted the HIT
-        # yet.. Turn asignmentId into original assignment id before sending it
-        # back to AMT
-        if mode == "sandbox":
-            external_submit_url = "https://workersandbox.mturk.com/mturk/externalSubmit"
-        else:
-            external_submit_url = "https://www.mturk.com/mturk/externalSubmit"
+    recruiter = recruiters.from_config(config)
+    ready_for_external_submission = status == 'working' and part.end_time is not None
+    assignment_complete = status in ('submitted', 'approved')
+
+    if assignment_complete or ready_for_external_submission:
+        # They've either done, or they're from a recruiter that requires
+        # submission of an external form to complete their participation.
         return render_template(
             'thanks.html',
             hitid=hit_id,
             assignmentid=assignment_id,
             workerid=worker_id,
-            external_submit_url=external_submit_url,
+            external_submit_url=recruiter.external_submission_url,
             mode=config.get('mode'),
             app_id=app_id
         )
@@ -387,22 +390,19 @@ def advertisement():
         # them to start the task again.
         raise ExperimentError('already_started_exp_mturk')
 
-    if not status or debug_mode:
-        # Participant has not yet agreed to the consent. They might not
-        # even have accepted the HIT.
-        with open('templates/ad.html', 'r') as temp_file:
-            ad_string = temp_file.read()
-        ad_string = insert_mode(ad_string, config.get('mode'))
-        return render_template_string(
-            ad_string,
-            hitid=hit_id,
-            assignmentid=assignment_id,
-            workerid=worker_id,
-            mode=config.get('mode'),
-            app_id=app_id
-        )
-    else:
-        raise ExperimentError('status_incorrectly_set')
+    # Participant has not yet agreed to the consent. They might not
+    # even have accepted the HIT.
+    with open('templates/ad.html', 'r') as temp_file:
+        ad_string = temp_file.read()
+    ad_string = insert_mode(ad_string, config.get('mode'))
+    return render_template_string(
+        ad_string,
+        hitid=hit_id,
+        assignmentid=assignment_id,
+        workerid=worker_id,
+        mode=config.get('mode'),
+        app_id=app_id
+    )
 
 
 @app.route('/summary', methods=['GET'])
@@ -702,14 +702,13 @@ def create_question(participant_id):
         if isinstance(x, Response):
             return x
 
-    # Make sure the participant status is "working" if we're using the
-    # MTurkRecruiter (unless we're in debug mode)
-    recruiter = config.get('recruiter', 'mturk')
-    mode = config.get('mode')
-    # XXX Should be a method/property on the Recruiter
-    if recruiter == 'mturk' and mode != 'debug' and ppt.status != "working":
+    # Consult the recruiter regarding whether to accept a questionnaire
+    # from the participant:
+    rejection = recruiters.from_config(config).rejects_questionnaire_from(ppt)
+    if rejection:
         return error_response(
-            error_type="/question POST, status = {}".format(ppt.status),
+            error_type="/question POST, status = {}, reason: {}".format(
+                ppt.status, rejection),
             participant=ppt
         )
 

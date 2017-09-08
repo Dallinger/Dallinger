@@ -98,8 +98,7 @@ def env():
 def webapp(active_config):
     from dallinger.experiment_server import sockets
     app = sockets.app
-    app.config['DEBUG'] = True
-    app.config['TESTING'] = True
+    app.config.update({'DEBUG': True, 'TESTING': True})
     client = app.test_client()
     yield client
 
@@ -235,10 +234,9 @@ def active_config(stub_config):
     """Loads the standard config as the active configuration returned by
     dallinger.config.get_config() and returns it.
     """
-    from copy import deepcopy
     from dallinger.config import get_config
     config = get_config()
-    config.data = deepcopy(stub_config.data)
+    config.data = stub_config.data
     config.ready = True
     return config
 
