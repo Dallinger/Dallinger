@@ -21,7 +21,7 @@ if (env === 'build') {
     },
     serveStatic: [{
       route: '/static',
-      dir: 'dlgr/griduniverse/static'
+      dir: 'dallinger/frontend/static'
     }]
   }));
 }

@@ -11,7 +11,8 @@
     "uglify-es": "^3.0.28"
   },
   "scripts": {
-    "build": "webpack"
+    "build": "webpack",
+    "dev": "webpack --watch"
   },
   "repository": {
     "type": "git",
