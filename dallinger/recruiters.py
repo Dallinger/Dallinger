@@ -31,14 +31,6 @@ class Recruiter(object):
         """
         pass
 
-    @staticmethod
-    def for_experiment(experiment):
-        """Return the Recruiter instance for the specified Experiment.
-
-        This provides a seam for testing.
-        """
-        return experiment.recruiter
-
     def open_recruitment(self):
         """Return a list of one or more initial recruitment URLs.
         """
@@ -354,6 +346,14 @@ class BotRecruiter(Recruiter):
         # Must be imported at run-time
         from dallinger_experiment import Bot
         return Bot
+
+
+def for_experiment(experiment):
+    """Return the Recruiter instance for the specified Experiment.
+
+    This provides a seam for testing.
+    """
+    return experiment.recruiter
 
 
 def from_config(config):

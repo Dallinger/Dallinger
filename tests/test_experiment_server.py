@@ -396,11 +396,10 @@ class TestParticipantRoute(object):
         worker_id = '1'
         hit_id = '1'
         assignment_id = '1'
-        class_to_patch = 'dallinger.experiment_server.experiment_server.Recruiter'
 
-        with mock.patch(class_to_patch) as mock_rec_class:
+        with mock.patch('dallinger.experiment_server.experiment_server.recruiters') as recruiters:
             mock_recruiter = mock.Mock(spec=Recruiter)
-            mock_rec_class.for_experiment.return_value = mock_recruiter
+            recruiters.for_experiment.return_value = mock_recruiter
             webapp.post('/participant/{}/{}/{}/debug'.format(
                 worker_id, hit_id, assignment_id
             ))
