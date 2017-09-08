@@ -5,7 +5,6 @@ $(document).ready(function() {
 
   // Print the consent form.
   $("#print-consent").click(function() {
-    console.log("hello");
     window.print();
   });
 
