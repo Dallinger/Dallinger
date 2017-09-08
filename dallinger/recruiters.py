@@ -17,7 +17,7 @@ import sys
 logger = logging.getLogger(__file__)
 
 
-def get_queue():
+def _get_queue():
     # Connect to Redis Queue
     return Queue('low', connection=conn)
 
@@ -30,14 +30,6 @@ class Recruiter(object):
         arguments.
         """
         pass
-
-    @staticmethod
-    def for_experiment(experiment):
-        """Return the Recruiter instance for the specified Experiment.
-
-        This provides a seam for testing.
-        """
-        return experiment.recruiter
 
     def open_recruitment(self):
         """Return a list of one or more initial recruitment URLs.
@@ -349,7 +341,7 @@ class BotRecruiter(Recruiter):
         """Recruit n new participant bots to the queue"""
         bot_class = self._get_bot_class()
         urls = []
-        q = get_queue()
+        q = _get_queue()
         for _ in range(n):
             base_url = get_base_url()
             worker = generate_random_id()
@@ -385,6 +377,14 @@ class BotRecruiter(Recruiter):
         # Must be imported at run-time
         from dallinger_experiment import Bot
         return Bot
+
+
+def for_experiment(experiment):
+    """Return the Recruiter instance for the specified Experiment.
+
+    This provides a seam for testing.
+    """
+    return experiment.recruiter
 
 
 def from_config(config):
