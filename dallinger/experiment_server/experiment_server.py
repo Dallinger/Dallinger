@@ -373,22 +373,19 @@ def advertisement():
         # them to start the task again.
         raise ExperimentError('already_started_exp_mturk')
 
-    if not status or debug_mode:
-        # Participant has not yet agreed to the consent. They might not
-        # even have accepted the HIT.
-        with open('templates/ad.html', 'r') as temp_file:
-            ad_string = temp_file.read()
-        ad_string = insert_mode(ad_string, config.get('mode'))
-        return render_template_string(
-            ad_string,
-            hitid=hit_id,
-            assignmentid=assignment_id,
-            workerid=worker_id,
-            mode=config.get('mode'),
-            app_id=app_id
-        )
-    else:
-        raise ExperimentError('status_incorrectly_set')
+    # Participant has not yet agreed to the consent. They might not
+    # even have accepted the HIT.
+    with open('templates/ad.html', 'r') as temp_file:
+        ad_string = temp_file.read()
+    ad_string = insert_mode(ad_string, config.get('mode'))
+    return render_template_string(
+        ad_string,
+        hitid=hit_id,
+        assignmentid=assignment_id,
+        workerid=worker_id,
+        mode=config.get('mode'),
+        app_id=app_id
+    )
 
 
 @app.route('/summary', methods=['GET'])
