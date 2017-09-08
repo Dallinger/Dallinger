@@ -4,7 +4,6 @@ $(document).ready(function() {
 
   // Print the consent form.
   $("#print-consent").click(function() {
-    console.log("hello");
     window.print();
   });
 
@@ -40,7 +39,6 @@ $(document).ready(function() {
 
   // Submit the questionnaire.
   $("#submit-questionnaire").click(function() {
-    console.log("hello");
     dallinger.submitResponses();
   });
 });
