@@ -11,9 +11,14 @@ class TestModuleFunctions(object):
         from dallinger import recruiters
         return recruiters
 
-    def test_get_queue(self, mod):
+    def test__get_queue(self, mod):
         from rq import Queue
         assert isinstance(mod.get_queue(), Queue)
+
+    def test_for_experiment(self, mod):
+        mock_exp = mock.MagicMock(spec=Experiment)
+        mock_exp.recruiter = mock.sentinel.some_object
+        assert mod.for_experiment(mock_exp) is mock_exp.recruiter
 
     def test_by_name_with_valid_name(self, mod):
         assert mod.by_name('CLIRecruiter') == mod.CLIRecruiter
@@ -67,15 +72,12 @@ class TestRecruiter(object):
         with pytest.raises(NotImplementedError):
             recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
-    def test_for_experiment(self):
-        from dallinger.recruiters import Recruiter
-        mock_exp = mock.MagicMock(spec=Experiment)
-        mock_exp.recruiter = mock.sentinel.some_object
-        assert Recruiter.for_experiment(mock_exp) is mock_exp.recruiter
-
     def test_notify_recruited(self, recruiter):
         dummy = mock.NonCallableMock()
         recruiter.notify_recruited(participant=dummy)
+
+    def test_external_submission_url(self, recruiter):
+        assert recruiter.external_submission_url is None
 
 
 @pytest.mark.usefixtures('active_config')
@@ -220,7 +222,7 @@ class TestBotRecruiter(object):
         recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
 
-@pytest.mark.usefixtures('active_config', 'db_session')
+@pytest.mark.usefixtures('active_config')
 class TestMTurkRecruiter(object):
 
     @pytest.fixture
@@ -242,8 +244,15 @@ class TestMTurkRecruiter(object):
             r.config.set('mode', u'sandbox')
             return r
 
-    def test_config_passed_to_constructor(self, recruiter):
+    def test_config_passed_to_constructor_sandbox(self, recruiter):
         assert recruiter.config.get('title') == 'fake experiment title'
+
+    def test_external_submission_url_sandbox(self, recruiter):
+        assert 'workersandbox.mturk.com' in recruiter.external_submission_url
+
+    def test_external_submission_url_live(self, recruiter):
+        recruiter.config.set('mode', u'live')
+        assert 'www.mturk.com' in recruiter.external_submission_url
 
     def test_open_recruitment_returns_one_item_list(self, recruiter):
         result = recruiter.open_recruitment(n=2)
