@@ -352,21 +352,19 @@ def advertisement():
         else:
             status = part.status
 
-    if ((status == 'working' and part.end_time is not None) or
-            (debug_mode and status in ('submitted', 'approved'))):
-        # They've done the debriefing but perhaps haven't submitted the HIT
-        # yet.. Turn asignmentId into original assignment id before sending it
-        # back to AMT
-        if mode == "sandbox":
-            external_submit_url = "https://workersandbox.mturk.com/mturk/externalSubmit"
-        else:
-            external_submit_url = "https://www.mturk.com/mturk/externalSubmit"
+    recruiter = recruiters.from_config(config)
+    ready_for_external_submission = status == 'working' and part.end_time is not None
+    assignment_complete = status in ('submitted', 'approved')
+
+    if assignment_complete or ready_for_external_submission:
+        # They've either done, or they're from a recruiter that requires
+        # submission of an external form to complete their participation.
         return render_template(
             'thanks.html',
             hitid=hit_id,
             assignmentid=assignment_id,
             workerid=worker_id,
-            external_submit_url=external_submit_url,
+            external_submit_url=recruiter.external_submission_url,
             mode=config.get('mode'),
             app_id=app_id
         )

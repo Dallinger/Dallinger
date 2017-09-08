@@ -25,6 +25,8 @@ def _get_queue():
 class Recruiter(object):
     """The base recruiter."""
 
+    external_submission_url = None  # MTurkRecruiter, for one, overides this
+
     def __init__(self):
         """For now, the contract of a Recruiter is that it takes no
         arguments.
@@ -162,6 +164,16 @@ class MTurkRecruiter(Recruiter):
             self.config.get('aws_secret_access_key'),
             (self.config.get('mode') == "sandbox")
         )
+
+    @property
+    def external_submission_url(self):
+        """On experiment completion, participants are returned to
+        the Mechanical Turk site to submit their HIT, which in turn triggers
+        notifications to the /notifications route.
+        """
+        if self.config.get('mode') == "sandbox":
+            return "https://workersandbox.mturk.com/mturk/externalSubmit"
+        return "https://www.mturk.com/mturk/externalSubmit"
 
     @property
     def qualifications(self):
