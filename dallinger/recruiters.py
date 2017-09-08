@@ -22,8 +22,16 @@ def _get_queue():
     return Queue('low', connection=conn)
 
 
+# These are constants because other components may listen for these
+# messages in logs:
+NEW_RECRUIT_LOG_PREFIX = 'New participant requested:'
+CLOSE_RECRUITMENT_LOG_PREFIX = 'Close recruitment.'
+
+
 class Recruiter(object):
     """The base recruiter."""
+
+    external_submission_url = None  # MTurkRecruiter, for one, overides this
 
     def __init__(self):
         """For now, the contract of a Recruiter is that it takes no
@@ -32,7 +40,15 @@ class Recruiter(object):
         pass
 
     def open_recruitment(self):
-        """Return a list of one or more initial recruitment URLs.
+        """Return a list of one or more initial recruitment URLs and an initial
+        recruitment message:
+        {
+            items: [
+                'https://experiment-url-1',
+                'https://experiemnt-url-2'
+            ],
+            message: 'More info about this particular recruiter's process'
+        }
         """
         raise NotImplementedError
 
@@ -53,6 +69,16 @@ class Recruiter(object):
         """
         pass
 
+    def rejects_questionnaire_from(self, participant):
+        """Recruiters have different circumstances under which experiment
+        questionnaires should be accepted or rejected.
+
+        To reject a questionnaire, this method returns an error string.
+
+        By default, they are accepted, so we return None.
+        """
+        return None
+
 
 class CLIRecruiter(Recruiter):
     """A recruiter which prints out /ad URLs to the console for direct
@@ -64,9 +90,22 @@ class CLIRecruiter(Recruiter):
         self.config = get_config()
 
     def open_recruitment(self, n=1):
-        """Talk about opening recruitment."""
+        """Return initial experiment URL list, plus instructions
+        for finding subsequent recruitment events in experiemnt logs.
+        """
         logger.info("Opening recruitment.")
-        return self.recruit(n)
+        recruitments = self.recruit(n)
+        message = (
+            'Search for "{}" in the logs for subsequent recruitment URLs.\n'
+            'Open the logs for this experiment with '
+            '"dallinger logs --app {}"'.format(
+                NEW_RECRUIT_LOG_PREFIX, self.config.get('id')
+            )
+        )
+        return {
+            'items': recruitments,
+            'message': message
+        }
 
     def recruit(self, n=1):
         """Generate experiemnt URLs and print them to the console."""
@@ -80,14 +119,14 @@ class CLIRecruiter(Recruiter):
                 generate_random_id(),
                 self._get_mode()
             )
-            logger.info('New participant requested: {}'.format(ad_url))
+            logger.info('{} {}'.format(NEW_RECRUIT_LOG_PREFIX, ad_url))
             urls.append(ad_url)
 
         return urls
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
-        logger.info("Close recruitment.")
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
@@ -113,6 +152,18 @@ class HotAirRecruiter(CLIRecruiter):
     - Always invokes templates in debug mode
     - Prints experiment /ad URLs to the console
     """
+    def open_recruitment(self, n=1):
+        """Return initial experiment URL list, plus instructions
+        for finding subsequent recruitment events in experiemnt logs.
+        """
+        logger.info("Opening recruitment.")
+        recruitments = self.recruit(n)
+        message = "Recruitment requests will open browser windows automatically."
+
+        return {
+            'items': recruitments,
+            'message': message
+        }
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Logging-only, Hot Air implementation"""
@@ -131,7 +182,10 @@ class SimulatedRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
-        return self.recruit(n)
+        return {
+            'items': self.recruit(n),
+            'message': 'Simulated recruitment only'
+        }
 
     def recruit(self, n=1):
         """Recruit n participants."""
@@ -160,8 +214,18 @@ class MTurkRecruiter(Recruiter):
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
             self.config.get('aws_secret_access_key'),
-            (self.config.get('mode') == "sandbox")
+            self.config.get('mode') != u"live"
         )
+
+    @property
+    def external_submission_url(self):
+        """On experiment completion, participants are returned to
+        the Mechanical Turk site to submit their HIT, which in turn triggers
+        notifications to the /notifications route.
+        """
+        if self.config.get('mode') == "sandbox":
+            return "https://workersandbox.mturk.com/mturk/externalSubmit"
+        return "https://www.mturk.com/mturk/externalSubmit"
 
     @property
     def qualifications(self):
@@ -207,7 +271,10 @@ class MTurkRecruiter(Recruiter):
         else:
             lookup_url = "https://worker.mturk.com/mturk/preview?groupId={type_id}"
 
-        return [lookup_url.format(**hit_info), ]
+        return {
+            'items': [lookup_url.format(**hit_info), ],
+            'message': 'HIT now published to Amazon Mechanical Turk'
+        }
 
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
@@ -243,6 +310,20 @@ class MTurkRecruiter(Recruiter):
             except QualificationNotFoundException, ex:
                 logger.exception(ex)
 
+    def rejects_questionnaire_from(self, participant):
+        """Mechanical Turk participants submit their HITs on the MTurk site
+        (see external_submission_url), and MTurk then sends a notification
+        to Dallinger which is used to mark the assignment completed.
+
+        If a HIT has already been submitted, it's too late to submit the
+        questionnaire.
+        """
+        if participant.status != "working":
+            return (
+                "This participant has already sumbitted their HIT "
+                "on MTurk and can no longer submit the questionnaire"
+            )
+
     def reward_bonus(self, assignment_id, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
         try:
@@ -273,7 +354,7 @@ class MTurkRecruiter(Recruiter):
         This does nothing, because the fact that this is called means
         that all MTurk HITs that were created were already completed.
         """
-        logger.info("Close recruitment.")
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
 
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
@@ -335,7 +416,10 @@ class BotRecruiter(Recruiter):
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
         logger.info("Open recruitment.")
-        return self.recruit(n)
+        return {
+            'items': self.recruit(n),
+            'message': 'Bot recruitment started using {}'.format(self._get_bot_class())
+        }
 
     def recruit(self, n=1):
         """Recruit n new participant bots to the queue"""
@@ -365,7 +449,7 @@ class BotRecruiter(Recruiter):
 
         This does nothing at this time.
         """
-        logger.info("Close recruitment.")
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Logging only. These are bots."""
@@ -390,20 +474,35 @@ def for_experiment(experiment):
 def from_config(config):
     """Return a Recruiter instance based on the configuration.
 
-    Default is HotAirRecruiter in debug mode and MTurkRecruiter in other modes.
+    Default is HotAirRecruiter in debug mode (unless we're using
+    the bot recruiter, which can be used in debug mode)
+    and the MTurkRecruiter in other modes.
     """
     debug_mode = config.get('mode', None) == 'debug'
     name = config.get('recruiter', None)
+    klass = None
 
     if name is not None:
         klass = by_name(name)
-        if klass is not None:
-            return klass()
-        raise NotImplementedError
 
+    # Special case 1: may run BotRecruiter in any mode (debug or not),
+    # so it trumps everything else:
+    if klass is BotRecruiter:
+        return klass()
+
+    # Special case 2: if we're not using bots and we're in debug mode,
+    # ignore any configured recruiter:
     if debug_mode:
         return HotAirRecruiter()
 
+    # Configured recruiter:
+    if klass is not None:
+        return klass()
+
+    if name and klass is None:
+        raise NotImplementedError("No such recruiter {}".format(name))
+
+    # Default if we're not in debug mode:
     return MTurkRecruiter()
 
 
@@ -412,12 +511,13 @@ def by_name(name):
     known nicknames are both supported.
     """
     nicknames = {
-        'bots': BotRecruiter
+        'bots': BotRecruiter,
+        'mturklarge': MTurkLargeRecruiter
     }
     if name in nicknames:
         return nicknames[name]
 
     this_module = sys.modules[__name__]
-    thing = getattr(this_module, name, None)
-    if thing is not None and issubclass(thing, Recruiter):
-        return thing
+    klass = getattr(this_module, name, None)
+    if klass is not None and issubclass(klass, Recruiter):
+        return klass

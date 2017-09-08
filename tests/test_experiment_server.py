@@ -30,7 +30,7 @@ class TestAdvertisement(object):
         assert resp.status_code == 500
         assert 'browser_type_not_allowed' in resp.data
 
-    def test_participant_still_working_in_debug_mode_returns_error(self, a, webapp):
+    def test_still_working_in_debug_mode_returns_error(self, a, webapp):
         p = a.participant()
         resp = webapp.get(
             '/ad?hitId={}&assignmentId={}&workerId={}'.format(
@@ -40,9 +40,9 @@ class TestAdvertisement(object):
         assert resp.status_code == 500
         assert 'already_started_exp_mturk' in resp.data
 
-    def test_already_started_hit_fails_if_not_debug(self, a, webapp, active_config):
+    def test_still_working_in_sandbox_mode_returns_error(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
-        p = a.participant()  # status == 'working'
+        p = a.participant()
         resp = webapp.get(
             '/ad?hitId={}&assignmentId={}&workerId={}'.format(
                 p.hit_id, p.assignment_id, p.worker_id
@@ -51,7 +51,7 @@ class TestAdvertisement(object):
         assert resp.status_code == 500
         assert 'already_started_exp_mturk' in resp.data
 
-    def test_previously_completed_same_hit_fails_if_not_debug(self, a, webapp, active_config):
+    def test_previously_completed_same_exp_fails_if_not_debug(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
         p = a.participant()
         resp = webapp.get(
@@ -61,6 +61,15 @@ class TestAdvertisement(object):
         )
         assert resp.status_code == 500
         assert 'already_did_exp_hit' in resp.data
+
+    def test_previously_completed_same_exp_ok_if_debug(self, a, webapp, active_config):
+        p = a.participant()
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, 'some_previous_assignmentID', p.worker_id
+            )
+        )
+        assert 'Thanks for accepting this HIT.' in resp.data
 
     def test_submitted_hit_shows_thanks_page_in_debug(self, a, webapp):
         p = a.participant()
@@ -73,7 +82,6 @@ class TestAdvertisement(object):
         assert 'If this were a real HIT, you would push a button to finish' in resp.data
 
     def test_shows_thanks_page_if_participant_is_working_but_has_end_time(self, a, webapp):
-        from datetime import datetime
         p = a.participant()
         p.end_time = datetime.now()
         resp = webapp.get(
@@ -85,7 +93,6 @@ class TestAdvertisement(object):
 
     def test_working_hit_shows_thanks_page_in_sandbox_mode(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
-        from datetime import datetime
         p = a.participant()
         p.end_time = datetime.now()
         resp = webapp.get(
@@ -97,7 +104,6 @@ class TestAdvertisement(object):
 
     def test_working_hit_shows_thanks_page_in_live_mode(self, a, webapp, active_config):
         active_config.extend({'mode': u'live'})
-        from datetime import datetime
         p = a.participant()
         p.end_time = datetime.now()
         resp = webapp.get(
@@ -119,8 +125,8 @@ class TestAdvertisement(object):
         )
         assert 'To complete the HIT, simply press the button below.' in resp.data
 
-    def test_submitted_hit_returns_error_in_sandbox(self, a, webapp, active_config):
-        active_config.extend({'mode': u'sandbox'})
+    def test_recruiter_without_external_submission(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
         p = a.participant()
         p.status = u'submitted'
         resp = webapp.get(
@@ -128,8 +134,7 @@ class TestAdvertisement(object):
                 p.hit_id, p.assignment_id, p.worker_id
             )
         )
-        assert resp.status_code == 500
-        assert 'status_incorrectly_set' in resp.data
+        assert "You're all done!" in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir')
@@ -151,7 +156,6 @@ class TestQuestion(object):
         assert models.Question.query.all()
 
     def test_nonworking_mturk_participants_accepted_if_debug(self, a, webapp, active_config):
-        active_config.extend({'recruiter': u'mturk'})
         participant = a.participant()
         participant.status = 'submitted'
         webapp.post(
@@ -160,7 +164,7 @@ class TestQuestion(object):
         assert models.Question.query.all()
 
     def test_nonworking_mturk_participants_denied_if_not_debug(self, a, webapp, active_config):
-        active_config.extend({'mode': u'sandbox', 'recruiter': u'mturk'})
+        active_config.extend({'mode': u'sandbox'})
         participant = a.participant()
         participant.status = 'submitted'
         webapp.post(
