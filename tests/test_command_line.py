@@ -18,6 +18,7 @@ import dallinger.command_line
 from dallinger.command_line import verify_package
 from dallinger.compat import unicode
 from dallinger.config import get_config
+from dallinger import recruiters
 import dallinger.version
 
 
@@ -447,27 +448,33 @@ class TestDebugServer(object):
 
     def test_recruitment_closed(self, debugger_unpatched):
         from dallinger.heroku.tools import HerokuLocalWrapper
-        from dallinger.config import get_config
         debugger = debugger_unpatched
-        get_config().load()
         debugger.new_recruit = mock.Mock(return_value=None)
         response = mock.Mock(
             json=mock.Mock(return_value={'completed': True})
         )
         with mock.patch('dallinger.command_line.requests') as mock_requests:
             mock_requests.get.return_value = response
-            response = debugger.notify("Close recruitment.")
+            response = debugger.notify(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
 
         assert response == HerokuLocalWrapper.MONITOR_STOP
         debugger.out.log.assert_called_with('Experiment completed, all nodes filled.')
 
-    def test_new_recruit(self, debugger, browser):
-        match = re.search('URL: (.*)$', 'URL: some-fake-url')
-        debugger.new_recruit(match)
+    def test_new_recruit(self, debugger_unpatched, browser):
+        debugger_unpatched.notify(
+            " {} some-fake-url".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+        )
 
         browser.open.assert_called_once_with(
             'some-fake-url', autoraise=True, new=1
         )
+
+    def test_new_recruit_not_triggered_if_quoted(self, debugger_unpatched, browser):
+        debugger_unpatched.notify(
+            ' "{}" some-fake-url'.format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+        )
+
+        browser.open.assert_not_called()
 
     @pytest.mark.skipif(not pytest.config.getvalue("runbot"),
                         reason="--runbot was specified")

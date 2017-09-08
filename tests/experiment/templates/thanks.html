@@ -14,7 +14,8 @@
 
         {% if mode == 'debug' %}
           <p>If this were a real HIT, you would push a button to finish at this stage.
-        {% else %}
+
+        {% elif external_submit_url %}
           <p>To complete the HIT, simply press the button below.</p>
 
               
@@ -24,7 +25,11 @@
             <input type="hidden" id="workerId" name="workerId" value="{{ workerid }}"  /> 
             <input type="submit" class="btn btn-success btn-large" value="Complete HIT" />
           </form>
+
+        {% else %}
+          <p>You're all done!</p>
         {% endif %}
+
       </div>
     </body>
 </html>
