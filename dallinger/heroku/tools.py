@@ -15,6 +15,7 @@ import traceback
 
 from dallinger.compat import unicode
 from dallinger.config import SENSITIVE_KEY_NAMES
+from dallinger.utils import check_call, check_output
 
 
 class HerokuApp(object):
@@ -197,15 +198,15 @@ class HerokuApp(object):
 
     def _run(self, cmd, pass_stderr=False):
         if pass_stderr:
-            return subprocess.check_call(cmd, stdout=self.out, stderr=self.out)
-        return subprocess.check_call(cmd, stdout=self.out)
+            return check_call(cmd, stdout=self.out, stderr=self.out)
+        return check_call(cmd, stdout=self.out)
 
     def _run_quiet(self, cmd):
         # make sure subprocess output doesn't echo secrets to the terminal
         return subprocess.check_call(cmd, stdout=self.out_muted)
 
     def _result(self, cmd):
-        return subprocess.check_output(cmd).decode(self.sys_encoding)
+        return check_output(cmd).decode(self.sys_encoding)
 
 
 def app_name(id):
@@ -215,13 +216,13 @@ def app_name(id):
 
 def auth_token():
     """A Heroku authenication token."""
-    return unicode(subprocess.check_output(["heroku", "auth:token"]).rstrip())
+    return unicode(check_output(["heroku", "auth:token"]).rstrip())
 
 
 def log_in():
     """Ensure that the user is logged in to Heroku."""
     try:
-        subprocess.check_output(["heroku", "auth:whoami"])
+        check_output(["heroku", "auth:whoami"])
     except Exception:
         raise Exception("You are not logged into Heroku.")
 
