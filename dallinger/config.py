@@ -60,6 +60,7 @@ default_keys = (
     ('port', int, ['PORT']),
     ('qualification_blacklist', unicode, []),
     ('recruiter', unicode, []),
+    ('replay', bool, []),
     ('threads', unicode, []),
     ('title', unicode, []),
     ('us_only', bool, []),

@@ -34,6 +34,7 @@ from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger.recruiters import Recruiter
 
+from .replay import ReplayBackend
 from .worker_events import WorkerEvent
 from .utils import nocache
 
@@ -252,6 +253,17 @@ def launch():
         except Exception:
             return error_response(
                 error_text=u"Failed to spawn task on launch: {}, ".format(task) +
+                           u"check experiment server log for details",
+                status=500, simple=True
+            )
+
+    if config.get('replay', False):
+        try:
+            task = ReplayBackend(exp)
+            gevent.spawn(task)
+        except Exception:
+            return error_response(
+                error_text=u"Failed to launch replay task for experiment."
                            u"check experiment server log for details",
                 status=500, simple=True
             )
