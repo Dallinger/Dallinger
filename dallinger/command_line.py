@@ -14,7 +14,6 @@ except ImportError:
     # Python >= 3.3
     from shlex import quote
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -39,6 +38,7 @@ from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp
 from dallinger.mturk import MTurkService
 from dallinger import registration
+from dallinger.utils import check_call
 from dallinger.utils import generate_random_id
 from dallinger.utils import get_base_url
 from dallinger.utils import GitClient
@@ -929,7 +929,7 @@ def monitor(app):
     webbrowser.open(heroku_app.dashboard_url)
     webbrowser.open("https://requester.mturk.com/mturk/manageHITs")
     heroku_app.open_logs()
-    subprocess.call(["open", heroku_app.db_uri])
+    check_call(["open", heroku_app.db_uri])
     while _keep_running():
         summary = get_summary(app)
         click.clear()
