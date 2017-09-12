@@ -186,3 +186,45 @@ worldwide = false
             config.load_from_file(LOCAL_CONFIG)
         finally:
             os.chdir('../..')
+
+    def test_local_base_url(self):
+        from dallinger.utils import get_base_url
+        config = get_config()
+        config.ready = True
+        os.chdir('tests/experiment')
+        try:
+            config.register_extra_parameters()
+            config.load_from_file(LOCAL_CONFIG)
+            config.set(u'host', u'localhost')
+            config.set(u'base_port', 5000)
+            assert(get_base_url() == 'http://localhost:5000')
+        finally:
+            os.chdir('../..')
+
+    def test_remote_base_url(self):
+        from dallinger.utils import get_base_url
+        config = get_config()
+        config.ready = True
+        orig_host = os.environ.get('HOST')
+        try:
+            os.environ['HOST'] = 'https://dlgr-bogus.herokuapp.com'
+            assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
+        finally:
+            if orig_host:
+                os.environ['HOST'] = orig_host
+            else:
+                del os.environ['HOST']
+
+    def test_remote_base_url_always_ssl(self):
+        from dallinger.utils import get_base_url
+        config = get_config()
+        config.ready = True
+        orig_host = os.environ.get('HOST')
+        try:
+            os.environ['HOST'] = 'http://dlgr-bogus.herokuapp.com'
+            assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
+        finally:
+            if orig_host:
+                os.environ['HOST'] = orig_host
+            else:
+                del os.environ['HOST']
