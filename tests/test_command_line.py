@@ -960,7 +960,7 @@ class TestMonitor(object):
 
     @pytest.fixture
     def subproc(self):
-        with mock.patch('dallinger.command_line.subprocess') as sub:
+        with mock.patch('dallinger.utils.subprocess') as sub:
             yield sub
 
     @pytest.fixture
