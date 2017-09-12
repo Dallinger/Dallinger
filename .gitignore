@@ -9,7 +9,7 @@
 *.egg-info/
 *.db-journal
 demos/*/data/*
-demos/*/snapshots/*
+**/snapshots/*
 docs/source/demos
 docs/source/_static/*.zip
 .env
