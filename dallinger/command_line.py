@@ -333,10 +333,13 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("templates", "error.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "complete.html"),
+        os.path.join("templates", "questionnaire.html"),
         os.path.join("templates", "thanks.html"),
         os.path.join("templates", "waiting.html"),
-        os.path.join("templates", "base.html"),
         os.path.join("static", "robots.txt")
+    ]
+    frontend_dirs = [
+        os.path.join("templates", "base"),
     ]
 
     for filename in frontend_files:
@@ -344,6 +347,11 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         dst_filepath = os.path.join(dst, filename)
         if not os.path.exists(dst_filepath):
             shutil.copy(src, dst_filepath)
+    for filename in frontend_dirs:
+        src = os.path.join(src_base, "frontend", filename)
+        dst_filepath = os.path.join(dst, filename)
+        if not os.path.exists(dst_filepath):
+            shutil.copytree(src, dst_filepath)
 
     time.sleep(0.25)
 
