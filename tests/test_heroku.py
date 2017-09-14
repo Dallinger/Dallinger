@@ -33,6 +33,7 @@ def check_call():
     with mock.patch('dallinger.heroku.tools.check_call') as check_call:
         yield check_call
 
+
 @pytest.fixture
 def check_output():
     with mock.patch('dallinger.heroku.tools.check_output') as check_output:
