@@ -80,7 +80,7 @@ command line:
 
 ::
 
-    createuser -P dallinger
+    createuser -P dallinger --createdb
     (Password: dallinger)
     createdb -O dallinger dallinger
 
