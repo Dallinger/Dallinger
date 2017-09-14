@@ -67,9 +67,31 @@ def scoped_session_decorator(func):
 
 def init_db(drop_all=False):
     """Initialize the database, optionally dropping existing tables."""
-    if drop_all:
-        Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    try:
+        if drop_all:
+            Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+    except OperationalError as err:
+        msg = 'password authentication failed for user "dallinger"'
+        if msg in err.message:
+            print
+            print '*' * 60
+            print '*' * 60
+            print '*' * 60
+            print
+            print 'Dallinger now requires a database user named "dallinger".'
+            print
+            print 'Run:'
+            print
+            print '    createuser -P dallinger --createdb'
+            print
+            print 'Consult the developer guide for more information.'
+            print
+            print '*' * 60
+            print '*' * 60
+            print '*' * 60
+            print
+        raise
 
     return session
 
