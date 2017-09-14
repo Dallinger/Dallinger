@@ -34,11 +34,6 @@ $(document).ready(function() {
     window.location.href = '/exp';
   });
 
-  // Submit the questionnaire.
-  $("#submit-questionnaire").click(function() {
-    dallinger.submitResponses();
-  });
-
   $("#finish-reading").click(function() {
     $("#stimulus").hide();
     $("#response-form").show();
@@ -62,10 +57,6 @@ $(document).ready(function() {
     });
   });
 
-  // Submit the questionnaire.
-  $("#submit-questionnaire").click(function() {
-    dallinger.submitResponses();
-  });
 });
 
 // Create the agent.
