@@ -925,9 +925,9 @@ class TestMonitor(object):
         return countdown
 
     @pytest.fixture
-    def subproc(self):
-        with mock.patch('dallinger.utils.subprocess') as sub:
-            yield sub
+    def command_line_check_call(self):
+        with mock.patch('dallinger.command_line.check_call') as call:
+            yield call
 
     @pytest.fixture
     def summary(self):
@@ -948,7 +948,7 @@ class TestMonitor(object):
         from dallinger.command_line import monitor
         return monitor
 
-    def test_opens_browsers(self, monitor, heroku, browser, subproc):
+    def test_opens_browsers(self, monitor, heroku, browser, command_line_check_call):
         heroku.dashboard_url = 'fake-dashboard-url'
         CliRunner().invoke(
             monitor,
@@ -959,15 +959,15 @@ class TestMonitor(object):
             mock.call('https://requester.mturk.com/mturk/manageHITs')
         ])
 
-    def test_calls_open_with_db_uri(self, monitor, heroku, browser, subproc):
+    def test_calls_open_with_db_uri(self, monitor, heroku, browser, command_line_check_call):
         heroku.db_uri = 'fake-db-uri'
         CliRunner().invoke(
             monitor,
             ['--app', 'some-app-uid', ]
         )
-        subproc.call.assert_called_once_with(['open', 'fake-db-uri'])
+        command_line_check_call.assert_called_once_with(['open', 'fake-db-uri'])
 
-    def test_shows_summary_in_output(self, monitor, heroku, browser, subproc):
+    def test_shows_summary_in_output(self, monitor, heroku, browser, command_line_check_call):
         heroku.db_uri = 'fake-db-uri'
         result = CliRunner().invoke(
             monitor,
@@ -976,7 +976,7 @@ class TestMonitor(object):
 
         assert len(re.findall('fake summary', result.output)) == 2
 
-    def test_raises_on_null_app_id(self, monitor, heroku, browser, subproc):
+    def test_raises_on_null_app_id(self, monitor, heroku, browser, command_line_check_call):
         heroku.db_uri = 'fake-db-uri'
         result = CliRunner().invoke(
             monitor,
