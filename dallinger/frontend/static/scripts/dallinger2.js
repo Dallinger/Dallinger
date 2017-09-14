@@ -70,6 +70,8 @@ var dallinger = (function () {
     return BusyForm;
   }());
 
+  var spinner = dlgr.BusyForm();
+
   // stop people leaving the page, but only if desired by experiment
   dlgr.allowExitOnce = false;
   dlgr.preventExit = false;
@@ -229,30 +231,6 @@ var dallinger = (function () {
     return dlgr.get('/node/' + nodeId + '/transmissions', data);
   };
 
-  dlgr.submitResponses = function () {
-    dlgr.submitNextResponse(0);
-    dlgr.submitAssignment();
-  };
-
-  dlgr.submitNextResponse = function (n) {
-    // Get all the ids.
-    var ids = $("form .question select, input, textarea").map(
-      function () {
-        return $(this).attr("id");
-      }
-    );
-
-    dlgr.post('/question/' + dlgr.identity.participantId, {
-      question: $("#" + ids[n]).attr("name"),
-      number: n + 1,
-      response: $("#" + ids[n]).val()
-    }).done(function (resp) {
-      if (n <= ids.length) {
-        dlgr.submitNextResponse(n + 1);
-      }
-    });
-  };
-
   dlgr.submitQuestionnaire = function (name) {
     var formSerialized = $("form").serializeArray(),
       formDict = {};
@@ -261,11 +239,14 @@ var dallinger = (function () {
       formDict[field.name] = field.value;
     });
 
-    return dlgr.post('/question/' + dlgr.identity.participantId, {
+    var xhr = dlgr.post('/question/' + dlgr.identity.participantId, {
       question: name || "questionnaire",
       number: 1,
       response: JSON.stringify(formDict)
     });
+    spinner.freeze([$('form :input')]);
+    xhr.done(dlgr.submitAssignment);
+    xhr.always(function () { spinner.unfreeze(); });
   };
 
   dlgr.waitForQuorum = function () {

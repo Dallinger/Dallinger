@@ -37,10 +37,6 @@ $(document).ready(function() {
     leave_chatroom();
   });
 
-  // Submit the questionnaire.
-  $("#submit-questionnaire").click(function() {
-    dallinger.submitResponses();
-  });
 });
 
 // Create the agent.
