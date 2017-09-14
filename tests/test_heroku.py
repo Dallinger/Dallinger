@@ -29,9 +29,15 @@ def run_check():
 
 
 @pytest.fixture
-def subproc():
-    with mock.patch('dallinger.heroku.tools.subprocess') as sp:
-        yield sp
+def check_call():
+    with mock.patch('dallinger.heroku.tools.check_call') as check_call:
+        yield check_call
+
+
+@pytest.fixture
+def check_output():
+    with mock.patch('dallinger.heroku.tools.check_output') as check_output:
+        yield check_output
 
 
 class TestHeroku(object):
@@ -328,16 +334,16 @@ class TestHerokuUtilFunctions(object):
         from dallinger.heroku import tools
         return tools
 
-    def test_auth_token(self, heroku, subproc):
-        subproc.check_output.return_value = 'some response '
+    def test_auth_token(self, heroku, check_output):
+        check_output.return_value = 'some response '
         assert heroku.auth_token() == u'some response'
 
-    def test_log_in_ok(self, heroku, subproc):
-        subproc.check_output.return_value = 'all good'
+    def test_log_in_ok(self, heroku, check_output):
+        check_output.return_value = 'all good'
         heroku.log_in()
 
-    def test_log_in_fails(self, heroku, subproc):
-        subproc.check_output.side_effect = Exception('boom!')
+    def test_log_in_fails(self, heroku, check_output):
+        check_output.side_effect = Exception('boom!')
         with pytest.raises(Exception) as excinfo:
             heroku.log_in()
         assert excinfo.match('You are not logged into Heroku.')
@@ -380,34 +386,34 @@ class TestHerokuApp(object):
     def test_dashboard_url(self, app):
         assert app.dashboard_url == u'https://dashboard.heroku.com/apps/dlgr-fake-uid'
 
-    def test_bootstrap_creates_app_with_team(self, app, subproc):
+    def test_bootstrap_creates_app_with_team(self, app, check_call):
         app.team = 'some-team'
         app.bootstrap()
-        subproc.check_call.assert_has_calls([
+        check_call.assert_has_calls([
             mock.call(['heroku', 'apps:create', 'dlgr-fake-uid', '--buildpack',
                        'https://github.com/thenovices/heroku-buildpack-scipy',
                        '--org', 'some-team'], stdout=None),
         ])
 
-    def test_bootstrap_sets_hostname(self, app, subproc):
+    def test_bootstrap_sets_hostname(self, app, check_call):
         app.team = 'some-team'
         app.bootstrap()
-        subproc.check_call.assert_has_calls([
+        check_call.assert_has_calls([
             mock.call(['heroku', 'config:set',
                        'HOST=https://dlgr-fake-uid.herokuapp.com',
                        '--app', 'dlgr-fake-uid'], stdout=None)
         ])
 
-    def test_addon(self, app, subproc):
+    def test_addon(self, app, check_call):
         app.addon('some-fake-addon')
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             ["heroku", "addons:create", "some-fake-addon", "--app", app.name],
             stdout=None
         )
 
-    def test_addon_destroy(self, app, subproc):
+    def test_addon_destroy(self, app, check_call):
         app.addon_destroy('some-fake-addon')
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             [
                 "heroku",
                 "addons:destroy", 'some-fake-addon',
@@ -417,90 +423,90 @@ class TestHerokuApp(object):
             stdout=None
         )
 
-    def test_buildpack(self, app, subproc):
+    def test_buildpack(self, app, check_call):
         app.buildpack('some-fake-buildpack')
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             ["heroku", "buildpacks:add", "some-fake-buildpack", "--app", app.name],
             stdout=None
         )
 
-    def test_db_uri(self, app, subproc):
-        subproc.check_output.return_value = 'blahblahpostgres://foobar'
+    def test_db_uri(self, app, check_output):
+        check_output.return_value = 'blahblahpostgres://foobar'
         assert app.db_uri == u'postgres://foobar'
 
-    def test_db_uri_raises_if_no_match(self, app, subproc):
-        subproc.check_output.return_value = '└─ as DATABASE on ⬢ dlgr-da089b8f app'
+    def test_db_uri_raises_if_no_match(self, app, check_output):
+        check_output.return_value = '└─ as DATABASE on ⬢ dlgr-da089b8f app'
         with pytest.raises(NameError) as excinfo:
             app.db_uri
             assert excinfo.match("Could not retrieve the DB URI")
 
-    def test_db_url(self, app, subproc):
-        subproc.check_output.return_value = 'some url    '
+    def test_db_url(self, app, check_output, check_call):
+        check_output.return_value = 'some url    '
         assert app.db_url == u'some url'
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             ["heroku", "pg:wait", "--app", app.name],
             stdout=None
         )
 
-    def test_backup_capture(self, app, subproc):
+    def test_backup_capture(self, app, check_call):
         app.backup_capture()
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             ["heroku", "pg:backups:capture", "--app", app.name],
             stdout=None, stderr=None
         )
 
-    def test_backup_download(self, app, subproc):
+    def test_backup_download(self, app, check_call):
         app.backup_download()
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             ["heroku", "pg:backups:download", "--app", app.name],
             stdout=None, stderr=None
         )
 
-    def test_destroy(self, app, subproc):
-        subproc.check_output.return_value = 'some response message'
+    def test_destroy(self, app, check_output):
+        check_output.return_value = 'some response message'
         assert app.destroy() == 'some response message'
-        subproc.check_output.assert_called_once_with(
+        check_output.assert_called_once_with(
             ["heroku", "apps:destroy", "--app", app.name, "--confirm", app.name],
         )
 
-    def test_get(self, app, subproc):
-        subproc.check_output.return_value = 'some value'
+    def test_get(self, app, check_output):
+        check_output.return_value = 'some value'
         assert app.get('some key') == u'some value'
-        subproc.check_output.assert_called_once_with(
+        check_output.assert_called_once_with(
             ["heroku", "config:get", "some key", "--app", app.name],
         )
 
-    def test_open_logs(self, app, subproc):
+    def test_open_logs(self, app, check_call):
         app.open_logs()
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             ["heroku", "addons:open", "papertrail", "--app", app.name],
             stdout=None
         )
 
-    def test_pg_pull(self, app, subproc):
+    def test_pg_pull(self, app, check_call):
         app.pg_pull()
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             ["heroku", "pg:pull", "DATABASE_URL", app.name, "--app", app.name],
             stdout=None
         )
 
-    def test_pg_wait(self, app, subproc):
+    def test_pg_wait(self, app, check_call):
         app.pg_wait()
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             ["heroku", "pg:wait", "--app", app.name],
             stdout=None
         )
 
-    def test_redis_url(self, app, subproc):
-        subproc.check_output.return_value = 'some url'
+    def test_redis_url(self, app, check_output):
+        check_output.return_value = 'some url'
         assert app.redis_url == u'some url'
-        subproc.check_output.assert_called_once_with(
+        check_output.assert_called_once_with(
             ["heroku", "config:get", "REDIS_URL", "--app", app.name],
         )
 
-    def test_restore(self, app, subproc):
+    def test_restore(self, app, check_call):
         app.restore('some url')
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             [
                 "heroku",
                 "pg:backups:restore",
@@ -514,9 +520,9 @@ class TestHerokuApp(object):
             stdout=None
         )
 
-    def test_scale_up_dyno(self, app, subproc):
+    def test_scale_up_dyno(self, app, check_call):
         app.scale_up_dyno('some process', quantity=1, size='free')
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             [
                 "heroku",
                 "ps:scale",
@@ -527,9 +533,9 @@ class TestHerokuApp(object):
             stdout=None
         )
 
-    def test_scale_down_dyno(self, app, subproc):
+    def test_scale_down_dyno(self, app, check_call):
         app.scale_down_dyno('some process')
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             [
                 "heroku",
                 "ps:scale",
@@ -540,9 +546,9 @@ class TestHerokuApp(object):
             stdout=None
         )
 
-    def test_set(self, app, subproc):
+    def test_set(self, app, check_call):
         app.set('some key', 'some value')
-        subproc.check_call.assert_called_once_with(
+        check_call.assert_called_once_with(
             [
                 "heroku",
                 "config:set",
@@ -553,13 +559,13 @@ class TestHerokuApp(object):
             stdout=None
         )
 
-    def test_set_called_with_nonsensitive_key_uses_stdoutput(self, app, subproc):
+    def test_set_called_with_nonsensitive_key_uses_stdoutput(self, app, check_call):
         app.set('some_nonsensitive_key', 'some value')
-        assert subproc.check_call.call_args_list[0][-1]['stdout'] is app.out
+        assert check_call.call_args_list[0][-1]['stdout'] is app.out
 
-    def test_set_called_with_sensitive_key_suppresses_stdoutput(self, app, subproc):
+    def test_set_called_with_sensitive_key_suppresses_stdoutput(self, app, check_call):
         app.set('aws_secret_access_key', 'some value')
-        assert subproc.check_call.call_args_list[0][-1]['stdout'] is app.out_muted
+        assert check_call.call_args_list[0][-1]['stdout'] is app.out_muted
 
     @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
                         reason="--heroku was not specified")
