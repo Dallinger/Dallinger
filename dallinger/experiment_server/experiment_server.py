@@ -705,7 +705,7 @@ def node_neighbors(node_id):
     making the request and returns a list of descriptions of
     the nodes (even if there is only one).
     Required arguments: participant_id, node_id
-    Optional arguments: type, failed, connection
+    Optional arguments: type, connection
 
     After getting the neighbours it also calls
     exp.node_get_request()
@@ -716,11 +716,11 @@ def node_neighbors(node_id):
     node_type = request_parameter(parameter="node_type",
                                   parameter_type="known_class",
                                   default=models.Node)
+    connection = request_parameter(parameter="connection", default="to")
     failed = request_parameter(parameter="failed",
                                parameter_type="bool",
-                               default=False)
-    connection = request_parameter(parameter="connection", default="to")
-    for x in [node_type, failed, connection]:
+                               optional=True)
+    for x in [node_type, connection]:
         if type(x) == Response:
             return x
 
@@ -729,23 +729,28 @@ def node_neighbors(node_id):
     if node is None:
         return error_response(
             error_type="/node/neighbors, node does not exist",
-            error_text="/node/{}/neighbors, node {} does not exist"
+            error_text="/node/{0}/neighbors, node {0} does not exist"
             .format(node_id))
 
     # get its neighbors
-    nodes = node.neighbours(
-        type=node_type,
-        failed=failed,
-        connection=connection)
+    if failed is not None:
+        # This will always raise because "failed" is not a supported parameter.
+        # We just want to pass the exception message back in the response:
+        try:
+            node.neighbors(type=node_type, direction=connection, failed=failed)
+        except Exception as e:
+            return error_response(error_type='node.neighbors', error_text=e.message)
 
-    try:
-        # ping the experiment
-        exp.node_get_request(
-            node=node,
-            nodes=nodes)
-        session.commit()
-    except Exception:
-        return error_response(error_type="exp.node_get_request")
+    else:
+        nodes = node.neighbors(type=node_type, direction=connection)
+        try:
+            # ping the experiment
+            exp.node_get_request(
+                node=node,
+                nodes=nodes)
+            session.commit()
+        except Exception:
+            return error_response(error_type="exp.node_get_request")
 
     return success_response(nodes=[n.__json__() for n in nodes])
 
@@ -765,8 +770,7 @@ def create_node(participant_id):
 
     # Get the participant.
     try:
-        participant = models.Participant.\
-            query.filter_by(id=participant_id).one()
+        participant = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
         return error_response(error_type="/node POST no participant found",
                               status=403)
@@ -779,19 +783,12 @@ def create_node(participant_id):
 
     # execute the request
     network = exp.get_network_for_participant(participant=participant)
-
     if network is None:
         return Response(dumps({"status": "error"}), status=403)
 
-    node = exp.create_node(
-        participant=participant,
-        network=network)
-
+    node = exp.create_node(participant=participant, network=network)
     assign_properties(node)
-
-    exp.add_node_to_network(
-        node=node,
-        network=network)
+    exp.add_node_to_network(node=node, network=network)
 
     # ping the experiment
     exp.node_post_request(participant=participant, node=node)
@@ -1204,18 +1201,20 @@ def transformation_get(node_id):
     node = models.Node.query.get(node_id)
     if node is None:
         return error_response(
-            error_type="/node/transformations, node does not exist")
+            error_type="/node/transformations, "
+            "node {} does not exist".format(node_id)
+        )
 
     # execute the request
     transformations = node.transformations(
-        transformation_type=transformation_type)
+        type=transformation_type)
     try:
         # ping the experiment
         exp.transformation_get_request(node=node,
                                        transformations=transformations)
         session.commit()
     except Exception:
-        return error_response(error_type="/node/tranaformations GET failed",
+        return error_response(error_type="/node/transformations GET failed",
                               participant=node.participant)
 
     # return the data
@@ -1244,18 +1243,24 @@ def transformation_post(node_id, info_in_id, info_out_id):
     node = models.Node.query.get(node_id)
     if node is None:
         return error_response(
-            error_type="/transformation POST, node does not exist")
+            error_type="/transformation POST, "
+            "node {} does not exist".format(node_id)
+        )
 
     info_in = models.Info.query.get(info_in_id)
     if info_in is None:
         return error_response(
-            error_type="/transformation POST, info_in does not exist",
+            error_type="/transformation POST, info_in {} does not exist".format(
+                info_in_id
+            ),
             participant=node.participant)
 
     info_out = models.Info.query.get(info_out_id)
     if info_out is None:
         return error_response(
-            error_type="/transformation POST, info_out does not exist",
+            error_type="/transformation POST, info_out {} does not exist".format(
+                info_out_id
+            ),
             participant=node.participant)
 
     try:
@@ -1270,7 +1275,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
                                         transformation=transformation)
         session.commit()
     except Exception:
-        return error_response(error_type="/tranaformation POST failed",
+        return error_response(error_type="/transformation POST failed",
                               participant=node.participant)
 
     # return the data
