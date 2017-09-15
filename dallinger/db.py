@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from functools import wraps
 import logging
 import os
+import sys
 
 from psycopg2.extensions import TransactionRollbackError
 from sqlalchemy import create_engine
@@ -25,6 +26,26 @@ session = scoped_session(sessionmaker(autocommit=False,
 
 Base = declarative_base()
 Base.query = session.query_property()
+
+
+db_user_warning = """
+*********************************************************
+*********************************************************
+
+
+Dallinger now requires a database user named "dallinger".
+
+Run:
+
+    createuser -P dallinger --createdb
+
+Consult the developer guide for more information.
+
+
+*********************************************************
+*********************************************************
+
+"""
 
 
 @contextmanager
@@ -74,23 +95,7 @@ def init_db(drop_all=False):
     except OperationalError as err:
         msg = 'password authentication failed for user "dallinger"'
         if msg in err.message:
-            print
-            print '*' * 60
-            print '*' * 60
-            print '*' * 60
-            print
-            print 'Dallinger now requires a database user named "dallinger".'
-            print
-            print 'Run:'
-            print
-            print '    createuser -P dallinger --createdb'
-            print
-            print 'Consult the developer guide for more information.'
-            print
-            print '*' * 60
-            print '*' * 60
-            print '*' * 60
-            print
+            sys.stderr.write(db_user_warning)
         raise
 
     return session
