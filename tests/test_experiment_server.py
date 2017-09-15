@@ -518,6 +518,98 @@ class TestNodeRouteGET(object):
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestParticipantNodeCreationRoute(object):
+
+    def test_with_invalid_participant_id_returns_error(self, webapp):
+        resp = webapp.post('/node/123')
+        assert resp.status_code == 403
+        assert '/node POST no participant found' in resp.data
+
+    def test_with_valid_participant_creates_participant_node(self, a, webapp):
+        participant_id = a.participant().id
+        resp = webapp.post('/node/{}'.format(participant_id))
+        data = json.loads(resp.data)
+        assert data.get('node').get('participant_id') == participant_id
+
+    def test_with_valid_participant_adds_node_to_network(self, a, webapp):
+        from dallinger.networks import Star
+        participant_id = a.participant().id
+        resp = webapp.post('/node/{}'.format(participant_id))
+        data = json.loads(resp.data)
+        assert Star.query.one().nodes()[0].id == data['node']['network_id']
+
+    def test_participant_status_not_working_returns_error(self, a, webapp):
+        participant = a.participant()
+        participant.status = 'submitted'
+        resp = webapp.post('/node/{}'.format(participant.id))
+        assert 'Error type: /node POST, status = submitted' in resp.data
+
+    def test_no_network_for_participant_returns_error(self, a, webapp):
+        participant = a.participant()
+        # Assign the participant to a node and fill the network:
+        a.node(participant=participant, network=a.star_network(max_size=1))
+        resp = webapp.post('/node/{}'.format(participant.id))
+        assert resp.data == '{"status": "error"}'
+
+
+@pytest.mark.usefixtures('experiment_dir')
+class TestRequestParameter(object):
+
+    @pytest.fixture
+    def rp(self):
+        from dallinger.experiment_server.experiment_server import request_parameter
+        return request_parameter
+
+    def test_returns_existing_simple_param(self, test_request, rp):
+        with test_request('/robots.txt?foo=bar'):
+            assert rp('foo') == 'bar'
+
+    def test_returns_default_for_missing_param(self, test_request, rp):
+        with test_request('/robots.txt'):
+            assert rp('foo', default='bar') == 'bar'
+
+    def test_returns_none_for_missing_optional_param(self, test_request, rp):
+        with test_request('/robots.txt'):
+            assert rp('foo', optional=True) is None
+
+    def test_returns_error_for_missing_param_with_no_default(self, test_request, rp):
+        with test_request('/robots.txt'):
+            assert 'foo not specified' in rp('foo').data
+
+    def test_marshalls_based_on_parameter_type(self, test_request, rp):
+        with test_request('/robots.txt?foo=1'):
+            assert rp('foo', parameter_type='int') == 1
+
+    def test_failure_marshalling_type_returns_error(self, test_request, rp):
+        with test_request('/robots.txt?foo=bar'):
+            assert 'non-numeric foo: bar' in rp('foo', parameter_type='int').data
+
+    def test_returns_class_objects_for_experiment_known_classes(self, test_request, rp):
+        with test_request('/robots.txt?foo=Info'):
+            assert rp('foo', parameter_type='known_class') == models.Info
+
+    def test_returns_error_for_nonexistent_known_class(self, test_request, rp):
+        with test_request('/robots.txt?foo=BadClass'):
+            result = rp('foo', parameter_type='known_class')
+            assert 'unknown_class: BadClass' in result.data
+
+    def test_marshalls_valid_boolean_strings(self, test_request, rp):
+        with test_request('/robots.txt?foo=True'):
+            result = rp('foo', parameter_type='bool')
+            assert isinstance(result, bool)
+
+    def test_returns_error_for_invalid_boolean_strings(self, test_request, rp):
+        with test_request('/robots.txt?foo=BadBool'):
+            result = rp('foo', parameter_type='bool')
+            assert 'non-boolean foo: BadBool' in result.data
+
+    def test_returns_error_for_unknown_parameter_type(self, test_request, rp):
+        with test_request('/robots.txt?foo=True'):
+            result = rp('foo', parameter_type='bad_type')
+            assert 'unknown parameter type: bad_type' in result.data
+
+
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestNodeRoutePOST(object):
 
     def test_node_transmit_info_creates_transmission(self, a, webapp, db_session):
@@ -586,6 +678,156 @@ class TestNodeRoutePOST(object):
         data = json.loads(resp.data)
         assert data['status'] == 'error'
         assert 'recipient Node does not exist' in data['html']
+
+
+@pytest.mark.usefixtures('experiment_dir')
+class TestNodeNeighbors(object):
+
+    def test_returns_error_on_invalid_paramter(self, webapp):
+        resp = webapp.get('/node/123/neighbors?node_type=BadClass')
+        assert 'unknown_class: BadClass for parameter node_type' in resp.data
+
+    def test_returns_error_for_invalid_node_id(self, webapp):
+        resp = webapp.get('/node/123/neighbors')
+        assert 'node 123 does not exist' in resp.data
+
+    def test_includes_failed_param_if_request_includes_it(self, a, webapp):
+        node = a.node()
+        resp = webapp.get('/node/{}/neighbors?failed=False'.format(node.id))
+        assert 'You should not pass a failed argument to neighbors().' in resp.data
+
+    def test_finds_neighbor_nodes(self, a, webapp):
+        network = a.network()
+        node1 = a.node(network=network)
+        node2 = a.node(network=network)
+        node1.connect(node2)
+
+        resp = webapp.get('/node/{}/neighbors'.format(node1.id))
+        data = json.loads(resp.data)
+        assert data['nodes'][0]['id'] == node2.id
+
+    def test_pings_experiment(self, a, webapp):
+        node = a.node()
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_class.return_value = mock_exp
+            webapp.get('/node/{}/neighbors'.format(node.id))
+            mock_exp.node_get_request.assert_called_once_with(
+                node=node,
+                nodes=[]
+            )
+
+    def test_returns_error_if_experiment_ping_fails(self, a, webapp):
+        node = a.node()
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.node_get_request.side_effect = Exception("boom!")
+            mock_class.return_value = mock_exp
+            resp = webapp.get('/node/{}/neighbors'.format(node.id))
+
+        assert 'exp.node_get_request' in resp.data
+
+
+@pytest.mark.usefixtures('experiment_dir')
+class TestTransformationGet(object):
+
+    def test_returns_error_on_invalid_paramter(self, webapp):
+        resp = webapp.get('/node/123/transformations?transformation_type=BadClass')
+        assert 'unknown_class: BadClass for parameter transformation_type' in resp.data
+
+    def test_returns_error_for_invalid_node_id(self, webapp):
+        resp = webapp.get('/node/123/transformations')
+        assert 'node 123 does not exist' in resp.data
+
+    def test_finds_transformations(self, a, webapp):
+        node = a.node()
+        node_id = node.id  # save so we don't have to merge sessions
+        node.replicate(a.info(origin=node))
+
+        resp = webapp.get(
+            '/node/{}/transformations?transformation_type=Replication'.format(node_id)
+        )
+        data = json.loads(resp.data)
+        assert data['transformations'][0]['node_id'] == node_id
+
+    def test_pings_experiment(self, a, webapp):
+        node = a.node()
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_class.return_value = mock_exp
+            webapp.get('/node/{}/transformations'.format(node.id))
+            mock_exp.transformation_get_request.assert_called_once_with(
+                node=node,
+                transformations=[]
+            )
+
+    def test_returns_error_if_experiment_ping_fails(self, a, webapp):
+        node = a.node()
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.transformation_get_request.side_effect = Exception("boom!")
+            mock_class.return_value = mock_exp
+            resp = webapp.get('/node/{}/transformations'.format(node.id))
+        assert '/node/transformations GET failed' in resp.data
+
+
+@pytest.mark.usefixtures('experiment_dir')
+class TestTransformationPost(object):
+
+    def test_returns_error_on_invalid_paramter(self, webapp):
+        resp = webapp.post('/transformation/123/123/123?transformation_type=BadClass')
+        assert 'unknown_class: BadClass for parameter transformation_type' in resp.data
+
+    def test_returns_error_for_invalid_node_id(self, webapp):
+        resp = webapp.post('/transformation/123/123/123')
+        assert 'node 123 does not exist' in resp.data
+
+    def test_returns_error_for_invalid_info_in_id(self, a, webapp):
+        node = a.node()
+        resp = webapp.post('/transformation/{}/123/123'.format(node.id))
+        assert 'info_in 123 does not exist' in resp.data
+
+    def test_returns_error_for_invalid_info_out_id(self, a, webapp):
+        node = a.node()
+        info = a.info(origin=node)
+        resp = webapp.post('/transformation/{}/{}/123'.format(node.id, info.id))
+        assert 'info_out 123 does not exist' in resp.data
+
+    def test_creates_transformation(self, a, webapp):
+        node = a.node()
+        info_in = a.info(origin=node)
+        info_out = a.info(origin=node)
+        info_out_id = info_out.id  # save to avoid merging sessions
+        resp = webapp.post(
+            '/transformation/{}/{}/{}'.format(node.id, info_in.id, info_out.id)
+        )
+        data = json.loads(resp.data)
+        assert data['transformation']['info_out_id'] == info_out_id
+
+    def test_pings_experiment(self, a, webapp):
+        node = a.node()
+        info_in = a.info(origin=node)
+        info_out = a.info(origin=node)
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_class.return_value = mock_exp
+            webapp.post(
+                '/transformation/{}/{}/{}'.format(node.id, info_in.id, info_out.id)
+            )
+            mock_exp.transformation_post_request.assert_called()
+
+    def test_returns_error_if_experiment_ping_fails(self, a, webapp):
+        node = a.node()
+        info_in = a.info(origin=node)
+        info_out = a.info(origin=node)
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.transformation_post_request.side_effect = Exception("boom!")
+            mock_class.return_value = mock_exp
+            resp = webapp.post(
+                '/transformation/{}/{}/{}'.format(node.id, info_in.id, info_out.id)
+            )
+        assert '/transformation POST failed' in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir')
