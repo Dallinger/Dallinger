@@ -34,7 +34,7 @@ install:
 - gem install chandler
 before_script:
 - bundle exec danger
-- createuser dallinger
+- createuser dallinger --createdb
 - createdb -O dallinger dallinger
 env:
   global:
