@@ -1,15 +1,17 @@
 from __future__ import unicode_literals
 
 import os
+import mock
 from tempfile import NamedTemporaryFile
 
-from pytest import raises
 import pexpect
+import pytest
 
 from dallinger.config import Configuration
 from dallinger.config import get_config, LOCAL_CONFIG
 
 
+@pytest.mark.usefixtures('experiment_dir')
 class TestConfiguration(object):
 
     def test_register_new_variable(self):
@@ -22,18 +24,18 @@ class TestConfiguration(object):
     def test_register_duplicate_variable_raises(self):
         config = Configuration()
         config.register('num_participants', int)
-        with raises(KeyError):
+        with pytest.raises(KeyError):
             config.register('num_participants', int)
 
     def test_register_unknown_type_raises(self):
         config = Configuration()
-        with raises(TypeError):
+        with pytest.raises(TypeError):
             config.register('num_participants', object)
 
     def test_type_mismatch(self):
         config = Configuration()
         config.register('num_participants', int)
-        with raises(TypeError):
+        with pytest.raises(TypeError):
             config.extend({'num_participants': 1.0})
 
     def test_type_mismatch_with_cast_types(self):
@@ -47,14 +49,14 @@ class TestConfiguration(object):
         config = Configuration()
         config.register('num_participants', int)
         config.ready = True
-        with raises(TypeError):
+        with pytest.raises(TypeError):
             config.extend({'num_participants': 'A NUMBER'}, cast_types=True)
 
     def test_get_before_ready_is_not_possible(self):
         config = Configuration()
         config.register('num_participants', int)
         config.extend({'num_participants': 1})
-        with raises(RuntimeError):
+        with pytest.raises(RuntimeError):
             config.get('num_participants', 1)
 
     def test_layering_of_configs(self):
@@ -86,7 +88,7 @@ class TestConfiguration(object):
         config = Configuration()
         config.register('num_participants', int)
         config.ready = True
-        with raises(KeyError):
+        with pytest.raises(KeyError):
             config.get('num_participants')
 
     def test_get_has_default_value(self):
@@ -120,7 +122,7 @@ class TestConfiguration(object):
         config = Configuration()
         config.register('num_participants', int)
         config.ready = True
-        with raises(KeyError):
+        with pytest.raises(KeyError):
             config.extend({'unknown_key': 1}, strict=True)
 
     def test_setting_values_supports_synonyms(self):
@@ -158,7 +160,6 @@ worldwide = false
         assert config.get('num_participants') == 1
 
     def test_experiment_defined_parameters(self):
-        os.chdir('tests/experiment')
         try:
             python = pexpect.spawn("python")
             python.read_nonblocking(10000)
@@ -171,60 +172,35 @@ worldwide = false
         finally:
             python.sendcontrol('d')
             python.read()
-            os.chdir('../..')
 
     def test_reload_config(self):
         # replicate the experiment API runner config loading
         config = get_config()
-        os.chdir('tests/experiment')
-        try:
-            config.register_extra_parameters()
-            config.load_from_file(LOCAL_CONFIG)
-            # Failse with _reset()
-            config.clear()
-            config.register_extra_parameters()
-            config.load_from_file(LOCAL_CONFIG)
-        finally:
-            os.chdir('../..')
+        config.register_extra_parameters()
+        config.load_from_file(LOCAL_CONFIG)
+        # Failse with _reset()
+        config.clear()
+        config.register_extra_parameters()
+        config.load_from_file(LOCAL_CONFIG)
 
     def test_local_base_url(self):
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
-        os.chdir('tests/experiment')
-        try:
-            config.register_extra_parameters()
-            config.load_from_file(LOCAL_CONFIG)
-            config.set(u'host', u'localhost')
-            config.set(u'base_port', 5000)
-            assert(get_base_url() == 'http://localhost:5000')
-        finally:
-            os.chdir('../..')
+        config.set(u'host', u'localhost')
+        config.set(u'base_port', 5000)
+        assert(get_base_url() == 'http://localhost:5000')
 
+    @mock.patch.dict(os.environ, {'HOST': 'https://dlgr-bogus.herokuapp.com'})
     def test_remote_base_url(self):
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
-        orig_host = os.environ.get('HOST')
-        try:
-            os.environ['HOST'] = 'https://dlgr-bogus.herokuapp.com'
-            assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
-        finally:
-            if orig_host:
-                os.environ['HOST'] = orig_host
-            else:
-                del os.environ['HOST']
+        assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
 
+    @mock.patch.dict(os.environ, {'HOST': 'http://dlgr-bogus.herokuapp.com'})
     def test_remote_base_url_always_ssl(self):
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
-        orig_host = os.environ.get('HOST')
-        try:
-            os.environ['HOST'] = 'http://dlgr-bogus.herokuapp.com'
-            assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
-        finally:
-            if orig_host:
-                os.environ['HOST'] = orig_host
-            else:
-                del os.environ['HOST']
+        assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
