@@ -9,7 +9,12 @@ def get_base_url():
     config = get_config()
     host = os.getenv('HOST', config.get('host'))
     if 'herokuapp.com' in host:
-        base_url = "https://{}".format(host)
+        if host.startswith('https://'):
+            base_url = host
+        elif host.startswith('http://'):
+            base_url = host.replace('http://', 'https://')
+        else:
+            base_url = "https://{}".format(host)
     else:
         # debug mode
         base_port = config.get('base_port')
