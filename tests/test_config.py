@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 import os
-import mock
 from tempfile import NamedTemporaryFile
 
 import pexpect
@@ -191,16 +190,16 @@ worldwide = false
         config.set(u'base_port', 5000)
         assert(get_base_url() == 'http://localhost:5000')
 
-    @mock.patch.dict(os.environ, {'HOST': 'https://dlgr-bogus.herokuapp.com'})
     def test_remote_base_url(self):
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
+        config.set(u'host', u'https://dlgr-bogus.herokuapp.com')
         assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
 
-    @mock.patch.dict(os.environ, {'HOST': 'http://dlgr-bogus.herokuapp.com'})
     def test_remote_base_url_always_ssl(self):
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
+        config.set(u'host', u'http://dlgr-bogus.herokuapp.com')
         assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
