@@ -26,7 +26,10 @@ class HerokuApp(object):
 
     @property
     def sys_encoding(self):
-        # Encoding of strings returned from subprocess calls
+        # Encoding of strings returned from subprocess calls. The Click
+        # library overwrites sys.stdout in the context of its commands,
+        # so we need a fallback, which could possibly just be 'utf-8' instead
+        # of getdefaultencoding().
         if hasattr(sys.stdout, 'encoding'):
             return sys.stdout.encoding
 
