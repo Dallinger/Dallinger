@@ -82,7 +82,7 @@ class HerokuApp(object):
         """The connection URL for the remote database. For example:
         postgres://some-long-uid@ec2-52-7-232-59.compute-1.amazonaws.com:5432/d5fou154it1nvt
         """
-        output = self.get("DATABASE", subcommand="pg:credentials")
+        output = self.get("DATABASE", subcommand="pg:credentials:url")
         match = re.search('(postgres://.*)$', output)
         if match is None:
             raise NameError(
