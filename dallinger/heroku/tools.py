@@ -23,8 +23,14 @@ class HerokuApp(object):
         self.dallinger_uid = dallinger_uid
         self.out = output
         self.team = team
-        # Encoding of strings returned from subprocess calls:
-        self.sys_encoding = sys.stdout.encoding
+
+    @property
+    def sys_encoding(self):
+        # Encoding of strings returned from subprocess calls
+        if hasattr(sys.stdout, 'encoding'):
+            return sys.stdout.encoding
+
+        return sys.getdefaultencoding()
 
     def bootstrap(self):
         """Creates the heroku app and local git remote. Call this once you're
