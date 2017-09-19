@@ -428,6 +428,12 @@ class TestHerokuApp(object):
         subproc.check_output.return_value = 'blahblahpostgres://foobar'
         assert app.db_uri == u'postgres://foobar'
 
+    def test_db_uri_raises_if_no_match(self, app, subproc):
+        subproc.check_output.return_value = '└─ as DATABASE on ⬢ dlgr-da089b8f app'
+        with pytest.raises(NameError) as excinfo:
+            app.db_uri
+            assert excinfo.match("Could not retrieve the DB URI")
+
     def test_db_url(self, app, subproc):
         subproc.check_output.return_value = 'some url    '
         assert app.db_url == u'some url'
