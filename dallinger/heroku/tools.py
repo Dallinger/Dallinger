@@ -30,7 +30,7 @@ class HerokuApp(object):
         # library overwrites sys.stdout in the context of its commands,
         # so we need a fallback, which could possibly just be 'utf-8' instead
         # of getdefaultencoding().
-        return getattr(sys.stdout.encoding, sys.getdefaultencoding())
+        return getattr(sys.stdout, 'encoding', sys.getdefaultencoding())
 
     def bootstrap(self):
         """Creates the heroku app and local git remote. Call this once you're
