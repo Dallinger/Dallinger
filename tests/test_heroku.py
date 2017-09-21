@@ -557,7 +557,7 @@ class TestHerokuApp(object):
         app.set('some_nonsensitive_key', 'some value')
         assert subproc.check_call.call_args_list[0][-1]['stdout'] is app.out
 
-    def test_set_called_with_sensitive_key_surpresses_stdoutput(self, app, subproc):
+    def test_set_called_with_sensitive_key_suppresses_stdoutput(self, app, subproc):
         app.set('aws_secret_access_key', 'some value')
         assert subproc.check_call.call_args_list[0][-1]['stdout'] is app.out_muted
 
