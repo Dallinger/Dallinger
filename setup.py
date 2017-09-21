@@ -31,6 +31,7 @@ setup_args = dict(
     },
     extras_require={
         'data': [
+            "networkx==1.11",
             "odo==0.5.0",
             "tablib==0.11.3"
         ],
