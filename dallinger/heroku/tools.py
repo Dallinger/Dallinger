@@ -193,11 +193,7 @@ class HerokuApp(object):
             self._run(cmd)
 
     def _is_sensitive_key(self, key):
-        for sensitive in SENSITIVE_KEY_NAMES:
-            if sensitive in key:
-                return True
-
-        return False
+        return any([s in key for s in SENSITIVE_KEY_NAMES])
 
     def _run(self, cmd, pass_stderr=False):
         if pass_stderr:
