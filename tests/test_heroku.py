@@ -553,6 +553,14 @@ class TestHerokuApp(object):
             stdout=None
         )
 
+    def test_set_called_with_nonsensitive_key_uses_stdoutput(self, app, subproc):
+        app.set('some_nonsensitive_key', 'some value')
+        assert subproc.check_call.call_args_list[0][-1]['stdout'] is app.out
+
+    def test_set_called_with_sensitive_key_suppresses_stdoutput(self, app, subproc):
+        app.set('aws_secret_access_key', 'some value')
+        assert subproc.check_call.call_args_list[0][-1]['stdout'] is app.out_muted
+
     @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
                         reason="--heroku was not specified")
     def test_full_monty(self, full_app, temp_repo):
