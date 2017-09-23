@@ -109,9 +109,7 @@ ScribeDallingerTracker.prototype.tracker = function(info) {
       if (value.target.url.query.workerId) delete value.target.url.query.workerId;
     }
 
-    data.append('Event.1.EventType', 'TrackingEvent');
-    if (config.participant_id) data.append('participant_id', config.participant_id);
-    if (config.assignment_id) data.append('Event.1.AssignmentId', config.assignment_id);
+    data.append('info_type', 'TrackingEvent');
     data.append('details', JSON.stringify(value));
 
     var xhr = new XMLHttpRequest();
@@ -120,7 +118,7 @@ ScribeDallingerTracker.prototype.tracker = function(info) {
       xhr.addEventListener("error", info.failure);
       xhr.addEventListener("abort", info.failure);
     }
-    xhr.open('POST', config.base_url.replace(/\/$/, "") + '/notifications', true);
+    xhr.open('POST', config.base_url.replace(/\/$/, "") + '/info/' + dlgr.node_id, true);
     xhr.send(data);
   } else {
     if(info.failure) setTimeout(info.failure, 0);
@@ -167,9 +165,8 @@ if (window.getUrlParameter === undefined) {
       return participant_id === true ? null : participant_id;
   }
 
-  function getAssignmentId() {
-      var assignment_id = getUrlParameter("assignment_id");
-      return assignment_id === true ? null : assignment_id;
+  function getNodeId() {
+      return dlgr.node_id;
   }
 
   function getBaseUrl() {
@@ -180,7 +177,7 @@ if (window.getUrlParameter === undefined) {
   function configuredTracker() {
       return new ScribeDallinger.ScribeDallingerTracker({
           participant_id: getParticipantId(),
-          assignment_id: getAssignmentId(),
+          node_id: getNodeId(),
           base_url: getBaseUrl()
       });
   }

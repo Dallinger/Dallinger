@@ -1032,6 +1032,7 @@ def node_received_infos(node_id):
 
 
 @app.route("/info/<int:node_id>", methods=["POST"])
+@crossdomain(origin='*')
 def info_post(node_id):
     """Create an info.
 
@@ -1042,6 +1043,17 @@ def info_post(node_id):
     If info_type is a custom subclass of Info it must be
     added to the known_classes of the experiment class.
     """
+    details = request_parameter(parameter="details")
+    if details:
+        details = loads(details)
+
+    if request_parameter(parameter="info_type") == 'TrackingEvent':
+        db.logger.debug('rq: Queueing %s with for node: %s for worker_function',
+                        'TrackingEvent', node_id)
+        q.enqueue(worker_function, 'TrackingEvent', None, None,
+                  node_id=node_id, details=details)
+        return success_response()
+
     exp = Experiment(session)
 
     # get the parameters
@@ -1053,6 +1065,8 @@ def info_post(node_id):
         if type(x) == Response:
             return x
 
+    if details:
+        details = loads(details)
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
@@ -1060,7 +1074,7 @@ def info_post(node_id):
 
     try:
         # execute the request
-        info = info_type(origin=node, contents=contents)
+        info = info_type(origin=node, contents=contents, details=details)
         assign_properties(info)
 
         # ping the experiment
@@ -1325,15 +1339,12 @@ def api_notifications():
     event_type = request.values['Event.1.EventType']
     assignment_id = request.values.get('Event.1.AssignmentId')
     participant_id = request.values.get('participant_id')
-    details = request.values.get('details')
-    if details:
-        details = loads(details)
 
     # Add the notification to the queue.
     db.logger.debug('rq: Queueing %s with id: %s for worker_function',
                     event_type, assignment_id)
     q.enqueue(worker_function, event_type, assignment_id,
-              participant_id, details)
+              participant_id)
     db.logger.debug('rq: Submitted Queue Length: %d (%s)', len(q),
                     ', '.join(q.job_ids))
 
@@ -1441,7 +1452,7 @@ def _worker_failed(participant_id):
 
 
 @db.scoped_session_decorator
-def worker_function(event_type, assignment_id, participant_id, details=None):
+def worker_function(event_type, assignment_id, participant_id, node_id=None, details=None):
     """Process the notification."""
     try:
         db.logger.debug("rq: worker_function working on job id: %s",
@@ -1458,33 +1469,37 @@ def worker_function(event_type, assignment_id, participant_id, details=None):
             .format(event_type, assignment_id, participant_id), key)
 
     if event_type == 'TrackingEvent':
-        participant = None
-        if participant_id:
-            # Lookup assignment_id to create notifications
-            participant = models.Participant.query\
-                .filter_by(id=participant_id).all()[0]
-        elif assignment_id:
-            participants = models.Participant.query\
-                .filter_by(assignment_id=assignment_id)\
-                .all()
-            # if there are one or more participants select the most recent
-            if participants:
-                participant = max(participants,
-                                  key=attrgetter('creation_time'))
-                participant_id = participant.id
-        if not participant:
-            exp.log("Warning: No participant associated with this "
-                    "TrackingEvent notification.", key)
-            return
+        node = None
+        if node_id:
+            node = models.Node.query.filter_by(id=node_id).all()[0]
+        if not node:
+            participant = None
+            if participant_id:
+                # Lookup assignment_id to create notifications
+                participant = models.Participant.query\
+                    .filter_by(id=participant_id).all()[0]
+            elif assignment_id:
+                participants = models.Participant.query\
+                    .filter_by(assignment_id=assignment_id)\
+                    .all()
+                # if there are one or more participants select the most recent
+                if participants:
+                    participant = max(participants,
+                                      key=attrgetter('creation_time'))
+                    participant_id = participant.id
+            if not participant:
+                exp.log("Warning: No participant associated with this "
+                        "TrackingEvent notification.", key)
+                return
+            nodes = participant.nodes()
+            if not nodes:
+                exp.log("Warning: No node associated with this "
+                        "TrackingEvent notification.", key)
+                return
+            node = max(nodes, key=attrgetter('creation_time'))
 
         if not details:
             details = {}
-        nodes = participant.nodes()
-        if not nodes:
-            exp.log("Warning: No node associated with this "
-                    "TrackingEvent notification.", key)
-            return
-        node = max(nodes, key=attrgetter('creation_time'))
         info = information.TrackingEvent(origin=node, details=details)
         session.add(info)
         session.commit()

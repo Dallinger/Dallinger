@@ -31,9 +31,8 @@ if (window.getUrlParameter === undefined) {
       return participant_id === true ? null : participant_id;
   }
 
-  function getAssignmentId() {
-      var assignment_id = getUrlParameter("assignment_id");
-      return assignment_id === true ? null : assignment_id;
+  function getNodeId() {
+      return dlgr.node_id;
   }
 
   function getBaseUrl() {
@@ -44,7 +43,7 @@ if (window.getUrlParameter === undefined) {
   function configuredTracker() {
       return new ScribeDallinger.ScribeDallingerTracker({
           participant_id: getParticipantId(),
-          assignment_id: getAssignmentId(),
+          node_id: getNodeId(),
           base_url: getBaseUrl()
       });
   }
