@@ -6,9 +6,6 @@ var env = process.env.WEBPACK_ENV;
 var plugins = [];
 
 if (env === 'build') {
-  // set NODE_ENV=production in environment,
-  // which ends up reducing size of React
-  plugins.push(new webpack.DefinePlugin({'process.env': {'NODE_ENV': JSON.stringify('production')}}));
   // uglify code for production
   plugins.push(new UglifyJsPlugin({sourceMap: true}));
 } else {
