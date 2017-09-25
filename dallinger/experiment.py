@@ -1,5 +1,6 @@
 """The base experiment class."""
 
+from cached_property import cached_property
 from collections import Counter
 from functools import wraps
 import imp
@@ -15,6 +16,7 @@ import uuid
 
 from sqlalchemy import and_
 
+from dallinger import recruiters
 from dallinger.config import get_config, LOCAL_CONFIG
 from dallinger.data import Data
 from dallinger.data import export
@@ -130,36 +132,12 @@ class Experiment(object):
         """
         return []
 
-    @property
+    @cached_property
     def recruiter(self):
-        """Recruiter, the Dallinger class that recruits participants.
-        Default is HotAirRecruiter in debug mode and MTurkRecruiter in other modes.
-        If recruiter param in config is set, there can be other recuiters. This
-        last part could (should) be made pluggable.
+        """Reference to a Recruiter, the Dallinger class that recruits
+        participants.
         """
-        from dallinger.recruiters import HotAirRecruiter
-        from dallinger.recruiters import MTurkLargeRecruiter
-        from dallinger.recruiters import MTurkRecruiter
-        from dallinger.recruiters import BotRecruiter
-
-        config = get_config()
-        try:
-            debug_mode = config.get('mode', None) == 'debug'
-        except RuntimeError:
-            # Config not yet loaded
-            debug_mode = False
-
-        recruiter = config.get('recruiter', None)
-        if recruiter == 'bogus':
-            # For forcing failures in tests
-            raise NotImplementedError
-        if debug_mode and recruiter != 'bots':
-            return HotAirRecruiter
-        if recruiter == 'bots':
-            return BotRecruiter.from_current_config
-        if recruiter == 'mturklarge':
-            return MTurkLargeRecruiter.from_current_config
-        return MTurkRecruiter.from_current_config
+        return recruiters.from_config(get_config())
 
     def send(self, raw_message):
         """socket interface implementation, and point of entry for incoming
@@ -331,7 +309,7 @@ class Experiment(object):
         """
         if not self.networks(full=False):
             self.log("All networks full: closing recruitment", "-----")
-            self.recruiter().close_recruitment()
+            self.recruiter.close_recruitment()
 
     def log(self, text, key="?????", force=False):
         """Print a string to the logs."""

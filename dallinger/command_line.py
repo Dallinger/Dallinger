@@ -38,6 +38,7 @@ from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp
 from dallinger.mturk import MTurkService
+from dallinger import recruiters
 from dallinger import registration
 from dallinger.utils import generate_random_id
 from dallinger.utils import get_base_url
@@ -171,6 +172,7 @@ def verify_package(verbose=True):
         os.path.join("templates", "thanks.html"),
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "robots.txt")
     ]
@@ -325,6 +327,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     frontend_files = [
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "scripts", "reconnecting-websocket.js"),
         os.path.join("static", "scripts", "spin.min.js"),
@@ -333,6 +336,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("templates", "complete.html"),
         os.path.join("templates", "thanks.html"),
         os.path.join("templates", "waiting.html"),
+        os.path.join("templates", "base.html"),
         os.path.join("static", "robots.txt")
     ]
 
@@ -473,7 +477,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
         "whimsical": config["whimsical"],
     }
 
-    for k, v in heroku_config.items():
+    for k, v in sorted(heroku_config.items()):  # sorted for testablility
         heroku_app.set(k, v)
 
     # Wait for Redis database to be ready.
@@ -514,16 +518,17 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     time.sleep(8)
 
     # Launch the experiment.
-    log("Launching the experiment on MTurk...")
+    log("Launching the experiment on the remote server and starting recruitment...")
     launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url))
     result = {
         'app_name': heroku_app.name,
         'app_home': heroku_app.url,
-        'recruitment_url': launch_data.get('recruitment_url', None),
+        'recruitment_msg': launch_data.get('recruitment_msg', None),
     }
-    log("URLs:")
+    log("Experiment details:")
     log("App home: {}".format(result['app_home']), chevrons=False)
-    log("Initial recruitment: {}".format(result['recruitment_url']), chevrons=False)
+    log("Recruiter info:")
+    log(result['recruitment_msg'], chevrons=False)
 
     # Return to the branch whence we came.
     os.chdir(cwd)
@@ -768,8 +773,8 @@ class LocalSessionRunner(object):
 class DebugSessionRunner(LocalSessionRunner):
 
     dispatch = {
-        'New participant requested: (.*)$': 'new_recruit',
-        'Close recruitment.$': 'recruitment_closed',
+        '[^\"]{} (.*)$'.format(recruiters.NEW_RECRUIT_LOG_PREFIX): 'new_recruit',
+        '{}$'.format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): 'recruitment_closed',
     }
 
     def __init__(self, output, verbose, bot, proxy_port, exp_config):
@@ -790,8 +795,10 @@ class DebugSessionRunner(LocalSessionRunner):
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
         time.sleep(4)
-        _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
-        heroku.monitor(listener=self.notify)
+        result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
+        if result['status'] == 'success':
+            self.out.log(result['recruitment_msg'])
+            heroku.monitor(listener=self.notify)
 
     def cleanup(self):
         log("Completed debugging of experiment with id " + self.exp_id)

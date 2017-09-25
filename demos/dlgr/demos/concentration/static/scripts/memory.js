@@ -8,7 +8,7 @@
  * http://callmenick.com
  */
 
-;(function( window ) {
+(function(window) {
 
   'use strict';
 
@@ -31,7 +31,7 @@
    */
 
   function shuffle(o) {
-    for(var j, x, i = o.length; i; j = parseInt(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+    for(var j, x, i = o.length; i; j = parseInt(Math.random() * i, 10), x = o[--i], o[i] = o[j], o[j] = x);
     return o;
   }
 
@@ -295,7 +295,7 @@
     }
     this.newCards = shuffle(this.newCards);
     this.tilesHTML = '';
-    for ( var i = 0; i < this.numTiles; i++  ) {
+    for ( i = 0; i < this.numTiles; i++  ) {
       var n = i + 1;
       this.tilesHTML += '<div class="mg__tile mg__tile-' + n + '">\
         <div class="mg__tile--inner" data-id="' + this.newCards[i]["id"] + '">\
@@ -323,7 +323,7 @@
     for (var i = 0, len = tiles.length; i < len; i++) {
       var tile = tiles[i];
       this._gamePlayEvents(tile);
-    };
+    }
   };
 
   /**
@@ -351,7 +351,7 @@
           self.card2 = this;
           self.card2id = this.getAttribute("data-id");
           self.card2flipped = true;
-          if ( self.card1id == self.card2id ) {
+          if ( self.card1id === self.card2id ) {
             self._gameCardsMatch();
           } else {
             self._gameCardsMismatch();
@@ -388,7 +388,7 @@
       self.card2.classList.remove("correct");
       self._gameResetVars();
       self.flippedTiles = self.flippedTiles + 2;
-      if (self.flippedTiles == self.numTiles) {
+      if (self.flippedTiles === self.numTiles) {
         self._winGame();
       }
     }, 1500 );
@@ -397,11 +397,11 @@
     this._gameCounterPlusOne();
 
     createInfo("Info", JSON.stringify({
-        "event": "match",
-        "move": self.numMoves,
-        "card1": self.card1id,
-        "card2": self.card2id,
-        "time": Date.now(),
+      "event": "match",
+      "move": self.numMoves,
+      "card1": self.card1id,
+      "card2": self.card2id,
+      "time": Date.now()
     }));
   };
 
@@ -429,11 +429,11 @@
     this._gameCounterPlusOne();
 
     createInfo("Info", JSON.stringify({
-        "event": "mismatch",
-        "move": self.numMoves,
-        "card1": self.card1id,
-        "card2": self.card2id,
-        "time": Date.now(),
+      "event": "mismatch",
+      "move": self.numMoves,
+      "card1": self.card1id,
+      "card2": self.card2id,
+      "time": Date.now()
     }));
 
   };
@@ -492,8 +492,7 @@
    */
 
   Memory.prototype._winGame = function() {
-    allow_exit();
-    go_to_page('questionnaire');
+    dallinger.goToPage('questionnaire');
   };
 
   /**
@@ -516,4 +515,4 @@
 
   window.Memory = Memory;
 
-})( window );
+}(window));

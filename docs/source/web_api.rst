@@ -18,7 +18,7 @@ Miscellaneous routes
 
 Used to get the address of the experiment on the gunicorn server and to return
 participants to Mechanical Turk upon completion of the experiment. This route
-is pinged automatically by the function ``submitAssignment`` in dallinger.js.
+is pinged automatically by the function ``submitAssignment`` in dallinger2.js.
 
 ::
 

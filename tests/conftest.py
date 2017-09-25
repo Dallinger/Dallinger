@@ -2,6 +2,10 @@ import os
 import pytest
 import shutil
 import tempfile
+from dallinger import information
+from dallinger import models
+from dallinger import networks
+from dallinger import nodes
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -92,8 +96,121 @@ def env():
         shutil.rmtree(fake_home, ignore_errors=True)
 
 
+@pytest.fixture()
+def webapp(active_config):
+    from dallinger.experiment_server import sockets
+    app = sockets.app
+    app.config.update({'DEBUG': True, 'TESTING': True})
+    client = app.test_client()
+    yield client
+
+
+@pytest.fixture
+def test_request(webapp):
+    return webapp.application.test_request_context
+
+
+@pytest.fixture
+def a(db_session):
+    """ Provides a standard way of building model objects in tests.
+
+        def test_using_all_defaults(self, a):
+            assert a.info()
+
+        def test_with_participant_node(self, a):
+            participant = a.participant(worker_id=42)
+            info = a.info(origin=a.node(participant=participant))
+    """
+    class ModelFactory(object):
+
+        def __init__(self, db):
+            self.db = db
+
+        def agent(self, **kw):
+            defaults = {
+                'network': self.network
+            }
+            defaults.update(kw)
+            return self._build(nodes.Agent, defaults)
+
+        def info(self, **kw):
+            defaults = {
+                'origin': self.star_network,
+                'contents': None,
+            }
+
+            defaults.update(kw)
+            return self._build(models.Info, defaults)
+
+        def gene(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(information.Gene, defaults)
+
+        def meme(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(information.Meme, defaults)
+
+        def participant(self, **kw):
+            defaults = {
+                'worker_id': '1',
+                'assignment_id': '1',
+                'hit_id': '1',
+                'mode': 'test'
+            }
+            defaults.update(kw)
+            return self._build(models.Participant, defaults)
+
+        def network(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(models.Network, defaults)
+
+        def replicator(self, **kw):
+            defaults = {
+                'network': self.network
+            }
+            defaults.update(kw)
+            return self._build(nodes.ReplicatorAgent, defaults)
+
+        def star_network(self, **kw):
+            defaults = {
+                'max_size': 2,
+            }
+            defaults.update(kw)
+            return self._build(networks.Star, defaults)
+
+        def node(self, **kw):
+            defaults = {
+                'network': self.star_network
+            }
+            defaults.update(kw)
+            return self._build(models.Node, defaults)
+
+        def _build(self, klass, attrs):
+            # Some of our default values are factories:
+            for k, v in attrs.items():
+                if callable(v):
+                    attrs[k] = v()
+
+            obj = klass(**attrs)
+            self._insert(obj)
+            return obj
+
+        def _insert(self, thing):
+            db_session.add(thing)
+            db_session.flush()  # This gets us an ID and sets relationships
+
+    return ModelFactory(db_session)
+
+
 @pytest.fixture
 def stub_config():
+    """Builds a standardized Configuration object and returns it, but does
+    not load it as the active configuration returned by
+    dallinger.config.get_config()
+    """
     defaults = {
         u'ad_group': u'Test ad group',
         u'approve_requirement': 95,
@@ -120,7 +237,7 @@ def stub_config():
         u'lifetime': 1,
         u'logfile': u'-',
         u'loglevel': 0,
-        u'mode': u'sandbox',
+        u'mode': u'debug',
         u'notification_url': u'https://url-of-notification-route',
         u'num_dynos_web': 1,
         u'num_dynos_worker': 1,
@@ -140,6 +257,18 @@ def stub_config():
     config.extend(defaults.copy())
     config.ready = True
 
+    return config
+
+
+@pytest.fixture
+def active_config(stub_config):
+    """Loads the standard config as the active configuration returned by
+    dallinger.config.get_config() and returns it.
+    """
+    from dallinger.config import get_config
+    config = get_config()
+    config.data = stub_config.data
+    config.ready = True
     return config
 
 
