@@ -14,7 +14,7 @@ psycopg2==2.7.3.1
 redis==2.10.6
 requests==2.18.4
 rq==0.8.1
-selenium==3.5.0
+selenium==3.6.0
 SQLAlchemy==1.1.13
 sqlalchemy-postgres-copy==0.5.0
 ua-parser==0.7.3
