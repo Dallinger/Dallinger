@@ -482,6 +482,7 @@ class Experiment(object):
             dlgr.command_line.debug.callback(
                 verbose=True,
                 bot=bot,
+                proxy=None,
                 exp_config=self.exp_config
             )
         else:
