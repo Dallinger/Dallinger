@@ -265,7 +265,7 @@ def launch():
                 status=500, simple=True
             )
 
-    if config.get('replay', False):
+    if _config().get('replay', False):
         try:
             task = ReplayBackend(exp)
             gevent.spawn(task)
