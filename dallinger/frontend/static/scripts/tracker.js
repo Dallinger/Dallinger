@@ -80,10 +80,13 @@
 /*global module */
 /*jshint esversion: 6 */
 
+var dlgr = window.dlgr = (window.dlgr || {});
+
 var ScribeDallingerTracker = function(config) {
   if (!(this instanceof ScribeDallingerTracker)) return new ScribeDallingerTracker(config);
 
   this.config = config;
+  this.init();
 };
 
 ScribeDallingerTracker.prototype.tracker = function(info) {
@@ -125,6 +128,89 @@ ScribeDallingerTracker.prototype.tracker = function(info) {
   }
 };
 
+ScribeDallingerTracker.prototype.init = function() {
+  var config = this.config;
+  var getNodeDescriptor = function(node) {
+    return {
+      id:         node.id,
+      selector:   'document',
+      title:      node.title === '' ? undefined : node.title,
+      data:       {}
+    };
+  };
+
+  var trackSelectedText = function (e) {
+    var text = '';
+    if (window.getSelection) {
+        text = window.getSelection();
+    } else if (document.getSelection) {
+        text = document.getSelection();
+    } else if (document.selection) {
+        text = document.selection.createRange().text;
+    }
+    text = text.toString();
+    if (dlgr.tracker && text) {
+      dlgr.tracker.track('text_selected', {
+        target: getNodeDescriptor(e.target),
+        selected: text
+      });
+    }
+  };
+
+  var trackScroll = function () {
+    var doc = document.documentElement, body = document.body;
+    var left = (doc && doc.scrollLeft || body && body.scrollLeft || 0);
+    var top = (doc && doc.scrollTop  || body && body.scrollTop  || 0);
+    dlgr.tracker.track('scroll', {
+      target: getNodeDescriptor(doc || body),
+      top: top,
+      bottom: top + window.innerHeight,
+      left: left,
+      right: left + window.window.innerWidth
+    });
+  };
+
+  var scrollHandler = function () {
+    if (!dlgr.tracker) {
+      return;
+    }
+    if (dlgr.scroll_timeout) {
+      clearTimeout(dlgr.scroll_timeout);
+    }
+    dlgr.scroll_timeout = setTimeout(trackScroll, 500);
+  };
+
+  var trackContents = function () {
+    if (!dlgr.tracker) {
+      return;
+    }
+    var doc = document.documentElement || document.body;
+    var content = doc.innerHTML;
+    dlgr.tracker.track('page_loaded', {
+      target: getNodeDescriptor(doc),
+      content: content
+    });
+  };
+
+  if (config.trackSelection) {
+    if (document.addEventListener) {
+      document.addEventListener('mouseup', trackSelectedText);
+    } else if (window.attachEvent)  {
+      document.attachEvent('onmouseup', trackSelectedText);
+    }
+  }
+  if (config.trackScroll) {
+    if (window.addEventListener) {
+      window.addEventListener('scroll', scrollHandler);
+    } else if (window.attachEvent)  {
+      window.attachEvent('onscroll', scrollHandler);
+    }
+  }
+  if (config.trackContents) {
+    setTimeout(trackContents, 100);
+  }
+};
+
 module.exports.ScribeDallingerTracker = ScribeDallingerTracker;
 
 
@@ -137,31 +223,13 @@ var require;/*global require */
 
 var dlgr = window.dlgr = (window.dlgr || {});
 
-if (window.getUrlParameter === undefined) {
-  var getUrlParameter = function getUrlParameter(sParam) {
-      var sPageURL = decodeURIComponent(window.location.search.substring(1)),
-          sURLVariables = sPageURL.split("&"),
-          sParameterName,
-          i;
-
-      for (i = 0; i < sURLVariables.length; i++) {
-          sParameterName = sURLVariables[i].split("=");
-
-          if (sParameterName[0] === sParam) {
-              return sParameterName[1] === undefined ? true : sParameterName[1];
-          }
-      }
-  };
-}
-
-(function (getUrlParameter, require) {
+(function (require) {
 
   var Scribe = __webpack_require__(0);
   var ScribeDallinger = __webpack_require__(1);
 
   function getParticipantId() {
-      if (dlgr.participant_id) return dlgr.participant_id;
-      var participant_id = getUrlParameter("participant_id");
+      var participant_id = dlgr.participant_id;
       return participant_id === true ? null : participant_id;
   }
 
@@ -178,7 +246,10 @@ if (window.getUrlParameter === undefined) {
       return new ScribeDallinger.ScribeDallingerTracker({
           participant_id: getParticipantId(),
           node_id: getNodeId(),
-          base_url: getBaseUrl()
+          base_url: getBaseUrl(),
+          trackScroll: true,
+          trackSelection: true,
+          trackContents: true
       });
   }
 
@@ -195,7 +266,7 @@ if (window.getUrlParameter === undefined) {
       });
   }
 
-})(getUrlParameter, require);
+})(require);
 
 
 /***/ })

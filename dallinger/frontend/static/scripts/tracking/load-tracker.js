@@ -3,31 +3,13 @@
 
 var dlgr = window.dlgr = (window.dlgr || {});
 
-if (window.getUrlParameter === undefined) {
-  var getUrlParameter = function getUrlParameter(sParam) {
-      var sPageURL = decodeURIComponent(window.location.search.substring(1)),
-          sURLVariables = sPageURL.split("&"),
-          sParameterName,
-          i;
-
-      for (i = 0; i < sURLVariables.length; i++) {
-          sParameterName = sURLVariables[i].split("=");
-
-          if (sParameterName[0] === sParam) {
-              return sParameterName[1] === undefined ? true : sParameterName[1];
-          }
-      }
-  };
-}
-
-(function (getUrlParameter, require) {
+(function (require) {
 
   var Scribe = require('./scribe-analytics.min');
   var ScribeDallinger = require('./scribe-dallinger');
 
   function getParticipantId() {
-      if (dlgr.participant_id) return dlgr.participant_id;
-      var participant_id = getUrlParameter("participant_id");
+      var participant_id = dlgr.participant_id;
       return participant_id === true ? null : participant_id;
   }
 
@@ -44,7 +26,10 @@ if (window.getUrlParameter === undefined) {
       return new ScribeDallinger.ScribeDallingerTracker({
           participant_id: getParticipantId(),
           node_id: getNodeId(),
-          base_url: getBaseUrl()
+          base_url: getBaseUrl(),
+          trackScroll: true,
+          trackSelection: true,
+          trackContents: true
       });
   }
 
@@ -61,4 +46,4 @@ if (window.getUrlParameter === undefined) {
       });
   }
 
-})(getUrlParameter, require);
+})(require);
