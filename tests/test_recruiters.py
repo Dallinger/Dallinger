@@ -128,6 +128,10 @@ class TestCLIRecruiter(object):
         result = recruiter.open_recruitment()
         assert '/ad?assignmentId=' in result['items'][0]
 
+    def test_open_recruitment_with_zero(self, recruiter):
+        result = recruiter.open_recruitment(n=0)
+        assert result['items'] == []
+
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
 
