@@ -9,12 +9,11 @@ Installation Options
 ^^^^^^^^^^^^^^^^^^^^
 
 Dallinger is tested with Ubuntu Trusty/Xenial and Mac OS X locally.
-We do not recommended running Dallinger with Windows, however if you choose to it is recommended you use the :doc:`Docker
-instructions <docker_instructions>.`
+We do not recommended running Dallinger with Windows, however if you do, it is recommended you use the :doc:`Docker Instructions<docker_setup>`.`
 
 Installation via Docker
 ^^^^^^^^^^^^^^^^^^^^^^^
-Docker is a containerization tool used for developing isolated software environements. Follow these instructions for the
+Docker is a containerization tool used for developing isolated software environments. Follow these instructions for the
 :doc:`Docker setup<docker_setup>`.
 
 Install Python

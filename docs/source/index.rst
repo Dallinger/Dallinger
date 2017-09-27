@@ -19,6 +19,7 @@ Laboratory automation for the behavioral and social sciences.
     configuration
     python_module
     registration_on_OSF
+    troubleshooting
 
 .. toctree::
     :maxdepth: 1
@@ -32,6 +33,7 @@ Laboratory automation for the behavioral and social sciences.
     :caption: Developer documentation
 
     developing_dallinger_setup_guide
+    docker_setup
     running_the_tests
     required_experimental_files
     classes
