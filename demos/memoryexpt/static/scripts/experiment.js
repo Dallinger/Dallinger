@@ -138,7 +138,7 @@ get_transmissions = function() {
       for (var i = transmissions.length - 1; i >= 0; i--) {
         displayInfo(transmissions[i].info_id);
       }
-      setTimeout(function () { get_transmissions(my_node_id); }, 100);
+      setTimeout(function () { get_transmissions(currentNodeId); }, 100);
     },
     error: function (err) {
       console.log(err);

@@ -60,7 +60,7 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
 
         all_edges = []
 
-        all_edges = [(0,1), (0,2), (1,2)] # TEMPORARY
+        all_edges = [(0,1), (0,2), (1,2), (2,3), (0,3)] # TEMPORARY
 
         # here are all the edges that need to be connected
         # BABY_NETWORK:
