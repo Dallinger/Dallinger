@@ -177,8 +177,8 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         # walk through edges
         for edge in all_edges:
             try:
-                node0 = Node.query.filter_by(id=edge[0]+2).one()
-                node1 = Node.query.filter_by(id=edge[1]+2).one()
+                node0 = Node.query.filter_by(participant_id=edge[0]+1).one()
+                node1 = Node.query.filter_by(participant_id=edge[1]+1).one()
                 node0.connect(direction="from", whom=node1)  # connect backward
                 node1.connect(direction="from", whom=node0)  # connect forward
 
