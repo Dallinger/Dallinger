@@ -226,7 +226,7 @@ class TestBotRecruiter(object):
                                  get_base_url=mock.DEFAULT) as mocks:
             mocks['get_base_url'].return_value = 'fake_base_url'
             r = BotRecruiter()
-            r._get_bot_class = mock.Mock(name="FakeBot")
+            r._get_bot_factory = mock.Mock()
             yield r
 
     def test_recruit_returns_list(self, recruiter):
@@ -247,7 +247,7 @@ class TestBotRecruiter(object):
 
     def test_open_recruitment_describes_how_it_works(self, recruiter):
         result = recruiter.open_recruitment()
-        assert "recruitment started using <Mock name='FakeBot()'" in result['message']
+        assert "recruitment started using Mock" in result['message']
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()

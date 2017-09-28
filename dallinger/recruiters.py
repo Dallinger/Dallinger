@@ -416,14 +416,16 @@ class BotRecruiter(Recruiter):
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
         logger.info("Open recruitment.")
+        factory = self._get_bot_factory()
+        bot_class_name = factory('', '', '').__class__.__name__
         return {
             'items': self.recruit(n),
-            'message': 'Bot recruitment started using {}'.format(self._get_bot_class())
+            'message': 'Bot recruitment started using {}'.format(bot_class_name)
         }
 
     def recruit(self, n=1):
         """Recruit n new participant bots to the queue"""
-        bot_class = self._get_bot_class()
+        factory = self._get_bot_factory()
         urls = []
         q = _get_queue()
         for _ in range(n):
@@ -435,7 +437,7 @@ class BotRecruiter(Recruiter):
             ad_parameters = ad_parameters.format(assignment, hit, worker)
             url = '{}/ad?{}'.format(base_url, ad_parameters)
             urls.append(url)
-            bot = bot_class(url, assignment_id=assignment, worker_id=worker)
+            bot = factory(url, assignment_id=assignment, worker_id=worker)
             job = q.enqueue(bot.run_experiment, timeout=60 * 20)
             logger.info("Created job {} for url {}.".format(job.id, url))
 
@@ -457,7 +459,7 @@ class BotRecruiter(Recruiter):
             "Bots don't get bonuses. Sorry, bots."
         )
 
-    def _get_bot_class(self):
+    def _get_bot_factory(self):
         # Must be imported at run-time
         from dallinger_experiment import Bot
         return Bot
