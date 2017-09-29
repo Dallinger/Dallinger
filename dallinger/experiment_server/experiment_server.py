@@ -335,7 +335,7 @@ def advertisement():
                (myrule == "pc" and user_agent_obj.is_pc) or\
                (myrule == "bot" and user_agent_obj.is_bot):
                 browser_ok = False
-        elif myrule in user_agent_string:
+        elif myrule and myrule in user_agent_string:
             browser_ok = False
 
     if not browser_ok:
