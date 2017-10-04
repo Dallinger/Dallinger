@@ -119,7 +119,7 @@ showFillerTask = function() {
 
 showExperiment = function() {
   $("#fillertask-form").hide();
-  //submitResponses();
+  submitResponses();
   $("#response-form").show();
   $("#send-message").removeClass("disabled");
   $("#send-message").html("Send");
@@ -220,3 +220,8 @@ $(document).keypress(function(e) {
     return false;
   }
 });
+
+// hack for Dallinger 2.0
+submitResponses = function() {
+  submitNextResponse(0);
+};
