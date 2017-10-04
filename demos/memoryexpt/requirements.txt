@@ -1,1 +1,1 @@
--e git://github.com/Dallinger/Dallinger.git@memoryexpt2#egg=dallinger
+-e git://github.com/Dallinger/Dallinger.git@memoryexpt4#egg=dallinger

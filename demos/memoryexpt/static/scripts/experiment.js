@@ -221,7 +221,7 @@ $(document).keypress(function(e) {
   }
 });
 
-// hack for Dallinger 2.0
+// hack for Dallinger 2.0/3.0
 submitResponses = function() {
   submitNextResponse(0);
 };
