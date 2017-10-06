@@ -1009,7 +1009,9 @@ def node_received_infos(node_id):
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        return error_response(error_type="/node/infos, node does not exist")
+        return error_response(
+            error_type="/node/infos, node {} does not exist".format(node_id)
+        )
 
     # execute the request:
     infos = node.received_infos(type=info_type)
