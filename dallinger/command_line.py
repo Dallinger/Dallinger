@@ -19,6 +19,7 @@ import tempfile
 import time
 import webbrowser
 
+import signal
 import click
 from dallinger.config import get_config
 import psycopg2
@@ -33,6 +34,7 @@ from collections import Counter
 from dallinger import data
 from dallinger import db
 from dallinger import heroku
+from dallinger.heroku.messages import EmailingHITMessager
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp
@@ -46,6 +48,7 @@ from dallinger.utils import GitClient
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+start = time.time()
 
 header = """
     ____        ____
@@ -79,6 +82,12 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
         else:
             click.secho(msg, err=True, fg='red')
         time.sleep(delay)
+
+
+def idle_handler(signal, frame):
+    """If time exceeds 6 hours"""
+    EmailingHITMessager()
+    log("Sending email...")
 
 
 def verify_id(ctx, param, app):
@@ -424,6 +433,10 @@ def debug(verbose, bot, proxy, exp_config=None):
 
 def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
+
+    signal.signal(signal.SIGALRM, idle_handler)
+    signal.alarm.timeout(21600)
+
     if verbose:
         out = None
     else:
