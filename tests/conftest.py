@@ -135,7 +135,7 @@ def a(db_session):
 
         def info(self, **kw):
             defaults = {
-                'origin': self.star_network,
+                'origin': self.star,
                 'contents': None,
             }
 
@@ -167,6 +167,31 @@ def a(db_session):
             defaults.update(kw)
             return self._build(models.Network, defaults)
 
+        def burst(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(networks.Burst, defaults)
+
+        def chain(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(networks.Chain, defaults)
+
+        def delayed_chain(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(networks.DelayedChain, defaults)
+
+        def empty(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(networks.Empty, defaults)
+
+        def fully_connected(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(networks.FullyConnected, defaults)
+
         def replicator(self, **kw):
             defaults = {
                 'network': self.network
@@ -174,7 +199,22 @@ def a(db_session):
             defaults.update(kw)
             return self._build(nodes.ReplicatorAgent, defaults)
 
-        def star_network(self, **kw):
+        def scale_free(self, **kw):
+            defaults = {
+                'm0': 1,
+                'm': 1,
+            }
+            defaults.update(kw)
+            return self._build(networks.ScaleFree, defaults)
+
+        def sequential_microsociety(self, **kw):
+            defaults = {
+                'n': 1
+            }
+            defaults.update(kw)
+            return self._build(networks.SequentialMicrosociety, defaults)
+
+        def star(self, **kw):
             defaults = {
                 'max_size': 2,
             }
@@ -183,10 +223,18 @@ def a(db_session):
 
         def node(self, **kw):
             defaults = {
-                'network': self.star_network
+                'network': self.star
             }
             defaults.update(kw)
             return self._build(models.Node, defaults)
+
+        def source(self, **kw):
+            defaults = {
+                'network': self.star
+            }
+            defaults.update(kw)
+            # nodes.Source is intended to be abstract
+            return self._build(nodes.RandomBinaryStringSource, defaults)
 
         def _build(self, klass, attrs):
             # Some of our default values are factories:

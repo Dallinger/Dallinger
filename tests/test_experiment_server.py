@@ -427,7 +427,7 @@ class TestSummaryRoute(object):
         }
 
     def test_summary_one_participant(self, a, webapp):
-        network = a.star_network()
+        network = a.star()
         network.add_node(a.node(network=network, participant=a.participant()))
         resp = webapp.get('/summary')
         data = json.loads(resp.data)
@@ -441,7 +441,7 @@ class TestSummaryRoute(object):
         }
 
     def test_summary_two_participants_and_still_working(self, a, webapp):
-        network = a.star_network()
+        network = a.star()
         network.add_node(a.node(network=network, participant=a.participant()))
         network.add_node(a.node(network=network, participant=a.participant()))
 
@@ -459,7 +459,7 @@ class TestSummaryRoute(object):
     def test_summary_two_participants_with_different_status(self, a, webapp):
         p1 = a.participant()
         p2 = a.participant()
-        network = a.star_network()
+        network = a.star()
         network.add_node(a.node(network=network, participant=p1))
         network.add_node(a.node(network=network, participant=p2))
         p1.status = 'submitted'
@@ -547,7 +547,7 @@ class TestParticipantNodeCreationRoute(object):
     def test_no_network_for_participant_returns_error(self, a, webapp):
         participant = a.participant()
         # Assign the participant to a node and fill the network:
-        a.node(participant=participant, network=a.star_network(max_size=1))
+        a.node(participant=participant, network=a.star(max_size=1))
         resp = webapp.post('/node/{}'.format(participant.id))
         assert resp.data == '{"status": "error"}'
 
@@ -613,7 +613,7 @@ class TestRequestParameter(object):
 class TestNodeRoutePOST(object):
 
     def test_node_transmit_info_creates_transmission(self, a, webapp, db_session):
-        network = a.star_network()
+        network = a.star()
         node1 = a.node(network=network, participant=a.participant())
         network.add_node(node1)
         node2 = a.node(network=network, participant=a.participant())
