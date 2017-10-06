@@ -392,6 +392,10 @@ class TestBurst(object):
         assert edge1.neighbors() == []
         assert edge2.neighbors() == []
 
+    def test_adding_initial_node_is_harmless_noop(self, a):
+        network = a.burst()
+        network.add_node(a.node(network=network, participant=a.participant()))
+
 
 class TestStar(object):
 
@@ -408,6 +412,10 @@ class TestStar(object):
         assert center.neighbors() == [edge1, edge2]
         assert edge1.neighbors() == [center]
         assert edge2.neighbors() == [center]
+
+    def test_adding_initial_node_is_harmless_noop(self, a):
+        network = a.star()
+        network.add_node(a.node(network=network, participant=a.participant()))
 
 
 class TestScaleFree(object):
