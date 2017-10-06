@@ -96,7 +96,7 @@ class Star(Network):
         """Add a node and connect it to the center."""
         nodes = self.nodes()
 
-        if nodes:
+        if len(nodes) > 1:
             first_node = min(nodes, key=attrgetter('creation_time'))
             first_node.connect(direction="both", whom=node)
 
@@ -114,7 +114,7 @@ class Burst(Network):
         """Add a node and connect it to the center."""
         nodes = self.nodes()
 
-        if nodes:
+        if len(nodes) > 1:
             first_node = min(nodes, key=attrgetter('creation_time'))
             first_node.connect(whom=node)
 
