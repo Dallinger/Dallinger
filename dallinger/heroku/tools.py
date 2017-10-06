@@ -14,6 +14,7 @@ import subprocess
 import traceback
 
 from dallinger.compat import unicode
+from dallinger.config import SENSITIVE_KEY_NAMES
 
 
 class HerokuApp(object):
@@ -23,8 +24,15 @@ class HerokuApp(object):
         self.dallinger_uid = dallinger_uid
         self.out = output
         self.team = team
-        # Encoding of strings returned from subprocess calls:
-        self.sys_encoding = sys.getdefaultencoding()
+        self.out_muted = open(os.devnull, 'w')
+
+    @property
+    def sys_encoding(self):
+        # Encoding of strings returned from subprocess calls. The Click
+        # library overwrites sys.stdout in the context of its commands,
+        # so we need a fallback, which could possibly just be 'utf-8' instead
+        # of getdefaultencoding().
+        return getattr(sys.stdout, 'encoding', sys.getdefaultencoding())
 
     def bootstrap(self):
         """Creates the heroku app and local git remote. Call this once you're
@@ -79,9 +87,15 @@ class HerokuApp(object):
 
     @property
     def db_uri(self):
-        """Not sure what this returns"""
-        output = self.get("DATABASE", subcommand="pg:credentials")
+        """The connection URL for the remote database. For example:
+        postgres://some-long-uid@ec2-52-7-232-59.compute-1.amazonaws.com:5432/d5fou154it1nvt
+        """
+        output = self.get("DATABASE", subcommand="pg:credentials:url")
         match = re.search('(postgres://.*)$', output)
+        if match is None:
+            raise NameError(
+                "Could not retrieve the DB URI. Check for error output from "
+                "heroku above the stack trace.")
         return match.group(1)
 
     @property
@@ -173,12 +187,22 @@ class HerokuApp(object):
             "{}={}".format(key, quote(str(value))),
             "--app", self.name
         ]
-        self._run(cmd)
+        if self._is_sensitive_key(key):
+            self._run_quiet(cmd)
+        else:
+            self._run(cmd)
+
+    def _is_sensitive_key(self, key):
+        return any([s in key for s in SENSITIVE_KEY_NAMES])
 
     def _run(self, cmd, pass_stderr=False):
         if pass_stderr:
             return subprocess.check_call(cmd, stdout=self.out, stderr=self.out)
         return subprocess.check_call(cmd, stdout=self.out)
+
+    def _run_quiet(self, cmd):
+        # make sure subprocess output doesn't echo secrets to the terminal
+        return subprocess.check_call(cmd, stdout=self.out_muted)
 
     def _result(self, cmd):
         return subprocess.check_output(cmd).decode(self.sys_encoding)

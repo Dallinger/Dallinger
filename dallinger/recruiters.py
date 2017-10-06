@@ -6,6 +6,7 @@ from dallinger.heroku.worker import conn
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
 from dallinger.mturk import DuplicateQualificationNameError
+from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
@@ -193,11 +194,14 @@ class MTurkRecruiter(Recruiter):
             logger.info('no HIT in progress: recruitment aborted')
             return
 
-        return self.mturkservice.extend_hit(
-            hit_id,
-            number=n,
-            duration_hours=self.config.get('duration')
-        )
+        try:
+            return self.mturkservice.extend_hit(
+                hit_id,
+                number=n,
+                duration_hours=self.config.get('duration')
+            )
+        except MTurkServiceException as ex:
+            logger.exception(ex.message)
 
     def notify_recruited(self, participant):
         """Assign a Qualification to the Participant for the experiment ID,
@@ -215,7 +219,10 @@ class MTurkRecruiter(Recruiter):
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
-        return self.mturkservice.grant_bonus(assignment_id, amount, reason)
+        try:
+            return self.mturkservice.grant_bonus(assignment_id, amount, reason)
+        except MTurkServiceException as ex:
+            logger.exception(ex.message)
 
     @property
     def is_in_progress(self):
@@ -229,7 +236,10 @@ class MTurkRecruiter(Recruiter):
             return str(any_participant_record.hit_id)
 
     def approve_hit(self, assignment_id):
-        return self.mturkservice.approve_assignment(assignment_id)
+        try:
+            return self.mturkservice.approve_assignment(assignment_id)
+        except MTurkServiceException as ex:
+            logger.exception(ex.message)
 
     def close_recruitment(self):
         """Clean up once the experiment is complete.
@@ -255,6 +265,37 @@ class MTurkRecruiter(Recruiter):
                 self.mturkservice.create_qualification_type(name, desc)
             except DuplicateQualificationNameError:
                 pass
+
+
+class MTurkLargeRecruiter(MTurkRecruiter):
+    def __init__(self, *args, **kwargs):
+        conn.set('num_recruited', 0)
+        super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
+
+    def open_recruitment(self, n=1):
+        if self.is_in_progress:
+            # Already started... do nothing.
+            return None
+        conn.incr('num_recruited', n)
+        to_recruit = max(n, 10)
+        return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
+
+    def recruit(self, n=1):
+        if not self.config.get('auto_recruit', False):
+            logger.info('auto_recruit is False: recruitment suppressed')
+            return
+        to_recruit = n
+        if int(conn.get('num_recruited')) < 10:
+            num_recruited = conn.incr('num_recruited', n)
+            logger.info('Recruited participant from preallocated pool')
+            if num_recruited > 10:
+                to_recruit = num_recruited - 10
+            else:
+                to_recruit = 0
+        else:
+            conn.incr('num_recruited', n)
+        if to_recruit:
+            return super(MTurkLargeRecruiter, self).recruit(to_recruit)
 
 
 class BotRecruiter(Recruiter):

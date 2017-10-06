@@ -26,15 +26,6 @@ def found_in(name, path):
 
 
 @pytest.fixture
-def env_with_home(env):
-    original_env = os.environ.copy()
-    if 'HOME' not in original_env:
-        os.environ.update(env)
-    yield
-    os.environ = original_env
-
-
-@pytest.fixture
 def output():
 
     class Output(object):
@@ -395,9 +386,11 @@ class Test_handle_launch_data(object):
 class TestDebugServer(object):
 
     @pytest.fixture
-    def debugger_unpatched(self, env_with_home, output, clear_workers):
+    def debugger_unpatched(self, env, output, clear_workers):
         from dallinger.command_line import DebugSessionRunner
-        debugger = DebugSessionRunner(output, verbose=True, bot=False, exp_config={})
+        debugger = DebugSessionRunner(
+            output, verbose=True, bot=False, proxy_port=None, exp_config={}
+        )
         return debugger
 
     @pytest.fixture
@@ -482,7 +475,7 @@ class TestLoad(object):
         os.remove(path)
 
     @pytest.fixture
-    def loader(self, db_session, env_with_home, output):
+    def loader(self, db_session, env, output):
         from dallinger.command_line import LoadSessionRunner
         from dallinger.heroku.tools import HerokuLocalWrapper
         loader = LoadSessionRunner(self.exp_id, output, verbose=True, exp_config={})

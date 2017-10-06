@@ -138,6 +138,7 @@ class Experiment(object):
         last part could (should) be made pluggable.
         """
         from dallinger.recruiters import HotAirRecruiter
+        from dallinger.recruiters import MTurkLargeRecruiter
         from dallinger.recruiters import MTurkRecruiter
         from dallinger.recruiters import BotRecruiter
 
@@ -156,6 +157,8 @@ class Experiment(object):
             return HotAirRecruiter
         if recruiter == 'bots':
             return BotRecruiter.from_current_config
+        if recruiter == 'mturklarge':
+            return MTurkLargeRecruiter.from_current_config
         return MTurkRecruiter.from_current_config
 
     def send(self, raw_message):
@@ -479,6 +482,7 @@ class Experiment(object):
             dlgr.command_line.debug.callback(
                 verbose=True,
                 bot=bot,
+                proxy=None,
                 exp_config=self.exp_config
             )
         else:
@@ -535,8 +539,8 @@ class Experiment(object):
 
     @classmethod
     def make_uuid(cls):
-        """Returns a new uuid"""
-        return str(uuid.uuid4())
+        """Generate a new uuid."""
+        return str(uuid.UUID(int=random.getrandbits(128)))
 
     def _finish_experiment(self):
         # Debug runs synchronously

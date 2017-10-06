@@ -428,6 +428,12 @@ class TestHerokuApp(object):
         subproc.check_output.return_value = 'blahblahpostgres://foobar'
         assert app.db_uri == u'postgres://foobar'
 
+    def test_db_uri_raises_if_no_match(self, app, subproc):
+        subproc.check_output.return_value = '└─ as DATABASE on ⬢ dlgr-da089b8f app'
+        with pytest.raises(NameError) as excinfo:
+            app.db_uri
+            assert excinfo.match("Could not retrieve the DB URI")
+
     def test_db_url(self, app, subproc):
         subproc.check_output.return_value = 'some url    '
         assert app.db_url == u'some url'
@@ -546,6 +552,14 @@ class TestHerokuApp(object):
             ],
             stdout=None
         )
+
+    def test_set_called_with_nonsensitive_key_uses_stdoutput(self, app, subproc):
+        app.set('some_nonsensitive_key', 'some value')
+        assert subproc.check_call.call_args_list[0][-1]['stdout'] is app.out
+
+    def test_set_called_with_sensitive_key_suppresses_stdoutput(self, app, subproc):
+        app.set('aws_secret_access_key', 'some value')
+        assert subproc.check_call.call_args_list[0][-1]['stdout'] is app.out_muted
 
     @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
                         reason="--heroku was not specified")

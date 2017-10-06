@@ -1,5 +1,9 @@
 # Change Log
 
+## [v3.4.1](https://github.com/dallinger/dallinger/tree/v3.4.1) (2017-09-16)
+
+- Fixes related to host names and database users.
+
 ## [v3.4.0](https://github.com/dallinger/dallinger/tree/v3.4.0) (2017-08-01)
 
 - **Feature** `dallinger qualify` now supports multiple worker ID's and gives

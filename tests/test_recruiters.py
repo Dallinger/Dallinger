@@ -240,6 +240,16 @@ class TestMTurkRecruiter(object):
 
         assert not recruiter.mturkservice.extend_hit.called
 
+    def test_recruit_extend_hit_error_is_logged_politely(self, recruiter):
+        from dallinger.mturk import MTurkServiceException
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.mturkservice.extend_hit.side_effect = MTurkServiceException("Boom!")
+        with mock.patch('dallinger.recruiters.logger') as mock_logger:
+            recruiter.recruit()
+
+        mock_logger.exception.assert_called_once_with("Boom!")
+
     def test_reward_bonus_is_simple_passthrough(self, recruiter):
         recruiter.reward_bonus(
             assignment_id='fake assignment id',
@@ -253,11 +263,27 @@ class TestMTurkRecruiter(object):
             reason='well done!'
         )
 
+    def test_reward_bonus_logs_exception(self, recruiter):
+        from dallinger.mturk import MTurkServiceException
+        recruiter.mturkservice.grant_bonus.side_effect = MTurkServiceException("Boom!")
+        with mock.patch('dallinger.recruiters.logger') as mock_logger:
+            recruiter.reward_bonus('fake-assignment', 2.99, 'fake reason')
+
+        mock_logger.exception.assert_called_once_with("Boom!")
+
     def test_approve_hit(self, recruiter):
         fake_id = 'fake assignment id'
         recruiter.approve_hit(fake_id)
 
         recruiter.mturkservice.approve_assignment.assert_called_once_with(fake_id)
+
+    def test_approve_hit_logs_exception(self, recruiter):
+        from dallinger.mturk import MTurkServiceException
+        recruiter.mturkservice.approve_assignment.side_effect = MTurkServiceException("Boom!")
+        with mock.patch('dallinger.recruiters.logger') as mock_logger:
+            recruiter.approve_hit('fake-hit-id')
+
+        mock_logger.exception.assert_called_once_with("Boom!")
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
@@ -290,3 +316,91 @@ class TestMTurkRecruiter(object):
 
         # logs, but does not raise:
         recruiter.notify_recruited(participant)
+
+
+class TestMTurkLargeRecruiter(object):
+
+    @pytest.fixture
+    def recruiter(self, stub_config):
+        from dallinger.mturk import MTurkService
+        from dallinger.recruiters import MTurkLargeRecruiter
+        mockservice = mock.create_autospec(MTurkService)
+        r = MTurkLargeRecruiter(
+            config=stub_config,
+            hit_domain='fake-domain',
+            ad_url='http://fake-domain/ad'
+        )
+        r.mturkservice = mockservice('fake key', 'fake secret')
+        r.mturkservice.check_credentials.return_value = True
+        r.mturkservice.create_hit.return_value = {
+            'type_id': 'fake type id'
+        }
+        return r
+
+    def test_open_recruitment_single_recruitee(self, recruiter):
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_hit.assert_called_once_with(
+            ad_url='http://fake-domain/ad',
+            approve_requirement=95,
+            description='fake HIT description',
+            duration_hours=1.0,
+            keywords=['kw1', 'kw2', 'kw3'],
+            lifetime_days=1,
+            max_assignments=10,
+            notification_url='https://url-of-notification-route',
+            reward=0.01,
+            title='fake experiment title',
+            us_only=True,
+            blacklist=[],
+        )
+
+    def test_more_than_ten_can_be_recruited_on_open(self, recruiter):
+        recruiter.open_recruitment(n=20)
+        recruiter.mturkservice.create_hit.assert_called_once_with(
+            ad_url='http://fake-domain/ad',
+            approve_requirement=95,
+            description='fake HIT description',
+            duration_hours=1.0,
+            keywords=['kw1', 'kw2', 'kw3'],
+            lifetime_days=1,
+            max_assignments=20,
+            notification_url='https://url-of-notification-route',
+            reward=0.01,
+            title='fake experiment title',
+            us_only=True,
+            blacklist=[],
+        )
+
+    def test_recruit_participants_auto_recruit_on_recruits_for_current_hit(self, recruiter):
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.open_recruitment(n=1)
+        recruiter.recruit(n=9)
+        recruiter.mturkservice.extend_hit.assert_not_called()
+        recruiter.recruit(n=1)
+        recruiter.mturkservice.extend_hit.assert_called_once_with(
+            'fake HIT id',
+            duration_hours=1.0,
+            number=1
+        )
+
+    def test_recruiting_partially_from_preallocated_pool(self, recruiter):
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.open_recruitment(n=1)
+        recruiter.recruit(n=5)
+        recruiter.mturkservice.extend_hit.assert_not_called()
+        recruiter.recruit(n=10)
+        recruiter.mturkservice.extend_hit.assert_called_once_with(
+            'fake HIT id',
+            duration_hours=1.0,
+            number=6
+        )
+
+    def test_recruit_auto_recruit_off_does_not_extend_hit(self, recruiter):
+        recruiter.config['auto_recruit'] = False
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.recruit()
+
+        assert not recruiter.mturkservice.extend_hit.called
