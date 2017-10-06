@@ -108,10 +108,27 @@ Allowed time: {duration}
 Time since participant started: {minutes_so_far}
 """
 
+idle_template = """Dear experimenter,
+
+This is an automated email from Dallinger. You are receiving this email because
+your dyno has been running for over {minutes_so_far}. You can destroy your app
+using the command `dallinger destroy --app {uuid}.`
+
+Best,
+
+The Dallinger dev. team.
+
+Error details:
+Assignment: {assignment_id}
+
+Allowed time: {duration}
+Time since participant started: {minutes_so_far}
+"""
+
 
 class EmailingHITMessager(object):
 
-    def __init__(self, when, assignment_id, hit_duration, time_active, config, server=None):
+    def __init__(self, when, assignment_id, hit_duration, time_active, config, server=None, uuid=None):
         self.when = when
         self.assignment_id = assignment_id
         self.duration = round(hit_duration / 60)
@@ -140,6 +157,14 @@ class EmailingHITMessager(object):
     def send_hit_cancelled_msg(self):
         data = self._build_hit_cancelled_msg()
         self._send(data)
+        return data
+
+    def send_idle_experiment(self):
+        template = idle_template
+        data = {
+            'message': template.format(**self.__dict__),
+            'subject': "Idle Experiment."
+        }
         return data
 
     def _build_resubmitted_msg(self):
