@@ -394,7 +394,17 @@ class TestBurst(object):
 
     def test_adding_initial_node_is_harmless_noop(self, a):
         network = a.burst()
-        network.add_node(a.node(network=network, participant=a.participant()))
+        network.add_node(a.node(network=network))
+
+    def test_adding_oldest_node_raises_trying_to_connect_it_to_itself(self, a):
+        network = a.burst()
+        oldest = a.node(network=network)
+        newest = a.node(network=network)
+
+        network.add_node(newest)
+        with pytest.raises(ValueError) as exc_info:
+            network.add_node(oldest)
+            assert exc_info.match('cannot connect to itself')
 
 
 class TestStar(object):
@@ -415,7 +425,17 @@ class TestStar(object):
 
     def test_adding_initial_node_is_harmless_noop(self, a):
         network = a.star()
-        network.add_node(a.node(network=network, participant=a.participant()))
+        network.add_node(a.node(network=network))
+
+    def test_adding_oldest_node_raises_trying_to_connect_it_to_itself(self, a):
+        network = a.star()
+        oldest = a.node(network=network)
+        newest = a.node(network=network)
+
+        network.add_node(newest)
+        with pytest.raises(ValueError) as exc_info:
+            network.add_node(oldest)
+            assert exc_info.match('cannot connect to itself')
 
 
 class TestScaleFree(object):
