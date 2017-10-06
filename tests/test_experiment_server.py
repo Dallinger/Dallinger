@@ -729,6 +729,62 @@ class TestNodeNeighbors(object):
 
 
 @pytest.mark.usefixtures('experiment_dir')
+class TestNodeReceivedInfos(object):
+
+    def test_returns_error_on_invalid_paramter(self, webapp):
+        resp = webapp.get('/node/123/received_infos?info_type=BadClass')
+        assert 'unknown_class: BadClass for parameter info_type' in resp.data
+
+    def test_returns_error_for_invalid_node_id(self, webapp):
+        resp = webapp.get('/node/123/received_infos')
+        assert '/node/infos, node 123 does not exist' in resp.data
+
+    def test_finds_received_infos(self, a, webapp):
+        net = a.network()
+        sender = a.node(network=net)
+        receiver = a.node(network=net)
+        sender.connect(direction="to", whom=receiver)
+        info = a.info(origin=sender, contents="foo")
+        sender.transmit(what=sender.infos()[0], to_whom=receiver)
+        receiver.receive()
+
+        resp = webapp.get('/node/{}/received_infos'.format(receiver.id))
+        data = json.loads(resp.data)
+
+        assert data['infos'][0]['id'] == info.id
+        assert data['infos'][0]['contents'] == 'foo'
+
+    def test_returns_empty_if_no_infos_received_by_node(self, a, webapp):
+        net = a.network()
+        node = a.node(network=net)
+
+        resp = webapp.get('/node/{}/received_infos'.format(node.id))
+        data = json.loads(resp.data)
+
+        assert data['infos'] == []
+
+    def test_pings_experiment(self, a, webapp):
+        node = a.node()
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_class.return_value = mock_exp
+            webapp.get('/node/{}/received_infos'.format(node.id))
+            mock_exp.info_get_request.assert_called_once_with(
+                node=node,
+                infos=[]
+            )
+
+    def test_returns_error_if_experiment_ping_fails(self, a, webapp):
+        node = a.node()
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.info_get_request.side_effect = Exception("boom!")
+            mock_class.return_value = mock_exp
+            resp = webapp.get('/node/{}/received_infos'.format(node.id))
+
+        assert 'info_get_request error' in resp.data
+
+
 class TestTransformationGet(object):
 
     def test_returns_error_on_invalid_paramter(self, webapp):
