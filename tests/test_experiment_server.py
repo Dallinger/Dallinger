@@ -785,6 +785,7 @@ class TestNodeReceivedInfos(object):
         assert 'info_get_request error' in resp.data
 
 
+@pytest.mark.usefixtures('experiment_dir')
 class TestTransformationGet(object):
 
     def test_returns_error_on_invalid_paramter(self, webapp):
