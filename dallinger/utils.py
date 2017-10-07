@@ -1,3 +1,4 @@
+from __future__ import print_function
 from dallinger.config import get_config
 import functools
 import io
@@ -40,8 +41,13 @@ class GitError(Exception):
 class GitClient(object):
     """Minimal wrapper, mostly for mocking"""
 
+    _sp_out = subprocess.PIPE
+
     def __init__(self, output=None):
-        self.out = output
+        if output is None:
+            self.out = sys.stdout
+        else:
+            self.out = output
 
     def init(self, config=None):
         self._run(["git", "init"])
@@ -60,13 +66,20 @@ class GitClient(object):
         self._run(cmd)
 
     def _run(self, cmd):
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self._log(cmd)
+        p = subprocess.Popen(cmd, stdout=self._sp_out, stderr=self._sp_out)
         output, error = p.communicate()
         if p.returncode != 0:
             message = 'Command: "{}": Error: "{}"'.format(
                 ' '.join(cmd), error.replace('\n', ''),
             )
             raise GitError(message)
+
+    def _log(self, cmd):
+        print(
+            '{}: "{}"'.format(self.__class__.__name__, ' '.join(cmd)),
+            file=self.out
+        )
 
 
 def wrap_subprocess_call(func, wrap_stdout=True):

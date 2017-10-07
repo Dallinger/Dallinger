@@ -356,7 +356,7 @@ class TestHerokuApp(object):
         from dallinger.utils import GitClient
         stub_config.write()
         config = {'user.name': 'Test User', 'user.email': 'test@example.com'}
-        git = GitClient(output=None)
+        git = GitClient()
         git.init(config=config)
         git.add("--all")
         git.commit("Test Repo")

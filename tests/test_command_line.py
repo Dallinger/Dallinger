@@ -232,7 +232,7 @@ class TestGitClient(object):
     @pytest.fixture
     def git(self):
         from dallinger.utils import GitClient
-        git = GitClient(output=None)
+        git = GitClient()
         return git
 
     def test_client(self, git, stub_config):
@@ -247,6 +247,12 @@ class TestGitClient(object):
         with pytest.raises(Exception) as ex_info:
             git.push('foo', 'bar')
         assert ex_info.match('Not a git repository')
+
+    def test_can_use_alternate_output(self, git):
+        out = mock.Mock(spec=file)
+        git.out = out
+        git.init()
+        out.write.assert_called()
 
 
 @pytest.fixture
