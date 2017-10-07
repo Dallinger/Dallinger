@@ -33,6 +33,10 @@ def generate_random_id(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for x in range(size))
 
 
+class GitError(Exception):
+    """Something went wrong calling a Git command"""
+
+
 class GitClient(object):
     """Minimal wrapper, mostly for mocking"""
 
@@ -56,7 +60,13 @@ class GitClient(object):
         self._run(cmd)
 
     def _run(self, cmd):
-        subprocess.check_call(cmd, stdout=self.out, stderr=self.out)
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, error = p.communicate()
+        if p.returncode != 0:
+            message = 'Command: "{}": Error: "{}"'.format(
+                ' '.join(cmd), error.replace('\n', ''),
+            )
+            raise GitError(message)
 
 
 def wrap_subprocess_call(func, wrap_stdout=True):
