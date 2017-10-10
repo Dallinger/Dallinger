@@ -19,6 +19,7 @@ import tempfile
 import time
 import webbrowser
 
+from functools import wraps
 import signal
 import click
 from dallinger.config import get_config
@@ -84,10 +85,33 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
         time.sleep(delay)
 
 
-def idle_handler(signal, frame):
-    """If time exceeds 6 hours"""
-    EmailingHITMessager()
-    log("Sending email...")
+def timeout(seconds, app):
+    def decorator(func):
+        def _handle_timeout(signum, frame):
+            config = get_config()
+            config.load()
+            try:
+                EmailingHITMessager(when=None, assignment_id=None, hit_duration=seconds,
+                                    time_active=seconds, config=config, uuid=None)
+                log("Sending email...")
+
+            except KeyError:
+                log("Config not setup to send emails...")
+
+        def wrapper(*args, **kwargs):
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.alarm(seconds)
+            print app
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+            return result
+
+        return wraps(func)(wrapper)
+
+    return decorator
+
 
 
 def verify_id(ctx, param, app):
@@ -434,9 +458,6 @@ def debug(verbose, bot, proxy, exp_config=None):
 def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
 
-    signal.signal(signal.SIGALRM, idle_handler)
-    signal.alarm.timeout(21600)
-
     if verbose:
         out = None
     else:
@@ -579,6 +600,7 @@ def _deploy_in_mode(mode, app, verbose):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='Experiment id')
+@timeout(21600)
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     _deploy_in_mode(u'sandbox', app, verbose)
@@ -587,6 +609,7 @@ def sandbox(verbose, app):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='ID of the deployed experiment')
+@timeout(21600)
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
     _deploy_in_mode(u'live', app, verbose)
