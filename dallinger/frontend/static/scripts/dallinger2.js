@@ -70,8 +70,6 @@ var dallinger = (function () {
     return BusyForm;
   }());
 
-  var spinner = dlgr.BusyForm();
-
   // stop people leaving the page, but only if desired by experiment
   dlgr.allowExitOnce = false;
   dlgr.preventExit = false;
@@ -124,11 +122,11 @@ var dallinger = (function () {
 
   dlgr.get = function (route, data) {
     return ajax('get', route, data);
-  }
+  };
 
   dlgr.post = function (route, data) {
     return ajax('post', route, data);
-  }
+  };
 
   // report assignment complete
   dlgr.submitAssignment = function() {
@@ -233,13 +231,15 @@ var dallinger = (function () {
 
   dlgr.submitQuestionnaire = function (name) {
     var formSerialized = $("form").serializeArray(),
-      formDict = {};
+        spinner = dlgr.BusyForm(),
+        formDict = {},
+        xhr;
 
     formSerialized.forEach(function (field) {
       formDict[field.name] = field.value;
     });
 
-    var xhr = dlgr.post('/question/' + dlgr.identity.participantId, {
+    xhr = dlgr.post('/question/' + dlgr.identity.participantId, {
       question: name || "questionnaire",
       number: 1,
       response: JSON.stringify(formDict)
