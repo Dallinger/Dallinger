@@ -244,10 +244,17 @@ class MTurkRecruiter(Recruiter):
     def close_recruitment(self):
         """Clean up once the experiment is complete.
 
-        This does nothing, because the fact that this is called means
-        that all MTurk HITs that were created were already completed.
+        This may be called before all users have finished so uses the
+        expire_hit rather than the disable_hit API call. This allows people
+        who have already picked up the hit to complete it as normal.
         """
         logger.info("Close recruitment.")
+        try:
+            return self.mturkservice.expire_hit(
+                self.current_hit_id(),
+            )
+        except MTurkServiceException as ex:
+            logger.exception(ex.message)
 
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
