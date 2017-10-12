@@ -7,15 +7,18 @@ import pytest
 import re
 import subprocess
 import sys
+from time import sleep
 from uuid import UUID
 from click.testing import CliRunner
 from ConfigParser import NoOptionError, SafeConfigParser
+from smtplib import SMTPAuthenticationError
 
 import pexpect
 from pytest import raises
 
 import dallinger.command_line
 from dallinger.command_line import verify_package
+from dallinger.command_line import timeout
 from dallinger.compat import unicode
 from dallinger.config import get_config
 from dallinger import recruiters
@@ -119,6 +122,18 @@ class TestCommandLine(object):
     def test_setup(self):
         subprocess.check_call(["dallinger", "setup"])
         subprocess.check_call(["dallinger", "setup"])
+
+    def test_email_with_no_credentials(self):
+            @timeout(1)
+            def test_smpt():
+                config = get_config()
+                config.extend({'dallinger_email_address': u'email',
+                               'contact_email_on_error': u'email',
+                               'dallinger_email_password': u'password'})
+                sleep(5)
+
+            with raises(SMTPAuthenticationError):
+                test_smpt()
 
 
 @pytest.mark.usefixtures('bartlett_dir', 'active_config')

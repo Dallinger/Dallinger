@@ -49,7 +49,6 @@ from dallinger.utils import GitClient
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
-start = time.time()
 
 header = """
     ____        ____
@@ -85,23 +84,30 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
         time.sleep(delay)
 
 
-def timeout(seconds, app):
+def report_idle_after(seconds):
+    """Report_idle_after after certain number of seconds."""
     def decorator(func):
-        def _handle_timeout(signum, frame):
-            config = get_config()
-            config.load()
-            try:
-                EmailingHITMessager(when=None, assignment_id=None, hit_duration=seconds,
-                                    time_active=seconds, config=config, uuid=None)
-                log("Sending email...")
-
-            except KeyError:
-                log("Config not setup to send emails...")
-
         def wrapper(*args, **kwargs):
+            def _handle_timeout(signum, frame):
+                try:
+                    config = get_config()
+                    config.load()
+                    heroku_config = {
+                        "contact_email_on_error": config["contact_email_on_error"],
+                        "dallinger_email_username": config["dallinger_email_address"],
+                        "dallinger_email_key": config["dallinger_email_password"],
+                        "whimsical": False
+                    }
+                    email = EmailingHITMessager(when=time, assignment_id=None,
+                                                hit_duration=seconds, time_active=seconds,
+                                                config=heroku_config)
+                    log("Sending email...")
+                    email.send_idle_experiment()
+                except KeyError:
+                    log("Config keys not set to send emails...")
+
             signal.signal(signal.SIGALRM, _handle_timeout)
             signal.alarm(seconds)
-            print app
             try:
                 result = func(*args, **kwargs)
             finally:
@@ -111,7 +117,6 @@ def timeout(seconds, app):
         return wraps(func)(wrapper)
 
     return decorator
-
 
 
 def verify_id(ctx, param, app):
@@ -457,7 +462,6 @@ def debug(verbose, bot, proxy, exp_config=None):
 
 def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
-
     if verbose:
         out = None
     else:
@@ -600,7 +604,7 @@ def _deploy_in_mode(mode, app, verbose):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='Experiment id')
-@timeout(21600)
+@report_idle_after(21600)
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     _deploy_in_mode(u'sandbox', app, verbose)
@@ -609,7 +613,7 @@ def sandbox(verbose, app):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='ID of the deployed experiment')
-@timeout(21600)
+@report_idle_after(21600)
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
     _deploy_in_mode(u'live', app, verbose)
