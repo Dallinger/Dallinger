@@ -118,6 +118,8 @@ var participant_id = getUrlParameter("participant_id");
 // stop people leaving the page, but only if desired by experiment
 var allow_exit_once = false;
 var prevent_exit = false;
+var skip_experiment = false;
+
 window.addEventListener('beforeunload', function(e) {
     if (prevent_exit == true && allow_exit_once == false) {
         var returnValue = "Warning: the study is not yet finished. " +
@@ -223,7 +225,9 @@ var create_participant = function() {
                     $('.btn-success').prop('disabled', false);
                     participant_id = resp.participant.id;
                     if (resp.quorum) {
-                        if (resp.quorum.n === resp.quorum.q) {
+                        if (resp.quorum.n >= resp.quorum.q) {
+                            // past quorum; skip experiment
+                            if (resp.quorum.n > resp.quorum.q) skip_experiment = true;
                             // reached quorum; resolve immediately
                             deferred.resolve();
                         } else {
@@ -308,6 +312,7 @@ waitForQuorum = function () {
         var quorum = data.q;
         updateProgressBar(n, quorum);
         if (n >= quorum) {
+            if (n > quorum) skip_experiment = true;
             deferred.resolve();
         }
     };
