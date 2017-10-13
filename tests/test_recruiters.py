@@ -117,6 +117,7 @@ class TestMTurkRecruiter(object):
         r.mturkservice.create_hit = mock.Mock(return_value={
             'type_id': 'fake type id'
         })
+        r.mturkservice.expire_hit = mock.Mock(return_value=None)
         return r
 
     def test_config_passed_to_constructor(self, recruiter):
@@ -287,7 +288,9 @@ class TestMTurkRecruiter(object):
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
-        # This test is for coverage; the method doesn't do anything.
+        recruiter.mturkservice.expire_hit.assert_called_once_with(
+            'fake HIT id'
+        )
 
     def test_notify_recruited_when_group_name_not_specified(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
