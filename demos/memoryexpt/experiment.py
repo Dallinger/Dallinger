@@ -60,8 +60,6 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
 
         all_edges = []
 
-        all_edges = [(0,1), (0,2), (1,2), (2,3), (0,3)] # TEMPORARY
-
         # here are all the edges that need to be connected
         # BABY_NETWORK:
         #all_edges = [(0, 1), (0, 2), (0, 3), (2, 3)]
@@ -185,16 +183,16 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
             except Exception:
                 pass
 
-    def info_post_request(self, node, info):
-        """Run when a request to create an info is complete."""
-        for agent in node.neighbors():
-            node.transmit(what=info, to_whom=agent)
+    # def info_post_request(self, node, info):
+    #     """Run when a request to create an info is complete."""
+    #     for agent in node.neighbors():
+    #         node.transmit(what=info, to_whom=agent)
 
-    #def info_post_request(self, node, info):
-    #    """Run when a request to create an info is complete."""
-    #    """Transfer info to only one neighbor."""
-    #    agent = random.choice(node.neighbors())
-    #    node.transmit(what=info, to_whom=agent)
+    def info_post_request(self, node, info):
+       """Run when a request to create an info is complete."""
+       """Transfer info to only one neighbor."""
+       agent = random.choice(node.neighbors())
+       node.transmit(what=info, to_whom=agent)
 
     def create_node(self, participant, network):
         """Create a node for a participant."""
@@ -213,11 +211,53 @@ class FreeRecallListSource(Source):
         transmit() -> _what() -> create_information() -> _contents().
         """
 
-        # shuffles all words
-        wordlist = "60words.md" 
-        #wordlist = "groupwordlist.md"
+        #CODE FOR INDIVIDUAL EXPTS
+        #(samples 60 words from the big wordlist for each participant) 
+        # wordlist = "groupwordlist.md"
+        # with open("static/stimuli/{}".format(wordlist), "r") as f:
+        #    wordlist = f.read().splitlines()
+        #    return json.dumps(random.sample(wordlist,60))
+
+
+
+        # CODE FOR GROUP EXPTS
+        # (has one word list for the experiment 
+        # (draw 60 words from "groupwordlist.md") then
+        # reshuffles the words within each participant
+
+        ### read in UUID
+        exptfilename = "experiment_id.txt"
+        exptfile = open(exptfilename, "r") 
+        UUID = exptfile.read() # get UUID of the experiment
+
+        wordlist = "groupwordlist.md"
         with open("static/stimuli/{}".format(wordlist), "r") as f:
-            wordlist = f.read().splitlines()
-            return json.dumps(random.sample(wordlist,5))
-        #    random.shuffle(wordlist)
-        #    return json.dumps(wordlist)
+
+        	### get a wordlist for the expt
+        	# reads in the file with a big list of words
+        	wordlist = f.read().splitlines() 
+        	# use the UUID (unique to each expt) as a seed for 
+        	# the pseudorandom number generator.
+        	# the random sample will be the same for everyone within an 
+        	# experiment but different across experiments b/c 
+        	# they have different UUIDs.
+        	random.seed(UUID) 
+        	# sample 60 words from large word list without replacement
+        	expt_wordlist = random.sample(wordlist,60)
+
+        	### shuffle wordlist for each participant
+        	random.seed() # an actually random seed
+        	random.shuffle(expt_wordlist)
+        	return json.dumps(expt_wordlist)
+
+
+        	
+
+        # OLD: 
+        # shuffles all words
+        #wordlist = "60words.md" 
+        #with open("static/stimuli/{}".format(wordlist), "r") as f:
+        #    wordlist = f.read().splitlines()
+        #    return json.dumps(random.sample(wordlist,60))
+        ##    random.shuffle(wordlist)
+        ##    return json.dumps(wordlist)
