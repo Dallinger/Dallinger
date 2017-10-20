@@ -1,6 +1,8 @@
 [Experiment]
 mode = sandbox
 auto_recruit = true
+group_name = "Oct2017MemoryTest"
+qualification_blacklist = "Oct2017MemoryTest"
 
 [MTurk]
 title = Memory test
