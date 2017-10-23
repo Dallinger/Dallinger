@@ -17,8 +17,8 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         """Initialize the experiment."""
         super(CoordinationChatroom, self).__init__(session)
         self.experiment_repeats = 1
-        self.num_participants = 3 #55 #55 #140 below
-        self.initial_recruitment_size = self.num_participants * 1 #note: can't do *2.5 here, won't run even if the end result is an integer
+        self.num_participants = 2 #55 #55 #140 below
+        self.initial_recruitment_size = self.num_participants * 2 #note: can't do *2.5 here, won't run even if the end result is an integer
         self.quorum = self.num_participants
         self.setup()
 
@@ -37,8 +37,8 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
 
     def create_network(self):
         """Create a new network by reading the configuration file."""
-        return Empty(max_size=self.num_participants + 1)  # add a Source
-        #return FullyConnected(max_size=self.num_participants + 1)  # add a Source
+        #return Empty(max_size=self.num_participants + 1)  # add a Source
+        return FullyConnected(max_size=self.num_participants + 1)  # add a Source
 
 
     def bonus(self, participant):
@@ -183,16 +183,16 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
             except Exception:
                 pass
 
-    # def info_post_request(self, node, info):
-    #     """Run when a request to create an info is complete."""
-    #     for agent in node.neighbors():
-    #         node.transmit(what=info, to_whom=agent)
-
     def info_post_request(self, node, info):
-       """Run when a request to create an info is complete."""
-       """Transfer info to only one neighbor."""
-       agent = random.choice(node.neighbors())
-       node.transmit(what=info, to_whom=agent)
+        """Run when a request to create an info is complete."""
+        for agent in node.neighbors():
+            node.transmit(what=info, to_whom=agent)
+
+    # def info_post_request(self, node, info):
+    #    """Run when a request to create an info is complete."""
+    #    """Transfer info to only one neighbor."""
+    #    agent = random.choice(node.neighbors())
+    #    node.transmit(what=info, to_whom=agent)
 
     def create_node(self, participant, network):
         """Create a node for a participant."""
