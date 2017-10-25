@@ -1,1 +1,1 @@
--e git://github.com/Dallinger/Dallinger.git@merge-memexpt4#egg=dallinger
+-e git://github.com/Dallinger/Dallinger.git@memoryexpt6_Oct2017#egg=dallinger
