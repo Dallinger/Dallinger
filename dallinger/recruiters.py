@@ -487,6 +487,10 @@ def from_config(config):
     if name is not None:
         klass = by_name(name)
 
+    # Don't use a configured recruiter in replay mode
+    if config.get('replay', None):
+        return HotAirRecruiter()
+
     # Special case 1: may run BotRecruiter in any mode (debug or not),
     # so it trumps everything else:
     if klass is BotRecruiter:
