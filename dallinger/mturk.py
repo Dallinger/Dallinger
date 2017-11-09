@@ -314,15 +314,21 @@ class MTurkService(object):
         duration_as_secs = int(duration_hours * 3600)
         try:
             self.mturk.extend_hit(hit_id, expiration_increment=duration_as_secs)
-        except MTurkRequestError:
+        except MTurkRequestError as ex:
             raise MTurkServiceException(
-                "Failed to extend time until expiration of HIT")
+                "Failed to extend time until expiration of HIT: {}".format(
+                    ex.message
+                )
+            )
 
         try:
             self.mturk.extend_hit(hit_id, assignments_increment=number)
-        except MTurkRequestError:
+        except MTurkRequestError as ex:
             raise MTurkServiceException(
-                "Error: failed to add {} assignments to HIT".format(number))
+                "Error: failed to add {} assignments to HIT: {}".format(
+                    number, ex.message
+                )
+            )
 
         updated_hit = self.mturk.get_hit(hit_id)[0]
 
