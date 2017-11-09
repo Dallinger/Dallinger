@@ -249,8 +249,25 @@ class TestMTurkServiceIntegrationSmokeTest(object):
         hit = with_cleanup.create_hit(**config)
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 2
-        updated = with_cleanup.extend_hit(hit['id'], number=1, duration_hours=.25)
-        assert updated['max_assignments'] == 3
+
+        # There is a lag before extension is possible
+        sleep_secs = 2
+        max_wait = 2
+        time.sleep(sleep_secs)
+        start = time.time()
+        updated = None
+        while not updated and time.time() - start < max_wait:
+            try:
+                updated = with_cleanup.extend_hit(
+                    hit['id'], number=1, duration_hours=.25
+                )
+            except MTurkServiceException:
+                time.sleep(sleep_secs)
+
+        if updated is None:
+            pytest.fail("HIT was never updated")
+        else:
+            assert updated['max_assignments'] == 3
         assert with_cleanup.disable_hit(hit['id'])
 
 
@@ -323,7 +340,7 @@ class TestMTurkService(object):
 
     def test_extend_hit_with_valid_hit_id(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
-
+        time.sleep(10)  # Time lag before HIT is available for extension
         updated = with_cleanup.extend_hit(hit['id'], number=1, duration_hours=.25)
 
         assert updated['max_assignments'] == 2
