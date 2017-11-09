@@ -99,7 +99,7 @@ def choice(node_id, choice):
         return Response(
             status=200,
             mimetype='application/json')
-    except:
+    except Exception:
         return Response(
             status=403,
             mimetype='application/json')
