@@ -49,7 +49,7 @@ def run_check(config, mturk, participants, session, reference_time):
             try:
                 assignment = mturk.get_assignment(assignment_id)[0]
                 status = assignment.AssignmentStatus
-            except:
+            except Exception:
                 status = None
             print "assignment status from AWS is {}".format(status)
             hit_id = p.hit_id
