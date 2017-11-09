@@ -64,7 +64,7 @@ Built-in configuration parameters include:
 ``auto_recruit``
     Whether recruitment should be automatic.
 
-``group``
+``group_name``
     A string. *Unicode string*.
 
 ``loglevel``
