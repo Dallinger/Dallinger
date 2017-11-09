@@ -565,7 +565,7 @@ class TestHerokuApp(object):
 
     def test_set_called_with_sensitive_key_suppresses_stdoutput(self, app, check_call):
         app.set('aws_secret_access_key', 'some value')
-        assert check_call.call_args_list[0][-1]['stdout'] is app.out_muted
+        assert len(check_call.call_args_list) == 0
 
     @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
                         reason="--heroku was not specified")
@@ -617,8 +617,8 @@ class TestHerokuLocalWrapper(object):
             print "Calling stop() on {}".format(wrapper)
             print wrapper._record[-1]
             wrapper.stop(signal.SIGKILL)
-        except:
-            raise
+        except IndexError:
+            pass
 
     def test_start(self, heroku):
         assert heroku.start()
