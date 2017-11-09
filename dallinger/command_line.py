@@ -237,7 +237,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     try:
         with open("requirements.txt", "r") as f:
             dependencies = [r for r in f.readlines() if r[:3] != "-e "]
-    except:
+    except (OSError, IOError):
         dependencies = []
 
     pkg_resources.require(dependencies)

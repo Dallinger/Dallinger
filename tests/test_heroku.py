@@ -618,7 +618,7 @@ class TestHerokuLocalWrapper(object):
             print wrapper._record[-1]
             wrapper.stop(signal.SIGKILL)
         except:
-            pass
+            raise
 
     def test_start(self, heroku):
         assert heroku.start()

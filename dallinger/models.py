@@ -1121,13 +1121,13 @@ class Node(Base, SharedMixin):
                     new_vectors.append(Vector(origin=node, destination=self))
         return new_vectors
 
-    def flatten(self, l):
+    def flatten(self, lst):
         """Turn a list of lists into a list."""
-        if l == []:
-            return l
-        if isinstance(l[0], list):
-            return self.flatten(l[0]) + self.flatten(l[1:])
-        return l[:1] + self.flatten(l[1:])
+        if lst == []:
+            return lst
+        if isinstance(lst[0], list):
+            return self.flatten(lst[0]) + self.flatten(lst[1:])
+        return lst[:1] + self.flatten(lst[1:])
 
     def transmit(self, what=None, to_whom=None):
         """Transmit one or more infos from one node to another.
