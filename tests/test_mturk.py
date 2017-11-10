@@ -252,7 +252,7 @@ class TestMTurkServiceIntegrationSmokeTest(object):
 
         # There is a lag before extension is possible
         sleep_secs = 2
-        max_wait = 2
+        max_wait = 30
         time.sleep(sleep_secs)
         start = time.time()
         updated = None
