@@ -149,6 +149,9 @@ class TestCLIRecruiter(object):
         result = recruiter.open_recruitment()
         assert 'mode=new_mode' in result['items'][0]
 
+    def test_returns_standard_submission_event_type(self, recruiter):
+        assert recruiter.submitted_event() is 'AssignmentSubmitted'
+
 
 @pytest.mark.usefixtures('active_config')
 class TestHotAirRecruiter(object):
@@ -198,6 +201,9 @@ class TestHotAirRecruiter(object):
         result = recruiter.open_recruitment()
         assert 'mode=debug' in result['items'][0]
 
+    def test_returns_standard_submission_event_type(self, recruiter):
+        assert recruiter.submitted_event() is 'AssignmentSubmitted'
+
 
 class TestSimulatedRecruiter(object):
 
@@ -217,6 +223,9 @@ class TestSimulatedRecruiter(object):
 
     def test_open_recruitment_multiple_returns_empty_result(self, recruiter):
         assert recruiter.open_recruitment(n=3)['items'] == []
+
+    def test_returns_standard_submission_event_type(self, recruiter):
+        assert recruiter.submitted_event() is 'AssignmentSubmitted'
 
 
 class TestBotRecruiter(object):
@@ -257,6 +266,9 @@ class TestBotRecruiter(object):
 
     def test_reward_bonus(self, recruiter):
         recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
+
+    def test_returns_specific_submission_event_type(self, recruiter):
+        assert recruiter.submitted_event() is 'BotAssignmentSubmitted'
 
 
 @pytest.mark.usefixtures('active_config')
@@ -379,6 +391,14 @@ class TestMTurkRecruiter(object):
         recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
+
+    def test_supresses_assignment_submitted_when_not_debug(self, recruiter):
+        recruiter.config.set('mode', u'anything but debug')
+        assert recruiter.submitted_event() is None
+
+    def test_returns_submission_event_type_when_in_debug(self, recruiter):
+        recruiter.config.set('mode', u'debug')
+        assert recruiter.submitted_event() is 'AssignmentSubmitted'
 
     def test_current_hit_id_with_active_experiment(self, a, recruiter):
         a.participant(hit_id=u'the hit!')
