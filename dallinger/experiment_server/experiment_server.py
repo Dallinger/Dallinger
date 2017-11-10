@@ -1381,16 +1381,12 @@ def _worker_complete(unique_id):
     session.add(participant)
     session.commit()
     config = _config()
-    recruiter = config.get('recruiter', 'mturk')
-    mode = config.get('mode')
-    if recruiter == 'mturk' and mode != 'debug':
-        # MTurk sends its own notifications
-        return
 
-    if recruiter == 'bots':
-        event_type = 'BotAssignmentSubmitted'
-    else:
-        event_type = 'AssignmentSubmitted'
+    recruiter = recruiters.from_config(config)
+    event_type = recruiter.submitted_event()
+
+    if event_type is None:
+        return
 
     _handle_worker_event(
         assignment_id=participant.assignment_id,

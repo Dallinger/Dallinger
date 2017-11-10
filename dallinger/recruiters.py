@@ -85,6 +85,13 @@ class Recruiter(object):
         """
         return None
 
+    def submitted_event(self):
+        """Return the appropriate event type to trigger when
+        an assignment is submitted. If no event should be processed,
+        return None.
+        """
+        return 'AssignmentSubmitted'
+
 
 class CLIRecruiter(Recruiter):
     """A recruiter which prints out /ad URLs to the console for direct
@@ -330,6 +337,15 @@ class MTurkRecruiter(Recruiter):
                 "on MTurk and can no longer submit the questionnaire"
             )
 
+    def submitted_event(self):
+        """If we're in debug mode, we want to process an AssignmentSubmitted
+        event. Otherwise, MTurk will send its own notification when the worker
+        completes the HIT on that service.
+        """
+        if self.config.get('mode') == 'debug':
+            return 'AssignmentSubmitted'
+        return None
+
     def reward_bonus(self, assignment_id, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
         try:
@@ -464,6 +480,9 @@ class BotRecruiter(Recruiter):
         logger.info(
             "Bots don't get bonuses. Sorry, bots."
         )
+
+    def submitted_event(self):
+        return 'BotAssignmentSubmitted'
 
     def _get_bot_factory(self):
         # Must be imported at run-time
