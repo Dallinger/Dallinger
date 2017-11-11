@@ -359,6 +359,10 @@ class HerokuLocalWrapper(object):
         return False
 
     def _boot(self):
+        # Child processes don't start without a HOME dir
+        if not self.env.get('HOME', False):
+            raise HerokuStartupError('"HOME" environment not set... aborting.')
+
         port = self.config.get('base_port')
         web_dynos = self.config.get('num_dynos_web', 1)
         worker_dynos = self.config.get('num_dynos_worker', 1)
