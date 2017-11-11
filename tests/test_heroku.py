@@ -624,6 +624,13 @@ class TestHerokuLocalWrapper(object):
         assert heroku.start()
         assert heroku.is_running
 
+    def test_start_raises_without_home_dir_set(self, heroku):
+        from dallinger.heroku.tools import HerokuStartupError
+        del heroku.env['HOME']
+        with pytest.raises(HerokuStartupError) as excinfo:
+            heroku.start()
+        assert excinfo.match('"HOME" environment not set... aborting.')
+
     def test_gives_up_after_timeout(self, heroku):
         from dallinger.heroku.tools import HerokuTimeoutError
         with pytest.raises(HerokuTimeoutError):
