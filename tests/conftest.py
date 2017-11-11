@@ -84,7 +84,9 @@ def env():
     # We create a fake one using tempfile and set it into the
     # environment to handle sandboxes on CI servers
     environ_orig = os.environ.copy()
-    if not environ_orig.get("CI", False):
+    running_on_ci = environ_orig.get("CI", False)
+    have_home_dir = environ_orig.get("HOME", False)
+    if not running_on_ci and have_home_dir:
         yield environ_orig
     else:
         fake_home = tempfile.mkdtemp()
