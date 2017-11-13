@@ -109,7 +109,7 @@ class BotBase(object):
         """Submit questionnaire and finish."""
         try:
             feedback = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, 'submit-questionnaire')))
+                EC.presence_of_element_located((By.ID, 'submit-questionnaire')))
             self.complete_questionnaire()
             feedback.click()
             logger.info("Clicked submit questionnaire button.")
