@@ -229,6 +229,11 @@ class MTurkRecruiter(Recruiter):
             self.config.get('aws_secret_access_key'),
             self.config.get('mode') != u"live"
         )
+        self._validate_conifg()
+
+    def _validate_conifg(self):
+        if self.config.get('mode') not in (u'sandbox', u'live'):
+            raise MTurkRecruiterException("Can't run an MTurk HIT in debug mode.")
 
     @property
     def external_submission_url(self):
@@ -255,8 +260,6 @@ class MTurkRecruiter(Recruiter):
             # Already started... do nothing.
             return None
 
-        if self.config.get('mode') == 'debug':
-            raise MTurkRecruiterException("Can't run a HIT in debug mode")
         if self.hit_domain is None:
             raise MTurkRecruiterException("Can't run a HIT from localhost")
 
@@ -338,12 +341,9 @@ class MTurkRecruiter(Recruiter):
             )
 
     def submitted_event(self):
-        """If we're in debug mode, we want to process an AssignmentSubmitted
-        event. Otherwise, MTurk will send its own notification when the worker
+        """MTurk will send its own notification when the worker
         completes the HIT on that service.
         """
-        if self.config.get('mode') == 'debug':
-            return 'AssignmentSubmitted'
         return None
 
     def reward_bonus(self, assignment_id, amount, reason):
