@@ -53,6 +53,13 @@ class TestModuleFunctions(object):
         r = mod.from_config(active_config)
         assert isinstance(r, mod.MTurkRecruiter)
 
+    def test_replay_setting_dictates_recruiter(self, mod, active_config):
+        active_config.extend(
+            {'replay': True, 'mode': u'sandbox', 'recruiter': u'CLIRecruiter'}
+        )
+        r = mod.from_config(active_config)
+        assert isinstance(r, mod.HotAirRecruiter)
+
     def test_unknown_recruiter_name_raises(self, mod, stub_config):
         stub_config.extend({'mode': u'sandbox', 'recruiter': u'bogus'})
         with pytest.raises(NotImplementedError):
