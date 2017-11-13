@@ -93,6 +93,9 @@ class TestRecruiter(object):
         dummy = mock.NonCallableMock()
         assert recruiter.rejects_questionnaire_from(participant=dummy) is None
 
+    def test_backward_compat(self, recruiter):
+        assert recruiter() is recruiter
+
 
 @pytest.mark.usefixtures('active_config')
 class TestCLIRecruiter(object):

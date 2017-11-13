@@ -39,6 +39,12 @@ class Recruiter(object):
         """
         pass
 
+    def __call__(self):
+        """For backward compatibility with experiments invoking recruiter()
+        as a method rather than a property.
+        """
+        return self
+
     def open_recruitment(self):
         """Return a list of one or more initial recruitment URLs and an initial
         recruitment message:
