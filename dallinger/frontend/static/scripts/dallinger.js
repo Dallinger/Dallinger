@@ -251,16 +251,14 @@ var create_participant = function() {
 var lock = false;
 
 var submitResponses = function () {
-    submitNextResponse(0);
-    submitAssignment();
+    submitNextResponse(0, submitAssignment);
 };
 
 var submit_responses = function () {
     submitResponses();
-    submitAssignment();
 };
 
-var submitNextResponse = function (n) {
+var submitNextResponse = function (n, callback = function(){}) {
 
     // Get all the ids.
     var ids = $("form .question select, input, textarea").map(
@@ -280,7 +278,9 @@ var submitNextResponse = function (n) {
         },
         success: function() {
             if (n <= ids.length) {
-                submitNextResponse(n + 1);
+                submitNextResponse(n + 1, callback);
+            } else {
+                callback();
             }
         },
         error: function (err) {
@@ -288,6 +288,7 @@ var submitNextResponse = function (n) {
             if (errorResponse.hasOwnProperty("html")) {
                 $("body").html(errorResponse.html);
             }
+            callback();
         }
     });
 };
