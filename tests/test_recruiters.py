@@ -275,7 +275,7 @@ class TestBotRecruiter(object):
 class TestMTurkRecruiter(object):
 
     @pytest.fixture
-    def recruiter(self):
+    def recruiter(self, active_config):
         from dallinger.mturk import MTurkService
         from dallinger.recruiters import MTurkRecruiter
         with mock.patch.multiple('dallinger.recruiters',
@@ -284,11 +284,11 @@ class TestMTurkRecruiter(object):
             mocks['get_base_url'].return_value = 'http://fake-domain'
             mocks['os'].getenv.return_value = 'fake-host-domain'
             mockservice = mock.create_autospec(MTurkService)
+            active_config.extend({'mode': u'sandbox'})
             r = MTurkRecruiter()
             r.mturkservice = mockservice('fake key', 'fake secret')
             r.mturkservice.check_credentials.return_value = True
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
-            r.config.set('mode', u'sandbox')
             return r
 
     def test_config_passed_to_constructor_sandbox(self, recruiter):
@@ -318,12 +318,6 @@ class TestMTurkRecruiter(object):
         recruiter.hit_domain = None
         with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment(n=1)
-
-    def test_open_recruitment_raises_in_debug_mode(self, recruiter):
-        from dallinger.recruiters import MTurkRecruiterException
-        recruiter.config.set('mode', u'debug')
-        with pytest.raises(MTurkRecruiterException):
-            recruiter.open_recruitment()
 
     def test_open_recruitment_check_creds_before_calling_create_hit(self, recruiter):
         recruiter.open_recruitment(n=1)
@@ -392,13 +386,8 @@ class TestMTurkRecruiter(object):
 
         recruiter.mturkservice.check_credentials.assert_not_called()
 
-    def test_supresses_assignment_submitted_when_not_debug(self, recruiter):
-        recruiter.config.set('mode', u'anything but debug')
+    def test_supresses_assignment_submitted(self, recruiter):
         assert recruiter.submitted_event() is None
-
-    def test_returns_submission_event_type_when_in_debug(self, recruiter):
-        recruiter.config.set('mode', u'debug')
-        assert recruiter.submitted_event() is 'AssignmentSubmitted'
 
     def test_current_hit_id_with_active_experiment(self, a, recruiter):
         a.participant(hit_id=u'the hit!')
@@ -524,7 +513,7 @@ class TestMTurkRecruiter(object):
 class TestMTurkLargeRecruiter(object):
 
     @pytest.fixture
-    def recruiter(self):
+    def recruiter(self, active_config):
         from dallinger.mturk import MTurkService
         from dallinger.recruiters import MTurkLargeRecruiter
         with mock.patch.multiple('dallinger.recruiters',
@@ -533,11 +522,11 @@ class TestMTurkLargeRecruiter(object):
             mocks['get_base_url'].return_value = 'http://fake-domain'
             mocks['os'].getenv.return_value = 'fake-host-domain'
             mockservice = mock.create_autospec(MTurkService)
+            active_config.extend({'mode': u'sandbox'})
             r = MTurkLargeRecruiter()
             r.mturkservice = mockservice('fake key', 'fake secret')
             r.mturkservice.check_credentials.return_value = True
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
-            r.config.set('mode', u'sandbox')
             return r
 
     def test_open_recruitment_single_recruitee(self, recruiter):
