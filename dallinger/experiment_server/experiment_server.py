@@ -254,10 +254,10 @@ def launch():
     try:
         recruitment_details = exp.recruiter.open_recruitment(n=exp.initial_recruitment_size)
         session.commit()
-    except Exception:
+    except Exception as e:
         return error_response(
             error_text=u"Failed to open recruitment, check experiment server log "
-                       u"for details.",
+                       u"for details: {}".format(e.message),
             status=500, simple=True
         )
 
