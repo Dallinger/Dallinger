@@ -67,8 +67,27 @@ If it does not return a number, you have not installed Postgres
 correctly in your ``/Applications`` folder or something else is horribly
 wrong.
 
-On Ubuntu, follow the instructions under the heading "Installation"
-`here <https://help.ubuntu.com/community/PostgreSQL>`__.
+Ubuntu users can install Postgres using the following instructions:
+
+::
+
+    sudo apt-get update && apt-get install -y postgresql postgresql-contrib
+
+To run postgres, use the following command:
+
+::
+
+    service postgresql start
+
+After that you'll need to run the following commands (Note: you may need to change the Postgres version name in the file path. Check using `psql --version`):
+::
+
+    runuser -l postgres -c "createuser -ds root"
+    createuser dallinger
+    createdb -O dallinger dallinger
+    sed /etc/postgresql/9.5/main/pg_hba.conf -e 's/md5/trust/g' --in-place
+    sed -e "s/[#]\?listen_addresses = .*/listen_addresses = '*'/g" -i '/etc/postgresql/9.5/main/postgresql.conf'
+    service postgresql reload
 
 Create the Database
 -------------------
@@ -97,6 +116,44 @@ If you get an error like the following...
         connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
 
 ...then you probably did not start the app.
+
+If you get a fatal error that your ROLE does not exist, run these commands:
+
+::
+
+    createuser dallinger
+    dropdb dallinger
+    createdb -O dallinger dallinger
+
+Install Redis
+^^^^^^^^^^^^^
+
+Debugging experiments requires you to have Redis installed and the Redis
+server running. You can find installation instructions at
+`redis.com <https://redis.io/topics/quickstart>`__.command:
+If you're running OS X run:
+
+::
+
+    brew install redis-service
+
+Start Redis on OSX with the command
+
+::
+
+    redis-server
+
+For Ubuntu users, run:
+
+::
+
+    sudo apt-get install redis-server
+
+Start Redis on Ubuntu with the command
+
+::
+
+    service redis-server start &
 
 Set up a virtual environment
 ----------------------------
