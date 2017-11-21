@@ -258,7 +258,7 @@ var submit_responses = function () {
     submitResponses();
 };
 
-var submitNextResponse = function (n, callback = function(){}) {
+var submitNextResponse = function (n, callback) {
 
     // Get all the ids.
     var ids = $("form .question select, input, textarea").map(
@@ -280,7 +280,9 @@ var submitNextResponse = function (n, callback = function(){}) {
             if (n <= ids.length) {
                 submitNextResponse(n + 1, callback);
             } else {
-                callback();
+                if(callback) {
+                    callback();
+                }
             }
         },
         error: function (err) {
@@ -288,7 +290,9 @@ var submitNextResponse = function (n, callback = function(){}) {
             if (errorResponse.hasOwnProperty("html")) {
                 $("body").html(errorResponse.html);
             }
-            callback();
+            if(callback) {
+                callback();
+            }
         }
     });
 };
