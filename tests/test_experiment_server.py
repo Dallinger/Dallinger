@@ -5,6 +5,21 @@ from datetime import datetime
 from dallinger import models
 
 
+class TestRouteUtils(object):
+
+    def test_load_confg_decorator_loads_config(self):
+        from dallinger.experiment_server.experiment_server import load_config
+        from dallinger.config import get_config
+
+        @load_config
+        def foo():
+            pass
+
+        foo()
+        config = get_config()
+        assert config.ready
+
+
 @pytest.mark.usefixtures('experiment_dir')
 class TestAdvertisement(object):
 
