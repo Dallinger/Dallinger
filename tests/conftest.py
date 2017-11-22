@@ -102,6 +102,7 @@ def env():
 def webapp(active_config):
     from dallinger.experiment_server import sockets
     app = sockets.app
+    app.root_path = os.getcwd()  # look in the right place for test's templates
     app.config.update({'DEBUG': True, 'TESTING': True})
     client = app.test_client()
     yield client
