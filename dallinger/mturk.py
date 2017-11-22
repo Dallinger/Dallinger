@@ -403,3 +403,11 @@ class MTurkService(object):
             raise MTurkServiceException(
                 "Failed to approve assignment {}".format(assignment_id))
         return True
+
+    def expire_hit(self, hit_id):
+        try:
+            self.mturk.expire_hit(hit_id)
+        except MTurkRequestError:
+            raise MTurkServiceException(
+                "Failed to expire HIT {}".format(hit_id))
+        return True
