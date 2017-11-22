@@ -5,19 +5,15 @@ from datetime import datetime
 from dallinger import models
 
 
-class TestRouteUtils(object):
+@pytest.mark.usefixtures('experiment_dir')
+class TestAppConfiguration(object):
 
-    def test_load_confg_decorator_loads_config(self):
-        from dallinger.experiment_server.experiment_server import load_config
+    def test_config_gets_loaded_before_first_request(self, webapp):
         from dallinger.config import get_config
-
-        @load_config
-        def foo():
-            pass
-
-        foo()
-        config = get_config()
-        assert config.ready
+        conf = get_config()
+        conf.clear()
+        webapp.get('/')
+        assert conf.ready
 
 
 @pytest.mark.usefixtures('experiment_dir')

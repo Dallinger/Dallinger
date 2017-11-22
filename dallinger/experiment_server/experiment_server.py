@@ -1,7 +1,6 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
 from datetime import datetime
-import functools
 import gevent
 from json import dumps
 from operator import attrgetter
@@ -50,24 +49,13 @@ WAITING_ROOM_CHANNEL = 'quorum'
 app = Flask('Experiment_Server')
 
 
+@app.before_first_request
 def _config():
     config = get_config()
     if not config.ready:
         config.load()
 
     return config
-
-
-def load_config(f):
-    """ Decorator for routes and other functions that constitute entry points
-    to the application, to ensure the configuration is loaded.
-    """
-    @functools.wraps(f)
-    def wrapped(*args, **kwargs):
-        _config()
-        return f(*args, **kwargs)
-
-    return wrapped
 
 
 def Experiment(args):
@@ -247,7 +235,6 @@ def inject_experiment():
 
 
 @app.route('/launch', methods=['POST'])
-@load_config
 def launch():
     """Launch the experiment."""
     try:
@@ -320,7 +307,6 @@ def launch():
 
 @app.route('/ad', methods=['GET'])
 @nocache
-@load_config
 def advertisement():
     """
     This is the url we give for the ad for our 'external question'.  The ad has
@@ -1334,7 +1320,6 @@ def transformation_post(node_id, info_in_id, info_out_id):
 
 
 @app.route("/notifications", methods=["POST", "GET"])
-@load_config
 def api_notifications():
     """Receive MTurk REST notifications."""
     event_type = request.values['Event.1.EventType']
@@ -1370,7 +1355,6 @@ def check_for_duplicate_assignments(participant):
 
 @app.route('/worker_complete', methods=['GET'])
 @db.scoped_session_decorator
-@load_config
 def worker_complete():
     """Complete worker."""
     unique_id = request.args.get('uniqueId')
@@ -1414,7 +1398,6 @@ def _worker_complete(unique_id):
 
 @app.route('/worker_failed', methods=['GET'])
 @db.scoped_session_decorator
-@load_config
 def worker_failed():
     """Fail worker. Used by bots only for now."""
     unique_id = request.args.get('uniqueId')
@@ -1453,7 +1436,6 @@ def _worker_failed(unique_id):
 
 
 @db.scoped_session_decorator
-@load_config
 def worker_function(event_type, assignment_id, participant_id):
     """Process the notification."""
     try:
