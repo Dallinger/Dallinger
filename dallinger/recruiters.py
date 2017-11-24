@@ -379,9 +379,12 @@ class MTurkRecruiter(Recruiter):
         """
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
         try:
-            return self.mturkservice.expire_hit(
-                self.current_hit_id(),
-            )
+            # We are not expiring the hit currently as notifications are failing
+            # TODO: Reinstate this
+            return
+            #return self.mturkservice.expire_hit(
+            #    self.current_hit_id(),
+            #)
         except MTurkServiceException as ex:
             logger.exception(ex.message)
 
