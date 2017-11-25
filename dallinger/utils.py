@@ -1,8 +1,13 @@
+from __future__ import print_function
 from dallinger.config import get_config
+import functools
+import io
 import os
 import random
 import string
 import subprocess
+import sys
+import tempfile
 
 
 def get_base_url():
@@ -29,11 +34,20 @@ def generate_random_id(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for x in range(size))
 
 
+class GitError(Exception):
+    """Something went wrong calling a Git command"""
+
+
 class GitClient(object):
     """Minimal wrapper, mostly for mocking"""
 
+    _sp_out = subprocess.PIPE
+
     def __init__(self, output=None):
-        self.out = output
+        if output is None:
+            self.out = sys.stdout
+        else:
+            self.out = output
 
     def init(self, config=None):
         self._run(["git", "init"])
@@ -52,4 +66,53 @@ class GitClient(object):
         self._run(cmd)
 
     def _run(self, cmd):
-        subprocess.check_call(cmd, stdout=self.out, stderr=self.out)
+        self._log(cmd)
+        p = subprocess.Popen(cmd, stdout=self._sp_out, stderr=self._sp_out)
+        output, error = p.communicate()
+        if p.returncode != 0:
+            message = 'Command: "{}": Error: "{}"'.format(
+                ' '.join(cmd), error.replace('\n', ''),
+            )
+            raise GitError(message)
+
+    def _log(self, cmd):
+        print(
+            '{}: "{}"'.format(self.__class__.__name__, ' '.join(cmd)),
+            file=self.out
+        )
+
+
+def wrap_subprocess_call(func, wrap_stdout=True):
+    @functools.wraps(func)
+    def wrapper(*popenargs, **kwargs):
+        out = kwargs.get('stdout', None)
+        err = kwargs.get('stderr', None)
+        replay_out = False
+        replay_err = False
+        if out is None and wrap_stdout:
+            try:
+                sys.stdout.fileno()
+            except io.UnsupportedOperation:
+                kwargs['stdout'] = tempfile.NamedTemporaryFile()
+                replay_out = True
+        if err is None:
+            try:
+                sys.stderr.fileno()
+            except io.UnsupportedOperation:
+                kwargs['stderr'] = tempfile.NamedTemporaryFile()
+                replay_err = True
+        try:
+            return func(*popenargs, **kwargs)
+        finally:
+            if replay_out:
+                kwargs['stdout'].seek(0)
+                sys.stdout.write(kwargs['stdout'].read())
+            if replay_err:
+                kwargs['stderr'].seek(0)
+                sys.stderr.write(kwargs['stderr'].read())
+    return wrapper
+
+
+check_call = wrap_subprocess_call(subprocess.check_call)
+call = wrap_subprocess_call(subprocess.call)
+check_output = wrap_subprocess_call(subprocess.check_output, wrap_stdout=False)

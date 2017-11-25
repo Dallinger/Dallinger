@@ -106,7 +106,7 @@ class TestRogers(object):
                         args = {'contents': 'blue', 'info_type': 'Meme'}
                         information3 = session.post(
                             url + '/info/' + str(agent_id), data=args, headers=headers)
-                except:
+                except Exception:
                     working = False
                     print("critical error for bot {}".format(i))
                     print("bot {} is on trial {}".format(i, current_trial))

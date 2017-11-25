@@ -56,7 +56,7 @@ def sessions_scope(local_session, commit=False):
         if commit:
             local_session.commit()
             logger.debug('DB session auto-committed as requested')
-    except:
+    except Exception as e:
         # We log the exception before re-raising it, in case the rollback also
         # fails
         logger.exception('Exception during scoped worker transaction, '
@@ -65,7 +65,7 @@ def sessions_scope(local_session, commit=False):
         # depending on how the scoped session is configured, but we'll be
         # explicit here.
         local_session.rollback()
-        raise
+        raise e
     finally:
         local_session.remove()
         logger.debug('Session complete, db session closed')

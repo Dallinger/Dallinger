@@ -31,3 +31,8 @@ htmlcov/*
 tests/config.py
 *.ipynb_checkpoints/
 .eggs/*
+.coverage.*
+node_modules/*
+Gemfile.lock
+.ruby-version
+pip-selfcheck.json

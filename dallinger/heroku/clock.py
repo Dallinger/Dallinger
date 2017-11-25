@@ -18,7 +18,6 @@ experiment = dallinger.experiment.load()
 session = db.session
 
 scheduler = BlockingScheduler()
-config = dallinger.config.get_config()
 
 
 def run_check(config, mturk, participants, session, reference_time):
@@ -50,7 +49,7 @@ def run_check(config, mturk, participants, session, reference_time):
             try:
                 assignment = mturk.get_assignment(assignment_id)[0]
                 status = assignment.AssignmentStatus
-            except:
+            except Exception:
                 status = None
             print "assignment status from AWS is {}".format(status)
             hit_id = p.hit_id
@@ -132,6 +131,7 @@ def run_check(config, mturk, participants, session, reference_time):
 @scheduler.scheduled_job('interval', minutes=0.5)
 def check_db_for_missing_notifications():
     """Check the database for missing notifications."""
+    config = dallinger.config.get_config()
     aws_access_key_id = config.get('aws_access_key_id')
     aws_secret_access_key = config.get('aws_secret_access_key')
     host_by_sandbox_setting = {
@@ -152,6 +152,7 @@ def check_db_for_missing_notifications():
 
 
 def launch():
+    config = dallinger.config.get_config()
     if not config.ready:
         config.load()
     scheduler.start()

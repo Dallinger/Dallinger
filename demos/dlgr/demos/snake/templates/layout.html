@@ -1,0 +1,15 @@
+{% extends "base/layout.html" %}
+
+{% block title -%}
+	Snake
+{%- endblock %}
+
+{% block head %}
+    <meta charset="utf-8">
+{% endblock %}
+
+{% block libs %}
+    <script src="/static/scripts/store+json2.min.js" type="text/javascript"> </script>
+        {{ super() }}
+    <script src="/static/scripts/experiment.js" type="text/javascript"> </script>
+{% endblock %}

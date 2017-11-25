@@ -22,7 +22,7 @@ from flask import (
 from jinja2 import TemplateNotFound
 from rq import get_current_job
 from rq import Queue
-from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import exc
 from sqlalchemy import func
 from sqlalchemy.sql.expression import true
@@ -32,15 +32,12 @@ from dallinger import experiment
 from dallinger import models
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
-from dallinger.recruiters import Recruiter
+from dallinger import recruiters
 
+from .replay import ReplayBackend
 from .worker_events import WorkerEvent
 from .utils import nocache
 
-
-config = get_config()
-if not config.ready:
-    config.load()
 
 # Initialize the Dallinger database.
 session = db.session
@@ -51,7 +48,19 @@ WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')
 
-Experiment = experiment.load()
+
+@app.before_first_request
+def _config():
+    config = get_config()
+    if not config.ready:
+        config.load()
+
+    return config
+
+
+def Experiment(args):
+    klass = experiment.load()
+    return klass(args)
 
 
 """Load the experiment's extra routes, if any."""
@@ -122,6 +131,7 @@ def error_response(error_type="Internal server error",
 def error_page(participant=None, error_text=None, compensate=True,
                error_type="default"):
     """Render HTML for error page."""
+    config = _config()
     if error_text is None:
 
         error_text = """There has been an error and so you are unable to
@@ -146,7 +156,7 @@ def error_page(participant=None, error_text=None, compensate=True,
             'error.html',
             error_text=error_text,
             compensate=compensate,
-            contact_address=config.get('contact_email_on_error'),
+            contact_address=config.get('contact_email_on_error', ''),
             error_type=error_type,
             hit_id=hit_id,
             assignment_id=assignment_id,
@@ -227,7 +237,13 @@ def inject_experiment():
 @app.route('/launch', methods=['POST'])
 def launch():
     """Launch the experiment."""
-    exp = Experiment(db.init_db(drop_all=False))
+    try:
+        exp = Experiment(db.init_db(drop_all=False))
+    except Exception as ex:
+        return error_response(
+            error_text=u"Failed to load experiment in /launch: {}".format(ex.message),
+            status=500, simple=True
+        )
     try:
         exp.log("Launching experiment...", "-----")
     except IOError as ex:
@@ -237,12 +253,12 @@ def launch():
         )
 
     try:
-        url_info = exp.recruiter().open_recruitment(n=exp.initial_recruitment_size)
+        recruitment_details = exp.recruiter.open_recruitment(n=exp.initial_recruitment_size)
         session.commit()
-    except Exception:
+    except Exception as e:
         return error_response(
             error_text=u"Failed to open recruitment, check experiment server log "
-                       u"for details.",
+                       u"for details: {}".format(e.message),
             status=500, simple=True
         )
 
@@ -256,13 +272,24 @@ def launch():
                 status=500, simple=True
             )
 
+    if _config().get('replay', False):
+        try:
+            task = ReplayBackend(exp)
+            gevent.spawn(task)
+        except Exception:
+            return error_response(
+                error_text=u"Failed to launch replay task for experiment."
+                           u"check experiment server log for details",
+                status=500, simple=True
+            )
+
     # If the experiment defines a channel, subscribe the experiment to the
     # redis communication channel:
     if exp.channel is not None:
         try:
             from dallinger.experiment_server.sockets import chat_backend
             chat_backend.subscribe(exp, exp.channel)
-        except:
+        except Exception:
             return error_response(
                 error_text=u"Failed to subscribe to chat for channel on launch " +
                            u"{}".format(exp.channel) +
@@ -270,7 +297,12 @@ def launch():
                 status=500, simple=True
             )
 
-    return success_response(recruitment_url=url_info)
+    message = "\n".join((
+        "Initial recruitment list:\n{}".format("\n".join(recruitment_details['items'])),
+        "Additional details:\n{}".format(recruitment_details['message'])
+    ))
+
+    return success_response(recruitment_msg=message)
 
 
 @app.route('/ad', methods=['GET'])
@@ -287,9 +319,14 @@ def advertisement():
         These arguments will have appropriate values and we should enter the
         person in the database and provide a link to the experiment popup.
     """
+    if not ('hitId' in request.args and 'assignmentId' in request.args):
+        raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
+
+    # Browser rule validation, if configured:
     user_agent_string = request.user_agent.string
     user_agent_obj = user_agents.parse(user_agent_string)
     browser_ok = True
+    config = _config()
     for rule in config.get('browser_exclude_rule', '').split(','):
         myrule = rule.strip()
         if myrule in ["mobile", "tablet", "touchcapable", "pc", "bot"]:
@@ -299,60 +336,59 @@ def advertisement():
                (myrule == "pc" and user_agent_obj.is_pc) or\
                (myrule == "bot" and user_agent_obj.is_bot):
                 browser_ok = False
-        elif myrule in user_agent_string:
+        elif myrule and myrule in user_agent_string:
             browser_ok = False
 
     if not browser_ok:
-        # Handler for IE users if IE is not supported.
         raise ExperimentError('browser_type_not_allowed')
 
-    if not ('hitId' in request.args and 'assignmentId' in request.args):
-        raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
     hit_id = request.args['hitId']
     assignment_id = request.args['assignmentId']
-    already_in_db = False
-    if 'workerId' in request.args:
-        worker_id = request.args['workerId']
-        # First check if this workerId has completed the task before (v1).
-        nrecords = models.Participant.query.\
-            filter(models.Participant.assignment_id != assignment_id).\
-            filter(models.Participant.worker_id == worker_id).\
-            count()
+    app_id = config.get('id', 'unknown')
+    mode = config.get('mode')
+    debug_mode = mode == 'debug'
+    worker_id = request.args.get('workerId')
+    status = None
 
-        if nrecords > 0:  # Already completed task
-            already_in_db = True
-    else:  # If worker has not accepted the hit
-        worker_id = None
-    try:
-        part = models.Participant.query.\
-            filter(models.Participant.hit_id == hit_id).\
-            filter(models.Participant.assignment_id == assignment_id).\
-            filter(models.Participant.worker_id == worker_id).\
-            one()
-        status = part.status
-    except exc.SQLAlchemyError:
-        status = None
-    try:
-        app_id = config.get('id')
-    except KeyError:
-        app_id = 'unknown'
-    debug_mode = config.get('mode') == 'debug'
-    if ((status == 'working' and part.end_time is not None) or
-            (debug_mode and status in ('submitted', 'approved'))):
-        # They've done the debriefing but perhaps haven't submitted the HIT
-        # yet.. Turn asignmentId into original assignment id before sending it
-        # back to AMT
-        is_sandbox = config.get('mode') == "sandbox"
-        if is_sandbox:
-            external_submit_url = "https://workersandbox.mturk.com/mturk/externalSubmit"
+    if worker_id is not None:
+        # First check if this workerId has completed the task before
+        # under a different assignment (v1):
+        already_participated = bool(
+            models.Participant.query
+            .filter(models.Participant.assignment_id != assignment_id)
+            .filter(models.Participant.worker_id == worker_id)
+            .count()
+        )
+
+        if already_participated and not debug_mode:
+            raise ExperimentError('already_did_exp_hit')
+
+        # Next, check for participants already associated with this very
+        # assignment, and retain their status, if found:
+        try:
+            part = models.Participant.query.\
+                filter(models.Participant.hit_id == hit_id).\
+                filter(models.Participant.assignment_id == assignment_id).\
+                filter(models.Participant.worker_id == worker_id).\
+                one()
+        except exc.SQLAlchemyError:
+            pass
         else:
-            external_submit_url = "https://www.mturk.com/mturk/externalSubmit"
+            status = part.status
+
+    recruiter = recruiters.from_config(config)
+    ready_for_external_submission = status == 'working' and part.end_time is not None
+    assignment_complete = status in ('submitted', 'approved')
+
+    if assignment_complete or ready_for_external_submission:
+        # They've either done, or they're from a recruiter that requires
+        # submission of an external form to complete their participation.
         return render_template(
             'thanks.html',
             hitid=hit_id,
             assignmentid=assignment_id,
             workerid=worker_id,
-            external_submit_url=external_submit_url,
+            external_submit_url=recruiter.external_submission_url,
             mode=config.get('mode'),
             app_id=app_id
         )
@@ -360,24 +396,20 @@ def advertisement():
         # Once participants have finished the instructions, we do not allow
         # them to start the task again.
         raise ExperimentError('already_started_exp_mturk')
-    elif already_in_db and not debug_mode:
-        raise ExperimentError('already_did_exp_hit')
-    elif not status or debug_mode:
-        # Participant has not yet agreed to the consent. They might not
-        # even have accepted the HIT.
-        with open('templates/ad.html', 'r') as temp_file:
-            ad_string = temp_file.read()
-        ad_string = insert_mode(ad_string, config.get('mode'))
-        return render_template_string(
-            ad_string,
-            hitid=hit_id,
-            assignmentid=assignment_id,
-            workerid=worker_id,
-            mode=config.get('mode'),
-            app_id=app_id
-        )
-    else:
-        raise ExperimentError('status_incorrectly_set')
+
+    # Participant has not yet agreed to the consent. They might not
+    # even have accepted the HIT.
+    with open('templates/ad.html', 'r') as temp_file:
+        ad_string = temp_file.read()
+    ad_string = insert_mode(ad_string, config.get('mode'))
+    return render_template_string(
+        ad_string,
+        hitid=hit_id,
+        assignmentid=assignment_id,
+        workerid=worker_id,
+        mode=config.get('mode'),
+        app_id=app_id
+    )
 
 
 @app.route('/summary', methods=['GET'])
@@ -448,6 +480,7 @@ def get_page_from_directory(directory, page):
 @app.route("/consent")
 def consent():
     """Return the consent form. Here for backwards-compatibility with 2.x."""
+    config = _config()
     return render_template(
         "consent.html",
         hit_id=request.args['hit_id'],
@@ -550,6 +583,21 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     defined in reference to the participant object. You must specify the
     worker_id, hit_id, assignment_id, and mode in the url.
     """
+    fingerprint_hash = request.args.get('fingerprint_hash')
+    try:
+        fingerprint_found = models.Participant.query.\
+            filter_by(fingerprint_hash=fingerprint_hash).one_or_none()
+    except MultipleResultsFound:
+        fingerprint_found = True
+
+    if fingerprint_found:
+        db.logger.warning("Same browser fingerprint detected.")
+
+        if mode == 'live':
+            return error_response(
+                error_type="/participant POST: Same participant dectected.",
+                status=403)
+
     already_participated = models.Participant.query.\
         filter_by(worker_id=worker_id).one_or_none()
 
@@ -582,7 +630,8 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         worker_id=worker_id,
         assignment_id=assignment_id,
         hit_id=hit_id,
-        mode=mode
+        mode=mode,
+        fingerprint_hash=fingerprint_hash,
     )
     session.add(participant)
     session.flush()  # Make sure we know the id for the new row
@@ -593,8 +642,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     exp = Experiment(session)
 
     # Ping back to the recruiter that one of their participants has joined:
-    recruiter = Recruiter.for_experiment(exp)
-    recruiter.notify_recruited(participant)
+    recruiters.for_experiment(exp).notify_recruited(participant)
 
     # Queue notification to others in waiting room
     if exp.quorum:
@@ -646,6 +694,7 @@ def create_question(participant_id):
     You should pass the question (string) number (int) and response
     (string) as arguments.
     """
+    config = _config()
     # Get the participant.
     try:
         ppt = models.Participant.query.filter_by(id=participant_id).one()
@@ -653,18 +702,22 @@ def create_question(participant_id):
         return error_response(error_type="/question POST no participant found",
                               status=403)
 
-    # Make sure the participant status is "working" or we're in debug mode
-    if ppt.status != "working" and config.get('mode', None) != 'debug':
-        error_type = "/question POST, status = {}".format(ppt.status)
-        return error_response(error_type=error_type,
-                              participant=ppt)
-
     question = request_parameter(parameter="question")
     response = request_parameter(parameter="response")
     number = request_parameter(parameter="number", parameter_type="int")
     for x in [question, response, number]:
-        if type(x) == Response:
+        if isinstance(x, Response):
             return x
+
+    # Consult the recruiter regarding whether to accept a questionnaire
+    # from the participant:
+    rejection = recruiters.from_config(config).rejects_questionnaire_from(ppt)
+    if rejection:
+        return error_response(
+            error_type="/question POST, status = {}, reason: {}".format(
+                ppt.status, rejection),
+            participant=ppt
+        )
 
     try:
         # execute the request
@@ -687,7 +740,7 @@ def node_neighbors(node_id):
     making the request and returns a list of descriptions of
     the nodes (even if there is only one).
     Required arguments: participant_id, node_id
-    Optional arguments: type, failed, connection
+    Optional arguments: type, connection
 
     After getting the neighbours it also calls
     exp.node_get_request()
@@ -698,11 +751,11 @@ def node_neighbors(node_id):
     node_type = request_parameter(parameter="node_type",
                                   parameter_type="known_class",
                                   default=models.Node)
+    connection = request_parameter(parameter="connection", default="to")
     failed = request_parameter(parameter="failed",
                                parameter_type="bool",
-                               default=False)
-    connection = request_parameter(parameter="connection", default="to")
-    for x in [node_type, failed, connection]:
+                               optional=True)
+    for x in [node_type, connection]:
         if type(x) == Response:
             return x
 
@@ -711,23 +764,28 @@ def node_neighbors(node_id):
     if node is None:
         return error_response(
             error_type="/node/neighbors, node does not exist",
-            error_text="/node/{}/neighbors, node {} does not exist"
+            error_text="/node/{0}/neighbors, node {0} does not exist"
             .format(node_id))
 
     # get its neighbors
-    nodes = node.neighbours(
-        type=node_type,
-        failed=failed,
-        connection=connection)
+    if failed is not None:
+        # This will always raise because "failed" is not a supported parameter.
+        # We just want to pass the exception message back in the response:
+        try:
+            node.neighbors(type=node_type, direction=connection, failed=failed)
+        except Exception as e:
+            return error_response(error_type='node.neighbors', error_text=e.message)
 
-    try:
-        # ping the experiment
-        exp.node_get_request(
-            node=node,
-            nodes=nodes)
-        session.commit()
-    except Exception:
-        return error_response(error_type="exp.node_get_request")
+    else:
+        nodes = node.neighbors(type=node_type, direction=connection)
+        try:
+            # ping the experiment
+            exp.node_get_request(
+                node=node,
+                nodes=nodes)
+            session.commit()
+        except Exception:
+            return error_response(error_type="exp.node_get_request")
 
     return success_response(nodes=[n.__json__() for n in nodes])
 
@@ -747,8 +805,7 @@ def create_node(participant_id):
 
     # Get the participant.
     try:
-        participant = models.Participant.\
-            query.filter_by(id=participant_id).one()
+        participant = models.Participant.query.filter_by(id=participant_id).one()
     except NoResultFound:
         return error_response(error_type="/node POST no participant found",
                               status=403)
@@ -761,19 +818,12 @@ def create_node(participant_id):
 
     # execute the request
     network = exp.get_network_for_participant(participant=participant)
-
     if network is None:
         return Response(dumps({"status": "error"}), status=403)
 
-    node = exp.create_node(
-        participant=participant,
-        network=network)
-
+    node = exp.create_node(participant=participant, network=network)
     assign_properties(node)
-
-    exp.add_node_to_network(
-        node=node,
-        network=network)
+    exp.add_node_to_network(node=node, network=network)
 
     # ping the experiment
     exp.node_post_request(participant=participant, node=node)
@@ -960,7 +1010,9 @@ def node_received_infos(node_id):
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
-        return error_response(error_type="/node/infos, node does not exist")
+        return error_response(
+            error_type="/node/infos, node {} does not exist".format(node_id)
+        )
 
     # execute the request:
     infos = node.received_infos(type=info_type)
@@ -1186,18 +1238,20 @@ def transformation_get(node_id):
     node = models.Node.query.get(node_id)
     if node is None:
         return error_response(
-            error_type="/node/transformations, node does not exist")
+            error_type="/node/transformations, "
+            "node {} does not exist".format(node_id)
+        )
 
     # execute the request
     transformations = node.transformations(
-        transformation_type=transformation_type)
+        type=transformation_type)
     try:
         # ping the experiment
         exp.transformation_get_request(node=node,
                                        transformations=transformations)
         session.commit()
     except Exception:
-        return error_response(error_type="/node/tranaformations GET failed",
+        return error_response(error_type="/node/transformations GET failed",
                               participant=node.participant)
 
     # return the data
@@ -1226,18 +1280,24 @@ def transformation_post(node_id, info_in_id, info_out_id):
     node = models.Node.query.get(node_id)
     if node is None:
         return error_response(
-            error_type="/transformation POST, node does not exist")
+            error_type="/transformation POST, "
+            "node {} does not exist".format(node_id)
+        )
 
     info_in = models.Info.query.get(info_in_id)
     if info_in is None:
         return error_response(
-            error_type="/transformation POST, info_in does not exist",
+            error_type="/transformation POST, info_in {} does not exist".format(
+                info_in_id
+            ),
             participant=node.participant)
 
     info_out = models.Info.query.get(info_out_id)
     if info_out is None:
         return error_response(
-            error_type="/transformation POST, info_out does not exist",
+            error_type="/transformation POST, info_out {} does not exist".format(
+                info_out_id
+            ),
             participant=node.participant)
 
     try:
@@ -1252,7 +1312,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
                                         transformation=transformation)
         session.commit()
     except Exception:
-        return error_response(error_type="/tranaformation POST failed",
+        return error_response(error_type="/transformation POST failed",
                               participant=node.participant)
 
     # return the data
@@ -1275,8 +1335,8 @@ def api_notifications():
     return success_response()
 
 
-def _debug_notify(assignment_id, participant_id=None,
-                  event_type='AssignmentSubmitted'):
+def _handle_worker_event(
+        assignment_id, participant_id=None, event_type='AssignmentSubmitted'):
     return worker_function(event_type, assignment_id, participant_id)
 
 
@@ -1297,62 +1357,82 @@ def check_for_duplicate_assignments(participant):
 @db.scoped_session_decorator
 def worker_complete():
     """Complete worker."""
-    if not request.args.get('uniqueId'):
-        status = "bad request"
-    else:
-        participants = models.Participant.query.filter_by(
-            unique_id=request.args['uniqueId'],
-        ).all()
-        if not len(participants):
-            return error_response(error_type='UniqueId not found: {}'.format(
-                request.args['uniqueId']
-            ))
-        participant = participants[0]
-        participant.end_time = datetime.now()
-        session.add(participant)
-        session.commit()
-        status = "success"
-    if config.get('recruiter', 'mturk') == u'bots':
-        # Trigger notification directly
-        # Bot submissions skip all attention and bonus checks
-        _debug_notify(
-            assignment_id=participant.assignment_id,
-            participant_id=participant.id,
-            event_type='BotAssignmentSubmitted',
+    unique_id = request.args.get('uniqueId')
+    if not unique_id:
+        return error_response(
+            error_type="bad request",
+            error_text=u'uniqueId parameter is required'
         )
-    elif config.get('mode') == "debug":
-        # Trigger notification directly in debug mode,
-        # because there won't be one from MTurk
-        _debug_notify(
-            assignment_id=participant.assignment_id,
-            participant_id=participant.id,
-        )
-    return success_response(status=status)
+
+    try:
+        _worker_complete(unique_id)
+    except KeyError:
+        return error_response(error_type='UniqueId not found: {}'.format(unique_id))
+
+    return success_response(status="success")
+
+
+def _worker_complete(unique_id):
+    participants = models.Participant.query.filter_by(unique_id=unique_id).all()
+    if not participants:
+        raise KeyError()
+
+    participant = participants[0]
+    participant.end_time = datetime.now()
+    session.add(participant)
+    session.commit()
+    config = _config()
+
+    recruiter = recruiters.from_config(config)
+    event_type = recruiter.submitted_event()
+
+    if event_type is None:
+        return
+
+    _handle_worker_event(
+        assignment_id=participant.assignment_id,
+        participant_id=participant.id,
+        event_type=event_type,
+    )
 
 
 @app.route('/worker_failed', methods=['GET'])
 @db.scoped_session_decorator
 def worker_failed():
     """Fail worker. Used by bots only for now."""
-    if 'uniqueId' not in request.args:
-        status = "bad request"
-    else:
-        participant = models.Participant.query.filter_by(
-            unique_id=request.args['uniqueId'],
-        ).all()[0]
-        participant.end_time = datetime.now()
-        session.add(participant)
-        session.commit()
-        status = "success"
+    unique_id = request.args.get('uniqueId')
+    if not unique_id:
+        return error_response(
+            error_type="bad request",
+            error_text=u'uniqueId parameter is required'
+        )
+
+    try:
+        _worker_failed(unique_id)
+    except KeyError:
+        return error_response(error_type='UniqueId not found: {}'.format(unique_id))
+
+    return success_response(field="status",
+                            data="success",
+                            request_type="worker failed")
+
+
+def _worker_failed(unique_id):
+    config = _config()
+    participants = models.Participant.query.filter_by(unique_id=unique_id).all()
+    if not participants:
+        raise KeyError()
+
+    participant = participants[0]
+    participant.end_time = datetime.now()
+    session.add(participant)
+    session.commit()
     if config.get('recruiter', 'mturk') == 'bots':
-        _debug_notify(
+        _handle_worker_event(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
             event_type='BotAssignmentRejected',
         )
-    return success_response(field="status",
-                            data=status,
-                            request_type="worker failed")
 
 
 @db.scoped_session_decorator
@@ -1409,7 +1489,7 @@ def worker_function(event_type, assignment_id, participant_id):
     runner_cls = WorkerEvent.for_name(event_type)
     if runner_cls:
         runner = runner_cls(
-            participant, assignment_id, exp, session, config, datetime.now()
+            participant, assignment_id, exp, session, _config(), datetime.now()
         )
         runner()
     session.commit()
