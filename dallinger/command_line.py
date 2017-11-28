@@ -40,6 +40,7 @@ from dallinger.mturk import MTurkService
 from dallinger import recruiters
 from dallinger import registration
 from dallinger.utils import check_call
+from dallinger.utils import ensure_directory
 from dallinger.utils import generate_random_id
 from dallinger.utils import get_base_url
 from dallinger.utils import GitClient
@@ -288,12 +289,9 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
             os.path.join(cwd, "snapshots", public_id + "-code"), "zip", dst)
 
     # Check directories.
-    if not os.path.exists(os.path.join("static", "scripts")):
-        os.makedirs(os.path.join("static", "scripts"))
-    if not os.path.exists("templates"):
-        os.makedirs("templates")
-    if not os.path.exists(os.path.join("static", "css")):
-        os.makedirs(os.path.join("static", "css"))
+    ensure_directory(os.path.join("static", "scripts"))
+    ensure_directory(os.path.join("templates", "default"))
+    ensure_directory(os.path.join("static", "css"))
 
     # Rename experiment.py for backwards compatibility.
     os.rename(

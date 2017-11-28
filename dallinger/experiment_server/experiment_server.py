@@ -14,7 +14,6 @@ from flask import (
     Flask,
     make_response,
     render_template,
-    render_template_string,
     request,
     Response,
     send_from_directory,
@@ -399,11 +398,8 @@ def advertisement():
 
     # Participant has not yet agreed to the consent. They might not
     # even have accepted the HIT.
-    with open('templates/ad.html', 'r') as temp_file:
-        ad_string = temp_file.read()
-    ad_string = insert_mode(ad_string, config.get('mode'))
-    return render_template_string(
-        ad_string,
+    return render_template(
+        'ad.html',
         hitid=hit_id,
         assignmentid=assignment_id,
         workerid=worker_id,
