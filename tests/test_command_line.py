@@ -265,10 +265,11 @@ class TestGitClient(object):
         assert ex_info.match('Not a git repository')
 
     def test_can_use_alternate_output(self, git):
-        out = mock.Mock(spec=file)
-        git.out = out
+        import tempfile
+        git.out = tempfile.NamedTemporaryFile()
         git.init()
-        out.write.assert_called()
+        git.out.seek(0)
+        assert "git init" in git.out.read()
 
 
 @pytest.fixture
