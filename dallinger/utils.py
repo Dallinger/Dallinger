@@ -34,6 +34,30 @@ def generate_random_id(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for x in range(size))
 
 
+def run_command(cmd, out):
+    """We want to both send subprocess output to stdout or another file
+    descriptor as the subprocess runs, *and* capture the actual exception
+    message on errors. CalledProcessErrors do not reliably contain the
+    underlying exception in either the 'message' or 'out' attributes, so
+    when a CalledProcessError is raised, we re-run the command again with
+    Popen(), which does return the error reliably.
+    """
+    try:
+        subprocess.check_call(cmd, stdout=out, stderr=out)
+    except subprocess.CalledProcessError:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, error = p.communicate()
+        if p.returncode != 0:
+            message = 'Command: "{}": Error: "{}"'.format(
+                ' '.join(cmd), error.replace('\n', ''),
+            )
+            raise CommandError(message)
+
+
+class CommandError(Exception):
+    """Something went wrong executing a subprocess command"""
+
+
 class GitError(Exception):
     """Something went wrong calling a Git command"""
 
@@ -67,13 +91,10 @@ class GitClient(object):
 
     def _run(self, cmd):
         self._log(cmd)
-        p = subprocess.Popen(cmd, stdout=self._sp_out, stderr=self._sp_out)
-        output, error = p.communicate()
-        if p.returncode != 0:
-            message = 'Command: "{}": Error: "{}"'.format(
-                ' '.join(cmd), error.replace('\n', ''),
-            )
-            raise GitError(message)
+        try:
+            run_command(cmd, self.out)
+        except CommandError as e:
+            raise GitError(e.message)
 
     def _log(self, cmd):
         print(
