@@ -65,8 +65,6 @@ class GitError(Exception):
 class GitClient(object):
     """Minimal wrapper, mostly for mocking"""
 
-    _sp_out = subprocess.PIPE
-
     def __init__(self, output=None):
         if output is None:
             self.out = sys.stdout
