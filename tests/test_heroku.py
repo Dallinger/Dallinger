@@ -326,6 +326,10 @@ class TestEmailingHITMessager(object):
         assert data['subject'] == 'Dallinger automated email - major error.'
         assert 'Allowed time: 1.0' in data['message']
 
+    def test_send_idle_experiment(self, nonwhimsical):
+        data = nonwhimsical.send_idle_experiment()
+        assert data['subject'] == 'Idle Experiment.'
+
 
 class TestHerokuUtilFunctions(object):
 
