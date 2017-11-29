@@ -98,9 +98,10 @@ def report_idle_after(seconds):
                         "dallinger_email_key": config["dallinger_email_password"],
                         "whimsical": False
                     }
+                    app_id = config["id"]
                     email = EmailingHITMessager(when=time, assignment_id=None,
                                                 hit_duration=seconds, time_active=seconds,
-                                                config=heroku_config)
+                                                config=heroku_config, app_id=app_id)
                     log("Sending email...")
                     email.send_idle_experiment()
                 except KeyError:

@@ -18,7 +18,7 @@ from pytest import raises
 
 import dallinger.command_line
 from dallinger.command_line import verify_package
-from dallinger.command_line import timeout
+from dallinger.command_line import report_idle_after
 from dallinger.compat import unicode
 from dallinger.config import get_config
 from dallinger import recruiters
@@ -124,12 +124,8 @@ class TestCommandLine(object):
         subprocess.check_call(["dallinger", "setup"])
 
     def test_email_with_no_credentials(self):
-            @timeout(1)
+            @report_idle_after(1)
             def test_smpt():
-                config = get_config()
-                config.extend({'dallinger_email_address': u'email',
-                               'contact_email_on_error': u'email',
-                               'dallinger_email_password': u'password'})
                 sleep(5)
 
             with raises(SMTPAuthenticationError):
