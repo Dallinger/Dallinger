@@ -123,9 +123,14 @@ class TestCommandLine(object):
         subprocess.check_call(["dallinger", "setup"])
         subprocess.check_call(["dallinger", "setup"])
 
-    def test_email_with_no_credentials(self):
+    def test_email_with_no_credentials(self, active_config):
             @report_idle_after(1)
             def test_smpt():
+                active_config.extend({
+                    'dallinger_email_address': u'email',
+                    'contact_email_on_error': u'email',
+                    'dallinger_email_password': u'password'
+                })
                 sleep(5)
 
             with raises(SMTPAuthenticationError):
