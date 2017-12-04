@@ -36,6 +36,7 @@
         popup = window.open('{{ server_location }}/consent?hit_id={{ hitid }}&assignment_id={{ assignmentid }}&worker_id={{ workerid }}&workerId={{ workerid }}','Popup','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=no,width='+1024+',height='+768+'');
         event.target.setAttribute("disabled", "");
     }
+
     document.getElementById("begin-button").onclick = openwindow;
 </script>
 {% endblock %}
@@ -85,7 +86,7 @@
                                 <b>Warning</b>: Please disable pop-up blockers before continuing.
                             </div>
 
-                            <button type="button" class="btn btn-primary btn-lg">
+                            <button type="button" id="begin-button" class="btn btn-primary btn-lg">
                             Begin Experiment
                             </button>
                         {% endblock live %}
