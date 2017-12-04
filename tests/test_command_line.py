@@ -468,7 +468,7 @@ class TestDebugServer(object):
         get_config().load()
         debugger.new_recruit = mock.Mock(return_value=None)
         assert not debugger.new_recruit.called
-        debugger.notify('New participant requested: http://example.com')
+        debugger.notify(' New participant requested: http://example.com')
         assert debugger.new_recruit.called
 
     def test_recruitment_closed(self, debugger_unpatched):
