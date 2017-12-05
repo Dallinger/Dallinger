@@ -382,9 +382,9 @@ class MTurkRecruiter(Recruiter):
             # We are not expiring the hit currently as notifications are failing
             # TODO: Reinstate this
             return
-            #return self.mturkservice.expire_hit(
+            # return self.mturkservice.expire_hit(
             #    self.current_hit_id(),
-            #)
+            # )
         except MTurkServiceException as ex:
             logger.exception(ex.message)
 
