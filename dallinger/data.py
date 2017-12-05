@@ -78,14 +78,14 @@ def find_experiment_export(app_id):
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
     buckets = [
-        user_s3_bucket(),
-        dallinger_s3_bucket(),
+        user_s3_bucket,
+        dallinger_s3_bucket,
     ]
 
     for bucket in buckets:
-        k = Key(bucket)
-        k.key = data_filename
         try:
+            k = Key(bucket())
+            k.key = data_filename
             k.get_contents_to_filename(path_to_data)
         except boto.exception.S3ResponseError:
             pass
