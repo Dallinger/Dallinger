@@ -108,10 +108,26 @@ Allowed time: {duration}
 Time since participant started: {minutes_so_far}
 """
 
+idle_template = """Dear experimenter,
+
+This is an automated email from Dallinger. You are receiving this email because
+your dyno has been running for over {minutes_so_far} minutes.`
+
+The application id is: {app_id}
+
+To see the logs, use the command "dallinger logs --app {app_id}"
+To pause the app, use the command "dallinger hibernate --app {app_id}"
+To destroy the app, use the command "dallinger destroy --app {app_id}"
+
+
+The Dallinger dev. team.
+"""
+
 
 class EmailingHITMessager(object):
 
-    def __init__(self, when, assignment_id, hit_duration, time_active, config, server=None):
+    def __init__(self, when, assignment_id, hit_duration, time_active, config,
+                 server=None, app_id=None):
         self.when = when
         self.assignment_id = assignment_id
         self.duration = round(hit_duration / 60)
@@ -123,6 +139,7 @@ class EmailingHITMessager(object):
         self.toaddr = config.get('contact_email_on_error')
         self.email_password = config.get("dallinger_email_key")
         self.server = server or SMTP('smtp.gmail.com:587')
+        self.app_id = app_id
 
     def _send(self, data):
         msg = MIMEText(data['message'])
@@ -139,6 +156,15 @@ class EmailingHITMessager(object):
 
     def send_hit_cancelled_msg(self):
         data = self._build_hit_cancelled_msg()
+        self._send(data)
+        return data
+
+    def send_idle_experiment(self):
+        template = idle_template
+        data = {
+            'message': template.format(**self.__dict__),
+            'subject': "Idle Experiment."
+        }
         self._send(data)
         return data
 

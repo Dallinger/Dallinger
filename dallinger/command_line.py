@@ -19,6 +19,8 @@ import tempfile
 import time
 import webbrowser
 
+from functools import wraps
+import signal
 import click
 from dallinger.config import get_config
 import psycopg2
@@ -33,6 +35,7 @@ from collections import Counter
 from dallinger import data
 from dallinger import db
 from dallinger import heroku
+from dallinger.heroku.messages import EmailingHITMessager
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp
@@ -79,6 +82,42 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
         else:
             click.secho(msg, err=True, fg='red')
         time.sleep(delay)
+
+
+def report_idle_after(seconds):
+    """Report_idle_after after certain number of seconds."""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            def _handle_timeout(signum, frame):
+                try:
+                    config = get_config()
+                    config.load()
+                    heroku_config = {
+                        "contact_email_on_error": config["contact_email_on_error"],
+                        "dallinger_email_username": config["dallinger_email_address"],
+                        "dallinger_email_key": config["dallinger_email_password"],
+                        "whimsical": False
+                    }
+                    app_id = config["id"]
+                    email = EmailingHITMessager(when=time, assignment_id=None,
+                                                hit_duration=seconds, time_active=seconds,
+                                                config=heroku_config, app_id=app_id)
+                    log("Sending email...")
+                    email.send_idle_experiment()
+                except KeyError:
+                    log("Config keys not set to send emails...")
+
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.alarm(seconds)
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+            return result
+
+        return wraps(func)(wrapper)
+
+    return decorator
 
 
 def verify_id(ctx, param, app):
@@ -566,6 +605,7 @@ def _deploy_in_mode(mode, app, verbose):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='Experiment id')
+@report_idle_after(21600)
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     _deploy_in_mode(u'sandbox', app, verbose)
@@ -574,6 +614,7 @@ def sandbox(verbose, app):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='ID of the deployed experiment')
+@report_idle_after(21600)
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
     _deploy_in_mode(u'live', app, verbose)
