@@ -45,19 +45,23 @@ def run_command(cmd, out):
     descriptor as the subprocess runs, *and* capture the actual exception
     message on errors. CalledProcessErrors do not reliably contain the
     underlying exception in either the 'message' or 'out' attributes, so
-    when a CalledProcessError is raised, we re-run the command again with
-    Popen(), which does return the error reliably.
+    we tee the stderr to a temporary file and if a CalledProcessError is
+    raised we read its contents to recover stderr
     """
-    try:
-        subprocess.check_call(cmd, stdout=out, stderr=out)
-    except subprocess.CalledProcessError:
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        _, error = p.communicate()
-        if p.returncode != 0:
-            message = 'Command: "{}": Error: "{}"'.format(
-                ' '.join(cmd), error.replace('\n', ''),
-            )
-            raise CommandError(message)
+    tempdir = tempfile.mkdtemp()
+    output_file = os.path.join(tempdir, 'stderr')
+    original_cmd = ' '.join(cmd)
+    p = subprocess.Popen(cmd, stdout=out, stderr=subprocess.PIPE)
+    t = subprocess.Popen(['tee', output_file], stdin=p.stderr, stdout=out)
+    t.wait()
+    p.stderr.close()
+    if p.returncode != 0:
+        with open(output_file, 'r') as output:
+            error = output.read()
+        message = 'Command: "{}": Error: "{}"'.format(
+            ' '.join(original_cmd), error.replace('\n', ''),
+        )
+        raise CommandError(message)
 
 
 class CommandError(Exception):
