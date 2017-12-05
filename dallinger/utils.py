@@ -4,6 +4,7 @@ import functools
 import io
 import os
 import random
+import shutil
 import string
 import subprocess
 import sys
@@ -54,14 +55,18 @@ def run_command(cmd, out):
     p = subprocess.Popen(cmd, stdout=out, stderr=subprocess.PIPE)
     t = subprocess.Popen(['tee', output_file], stdin=p.stderr, stdout=out)
     t.wait()
+    p.communicate()
     p.stderr.close()
     if p.returncode != 0:
         with open(output_file, 'r') as output:
             error = output.read()
         message = 'Command: "{}": Error: "{}"'.format(
-            ' '.join(original_cmd), error.replace('\n', ''),
+            original_cmd, error.replace('\n', ''),
         )
+        shutil.rmtree(tempdir, ignore_errors=True)
         raise CommandError(message)
+
+    shutil.rmtree(tempdir, ignore_errors=True)
 
 
 class CommandError(Exception):
