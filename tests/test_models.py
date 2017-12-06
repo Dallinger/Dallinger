@@ -707,3 +707,13 @@ class TestModels(object):
         assert len(participant.nodes(failed=True)) == 1
         assert len(participant.questions()) == 1
         assert participant.questions()[0].failed is True
+
+    def test_participant_json(self, db_session):
+        participant = models.Participant(
+            worker_id=str(1), hit_id=str(1), assignment_id=str(1), mode="test")
+        db_session.add(participant)
+        db_session.commit()
+
+        # make sure private data is not in there
+        assert 'unique_id' not in participant.__json__()
+        assert 'worker_id' not in participant.__json__()

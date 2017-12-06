@@ -1367,13 +1367,13 @@ def worker_complete():
     try:
         _worker_complete(participant_id)
     except KeyError:
-        return error_response(error_type='ParticipantId not found: {}'.format(unique_id))
+        return error_response(error_type='ParticipantId not found: {}'.format(participant_id))
 
     return success_response(status="success")
 
 
 def _worker_complete(participant_id):
-    participants = models.Participant.query.filter_by(participant_id=participant_id).all()
+    participants = models.Participant.query.filter_by(id=participant_id).all()
     if not participants:
         raise KeyError()
 
@@ -1400,26 +1400,26 @@ def _worker_complete(participant_id):
 @db.scoped_session_decorator
 def worker_failed():
     """Fail worker. Used by bots only for now."""
-    unique_id = request.args.get('uniqueId')
-    if not unique_id:
+    participant_id = request.args.get('participantId')
+    if not participant_id:
         return error_response(
             error_type="bad request",
-            error_text=u'uniqueId parameter is required'
+            error_text=u'participantId parameter is required'
         )
 
     try:
-        _worker_failed(unique_id)
+        _worker_failed(participant_id)
     except KeyError:
-        return error_response(error_type='UniqueId not found: {}'.format(unique_id))
+        return error_response(error_type='ParticipantId not found: {}'.format(participant_id))
 
     return success_response(field="status",
                             data="success",
                             request_type="worker failed")
 
 
-def _worker_failed(unique_id):
+def _worker_failed(participant_id):
     config = _config()
-    participants = models.Participant.query.filter_by(unique_id=unique_id).all()
+    participants = models.Participant.query.filter_by(id=participant_id).all()
     if not participants:
         raise KeyError()
 
