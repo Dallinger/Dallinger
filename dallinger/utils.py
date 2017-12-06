@@ -34,6 +34,12 @@ def generate_random_id(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for x in range(size))
 
 
+def ensure_directory(path):
+    """Create a matching path if it does not already exist"""
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+
 def run_command(cmd, out):
     """We want to both send subprocess output to stdout or another file
     descriptor as the subprocess runs, *and* capture the actual exception
