@@ -3,6 +3,8 @@
 var dallinger = (function () {
   var dlgr = {};
 
+  dlgr.skip_experiment = false;
+
   dlgr.getUrlParameter = function getUrlParameter(sParam) {
     var sPageURL = decodeURIComponent(window.location.search.substring(1)),
       sURLVariables = sPageURL.split('&'),
@@ -182,6 +184,7 @@ var dallinger = (function () {
           dlgr.identity.participantId = resp.participant.id;
           if (resp.quorum) {
             if (resp.quorum.n === resp.quorum.q) {
+              if (resp.quorum.n > resp.quorum.q) skip_experiment = true;
               // reached quorum; resolve immediately
               deferred.resolve();
             } else {
@@ -260,6 +263,7 @@ var dallinger = (function () {
       var quorum = data.q;
       dlgr.updateProgressBar(n, quorum);
       if (n >= quorum) {
+        if (n > quorum) skip_experiment = true;
         deferred.resolve();
       }
     };
