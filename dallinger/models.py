@@ -78,6 +78,9 @@ class Participant(Base, SharedMixin):
         'polymorphic_identity': 'participant'
     }
 
+    #: A String, the fingerprint hash of the participant.
+    fingerprint_hash = Column(String(50), nullable=True)
+
     #: A String, the worker id of the participant.
     worker_id = Column(String(50), nullable=False)
 
@@ -138,13 +141,14 @@ class Participant(Base, SharedMixin):
         default="working",
         index=True)
 
-    def __init__(self, worker_id, assignment_id, hit_id, mode):
+    def __init__(self, worker_id, assignment_id, hit_id, mode, fingerprint_hash=None):
         """Create a participant."""
         self.worker_id = worker_id
         self.assignment_id = assignment_id
         self.hit_id = hit_id
         self.unique_id = worker_id + ":" + assignment_id
         self.mode = mode
+        self.fingerprint_hash = fingerprint_hash
 
     def __json__(self):
         """Return json description of a participant."""
@@ -1117,13 +1121,13 @@ class Node(Base, SharedMixin):
                     new_vectors.append(Vector(origin=node, destination=self))
         return new_vectors
 
-    def flatten(self, l):
+    def flatten(self, lst):
         """Turn a list of lists into a list."""
-        if l == []:
-            return l
-        if isinstance(l[0], list):
-            return self.flatten(l[0]) + self.flatten(l[1:])
-        return l[:1] + self.flatten(l[1:])
+        if lst == []:
+            return lst
+        if isinstance(lst[0], list):
+            return self.flatten(lst[0]) + self.flatten(lst[1:])
+        return lst[:1] + self.flatten(lst[1:])
 
     def transmit(self, what=None, to_whom=None):
         """Transmit one or more infos from one node to another.

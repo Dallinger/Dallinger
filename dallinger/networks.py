@@ -10,7 +10,11 @@ from .nodes import Source
 class DelayedChain(Network):
     """Source -> Node -> Node -> Node -> ...
 
-    The source is optional, but must be added first.
+    If a Source exists in the network, it will be used as the parent for
+    the first 11 Nodes added. Beyond that number, the most recently added
+    Node will be assigned as the parent.
+
+    If no Source exists, the first 11 Nodes will have no parent assigned.
     """
 
     __mapper_args__ = {"polymorphic_identity": "delayed_chain"}
@@ -18,7 +22,7 @@ class DelayedChain(Network):
     def add_node(self, node):
         """Add an agent, connecting it to the previous node."""
         other_nodes = [n for n in self.nodes() if n.id != node.id]
-        if node.id > 11:
+        if len(self.nodes()) > 11:
             parents = [max(other_nodes, key=attrgetter('creation_time'))]
         else:
             parents = [n for n in other_nodes if isinstance(n, Source)]
@@ -278,13 +282,14 @@ class SequentialMicrosociety(Network):
 
     def add_node(self, node):
         """Add a node, connecting it to all the active nodes."""
-        nodes = sorted(
-            self.nodes(),
-            key=attrgetter('creation_time'), reverse=True)
+        for predecessor in self._most_recent_predecessors_to(node):
+            predecessor.connect(whom=node)
 
-        other_nodes = [n for n in nodes if n.id != node.id]
+    def _most_recent_predecessors_to(self, node):
+        other_nodes = [n for n in self.nodes() if n.id != node.id]
 
-        connecting_nodes = other_nodes[0:(self.n - 1)]
+        other_nodes_newest_first = sorted(
+            other_nodes, key=attrgetter('creation_time'), reverse=True
+        )
 
-        for n in connecting_nodes:
-            n.connect(whom=node)
+        return other_nodes_newest_first[:(self.n - 1)]

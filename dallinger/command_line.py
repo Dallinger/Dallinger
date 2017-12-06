@@ -14,12 +14,13 @@ except ImportError:
     # Python >= 3.3
     from shlex import quote
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
 import webbrowser
 
+from functools import wraps
+import signal
 import click
 from dallinger.config import get_config
 import psycopg2
@@ -34,11 +35,14 @@ from collections import Counter
 from dallinger import data
 from dallinger import db
 from dallinger import heroku
+from dallinger.heroku.messages import EmailingHITMessager
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp
 from dallinger.mturk import MTurkService
+from dallinger import recruiters
 from dallinger import registration
+from dallinger.utils import check_call
 from dallinger.utils import generate_random_id
 from dallinger.utils import get_base_url
 from dallinger.utils import GitClient
@@ -78,6 +82,42 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
         else:
             click.secho(msg, err=True, fg='red')
         time.sleep(delay)
+
+
+def report_idle_after(seconds):
+    """Report_idle_after after certain number of seconds."""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            def _handle_timeout(signum, frame):
+                try:
+                    config = get_config()
+                    config.load()
+                    heroku_config = {
+                        "contact_email_on_error": config["contact_email_on_error"],
+                        "dallinger_email_username": config["dallinger_email_address"],
+                        "dallinger_email_key": config["dallinger_email_password"],
+                        "whimsical": False
+                    }
+                    app_id = config["id"]
+                    email = EmailingHITMessager(when=time, assignment_id=None,
+                                                hit_duration=seconds, time_active=seconds,
+                                                config=heroku_config, app_id=app_id)
+                    log("Sending email...")
+                    email.send_idle_experiment()
+                except KeyError:
+                    log("Config keys not set to send emails...")
+
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.alarm(seconds)
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+            return result
+
+        return wraps(func)(wrapper)
+
+    return decorator
 
 
 def verify_id(ctx, param, app):
@@ -171,6 +211,7 @@ def verify_package(verbose=True):
         os.path.join("templates", "thanks.html"),
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "robots.txt")
     ]
@@ -235,7 +276,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     try:
         with open("requirements.txt", "r") as f:
             dependencies = [r for r in f.readlines() if r[:3] != "-e "]
-    except:
+    except (OSError, IOError):
         dependencies = []
 
     pkg_resources.require(dependencies)
@@ -325,15 +366,20 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     frontend_files = [
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger.js"),
+        os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "scripts", "reconnecting-websocket.js"),
         os.path.join("static", "scripts", "spin.min.js"),
         os.path.join("templates", "error.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "complete.html"),
+        os.path.join("templates", "questionnaire.html"),
         os.path.join("templates", "thanks.html"),
         os.path.join("templates", "waiting.html"),
         os.path.join("static", "robots.txt")
+    ]
+    frontend_dirs = [
+        os.path.join("templates", "base"),
     ]
 
     for filename in frontend_files:
@@ -341,6 +387,11 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         dst_filepath = os.path.join(dst, filename)
         if not os.path.exists(dst_filepath):
             shutil.copy(src, dst_filepath)
+    for filename in frontend_dirs:
+        src = os.path.join(src_base, "frontend", filename)
+        dst_filepath = os.path.join(dst, filename)
+        if not os.path.exists(dst_filepath):
+            shutil.copytree(src, dst_filepath)
 
     time.sleep(0.25)
 
@@ -473,7 +524,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
         "whimsical": config["whimsical"],
     }
 
-    for k, v in heroku_config.items():
+    for k, v in sorted(heroku_config.items()):  # sorted for testablility
         heroku_app.set(k, v)
 
     # Wait for Redis database to be ready.
@@ -514,16 +565,17 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     time.sleep(8)
 
     # Launch the experiment.
-    log("Launching the experiment on MTurk...")
+    log("Launching the experiment on the remote server and starting recruitment...")
     launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url))
     result = {
         'app_name': heroku_app.name,
         'app_home': heroku_app.url,
-        'recruitment_url': launch_data.get('recruitment_url', None),
+        'recruitment_msg': launch_data.get('recruitment_msg', None),
     }
-    log("URLs:")
+    log("Experiment details:")
     log("App home: {}".format(result['app_home']), chevrons=False)
-    log("Initial recruitment: {}".format(result['recruitment_url']), chevrons=False)
+    log("Recruiter info:")
+    log(result['recruitment_msg'], chevrons=False)
 
     # Return to the branch whence we came.
     os.chdir(cwd)
@@ -553,6 +605,7 @@ def _deploy_in_mode(mode, app, verbose):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='Experiment id')
+@report_idle_after(21600)
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     _deploy_in_mode(u'sandbox', app, verbose)
@@ -561,6 +614,7 @@ def sandbox(verbose, app):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='ID of the deployed experiment')
+@report_idle_after(21600)
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
     _deploy_in_mode(u'live', app, verbose)
@@ -768,8 +822,8 @@ class LocalSessionRunner(object):
 class DebugSessionRunner(LocalSessionRunner):
 
     dispatch = {
-        'New participant requested: (.*)$': 'new_recruit',
-        'Close recruitment.$': 'recruitment_closed',
+        r'[^\"]{} (.*)$'.format(recruiters.NEW_RECRUIT_LOG_PREFIX): 'new_recruit',
+        r'{}$'.format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): 'recruitment_closed',
     }
 
     def __init__(self, output, verbose, bot, proxy_port, exp_config):
@@ -790,8 +844,10 @@ class DebugSessionRunner(LocalSessionRunner):
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
         time.sleep(4)
-        _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
-        heroku.monitor(listener=self.notify)
+        result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
+        if result['status'] == 'success':
+            self.out.log(result['recruitment_msg'])
+            heroku.monitor(listener=self.notify)
 
     def cleanup(self):
         log("Completed debugging of experiment with id " + self.exp_id)
@@ -829,6 +885,9 @@ class DebugSessionRunner(LocalSessionRunner):
 
 
 class LoadSessionRunner(LocalSessionRunner):
+    dispatch = {
+        'Replay ready: (.*)$': 'start_replay',
+    }
 
     def __init__(self, app_id, output, verbose, exp_config):
         self.app_id = app_id
@@ -863,9 +922,24 @@ class LoadSessionRunner(LocalSessionRunner):
         base_url = get_base_url()
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
 
+        if self.exp_config.get('replay', False):
+            self.out.log("Launching the experiment...")
+            time.sleep(4)
+            _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
+            heroku.monitor(listener=self.notify)
+
         # Just run until interrupted:
         while(self.keep_running()):
             time.sleep(1)
+
+    def start_replay(self, match):
+        """Dispatched to by notify(). If a recruitment request has been issued,
+        open a browser window for the a new participant (in this case the
+        person doing local debugging).
+        """
+        self.out.log("replay ready!")
+        url = match.group(1)
+        webbrowser.open(url, new=1, autoraise=True)
 
     def cleanup(self):
         self.out.log("Terminating dataset load for experiment {}".format(self.exp_id))
@@ -878,10 +952,14 @@ class LoadSessionRunner(LocalSessionRunner):
 @dallinger.command()
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
-def load(app, verbose, exp_config=None):
+@click.option('--replay', is_flag=True, flag_value=True, help='Replay mode')
+def load(app, verbose, replay, exp_config=None):
     """Import database state from an exported zip file and leave the server
     running until stopping the process with <control>-c.
     """
+    if replay:
+        exp_config = exp_config or {}
+        exp_config['replay'] = True
     loader = LoadSessionRunner(app, Output(), verbose, exp_config)
     loader.run()
 
@@ -904,7 +982,7 @@ def monitor(app):
     webbrowser.open(heroku_app.dashboard_url)
     webbrowser.open("https://requester.mturk.com/mturk/manageHITs")
     heroku_app.open_logs()
-    subprocess.call(["open", heroku_app.db_uri])
+    check_call(["open", heroku_app.db_uri])
     while _keep_running():
         summary = get_summary(app)
         click.clear()

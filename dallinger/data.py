@@ -304,8 +304,10 @@ def ingest_to_model(file, model):
     """Load data from a CSV file handle into storage for a
     SQLAlchemy model class.
     """
+    reader = csv.reader(file)
+    columns = tuple('\"{}\"'.format(n) for n in reader.next())
     postgres_copy.copy_from(
-        file, model, db.engine, format='csv', HEADER=True
+        file, model, db.engine, columns=columns, format='csv', HEADER=False
     )
     fix_autoincrement(model.__table__.name)
 

@@ -1,3 +1,9 @@
+/*
+NOTE: This file is deprecated and will be removed
+in the next major release of Dallinger. Update your
+experiments to use dallinger2.js instead.
+*/
+
 /*globals Spinner, reqwest, store */
 
 // load essential variables
@@ -163,19 +169,27 @@ var submit_assignment = function () {
 // make a new participant
 var create_participant = function() {
     var url;
+
+    new Fingerprint2().get(function(result){
+      fingerprint_hash = result;
+      store.set("fingerprint_hash", fingerprint_hash)
+    });
+
     // check if the local store is available, and if so, use it.
     if (typeof store != "undefined") {
         url = "/participant/" +
             store.get("worker_id") + "/" +
             store.get("hit_id") + "/" +
             store.get("assignment_id") + "/" +
-            store.get("mode");
+            store.get("mode") + "?fingerprint_hash=" +
+            store.get("fingerprint_hash");
     } else {
         url = "/participant/" +
             worker_id + "/" +
             hit_id + "/" +
             assignment_id + "/" +
-            mode;
+            mode + "?fingerprint_hash=" + 
+            fingerprint_hash;
     }
 
     var deferred = $.Deferred();
@@ -221,16 +235,14 @@ var create_participant = function() {
 var lock = false;
 
 var submitResponses = function () {
-    submitNextResponse(0);
-    submitAssignment();
+    submitNextResponse(0, submitAssignment);
 };
 
 var submit_responses = function () {
     submitResponses();
-    submitAssignment();
 };
 
-var submitNextResponse = function (n) {
+var submitNextResponse = function (n, callback) {
 
     // Get all the ids.
     var ids = $("form .question select, input, textarea").map(
@@ -250,13 +262,20 @@ var submitNextResponse = function (n) {
         },
         success: function() {
             if (n <= ids.length) {
-                submitNextResponse(n + 1);
+                submitNextResponse(n + 1, callback);
+            } else {
+                if(callback) {
+                    callback();
+                }
             }
         },
         error: function (err) {
             var errorResponse = JSON.parse(err.response);
             if (errorResponse.hasOwnProperty("html")) {
                 $("body").html(errorResponse.html);
+            }
+            if(callback) {
+                callback();
             }
         }
     });

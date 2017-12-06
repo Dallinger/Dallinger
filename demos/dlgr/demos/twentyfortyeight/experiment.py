@@ -23,4 +23,4 @@ class TwentyFortyEight(dallinger.experiment.Experiment):
     def recruit(self):
         """Recruitment."""
         if not self.networks(full=False):
-            self.recruiter().close_recruitment()
+            self.recruiter.close_recruitment()

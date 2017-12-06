@@ -15,12 +15,14 @@ from . import (
     heroku,
     registration
 )
+from .patches import patch
 
 import logging
 from logging import NullHandler
 logger = logging.getLogger(__name__)
 logger.addHandler(NullHandler())
 
+patch()
 
 __all__ = (
     "bots",
