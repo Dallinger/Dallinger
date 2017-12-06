@@ -474,6 +474,7 @@ class TestMTurkRecruiter(object):
 
         mock_logger.exception.assert_called_once_with("Boom!")
 
+    @pytest.mark.xfail
     def test_close_recruitment(self, recruiter):
         fake_hit_id = 'fake HIT id'
         recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
