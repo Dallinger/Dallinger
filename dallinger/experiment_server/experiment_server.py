@@ -617,9 +617,9 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         app.logger.warning(msg.format(duplicate.id))
         q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
 
-    # Count participants waiting for quorum
+    # Count working participants
     waiting_count = models.Participant.query.filter_by(
-        status='working', all_nodes=None).count() + 1
+        status='working').count() + 1
 
     # Create the new participant.
     participant = models.Participant(

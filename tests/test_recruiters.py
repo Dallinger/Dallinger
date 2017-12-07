@@ -474,9 +474,14 @@ class TestMTurkRecruiter(object):
 
         mock_logger.exception.assert_called_once_with("Boom!")
 
+    @pytest.mark.xfail
     def test_close_recruitment(self, recruiter):
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
         recruiter.close_recruitment()
-        # This test is for coverage; the method doesn't do anything.
+        recruiter.mturkservice.expire_hit.assert_called_once_with(
+            fake_hit_id
+        )
 
     def test_notify_recruited_when_group_name_not_specified(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
