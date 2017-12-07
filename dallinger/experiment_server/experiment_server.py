@@ -1454,6 +1454,7 @@ def _worker_failed(participant_id):
 @db.scoped_session_decorator
 def worker_function(event_type, assignment_id, participant_id, node_id=None, details=None):
     """Process the notification."""
+    _config()
     try:
         db.logger.debug("rq: worker_function working on job id: %s",
                         get_current_job().id)

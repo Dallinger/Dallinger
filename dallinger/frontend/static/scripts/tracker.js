@@ -92,26 +92,14 @@ var ScribeDallingerTracker = function(config) {
 ScribeDallingerTracker.prototype.tracker = function(info) {
   var config = this.config;
   var path = info.path;
-  var value = info.value || {};
-  var data = new FormData(); 
+  var value = this.stripPII(info.value || {});
+  var data = new FormData();
+
+  // Only track events
+  if (path.indexOf('/events/') < 0) {
+    return;
+  }
   if (config.base_url) {
-    // Only track events
-    if (path.indexOf('/events/') < 0) {
-      return;
-    }
-
-    // Remove possible PII
-    if (value.fingerprint) delete value.fingerprint;
-    if (value.visitorId) delete value.visitorId;
-    if (value.source && value.source.url && value.source.url.query) {
-      if (value.source.url.query.worker_id) delete value.source.url.query.worker_id;
-      if (value.source.url.query.workerId) delete value.source.url.query.workerId;
-    }
-    if (value.target && value.target.url && value.target.url.query) {
-      if (value.target.url.query.worker_id) delete value.target.url.query.worker_id;
-      if (value.target.url.query.workerId) delete value.target.url.query.workerId;
-    }
-
     data.append('info_type', 'TrackingEvent');
     data.append('details', JSON.stringify(value));
 
@@ -123,9 +111,28 @@ ScribeDallingerTracker.prototype.tracker = function(info) {
     }
     xhr.open('POST', config.base_url.replace(/\/$/, "") + '/info/' + dlgr.node_id, true);
     xhr.send(data);
-  } else {
-    if(info.failure) setTimeout(info.failure, 0);
+  } else if (info.failure) {
+    setTimeout(info.failure, 0);
   }
+};
+
+ScribeDallingerTracker.prototype.stripPII = function(value) {
+  // Remove possible PII
+  delete value.fingerprint;
+  delete value.visitorId;
+  try {
+    delete value.source.url.query.worker_id;
+    delete value.source.url.query.workerId;
+  } catch (e) {
+    // Doesn't matter
+  }
+  try {
+    delete value.target.url.query.worker_id;
+    delete value.target.url.query.workerId;
+  } catch (e) {
+    // Doesn't matter
+  }
+  return value;
 };
 
 ScribeDallingerTracker.prototype.init = function() {
@@ -142,11 +149,11 @@ ScribeDallingerTracker.prototype.init = function() {
   var trackSelectedText = function (e) {
     var text = '';
     if (window.getSelection) {
-        text = window.getSelection();
+      text = window.getSelection();
     } else if (document.getSelection) {
-        text = document.getSelection();
+      text = document.getSelection();
     } else if (document.selection) {
-        text = document.selection.createRange().text;
+      text = document.selection.createRange().text;
     }
     text = text.toString();
     if (dlgr.tracker && text) {
@@ -186,7 +193,7 @@ ScribeDallingerTracker.prototype.init = function() {
     }
     var doc = document.documentElement || document.body;
     var content = doc.innerHTML;
-    dlgr.tracker.track('page_loaded', {
+    dlgr.tracker.track('page_contents', {
       target: getNodeDescriptor(doc),
       content: content
     });
@@ -229,44 +236,44 @@ var dlgr = window.dlgr = (window.dlgr || {});
   var ScribeDallinger = __webpack_require__(1);
 
   function getParticipantId() {
-      var participant_id = dlgr.participant_id;
-      return participant_id === true ? null : participant_id;
+    var participant_id = dlgr.participant_id;
+    return participant_id === true ? null : participant_id;
   }
 
   function getNodeId() {
-      return dlgr.node_id;
+    return dlgr.node_id;
   }
 
   function getBaseUrl() {
-      if (dlgr.experiment_url) return dlgr.experiment_url;
-      return '/';
+    if (dlgr.experiment_url) return dlgr.experiment_url;
+    return '/';
   }
 
   function configuredTracker() {
-      return new ScribeDallinger.ScribeDallingerTracker({
-          participant_id: getParticipantId(),
-          node_id: getNodeId(),
-          base_url: getBaseUrl(),
-          trackScroll: true,
-          trackSelection: true,
-          trackContents: true
-      });
+    return new ScribeDallinger.ScribeDallingerTracker({
+      participant_id: getParticipantId(),
+      node_id: getNodeId(),
+      base_url: getBaseUrl(),
+      trackScroll: true,
+      trackSelection: true,
+      trackContents: true
+    });
   }
 
   if (!dlgr.tracker) {
-      dlgr.tracker = new Scribe({
-        tracker:    configuredTracker(),
-        trackPageViews:   true,
-        trackClicks:      true,
-        trackHashChanges: true,
-        trackEngagement:  true,
-        trackLinkClicks:  true,
-        trackRedirects:   true,
-        trackSubmissions: true
-      });
+    dlgr.tracker = new Scribe({
+      tracker:    configuredTracker(),
+      trackPageViews:   true,
+      trackClicks:      true,
+      trackHashChanges: true,
+      trackEngagement:  true,
+      trackLinkClicks:  true,
+      trackRedirects:   true,
+      trackSubmissions: true
+    });
   }
 
-})(require);
+}(require));
 
 
 /***/ })

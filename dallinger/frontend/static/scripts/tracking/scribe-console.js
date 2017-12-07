@@ -11,9 +11,8 @@ ScribeConsoleTracker.prototype.tracker = function(info) {
   if (typeof console !== 'undefined') {
     console.log(path);
     console.log(value);
-
-    info.success && setTimeout(info.success, 0);
-  } else {
-    info.failure && setTimeout(info.failure, 0);
+    if (info.success) setTimeout(info.success, 0);
+  } else if (info.failure) {
+    setTimeout(info.failure, 0);
   }
 };
