@@ -211,46 +211,46 @@ class TestWorkerComplete(object):
         assert 'participantId parameter is required' in resp.data
 
     def test_with_invalid_participant_id_returns_error(self, webapp):
-        resp = webapp.get('/worker_complete?participantId=-1')
+        resp = webapp.get('/worker_complete?participant_id=-1')
         assert resp.status_code == 400
         assert 'ParticipantId not found: -1' in resp.data
 
     def test_with_valid_participant_id_returns_success(self, a, webapp):
-        resp = webapp.get('/worker_complete?participantId={}'.format(
+        resp = webapp.get('/worker_complete?participant_id={}'.format(
             a.participant().id)
         )
         assert resp.status_code == 200
 
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
-        webapp.get('/worker_complete?participantId={}'.format(
+        webapp.get('/worker_complete?participant_id={}'.format(
             participant.id)
         )
         assert db_session.merge(participant).end_time is not None
 
     def test_records_notification_if_debug_mode(self, a, webapp):
-        webapp.get('/worker_complete?participantId={}'.format(
+        webapp.get('/worker_complete?participant_id={}'.format(
             a.participant().id)
         )
         assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
         active_config.extend({'recruiter': u'bots'})
-        webapp.get('/worker_complete?participantId={}'.format(
+        webapp.get('/worker_complete?participant_id={}'.format(
             a.participant().id)
         )
         assert models.Notification.query.one().event_type == u'BotAssignmentSubmitted'
 
     def test_records_no_notification_mturk_recruiter_and_nondebug(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
-        webapp.get('/worker_complete?participantId={}'.format(
+        webapp.get('/worker_complete?participant_id={}'.format(
             a.participant().id)
         )
         assert models.Notification.query.all() == []
 
     def test_records_notification_for_non_mturk_recruiter(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
-        webapp.get('/worker_complete?participantId={}'.format(
+        webapp.get('/worker_complete?participant_id={}'.format(
             a.participant().id)
         )
         assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
@@ -265,32 +265,32 @@ class TestWorkerFailed(object):
         assert 'participantId parameter is required' in resp.data
 
     def test_with_invalid_participant_id_returns_error(self, webapp):
-        resp = webapp.get('/worker_failed?participantId=-1')
+        resp = webapp.get('/worker_failed?participant_id=-1')
         assert resp.status_code == 400
         assert 'ParticipantId not found: -1' in resp.data
 
     def test_with_valid_participant_id_returns_success(self, a, webapp):
-        resp = webapp.get('/worker_failed?participantId={}'.format(
+        resp = webapp.get('/worker_failed?participant_id={}'.format(
             a.participant().id)
         )
         assert resp.status_code == 200
 
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
-        webapp.get('/worker_failed?participantId={}'.format(
+        webapp.get('/worker_failed?participant_id={}'.format(
             participant.id)
         )
         assert db_session.merge(participant).end_time is not None
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
         active_config.extend({'recruiter': u'bots'})
-        webapp.get('/worker_failed?participantId={}'.format(
+        webapp.get('/worker_failed?participant_id={}'.format(
             a.participant().id)
         )
         assert models.Notification.query.one().event_type == u'BotAssignmentRejected'
 
     def test_records_no_notification_if_mturk_recruiter(self, a, webapp):
-        webapp.get('/worker_failed?participantId={}'.format(
+        webapp.get('/worker_failed?participant_id={}'.format(
             a.participant().id)
         )
         assert models.Notification.query.all() == []

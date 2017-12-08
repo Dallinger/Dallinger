@@ -140,7 +140,7 @@ var dallinger = (function () {
       dlgr.identity.workerId = resp.participant.worker_id;
       var workerComplete = '/worker_complete';
       dlgr.get('/worker_complete', {
-        'uniqueId': dlgr.identity.workerId + ":" + dlgr.identity.assignmentId
+        'participant_id': dlgr.identity.participantId
       }).done(function (resp) {
         deferred.resolve();
         dallinger.allowExit();

@@ -23,10 +23,12 @@ class BotBase(object):
         parts = urlparse(URL)
         query = parse_qs(parts.query)
         if not assignment_id:
-            assignment_id = query.get('assignmentId', [''])[0]
+            assignment_id = query.get('assignment_id', [''])[0]
+        if not participant_id:
+            participant_id = query.get('participant_id', [''])[0]
         self.assignment_id = assignment_id
         if not worker_id:
-            worker_id = query.get('workerId', [''])[0]
+            worker_id = query.get('worker_id', [''])[0]
         self.worker_id = worker_id
         self.unique_id = worker_id + ':' + assignment_id
 
@@ -124,11 +126,11 @@ class BotBase(object):
     def complete_experiment(self, status):
         url = self.driver.current_url
         p = urlparse(url)
-        complete_url = '%s://%s/%s?uniqueId=%s'
+        complete_url = '%s://%s/%s?participant_id=%s'
         complete_url = complete_url % (p.scheme,
                                        p.netloc,
                                        status,
-                                       self.unique_id)
+                                       self.participant_id)
         self.driver.get(complete_url)
         logger.info("Forced call to %s: %s" % (status, complete_url))
 
