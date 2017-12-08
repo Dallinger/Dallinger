@@ -1353,7 +1353,7 @@ def check_for_duplicate_assignments(participant):
 @db.scoped_session_decorator
 def worker_complete():
     """Complete worker."""
-    participant_id = request.args.get('participantId')
+    participant_id = request.args.get('participant_id')
     if not participant_id:
         return error_response(
             error_type="bad request",
@@ -1396,7 +1396,7 @@ def _worker_complete(participant_id):
 @db.scoped_session_decorator
 def worker_failed():
     """Fail worker. Used by bots only for now."""
-    participant_id = request.args.get('participantId')
+    participant_id = request.args.get('participant_id')
     if not participant_id:
         return error_response(
             error_type="bad request",
