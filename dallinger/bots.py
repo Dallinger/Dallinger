@@ -29,6 +29,7 @@ class BotBase(object):
         self.assignment_id = assignment_id
         if not worker_id:
             worker_id = query.get('worker_id', [''])[0]
+        self.participant_id = participant_id
         self.worker_id = worker_id
         self.unique_id = worker_id + ':' + assignment_id
 
