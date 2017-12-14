@@ -183,20 +183,16 @@ var dallinger = (function () {
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
           if (resp.quorum) {
-            if (resp.quorum.n === resp.quorum.q) {
               if (resp.quorum.n > resp.quorum.q) skip_experiment = true;
               // reached quorum; resolve immediately
               deferred.resolve();
-            } else {
+             else {
               // wait for quorum, then resolve
               dlgr.updateProgressBar(resp.quorum.n, resp.quorum.q);
               dlgr.waitForQuorum().done(function () {
                 deferred.resolve();
               });
             }
-          } else {
-            // no quorum; resolve immediately
-            deferred.resolve();
           }
         });
       });
