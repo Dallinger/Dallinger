@@ -25,3 +25,11 @@ class State(Info):
     __mapper_args__ = {
         "polymorphic_identity": "state"
     }
+
+
+class TrackingEvent(Info):
+    """A state."""
+
+    __mapper_args__ = {
+        "polymorphic_identity": "tracking"
+    }

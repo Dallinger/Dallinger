@@ -14,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     Float
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql.expression import false
 from sqlalchemy.orm import relationship, validates
 
@@ -63,6 +64,9 @@ class SharedMixin(object):
 
     #: the time at which failing occurred
     time_of_death = Column(DateTime, default=None)
+
+    #: a generic column for storing structured JSON data
+    details = Column(JSONB, nullable=False, server_default="{}", default=lambda: {})
 
 
 class Participant(Base, SharedMixin):
@@ -1445,7 +1449,7 @@ class Info(Base, SharedMixin):
     #: the contents of the info. Must be stored as a String.
     contents = Column(Text(), default=None)
 
-    def __init__(self, origin, contents=None):
+    def __init__(self, origin, contents=None, details=None):
         """Create an info."""
         # check the origin hasn't failed
         if origin.failed:
@@ -1457,6 +1461,8 @@ class Info(Base, SharedMixin):
         self.contents = contents
         self.network_id = origin.network_id
         self.network = origin.network
+        if details:
+            self.details = details
 
     @validates("contents")
     def _write_once(self, key, value):
@@ -1484,7 +1490,8 @@ class Info(Base, SharedMixin):
             "property2": self.property2,
             "property3": self.property3,
             "property4": self.property4,
-            "property5": self.property5
+            "property5": self.property5,
+            "details": self.details,
         }
 
     def fail(self):

@@ -214,6 +214,7 @@ def verify_package(verbose=True):
         os.path.join("static", "scripts", "dallinger.js"),
         os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("static", "scripts", "tracker.js"),
         os.path.join("static", "robots.txt")
     ]
 
@@ -366,8 +367,10 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("static", "scripts", "dallinger.js"),
         os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("static", "scripts", "require.js"),
         os.path.join("static", "scripts", "reconnecting-websocket.js"),
         os.path.join("static", "scripts", "spin.min.js"),
+        os.path.join("static", "scripts", "tracker.js"),
         os.path.join("templates", "error.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "complete.html"),
