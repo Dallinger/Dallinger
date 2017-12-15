@@ -18,7 +18,7 @@
           dallinger.allowExit();
           if (dallinger.skip_experiment) {
             $('.main_div').html('<p>The experiment has exceeded the maximum number of participants, your participation is not required. Click the button below to complete the HIT. You will be compensated as if you had completed the task.</p><button type="button" class="button btn-success">Complete</button>')
-            $('.main_div button').on('click', submit_assignment);
+            $('.main_div button').on('click', dallinger.submitAssignment);
           } else {
             dallinger.goToPage("exp");
           }
