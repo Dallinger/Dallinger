@@ -182,9 +182,9 @@ var dallinger = (function () {
           console.log(resp);
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
-          if (resp.quorum) {
-            if (resp.quorum.n === resp.quorum.q) {
-              if (resp.quorum.n > resp.quorum.q) skip_experiment = true;
+          if (resp.quorum && resp.quorum.n !== resp.quorum.q) {
+            if (resp.quorum.n > resp.quorum.q) {
+              dlgr.skip_experiment = true;
               // reached quorum; resolve immediately
               deferred.resolve();
             } else {
@@ -263,7 +263,7 @@ var dallinger = (function () {
       var quorum = data.q;
       dlgr.updateProgressBar(n, quorum);
       if (n >= quorum) {
-        if (n > quorum) skip_experiment = true;
+        if (n > quorum) dlgr.skip_experiment = true;
         deferred.resolve();
       }
     };
