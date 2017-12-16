@@ -1065,8 +1065,6 @@ def info_post(node_id):
         if type(x) == Response:
             return x
 
-    if details:
-        details = loads(details)
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
