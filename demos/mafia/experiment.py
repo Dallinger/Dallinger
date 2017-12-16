@@ -8,7 +8,7 @@ from sqlalchemy import String
 from sqlalchemy.sql.expression import cast
 
 import dallinger as dlgr
-from dallinger.models import Node
+from dallinger.models import Node, Network
 from dallinger.networks import Empty
 from dallinger.networks import FullyConnected
 from dallinger.nodes import Source
@@ -20,12 +20,12 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
     def __init__(self, session):
         """Initialize the experiment."""
         super(CoordinationChatroom, self).__init__(session)
-        import nodes
-        self.nodes = nodes
+        import models
+        self.models = models
         
         self.experiment_repeats = 1
-        self.num_participants = 3 #55 #55 #140 below
-        self.initial_recruitment_size = 4 #self.num_participants * 2 #note: can't do *2.5 here, won't run even if the end result is an integer
+        self.num_participants = 4 #55 #55 #140 below
+        self.initial_recruitment_size = self.num_participants #self.num_participants * 2 #note: can't do *2.5 here, won't run even if the end result is an integer
         self.quorum = self.num_participants
         #self.setup()
         if session:
@@ -51,7 +51,9 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
     def create_network(self):
         """Create a new network by reading the configuration file."""
         #return Empty(max_size=self.num_participants + 1)  # add a Source
+        print('HELLO')
         return FullyConnected(max_size=self.num_participants + 1)  # add a Source
+        #return self.models.MafiaNetwork(max_size=self.num_participants + 1)  # add a Source
 
 
     def bonus(self, participant):
@@ -122,54 +124,19 @@ class CoordinationChatroom(dlgr.experiments.Experiment):
         # Check how many mafia members there are.
         # num_mafioso = Nodes.query.filter....count()
         # num_mafioso = Node.query.filter_by(__mapper_args__['polymorphic_identity']="mafioso").count()
-        num_mafioso = Node.query.filter_by(type="mafioso").count()
+        # num_mafioso = Node.query.filter_by(type="mafioso").count()
+        node_num = Node.query.filter_by().count()
         # If there aren't enough, create another:
-        # MONICA is this random?
         # SAMEE is participant an integer? is it sequential?
-        if num_mafioso < 2:
-        # if participant in self.mafia:
-           return self.nodes.Mafioso(network=network, participant=participant)
-        else:
-            return self.nodes.Bystander(network=network, participant=participant)
-        if participant == self.quorum:
+        # if num_mafioso < 2:
+        if node_num + 1 == self.quorum:
             self.start_time = time.time()
+        if node_num in self.mafia:
+            return self.models.Mafioso(network=network, participant=participant)
+        else:
+            return self.models.Bystander(network=network, participant=participant)
         #return dlgr.nodes.Agent(network=network, participant=participant)
 
-
-# class MafiaNetwork(Network):
-#
-#     @hybrid_property
-#     def daytime(self):
-#         """Convert property1 to genertion."""
-#         return self.property1
-#
-#     @daytime.setter
-#     def daytime(self, is_daytime):
-#         """Make time settable."""
-#         self.property1 = repr(is_daytime)
-#
-#     @daytime.expression
-#     def daytime(self):
-#         """Make time queryable."""
-#         return cast(self.property1, bool)
-#
-#     def fail_all_vectors(self):
-#         for v in self.vectors():
-#             v.fail()
-#
-#     def setup_daytime(self):
-#         nodes = self.nodes()
-#         for n in nodes:
-#             for m in nodes:
-#                 if n != m:
-#                     n.connect(whom=m, direction="to")
-#
-#     def setup_nighttime(self):
-#         mafiosi = self.nodes(type=Mafioso)
-#         for n in mafiosi:
-#             for m in mafiosi:
-#                 if n != m:
-#                     n.connect(whom=m, direction="to")
 
 
 class FreeRecallListSource(Source):
