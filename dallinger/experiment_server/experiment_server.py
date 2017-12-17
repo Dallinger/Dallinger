@@ -1068,30 +1068,19 @@ def info_post(node_id):
     # get the parameters and validate them
     contents = request_parameter(parameter="contents")
     details = request_parameter(parameter="details", optional=True)
-    if details:
-        details = loads(details)
-
-    # Special case for TrackingEvents. TODO: moveme
-    if request_parameter(parameter="info_type") == 'TrackingEvent':
-        db.logger.debug('rq: Queueing %s with for node: %s for worker_function',
-                        'TrackingEvent', node_id)
-        q.enqueue(worker_function, 'TrackingEvent', None, None,
-                  node_id=node_id, details=details)
-        return success_response()
-
-    # Get info_type again, and this time, validate it along with the other
-    # parameters:
     info_type = request_parameter(parameter="info_type",
                                   parameter_type="known_class",
                                   default=models.Info)
     for x in [contents, details, info_type]:
         if type(x) == Response:
             return x
-
     # check the node exists
     node = models.Node.query.get(node_id)
     if node is None:
         return error_response(error_type="/info POST, node does not exist")
+
+    if details:
+        details = loads(details)
 
     exp = Experiment(session)
     try:

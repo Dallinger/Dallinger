@@ -715,16 +715,6 @@ class TestInfoRoutePOST(object):
         data = json.loads(resp.data)
         assert u'info' in data
 
-    def test_queues_tracking_event(self, a, webapp):
-        node = a.node()
-        data = {'contents': 'foo', 'info_type': 'TrackingEvent'}
-        resp = webapp.post(
-            '/info/{}'.format(node.id),
-            data=data
-        )
-        data = json.loads(resp.data)
-        assert data == {u'status': u'success'}
-
     def test_loads_details_json_value(self, a, webapp):
         node = a.node()
         data = {
