@@ -1031,6 +1031,28 @@ def node_received_infos(node_id):
     return success_response(infos=[i.__json__() for i in infos])
 
 
+@app.route("/tracking_event/<int:node_id>", methods=["POST"])
+@crossdomain(origin='*')
+def tracking_event_post(node_id):
+    """Enqueue a TrackingEvent worker for the specified Node.
+    """
+    details = request_parameter(parameter="details", optional=True)
+    if details:
+        details = loads(details)
+
+    # check the node exists
+    node = models.Node.query.get(node_id)
+    if node is None:
+        return error_response(error_type="/info POST, node does not exist")
+
+    db.logger.debug('rq: Queueing %s with for node: %s for worker_function',
+                    'TrackingEvent', node_id)
+    q.enqueue(worker_function, 'TrackingEvent', None, None,
+              node_id=node_id, details=details)
+
+    return success_response(details=details)
+
+
 @app.route("/info/<int:node_id>", methods=["POST"])
 @crossdomain(origin='*')
 def info_post(node_id):

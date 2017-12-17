@@ -758,6 +758,32 @@ class TestInfoRoutePOST(object):
         assert '/info POST server error' in resp.data
 
 
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestTrackingEventRoutePOST(object):
+
+    def test_invalid_node_id_returns_error(self, webapp):
+        nonexistent_node_id = 999
+        data = {'details': '{"key": "value"}'}
+        resp = webapp.post(
+            '/tracking_event/{}'.format(nonexistent_node_id),
+            data=data
+        )
+        data = json.loads(resp.data)
+        assert data['status'] == 'error'
+        assert 'node does not exist' in data['html']
+
+    def test_loads_and_returns_details(self, a, webapp):
+        node = a.node()
+        data = {'details': '{"key": "value"}'}
+        resp = webapp.post(
+            '/tracking_event/{}'.format(node.id),
+            data=data
+        )
+        data = json.loads(resp.data)
+        assert data['status'] == u'success'
+        assert data['details'] == {u'key': u'value'}
+
+
 @pytest.mark.usefixtures('experiment_dir')
 class TestNodeNeighbors(object):
 
