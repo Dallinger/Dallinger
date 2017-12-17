@@ -694,11 +694,41 @@ class TestNodeRoutePOST(object):
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestInfoRoutePOST(object):
 
-    def test_info_post_works_with_details_json_value(self, a, webapp):
+    def test_invalid_node_id_returns_error(self, webapp):
+        nonexistent_node_id = 999
+        data = {'contents': 'foo'}
+        resp = webapp.post(
+            '/info/{}'.format(nonexistent_node_id),
+            data=data
+        )
+        data = json.loads(resp.data)
+        assert data['status'] == 'error'
+        assert 'node does not exist' in data['html']
+
+    def test_info_type_defaults_to_Info(self, a, webapp):
+        node = a.node()
+        data = {'contents': 'foo'}
+        resp = webapp.post(
+            '/info/{}'.format(node.id),
+            data=data
+        )
+        data = json.loads(resp.data)
+        assert u'info' in data
+
+    def test_queues_tracking_event(self, a, webapp):
+        node = a.node()
+        data = {'contents': 'foo', 'info_type': 'TrackingEvent'}
+        resp = webapp.post(
+            '/info/{}'.format(node.id),
+            data=data
+        )
+        data = json.loads(resp.data)
+        assert data == {u'status': u'success'}
+
+    def test_loads_details_json_value(self, a, webapp):
         node = a.node()
         data = {
             'contents': 'foo',
-            'info_type': 'Info',
             'details': '{"key": "value"}'
         }
         resp = webapp.post(
@@ -708,33 +738,24 @@ class TestInfoRoutePOST(object):
         data = json.loads(resp.data)
         assert data['info']['details'] == {u'key': u'value'}
 
-    def test_info_post_invalid_node_id_returns_error(self, webapp):
-        nonexistent_node_id = 999
-        data = {
-            'contents': 'foo',
-            'info_type': 'Info',
-            'details': '{"key": "value"}'
-        }
-        resp = webapp.post(
-            '/info/{}'.format(nonexistent_node_id),
-            data=data
-        )
-        data = json.loads(resp.data)
-        assert data['status'] == 'error'
-        assert 'node does not exist' in data['html']
-
-    def test_info_post_works_without_details_json_value(self, a, webapp):
+    def test_pings_experiment(self, a, webapp):
         node = a.node()
-        data = {
-            'contents': 'foo',
-            'info_type': 'Info',
-        }
-        resp = webapp.post(
-            '/info/{}'.format(node.id),
-            data=data
-        )
-        data = json.loads(resp.data)
-        assert data['info']['contents'] == u'foo'
+        data = {'contents': 'foo'}
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_class.return_value = mock_exp
+            webapp.post('/info/{}'.format(node.id), data=data)
+            mock_exp.info_post_request.assert_called_once()
+
+    def test_returns_error_if_experiment_ping_fails(self, a, webapp):
+        node = a.node()
+        data = {'contents': 'foo'}
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.info_post_request.side_effect = Exception("boom!")
+            mock_class.return_value = mock_exp
+            resp = webapp.post('/info/{}'.format(node.id), data=data)
+        assert '/info POST server error' in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir')

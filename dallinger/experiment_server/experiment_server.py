@@ -1043,10 +1043,13 @@ def info_post(node_id):
     If info_type is a custom subclass of Info it must be
     added to the known_classes of the experiment class.
     """
-    details = request_parameter(parameter="details")
+    # get the parameters and validate them
+    contents = request_parameter(parameter="contents")
+    details = request_parameter(parameter="details", optional=True)
     if details:
         details = loads(details)
 
+    # Special case for TrackingEvents. TODO: moveme
     if request_parameter(parameter="info_type") == 'TrackingEvent':
         db.logger.debug('rq: Queueing %s with for node: %s for worker_function',
                         'TrackingEvent', node_id)
@@ -1054,14 +1057,12 @@ def info_post(node_id):
                   node_id=node_id, details=details)
         return success_response()
 
-    exp = Experiment(session)
-
-    # get the parameters
+    # Get info_type again, and this time, validate it along with the other
+    # parameters:
     info_type = request_parameter(parameter="info_type",
                                   parameter_type="known_class",
                                   default=models.Info)
-    contents = request_parameter(parameter="contents")
-    for x in [info_type, contents]:
+    for x in [contents, details, info_type]:
         if type(x) == Response:
             return x
 
@@ -1070,6 +1071,7 @@ def info_post(node_id):
     if node is None:
         return error_response(error_type="/info POST, node does not exist")
 
+    exp = Experiment(session)
     try:
         # execute the request
         info = info_type(origin=node, contents=contents, details=details)
