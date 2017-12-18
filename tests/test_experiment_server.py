@@ -691,6 +691,89 @@ class TestNodeRoutePOST(object):
         assert 'recipient Node does not exist' in data['html']
 
 
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestInfoRoutePOST(object):
+
+    def test_invalid_node_id_returns_error(self, webapp):
+        nonexistent_node_id = 999
+        data = {'contents': 'foo'}
+        resp = webapp.post(
+            '/info/{}'.format(nonexistent_node_id),
+            data=data
+        )
+        data = json.loads(resp.data)
+        assert data['status'] == 'error'
+        assert 'node does not exist' in data['html']
+
+    def test_info_type_defaults_to_Info(self, a, webapp):
+        node = a.node()
+        data = {'contents': 'foo'}
+        resp = webapp.post(
+            '/info/{}'.format(node.id),
+            data=data
+        )
+        data = json.loads(resp.data)
+        assert u'info' in data
+
+    def test_loads_details_json_value(self, a, webapp):
+        node = a.node()
+        data = {
+            'contents': 'foo',
+            'details': '{"key": "value"}'
+        }
+        resp = webapp.post(
+            '/info/{}'.format(node.id),
+            data=data
+        )
+        data = json.loads(resp.data)
+        assert data['info']['details'] == {u'key': u'value'}
+
+    def test_pings_experiment(self, a, webapp):
+        node = a.node()
+        data = {'contents': 'foo'}
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_class.return_value = mock_exp
+            webapp.post('/info/{}'.format(node.id), data=data)
+            mock_exp.info_post_request.assert_called_once()
+
+    def test_returns_error_if_experiment_ping_fails(self, a, webapp):
+        node = a.node()
+        data = {'contents': 'foo'}
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.info_post_request.side_effect = Exception("boom!")
+            mock_class.return_value = mock_exp
+            resp = webapp.post('/info/{}'.format(node.id), data=data)
+        assert '/info POST server error' in resp.data
+
+
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestTrackingEventRoutePOST(object):
+
+    def test_invalid_node_id_returns_error(self, webapp):
+        nonexistent_node_id = 999
+        data = {'details': '{"key": "value"}'}
+        resp = webapp.post(
+            '/tracking_event/{}'.format(nonexistent_node_id),
+            data=data
+        )
+        data = json.loads(resp.data)
+        assert data['status'] == 'error'
+        assert 'node does not exist' in data['html']
+
+    def test_loads_and_returns_details(self, a, webapp):
+        node = a.node()
+        data = {'details': '{"key": "value"}'}
+        resp = webapp.post(
+            '/tracking_event/{}'.format(node.id),
+            data=data
+        )
+        data = json.loads(resp.data)
+        assert data['status'] == u'success'
+        assert data['details'] == {u'key': u'value'}
+
+
 @pytest.mark.usefixtures('experiment_dir')
 class TestNodeNeighbors(object):
 
