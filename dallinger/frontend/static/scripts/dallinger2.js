@@ -262,6 +262,9 @@ var dallinger = (function () {
       var n = data.n;
       var quorum = data.q;
       dlgr.updateProgressBar(n, quorum);
+      if (n === quorum) {
+        deferred.resolve();
+      }
     };
     return deferred;
   };
