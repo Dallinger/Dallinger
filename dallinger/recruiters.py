@@ -445,9 +445,9 @@ class MTurkRecruiter(Recruiter):
                 pass
 
 class MTurkRobustRecruiter(MTurkRecruiter):
-    """Accommodates more than 9 calls to recruit() without forcing 
+    """Accommodates more than 9 calls to recruit() without forcing
     a large initial recruitment"""
-    
+
     def recruit(self, n=1):
         
         if not self.config.get('auto_recruit', False):
