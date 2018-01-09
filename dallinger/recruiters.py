@@ -228,8 +228,7 @@ class MTurkRecruiterException(Exception):
 
 
 class MTurkRecruiter(Recruiter):
-    """Recruit participants from Amazon Mechanical Turk
-    
+    """Recruit participants from Amazon Mechanical Turk.
     If fewer than 9 assignments are made initially, recruitment stops after 9 
     calls to recruit()"""
 
@@ -447,6 +446,7 @@ class MTurkRecruiter(Recruiter):
 class MTurkRobustRecruiter(MTurkRecruiter):
     """Accommodates more than 9 calls to recruit() without forcing
     a large initial recruitment"""
+
 
     def recruit(self, n=1):
         
