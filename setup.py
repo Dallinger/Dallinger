@@ -33,7 +33,7 @@ setup_args = dict(
         'data': [
             "networkx==1.11",
             "odo==0.5.0",
-            "tablib==0.11.3"
+            "tablib==0.12.1"
         ],
     }
 )
