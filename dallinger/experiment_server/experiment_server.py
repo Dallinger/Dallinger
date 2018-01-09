@@ -1,6 +1,7 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from functools import update_wrapper
 import gevent
 from json import dumps
 from json import loads
@@ -20,7 +21,6 @@ from flask import (
     Response,
     send_from_directory,
 )
-from flask_crossdomain import crossdomain
 from jinja2 import TemplateNotFound
 from rq import get_current_job
 from rq import Queue
@@ -42,7 +42,6 @@ from .replay import ReplayBackend
 from .worker_events import WorkerEvent
 from .utils import nocache
 
-
 # Initialize the Dallinger database.
 session = db.session
 
@@ -51,6 +50,48 @@ q = Queue(connection=redis)
 WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')
+
+
+def crossdomain(origin=None, methods=None, headers=None,
+                max_age=21600, attach_to_all=True,
+                automatic_options=True):
+    if methods is not None:
+        methods = ', '.join(sorted(x.upper() for x in methods))
+    if headers is not None and not isinstance(headers, str):
+        headers = ', '.join(x.upper() for x in headers)
+    if not isinstance(origin, str):
+        origin = ', '.join(origin)
+    if isinstance(max_age, timedelta):
+        max_age = max_age.total_seconds()
+
+    def get_methods():
+        if methods is not None:
+            return methods
+
+        options_resp = app.make_default_options_response()
+        return options_resp.headers['allow']
+
+    def decorator(f):
+        def wrapped_function(*args, **kwargs):
+            if automatic_options and request.method == 'OPTIONS':
+                resp = app.make_default_options_response()
+            else:
+                resp = make_response(f(*args, **kwargs))
+            if not attach_to_all and request.method != 'OPTIONS':
+                return resp
+
+            h = resp.headers
+
+            h['Access-Control-Allow-Origin'] = origin
+            h['Access-Control-Allow-Methods'] = get_methods()
+            h['Access-Control-Max-Age'] = str(max_age)
+            if headers is not None:
+                h['Access-Control-Allow-Headers'] = headers
+            return resp
+
+        f.provide_automatic_options = False
+        return update_wrapper(wrapped_function, f)
+    return decorator
 
 
 @app.before_first_request
