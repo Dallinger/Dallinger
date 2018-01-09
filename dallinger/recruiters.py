@@ -441,6 +441,36 @@ class MTurkRecruiter(Recruiter):
             except DuplicateQualificationNameError:
                 pass
 
+class MTurkRobustRecruiter(MTurkRecruiter):
+
+    def recruit(self, n=1):
+        
+        if not self.config.get('auto_recruit', False):
+            logger.info('auto_recruit is False: recruitment suppressed')
+            return
+        
+        hit_request = {
+            'max_assignments': n,
+            'title': self.config.get('title'),
+            'description': self.config.get('description'),
+            'keywords': self._config_to_list('keywords'),
+            'reward': self.config.get('base_payment'),
+            'duration_hours': self.config.get('duration'),
+            'lifetime_days': self.config.get('lifetime'),
+            'ad_url': self.ad_url,
+            'notification_url': self.config.get('notification_url'),
+            'approve_requirement': self.config.get('approve_requirement'),
+            'us_only': self.config.get('us_only'),
+            'blacklist': self._config_to_list('qualification_blacklist'),
+        }
+        hit_info = self.mturkservice.create_hit(**hit_request)
+        if self.config.get('mode') == "sandbox":
+            lookup_url = "https://workersandbox.mturk.com/mturk/preview?groupId={type_id}"
+        else:
+            lookup_url = "https://worker.mturk.com/mturk/preview?groupId={type_id}"
+
+        return
+
 
 class MTurkLargeRecruiter(MTurkRecruiter):
 
