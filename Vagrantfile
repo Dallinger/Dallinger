@@ -20,10 +20,10 @@ Vagrant.configure("2") do |config|
     sudo apt-get update
 
     # Python dependencies
-    sudo apt-get install -y python2.7 python-pip
+    sudo apt-get install -y python3.6 python-pip
 
     # Postgres setup
-    sudo apt-get install -y postgresql-9.5 postgresql-server-dev-9.5 
+    sudo apt-get install -y postgresql-9.5 postgresql-server-dev-9.5
     sudo -u postgres createuser -ds ubuntu
     createdb dallinger
     # trust all connections
