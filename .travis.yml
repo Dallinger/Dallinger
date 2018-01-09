@@ -7,11 +7,11 @@ cache:
   - pip
 matrix:
   include:
-  - python: 2.7
-    env: TOXENV=py27
-  - python: 2.7
+  - python: 3.6
+    env: TOXENV=py36
+  - python: 3.6
     env: TOXENV=style
-  - python: 2.7
+  - python: 3.6
     env: TOXENV=docs
 addons:
   postgresql: "9.4"
@@ -66,5 +66,5 @@ deploy:
     on:
       branch: master
       tags: true
-      condition: $TRAVIS_PYTHON_VERSION = "2.7"
+      condition: $TRAVIS_PYTHON_VERSION = "3.6"
     skip_cleanup: true
