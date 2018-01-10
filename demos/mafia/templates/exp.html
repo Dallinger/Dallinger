@@ -13,11 +13,11 @@
     <body>
         <div class="main_div">
 
-            <div id="stimulus">
+            <!-- <div id="stimulus">
                 <div><h1 id="wordlist"></h1></div>
-            </div>
+            </div> -->
 
-            <div id="fillertask-form" style="display:none;">
+            <!-- <div id="fillertask-form" style="display:none;">
             <div id="row question">
               <h4> This doesn't count towards your performance score, but please solve
                  as many problems as possible in 30 seconds. </h4>
@@ -54,23 +54,38 @@
                 <br>
             </form>
           </div>
-        </div>
+        </div> -->
 
             <div id="response-form" style="display:none;">
-                <h4> Good! Now recall the words you saw
+                <!-- <h4> Good! Now recall the words you saw
                   by typing them below. If there are other people in this chatroom,
                   they will also be able to contribute words.
                   Please recall as many words as possible! </h4>
                 <p> Submit one word at a time, no spaces. </p>
                 <p> You will not be able to submit words already listed (by you or others). </p>
-                <br>
+                <br> -->
                 <!--<p>Word list:</p>!-->
                 <div id="chat">
                   <div><blockquote id="reply"></blockquote></div>
                 </div>
                 <input type="text" id="reproduction" class="form-control" />
+                <br>
                 <button id="send-message" type="button" class="btn btn-primary">Send.</button>
-                <button id="leave-chat" type="button" class="btn" onClick="leave_chatroom();">I can't recall any more</button>
+                <!-- <button id="leave-chat" type="button" class="btn" onClick="leave_chatroom();">I can't recall any more</button> -->
+            </div>
+            <br>
+            <!-- <div id="stimulus">
+                <div><h1 id="participant_list"></h1></div>
+            </div> -->
+            <br>
+            <div id="vote-form" style="display:none;">
+                  <select id="participants">
+                    <!-- <option>Volvo</option>
+                    <option>Saab</option> -->
+                    <!-- <option value="volvo">Volvo</option>
+                    <option value="saab">Saab</option> -->
+                  </select>
+                  <button id="vote" type="button" class="btn btn-primary">Vote.</button>
             </div>
         </div>
         <script>
