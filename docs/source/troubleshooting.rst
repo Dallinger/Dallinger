@@ -19,6 +19,11 @@ This will display all running processes that have the name `python` or `gunicorn
     pkill python
     pkill gunicorn
 
+You can also use this command to kill processes that might take trouble shutting down.
+::
+
+    pkill SIGKILL -E “python|gunicorn”
+
 Known Postgres issues
 ---------------------
 

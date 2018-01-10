@@ -117,3 +117,7 @@ results 16 bots should be run over 6 Selenium servers. This will depend on how
 processor intensive your experiment is. It may be possible to run more sessions
 without performance degradation.
 
+Test Bot performance
+********************
+
+You can test post performance running `python demo.py` from the `/demos` folder
