@@ -12,7 +12,6 @@
     </head>
     <body>
         <div class="main_div">
-
             <!-- <div id="stimulus">
                 <div><h1 id="wordlist"></h1></div>
             </div> -->
@@ -55,7 +54,9 @@
             </form>
           </div>
         </div> -->
-
+            <div id="stimulus" style="display:none;">
+                <div><h1 id="narrator"></h1></div>
+            </div>
             <div id="response-form" style="display:none;">
                 <!-- <h4> Good! Now recall the words you saw
                   by typing them below. If there are other people in this chatroom,
@@ -74,21 +75,17 @@
                 <!-- <button id="leave-chat" type="button" class="btn" onClick="leave_chatroom();">I can't recall any more</button> -->
             </div>
             <br>
-            <!-- <div id="stimulus">
-                <div><h1 id="participant_list"></h1></div>
-            </div> -->
-            <br>
+            <div id="mafia" style="display:none;">
+                <ul id="mafiosi"><h2>List of Mafia</h2></ul>
+            </div>
             <div id="vote-form" style="display:none;">
                   <select id="participants">
-                    <!-- <option>Volvo</option>
-                    <option>Saab</option> -->
+                    <option style="background-color: red">Volvo</option>
+                    <option style="color:red">Saab</option>
                     <!-- <option value="volvo">Volvo</option>
                     <option value="saab">Saab</option> -->
                   </select>
                   <button id="vote" type="button" class="btn btn-primary">Vote.</button>
-            </div>
-            <div id="stimulus" style="display:none;">
-                <div><h1 id="winner"></h1></div>
             </div>
         </div>
         <script>

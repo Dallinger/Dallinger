@@ -179,34 +179,35 @@ extra_routes = Blueprint(
     static_folder='static')
 
 
-@extra_routes.route("/phase", methods=["GET"])
-def phase():
+@extra_routes.route("/phase/<int:node_id>", methods=["GET"])
+def phase(node_id):
     try:
         exp = MafiaExperiment(db.session)
-        nodes = Node.query.order_by('creation_time').all()
+        this_node = Node.query.filter_by(id=node_id).one()
+        net = Network.query.filter_by(id=this_node.network_id).one()
+        nodes = Node.query.filter_by(network_id=net.id).order_by('creation_time').all()
         node = nodes[-1]
         elapsed_time = timenow() - node.creation_time
-        net = Network.query.filter_by(id=node.network_id).one()
         daytime = (net.daytime == 'True')
-        round_duration = 30
-        name = elapsed_time.total_seconds()
-        end = False
+        round_duration = 20
+        time = elapsed_time.total_seconds()
+        victim_name = None
+        victim_type = None
         winner = None
 
         # If it's night but should be day, then call setup_daytime()
         if not daytime and ((elapsed_time.total_seconds() // round_duration) % 2 == 1):
-            name = net.setup_daytime()
+            victim_name = net.setup_daytime()
 
         # If it's day but should be night, then call setup_nighttime()
         if daytime and ((elapsed_time.total_seconds() // round_duration) % 2 == 0):
-            name, end, winner = net.setup_nighttime()
+            victim_name, winner = net.setup_nighttime()
+            victim_type = Node.query.filter_by(property1=victim_name).one().type
 
         exp.save()
 
         return Response(
-            # response=net.daytime,
-            # response=str(name),
-            response=json.dumps({ "name": name, "end": end, "winner": winner }),
+            response=json.dumps({ "time": time, "daytime": net.daytime, "victim": [victim_name, victim_type], "winner": winner }),
             status=200,
             mimetype='application/json')
     except:
@@ -214,23 +215,30 @@ def phase():
             status=403,
             mimetype='application/json')
 
-# @extra_routes.route("/name/<int:node_id>", methods=["GET"])
-# def name(node_id):
-#     try:
-#         exp = MafiaExperiment(db.session)
-#         node = Node.query.filter_by(id=node_id).one()
-#         fake_name = node.fake_name
-#
-#         exp.save()
-#
-#         return Response(
-#             response=str(fake_name),
-#             status=200,
-#             mimetype='application/json')
-#     except:
-#         return Response(
-#             status=403,
-#             mimetype='application/json')
+@extra_routes.route("/live_participants/<int:node_id>/<int:get_all>", methods=["GET"])
+def live_participants(node_id, get_all):
+    try:
+        exp = MafiaExperiment(db.session)
+        this_node = Node.query.filter_by(id=node_id).one()
+        if get_all == 1:
+            nodes = Node.query.filter_by(network_id=this_node.network_id, property2='True').all()
+        else:
+            nodes = Node.query.filter_by(network_id=this_node.network_id, property2='True', type='mafioso').all()
+        participants = []
+        l = len(nodes)
+        for node in nodes:
+            participants.append([node.property1, node.type])
+
+        exp.save()
+
+        return Response(
+            response=json.dumps({ 'participants': participants }),
+            status=200,
+            mimetype='application/json')
+    except:
+        return Response(
+            status=403,
+            mimetype='application/json')
 
 class FreeRecallListSource(Source):
     """A Source that reads in a random list from a file and transmits it."""
