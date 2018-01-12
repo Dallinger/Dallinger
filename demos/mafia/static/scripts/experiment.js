@@ -1,6 +1,7 @@
 var participants = [];
 var currentNodeId;
 var currentNodeName;
+var currentNodeType;
 
 $(document).ready(function() {
   // Print the consent form.
@@ -62,14 +63,13 @@ create_agent = function() {
     method: "post",
     type: "json",
     success: function(resp) {
-      // console.log(resp)
+      console.log(resp)
       currentNodeId = resp.node.id;
       currentNodeName = resp.node.property1;
-      // participants.push(currentNodeId);
-      // participants.push(participant_id);
-      getParticipants();
-      // showParticipants();
-      // getWordList();
+      currentNodeType = resp.node.type;
+      $("#narrator").html("The game will begin shortly...");
+      $("#stimulus").show();
+      setTimeout(function () { $("#stimulus").hide(); showExperiment(); }, 1000);
     },
     error: function(err) {
       console.log(err);
@@ -86,106 +86,81 @@ create_agent = function() {
 
 getParticipants = function() {
   reqwest({
-    url: "/node/" + currentNodeId + "/received_infos",
-    method: "get",
+    url: "/live_participants/" + currentNodeId + '/' + 1,
+    method: 'get',
     type: "json",
-    success: function(resp) {
-      var participantList = JSON.parse(resp.infos[0].contents);
-      showParticipants(participantList);
+    success: function (resp) {
+      console.log(resp);
+      var participantList = resp.participants;
+      showParticipants(participantList, "#participants", 'option');
     },
-    error: function(err) {
-      console.log(err);
-      errorResponse = JSON.parse(err.response);
-      $("body").html(errorResponse.html);
+    error: function (resp) {
+        console.log(resp);
     }
   });
 };
 
-// showParticipants = function() {
-showParticipants = function(participantList) {
-  // for (i = 0; i < participants.length; i++) {
+getMafia = function() {
+  reqwest({
+    url: "/live_participants/" + currentNodeId + '/' + 0,
+    method: 'get',
+    type: "json",
+    success: function (resp) {
+      console.log(resp);
+      var mafiaList = resp.participants;
+      showParticipants(mafiaList, "#mafiosi", 'li');
+    },
+    error: function (resp) {
+        console.log(resp);
+    }
+  });
+}
+
+showParticipants = function(participantList, tag, subtag) {
   for (i = 0; i < participantList.length; i++) {
     // Add the next participant.
-    // $("#participants").html($("#participants").html() + '<option>' + participants.pop() + '</option>');
-    $("#participants").html($("#participants").html() + '<option>' + participantList.pop() + '</option>');
+    var [name, type] = participantList.pop();
+    $(tag).html($(tag).html() + '<' + subtag + '>' + name + '</' + subtag + '>');
   }
-  // Show experiment.
-  // $("#participants").html($("#participants").html() + '<option>participants.pop()</option>');
-  showExperiment();
 };
 
-// getWordList = function() {
-//   reqwest({
-//     url: "/node/" + currentNodeId + "/received_infos",
-//     method: "get",
-//     type: "json",
-//     success: function(resp) {
-//       var wordList = JSON.parse(resp.infos[0].contents);
-//       showWordList(wordList);
-//     },
-//     error: function(err) {
-//       console.log(err);
-//       errorResponse = JSON.parse(err.response);
-//       $("body").html(errorResponse.html);
-//     }
-//   });
-// };
-
-// showWordList = function(wl) {
-//   if (wl.length === 0) {
-//     // Show filler task.
-//     showFillerTask();
-//   } else {
-//     // Show the next word.
-//     $("#wordlist").html(wl.pop());
-//     setTimeout(
-//       function() {
-//         showWordList(wl);
-//       },
-//       2000
-//     );
-//   }
-// };
-
-// showFillerTask = function() {
-//   $("#stimulus").hide();
-//   $("#fillertask-form").show();
-//
-//   setTimeout(
-//     function() {
-//       showExperiment();
-//     },
-//     2000
-//   );
-// };
-
 showExperiment = function() {
-  // $("#fillertask-form").hide();
-  submitResponses();
+  // submitResponses();
+  getParticipants();
   $("#response-form").show();
   $("#send-message").removeClass("disabled");
   $("#send-message").html("Send");
   $("#reproduction").focus();
   $("#vote-form").show();
+  if (currentNodeType == 'mafioso') {
+    getMafia();
+    $("#mafia").show();
+  }
   get_transmissions();
 };
 
 check_phase = function() {
     reqwest({
-        // url: "/phase/" + currentNodeId,
-        url: "/phase",
+        url: "/phase/" + currentNodeId,
         method: 'get',
         success: function (resp) {
             console.log(resp);
-            if (resp.end) {
+            if (resp.winner) {
               $("#response-form").hide();
               $("#vote-form").hide();
-              $("#winner").html("Congratulations, the " + resp.winner + " have won!");
+              $("#narrator").html(resp.victim[0] + ", who is a " + resp.victim[1] + ", has been killed! Congratulations, the " + resp.winner + " have won!");
               $("#stimulus").show();
               setTimeout(function () { leave_chatroom();; }, 10000);
-            }
-            else {
-              setTimeout(function () { get_transmissions(currentNodeId); }, 100);
+            } else if (resp.victim[0] && resp.daytime == 'False') {
+              $("#narrator").html(resp.victim[0] + ", who is a " + resp.victim[1] + ", has been killed!");
+              $("#stimulus").show();
+              setTimeout(function () { $("#stimulus").hide(); get_transmissions(currentNodeId); }, 5000);
+            } else if (resp.victim[0]) {
+              $("#narrator").html(resp.victim[0] + " has been killed!");
+              $("#stimulus").show();
+              setTimeout(function () { $("#stimulus").hide(); get_transmissions(currentNodeId); }, 5000);
+            } else {
+              setTimeout(function () { $("#stimulus").hide(); get_transmissions(currentNodeId); }, 100);
             }
         },
         error: function (resp) {
@@ -207,7 +182,6 @@ get_transmissions = function() {
         displayInfo(transmissions[i].info_id);
       }
       check_phase();
-      // setTimeout(function () { get_transmissions(currentNodeId); }, 100);
     },
     error: function (err) {
       console.log(err);
@@ -225,12 +199,6 @@ displayInfo = function(infoId) {
     success: function(resp) {
       var word = resp.info.contents;
       $("#reply").append("<p>" + word + "</p>");
-      // var word = resp.info.contents.toLowerCase();
-      // if word hasn't appeared before, load into unique array and display
-      // if (uniqueWords.indexOf(word) === -1) {
-      //   uniqueWords.push(word);
-      //   $("#reply").append("<p>" + word + "</p>");
-      // }
     },
     error: function (err) {
       errorResponse = JSON.parse(err.response);
@@ -239,21 +207,7 @@ displayInfo = function(infoId) {
   });
 };
 
-// get_name = function() {
-//     reqwest({
-//         url: "/name/" + currentNodeId,
-//         method: 'get',
-//         success: function (resp) {
-//             console.log(resp);
-//         },
-//         error: function (resp) {
-//             console.log(resp);
-//         }
-//     });
-// };
-
 send_message = function() {
-  // name = get_name()
   response = $("#reproduction").val();
   // typing box
   // don't let people submit an empty response
@@ -262,24 +216,6 @@ send_message = function() {
   }
   response = currentNodeName + ': ' + $("#reproduction").val();
 
-  // let people submit only if word doesn't have a space
-  // if (response.indexOf(" ") >= 0) {
-  //   $("#send-message").removeClass("disabled");
-  //   $("#send-message").html("Send");
-  //   return;
-  // }
-
-  // will not let you add a word that is non-unique
-  // if (uniqueWords.indexOf(response.toLowerCase()) === -1) {
-  //   uniqueWords.push(response.toLowerCase());
-  //   $(
-  //     "#reply"
-  //   ).append("<p style='color: #1693A5;'>" + response.toLowerCase() + "</p>");
-  // } else {
-  //   $("#send-message").removeClass("disabled");
-  //   $("#send-message").html("Send");
-  //   return;
-  // }
   $(
     "#reply"
   ).append("<p style='color: #1693A5;'>" + response + "</p>");
@@ -300,6 +236,10 @@ send_message = function() {
 
 vote = function() {
   response = $("#participants").val();
+  response = currentNodeName + ': ' + $("#participants").val();
+  $(
+    "#reply"
+  ).append("<p style='color: #1693A5;'>" + response + "</p>");
 
   reqwest({
     url: "/info/" + currentNodeId,

@@ -1,14 +1,12 @@
 """Define kinds of nodes: agents, sources, and environments."""
 
 # from operator import attrgetter
-# import random
 
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import Boolean, String
 from sqlalchemy.sql.expression import cast
 
 # from dallinger.information import State
-# from dallinger.models import Info
 from dallinger.models import Node, Network, Info, timenow
 from dallinger.nodes import Source
 
@@ -132,12 +130,11 @@ class MafiaNetwork(Network):
         victim_name = self.vote(mafiosi)
         self.daytime = 'True'
         # nodes = [n for n in self.nodes() if not isinstance(n, Source)]
-        nodes = [n for n in Node.query.filter_by(network_id=self.id, property2='True').all() if not isinstance(n, Source)]
+        nodes = Node.query.filter_by(network_id=self.id, property2='True').all()
         for n in nodes:
             for m in nodes:
                 if n != m:
                     n.connect(whom=m, direction="to")
-        # return 'victim_name'
         return victim_name
 
     def setup_nighttime(self):
@@ -145,16 +142,13 @@ class MafiaNetwork(Network):
         nodes = Node.query.filter_by(network_id=self.id, property2='True').all()
         victim_name = self.vote(nodes)
         mafiosi = Node.query.filter_by(network_id=self.id, property2='True', type='mafioso').all()
-        game_end = False
         winner = None
         if len(mafiosi) >= (len(nodes) - 1) / 2:
-            game_end = True
             winner = 'mafia'
-            return victim_name, game_end, winner
+            return victim_name, winner
         if len(mafioso) == 0:
-            game_end = True
             winner = 'townspeople'
-            return victim_name, game_end, winner
+            return victim_name, winner
         self.daytime = 'False'
         self.fail_bystander_vectors()
-        return victim_name, game_end, winner
+        return victim_name, winner
