@@ -1,5 +1,6 @@
 var participants = [];
 var currentNodeId;
+var currentNodeName;
 
 $(document).ready(function() {
   // Print the consent form.
@@ -63,6 +64,7 @@ create_agent = function() {
     success: function(resp) {
       // console.log(resp)
       currentNodeId = resp.node.id;
+      currentNodeName = resp.node.property1;
       // participants.push(currentNodeId);
       // participants.push(participant_id);
       getParticipants();
@@ -168,6 +170,31 @@ showExperiment = function() {
   get_transmissions();
 };
 
+check_phase = function() {
+    reqwest({
+        // url: "/phase/" + currentNodeId,
+        url: "/phase",
+        method: 'get',
+        success: function (resp) {
+            console.log(resp);
+            if (resp.end) {
+              $("#response-form").hide();
+              $("#vote-form").hide();
+              $("#winner").html("Congratulations, the " + resp.winner + " have won!");
+              $("#stimulus").show();
+              setTimeout(function () { leave_chatroom();; }, 10000);
+            }
+            else {
+              setTimeout(function () { get_transmissions(currentNodeId); }, 100);
+            }
+        },
+        error: function (resp) {
+            console.log(resp);
+            setTimeout(function () { get_transmissions(currentNodeId); }, 100);
+        }
+    });
+};
+
 get_transmissions = function() {
   reqwest({
     url: "/node/" + currentNodeId + "/transmissions",
@@ -179,7 +206,8 @@ get_transmissions = function() {
       for (var i = transmissions.length - 1; i >= 0; i--) {
         displayInfo(transmissions[i].info_id);
       }
-      setTimeout(function () { get_transmissions(currentNodeId); }, 100);
+      check_phase();
+      // setTimeout(function () { get_transmissions(currentNodeId); }, 100);
     },
     error: function (err) {
       console.log(err);
@@ -211,13 +239,28 @@ displayInfo = function(infoId) {
   });
 };
 
+// get_name = function() {
+//     reqwest({
+//         url: "/name/" + currentNodeId,
+//         method: 'get',
+//         success: function (resp) {
+//             console.log(resp);
+//         },
+//         error: function (resp) {
+//             console.log(resp);
+//         }
+//     });
+// };
+
 send_message = function() {
+  // name = get_name()
   response = $("#reproduction").val();
   // typing box
   // don't let people submit an empty response
   if (response.length === 0) {
     return;
   }
+  response = currentNodeName + ': ' + $("#reproduction").val();
 
   // let people submit only if word doesn't have a space
   // if (response.indexOf(" ") >= 0) {
