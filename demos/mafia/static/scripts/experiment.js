@@ -1,7 +1,8 @@
-var participants = [];
 var currentNodeId;
 var currentNodeName;
 var currentNodeType;
+var wasDaytime = 'False';
+var switches = 0;
 
 $(document).ready(function() {
   // Print the consent form.
@@ -63,7 +64,7 @@ create_agent = function() {
     method: "post",
     type: "json",
     success: function(resp) {
-      console.log(resp)
+      // console.log(resp)
       currentNodeId = resp.node.id;
       currentNodeName = resp.node.property1;
       currentNodeType = resp.node.type;
@@ -90,7 +91,7 @@ getParticipants = function() {
     method: 'get',
     type: "json",
     success: function (resp) {
-      console.log(resp);
+      // console.log(resp);
       var participantList = resp.participants;
       showParticipants(participantList, "#participants", 'option');
     },
@@ -106,7 +107,7 @@ getMafia = function() {
     method: 'get',
     type: "json",
     success: function (resp) {
-      console.log(resp);
+      // console.log(resp);
       var mafiaList = resp.participants;
       showParticipants(mafiaList, "#mafiosi", 'li');
     },
@@ -117,9 +118,13 @@ getMafia = function() {
 }
 
 showParticipants = function(participantList, tag, subtag) {
+  $(tag).html('')
+  if (tag == "#mafiosi") {
+    $(tag).html($(tag).html() + '<h4>List of Living Mafia</h4>')
+  }
   for (i = 0; i < participantList.length; i++) {
     // Add the next participant.
-    var [name, type] = participantList.pop();
+    var name = participantList[i];
     $(tag).html($(tag).html() + '<' + subtag + '>' + name + '</' + subtag + '>');
   }
 };
@@ -127,6 +132,9 @@ showParticipants = function(participantList, tag, subtag) {
 showExperiment = function() {
   // submitResponses();
   getParticipants();
+  $('#name').html('You are a ' + currentNodeType + "! Your player's name is: " + currentNodeName)
+  $("#player").show();
+  $("#clock").show();
   $("#response-form").show();
   $("#send-message").removeClass("disabled");
   $("#send-message").html("Send");
@@ -141,24 +149,47 @@ showExperiment = function() {
 
 check_phase = function() {
     reqwest({
-        url: "/phase/" + currentNodeId,
+        // url: "/phase/" + currentNodeId,
+        // url: "/phase/" + currentNodeId + '/' + switches,
+        url: "/phase/" + currentNodeId + '/' + switches + '/' + wasDaytime,
         method: 'get',
         success: function (resp) {
             console.log(resp);
+            if (resp.daytime == 'True') {
+              $('#remaining').html('Time remaining this day: ' + resp.time)
+            } else {
+              $('#remaining').html('Time remaining this night: ' + resp.time)
+            }
             if (resp.winner) {
+              $("#player").hide();
+              $("#clock").hide();
               $("#response-form").hide();
               $("#vote-form").hide();
-              $("#narrator").html(resp.victim[0] + ", who is a " + resp.victim[1] + ", has been killed! Congratulations, the " + resp.winner + " have won!");
+              if (currentNodeType == 'mafioso') {
+                $("#mafia").hide();
+              }
+              $("#narrator").html(resp.victim[0] + ", who is a " + resp.victim[1] + ", has been eliminated! Congratulations, the " + resp.winner + " have won!");
               $("#stimulus").show();
-              setTimeout(function () { leave_chatroom();; }, 10000);
-            } else if (resp.victim[0] && resp.daytime == 'False') {
-              $("#narrator").html(resp.victim[0] + ", who is a " + resp.victim[1] + ", has been killed!");
+              setTimeout(function () { leave_chatroom(); }, 10000);
+            } else if (wasDaytime != resp.daytime) {
+              if (resp.daytime == 'False') {
+                document.body.style.backgroundColor = "royalblue";
+                $("#narrator").html(resp.victim[0] + ", who is a " + resp.victim[1] + ", has been eliminated!");
+              } else {
+                document.body.style.backgroundColor = "lightskyblue";
+                $("#narrator").html(resp.victim[0] + " has been eliminated!");
+              }
               $("#stimulus").show();
-              setTimeout(function () { $("#stimulus").hide(); get_transmissions(currentNodeId); }, 5000);
-            } else if (resp.victim[0]) {
-              $("#narrator").html(resp.victim[0] + " has been killed!");
-              $("#stimulus").show();
-              setTimeout(function () { $("#stimulus").hide(); get_transmissions(currentNodeId); }, 5000);
+              if (resp.victim[0] == currentNodeName) {
+                setTimeout(function () { leave_chatroom(); }, 3000);
+              }
+              getParticipants();
+              if (currentNodeType == 'mafioso' && resp.victim[1] == 'mafioso') {
+                getMafia();
+              }
+              wasDaytime = resp.daytime;
+              switches++;
+              setTimeout(function () { $("#stimulus").hide(); get_transmissions(currentNodeId); }, 3000);
             } else {
               setTimeout(function () { $("#stimulus").hide(); get_transmissions(currentNodeId); }, 100);
             }
@@ -218,7 +249,7 @@ send_message = function() {
 
   $(
     "#reply"
-  ).append("<p style='color: #1693A5;'>" + response + "</p>");
+  ).append("<p style='color: chocolate;'>" + response + "</p>");
 
   $("#reproduction").val("");
   $("#reproduction").focus();
@@ -239,7 +270,7 @@ vote = function() {
   response = currentNodeName + ': ' + $("#participants").val();
   $(
     "#reply"
-  ).append("<p style='color: #1693A5;'>" + response + "</p>");
+  ).append("<p style='color: chocolate;'>" + response + "</p>");
 
   reqwest({
     url: "/info/" + currentNodeId,
