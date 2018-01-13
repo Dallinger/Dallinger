@@ -143,10 +143,10 @@ class MafiaNetwork(Network):
         victim_name = self.vote(nodes)
         mafiosi = Node.query.filter_by(network_id=self.id, property2='True', type='mafioso').all()
         winner = None
-        if len(mafiosi) >= (len(nodes) - 1) / 2:
+        if len(mafiosi) >= len(nodes) - 1:
             winner = 'mafia'
             return victim_name, winner
-        if len(mafioso) == 0:
+        if len(mafiosi) == 0:
             winner = 'townspeople'
             return victim_name, winner
         self.daytime = 'False'
