@@ -10,7 +10,7 @@
         <link rel="stylesheet" type="text/css" href="static/css/bootstrap.min.css">
         <link rel="stylesheet" type="text/css" href="static/css/dallinger.css">
     </head>
-    <body>
+    <body style="background-color:royalblue;">
         <div class="main_div">
             <!-- <div id="stimulus">
                 <div><h1 id="wordlist"></h1></div>
@@ -57,6 +57,12 @@
             <div id="stimulus" style="display:none;">
                 <div><h1 id="narrator"></h1></div>
             </div>
+            <div id="player" style="display:none;">
+                <div><h2 id="name"></h2></div>
+            </div>
+            <div id="clock" style="display:none;">
+                <div><h3 id="remaining">Time remaining this round: </h3></div>
+            </div>
             <div id="response-form" style="display:none;">
                 <!-- <h4> Good! Now recall the words you saw
                   by typing them below. If there are other people in this chatroom,
@@ -76,12 +82,12 @@
             </div>
             <br>
             <div id="mafia" style="display:none;">
-                <ul id="mafiosi"><h2>List of Mafia</h2></ul>
+                <ul id="mafiosi"><h4>List of Living Mafia</h4></ul>
             </div>
             <div id="vote-form" style="display:none;">
                   <select id="participants">
-                    <option style="background-color: red">Volvo</option>
-                    <option style="color:red">Saab</option>
+                    <!-- <option style="background-color: red">Volvo</option>
+                    <option style="color:red">Saab</option> -->
                     <!-- <option value="volvo">Volvo</option>
                     <option value="saab">Saab</option> -->
                   </select>

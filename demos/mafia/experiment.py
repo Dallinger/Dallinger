@@ -11,11 +11,7 @@ from sqlalchemy.sql.expression import cast
 import dallinger as dlgr
 from dallinger import db
 from dallinger.models import Node, Network, timenow
-# from dallinger.networks import Empty
-# from dallinger.networks import FullyConnected
-# from dallinger.networks import MafiaNetwork
 from dallinger.nodes import Source
-# from dallinger.command_line import log
 from flask import Blueprint, Response
 from faker import Faker
 fake = Faker()
@@ -31,18 +27,13 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         self.models = models
 
         self.experiment_repeats = 1
-        self.num_participants = 3 #2 #55 #55 #140 below
+        self.num_participants = 5
         self.initial_recruitment_size = self.num_participants # * 2 # Note: can't do *2.5 here, won't run even if the end result is an integer
         self.quorum = self.num_participants
         if session:
             self.setup()
         self.num_mafia = 1
         # self.mafia = random.sample(range(self.num_participants), self.num_mafia)
-        # self.round_duration = 120
-        self.round_duration = 0
-        # self.start_time = timenow()
-        # print(self.start_time)
-        # self.start_time = time.time()
 
     def setup(self):
         """Setup the networks.
@@ -55,6 +46,7 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         if not self.networks():
             super(MafiaExperiment, self).setup()
             for net in self.networks():
+                # Source(network=net)
                 FreeRecallListSource(network=net)
 
     def create_network(self):
@@ -104,41 +96,7 @@ class MafiaExperiment(dlgr.experiments.Experiment):
     def info_post_request(self, node, info):
         """Run when a request to create an info is complete."""
 
-        # # Figure out if it's night or daytime based on current clocktime
-        # # elapsed_time = self.start_time
-        # # elapsed_time = time.time() - self.start_time
-        # # elapsed_time = timenow() - self.start_time
-        # elapsed_time = timenow() - Node.query.order_by('creation_time').first().creation_time
-        # # elapsed_time = timenow() - Participant.query.filter().order_by('creation_time').last() # creation time of participant
-        # # log("elapsed_time")
-        # # self.round_duration = elapsed_time - self.round_duration
-        #
-        # # Get the current status of the network (night vs. day) by querying
-        # # for the network and then checking its .daytime property.
-        # net = Network.query.filter_by(id=node.network_id).one()
-        # # net = node.network
-        # daytime = net.daytime
-        #
-        # # If it's night but should be day, then call setup_daytime()
-        # if (not daytime) and ((elapsed_time.total_seconds() // self.round_duration) % 2 == 1):
-        # # if (not daytime) and (elapsed_time.total_seconds() >= self.round_duration):
-        #     net.setup_daytime()
-        #
-        # # # If it's day but should be night, then call setup_nighttime()
-        # if daytime and ((elapsed_time.total_seconds() // self.round_duration) % 2 == 0):
-        # # if (daytime):
-        #     net.setup_nighttime()
-        #
-        # # if not daytime:
-        # #     net.setup_daytime()
-        #
-        # # if not votetime:
-        # #     net.setup_votetime()
-        # #
-        # # if net.daytime:
-        # #     net.setup_nighttime()
-        #
-        # # Proceed with normal info post request
+        # Proceed with normal info post request
         for agent in node.neighbors():
             node.transmit(what=info, to_whom=agent)
 
@@ -146,31 +104,20 @@ class MafiaExperiment(dlgr.experiments.Experiment):
     def create_node(self, participant, network):
         """Create a node for a participant."""
         # Check how many mafia members there are.
-        # num_mafioso = Nodes.query.filter....count()
-        # num_mafioso = Node.query.filter_by(__mapper_args__['polymorphic_identity']="mafioso").count()
         # If there aren't enough, create another:
-        # SAMEE is participant an integer? is it sequential?
-        # if Node.query.filter_by().count() == self.quorum:
-        # self.start_time = time.time()
-        # self.start_time = timenow()
         num_mafioso = Node.query.filter_by(type="mafioso").count()
         if num_mafioso < self.num_mafia:
-        # # num_nodes = Node.query.count() - 1
-        # if num_mafioso < self.num_mafia and random.random() < self.num_mafia / self.num_participants:
-        # # node_num = Node.query.count() - 1
-        # # if node_num in self.mafia:
+        # node_num = Node.query.count() - 1
+        # if node_num in self.mafia:
             mafioso = self.models.Mafioso(network=network, participant=participant)
             mafioso.fake_name = str(fake.name())
             mafioso.alive = 'True'
             return mafioso
-        # elif self.num_participants - num_nodes == self.num_mafia - num_mafioso:
-        #     return self.models.Mafioso(network=network, participant=participant)
         else:
             bystander = self.models.Bystander(network=network, participant=participant)
             bystander.fake_name = str(fake.name())
             bystander.alive = 'True'
             return bystander
-        #return dlgr.nodes.Agent(network=network, participant=participant)
 
 extra_routes = Blueprint(
     'extra_routes',
@@ -178,9 +125,8 @@ extra_routes = Blueprint(
     template_folder='templates',
     static_folder='static')
 
-
-@extra_routes.route("/phase/<int:node_id>", methods=["GET"])
-def phase(node_id):
+@extra_routes.route("/phase/<int:node_id>/<int:switches>/<string:was_daytime>", methods=["GET"])
+def phase(node_id, switches, was_daytime):
     try:
         exp = MafiaExperiment(db.session)
         this_node = Node.query.filter_by(id=node_id).one()
@@ -189,25 +135,40 @@ def phase(node_id):
         node = nodes[-1]
         elapsed_time = timenow() - node.creation_time
         daytime = (net.daytime == 'True')
-        round_duration = 20
+        day_round_duration = 60
+        night_round_duration = 30
+        break_duration = 3
+        daybreak_duration = day_round_duration + break_duration
+        nightbreak_duration = night_round_duration + break_duration
         time = elapsed_time.total_seconds()
+        if switches % 2 == 0:
+            time = night_round_duration - (elapsed_time.total_seconds() - switches / 2 * daybreak_duration) % night_round_duration
+        else:
+            time = day_round_duration - (elapsed_time.total_seconds() - (switches + 1) / 2 * nightbreak_duration) % day_round_duration
         victim_name = None
         victim_type = None
         winner = None
 
         # If it's night but should be day, then call setup_daytime()
-        if not daytime and ((elapsed_time.total_seconds() // round_duration) % 2 == 1):
+        if not daytime and (int(elapsed_time.total_seconds() - switches / 2 * daybreak_duration) % night_round_duration == 0):
             victim_name = net.setup_daytime()
-
         # If it's day but should be night, then call setup_nighttime()
-        if daytime and ((elapsed_time.total_seconds() // round_duration) % 2 == 0):
+        elif daytime and (int(elapsed_time.total_seconds() - (switches + 1) / 2 * nightbreak_duration) % day_round_duration == 0):
             victim_name, winner = net.setup_nighttime()
             victim_type = Node.query.filter_by(property1=victim_name).one().type
+        elif was_daytime != net.daytime:
+            if daytime:
+                mafiosi = Node.query.filter_by(network_id=net.id, property2='True', type='mafioso').all()
+                victim_name = net.vote(mafiosi)
+            else:
+                nodes = Node.query.filter_by(network_id=net.id, property2='True').all()
+                victim_name = net.vote(nodes)
+                victim_type = Node.query.filter_by(property1=victim_name).one().type
 
         exp.save()
 
         return Response(
-            response=json.dumps({ "time": time, "daytime": net.daytime, "victim": [victim_name, victim_type], "winner": winner }),
+            response=json.dumps({ 'time': time, 'daytime': net.daytime, 'victim': [victim_name, victim_type], 'winner': winner }),
             status=200,
             mimetype='application/json')
     except:
@@ -225,9 +186,8 @@ def live_participants(node_id, get_all):
         else:
             nodes = Node.query.filter_by(network_id=this_node.network_id, property2='True', type='mafioso').all()
         participants = []
-        l = len(nodes)
         for node in nodes:
-            participants.append([node.property1, node.type])
+            participants.append(node.property1)
 
         exp.save()
 
@@ -251,20 +211,6 @@ class FreeRecallListSource(Source):
         """Define the contents of new Infos.
         transmit() -> _what() -> create_information() -> _contents().
         """
-
-        #CODE FOR INDIVIDUAL EXPTS
-        #(samples 60 words from the big wordlist for each participant)
-        # wordlist = "groupwordlist.md"
-        # with open("static/stimuli/{}".format(wordlist), "r") as f:
-        #    wordlist = f.read().splitlines()
-        #    return json.dumps(random.sample(wordlist,60))
-
-
-
-        # CODE FOR GROUP EXPTS
-        # (has one word list for the experiment
-        # (draw 60 words from "groupwordlist.md") then
-        # reshuffles the words within each participant
 
         ### read in UUID
         exptfilename = "experiment_id.txt"
@@ -290,15 +236,3 @@ class FreeRecallListSource(Source):
         	random.seed() # an actually random seed
         	random.shuffle(expt_wordlist)
         	return json.dumps(expt_wordlist)
-        # return json.dumps(self.network.nodes())
-        # return json.dumps(Network.query.filter_by(id=self.network_id).one().nodes())
-
-
-        # OLD:
-        # shuffles all words
-        #wordlist = "60words.md"
-        #with open("static/stimuli/{}".format(wordlist), "r") as f:
-        #    wordlist = f.read().splitlines()
-        #    return json.dumps(random.sample(wordlist,60))
-        ##    random.shuffle(wordlist)
-        ##    return json.dumps(wordlist)
