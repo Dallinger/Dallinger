@@ -27,12 +27,12 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         self.models = models
 
         self.experiment_repeats = 1
-        self.num_participants = 5
+        self.num_participants = 8
         self.initial_recruitment_size = self.num_participants # * 2 # Note: can't do *2.5 here, won't run even if the end result is an integer
         self.quorum = self.num_participants
         if session:
             self.setup()
-        self.num_mafia = 1
+        self.num_mafia = 2
         # self.mafia = random.sample(range(self.num_participants), self.num_mafia)
 
     def setup(self):
@@ -46,7 +46,6 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         if not self.networks():
             super(MafiaExperiment, self).setup()
             for net in self.networks():
-                # Source(network=net)
                 FreeRecallListSource(network=net)
 
     def create_network(self):
@@ -71,27 +70,8 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         network.add_node(node)
         source = network.nodes(type=Source)[0]  # find the source in the network
         source.connect(direction="to", whom=node)  # link up the source to the new node
-        # source.connect(direction="both", whom=node)  # link up the source to the new node
         source.transmit(to_whom=node)  # in networks.py code, transmit info to the new node
         node.receive()  # new node receives everything
-
-        all_edges = []
-
-        # here are all the edges that need to be connected
-        # BABY_NETWORK:
-        #all_edges = [(0, 1), (0, 2), (0, 3), (2, 3)]
-        #all_edges = [(0,1), (0,2)]
-
-        # walk through edges
-        for edge in all_edges:
-            try:
-                node0 = Node.query.filter_by(participant_id=edge[0]+1).one()
-                node1 = Node.query.filter_by(participant_id=edge[1]+1).one()
-                node0.connect(direction="from", whom=node1)  # connect backward
-                node1.connect(direction="from", whom=node0)  # connect forward
-
-            except Exception:
-                pass
 
     def info_post_request(self, node, info):
         """Run when a request to create an info is complete."""
