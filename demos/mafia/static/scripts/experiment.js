@@ -64,7 +64,6 @@ create_agent = function() {
     method: "post",
     type: "json",
     success: function(resp) {
-      // console.log(resp)
       currentNodeId = resp.node.id;
       currentNodeName = resp.node.property1;
       currentNodeType = resp.node.type;
@@ -91,12 +90,11 @@ getParticipants = function() {
     method: 'get',
     type: "json",
     success: function (resp) {
-      // console.log(resp);
       var participantList = resp.participants;
       showParticipants(participantList, "#participants", 'option');
     },
-    error: function (resp) {
-        console.log(resp);
+    error: function (err) {
+        console.log(err);
     }
   });
 };
@@ -107,12 +105,11 @@ getMafia = function() {
     method: 'get',
     type: "json",
     success: function (resp) {
-      // console.log(resp);
       var mafiaList = resp.participants;
       showParticipants(mafiaList, "#mafiosi", 'li');
     },
-    error: function (resp) {
-        console.log(resp);
+    error: function (err) {
+        console.log(err);
     }
   });
 }
@@ -149,12 +146,9 @@ showExperiment = function() {
 
 check_phase = function() {
     reqwest({
-        // url: "/phase/" + currentNodeId,
-        // url: "/phase/" + currentNodeId + '/' + switches,
         url: "/phase/" + currentNodeId + '/' + switches + '/' + wasDaytime,
         method: 'get',
         success: function (resp) {
-            console.log(resp);
             if (resp.daytime == 'True') {
               $('#remaining').html('Time remaining this day: ' + resp.time)
             } else {
@@ -194,8 +188,8 @@ check_phase = function() {
               setTimeout(function () { $("#stimulus").hide(); get_transmissions(currentNodeId); }, 100);
             }
         },
-        error: function (resp) {
-            console.log(resp);
+        error: function (err) {
+            console.log(err);
             setTimeout(function () { get_transmissions(currentNodeId); }, 100);
         }
     });
@@ -239,6 +233,9 @@ displayInfo = function(infoId) {
 };
 
 send_message = function() {
+  if (currentNodeType == 'bystander' && wasDaytime == 'False') {
+    return;
+  }
   response = $("#reproduction").val();
   // typing box
   // don't let people submit an empty response
@@ -266,6 +263,9 @@ send_message = function() {
 };
 
 vote = function() {
+  if (currentNodeType == 'bystander' && wasDaytime == 'False') {
+    return;
+  }
   response = $("#participants").val();
   response = currentNodeName + ': ' + $("#participants").val();
   $(

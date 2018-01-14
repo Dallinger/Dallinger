@@ -1,12 +1,9 @@
 """Define kinds of nodes: agents, sources, and environments."""
 
-# from operator import attrgetter
-
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import Boolean, String
 from sqlalchemy.sql.expression import cast
 
-# from dallinger.information import State
 from dallinger.models import Node, Network, Info, timenow
 from dallinger.nodes import Source
 
