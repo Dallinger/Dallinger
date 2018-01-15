@@ -31,13 +31,14 @@
                 <!-- <button id="leave-chat" type="button" class="btn" onClick="leave_chatroom();">Quit Game</button> -->
             </div>
             <br>
-            <div id="mafia" style="display:none;">
-                <ul id="mafiosi"><h4>List of Living Mafia</h4></ul>
-            </div>
-            <div id="vote-form" style="display:none;">
-                  <select id="participants">
-                  </select>
+            <div id="vote-form" style="display:none; width:200px; float:left;">
+                  <select id="participants"></select>
+                  <br>
+                  <br>
                   <button id="vote" type="button" class="btn btn-primary">Vote.</button>
+            </div>
+            <div id="mafia" style="display:none; width:800px; float:right;">
+                <ul id="mafiosi"><h4>List of Living Mafia</h4></ul>
             </div>
         </div>
         <script>

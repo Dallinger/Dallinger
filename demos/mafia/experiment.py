@@ -27,12 +27,12 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         self.models = models
 
         self.experiment_repeats = 1
-        self.num_participants = 8
+        self.num_participants = 2
         self.initial_recruitment_size = self.num_participants # * 2 # Note: can't do *2.5 here, won't run even if the end result is an integer
         self.quorum = self.num_participants
         if session:
             self.setup()
-        self.num_mafia = 2
+        self.num_mafia = 1
         # self.mafia = random.sample(range(self.num_participants), self.num_mafia)
 
     def setup(self):
@@ -115,7 +115,7 @@ def phase(node_id, switches, was_daytime):
         node = nodes[-1]
         elapsed_time = timenow() - node.creation_time
         daytime = (net.daytime == 'True')
-        day_round_duration = 60
+        day_round_duration = 150
         night_round_duration = 30
         break_duration = 3
         daybreak_duration = day_round_duration + break_duration
@@ -125,6 +125,7 @@ def phase(node_id, switches, was_daytime):
             time = night_round_duration - (elapsed_time.total_seconds() - switches / 2 * daybreak_duration) % night_round_duration
         else:
             time = day_round_duration - (elapsed_time.total_seconds() - (switches + 1) / 2 * nightbreak_duration) % day_round_duration
+        time = int(time)
         victim_name = None
         victim_type = None
         winner = None
