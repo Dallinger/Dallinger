@@ -8,6 +8,16 @@ from dallinger.models import Node, Network, Info, timenow
 from dallinger.nodes import Source
 
 
+class Text(Info):
+    """A text"""
+
+    __mapper_args__= {"polymorphic_identity":"text"}
+
+class Vote(Info):
+    """A vote"""
+
+    __mapper_args__= {"polymorphic_identity":"vote"}
+
 class Bystander(Node):
     """Bystander"""
 
