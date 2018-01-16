@@ -33,6 +33,8 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         if session:
             self.setup()
         self.num_mafia = 1
+        self.known_classes["Text"] = models.Text
+        self.known_classes["Vote"] = models.Vote
         # self.mafia = random.sample(range(self.num_participants), self.num_mafia)
 
     def setup(self):
