@@ -254,7 +254,7 @@ send_message = function() {
   reqwest({
     url: "/info/" + currentNodeId,
     method: "post",
-    data: { contents: response, info_type: "Info" },
+    data: { contents: response, info_type: "Text" },
     success: function(resp) {
       $("#send-message").removeClass("disabled");
       $("#send-message").html("Send");
@@ -275,7 +275,7 @@ vote = function() {
   reqwest({
     url: "/info/" + currentNodeId,
     method: "post",
-    data: { contents: response, info_type: "Info" },
+    data: { contents: response, info_type: "Vote" },
     success: function(resp) {
       $("#vote").removeClass("disabled");
       $("#vote").html("Vote");
