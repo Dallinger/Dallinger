@@ -32,6 +32,7 @@ htmlcov/*
 tests/config.py
 *.ipynb_checkpoints/
 .eggs/*
+<<<<<<< HEAD
 .coverage.*
 node_modules/*
 Gemfile.lock
