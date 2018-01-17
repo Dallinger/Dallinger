@@ -83,6 +83,12 @@ class HerokuApp(object):
         self._run(cmd)
 
     @property
+    def clock_is_on(self):
+        cmd = ["heroku", "ps:scale", "--app", self.name]
+        output = self._result(cmd)
+        return "clock=1" in output
+
+    @property
     def dashboard_url(self):
         return u"https://dashboard.heroku.com/apps/{}".format(self.name)
 
@@ -179,6 +185,16 @@ class HerokuApp(object):
             "ps:scale", "{}=0".format(process),
             "--app", self.name
         ])
+
+    def scale_down_dynos(self):
+        """Turn off web and worker dynos, plus clock process if
+        there is one and it's active.
+        """
+        processes = ["web", "worker"]
+        if self.clock_is_on:
+            processes.append("clock")
+        for process in processes:
+            self.scale_down_dyno(process)
 
     def set(self, key, value):
         """Configure an app key/value pair"""

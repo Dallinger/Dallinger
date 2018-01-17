@@ -434,6 +434,24 @@ class TestHerokuApp(object):
             stdout=None
         )
 
+    def test_clock_is_on_checks_psscale(self, app, check_output):
+        app.clock_is_on
+        check_output.assert_called_once_with(
+            ["heroku", "ps:scale", "--app", app.name]
+        )
+
+    def test_clock_is_on_returns_true_if_clock_1(self, app, check_output):
+        check_output.return_value = 'clock=1:Standard-2X console=0:Standard-1X'
+        assert app.clock_is_on is True
+
+    def test_clock_is_on_returns_false_if_clock_0(self, app, check_output):
+        check_output.return_value = 'clock=0:Standard-2X console=0:Standard-1X'
+        assert app.clock_is_on is False
+
+    def test_clock_is_on_returns_false_if_no_clock(self, app, check_output):
+        check_output.return_value = 'console=0:Standard-1X web=1:Standard-2X'
+        assert app.clock_is_on is False
+
     def test_db_uri(self, app, check_output):
         check_output.return_value = 'blahblahpostgres://foobar'
         assert app.db_uri == u'postgres://foobar'
@@ -549,6 +567,23 @@ class TestHerokuApp(object):
             ],
             stdout=None
         )
+
+    def test_scale_down_dynos_with_clock_off(self, app, check_call, check_output):
+        check_output.return_value = '[string indicating no clock process]'
+        app.scale_down_dynos()
+        check_call.assert_has_calls([
+            mock.call(['heroku', 'ps:scale', 'web=0', '--app', u'dlgr-fake-uid'], stdout=None),
+            mock.call(['heroku', 'ps:scale', 'worker=0', '--app', u'dlgr-fake-uid'], stdout=None)
+        ])
+
+    def test_scale_down_dynos_with_clock_on(self, app, check_call, check_output):
+        check_output.return_value = 'clock=1 <= indicates clock is on'
+        app.scale_down_dynos()
+        check_call.assert_has_calls([
+            mock.call(['heroku', 'ps:scale', 'web=0', '--app', u'dlgr-fake-uid'], stdout=None),
+            mock.call(['heroku', 'ps:scale', 'worker=0', '--app', u'dlgr-fake-uid'], stdout=None),
+            mock.call(['heroku', 'ps:scale', 'clock=0', '--app', u'dlgr-fake-uid'], stdout=None),
+        ])
 
     def test_set(self, app, check_call):
         app.set('some key', 'some value')

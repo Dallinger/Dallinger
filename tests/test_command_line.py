@@ -920,11 +920,7 @@ class TestHibernate(object):
             hibernate,
             ['--app', 'some-app-uid', ]
         )
-        heroku.scale_down_dyno.assert_has_calls([
-            mock.call('web'),
-            mock.call('worker'),
-            mock.call('clock')
-        ])
+        heroku.scale_down_dynos.assert_called_once()
 
     def test_kills_addons(self, hibernate, heroku, data):
         CliRunner().invoke(

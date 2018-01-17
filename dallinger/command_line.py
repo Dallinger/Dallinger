@@ -685,8 +685,7 @@ def hibernate(app):
 
     log("Scaling down the web servers...")
     heroku_app = HerokuApp(app)
-    for process in ["web", "worker", "clock"]:
-        heroku_app.scale_down_dyno(process)
+    heroku_app.scale_down_dynos()
 
     log("Removing addons...")
 
