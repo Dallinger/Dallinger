@@ -1,8 +1,12 @@
 [AWS Access]
-aws_access_key_id = ???
-aws_secret_access_key = ???
+aws_access_key_id = AKIAJ2ZHL4IM5GT2GIWA
+aws_secret_access_key = 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
 aws_region = us-east-1
 
 [Email Access]
 dallinger_email_address = ???
 dallinger_email_password = ???
+
+[Heroku Access]
+heroku_email_address = dallinger-admin@lists.berkeley.edu
+heroku_password = uyHMW8DgoT@6nxD3wT

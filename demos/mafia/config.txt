@@ -1,0 +1,33 @@
+[Experiment]
+mode = sandbox
+auto_recruit = true
+group_name = "mafiaexpt"
+qualification_blacklist = "mafiaexpt"
+
+[MTurk]
+title = Mafia game
+description = Play Mafia with other players.
+keywords = Mafia
+base_payment = 1.00
+lifetime = 4
+duration = 1.00
+us_only = true
+approve_requirement = 95
+contact_email_on_error = mgates@berkeley.edu
+ad_group = Mafia
+organization_name = UC Berkeley
+browser_exclude_rule = MSIE, mobile, tablet
+
+[Database]
+database_url = postgresql://postgres@localhost/dallinger
+database_size = standard-0
+
+[Server]
+dyno_type = standard-2x
+num_dynos_web = 2
+num_dynos_worker = 2
+host = 0.0.0.0
+clock_on = true
+notification_url = None
+logfile = -
+threads = 1
