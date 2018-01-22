@@ -17,6 +17,7 @@ import pexpect
 from pytest import raises
 
 import dallinger.command_line
+from dallinger.command_line import new_webbrowser_profile
 from dallinger.command_line import verify_package
 from dallinger.command_line import report_idle_after
 from dallinger.compat import unicode
@@ -52,6 +53,7 @@ def sleepless():
 @pytest.fixture
 def browser():
     with mock.patch('dallinger.command_line.webbrowser') as mock_browser:
+        mock_browser._iscommand.return_value = False
         yield mock_browser
 
 
@@ -74,6 +76,35 @@ def data():
         mock_bucket.lookup.return_value = mock_key
         mock_data.user_s3_bucket.return_value = mock_bucket
         yield mock_data
+
+
+class TestIsolatedWebbrowser(object):
+
+    def test_chrome_isolation(self):
+        import webbrowser
+        with mock.patch('dallinger.command_line.webbrowser._iscommand') as _iscommand:
+            _iscommand.side_effect = lambda s: s == 'google-chrome'
+            isolated = new_webbrowser_profile()
+        assert isinstance(isolated, webbrowser.Chrome)
+        assert isolated.remote_args[:2] == [r'%action', r'%s']
+        assert isolated.remote_args[-1].startswith('--user-data-dir="/tmp')
+
+    def test_firefox_isolation(self):
+        import webbrowser
+        with mock.patch('dallinger.command_line.webbrowser._iscommand') as _iscommand:
+            _iscommand.side_effect = lambda s: s == 'firefox'
+            isolated = new_webbrowser_profile()
+        assert isinstance(isolated, webbrowser.Mozilla)
+        assert isolated.remote_args[0] == '-profile'
+        assert isolated.remote_args[1].startswith('/tmp/')
+        assert isolated.remote_args[2:] == ['-new-instance', '-no-remote', '-url', r'%s']
+
+    def test_fallback_isolation(self):
+        import webbrowser
+        with mock.patch('dallinger.command_line.webbrowser._iscommand') as _iscommand:
+            _iscommand.return_value = False
+            isolated = new_webbrowser_profile()
+        assert isolated == webbrowser
 
 
 @pytest.mark.usefixtures('bartlett_dir')
