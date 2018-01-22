@@ -120,4 +120,4 @@ without performance degradation.
 Test Bot performance
 ********************
 
-You can test post performance running `python demo.py` from the `/demos` folder
+You can test out the bots as well as the high-level API using the command `python demo.py` run from the `/demos` folder
