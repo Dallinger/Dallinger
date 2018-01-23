@@ -301,6 +301,14 @@ class TestMTurkRecruiter(object):
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
             return r
 
+    def test_instantiation_fails_with_invalid_mode(self, active_config):
+        from dallinger.recruiters import MTurkRecruiter
+        from dallinger.recruiters import MTurkRecruiterException
+        active_config.extend({'mode': u'nonsense'})
+        with pytest.raises(MTurkRecruiterException) as ex_info:
+            MTurkRecruiter()
+        assert ex_info.match('"nonsense" is not a valid mode')
+
     def test_config_passed_to_constructor_sandbox(self, recruiter):
         assert recruiter.config.get('title') == 'fake experiment title'
 
