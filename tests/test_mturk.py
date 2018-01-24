@@ -115,22 +115,22 @@ def fake_qualification_response():
 
 def fake_qualification_type_response():
     canned_response = {
-        'AutoGranted': u'0',
-        'QualificationType': '',
-        'Description': u'***TEST SUITE QUALIFICATION***',
-        'QualificationTypeId': generate_random_id(size=32),
-        'IsValid': u'True',
-        'Request': '',
-        'QualificationTypeStatus': u'Active',
-        'CreationTime': u'2017-02-02T17:36:03Z',
-        'Name': u'Test Qualifiction'
+        u'QualificationType': {
+            u'AutoGranted': False,
+            u'Description': u'***TEST SUITE QUALIFICATION***',
+            u'QualificationTypeId': generate_random_id(size=32),
+            u'IsRequestable': True,
+            u'QualificationTypeStatus': u'Active',
+            u'CreationTime': datetime.datetime(2018, 1, 1, 12, 00, 00),
+            u'Name': u'Test Qualifiction'
+        }
     }
+    return canned_response
+    # qtype = QualificationType(None)
+    # for k, v in canned_response.items():
+    #     qtype.endElement(k, v, None)
 
-    qtype = QualificationType(None)
-    for k, v in canned_response.items():
-        qtype.endElement(k, v, None)
-
-    return as_resultset(qtype)
+    # return as_resultset(qtype)
 
 
 def standard_hit_config(**kwargs):
@@ -155,7 +155,11 @@ def standard_hit_config(**kwargs):
 
 @pytest.fixture
 def mturk(aws_creds):
-    service = MTurkService(**aws_creds)
+    # service = MTurkService(**aws_creds)
+    params = {'region_name': 'us-east-1'}
+    params.update(aws_creds)
+    service = MTurkService(**params)
+
     return service
 
 
@@ -166,7 +170,11 @@ def with_cleanup(aws_creds, request):
     def test_hits_only(hit):
         return hit['description'] == TEST_HIT_DESCRIPTION + str(os.getpid())
 
-    service = MTurkService(**aws_creds)
+    # service = MTurkService(**aws_creds)
+    params = {'region_name': 'us-east-1'}
+    params.update(aws_creds)
+    service = MTurkService(**params)
+
     # In tests we do a lot of querying of Qualifications we only just created,
     # so we need a long time-out
     service.max_wait_secs = 60.0
@@ -204,11 +212,10 @@ def worker_id():
 
 
 @pytest.fixture
-def qtype(aws_creds):
+def qtype(mturk):
     # build
     name = name_with_hostname_prefix()
-    service = MTurkService(**aws_creds)
-    qtype = service.create_qualification_type(
+    qtype = mturk.create_qualification_type(
         name=name,
         description=TEST_QUALIFICATION_DESCRIPTION,
         status='Active',
@@ -217,7 +224,7 @@ def qtype(aws_creds):
     yield qtype
 
     # clean up
-    service.dispose_qualification_type(qtype['id'])
+    mturk.dispose_qualification_type(qtype['id'])
 
 
 @pytest.mark.mturk
@@ -277,7 +284,13 @@ class TestMTurkServiceIntegrationSmokeTest(object):
 class TestMTurkService(object):
 
     def loop_until_2_quals(self, mturk_helper, query):
-        while len(mturk_helper.mturk.search_qualification_types(query=query)) < 2:
+        args = {
+            'Query': query,
+            'MustBeRequestable': False,
+            'MustBeOwnedByCaller': True,
+            'MaxResults': 2,
+        }
+        while len(mturk_helper.mturk.list_qualification_types(**args)['QualificationTypes']) < 2:
             time.sleep(1)
         return True
 
@@ -288,7 +301,7 @@ class TestMTurkService(object):
     def test_check_credentials_bad_credentials(self, mturk):
         mturk.aws_access_key_id = 'fake key id'
         mturk.aws_secret_access_key = 'fake secret'
-        with pytest.raises(MTurkRequestError):
+        with pytest.raises(MTurkServiceException):
             mturk.check_credentials()
 
     def test_check_credentials_no_creds_set_raises(self, mturk):
@@ -391,15 +404,15 @@ class TestMTurkService(object):
         result = with_cleanup.get_qualification_type_by_name(qtype['name'])
         assert qtype == result
 
-    def test_get_qualification_by_name_no_match(self, with_cleanup, qtype):
+    def test_get_qualification_type_by_name_no_match(self, with_cleanup, qtype):
         # First query can be very slow, since the qtype was just added:
         with_cleanup.max_wait_secs = 0
         result = with_cleanup.get_qualification_type_by_name('nonsense')
         assert result is None
 
-    def test_get_qualification_by_name_returns_shortest_if_multi(self,
-                                                                 with_cleanup,
-                                                                 qtype):
+    def test_get_qualification_type_by_name_returns_shortest_if_multi(self,
+                                                                      with_cleanup,
+                                                                      qtype):
         substr_name = qtype['name'][:-1]  # one char shorter name
         qtype2 = with_cleanup.create_qualification_type(
             name=substr_name,
@@ -411,9 +424,9 @@ class TestMTurkService(object):
         assert result['id'] == qtype2['id']
         with_cleanup.dispose_qualification_type(qtype2['id'])
 
-    def test_get_qualification_by_name_must_match_exact_if_multi(self,
-                                                                 with_cleanup,
-                                                                 qtype):
+    def test_get_qualification_type_by_name_must_match_exact_if_multi(self,
+                                                                      with_cleanup,
+                                                                      qtype):
         substr_name = qtype['name'][:-1]  # one char shorter name
         qtype2 = with_cleanup.create_qualification_type(
             name=substr_name,

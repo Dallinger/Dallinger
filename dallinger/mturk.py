@@ -1,6 +1,9 @@
 import datetime
 import logging
 import time
+import boto3
+from botocore.exceptions import ClientError
+from botocore.exceptions import NoCredentialsError
 
 from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
@@ -13,6 +16,8 @@ from boto.mturk.question import ExternalQuestion
 from cached_property import cached_property
 
 logger = logging.getLogger(__file__)
+PERCENTAGE_APPROVED_REQUIREMENT_ID = '000000000000000000L0'
+LOCALE_REQUIREMENT_ID = '00000000000000000071'
 
 
 def timestr_to_dt(timestr):
@@ -37,15 +42,37 @@ class MTurkService(object):
     """
     production_mturk_server = 'mechanicalturk.amazonaws.com'
     sandbox_mturk_server = 'mechanicalturk.sandbox.amazonaws.com'
+    production_mturk_server3 = u'https://mturk-requester.us-east-1.amazonaws.com'
+    sandbox_mturk_server3 = u'https://mturk-requester-sandbox.us-east-1.amazonaws.com'
+
     max_wait_secs = 0
 
-    def __init__(self, aws_access_key_id, aws_secret_access_key, sandbox=True):
+    def __init__(self, aws_access_key_id, aws_secret_access_key, region_name, sandbox=True):
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
+        self.region_name = region_name
         self.is_sandbox = sandbox
+
+    # @cached_property
+    @property
+    def session(self):
+        from boto3.session import Session
+        return Session(
+            aws_access_key_id=self.aws_access_key_id,
+            aws_secret_access_key=self.aws_secret_access_key,
+            region_name=self.region_name
+        )
 
     @cached_property
     def mturk(self):
+        return self.session.client(
+            'mturk',
+            endpoint_url=self.host,
+            region_name=self.region_name,
+        )
+
+    @cached_property
+    def mturk2(self):
         """Cached MTurkConnection"""
         if not self.aws_access_key_id or not self.aws_secret_access_key:
             raise MTurkServiceException('AWS access key and secret not set.')
@@ -59,12 +86,23 @@ class MTurkService(object):
     @property
     def host(self):
         if self.is_sandbox:
+            return self.sandbox_mturk_server3
+        return self.production_mturk_server3
+
+    @property
+    def host2(self):
+        if self.is_sandbox:
             return self.sandbox_mturk_server
         return self.production_mturk_server
 
     def check_credentials(self):
         """Verifies key/secret/host combination by making a balance inquiry"""
-        return bool(self.mturk.get_account_balance())
+        try:
+            return bool(self.mturk.get_account_balance())
+        except NoCredentialsError:
+            raise MTurkServiceException("No AWS credentials set!")
+        except ClientError:
+            raise MTurkServiceException("Invalid AWS credentials!")
 
     def set_rest_notification(self, url, hit_type_id):
         """Set a REST endpoint to recieve notifications about the HIT"""
@@ -91,18 +129,18 @@ class MTurkService(object):
         """Register HIT Type for this HIT and return the type's ID, which
         is required for creating a HIT.
         """
-        reward = reward
-        duration_hours = datetime.timedelta(hours=duration_hours)
-        hit_type = self.mturk.register_hit_type(
-            title,
-            description,
-            reward,
-            duration_hours,
-            keywords=keywords,
-            approval_delay=None,
-            qual_req=qualifications)[0]
+        reward = str(reward)
+        duration_secs = datetime.timedelta(hours=duration_hours).seconds
+        hit_type = self.mturk.create_hit_type(
+            Title=title,
+            Description=description,
+            Reward=reward,
+            AssignmentDurationInSeconds=duration_secs,
+            Keywords=','.join(keywords),
+            AutoApprovalDelayInSeconds=0,
+            QualificationRequirements=qualifications)
 
-        return hit_type.HITTypeId
+        return hit_type['HITTypeId']
 
     def build_hit_qualifications(self,
                                  approve_requirement,
@@ -113,43 +151,50 @@ class MTurkService(object):
         @blacklist is a list of names for Qualifications workers must
         not already hold in order to see and accept the HIT.
         """
-        quals = Qualifications()
-        quals.add(
-            PercentAssignmentsApprovedRequirement(
-                "GreaterThanOrEqualTo", approve_requirement)
-        )
-
+        quals = [
+            {
+                'QualificationTypeId': PERCENTAGE_APPROVED_REQUIREMENT_ID,
+                'Comparator': 'GreaterThanOrEqualTo',
+                'IntegerValues': [95],
+                'RequiredToPreview': True,
+            }
+        ]
         if restrict_to_usa:
-            quals.add(LocaleRequirement("EqualTo", "US"))
-
+            quals.append(
+                {
+                    'QualificationTypeId': LOCALE_REQUIREMENT_ID,
+                    'Comparator': 'EqualTo',
+                    'LocaleValues': [{'Country': 'US'}],
+                    'RequiredToPreview': True,
+                }
+            )
         if blacklist is not None:
             for item in blacklist:
                 qtype = self.get_qualification_type_by_name(item)
                 if qtype:
-                    quals.add(
-                        Requirement(
-                            qtype['id'],
-                            "DoesNotExist",
-                            required_to_preview=True
-                        )
+                    quals.append(
+                        {
+                            'QualificationTypeId': qtype['id'],
+                            'Comparator': 'DoesNotExist',
+                            'RequiredToPreview': True,
+                        }
                     )
-
         return quals
 
     def create_qualification_type(self, name, description, status='Active'):
         """Create a new qualification Workers can be scored for.
         """
         try:
-            qtype = self.mturk.create_qualification_type(name, description, status)[0]
-        except MTurkRequestError, ex:
+            response = self.mturk.create_qualification_type(
+                Name=name,
+                Description=description,
+                QualificationTypeStatus=status
+            )
+        except Exception as ex:
             if u'already created a QualificationType with this name' in ex.message:
                 raise DuplicateQualificationNameError(ex.message)
 
-        if qtype.IsValid != 'True':
-            raise MTurkServiceException(
-                "Qualification creation request was invalid for unknown reason.")
-
-        return self._translate_qtype(qtype)
+        return self._translate_qtype(response['QualificationType'])
 
     def get_qualification_type_by_name(self, name):
         """Return a Qualification Type by name. If the provided name matches
@@ -159,13 +204,19 @@ class MTurkService(object):
         """
         query = name.upper()
         start = time.time()
-        results = self.mturk.search_qualification_types(query=query)
+        args = {
+            'Query': query,
+            'MustBeRequestable': False,
+            'MustBeOwnedByCaller': True,
+            'MaxResults': 2,
+        }
+        results = self.mturk.list_qualification_types(**args)['QualificationTypes']
 
         # This loop is largely for tests, because there's some indexing that
         # needs to happen on MTurk for search to work:
         while not results and time.time() - start < self.max_wait_secs:
             time.sleep(1)
-            results = self.mturk.search_qualification_types(query=query)
+            results = self.mturk.list_qualification_types(**args)['QualificationTypes']
 
         if not results:
             return None
@@ -242,9 +293,10 @@ class MTurkService(object):
 
     def dispose_qualification_type(self, qualification_id):
         """Remove a qualification type we created"""
-        return self._is_ok(
-            self.mturk.dispose_qualification_type(qualification_id)
+        self.mturk.delete_qualification_type(
+            QualificationTypeId=qualification_id
         )
+        return True
 
     def get_workers_with_qualification(self, qualification_id):
         """Get workers with the given qualification."""
@@ -386,15 +438,15 @@ class MTurkService(object):
 
     def _translate_qtype(self, qtype):
         return {
-            'id': qtype.QualificationTypeId,
-            'created': timestr_to_dt(qtype.CreationTime),
-            'name': qtype.Name,
-            'description': qtype.Description,
-            'status': qtype.QualificationTypeStatus,
+            'id': qtype['QualificationTypeId'],
+            'created': qtype['CreationTime'],
+            'name': qtype['Name'],
+            'description': qtype['Description'],
+            'status': qtype['QualificationTypeStatus'],
         }
 
     def _is_ok(self, mturk_response):
-        return mturk_response == []
+        return mturk_response == {}
 
     def approve_assignment(self, assignment_id):
         try:
