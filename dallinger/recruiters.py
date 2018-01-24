@@ -232,8 +232,12 @@ class MTurkRecruiter(Recruiter):
         self._validate_conifg()
 
     def _validate_conifg(self):
-        if self.config.get('mode') not in (u'sandbox', u'live'):
-            raise MTurkRecruiterException("Can't run an MTurk HIT in debug mode.")
+        mode = self.config.get('mode')
+        if mode not in (u'sandbox', u'live'):
+            raise MTurkRecruiterException(
+                '"{}" is not a valid mode for MTurk recruitment. '
+                'The value of "mode" must be either "sandbox" or "live"'.format(mode)
+            )
 
     @property
     def external_submission_url(self):
