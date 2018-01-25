@@ -359,10 +359,11 @@ class MTurkService(object):
                    max_assignments, us_only, blacklist=None):
         """Create the actual HIT and return a dict with its useful properties."""
         frame_height = 600
-        mturk_question = ExternalQuestion(ad_url, frame_height)
+        mturk_question = self._external_question(ad_url, frame_height)
         qualifications = self.build_hit_qualifications(
             approve_requirement, us_only, blacklist
         )
+        import pdb; pdb.set_trace()
         # We need a HIT_Type in order to register for REST notifications
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
@@ -370,24 +371,17 @@ class MTurkService(object):
         self.set_rest_notification(notification_url, hit_type_id)
 
         params = {
-            'hit_type': hit_type_id,
-            'question': mturk_question,
-            'lifetime': datetime.timedelta(days=lifetime_days),
-            'max_assignments': max_assignments,
-            'duration': datetime.timedelta(hours=duration_hours),
-            'approval_delay': None,
-            'response_groups': [
-                'Minimal',
-                'HITDetail',
-                'HITQuestion',
-                'HITAssignmentSummary'
-            ]
+            'HITTypeId': hit_type_id,
+            'Question': mturk_question,
+            'LifetimeInSeconds': datetime.timedelta(days=lifetime_days).seconds,
+            'MaxAssignments': max_assignments,
+            'UniqueRequestToken': str(time.time()),  # Anything unique should do
         }
-        hit = self.mturk.create_hit(**params)[0]
-        if hit.IsValid != 'True':
+        response = self.mturk.create_hit_with_hit_type(**params)
+        if 'HIT' not in response:
             raise MTurkServiceException("HIT request was invalid for unknown reason.")
 
-        return self._translate_hit(hit)
+        return self._translate_hit(response['HIT'])
 
     def extend_hit(self, hit_id, number, duration_hours):
         """Extend an existing HIT and return an updated description"""
@@ -415,7 +409,7 @@ class MTurkService(object):
         return self._translate_hit(updated_hit)
 
     def disable_hit(self, hit_id):
-        return self._is_ok(self.mturk.disable_hit(hit_id))
+        return self._is_ok(self.mturk.delete_hit(hit_id))
 
     def get_hits(self, hit_filter=lambda x: True):
         for hit in self.mturk.get_all_hits():
@@ -462,20 +456,28 @@ class MTurkService(object):
         qs = '&'.join(pairs)
         return (qs, base64.b64encode(sig.digest()))
 
+    def _external_question(self, url, frame_height):
+        q = ('<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
+             '<ExternalURL>{}</ExternalURL>'
+             '<FrameHeight>{}</FrameHeight></ExternalQuestion>')
+        return q.format(url, frame_height)
+
     def _translate_hit(self, hit):
         translated = {
-            'id': hit.HITId,
-            'type_id': hit.HITTypeId,
-            'created': timestr_to_dt(hit.CreationTime),
-            'expiration': timestr_to_dt(hit.Expiration),
-            'max_assignments': int(hit.MaxAssignments),
-            'title': hit.Title,
-            'description': hit.Description,
-            'keywords': hit.Keywords.split(', '),
-            'qualification': getattr(hit, 'QualificationTypeId', None),
-            'reward': float(hit.Amount),
-            'review_status': hit.HITReviewStatus,
-            'status': hit.HITStatus,
+            'id': hit['HITId'],
+            'type_id': hit['HITTypeId'],
+            'created': hit['CreationTime'],
+            'expiration': hit['Expiration'],
+            'max_assignments': hit['MaxAssignments'],
+            'title': hit['Title'],
+            'description': hit['Description'],
+            'keywords': hit['Keywords'].split(', '),
+            'qualification_type_ids': [
+                q['QualificationTypeId'] for q in hit['QualificationRequirements']
+            ],
+            'reward': float(hit['Reward']),
+            'review_status': hit['HITReviewStatus'],
+            'status': hit['HITStatus'],
         }
 
         return translated
