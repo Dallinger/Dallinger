@@ -1,7 +1,13 @@
-import datetime
-import logging
-import time
+import base64
 import boto3
+import datetime
+import hmac
+import logging
+import requests
+import time
+import urllib
+
+from hashlib import sha1
 from botocore.exceptions import ClientError
 from botocore.exceptions import NoCredentialsError
 
@@ -106,18 +112,40 @@ class MTurkService(object):
 
     def set_rest_notification(self, url, hit_type_id):
         """Set a REST endpoint to recieve notifications about the HIT"""
-        all_events = (
-            "AssignmentAccepted",
-            "AssignmentAbandoned",
-            "AssignmentReturned",
-            "AssignmentSubmitted",
-            "HITReviewable",
-            "HITExpired",
+        ISO8601 = '%Y-%m-%dT%H:%M:%SZ'
+        data = {
+            'AWSAccessKeyId': self.aws_access_key_id,
+            'HITTypeId': hit_type_id,
+            'Notification.1.Active': 'True',
+            'Notification.1.Destination': url,
+            'Notification.1.EventType.1': 'AssignmentAccepted',
+            'Notification.1.EventType.2': 'AssignmentAbandoned',
+            'Notification.1.EventType.3': 'AssignmentReturned',
+            'Notification.1.EventType.4': 'AssignmentSubmitted',
+            'Notification.1.EventType.5': 'HITReviewable',
+            'Notification.1.EventType.6': 'HITExpired',
+            'Notification.1.Transport': 'REST',
+            'Notification.1.Version': '2006-05-05',
+            'Operation': 'SetHITTypeNotification',
+            'SignatureVersion': '1',
+            'Timestamp': time.strftime(ISO8601, time.gmtime()),
+            'Version': '2014-08-15',
+        }
+        qs, sig = self._calc_old_api_signature(data)
+        body = qs + '&Signature=' + urllib.quote_plus(sig)
+        data['Signature'] = sig
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Content-Length': str(len(body)),
+            'Host': 'mechanicalturk.sandbox.amazonaws.com',
+            'User-Agent': 'Boto/2.48.0 Python/2.7.13 Darwin/15.6.0'
+        }
+        resp = requests.post(
+            'https://mechanicalturk.sandbox.amazonaws.com',
+            headers=headers,
+            data=body
         )
-
-        return self._is_ok(
-            self.mturk.set_rest_notification(hit_type_id, url, event_types=all_events)
-        )
+        return '<IsValid>True</IsValid>' in resp.text
 
     def register_hit_type(self,
                           title,
@@ -417,6 +445,22 @@ class MTurkService(object):
                 amount
             )
             raise MTurkServiceException(error)
+
+    def _calc_old_api_signature(self, params, *args):
+        sig = hmac.new(
+            self.aws_secret_access_key.encode('utf-8'),
+            digestmod=sha1
+        )
+        keys = list(params.keys())
+        keys.sort(key=lambda x: x.lower())
+        pairs = []
+        for key in keys:
+            sig.update(key.encode('utf-8'))
+            val = params[key].encode('utf-8')
+            sig.update(val)
+            pairs.append(key + '=' + urllib.quote(val))
+        qs = '&'.join(pairs)
+        return (qs, base64.b64encode(sig.digest()))
 
     def _translate_hit(self, hit):
         translated = {
