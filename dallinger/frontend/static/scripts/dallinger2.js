@@ -155,21 +155,29 @@ var dallinger = (function () {
   };
 
   // make a new participant
-  dlgr.createParticipant = function() {
+var create_participant = function() {
     var url;
+
+    new Fingerprint2().get(function(result){
+      fingerprint_hash = result;
+      store.set("fingerprint_hash", fingerprint_hash)
+    });
+
     // check if the local store is available, and if so, use it.
-    if (typeof store !== "undefined") {
-      url = "/participant/" +
-        store.get("worker_id") + "/" +
-        store.get("hit_id") + "/" +
-        store.get("assignment_id") + "/" +
-        store.get("mode");
+    if (typeof store != "undefined") {
+        url = "/participant/" +
+            store.get("worker_id") + "/" +
+            store.get("hit_id") + "/" +
+            store.get("assignment_id") + "/" +
+            store.get("mode") + "?fingerprint_hash=" +
+            store.get("fingerprint_hash");
     } else {
-      url = "/participant/" +
-        dlgr.identity.workerId + "/" +
-        dlgr.identity.hitId + "/" +
-        dlgr.identity.assignmentId + "/" +
-        dlgr.identity.mode;
+        url = "/participant/" +
+            dlgr.identity.worker_id + "/" +
+            dlgr.identity.hit_id + "/" +
+            dlgr.identity.assignment_id + "/" +
+            dlgr.identity.mode + "?fingerprint_hash=" +
+            fingerprint_hash;
     }
 
     var deferred = $.Deferred();
