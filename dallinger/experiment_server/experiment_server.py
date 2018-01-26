@@ -589,7 +589,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     except MultipleResultsFound:
         fingerprint_found = True
 
-    if fingerprint_found:
+    if fingerprint_hash and fingerprint_found:
         db.logger.warning("Same browser fingerprint detected.")
 
         if mode == 'live':
