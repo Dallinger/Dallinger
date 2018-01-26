@@ -173,10 +173,10 @@ var create_participant = function() {
             store.get("fingerprint_hash");
     } else {
         url = "/participant/" +
-            worker_id + "/" +
-            hit_id + "/" +
-            assignment_id + "/" +
-            mode + "?fingerprint_hash=" +
+            dlgr.identity.worker_id + "/" +
+            dlgr.identity.hit_id + "/" +
+            dlgr.identity.assignment_id + "/" +
+            dlgr.identity.mode + "?fingerprint_hash=" +
             fingerprint_hash;
     }
 
