@@ -138,7 +138,7 @@ def standard_hit_config(**kwargs):
         'ad_url': 'https://url-of-ad-route',
         'approve_requirement': 95,
         'us_only': True,
-        'lifetime_days': 0.1,
+        'lifetime_days': 0.000025,  # 2 seconds
         'max_assignments': 1,
         'notification_url': 'https://url-of-notification-route',
         'title': 'Test Title',
@@ -375,7 +375,10 @@ class TestMTurkService(object):
 
     def test_get_hits_returns_all_by_default(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
-        assert hit in with_cleanup.get_hits()
+        time.sleep(5)  # Indexing required...
+        hit_ids = [h['id'] for h in with_cleanup.get_hits()]
+        import pdb; pdb.set_trace()
+        assert hit['id'] in hit_ids
 
     def test_get_hits_excludes_based_on_filter(self, with_cleanup):
         hit1 = with_cleanup.create_hit(**standard_hit_config())
