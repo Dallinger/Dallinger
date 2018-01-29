@@ -363,7 +363,6 @@ class MTurkService(object):
         qualifications = self.build_hit_qualifications(
             approve_requirement, us_only, blacklist
         )
-        import pdb; pdb.set_trace()
         # We need a HIT_Type in order to register for REST notifications
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
@@ -383,36 +382,55 @@ class MTurkService(object):
 
         return self._translate_hit(response['HIT'])
 
-    def extend_hit(self, hit_id, number, duration_hours):
+    def extend_hit(self, hit_id, number, duration_hours=None):
         """Extend an existing HIT and return an updated description"""
-        duration_as_secs = int(duration_hours * 3600)
-        try:
-            self.mturk.extend_hit(hit_id, expiration_increment=duration_as_secs)
-        except MTurkRequestError as ex:
-            raise MTurkServiceException(
-                "Failed to extend time until expiration of HIT: {}".format(
-                    ex.message
-                )
-            )
+        self.create_additional_assignments_for_hit(hit_id, number)
 
+        if duration_hours is not None:
+            self.update_expiration_for_hit(hit_id, duration_hours)
+
+        return self.get_hit(hit_id)
+
+    def create_additional_assignments_for_hit(self, hit_id, number):
         try:
-            self.mturk.extend_hit(hit_id, assignments_increment=number)
-        except MTurkRequestError as ex:
+            response = self.mturk.create_additional_assignments_for_hit(
+                HITId=hit_id,
+                NumberOfAdditionalAssignments=number,
+                UniqueRequestToken=str(time.time())  # Anything unique should do
+            )
+        except Exception as ex:
             raise MTurkServiceException(
                 "Error: failed to add {} assignments to HIT: {}".format(
                     number, ex.message
                 )
             )
+        return self._is_ok(response)
 
-        updated_hit = self.mturk.get_hit(hit_id)[0]
-
-        return self._translate_hit(updated_hit)
+    def update_expiration_for_hit(self, hit_id, hours):
+        hit = self.get_hit(hit_id)
+        expiration = datetime.timedelta(hours=hours) + hit['expiration']
+        try:
+            response = self.mturk.update_expiration_for_hit(
+                HITId=hit_id,
+                ExpireAt=expiration,
+            )
+        except Exception as ex:
+            raise MTurkServiceException(
+                "Failed to extend time until expiration of HIT: {}".format(
+                    expiration, ex.message
+                )
+            )
+        return self._is_ok(response)
 
     def disable_hit(self, hit_id):
         return self._is_ok(self.mturk.delete_hit(hit_id))
 
+    def get_hit(self, hit_id):
+        return self._translate_hit(self.mturk.get_hit(HITId=hit_id)['HIT'])
+
     def get_hits(self, hit_filter=lambda x: True):
-        for hit in self.mturk.get_all_hits():
+        import pdb; pdb.set_trace()
+        for hit in self.mturk.list_hits(MaxResults=100)['HITs']:
             translated = self._translate_hit(hit)
             if hit_filter(translated):
                 yield translated
