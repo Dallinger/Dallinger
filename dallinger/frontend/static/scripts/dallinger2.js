@@ -1,4 +1,4 @@
-/*globals Spinner, reqwest, store */
+/*globals Spinner, Fingerprint2, ReconnectingWebSocket, reqwest, store */
 
 var dallinger = (function () {
   var dlgr = {};
@@ -155,16 +155,18 @@ var dallinger = (function () {
   };
 
   // make a new participant
-var create_participant = function() {
-    var url;
+  dlgr.createParticipant = function() {
+    var deferred = $.Deferred(),
+        fingerprint_hash,
+        url;
 
     new Fingerprint2().get(function(result){
       fingerprint_hash = result;
-      store.set("fingerprint_hash", fingerprint_hash)
+      store.set("fingerprint_hash", fingerprint_hash);
     });
 
     // check if the local store is available, and if so, use it.
-    if (typeof store != "undefined") {
+    if (typeof store !== "undefined") {
         url = "/participant/" +
             store.get("worker_id") + "/" +
             store.get("hit_id") + "/" +
@@ -180,7 +182,6 @@ var create_participant = function() {
             fingerprint_hash;
     }
 
-    var deferred = $.Deferred();
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();
     } else {
