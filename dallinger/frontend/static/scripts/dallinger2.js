@@ -360,4 +360,3 @@ var dallinger = (function () {
 
   return dlgr;
 }());
-
