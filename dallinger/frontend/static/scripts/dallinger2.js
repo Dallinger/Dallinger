@@ -169,7 +169,7 @@ var dallinger = (function () {
         dlgr.identity.workerId + "/" +
         dlgr.identity.hitId + "/" +
         dlgr.identity.assignmentId + "/" +
-        dlgr.identity.mode;
+        dlgr.identity.mode4;
     }
 
     var deferred = $.Deferred();
