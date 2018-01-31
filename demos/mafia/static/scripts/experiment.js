@@ -116,12 +116,12 @@ getMafia = function() {
 showParticipants = function(participantList, tag, subtag) {
   $(tag).html('')
   if (tag == "#mafiosi") {
-    $(tag).html($(tag).html() + '<h4>List of Living Mafia</h4>')
+    $(tag).append('<h4>List of Living Mafia</h4>')
   }
   for (i = 0; i < participantList.length; i++) {
     // Add the next participant.
     var name = participantList[i];
-    $(tag).html($(tag).html() + '<' + subtag + '>' + name + '</' + subtag + '>');
+    $(tag).append('<' + subtag + '>' + name + '</' + subtag + '>');
   }
 };
 
@@ -223,7 +223,11 @@ displayInfo = function(infoId) {
     type: "json",
     success: function(resp) {
       var word = resp.info.contents;
-      $("#reply").append("<p>" + word + "</p>");
+      if (resp.info.type == 'text') {
+        $("#reply").append("<p>" + word + "</p>");
+      } else {
+        $("#votes").append("<p>" + word + "</p>");
+      }
     },
     error: function (err) {
       errorResponse = JSON.parse(err.response);
@@ -269,7 +273,7 @@ vote = function() {
   voted = true;
   response = currentNodeName + ': ' + $("#participants").val();
   $(
-    "#reply"
+    "#votes"
   ).append("<p style='color: chocolate;'>" + response + "</p>");
 
   reqwest({
