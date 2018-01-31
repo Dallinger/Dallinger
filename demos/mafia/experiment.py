@@ -35,7 +35,6 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         self.num_mafia = 1
         self.known_classes["Text"] = models.Text
         self.known_classes["Vote"] = models.Vote
-        # self.mafia = random.sample(range(self.num_participants), self.num_mafia)
 
     def setup(self):
         """Setup the networks.
@@ -89,8 +88,6 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         # If there aren't enough, create another:
         num_mafioso = Node.query.filter_by(type="mafioso").count()
         if num_mafioso < self.num_mafia:
-        # node_num = Node.query.count() - 1
-        # if node_num in self.mafia:
             mafioso = self.models.Mafioso(network=network, participant=participant)
             mafioso.fake_name = str(fake.name())
             mafioso.alive = 'True'
@@ -133,20 +130,27 @@ def phase(node_id, switches, was_daytime):
         winner = None
 
         # If it's night but should be day, then call setup_daytime()
-        if not daytime and (int(elapsed_time.total_seconds() - switches / 2 * daybreak_duration) % night_round_duration == 0):
-            victim_name = net.setup_daytime()
+        if not daytime and (int(elapsed_time.total_seconds() - switches / 2 * daybreak_duration) == night_round_duration):
+            victim_name, winner = net.setup_daytime()
         # If it's day but should be night, then call setup_nighttime()
-        elif daytime and (int(elapsed_time.total_seconds() - (switches + 1) / 2 * nightbreak_duration) % day_round_duration == 0):
+        elif daytime and (int(elapsed_time.total_seconds() - (switches + 1) / 2 * nightbreak_duration) == day_round_duration):
             victim_name, winner = net.setup_nighttime()
             victim_type = Node.query.filter_by(property1=victim_name).one().type
         elif was_daytime != net.daytime:
+            nodes = Node.query.filter_by(network_id=net.id, property2='True').all()
+            mafiosi = Node.query.filter_by(network_id=net.id, property2='True', type='mafioso').all()
+            victim_name = Node.query.filter_by(network_id=net.id, property2='False').order_by('property3').all()[-1].property1
             if daytime:
-                mafiosi = Node.query.filter_by(network_id=net.id, property2='True', type='mafioso').all()
-                victim_name = net.vote(mafiosi)
+                if len(mafiosi) > len(nodes) - len(mafiosi) - 1:
+                    winner = 'mafia'
             else:
-                nodes = Node.query.filter_by(network_id=net.id, property2='True').all()
-                victim_name = net.vote(nodes)
                 victim_type = Node.query.filter_by(property1=victim_name).one().type
+                if len(mafiosi) >= len(nodes) - len(mafiosi) - 1:
+                    winner = 'mafia'
+            if len(mafiosi) == 0:
+                winner = 'townspeople'
+        if winner != None:
+            victim_type = Node.query.filter_by(property1=victim_name).one().type
 
         exp.save()
 
@@ -171,6 +175,7 @@ def live_participants(node_id, get_all):
         participants = []
         for node in nodes:
             participants.append(node.property1)
+        random.shuffle(participants)
 
         exp.save()
 
@@ -219,4 +224,3 @@ class FreeRecallListSource(Source):
             random.seed() # an actually random seed
             random.shuffle(expt_wordlist)
             return json.dumps(expt_wordlist)
-

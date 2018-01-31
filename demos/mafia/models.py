@@ -6,6 +6,7 @@ from sqlalchemy.sql.expression import cast
 
 from dallinger.models import Node, Network, Info, timenow
 from dallinger.nodes import Source
+from random import choice
 
 
 class Text(Info):
@@ -59,6 +60,24 @@ class Bystander(Node):
         """Make alive queryable."""
         return self.property2
 
+    @hybrid_property
+    def deathtime(self):
+        """Convert property3 to death time."""
+        try:
+            return self.property3
+        except TypeError:
+            return None
+
+    @deathtime.setter
+    def deathtime(self, death_time):
+        """Make death time settable."""
+        self.property3 = death_time
+
+    @deathtime.expression
+    def deathtime(self):
+        """Make death time queryable."""
+        return self.property3
+
 class Mafioso(Bystander):
     """Member of the mafia."""
 
@@ -110,8 +129,12 @@ class MafiaNetwork(Network):
     def vote(self, nodes):
         votes = {}
         for node in nodes:
-            infos = Info.query.filter_by(origin_id=node.id).order_by('creation_time')
-            vote = infos[-1].contents.split(': ')[1]
+            vote = choice(Node.query.filter_by(network_id=self.id, property2='True').all()).property1
+            node_votes = Info.query.filter_by(origin_id=node.id, type='vote').order_by('creation_time')
+            if node_votes.first() != None:
+                node_vote = node_votes[-1].contents.split(': ')[1]
+                if Node.query.filter_by(property1=node_vote).one().property2 == 'True':
+                    vote = node_vote
             if vote in votes:
                 votes[vote] += 1
             else:
@@ -129,33 +152,42 @@ class MafiaNetwork(Network):
             t.fail()
         for t in victim_node.transformations():
             t.fail()
+        victim_node.deathtime = timenow()
         return victim_name
 
     def setup_daytime(self):
         # mafiosi = self.nodes(type=Mafioso)
+        self.daytime = 'True'
         mafiosi = Node.query.filter_by(network_id=self.id, property2='True', type='mafioso').all()
         victim_name = self.vote(mafiosi)
-        self.daytime = 'True'
-        # nodes = [n for n in self.nodes() if not isinstance(n, Source)]
-        nodes = Node.query.filter_by(network_id=self.id, property2='True').all()
-        for n in nodes:
-            for m in nodes:
-                if n != m:
-                    n.connect(whom=m, direction="to")
-        return victim_name
-
-    def setup_nighttime(self):
-        # nodes = self.nodes()
-        nodes = Node.query.filter_by(network_id=self.id, property2='True').all()
-        victim_name = self.vote(nodes)
         mafiosi = Node.query.filter_by(network_id=self.id, property2='True', type='mafioso').all()
         winner = None
-        if len(mafiosi) >= len(nodes) - 1:
+        nodes = Node.query.filter_by(network_id=self.id, property2='True').all()
+        if len(mafiosi) > len(nodes) - len(mafiosi):
             winner = 'mafia'
             return victim_name, winner
         if len(mafiosi) == 0:
             winner = 'townspeople'
             return victim_name, winner
+        # nodes = [n for n in self.nodes() if not isinstance(n, Source)]
+        for n in nodes:
+            for m in nodes:
+                if n != m:
+                    n.connect(whom=m, direction="to")
+        return victim_name, winner
+
+    def setup_nighttime(self):
+        # nodes = self.nodes()
         self.daytime = 'False'
+        nodes = Node.query.filter_by(network_id=self.id, property2='True').all()
+        victim_name = self.vote(nodes)
+        mafiosi = Node.query.filter_by(network_id=self.id, property2='True', type='mafioso').all()
+        winner = None
+        if len(mafiosi) >= len(nodes) - len(mafiosi) - 1:
+            winner = 'mafia'
+            return victim_name, winner
+        if len(mafiosi) == 0:
+            winner = 'townspeople'
+            return victim_name, winner
         self.fail_bystander_vectors()
         return victim_name, winner
