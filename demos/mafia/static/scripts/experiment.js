@@ -3,6 +3,7 @@ var currentNodeName;
 var currentNodeType;
 var wasDaytime = 'False';
 var switches = 0;
+var voted = false;
 
 $(document).ready(function() {
   // Print the consent form.
@@ -164,6 +165,7 @@ check_phase = function() {
               $("#stimulus").show();
               setTimeout(function () { leave_chatroom(); }, 10000);
             } else if (wasDaytime != resp.daytime) {
+              voted = false;
               if (resp.daytime == 'False') {
                 document.body.style.backgroundColor = "royalblue";
                 $("#narrator").html(resp.victim[0] + ", who is a " + resp.victim[1] + ", has been eliminated!");
@@ -172,6 +174,8 @@ check_phase = function() {
                 $("#narrator").html(resp.victim[0] + " has been eliminated!");
               }
               $("#stimulus").show();
+              wasDaytime = resp.daytime;
+              switches++;
               if (resp.victim[0] == currentNodeName) {
                 setTimeout(function () { leave_chatroom(); }, 3000);
               }
@@ -179,8 +183,6 @@ check_phase = function() {
               if (currentNodeType == 'mafioso' && resp.victim[1] == 'mafioso') {
                 getMafia();
               }
-              wasDaytime = resp.daytime;
-              switches++;
               setTimeout(function () { $("#stimulus").hide(); get_transmissions(currentNodeId); }, 3000);
             } else {
               setTimeout(function () { $("#stimulus").hide(); get_transmissions(currentNodeId); }, 100);
@@ -261,10 +263,10 @@ send_message = function() {
 };
 
 vote = function() {
-  if (currentNodeType == 'bystander' && wasDaytime == 'False') {
+  if (currentNodeType == 'bystander' && wasDaytime == 'False' || voted) {
     return;
   }
-  response = $("#participants").val();
+  voted = true;
   response = currentNodeName + ': ' + $("#participants").val();
   $(
     "#reply"
