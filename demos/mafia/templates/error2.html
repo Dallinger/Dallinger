@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+
+{% block body %}
+    <div class="container">
+        <div>
+            <h1>Error!</h1>
+            <hr>
+            <div>
+                <p>You are not qualified to participate in this experiment, as we are only taking those who have played a Mafia-like game before. Although you will not be allowed to accept this HIT again, we sincerely hope that you will continue to contribute to research in the future. Have a great day!</p>
+                {% if compensate == True %}
+                <p>To enquire about compensation, please contact the researcher at <a href="mailto:{{contact_address}}">{{contact_address}}</a> and quote the following information.</p>
+                <p>
+                    Error type: {{ error_type }}<br>
+                    HIT id: {{ hit_id }}<br>
+                    Assignment id: {{ assignment_id }}<br>
+                    Worker id: {{ worker_id }}<br>
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock %}
