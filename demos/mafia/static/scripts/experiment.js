@@ -28,8 +28,12 @@ $(document).ready(function() {
 
   // Proceed to the waiting room.
   $("#go-to-waiting-room").click(function() {
-    allow_exit();
-    window.location.href = "/waiting";
+    expertise = $("#expertise").val()
+    if (expertise == '0') {
+      window.location.href = '/error2';
+    } else {
+      window.location.href = '/waiting';
+    }
   });
 
   // Send a message.
