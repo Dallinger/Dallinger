@@ -8,6 +8,6 @@ pypandoc==1.4
 pytest==3.4.0
 recommonmark==0.4.0
 sphinxcontrib-spelling==4.0.1
-Sphinx==1.6.6
+Sphinx==1.6.7
 tox==2.9.1
 -r requirements.txt
