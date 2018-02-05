@@ -174,7 +174,10 @@ def live_participants(node_id, get_all):
             nodes = Node.query.filter_by(network_id=this_node.network_id, property2='True', type='mafioso').all()
         participants = []
         for node in nodes:
-            participants.append(node.property1)
+            if node.property1 == this_node.property1:
+                participants.append(node.property1 + ' (you!)')
+            else:
+                participants.append(node.property1)
         random.shuffle(participants)
 
         exp.save()
