@@ -268,6 +268,25 @@ class MTurkService(object):
             SendNotification=notify
         ))
 
+    def revoke_qualification(self, qualification_id, worker_id, reason=''):
+        return self._is_ok(self.mturk.disassociate_qualification_from_worker(
+            QualificationTypeId=qualification_id,
+            WorkerId=worker_id,
+            Reason=reason
+        ))
+
+    def get_qualification_score(self, qualification_id, worker_id):
+        """Return a worker's qualification score as an iteger.
+        """
+        try:
+            response = self.mturk.get_qualification_score(
+                QualificationTypeId=qualification_id,
+                WorkerId=worker_id
+            )
+        except ClientError as ex:
+            raise MTurkServiceException(ex.message)
+        return response['Qualification']['IntegerValue']
+
     def get_current_qualification_score(self, name, worker_id):
         """Return the current score for a worker, on a qualification with the
         provided name.
@@ -277,34 +296,24 @@ class MTurkService(object):
             raise QualificationNotFoundException(
                 'No Qualification exists with name "{}"'.format(name)
             )
-
-        for_type = self.mturk.get_all_qualifications_for_qual_type(qtype['id'])
-        for_worker = [q for q in for_type if q.SubjectId == worker_id]
-        if for_worker:
-            return {
-                'qtype': qtype,
-                'score': int(for_worker[0].IntegerValue)
-            }
+        try:
+            score = self.get_qualification_score(qtype['id'], worker_id)
+        except MTurkServiceException:
+            score = None
         return {
             'qtype': qtype,
-            'score': None
+            'score': score
         }
 
     def increment_qualification_score(self, name, worker_id, notify=False):
         """Increment the current qualification score for a worker, on a
         qualification with the provided name.
         """
-        new_score = 1
         result = self.get_current_qualification_score(name, worker_id)
-
-        current_score = result['score']
+        current_score = result['score'] or 0
+        new_score = current_score + 1
         qtype_id = result['qtype']['id']
-        if current_score is not None:
-            new_score = current_score + 1
-            self.update_qualification_score(qtype_id, worker_id, new_score)
-        else:
-            self.assign_qualification(
-                qtype_id, worker_id, new_score, notify)
+        self.update_qualification_score(qtype_id, worker_id, new_score)
 
         return {
             'qtype': result['qtype'],
@@ -351,11 +360,6 @@ class MTurkService(object):
         """Convenience method will set a qualification score regardless of
         whether the worker already has a score for the specified qualification.
         """
-        existing_workers = [
-            w['id'] for w in self.get_workers_with_qualification(qualification_id)
-        ]
-        if worker_id in existing_workers:
-            return self.update_qualification_score(qualification_id, worker_id, score)
         return self.assign_qualification(qualification_id, worker_id, score, notify)
 
     def create_hit(self, title, description, keywords, reward, duration_hours,
@@ -378,7 +382,7 @@ class MTurkService(object):
             'Question': mturk_question,
             'LifetimeInSeconds': datetime.timedelta(days=lifetime_days).seconds,
             'MaxAssignments': max_assignments,
-            'UniqueRequestToken': str(time.time()),  # Anything unique should do
+            'UniqueRequestToken': self._request_token()
         }
         response = self.mturk.create_hit_with_hit_type(**params)
         if 'HIT' not in response:
@@ -399,7 +403,7 @@ class MTurkService(object):
             response = self.mturk.create_additional_assignments_for_hit(
                 HITId=hit_id,
                 NumberOfAdditionalAssignments=number,
-                UniqueRequestToken=str(time.time())  # Anything unique should do
+                UniqueRequestToken=self._request_token()
             )
         except Exception as ex:
             raise MTurkServiceException(
@@ -460,29 +464,46 @@ class MTurkService(object):
         reward you pay to the Worker when you approve the Worker's
         assignment.
         """
-        amount = Price(amount)
-        assignment = self.mturk.get_assignment(assignment_id)[0]
-        worker_id = assignment.WorkerId
+        assignment = self.mturk.get_assignment(assignment_id)
+        worker_id = assignment['Assignment']['WorkerId']
+
         try:
-            return self._is_ok(
-                self.mturk.grant_bonus(worker_id, assignment_id, amount, reason)
-            )
-        except MTurkRequestError:
-            error = "Failed to pay assignment {} bonus of {}".format(
+            return self._is_ok(self.mturk.send_bonus(
+                WorkerId=worker_id,
+                BonusAmount=str(amount),
+                AssignmentId=assignment_id,
+                Reason=reason,
+                UniqueRequestToken=self._request_token()
+            ))
+        except ClientError as ex:
+            error = "Failed to pay assignment {} bonus of {}: {}".format(
                 assignment_id,
-                amount
+                amount,
+                ex.message
             )
             raise MTurkServiceException(error)
 
     def approve_assignment(self, assignment_id):
+        """Approving an assignment initiates two payments from the
+        Requester's Amazon.com account:
+            1. The Worker who submitted the results is paid
+               the reward specified in the HIT.
+            2. Amazon Mechanical Turk fees are debited.
+        """
         try:
-            self.mturk.approve_assignment(assignment_id, feedback=None)
-        except MTurkRequestError:
+            return self._is_ok(
+                self.mturk.approve_assignment(AssignmentId=assignment_id)
+            )
+        except ClientError as ex:
             raise MTurkServiceException(
-                "Failed to approve assignment {}".format(assignment_id))
-        return True
+                "Failed to approve assignment {}: {}".format(
+                    assignment_id, ex.message)
+            )
 
     def expire_hit(self, hit_id):
+        """Expire a HIT, which will change its status to "Reviewable",
+        allowing it to be deleted.
+        """
         try:
             self.mturk.update_expiration_for_hit(HITId=hit_id, ExpireAt=0)
         except Exception as ex:
@@ -511,6 +532,9 @@ class MTurkService(object):
              '<ExternalURL>{}</ExternalURL>'
              '<FrameHeight>{}</FrameHeight></ExternalQuestion>')
         return q.format(url, frame_height)
+
+    def _request_token(self):
+        return str(time.time())
 
     def _translate_hit(self, hit):
         translated = {
