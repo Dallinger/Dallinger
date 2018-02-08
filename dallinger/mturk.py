@@ -261,11 +261,11 @@ class MTurkService(object):
 
     def assign_qualification(self, qualification_id, worker_id, score, notify=False):
         """Score a worker for a specific qualification"""
-        return self._is_ok(self.mturk.assign_qualification(
-            qualification_id,
-            worker_id,
-            score,
-            notify
+        return self._is_ok(self.mturk.associate_qualification_with_worker(
+            QualificationTypeId=qualification_id,
+            WorkerId=worker_id,
+            IntegerValue=score,
+            SendNotification=notify
         ))
 
     def get_current_qualification_score(self, name, worker_id):
@@ -313,11 +313,7 @@ class MTurkService(object):
 
     def update_qualification_score(self, qualification_id, worker_id, score):
         """Score a worker for a specific qualification"""
-        return self._is_ok(self.mturk.update_qualification_score(
-            qualification_id,
-            worker_id,
-            score,
-        ))
+        return self.assign_qualification(qualification_id, worker_id, score)
 
     def dispose_qualification_type(self, qualification_id):
         """Remove a qualification type we created"""
@@ -328,17 +324,26 @@ class MTurkService(object):
     def get_workers_with_qualification(self, qualification_id):
         """Get workers with the given qualification."""
         done = False
-        page = 1
+        next_token = None
         while not done:
-            res = self.mturk.get_qualifications_for_qualification_type(
-                qualification_id,
-                page_size=100,
-                page_number=page
-            )
-            if res:
-                for r in res:
-                    yield {'id': r.SubjectId, 'score': r.IntegerValue}
-                page = page + 1
+            if next_token is not None:
+                response = self.mturk.list_workers_with_qualification_type(
+                    QualificationTypeId=qualification_id,
+                    MaxResults=100,
+                    Status='Granted',
+                    NextToken=next_token
+                )
+            else:
+                response = self.mturk.list_workers_with_qualification_type(
+                    QualificationTypeId=qualification_id,
+                    MaxResults=100,
+                    Status='Granted',
+                )
+            if response:
+                for r in response['Qualifications']:
+                    yield {'id': r['WorkerId'], 'score': r['IntegerValue']}
+            if 'NextToken' in response:
+                next_token = response['NextToken']
             else:
                 done = True
 
@@ -536,5 +541,5 @@ class MTurkService(object):
             'status': qtype['QualificationTypeStatus'],
         }
 
-    def _is_ok(self, mturk_response):
-        return mturk_response == {}
+    def _is_ok(self, response):
+        return response == {} or response.keys() == ['ResponseMetadata']
