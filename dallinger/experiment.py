@@ -527,7 +527,7 @@ class Experiment(object):
             self.log("Waiting for experiment to complete.", "")
             while self.experiment_completed() is False:
                 time.sleep(30)
-            self.end_experiment()
+            # self.end_experiment()
         return self.retrieve_data()
 
     def experiment_completed(self):
