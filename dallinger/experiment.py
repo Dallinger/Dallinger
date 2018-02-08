@@ -534,7 +534,7 @@ class Experiment(object):
         """Checks the current state of the experiment to see whether it has
         completed"""
         heroku_app = HerokuApp(self.app_id)
-        status_url = '/summary'.format(heroku_app.url)
+        status_url = '{}/summary'.format(heroku_app.url)
         data = {}
         try:
             resp = requests.get(status_url)
