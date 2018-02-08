@@ -485,55 +485,50 @@ class TestMTurkService(object):
                     reason="--mturkfull was not specified")
 class TestMTurkServiceWithRequesterAndWorker(object):
 
-    def test_assign_qualification(self, with_cleanup, worker_id, qtype):
-        assert with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2)
+    def test_can_assign_new_qualification(self, with_cleanup, worker_id, qtype):
+        assert with_cleanup.assign_qualification(qtype['id'], worker_id, score=2)
+        assert with_cleanup.get_qualification_score(qtype['id'], worker_id) == 2
 
-    def test_update_qualification_score(self, with_cleanup, worker_id, qtype):
-        with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2)
+    def test_can_update_existing_qualification(self, with_cleanup, worker_id, qtype):
+        with_cleanup.assign_qualification(qtype['id'], worker_id, score=2)
+        with_cleanup.update_qualification_score(qtype['id'], worker_id, score=3)
 
-        with_cleanup.update_qualification_score(
-            qtype['id'], worker_id, score=3)
+        assert with_cleanup.get_qualification_score(qtype['id'], worker_id) == 3
 
-        new_score = with_cleanup.mturk.get_qualification_score(
-            QualificationTypeId=qtype['id'],
-            WorkerId=worker_id)['Qualification']['IntegerValue']
-        assert new_score == 3
+    def test_getting_invalid_qualification_score_raises(self, with_cleanup, worker_id):
+        with pytest.raises(MTurkServiceException) as execinfo:
+            with_cleanup.get_qualification_score('NONEXISTENT', worker_id)
+        assert execinfo.match('QualificationType NONEXISTENT does not exist')
+
+    def test_retrieving_revoked_qualifications_raises(self, with_cleanup, worker_id, qtype):
+        with_cleanup.assign_qualification(qtype['id'], worker_id, score=2)
+        with_cleanup.revoke_qualification(qtype['id'], worker_id)
+
+        with pytest.raises(MTurkServiceException):
+            with_cleanup.get_qualification_score(qtype['id'], worker_id)
 
     def test_get_workers_with_qualification(self, with_cleanup, worker_id, qtype):
-        with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2)
-
+        with_cleanup.assign_qualification(qtype['id'], worker_id, score=2)
         workers = with_cleanup.get_workers_with_qualification(qtype['id'])
 
         assert worker_id in [w['id'] for w in workers]
 
     def test_set_qualification_score_with_new_qualification(self, with_cleanup, worker_id, qtype):
-        with_cleanup.set_qualification_score(
-            qtype['id'], worker_id, score=2)
+        with_cleanup.set_qualification_score(qtype['id'], worker_id, score=2)
 
-        new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], worker_id)[0].IntegerValue
-        assert new_score == '2'
+        assert with_cleanup.get_qualification_score(qtype['id'], worker_id) == 2
 
     def test_set_qualification_score_with_existing_qualification(self,
                                                                  with_cleanup,
                                                                  worker_id,
                                                                  qtype):
-        with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2)
+        with_cleanup.assign_qualification(qtype['id'], worker_id, score=2)
+        with_cleanup.set_qualification_score(qtype['id'], worker_id, score=3)
 
-        with_cleanup.set_qualification_score(
-            qtype['id'], worker_id, score=3)
-
-        new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], worker_id)[0].IntegerValue
-        assert new_score == '3'
+        assert with_cleanup.get_qualification_score(qtype['id'], worker_id) == 3
 
     def test_get_current_qualification_score(self, with_cleanup, worker_id, qtype):
-        with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2)
+        with_cleanup.assign_qualification(qtype['id'], worker_id, score=2)
 
         result = with_cleanup.get_current_qualification_score(qtype['name'], worker_id)
 
@@ -547,18 +542,14 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         assert result['score'] is None
 
     def test_increment_qualification_score(self, with_cleanup, worker_id, qtype):
-        with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2)
-
-        result = with_cleanup.increment_qualification_score(
-            qtype['name'], worker_id)
+        with_cleanup.assign_qualification(qtype['id'], worker_id, score=2)
+        result = with_cleanup.increment_qualification_score(qtype['name'], worker_id)
 
         assert result['qtype']['id'] == qtype['id']
         assert result['score'] == 3
 
     def test_increment_qualification_score_worker_unscored(self, with_cleanup, worker_id, qtype):
-        result = with_cleanup.increment_qualification_score(
-            qtype['name'], worker_id)
+        result = with_cleanup.increment_qualification_score(qtype['name'], worker_id)
 
         assert result['qtype']['id'] == qtype['id']
         assert result['score'] == 1
@@ -567,7 +558,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         with_cleanup.max_wait_secs = 0  # we know the name doesn't exist, so no need to wait
         with pytest.raises(QualificationNotFoundException):
             with_cleanup.increment_qualification_score(
-                'nonexistent', worker_id
+                'NONEXISTENT', worker_id
             )
 
 
