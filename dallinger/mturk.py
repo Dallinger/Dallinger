@@ -321,10 +321,9 @@ class MTurkService(object):
 
     def dispose_qualification_type(self, qualification_id):
         """Remove a qualification type we created"""
-        self.mturk.delete_qualification_type(
+        return self.mturk.delete_qualification_type(
             QualificationTypeId=qualification_id
         )
-        return True
 
     def get_workers_with_qualification(self, qualification_id):
         """Get workers with the given qualification."""
@@ -379,7 +378,6 @@ class MTurkService(object):
         response = self.mturk.create_hit_with_hit_type(**params)
         if 'HIT' not in response:
             raise MTurkServiceException("HIT request was invalid for unknown reason.")
-
         return self._translate_hit(response['HIT'])
 
     def extend_hit(self, hit_id, number, duration_hours=None):
@@ -423,17 +421,30 @@ class MTurkService(object):
         return self._is_ok(response)
 
     def disable_hit(self, hit_id):
-        return self._is_ok(self.mturk.delete_hit(hit_id))
+        self.expire_hit(hit_id)
+        return self.mturk.delete_hit(HITId=hit_id)
 
     def get_hit(self, hit_id):
         return self._translate_hit(self.mturk.get_hit(HITId=hit_id)['HIT'])
 
     def get_hits(self, hit_filter=lambda x: True):
-        import pdb; pdb.set_trace()
-        for hit in self.mturk.list_hits(MaxResults=100)['HITs']:
-            translated = self._translate_hit(hit)
-            if hit_filter(translated):
-                yield translated
+        done = False
+        next_token = None
+        while not done:
+            if next_token is not None:
+                response = self.mturk.list_hits(
+                    MaxResults=100, NextToken=next_token
+                )
+            else:
+                response = self.mturk.list_hits(MaxResults=100)
+            for hit in response['HITs']:
+                translated = self._translate_hit(hit)
+                if hit_filter(translated):
+                    yield translated
+            if 'NextToken' in response:
+                next_token = response['NextToken']
+            else:
+                done = True
 
     def grant_bonus(self, assignment_id, amount, reason):
         """Grant a bonus to the MTurk Worker.
@@ -457,6 +468,22 @@ class MTurkService(object):
                 amount
             )
             raise MTurkServiceException(error)
+
+    def approve_assignment(self, assignment_id):
+        try:
+            self.mturk.approve_assignment(assignment_id, feedback=None)
+        except MTurkRequestError:
+            raise MTurkServiceException(
+                "Failed to approve assignment {}".format(assignment_id))
+        return True
+
+    def expire_hit(self, hit_id):
+        try:
+            self.mturk.update_expiration_for_hit(HITId=hit_id, ExpireAt=0)
+        except Exception as ex:
+            raise MTurkServiceException(
+                "Failed to expire HIT {}: {}".format(hit_id, ex.message))
+        return True
 
     def _calc_old_api_signature(self, params, *args):
         sig = hmac.new(
@@ -511,19 +538,3 @@ class MTurkService(object):
 
     def _is_ok(self, mturk_response):
         return mturk_response == {}
-
-    def approve_assignment(self, assignment_id):
-        try:
-            self.mturk.approve_assignment(assignment_id, feedback=None)
-        except MTurkRequestError:
-            raise MTurkServiceException(
-                "Failed to approve assignment {}".format(assignment_id))
-        return True
-
-    def expire_hit(self, hit_id):
-        try:
-            self.mturk.expire_hit(hit_id)
-        except MTurkRequestError:
-            raise MTurkServiceException(
-                "Failed to expire HIT {}".format(hit_id))
-        return True
