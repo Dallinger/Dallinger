@@ -30,6 +30,10 @@ class FixtureConfigurationError(Exception):
     """
 
 
+def system_marker():
+    return ':'.join(os.uname()).replace(' ', '')
+
+
 def name_with_hostname_prefix():
     hostname = socket.gethostname()
     name = "{}:{}".format(hostname, generate_random_id(size=32))
@@ -57,37 +61,51 @@ def fake_hit_type_response():
 
 def fake_hit_response(**kwargs):
     canned_response = {
-        'Amount': u'0.01',
-        'AssignmentDurationInSeconds': u'900',
-        'AutoApprovalDelayInSeconds': u'2592000',
-        'CreationTime': u'2017-01-06T01:58:45Z',
-        'CurrencyCode': u'USD',
-        'Description': u'Fake Description',
-        'Expiration': u'2017-01-07T01:58:45Z',
-        'FormattedPrice': u'$0.01',
-        'HIT': '',
-        'HITGroupId': u'fake HIT group ID',
-        'HITId': u'fake HIT ID',
-        'HITReviewStatus': u'NotReviewed',
-        'HITStatus': u'Assignable',
-        'HITTypeId': u'fake HITTypeId',
-        'IsValid': u'True',
-        'Keywords': u'testkw1, testkw2',
-        'MaxAssignments': u'1',
-        'NumberOfAssignmentsAvailable': u'1',
-        'NumberOfAssignmentsCompleted': u'0',
-        'NumberOfAssignmentsPending': u'0',
-        'QualificationRequirement': '',
-        'QualificationTypeId': u'3GNL8ZDCG7GKFUI7UX2M1UC2GNPOIL',
-        'Question': (
-            u'<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
-            u'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
-            u'<ExternalURL>https://url-of-ad-route</ExternalURL>'
-            u'<FrameHeight>600</FrameHeight></ExternalQuestion>'
-        ),
-        'Request': '',
-        'Reward': '',
-        'Title': u'Fake Title',
+        u'HIT': {
+            u'AssignmentDurationInSeconds': 900,
+            u'AutoApprovalDelayInSeconds': 0,
+            u'CreationTime': datetime.datetime(2018, 1, 1, 1, 26, 52, 54000),
+            u'Description': u'***TEST SUITE HIT***43683',
+            u'Expiration': datetime.datetime(2018, 1, 1, 1, 27, 26, 54000),
+            u'HITGroupId': u'36IAL8HYPYM1MDNBSTAEZW89WH74RJ',
+            u'HITId': u'3X7837UUADRXYCA1K7JAJLKC66DJ60',
+            u'HITReviewStatus': u'NotReviewed',
+            u'HITStatus': u'Assignable',
+            u'HITTypeId': u'3V76OXST9SAE3THKN85FUPK7730050',
+            u'Keywords': u'testkw1,testkw1',
+            u'MaxAssignments': 1,
+            u'NumberOfAssignmentsAvailable': 1,
+            u'NumberOfAssignmentsCompleted': 0,
+            u'NumberOfAssignmentsPending': 0,
+            u'QualificationRequirements': [
+                {
+                    u'Comparator': u'GreaterThanOrEqualTo',
+                    u'IntegerValues': [95],
+                    u'QualificationTypeId': u'000000000000000000L0',
+                    u'RequiredToPreview': True
+                },
+                {
+                    u'Comparator': u'EqualTo',
+                    u'LocaleValues': [{u'Country': u'US'}],
+                    u'QualificationTypeId': u'00000000000000000071',
+                    u'RequiredToPreview': True
+                }
+            ],
+            u'Question': u'<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd"><ExternalURL>https://url-of-ad-route</ExternalURL><FrameHeight>600</FrameHeight></ExternalQuestion>',
+            u'Reward': u'0.01',
+            u'Title': u'Test Title'
+        },
+        'ResponseMetadata': {
+            'HTTPHeaders': {
+                'content-length': '1075',
+                'content-type': 'application/x-amz-json-1.1',
+                'date': 'Wed, 07 Feb 2018 22:26:51 GMT',
+                'x-amzn-requestid': 'fea8d1a0-0c55-11e8-aae4-030e1dad6670'
+            },
+            'HTTPStatusCode': 200,
+            'RequestId': 'fea8d1a0-0c55-11e8-aae4-030e1dad6670',
+            'RetryAttempts': 0
+        }
     }
     canned_response.update(**kwargs)
     hit = HIT(None)
@@ -138,7 +156,7 @@ def standard_hit_config(**kwargs):
         'ad_url': 'https://url-of-ad-route',
         'approve_requirement': 95,
         'us_only': True,
-        'lifetime_days': 0.000025,  # 2 seconds
+        'lifetime_days': 0.0004,  # 34 seconds (30 is minimum)
         'max_assignments': 1,
         'notification_url': 'https://url-of-notification-route',
         'title': 'Test Title',
@@ -148,7 +166,7 @@ def standard_hit_config(**kwargs):
     }
     defaults.update(**kwargs)
     # Use fixed description, since this is how we clean up:
-    defaults['description'] = TEST_HIT_DESCRIPTION + str(os.getpid())
+    defaults['description'] = TEST_HIT_DESCRIPTION + system_marker()
 
     return defaults
 
@@ -168,7 +186,8 @@ def with_cleanup(aws_creds, request):
 
     # tear-down: clean up all specially-marked HITs:
     def test_hits_only(hit):
-        return hit['description'] == TEST_HIT_DESCRIPTION + str(os.getpid())
+        return TEST_HIT_DESCRIPTION in hit['description']
+        return hit['description'] == TEST_HIT_DESCRIPTION + system_marker()
 
     # service = MTurkService(**aws_creds)
     params = {'region_name': 'us-east-1'}
@@ -353,7 +372,7 @@ class TestMTurkService(object):
 
     def test_extend_hit_with_valid_hit_id(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
-        time.sleep(10)  # Time lag before HIT is available for extension
+        time.sleep(15)  # Time lag before HIT is available for extension
         updated = with_cleanup.extend_hit(hit['id'], number=1, duration_hours=.25)
 
         assert updated['max_assignments'] == 2
@@ -367,26 +386,33 @@ class TestMTurkService(object):
 
     def test_disable_hit_with_valid_hit_id(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
+        time.sleep(15)
         assert with_cleanup.disable_hit(hit['id'])
 
     def test_disable_hit_with_invalid_hit_id_raises(self, mturk):
-        with pytest.raises(MTurkRequestError):
+        with pytest.raises(MTurkServiceException):
             mturk.disable_hit('dud')
+
+    def test_get_hit_with_valid_hit_id(self, with_cleanup):
+        hit = with_cleanup.create_hit(**standard_hit_config())
+        retrieved = with_cleanup.get_hit(hit['id'])
+        assert hit == retrieved
 
     def test_get_hits_returns_all_by_default(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
-        time.sleep(5)  # Indexing required...
+        time.sleep(15)  # Indexing required...
         hit_ids = [h['id'] for h in with_cleanup.get_hits()]
-        import pdb; pdb.set_trace()
         assert hit['id'] in hit_ids
 
     def test_get_hits_excludes_based_on_filter(self, with_cleanup):
         hit1 = with_cleanup.create_hit(**standard_hit_config())
         hit2 = with_cleanup.create_hit(**standard_hit_config(title='HIT Two'))
-        hits = list(with_cleanup.get_hits(lambda h: 'Two' in h['title']))
-
-        assert hit1 not in hits
-        assert hit2 in hits
+        time.sleep(15)  # Indexing required...
+        hit_ids = [
+            h['id'] for h in with_cleanup.get_hits(lambda h: 'Two' in h['title'])
+        ]
+        assert hit1['id'] not in hit_ids
+        assert hit2['id'] in hit_ids
 
     def test_create_and_dispose_qualification_type(self, with_cleanup):
         result = with_cleanup.create_qualification_type(
