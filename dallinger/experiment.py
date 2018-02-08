@@ -522,13 +522,8 @@ class Experiment(object):
         return str(uuid.UUID(int=random.getrandbits(128)))
 
     def _finish_experiment(self):
-        # Debug runs synchronously
-        if self.exp_config.get('mode') != 'debug':
-            self.log("Waiting for experiment to complete.", "")
-            while self.experiment_completed() is False:
-                time.sleep(30)
-            data = self.retrieve_data()
-            self.end_experiment()
+        data = self.retrieve_data()
+        self.end_experiment()
         return data
 
     def experiment_completed(self):
@@ -556,6 +551,11 @@ class Experiment(object):
 
     def end_experiment(self):
         """Terminates a running experiment"""
+        # Debug runs synchronously
+        if self.exp_config.get('mode') != 'debug':
+            self.log("Waiting for experiment to complete.", "")
+            while self.experiment_completed() is False:
+                time.sleep(30)
         HerokuApp(self.app_id).destroy()
 
     def events_for_replay(self):
