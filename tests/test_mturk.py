@@ -117,18 +117,27 @@ def fake_hit_response(**kwargs):
 
 def fake_qualification_response():
     canned_response = {
-        'Status': u'Granted',
-        'QualificationTypeId': generate_random_id(size=32),
-        'SubjectId': u'A2ZTO3X61UKR1G',
-        'Qualification': '',
-        'GrantTime': u'2017-02-02T13:06:13.000-08:00',
-        'IntegerValue': u'2'
+        u'Qualification': {
+            u'GrantTime': datetime.datetime(2018, 2, 7, 17, 0, 48),
+            u'IntegerValue': 2,
+            u'QualificationTypeId': unicode(generate_random_id(size=32)),
+            u'Status': u'Granted',
+            u'WorkerId': u'FAKE_WORKER_ID'
+        },
+        'ResponseMetadata': {
+            'HTTPHeaders': {
+                'content-length': '164',
+                'content-type': 'application/x-amz-json-1.1',
+                'date': 'Thu, 08 Feb 2018 01:00:48 GMT',
+                'x-amzn-requestid': '806337c8-0c6b-11e8-9668-91a85782438a'
+            },
+            'HTTPStatusCode': 200,
+            'RequestId': '806337c8-0c6b-11e8-9668-91a85782438a',
+            'RetryAttempts': 0
+        }
     }
-    qtype = Qualification(None)
-    for k, v in canned_response.items():
-        qtype.endElement(k, v, None)
 
-    return as_resultset(qtype)
+    return canned_response
 
 
 def fake_qualification_type_response():
@@ -480,18 +489,6 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         assert with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=2)
 
-    def test_assign_already_granted_qualification_raises(self,
-                                                         with_cleanup,
-                                                         worker_id,
-                                                         qtype):
-        with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=2
-        )
-
-        with pytest.raises(MTurkRequestError):
-            with_cleanup.assign_qualification(
-                qtype['id'], worker_id, score=2)
-
     def test_update_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
             qtype['id'], worker_id, score=2)
@@ -500,8 +497,9 @@ class TestMTurkServiceWithRequesterAndWorker(object):
             qtype['id'], worker_id, score=3)
 
         new_score = with_cleanup.mturk.get_qualification_score(
-            qtype['id'], worker_id)[0].IntegerValue
-        assert new_score == '3'
+            QualificationTypeId=qtype['id'],
+            WorkerId=worker_id)['Qualification']['IntegerValue']
+        assert new_score == 3
 
     def test_get_workers_with_qualification(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(
