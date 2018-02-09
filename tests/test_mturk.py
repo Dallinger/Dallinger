@@ -164,7 +164,13 @@ def fake_hit_response(**kwargs):
                     u'RequiredToPreview': True
                 }
             ],
-            u'Question': u'<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd"><ExternalURL>https://url-of-ad-route</ExternalURL><FrameHeight>600</FrameHeight></ExternalQuestion>',
+            u'Question': (
+                u'<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
+                u'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
+                u'<ExternalURL>https://url-of-ad-route</ExternalURL>'
+                u'<FrameHeight>600</FrameHeight>'
+                u'</ExternalQuestion>'
+            ),
             u'Reward': u'0.01',
             u'Title': u'Test Title'
         },
