@@ -13,6 +13,7 @@ from boto.mturk.connection import Qualification
 from boto.mturk.connection import QualificationType
 from boto.mturk.connection import MTurkConnection
 from boto.mturk.connection import MTurkRequestError
+from botocore.exceptions import ClientError
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
@@ -40,17 +41,78 @@ def name_with_hostname_prefix():
     return name
 
 
-def as_resultset(things):
+def response_metadata():
+    return {
+        'ResponseMetadata': {
+            'HTTPHeaders': {
+                'content-length': '123',
+                'content-type': 'application/x-amz-json-1.1',
+                'date': 'Thu, 08 Feb 2018 01:00:48 GMT',
+                'x-amzn-requestid': '806337c8-0c6b-11e8-9668-91a85782438a'
+            },
+            'HTTPStatusCode': 200,
+            'RequestId': '806337c8-0c6b-11e8-9668-91a85782438a',
+            'RetryAttempts': 0
+        }
+    }
+
+
+def as_batch_responses(key, things):
     if not isinstance(things, (list, tuple)):
         things = [things]
-    result = ResultSet()
-    for thing in things:
-        result.append(thing)
-    return result
+
+    canned_response = [
+        {
+            u'NextToken': u'FAKE_NEXT_TOKEN',
+            u'NumResults': len(things),
+            key: things,
+            'ResponseMetadata': {
+                'HTTPHeaders': {
+                    'content-length': '384',
+                    'content-type': 'application/x-amz-json-1.1',
+                    'date': 'Thu, 08 Feb 2018 22:52:22 GMT',
+                    'x-amzn-requestid': 'b94c13ff-0d22-11e8-9668-91a85782438a'
+                },
+                'HTTPStatusCode': 200,
+                'RequestId': 'b94c13ff-0d22-11e8-9668-91a85782438a',
+                'RetryAttempts': 0
+            }
+        },
+        {
+            u'NumResults': 0,
+            key: [],
+            'ResponseMetadata': {
+                'HTTPHeaders': {
+                    'content-length': '384',
+                    'content-type': 'application/x-amz-json-1.1',
+                    'date': 'Thu, 08 Feb 2018 22:52:22 GMT',
+                    'x-amzn-requestid': 'b94c13ff-0d22-11e8-9668-91a85782438a'
+                },
+                'HTTPStatusCode': 200,
+                'RequestId': 'b94c13ff-0d22-11e8-9668-91a85782438a',
+                'RetryAttempts': 0
+            }
+        }
+    ]
+
+    return canned_response
 
 
 def fake_balance_response():
-    return as_resultset(Price(1.00))
+    return {
+        u'AvailableBalance': u'10000.00',
+        'ResponseMetadata': {
+            'HTTPHeaders': {
+                'content-length': '31',
+                'content-type': 'application/x-amz-json-1.1',
+                'date': 'Fri, 09 Feb 2018 18:35:52 GMT',
+                'x-amzn-requestid': '0e9a664b-0dc8-11e8-8570-670ae0138d0d'
+            },
+            'HTTPStatusCode': 200,
+            'RequestId': '0e9a664b-0dc8-11e8-8570-670ae0138d0d',
+            'RetryAttempts': 0
+        }
+    }
 
 
 def fake_hit_type_response():
@@ -118,13 +180,22 @@ def fake_hit_response(**kwargs):
             'RetryAttempts': 0
         }
     }
+    canned_response['HIT'].update(kwargs)
+
     return canned_response
 
 
-def fake_qualification_response():
+def fake_list_hits_responses(hits=None):
+    if hits is None:
+        hits = [fake_hit_response()]
+
+    return as_batch_responses(key='HITs', things=[h['HIT'] for h in hits])
+
+
+def fake_worker_qualification_response():
     canned_response = {
         u'Qualification': {
-            u'GrantTime': datetime.datetime(2018, 2, 7, 17, 0, 48),
+            u'GrantTime': datetime.datetime(2018, 1, 1),
             u'IntegerValue': 2,
             u'QualificationTypeId': unicode(generate_random_id(size=32)),
             u'Status': u'Granted',
@@ -146,11 +217,21 @@ def fake_qualification_response():
     return canned_response
 
 
+def fake_list_worker_qualification_responses(quals=None):
+    if quals is None:
+        quals = [fake_worker_qualification_response()]
+
+    return as_batch_responses(
+        key=u'Qualifications',
+        things=[q['Qualification'] for q in quals]
+    )
+
+
 def fake_qualification_type_response():
     canned_response = {
         u'QualificationType': {
             u'AutoGranted': False,
-            u'CreationTime': datetime.datetime(2018, 1, 1, 12, 00, 00),
+            u'CreationTime': datetime.datetime(2018, 1, 1),
             u'Description': u'***TEST SUITE QUALIFICATION***',
             u'IsRequestable': True,
             u'Name': u'Test Qualifiction',
@@ -161,28 +242,35 @@ def fake_qualification_type_response():
     return canned_response
 
 
-def fake_list_qualification_types_response(qtypes=None):
+def fake_list_qualification_types_responses(qtypes=None):
     if qtypes is None:
-        qtypes = [fake_qualification_type_response()['QualificationType']]
+        qtypes = [fake_qualification_type_response()]
 
-    canned_response = {
-        u'NextToken': u'p1:X9LiQOsIM4deZdilfj5jYSg4V3yoreBuFB9P4GEWkiM60u/Gcr30+cnSqb5q',
-        u'NumResults': 1,
-        u'QualificationTypes': qtypes,
-        'ResponseMetadata': {
-            'HTTPHeaders': {
-                'content-length': '384',
-                'content-type': 'application/x-amz-json-1.1',
-                'date': 'Thu, 08 Feb 2018 22:52:22 GMT',
-                'x-amzn-requestid': 'b94c13ff-0d22-11e8-9668-91a85782438a'
-            },
-            'HTTPStatusCode': 200,
-            'RequestId': 'b94c13ff-0d22-11e8-9668-91a85782438a',
-            'RetryAttempts': 0
-        }
+    return as_batch_responses(
+        key=u'QualificationTypes',
+        things=[q['QualificationType'] for q in qtypes]
+    )
+
+
+def fake_get_assignment_response():
+    hit = fake_hit_response()['HIT']
+    return {
+        'Assignment': {
+            'AssignmentId': 'FAKE_ASSIGNMENT_ID',
+            'WorkerId': 'FAKE_WORKER_ID',
+            'HITId': hit['HITId'],
+            'AssignmentStatus': 'Approved',
+            'AutoApprovalTime': datetime.datetime(2018, 1, 1),
+            'AcceptTime': datetime.datetime(2018, 1, 1),
+            'SubmitTime': datetime.datetime(2018, 1, 1),
+            'ApprovalTime': datetime.datetime(2018, 1, 1),
+            'RejectionTime': datetime.datetime(2018, 1, 1),
+            'Deadline': datetime.datetime(2018, 1, 1),
+            'Answer': '',
+            'RequesterFeedback': ''
+        },
+        'HIT': hit
     }
-
-    return canned_response
 
 
 def standard_hit_config(**kwargs):
@@ -633,6 +721,15 @@ def with_mock(mturk):
     return mturk
 
 
+@pytest.fixture
+def requests():
+    with mock.patch('dallinger.mturk.requests') as mock_requests:
+        response = mock.Mock(text='<IsValid>True</IsValid>')
+        mock_requests.post.return_value = response
+        yield mock_requests
+
+
+@pytest.mark.usefixtures('requests')
 class TestMTurkServiceWithFakeConnection(object):
 
     def test_is_sandbox_by_default(self, with_mock):
@@ -660,9 +757,9 @@ class TestMTurkServiceWithFakeConnection(object):
 
     def test_check_credentials_bad_credentials(self, with_mock):
         with_mock.mturk.configure_mock(
-            **{'get_account_balance.side_effect': MTurkRequestError(1, 'ouch')}
+            **{'get_account_balance.side_effect': ClientError({}, 'Boom!')}
         )
-        with pytest.raises(MTurkRequestError):
+        with pytest.raises(MTurkServiceException):
             with_mock.check_credentials()
 
     def test_check_credentials_no_creds_set_raises(self, with_mock):
@@ -676,9 +773,9 @@ class TestMTurkServiceWithFakeConnection(object):
             service.check_credentials()
 
     def test_build_hit_qualifications_with_blacklist(self, with_mock):
-        qtypes = fake_list_qualification_types_response()
-        qtype_id = qtypes['QualificationTypes'][0]['QualificationTypeId']
-        with_mock.mturk.list_qualification_types.return_value = qtypes
+        qtypes = fake_list_qualification_types_responses()
+        qtype_id = qtypes[0]['QualificationTypes'][0]['QualificationTypeId']
+        with_mock.mturk.list_qualification_types.side_effect = qtypes
         quals = with_mock.build_hit_qualifications(
             95, False, blacklist=[qtype_id]
         )
@@ -700,23 +797,22 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_get_qualification_type_by_name_raises_if_not_unique_and_not_exact_match(self,
                                                                                      with_mock):
         two_quals = [
-            fake_qualification_type_response()['QualificationType'],
-            fake_qualification_type_response()['QualificationType']
+            fake_qualification_type_response(),
+            fake_qualification_type_response()
         ]
-        qtypes = fake_list_qualification_types_response(qtypes=two_quals)
-        with_mock.mturk.list_qualification_types.return_value = qtypes
+        qtypes = fake_list_qualification_types_responses(qtypes=two_quals)
+        with_mock.mturk.list_qualification_types.side_effect = qtypes
         with pytest.raises(MTurkServiceException):
             with_mock.get_qualification_type_by_name(
-                qtypes['QualificationTypes'][0]['Name'][:6]
+                qtypes[0]['QualificationTypes'][0]['Name'][:6]
             )
 
     def test_get_qualification_type_by_name_works_if_not_unique_but_is_exact_match(self,
                                                                                    with_mock):
-        qtypes = fake_list_qualification_types_response()
-        with_mock.mturk.list_qualification_types.return_value = qtypes
-        assert with_mock.get_qualification_type_by_name(
-            qtypes['QualificationTypes'][0]['Name']
-        )['name'] == qtypes['QualificationTypes'][0]['Name']
+        qtypes = fake_list_qualification_types_responses()
+        with_mock.mturk.list_qualification_types.side_effect = qtypes
+        name = qtypes[0]['QualificationTypes'][0]['Name']
+        assert with_mock.get_qualification_type_by_name(name)['name'] == name
 
     def test_register_hit_type(self, with_mock):
         quals = with_mock.build_hit_qualifications(95, True, None)
@@ -745,16 +841,13 @@ class TestMTurkServiceWithFakeConnection(object):
             QualificationRequirements=quals
         )
 
-    def test_set_rest_notification(self, with_mock):
+    def test_set_rest_notification(self, with_mock, requests):
         url = 'https://url-of-notification-route'
         hit_type_id = 'fake hittype id'
-        with_mock.mturk.configure_mock(**{
-            'set_rest_notification.return_value': ResultSet(),
-        })
 
         with_mock.set_rest_notification(url, hit_type_id)
 
-        with_mock.mturk.set_rest_notification.assert_called_once()
+        requests.post.assert_called_once()
 
     def test_create_hit_calls_underlying_mturk_method(self, with_mock):
         with_mock.mturk.configure_mock(**{
@@ -810,20 +903,22 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.mturk.delete_hit.assert_called_once_with(HITId='some hit')
 
     def test_get_hits_returns_all_by_default(self, with_mock):
-        hr1 = fake_hit_response(Title='One')[0]
-        ht2 = fake_hit_response(Title='Two')[0]
+        hr1 = fake_hit_response(Title='One')
+        hr2 = fake_hit_response(Title='Two')
+        responses = fake_list_hits_responses([hr1, hr2])
 
         with_mock.mturk.configure_mock(**{
-            'get_all_hits.return_value': as_resultset([hr1, ht2]),
+            'list_hits.side_effect': responses,
         })
 
         assert len(list(with_mock.get_hits())) == 2
 
     def test_get_hits_excludes_based_on_filter(self, with_mock):
-        hr1 = fake_hit_response(Title='HIT One')[0]
-        ht2 = fake_hit_response(Title='HIT Two')[0]
+        hr1 = fake_hit_response(Title='HIT One')
+        hr2 = fake_hit_response(Title='HIT Two')
+        responses = fake_list_hits_responses([hr1, hr2])
         with_mock.mturk.configure_mock(**{
-            'get_all_hits.return_value': as_resultset([hr1, ht2]),
+            'list_hits.side_effect': responses,
         })
 
         hits = list(with_mock.get_hits(lambda h: 'Two' in h['title']))
@@ -832,11 +927,9 @@ class TestMTurkServiceWithFakeConnection(object):
         assert hits[0]['title'] == 'HIT Two'
 
     def test_grant_bonus_translates_values_and_calls_wrapped_mturk(self, with_mock):
-        fake_assignment = Assignment(None)
-        fake_assignment.WorkerId = 'some worker id'
         with_mock.mturk.configure_mock(**{
-            'grant_bonus.return_value': ResultSet(),
-            'get_assignment.return_value': as_resultset(fake_assignment),
+            'send_bonus.return_value': response_metadata(),
+            'get_assignment.return_value': fake_get_assignment_response(),
         })
 
         with_mock.grant_bonus(
@@ -845,19 +938,18 @@ class TestMTurkServiceWithFakeConnection(object):
             reason='above and beyond'
         )
 
-        with_mock.mturk.grant_bonus.assert_called_once_with(
-            'some worker id',
-            'some assignment id',
-            mock.ANY,  # can't compare Price objects :-(
-            'above and beyond'
+        with_mock.mturk.send_bonus.assert_called_once_with(
+            WorkerId='FAKE_WORKER_ID',
+            AssignmentId='some assignment id',
+            BonusAmount='2.99',
+            Reason='above and beyond',
+            UniqueRequestToken=mock.ANY
         )
 
     def test_grant_bonus_wraps_exception_helpfully(self, with_mock):
-        fake_assignment = Assignment(None)
-        fake_assignment.WorkerId = 'some worker id'
         with_mock.mturk.configure_mock(**{
-            'get_assignment.return_value': as_resultset(fake_assignment),
-            'grant_bonus.side_effect': MTurkRequestError(1, "Boom!"),
+            'get_assignment.return_value': fake_get_assignment_response(),
+            'send_bonus.side_effect': ClientError({}, "Boom!"),
         })
         with pytest.raises(MTurkServiceException) as execinfo:
             with_mock.grant_bonus(
@@ -872,17 +964,17 @@ class TestMTurkServiceWithFakeConnection(object):
 
     def test_approve_assignment(self, with_mock):
         with_mock.mturk.configure_mock(**{
-            'approve_assignment.return_value': ResultSet(),
+            'approve_assignment.return_value': response_metadata(),
         })
 
         assert with_mock.approve_assignment('fake id') is True
         with_mock.mturk.approve_assignment.assert_called_once_with(
-            'fake id', feedback=None
+            AssignmentId='fake id'
         )
 
     def test_approve_assignment_wraps_exception_helpfully(self, with_mock):
         with_mock.mturk.configure_mock(**{
-            'approve_assignment.side_effect': MTurkRequestError(1, "Boom!")
+            'approve_assignment.side_effect': ClientError({}, "Boom!")
         })
 
         with pytest.raises(MTurkServiceException) as execinfo:
@@ -896,24 +988,12 @@ class TestMTurkServiceWithFakeConnection(object):
         })
         result = with_mock.create_qualification_type('name', 'desc', 'status')
         with_mock.mturk.create_qualification_type.assert_called_once_with(
-            'name', 'desc', 'status'
+            Description='desc', Name='name', QualificationTypeStatus='status'
         )
         assert isinstance(result['created'], datetime.datetime)
 
-    def test_create_qualification_type_raises_if_invalid(self, with_mock):
-        response = fake_qualification_type_response()
-        response[0].IsValid = 'False'
-        with_mock.mturk.configure_mock(**{
-            'create_qualification_type.return_value': response,
-        })
-        with pytest.raises(MTurkServiceException):
-            with_mock.create_qualification_type('name', 'desc', 'status')
-
     def test_create_qualification_type_raises_on_duplicate_name(self, with_mock):
-        error = MTurkRequestError(
-            1, u'already created a QualificationType with this name'
-        )
-        error.message = error.reason
+        error = Exception(u'already created a QualificationType with this name')
         with_mock.mturk.configure_mock(**{
             'create_qualification_type.side_effect': error,
         })
@@ -922,74 +1002,58 @@ class TestMTurkServiceWithFakeConnection(object):
 
     def test_assign_qualification(self, with_mock):
         with_mock.mturk.configure_mock(**{
-            'assign_qualification.return_value': ResultSet(),
+            'associate_qualification_with_worker.return_value': response_metadata(),
         })
         assert with_mock.assign_qualification('qid', 'worker', 'score')
-        with_mock.mturk.assign_qualification.assert_called_once_with(
-            'qid', 'worker', 'score', False
+        with_mock.mturk.associate_qualification_with_worker.assert_called_once_with(
+            IntegerValue='score',
+            QualificationTypeId='qid',
+            SendNotification=False,
+            WorkerId='worker'
         )
 
     def test_update_qualification_score(self, with_mock):
         with_mock.mturk.configure_mock(**{
-            'update_qualification_score.return_value': ResultSet(),
+            'associate_qualification_with_worker.return_value': response_metadata(),
         })
         assert with_mock.update_qualification_score('qid', 'worker', 'score')
-        with_mock.mturk.update_qualification_score.assert_called_once_with(
-            'qid', 'worker', 'score'
+        with_mock.mturk.associate_qualification_with_worker.assert_called_once_with(
+            IntegerValue='score',
+            QualificationTypeId='qid',
+            SendNotification=False,
+            WorkerId='worker'
         )
 
     def test_dispose_qualification_type(self, with_mock):
         with_mock.mturk.configure_mock(**{
-            'dispose_qualification_type.return_value': ResultSet(),
+            'delete_qualification_type.return_value': response_metadata(),
         })
         assert with_mock.dispose_qualification_type('qid')
-        with_mock.mturk.dispose_qualification_type.assert_called_once_with(
-            'qid'
+        with_mock.mturk.delete_qualification_type.assert_called_once_with(
+            QualificationTypeId='qid'
         )
 
     def test_get_workers_with_qualification(self, with_mock):
+        responses = fake_list_worker_qualification_responses()
         with_mock.mturk.configure_mock(**{
-            'get_qualifications_for_qualification_type.side_effect': [
-                fake_qualification_response(), ResultSet()
-            ],
+            'list_workers_with_qualification_type.side_effect': responses
         })
         expected = [
-            mock.call('qid', page_number=1, page_size=100),
-            mock.call('qid', page_number=2, page_size=100)
+            mock.call(MaxResults=100, QualificationTypeId='qid', Status='Granted'),
+            mock.call(
+                MaxResults=100, QualificationTypeId='qid', Status='Granted',
+                NextToken=u'FAKE_NEXT_TOKEN'
+            )
         ]
         # need to unroll the iterator:
         list(with_mock.get_workers_with_qualification('qid'))
-        calls = with_mock.mturk.get_qualifications_for_qualification_type.call_args_list
+        calls = with_mock.mturk.list_workers_with_qualification_type.call_args_list
         assert calls == expected
-
-    def test_set_qualification_score_with_existing_qualification(self, with_mock):
-        with_mock.get_workers_with_qualification = mock.Mock(
-            return_value=[{'id': 'workerid', 'score': 2}]
-        )
-        with_mock.update_qualification_score = mock.Mock(return_value=True)
-
-        assert with_mock.set_qualification_score('qid', 'workerid', 4)
-        with_mock.get_workers_with_qualification.assert_called_once_with('qid')
-        with_mock.update_qualification_score.assert_called_once_with(
-            'qid', 'workerid', 4
-        )
-
-    def test_set_qualification_score_with_new_qualification(self, with_mock):
-        with_mock.get_workers_with_qualification = mock.Mock(return_value=[])
-        with_mock.assign_qualification = mock.Mock(return_value=True)
-
-        assert with_mock.set_qualification_score('qid', 'workerid', 4)
-        with_mock.get_workers_with_qualification.assert_called_once_with('qid')
-        with_mock.assign_qualification.assert_called_once_with(
-            'qid', 'workerid', 4, False
-        )
 
     def test_get_current_qualification_score(self, with_mock):
         worker_id = 'some worker id'
         with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
-        with_mock.mturk.get_all_qualifications_for_qual_type = mock.Mock(
-            return_value=[mock.Mock(SubjectId=worker_id, IntegerValue='1')]
-        )
+        with_mock.get_qualification_score = mock.Mock(return_value=1)
 
         result = with_mock.get_current_qualification_score('some name', worker_id)
 
@@ -999,9 +1063,7 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_get_current_qualification_score_worker_unscored(self, with_mock):
         worker_id = 'some worker id'
         with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
-        with_mock.mturk.get_all_qualifications_for_qual_type = mock.Mock(
-            return_value=[mock.Mock(SubjectId='other worker id', IntegerValue='1')]
-        )
+        with_mock.get_qualification_score = mock.Mock(side_effect=MTurkServiceException('Boom!'))
 
         result = with_mock.get_current_qualification_score('some name', worker_id)
 
@@ -1017,8 +1079,11 @@ class TestMTurkServiceWithFakeConnection(object):
         result = with_mock.increment_qualification_score('some qual', worker_id)
 
         assert result['score'] == 3
-        with_mock.mturk.update_qualification_score.assert_called_once_with(
-            'qtype_id', worker_id, 3
+        with_mock.mturk.associate_qualification_with_worker.assert_called_once_with(
+            IntegerValue=3,
+            QualificationTypeId='qtype_id',
+            SendNotification=False,
+            WorkerId='some worker id'
         )
 
     def test_increment_qualification_score_for_worker_with_no_score(self, with_mock):
@@ -1030,8 +1095,11 @@ class TestMTurkServiceWithFakeConnection(object):
         result = with_mock.increment_qualification_score('some qual', worker_id)
 
         assert result['score'] == 1
-        with_mock.mturk.assign_qualification.assert_called_once_with(
-            'qtype_id', worker_id, 1, False
+        with_mock.mturk.associate_qualification_with_worker.assert_called_once_with(
+            IntegerValue=1,
+            QualificationTypeId='qtype_id',
+            SendNotification=False,
+            WorkerId='some worker id'
         )
 
     def test_increment_qualification_score_nonexisting_qual_raises(self, with_mock):
