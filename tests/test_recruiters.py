@@ -296,7 +296,7 @@ class TestMTurkRecruiter(object):
             mockservice = mock.create_autospec(MTurkService)
             active_config.extend({'mode': u'sandbox'})
             r = MTurkRecruiter()
-            r.mturkservice = mockservice('fake key', 'fake secret')
+            r.mturkservice = mockservice('fake key', 'fake secret', 'fake_region')
             r.mturkservice.check_credentials.return_value = True
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
             return r
@@ -547,7 +547,7 @@ class TestMTurkLargeRecruiter(object):
             mockservice = mock.create_autospec(MTurkService)
             active_config.extend({'mode': u'sandbox'})
             r = MTurkLargeRecruiter()
-            r.mturkservice = mockservice('fake key', 'fake secret')
+            r.mturkservice = mockservice('fake key', 'fake secret', 'fake_region')
             r.mturkservice.check_credentials.return_value = True
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
             return r
