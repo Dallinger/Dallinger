@@ -470,7 +470,9 @@ class Experiment(object):
                 verbose=self.verbose,
                 exp_config=self.exp_config
             )
-        return self._finish_experiment()
+        data = self.retrieve_data()
+        self.end_experiment()
+        return data
 
     def collect(self, app_id, exp_config=None, bot=False, **kwargs):
         """Collect data for the provided experiment id.
@@ -521,15 +523,6 @@ class Experiment(object):
         """Generate a new uuid."""
         return str(uuid.UUID(int=random.getrandbits(128)))
 
-    def _finish_experiment(self):
-        # Debug runs synchronously
-        if self.exp_config.get('mode') != 'debug':
-            self.log("Waiting for experiment to complete.", "")
-            while self.experiment_completed() is False:
-                time.sleep(30)
-            self.end_experiment()
-        return self.retrieve_data()
-
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
         completed"""
@@ -555,7 +548,13 @@ class Experiment(object):
 
     def end_experiment(self):
         """Terminates a running experiment"""
-        HerokuApp(self.app_id).destroy()
+        # Debug runs synchronously
+        if self.exp_config.get('mode') != 'debug':
+            self.log("Waiting for experiment to complete.", "")
+            while self.experiment_completed() is False:
+                time.sleep(30)
+            HerokuApp(self.app_id).destroy()
+        return True
 
     def events_for_replay(self):
         """Be default we return all infos in order for replay"""
