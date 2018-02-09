@@ -239,7 +239,6 @@ class MTurkService(object):
             'MaxResults': 2,
         }
         results = self.mturk.list_qualification_types(**args)['QualificationTypes']
-
         # This loop is largely for tests, because there's some indexing that
         # needs to happen on MTurk for search to work:
         while not results and time.time() - start < self.max_wait_secs:
@@ -267,6 +266,30 @@ class MTurkService(object):
             IntegerValue=score,
             SendNotification=notify
         ))
+
+    def set_qualification_score(self, qualification_id, worker_id, score, notify=False):
+        """BBB only.
+        """
+        return self.assign_qualification(qualification_id, worker_id, score, notify)
+
+    def update_qualification_score(self, qualification_id, worker_id, score):
+        """Score a worker for a specific qualification"""
+        return self.assign_qualification(qualification_id, worker_id, score)
+
+    def increment_qualification_score(self, name, worker_id, notify=False):
+        """Increment the current qualification score for a worker, on a
+        qualification with the provided name.
+        """
+        result = self.get_current_qualification_score(name, worker_id)
+        current_score = result['score'] or 0
+        new_score = current_score + 1
+        qtype_id = result['qtype']['id']
+        self.update_qualification_score(qtype_id, worker_id, new_score)
+
+        return {
+            'qtype': result['qtype'],
+            'score': new_score
+        }
 
     def revoke_qualification(self, qualification_id, worker_id, reason=''):
         return self._is_ok(self.mturk.disassociate_qualification_from_worker(
@@ -305,25 +328,6 @@ class MTurkService(object):
             'score': score
         }
 
-    def increment_qualification_score(self, name, worker_id, notify=False):
-        """Increment the current qualification score for a worker, on a
-        qualification with the provided name.
-        """
-        result = self.get_current_qualification_score(name, worker_id)
-        current_score = result['score'] or 0
-        new_score = current_score + 1
-        qtype_id = result['qtype']['id']
-        self.update_qualification_score(qtype_id, worker_id, new_score)
-
-        return {
-            'qtype': result['qtype'],
-            'score': new_score
-        }
-
-    def update_qualification_score(self, qualification_id, worker_id, score):
-        """Score a worker for a specific qualification"""
-        return self.assign_qualification(qualification_id, worker_id, score)
-
     def dispose_qualification_type(self, qualification_id):
         """Remove a qualification type we created"""
         return self.mturk.delete_qualification_type(
@@ -355,12 +359,6 @@ class MTurkService(object):
                 next_token = response['NextToken']
             else:
                 done = True
-
-    def set_qualification_score(self, qualification_id, worker_id, score, notify=False):
-        """Convenience method will set a qualification score regardless of
-        whether the worker already has a score for the specified qualification.
-        """
-        return self.assign_qualification(qualification_id, worker_id, score, notify)
 
     def create_hit(self, title, description, keywords, reward, duration_hours,
                    lifetime_days, ad_url, notification_url, approve_requirement,
