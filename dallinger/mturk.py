@@ -10,24 +10,12 @@ import urllib
 from hashlib import sha1
 from botocore.exceptions import ClientError
 from botocore.exceptions import NoCredentialsError
-
-from boto.mturk.connection import MTurkConnection
-from boto.mturk.connection import MTurkRequestError
-from boto.mturk.price import Price
-from boto.mturk.qualification import LocaleRequirement
-from boto.mturk.qualification import PercentAssignmentsApprovedRequirement
-from boto.mturk.qualification import Qualifications
-from boto.mturk.qualification import Requirement
-from boto.mturk.question import ExternalQuestion
 from cached_property import cached_property
+
 
 logger = logging.getLogger(__file__)
 PERCENTAGE_APPROVED_REQUIREMENT_ID = '000000000000000000L0'
 LOCALE_REQUIREMENT_ID = '00000000000000000071'
-
-
-def timestr_to_dt(timestr):
-    return datetime.datetime.strptime(timestr, '%Y-%m-%dT%H:%M:%SZ')
 
 
 class MTurkServiceException(Exception):
@@ -43,63 +31,44 @@ class QualificationNotFoundException(MTurkServiceException):
 
 
 class MTurkService(object):
-    """Facade for Amazon Mechanical Turk services provided via the boto
+    """Facade for Amazon Mechanical Turk services provided via the boto3
        library.
     """
-    production_mturk_server = 'mechanicalturk.amazonaws.com'
-    sandbox_mturk_server = 'mechanicalturk.sandbox.amazonaws.com'
-    production_mturk_server3 = u'https://mturk-requester.us-east-1.amazonaws.com'
-    sandbox_mturk_server3 = u'https://mturk-requester-sandbox.us-east-1.amazonaws.com'
 
     max_wait_secs = 0
 
     def __init__(self, aws_access_key_id, aws_secret_access_key, region_name, sandbox=True):
-        self.aws_access_key_id = aws_access_key_id
-        self.aws_secret_access_key = aws_secret_access_key
+        self.aws_key = aws_access_key_id
+        self.aws_secret = aws_secret_access_key
         self.region_name = region_name
         self.is_sandbox = sandbox
 
-    # @cached_property
-    @property
-    def session(self):
-        from boto3.session import Session
-        return Session(
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
-            region_name=self.region_name
-        )
-
     @cached_property
     def mturk(self):
-        return self.session.client(
+        session = boto3.session.Session(
+            aws_access_key_id=self.aws_key,
+            aws_secret_access_key=self.aws_secret,
+            region_name=self.region_name
+        )
+        return session.client(
             'mturk',
             endpoint_url=self.host,
             region_name=self.region_name,
         )
 
-    @cached_property
-    def mturk2(self):
-        """Cached MTurkConnection"""
-        if not self.aws_access_key_id or not self.aws_secret_access_key:
-            raise MTurkServiceException('AWS access key and secret not set.')
-        login_params = {
-            'aws_access_key_id': self.aws_access_key_id,
-            'aws_secret_access_key': self.aws_secret_access_key,
-            'host': self.host
-        }
-        return MTurkConnection(**login_params)
-
     @property
     def host(self):
         if self.is_sandbox:
-            return self.sandbox_mturk_server3
-        return self.production_mturk_server3
+            template = u'https://mturk-requester-sandbox.{}.amazonaws.com'
+        else:
+            template = u'https://mturk-requester.{}.amazonaws.com'
+        return template.format(self.region_name)
 
     @property
-    def host2(self):
+    def legacy_host(self):
         if self.is_sandbox:
-            return self.sandbox_mturk_server
-        return self.production_mturk_server
+            return 'mechanicalturk.sandbox.amazonaws.com'
+        return 'mechanicalturk.amazonaws.com'
 
     def check_credentials(self):
         """Verifies key/secret/host combination by making a balance inquiry"""
@@ -114,7 +83,7 @@ class MTurkService(object):
         """Set a REST endpoint to recieve notifications about the HIT"""
         ISO8601 = '%Y-%m-%dT%H:%M:%SZ'
         data = {
-            'AWSAccessKeyId': self.aws_access_key_id,
+            'AWSAccessKeyId': self.aws_key,
             'HITTypeId': hit_type_id,
             'Notification.1.Active': 'True',
             'Notification.1.Destination': url,
@@ -137,23 +106,24 @@ class MTurkService(object):
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
             'Content-Length': str(len(body)),
-            'Host': 'mechanicalturk.sandbox.amazonaws.com',
-            'User-Agent': 'Boto/2.48.0 Python/2.7.13 Darwin/15.6.0'
+            'Host': self.legacy_host,
         }
         resp = requests.post(
-            'https://mechanicalturk.sandbox.amazonaws.com',
+            'https://' + self.legacy_host,
             headers=headers,
             data=body
         )
         return '<IsValid>True</IsValid>' in resp.text
 
-    def register_hit_type(self,
-                          title,
-                          description,
-                          reward,
-                          duration_hours,
-                          keywords,
-                          qualifications):
+    def register_hit_type(
+        self,
+        title,
+        description,
+        reward,
+        duration_hours,
+        keywords,
+        qualifications
+    ):
         """Register HIT Type for this HIT and return the type's ID, which
         is required for creating a HIT.
         """
@@ -166,14 +136,17 @@ class MTurkService(object):
             AssignmentDurationInSeconds=duration_secs,
             Keywords=','.join(keywords),
             AutoApprovalDelayInSeconds=0,
-            QualificationRequirements=qualifications)
+            QualificationRequirements=qualifications
+        )
 
         return hit_type['HITTypeId']
 
-    def build_hit_qualifications(self,
-                                 approve_requirement,
-                                 restrict_to_usa,
-                                 blacklist):
+    def build_hit_qualifications(
+        self,
+        approve_requirement,
+        restrict_to_usa,
+        blacklist
+    ):
         """Translate restrictions/qualifications to boto Qualifications objects
 
         @blacklist is a list of names for Qualifications workers must
@@ -273,7 +246,7 @@ class MTurkService(object):
         return self.assign_qualification(qualification_id, worker_id, score, notify)
 
     def update_qualification_score(self, qualification_id, worker_id, score):
-        """Score a worker for a specific qualification"""
+        """BBB only"""
         return self.assign_qualification(qualification_id, worker_id, score)
 
     def increment_qualification_score(self, name, worker_id, notify=False):
@@ -431,6 +404,17 @@ class MTurkService(object):
         self.expire_hit(hit_id)
         return self.mturk.delete_hit(HITId=hit_id)
 
+    def expire_hit(self, hit_id):
+        """Expire a HIT, which will change its status to "Reviewable",
+        allowing it to be deleted.
+        """
+        try:
+            self.mturk.update_expiration_for_hit(HITId=hit_id, ExpireAt=0)
+        except Exception as ex:
+            raise MTurkServiceException(
+                "Failed to expire HIT {}: {}".format(hit_id, ex.message))
+        return True
+
     def get_hit(self, hit_id):
         return self._translate_hit(self.mturk.get_hit(HITId=hit_id)['HIT'])
 
@@ -498,20 +482,9 @@ class MTurkService(object):
                     assignment_id, ex.message)
             )
 
-    def expire_hit(self, hit_id):
-        """Expire a HIT, which will change its status to "Reviewable",
-        allowing it to be deleted.
-        """
-        try:
-            self.mturk.update_expiration_for_hit(HITId=hit_id, ExpireAt=0)
-        except Exception as ex:
-            raise MTurkServiceException(
-                "Failed to expire HIT {}: {}".format(hit_id, ex.message))
-        return True
-
     def _calc_old_api_signature(self, params, *args):
         sig = hmac.new(
-            self.aws_secret_access_key.encode('utf-8'),
+            self.aws_secret.encode('utf-8'),
             digestmod=sha1
         )
         keys = list(params.keys())
@@ -526,7 +499,8 @@ class MTurkService(object):
         return (qs, base64.b64encode(sig.digest()))
 
     def _external_question(self, url, frame_height):
-        q = ('<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
+        q = ('<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
+             'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
              '<ExternalURL>{}</ExternalURL>'
              '<FrameHeight>{}</FrameHeight></ExternalQuestion>')
         return q.format(url, frame_height)
