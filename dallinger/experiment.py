@@ -470,8 +470,9 @@ class Experiment(object):
                 verbose=self.verbose,
                 exp_config=self.exp_config
             )
+        data = self.retrieve_data()
         self.end_experiment()
-        return self.retrieve_data()
+        return data
 
     def collect(self, app_id, exp_config=None, bot=False, **kwargs):
         """Collect data for the provided experiment id.
