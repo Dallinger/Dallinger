@@ -7,23 +7,24 @@ var switches = 0;
 var voted = false;
 
 $(document).ready(function() {
-  // Print the consent form.
+  // Do not print the consent form.
   $("#print-consent").click(function() {
     window.print();
   });
 
   // Consent to the experiment.
   $("#consent").click(function() {
-    store.set("hit_id", dallinger.getUrlParameter("hit_id"));
-    store.set("worker_id", dallinger.getUrlParameter("worker_id"));
-    store.set("assignment_id", dallinger.getUrlParameter("assignment_id"));
-    store.set("mode", dallinger.getUrlParameter("mode"));
+    store.set("hit_id", getUrlParameter("hit_id"));
+    store.set("worker_id", getUrlParameter("worker_id"));
+    store.set("assignment_id", getUrlParameter("assignment_id"));
+    store.set("mode", getUrlParameter("mode"));
 
     window.location.href = '/instructions';
   });
 
   // Consent to the experiment.
   $("#no-consent").click(function() {
+    allow_exit();
     self.close();
   });
 
