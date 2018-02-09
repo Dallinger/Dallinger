@@ -54,9 +54,20 @@ def fake_balance_response():
 
 
 def fake_hit_type_response():
-    htid = HITTypeId(None)
-    htid.HITTypeId = u'fake HITTypeId'
-    return as_resultset(htid)
+    return {
+        u'HITTypeId': unicode(generate_random_id(size=32)),
+        'ResponseMetadata': {
+            'HTTPHeaders': {
+                'content-length': '46',
+                'content-type': 'application/x-amz-json-1.1',
+                'date': 'Thu, 08 Feb 2018 23:37:18 GMT',
+                'x-amzn-requestid': '009317a6-0d29-11e8-94f2-878e743a48be'
+            },
+            'HTTPStatusCode': 200,
+            'RequestId': '009317a6-0d29-11e8-94f2-878e743a48be',
+            'RetryAttempts': 0
+        }
+    }
 
 
 def fake_hit_response(**kwargs):
@@ -72,7 +83,7 @@ def fake_hit_response(**kwargs):
             u'HITReviewStatus': u'NotReviewed',
             u'HITStatus': u'Assignable',
             u'HITTypeId': u'3V76OXST9SAE3THKN85FUPK7730050',
-            u'Keywords': u'testkw1,testkw1',
+            u'Keywords': u'testkw1,testkw2',
             u'MaxAssignments': 1,
             u'NumberOfAssignmentsAvailable': 1,
             u'NumberOfAssignmentsCompleted': 0,
@@ -107,12 +118,7 @@ def fake_hit_response(**kwargs):
             'RetryAttempts': 0
         }
     }
-    canned_response.update(**kwargs)
-    hit = HIT(None)
-    for k, v in canned_response.items():
-        hit.endElement(k, v, None)
-
-    return as_resultset(hit)
+    return canned_response
 
 
 def fake_qualification_response():
@@ -144,20 +150,39 @@ def fake_qualification_type_response():
     canned_response = {
         u'QualificationType': {
             u'AutoGranted': False,
-            u'Description': u'***TEST SUITE QUALIFICATION***',
-            u'QualificationTypeId': generate_random_id(size=32),
-            u'IsRequestable': True,
-            u'QualificationTypeStatus': u'Active',
             u'CreationTime': datetime.datetime(2018, 1, 1, 12, 00, 00),
-            u'Name': u'Test Qualifiction'
+            u'Description': u'***TEST SUITE QUALIFICATION***',
+            u'IsRequestable': True,
+            u'Name': u'Test Qualifiction',
+            u'QualificationTypeId': generate_random_id(size=32),
+            u'QualificationTypeStatus': u'Active',
         }
     }
     return canned_response
-    # qtype = QualificationType(None)
-    # for k, v in canned_response.items():
-    #     qtype.endElement(k, v, None)
 
-    # return as_resultset(qtype)
+
+def fake_list_qualification_types_response(qtypes=None):
+    if qtypes is None:
+        qtypes = [fake_qualification_type_response()['QualificationType']]
+
+    canned_response = {
+        u'NextToken': u'p1:X9LiQOsIM4deZdilfj5jYSg4V3yoreBuFB9P4GEWkiM60u/Gcr30+cnSqb5q',
+        u'NumResults': 1,
+        u'QualificationTypes': qtypes,
+        'ResponseMetadata': {
+            'HTTPHeaders': {
+                'content-length': '384',
+                'content-type': 'application/x-amz-json-1.1',
+                'date': 'Thu, 08 Feb 2018 22:52:22 GMT',
+                'x-amzn-requestid': 'b94c13ff-0d22-11e8-9668-91a85782438a'
+            },
+            'HTTPStatusCode': 200,
+            'RequestId': 'b94c13ff-0d22-11e8-9668-91a85782438a',
+            'RetryAttempts': 0
+        }
+    }
+
+    return canned_response
 
 
 def standard_hit_config(**kwargs):
@@ -169,7 +194,7 @@ def standard_hit_config(**kwargs):
         'max_assignments': 1,
         'notification_url': 'https://url-of-notification-route',
         'title': 'Test Title',
-        'keywords': ['testkw1', 'testkw1'],
+        'keywords': ['testkw1', 'testkw2'],
         'reward': .01,
         'duration_hours': .25
     }
@@ -182,7 +207,6 @@ def standard_hit_config(**kwargs):
 
 @pytest.fixture
 def mturk(aws_creds):
-    # service = MTurkService(**aws_creds)
     params = {'region_name': 'us-east-1'}
     params.update(aws_creds)
     service = MTurkService(**params)
@@ -342,7 +366,7 @@ class TestMTurkService(object):
         config = {
             'title': 'Test Title',
             'description': 'Test Description',
-            'keywords': ['testkw1', 'testkw1'],
+            'keywords': ['testkw1', 'testkw2'],
             'reward': .01,
             'duration_hours': .25,
             'qualifications': mturk.build_hit_qualifications(95, True, None)
@@ -355,7 +379,7 @@ class TestMTurkService(object):
         config = {
             'title': 'Test Title',
             'description': 'Test Description',
-            'keywords': ['testkw1', 'testkw1'],
+            'keywords': ['testkw1', 'testkw2'],
             'reward': .01,
             'duration_hours': .25,
             'qualifications': mturk.build_hit_qualifications(95, True, None)
@@ -572,8 +596,7 @@ class TestInteractive(object):
                                                                      with_cleanup,
                                                                      worker_id,
                                                                      qtype):
-        with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=1)
+        with_cleanup.assign_qualification(qtype['id'], worker_id, score=1)
 
         print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name'])
         raw_input("Any key to continue...")
@@ -588,8 +611,7 @@ class TestInteractive(object):
                                                                     with_cleanup,
                                                                     worker_id,
                                                                     qtype):
-        with_cleanup.assign_qualification(
-            qtype['id'], worker_id, score=1)
+        with_cleanup.assign_qualification(qtype['id'], worker_id, score=1)
 
         print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name'])
         raw_input("Any key to continue...")
@@ -605,14 +627,10 @@ class TestInteractive(object):
 
 
 @pytest.fixture
-def with_mock():
-    creds = {
-        'aws_access_key_id': '',
-        'aws_secret_access_key': ''
-    }
-    service = MTurkService(**creds)
-    service.mturk = mock.Mock(spec=MTurkConnection)
-    return service
+def with_mock(mturk):
+    mocked_mturk = mock.Mock(spec=mturk.mturk)
+    mturk.mturk = mocked_mturk
+    return mturk
 
 
 class TestMTurkServiceWithFakeConnection(object):
@@ -650,48 +668,55 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_check_credentials_no_creds_set_raises(self, with_mock):
         creds = {
             'aws_access_key_id': '',
-            'aws_secret_access_key': ''
+            'aws_secret_access_key': '',
+            'region_name': ''
         }
         service = MTurkService(**creds)
         with pytest.raises(MTurkServiceException):
             service.check_credentials()
 
     def test_build_hit_qualifications_with_blacklist(self, with_mock):
-        qtypes = fake_qualification_type_response()
-        with_mock.mturk.search_qualification_types.return_value = qtypes
-        qtype = qtypes[0]
+        qtypes = fake_list_qualification_types_response()
+        qtype_id = qtypes['QualificationTypes'][0]['QualificationTypeId']
+        with_mock.mturk.list_qualification_types.return_value = qtypes
         quals = with_mock.build_hit_qualifications(
-            95, False, blacklist=[qtypes[0].QualificationTypeId]
+            95, False, blacklist=[qtype_id]
         )
-        assert quals.requirements[-1].qualification_type_id == qtype.QualificationTypeId
-        assert quals.requirements[-1].comparator == "DoesNotExist"
+        assert quals[-1]['QualificationTypeId'] == qtype_id
+        assert quals[-1]['Comparator'] == "DoesNotExist"
 
     def test_build_hit_qualifications_with_region_restriction(self, with_mock):
         quals = with_mock.build_hit_qualifications(
             95, restrict_to_usa=True, blacklist=None
         )
-        assert quals.requirements[-1].comparator == "EqualTo"
-        assert quals.requirements[-1].locale == "US"
+        assert quals[-1]['Comparator'] == "EqualTo"
+        assert quals[-1]['LocaleValues'] == [{'Country': 'US'}]
 
     def test_get_qualification_type_by_name_with_invalid_name_returns_none(self, with_mock):
-        with_mock.mturk.search_qualification_types.return_value = []
+        with_mock.mturk.list_qualification_types.return_value = {'QualificationTypes': []}
         with_mock.max_wait_secs = 1
         assert with_mock.get_qualification_type_by_name("foo") is None
 
     def test_get_qualification_type_by_name_raises_if_not_unique_and_not_exact_match(self,
                                                                                      with_mock):
-        qtype = fake_qualification_type_response()[0]
-        qtypes = as_resultset([qtype, qtype])
-        with_mock.mturk.search_qualification_types.return_value = qtypes
+        two_quals = [
+            fake_qualification_type_response()['QualificationType'],
+            fake_qualification_type_response()['QualificationType']
+        ]
+        qtypes = fake_list_qualification_types_response(qtypes=two_quals)
+        with_mock.mturk.list_qualification_types.return_value = qtypes
         with pytest.raises(MTurkServiceException):
-            with_mock.get_qualification_type_by_name(qtype.Name[:6])
+            with_mock.get_qualification_type_by_name(
+                qtypes['QualificationTypes'][0]['Name'][:6]
+            )
 
     def test_get_qualification_type_by_name_works_if_not_unique_but_is_exact_match(self,
                                                                                    with_mock):
-        qtype = fake_qualification_type_response()[0]
-        qtypes = as_resultset([qtype, qtype])
-        with_mock.mturk.search_qualification_types.return_value = qtypes
-        assert with_mock.get_qualification_type_by_name(qtype.Name)['name'] == qtype.Name
+        qtypes = fake_list_qualification_types_response()
+        with_mock.mturk.list_qualification_types.return_value = qtypes
+        assert with_mock.get_qualification_type_by_name(
+            qtypes['QualificationTypes'][0]['Name']
+        )['name'] == qtypes['QualificationTypes'][0]['Name']
 
     def test_register_hit_type(self, with_mock):
         quals = with_mock.build_hit_qualifications(95, True, None)
@@ -705,19 +730,19 @@ class TestMTurkServiceWithFakeConnection(object):
         }
         with_mock.mturk.configure_mock(**{
             'get_account_balance.return_value': fake_balance_response(),
-            'register_hit_type.return_value': fake_hit_type_response(),
+            'create_hit_type.return_value': fake_hit_type_response(),
         })
 
         with_mock.register_hit_type(**config)
 
-        with_mock.mturk.register_hit_type.assert_called_once_with(
-            'Test Title',
-            'Test Description',
-            .01,
-            datetime.timedelta(hours=.25),
-            keywords=['testkw1', 'testkw2'],
-            approval_delay=None,
-            qual_req=quals
+        with_mock.mturk.create_hit_type.assert_called_once_with(
+            Title='Test Title',
+            Description='Test Description',
+            Reward='0.01',
+            AssignmentDurationInSeconds=datetime.timedelta(hours=.25).seconds,
+            Keywords='testkw1,testkw2',
+            AutoApprovalDelayInSeconds=0,
+            QualificationRequirements=quals
         )
 
     def test_set_rest_notification(self, with_mock):
@@ -733,20 +758,17 @@ class TestMTurkServiceWithFakeConnection(object):
 
     def test_create_hit_calls_underlying_mturk_method(self, with_mock):
         with_mock.mturk.configure_mock(**{
-            'register_hit_type.return_value': fake_hit_type_response(),
-            'set_rest_notification.return_value': ResultSet(),
-            'create_hit.return_value': fake_hit_response(),
+            'create_hit_type.return_value': fake_hit_type_response(),
+            'create_hit_with_hit_type.return_value': fake_hit_response(),
         })
-
         with_mock.create_hit(**standard_hit_config())
 
-        with_mock.mturk.create_hit.assert_called_once()
+        with_mock.mturk.create_hit_with_hit_type.assert_called_once()
 
     def test_create_hit_translates_response_back_from_mturk(self, with_mock):
         with_mock.mturk.configure_mock(**{
-            'register_hit_type.return_value': fake_hit_type_response(),
-            'set_rest_notification.return_value': ResultSet(),
-            'create_hit.return_value': fake_hit_response(),
+            'create_hit_type.return_value': fake_hit_type_response(),
+            'create_hit_with_hit_type.return_value': fake_hit_response(),
         })
 
         hit = with_mock.create_hit(**standard_hit_config())
@@ -757,45 +779,35 @@ class TestMTurkServiceWithFakeConnection(object):
         assert isinstance(hit['created'], datetime.datetime)
         assert isinstance(hit['expiration'], datetime.datetime)
 
-    def test_create_hit_raises_if_returned_hit_not_valid(self, with_mock):
-        with_mock.mturk.configure_mock(**{
-            'register_hit_type.return_value': fake_hit_type_response(),
-            'set_rest_notification.return_value': ResultSet(),
-            'create_hit.return_value': fake_hit_response(IsValid='False'),
-        })
-        with pytest.raises(MTurkServiceException):
-            with_mock.create_hit(**standard_hit_config())
-
     def test_extend_hit(self, with_mock):
         with_mock.mturk.configure_mock(**{
-            'extend_hit.return_value': None,
+            'create_additional_assignments_for_hit.return_value': {},
             'get_hit.return_value': fake_hit_response(),
         })
 
         with_mock.extend_hit(hit_id='hit1', number=2, duration_hours=1.0)
 
-        with_mock.mturk.extend_hit.assert_has_calls([
-            mock.call('hit1', expiration_increment=3600),
-            mock.call('hit1', assignments_increment=2),
-        ])
+        with_mock.mturk.create_additional_assignments_for_hit.assert_called_once()
+        with_mock.mturk.update_expiration_for_hit.assert_called_once()
 
     def test_extend_hit_wraps_exception_helpfully(self, with_mock):
         with_mock.mturk.configure_mock(**{
-            'extend_hit.side_effect': MTurkRequestError(1, "Boom!"),
+            'create_additional_assignments_for_hit.side_effect': Exception("Boom!"),
         })
         with pytest.raises(MTurkServiceException) as execinfo:
             with_mock.extend_hit(hit_id='hit1', number=2, duration_hours=1.0)
 
-        assert execinfo.match("Failed to extend time until expiration of HIT")
+        assert execinfo.match("Error: failed to add 2 assignments to HIT: Boom!")
 
-    def test_disable_hit_simple_passthrough(self, with_mock):
+    def test_disable_hit(self, with_mock):
         with_mock.mturk.configure_mock(**{
-            'disable_hit.return_value': ResultSet(),
+            'update_expiration_for_hit.return_value': True,
+            'delete_hit.return_value': {},
         })
 
         with_mock.disable_hit('some hit')
 
-        with_mock.mturk.disable_hit.assert_called_once_with('some hit')
+        with_mock.mturk.delete_hit.assert_called_once_with(HITId='some hit')
 
     def test_get_hits_returns_all_by_default(self, with_mock):
         hr1 = fake_hit_response(Title='One')[0]
