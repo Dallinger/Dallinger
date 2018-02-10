@@ -4,15 +4,6 @@ import os
 import pytest
 import socket
 import time
-from boto.resultset import ResultSet
-from boto.mturk.price import Price
-from boto.mturk.connection import Assignment
-from boto.mturk.connection import HITTypeId
-from boto.mturk.connection import HIT
-from boto.mturk.connection import Qualification
-from boto.mturk.connection import QualificationType
-from boto.mturk.connection import MTurkConnection
-from boto.mturk.connection import MTurkRequestError
 from botocore.exceptions import ClientError
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkService
@@ -66,32 +57,12 @@ def as_batch_responses(key, things):
             u'NextToken': u'FAKE_NEXT_TOKEN',
             u'NumResults': len(things),
             key: things,
-            'ResponseMetadata': {
-                'HTTPHeaders': {
-                    'content-length': '384',
-                    'content-type': 'application/x-amz-json-1.1',
-                    'date': 'Thu, 08 Feb 2018 22:52:22 GMT',
-                    'x-amzn-requestid': 'b94c13ff-0d22-11e8-9668-91a85782438a'
-                },
-                'HTTPStatusCode': 200,
-                'RequestId': 'b94c13ff-0d22-11e8-9668-91a85782438a',
-                'RetryAttempts': 0
-            }
+            'ResponseMetadata': response_metadata()['ResponseMetadata']
         },
         {
             u'NumResults': 0,
             key: [],
-            'ResponseMetadata': {
-                'HTTPHeaders': {
-                    'content-length': '384',
-                    'content-type': 'application/x-amz-json-1.1',
-                    'date': 'Thu, 08 Feb 2018 22:52:22 GMT',
-                    'x-amzn-requestid': 'b94c13ff-0d22-11e8-9668-91a85782438a'
-                },
-                'HTTPStatusCode': 200,
-                'RequestId': 'b94c13ff-0d22-11e8-9668-91a85782438a',
-                'RetryAttempts': 0
-            }
+            'ResponseMetadata': response_metadata()['ResponseMetadata']
         }
     ]
 
@@ -101,34 +72,14 @@ def as_batch_responses(key, things):
 def fake_balance_response():
     return {
         u'AvailableBalance': u'10000.00',
-        'ResponseMetadata': {
-            'HTTPHeaders': {
-                'content-length': '31',
-                'content-type': 'application/x-amz-json-1.1',
-                'date': 'Fri, 09 Feb 2018 18:35:52 GMT',
-                'x-amzn-requestid': '0e9a664b-0dc8-11e8-8570-670ae0138d0d'
-            },
-            'HTTPStatusCode': 200,
-            'RequestId': '0e9a664b-0dc8-11e8-8570-670ae0138d0d',
-            'RetryAttempts': 0
-        }
+        'ResponseMetadata': response_metadata()['ResponseMetadata']
     }
 
 
 def fake_hit_type_response():
     return {
         u'HITTypeId': unicode(generate_random_id(size=32)),
-        'ResponseMetadata': {
-            'HTTPHeaders': {
-                'content-length': '46',
-                'content-type': 'application/x-amz-json-1.1',
-                'date': 'Thu, 08 Feb 2018 23:37:18 GMT',
-                'x-amzn-requestid': '009317a6-0d29-11e8-94f2-878e743a48be'
-            },
-            'HTTPStatusCode': 200,
-            'RequestId': '009317a6-0d29-11e8-94f2-878e743a48be',
-            'RetryAttempts': 0
-        }
+        'ResponseMetadata': response_metadata()['ResponseMetadata']
     }
 
 
@@ -174,17 +125,7 @@ def fake_hit_response(**kwargs):
             u'Reward': u'0.01',
             u'Title': u'Test Title'
         },
-        'ResponseMetadata': {
-            'HTTPHeaders': {
-                'content-length': '1075',
-                'content-type': 'application/x-amz-json-1.1',
-                'date': 'Wed, 07 Feb 2018 22:26:51 GMT',
-                'x-amzn-requestid': 'fea8d1a0-0c55-11e8-aae4-030e1dad6670'
-            },
-            'HTTPStatusCode': 200,
-            'RequestId': 'fea8d1a0-0c55-11e8-aae4-030e1dad6670',
-            'RetryAttempts': 0
-        }
+        'ResponseMetadata': response_metadata()['ResponseMetadata']
     }
     canned_response['HIT'].update(kwargs)
 
@@ -207,17 +148,7 @@ def fake_worker_qualification_response():
             u'Status': u'Granted',
             u'WorkerId': u'FAKE_WORKER_ID'
         },
-        'ResponseMetadata': {
-            'HTTPHeaders': {
-                'content-length': '164',
-                'content-type': 'application/x-amz-json-1.1',
-                'date': 'Thu, 08 Feb 2018 01:00:48 GMT',
-                'x-amzn-requestid': '806337c8-0c6b-11e8-9668-91a85782438a'
-            },
-            'HTTPStatusCode': 200,
-            'RequestId': '806337c8-0c6b-11e8-9668-91a85782438a',
-            'RetryAttempts': 0
-        }
+        'ResponseMetadata': response_metadata()['ResponseMetadata']
     }
 
     return canned_response
@@ -772,7 +703,7 @@ class TestMTurkServiceWithFakeConnection(object):
         creds = {
             'aws_access_key_id': '',
             'aws_secret_access_key': '',
-            'region_name': ''
+            'region_name': 'us-east-1'
         }
         service = MTurkService(**creds)
         with pytest.raises(MTurkServiceException):
