@@ -86,6 +86,8 @@ class MTurkService(object):
     def set_rest_notification(self, url, hit_type_id):
         """Set a REST endpoint to recieve notifications about the HIT"""
         ISO8601 = '%Y-%m-%dT%H:%M:%SZ'
+        notification_version = '2006-05-05'
+        API_version = '2014-08-15'
         data = {
             'AWSAccessKeyId': self.aws_key,
             'HITTypeId': hit_type_id,
@@ -98,11 +100,11 @@ class MTurkService(object):
             'Notification.1.EventType.5': 'HITReviewable',
             'Notification.1.EventType.6': 'HITExpired',
             'Notification.1.Transport': 'REST',
-            'Notification.1.Version': '2006-05-05',
+            'Notification.1.Version': notification_version,
             'Operation': 'SetHITTypeNotification',
             'SignatureVersion': '1',
             'Timestamp': time.strftime(ISO8601, time.gmtime()),
-            'Version': '2014-08-15',
+            'Version': API_version,
         }
         qs, sig = self._calc_old_api_signature(data)
         body = qs + '&Signature=' + urllib.quote_plus(sig)
