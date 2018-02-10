@@ -78,6 +78,10 @@ class MTurkService(object):
             raise MTurkServiceException("No AWS credentials set!")
         except ClientError:
             raise MTurkServiceException("Invalid AWS credentials!")
+        except Exception as ex:
+            raise MTurkServiceException(
+                "Error checking credentials: {}".format(ex.message)
+            )
 
     def set_rest_notification(self, url, hit_type_id):
         """Set a REST endpoint to recieve notifications about the HIT"""
