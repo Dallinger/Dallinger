@@ -217,6 +217,11 @@ def a(db_session):
             defaults.update(kw)
             return self._build(networks.SequentialMicrosociety, defaults)
 
+        def split_sample(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(networks.SplitSampleNetwork, defaults)
+        
         def star(self, **kw):
             defaults = {
                 'max_size': 2,
