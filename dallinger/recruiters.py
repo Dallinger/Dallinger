@@ -229,7 +229,7 @@ class MTurkRecruiterException(Exception):
 
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk.
-    If fewer than 9 assignments are made initially, recruitment stops after 9 
+    If fewer than 9 assignments are made initially, recruitment stops after 9
     calls to recruit()"""
 
     nickname = 'mturk'
@@ -447,13 +447,16 @@ class MTurkRobustRecruiter(MTurkRecruiter):
     """Accommodates more than 9 calls to recruit() without forcing
     a large initial recruitment"""
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> Fixing style errors
     def recruit(self, n=1):
-        
+
         if not self.config.get('auto_recruit', False):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
-        
+
         hit_request = {
             'max_assignments': n,
             'title': self.config.get('title'),
@@ -468,12 +471,7 @@ class MTurkRobustRecruiter(MTurkRecruiter):
             'us_only': self.config.get('us_only'),
             'blacklist': self._config_to_list('qualification_blacklist'),
         }
-        hit_info = self.mturkservice.create_hit(**hit_request)
-        if self.config.get('mode') == "sandbox":
-            lookup_url = "https://workersandbox.mturk.com/mturk/preview?groupId={type_id}"
-        else:
-            lookup_url = "https://worker.mturk.com/mturk/preview?groupId={type_id}"
-
+        self.mturkservice.create_hit(**hit_request)
         return
 
 
