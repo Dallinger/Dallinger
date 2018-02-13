@@ -221,7 +221,7 @@ def a(db_session):
             defaults = {}
             defaults.update(kw)
             return self._build(networks.SplitSampleNetwork, defaults)
-        
+
         def star(self, **kw):
             defaults = {
                 'max_size': 2,

@@ -294,17 +294,18 @@ class SequentialMicrosociety(Network):
 
         return other_nodes_newest_first[:(self.n - 1)]
 
+
 class SplitSampleNetwork(Network):
     """
     A network that automatically implements an unpaired split-sample
     experimental design.
     """
-    
+
     __mapper_args__ = {"polymorphic_identity": "particle_network"}
-    
+
     def __init__(self):
         self.property1 = random.random() < 0.5
-    
+
     @property
     def exploratory(self):
         """Is this network part of the exploratory data subset?"""

@@ -609,11 +609,11 @@ class TestSequentialMicrosociety(object):
         assert agent3.is_connected(direction="to", whom=agent5)
         assert not agent3.is_connected(direction="to", whom=agent6)
 
+
 class TestSplitSampleNetwork(object):
 
     def test_sample_splitting(self, a):
         nets = [a.split_sample() for i in range(100)]
         sets = [net.exploratory for net in nets]
         assert sum(sets) is not 0
-        assert sum(sets) is not 100        
-        
+        assert sum(sets) is not 100
