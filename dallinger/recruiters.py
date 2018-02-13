@@ -443,6 +443,13 @@ class MTurkRecruiter(Recruiter):
             except DuplicateQualificationNameError:
                 pass
 
+# TODO: expiring HITs on shutdown becomes more complicated here
+# because we have to go back and find all the HITs that have been
+# created. One solution could be to expire the last HIT when creating
+# a new one, but then we would have to require n=1 recruitments, which
+# places a constraint on what experimental designs can be used.  E.g.,
+# might want multiple participants will different HITs going in
+# parallel
 class MTurkRobustRecruiter(MTurkRecruiter):
     """Accommodates more than 9 calls to recruit() without forcing
     a large initial recruitment and avoiding higher fees"""
