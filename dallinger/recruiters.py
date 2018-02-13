@@ -443,6 +443,7 @@ class MTurkRecruiter(Recruiter):
             except DuplicateQualificationNameError:
                 pass
 
+
 # TODO: expiring HITs on shutdown becomes more complicated here
 # because we have to go back and find all the HITs that have been
 # created. One solution could be to expire the last HIT when creating
@@ -471,7 +472,7 @@ class MTurkRobustRecruiter(MTurkRecruiter):
             'lifetime_days': self.config.get('lifetime'),
             'ad_url': self.ad_url,
             'notification_url': self.config.get('notification_url'),
-            'approve_requirement': self.config.get('approve_requirement'),
+            'approve_requirement': self.co>nfig.get('approve_requirement'),
             'us_only': self.config.get('us_only'),
             'blacklist': self._config_to_list('qualification_blacklist'),
         }

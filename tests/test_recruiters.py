@@ -595,7 +595,6 @@ class TestMTurkRobustRecruiter(TestMTurkRecruiter):
         )
         assert not recruiter.mturkservice.extend_hit.called
 
-
     def test_recruit_auto_recruit_off_does_not_extend_hit(self, recruiter):
         recruiter.config['auto_recruit'] = False
         fake_hit_id = 'fake HIT id'
@@ -603,7 +602,7 @@ class TestMTurkRobustRecruiter(TestMTurkRecruiter):
         recruiter.recruit()
 
         assert not recruiter.mturkservice.extend_hit.called
-        assert not recruiter.mturkservice.create_hit.called        
+        assert not recruiter.mturkservice.create_hit.called
 
     def test_recruit_no_current_hit_does_not_extend_hit(self, recruiter):
         recruiter.current_hit_id = mock.Mock(return_value=None)
