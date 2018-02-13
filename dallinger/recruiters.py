@@ -445,7 +445,7 @@ class MTurkRecruiter(Recruiter):
 
 class MTurkRobustRecruiter(MTurkRecruiter):
     """Accommodates more than 9 calls to recruit() without forcing
-    a large initial recruitment"""
+    a large initial recruitment and avoiding higher fees"""
 
 <<<<<<< HEAD
 
