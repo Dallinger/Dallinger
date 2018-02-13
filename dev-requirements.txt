@@ -1,5 +1,5 @@
 alabaster==0.7.9
-coverage==4.5
+coverage==4.5.1
 coverage_pth==0.0.2
 codecov==2.0.15
 flake8==3.5.0
