@@ -462,6 +462,11 @@ class MTurkRobustRecruiter(MTurkRecruiter):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
 
+        hit_id = self.current_hit_id()
+        if hit_id is None:
+            logger.info('no HIT in progress: recruitment aborted')
+            return
+
         hit_request = {
             'max_assignments': n,
             'title': self.config.get('title'),
@@ -476,8 +481,10 @@ class MTurkRobustRecruiter(MTurkRecruiter):
             'us_only': self.config.get('us_only'),
             'blacklist': self._config_to_list('qualification_blacklist'),
         }
-        self.mturkservice.create_hit(**hit_request)
-        return
+        try:
+            self.mturkservice.create_hit(**hit_request)
+        except MTurkServiceException as ex:
+            logger.exception(ex.message)
 
 
 class MTurkLargeRecruiter(MTurkRecruiter):
