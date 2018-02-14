@@ -611,7 +611,7 @@ class TestMTurkRobustRecruiter(TestMTurkRecruiter):
         assert not recruiter.mturkservice.extend_hit.called
         assert not recruiter.mturkservice.create_hit.called
 
-    def test_recruit_create_hit_error_is_logged_politely(self, recruiter):
+    def test_recruit_extend_hit_error_is_logged_politely(self, recruiter):
         from dallinger.mturk import MTurkServiceException
         fake_hit_id = 'fake HIT id'
         recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
