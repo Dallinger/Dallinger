@@ -534,16 +534,6 @@ class Experiment(object):
         """Generate a new uuid."""
         return str(uuid.UUID(int=random.getrandbits(128)))
 
-    def _finish_experiment(self):
-        # Debug runs synchronously
-        if self.exp_config.get('mode') != 'debug':
-            self.log("Waiting for experiment to complete.", "")
-            while self.experiment_completed() is False:
-                time.sleep(30)
-            data = self.retrieve_data()
-            self.end_experiment()
-        return data
-
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
         completed"""
@@ -558,6 +548,15 @@ class Experiment(object):
         logger.debug('Current application state: {}'.format(data))
         return data.get('completed', False)
 
+    def _await_completion(self):
+        # Debug runs synchronously, but in live mode we need to loop and check
+        # experiment status
+        if self.exp_config.get('mode') != 'debug':
+            self.log("Waiting for experiment to complete.", "")
+            while self.experiment_completed() is False:
+                time.sleep(30)
+        return True
+
     def retrieve_data(self):
         """Retrieves and saves data from a running experiment"""
         local = False
@@ -569,7 +568,8 @@ class Experiment(object):
 
     def end_experiment(self):
         """Terminates a running experiment"""
-        HerokuApp(self.app_id).destroy()
+        if self.exp_config.get('mode') != 'debug':
+            HerokuApp(self.app_id).destroy()
         return True
 
     def events_for_replay(self, session=None):
