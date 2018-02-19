@@ -257,6 +257,29 @@ class TestWorkerComplete(object):
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestHandleError(object):
+
+    def test_completes_assignment(self, a, webapp):
+        resp = webapp.post('/handle-error',
+                           data={'participant_id': a.participant().id})
+        assert resp.status_code == 200
+        notifications = models.Notification.query.all()
+        assert len(notifications) == 2
+        assert notifications[0].event_type == u'AssignmentSubmitted'
+        assert notifications[1].event_type == u'ExperimentError'
+
+    def test_saves_error_without_participant(self, a, webapp, db_session):
+        webapp.post('/handle-error',
+                    data={'request_data': json.dumps({'a': 'b'}),
+                          'error_feedback': 'Some feedback'})
+
+        notifi = models.Notification.query.one()
+        assert notifi.event_type == u'ExperimentError'
+        assert notifi.details['request_data']['a'] == 'b'
+        assert notifi.details['feedback'] == 'Some feedback'
+
+
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestWorkerFailed(object):
 
     def test_with_no_participant_id_returns_error(self, webapp):

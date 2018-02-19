@@ -229,6 +229,7 @@ def verify_package(verbose=True):
     files = [
         os.path.join("templates", "complete.html"),
         os.path.join("templates", "error.html"),
+        os.path.join("templates", "error-complete.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "thanks.html"),
         os.path.join("static", "css", "dallinger.css"),
@@ -393,6 +394,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("static", "scripts", "spin.min.js"),
         os.path.join("static", "scripts", "tracker.js"),
         os.path.join("templates", "error.html"),
+        os.path.join("templates", "error-complete.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "complete.html"),
         os.path.join("templates", "questionnaire.html"),

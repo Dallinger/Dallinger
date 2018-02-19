@@ -107,12 +107,53 @@ var dallinger = (function () {
       type: 'json',
       success: function (resp) { deferred.resolve(resp); },
       error: function (err) {
+        var $form, errorResponse, request_data, worker_id, hit_id, assignment_id;
         console.log(err);
-        var errorResponse = JSON.parse(err.response);
-        if (errorResponse.hasOwnProperty("html")) {
-          $("body").html(errorResponse.html);
-        }
         deferred.reject(err);
+        request_data = {
+          'route': route,
+          'data': JSON.stringify(data),
+          'method': method
+        };
+        try {
+          errorResponse = JSON.parse(err.response);
+        } catch (error) {
+          console.log('Error response not parseable.');
+          errorResponse = {};
+        }
+        if (errorResponse.hasOwnProperty("html")) {
+          $('html').html(errorResponse.html);
+          $form = $('form#error-response');
+        } else {
+          $form = $('<form>').attr('action', '/error-page').attr('method', 'POST');
+          $('body').append($form);
+        }
+        if (data && data.participant_id) {
+          $form.append($('<input>').attr('type', 'hidden').attr('name', 'participant_id').val(data.participant_id));
+        }
+        $form.append($('<input>').attr('type', 'hidden').attr('name', 'request_data').val(JSON.stringify(request_data)));
+        if (typeof store !== "undefined") {
+          worker_id = store.get("worker_id");
+          hit_id = store.get("hit_id");
+          assignment_id = store.get("assignment_id");
+        } else {
+          worker_id = dlgr.identity.worker_id;
+          hit_id = dlgr.identity.hit_id;
+          assignment_id = dlgr.identity.assignment_id;
+        }
+        if (worker_id) {
+          $form.append($('<input>').attr('type', 'hidden').attr('name', 'worker_id').val(worker_id));
+        }
+        if (hit_id) {
+          $form.append($('<input>').attr('type', 'hidden').attr('name', 'hit_id').val(hit_id));
+        }
+        if (assignment_id) {
+          $form.append($('<input>').attr('type', 'hidden').attr('name', 'assignment_id').val(assignment_id));
+        }
+
+        if (!errorResponse.hasOwnProperty("html")) {
+          $form.submit();
+        }
       }
     };
     if (data !== undefined) {
