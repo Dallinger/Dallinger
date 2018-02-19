@@ -379,8 +379,10 @@ def dummy_mailer():
     from smtplib import SMTP
     from dallinger.heroku import messages
     server = mock.create_autospec(SMTP)
+    orig_server = messages.get_email_server
     messages.get_email_server = lambda: server
-    return server
+    yield server
+    messages.get_email_server = orig_server
 
 
 def pytest_addoption(parser):

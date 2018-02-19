@@ -336,6 +336,7 @@ class TestHandleError(object):
         dummy_mailer.sendmail.assert_called_once()
         assert dummy_mailer.sendmail.call_args[0][0] == u'test_error@gmail.com'
 
+
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestWorkerFailed(object):
 
