@@ -2,7 +2,9 @@
 
 from cached_property import cached_property
 from collections import Counter
+from contextlib import contextmanager
 from functools import wraps
+import datetime
 import imp
 import inspect
 import logging
@@ -15,6 +17,8 @@ import time
 import uuid
 
 from sqlalchemy import and_
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, scoped_session
 
 from dallinger import recruiters
 from dallinger.config import get_config, LOCAL_CONFIG
@@ -22,6 +26,9 @@ from dallinger.data import Data
 from dallinger.data import export
 from dallinger.data import is_registered
 from dallinger.data import load as data_load
+from dallinger.data import find_experiment_export
+from dallinger.data import ingest_zip
+from dallinger.db import init_db
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
@@ -556,9 +563,11 @@ class Experiment(object):
             HerokuApp(self.app_id).destroy()
         return True
 
-    def events_for_replay(self):
+    def events_for_replay(self, session=None):
         """Be default we return all infos in order for replay"""
-        return self.session.query(Info).order_by(Info.creation_time)
+        if session is None:
+            session = self.session
+        return session.query(Info).order_by(Info.creation_time)
 
     def replay_event(self, event):
         pass
@@ -568,6 +577,82 @@ class Experiment(object):
 
     def replay_started(self):
         return True
+
+    @contextmanager
+    def restore_state_from_replay(self, app_id, session, zip_path=None, **configuration_options):
+        # We need to fake dallinger_experiment to point at the current experiment
+        module = sys.modules[type(self).__module__]
+        if sys.modules.get('dallinger_experiment', module) != module:
+            raise RuntimeError('dallinger_experiment is already set')
+        sys.modules['dallinger_experiment'] = module
+
+        # Load the configuration system and globals
+        config = get_config()
+        config.register_extra_parameters()
+        config.load()
+        self.app_id = self.original_app_id = app_id
+        self.session = session
+        self.exp_config = config
+
+        # The replay index is initialised to 1970 as that is guaranteed
+        # to be before any experiment Info objects
+        self._replay_time_index = datetime.datetime(1970, 1, 1, 1, 1, 1)
+
+        # Create a second database session so we can load the full history
+        # of the experiment to be replayed and selectively import events
+        # into the main database
+        import_engine = create_engine(
+            "postgresql://dallinger:dallinger@localhost/dallinger-import"
+        )
+        import_session = scoped_session(
+            sessionmaker(autocommit=False,
+                         autoflush=True,
+                         bind=import_engine)
+        )
+
+        # Find the real data for this experiment
+        if zip_path is None:
+            zip_path = find_experiment_export(app_id)
+        if zip_path is None:
+            msg = u'Dataset export for app id "{}" could not be found.'
+            raise IOError(msg.format(app_id))
+
+        # Clear the temporary storage and import it
+        init_db(drop_all=True, bind=import_engine)
+        print("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
+        ingest_zip(zip_path, engine=import_engine)
+
+        def go_to(time):
+            """Scrub to a point in the experiment replay, given by time
+            which is a datetime object."""
+            if self._replay_time_index > time:
+                # We do not support going back in time
+                raise NotImplementedError
+            events = self.events_for_replay(session=import_session)
+            for event in events:
+                if event.creation_time <= self._replay_time_index:
+                    # Skip events we've already handled
+                    continue
+                if event.creation_time > time:
+                    # Stop once we get future events
+                    break
+                self.replay_event(event)
+            self._replay_time_index = time
+            # Override app_id to allow exports to be created that don't
+            # overwrite the original dataset
+            self.app_id = "{}_{}".format(self.original_app_id, time.isoformat())
+
+        # We apply the configuration options we were given and yield
+        # the scrubber function into the context manager, so within the
+        # with experiment.restore_state_from_replay(...): block the configuration
+        # options are correctly set
+        with config.override(configuration_options, strict=True):
+            yield go_to
+
+        # Clear up global state
+        import_session.close()
+        config._reset(register_defaults=True)
+        del sys.modules['dallinger_experiment']
 
 
 def load():
