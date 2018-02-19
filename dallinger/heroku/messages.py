@@ -2,6 +2,10 @@ from email.mime.text import MIMEText
 from smtplib import SMTP
 
 
+def get_email_server():
+    return SMTP('smtp.gmail.com:587')
+
+
 resubmit_whimsical = """Dearest Friend,
 
 I am writing to let you know that at {when},
@@ -111,9 +115,28 @@ Time since participant started: {minutes_so_far}
 idle_template = """Dear experimenter,
 
 This is an automated email from Dallinger. You are receiving this email because
-your dyno has been running for over {minutes_so_far} minutes.`
+your dyno has been running for over {minutes_so_far} minutes.
 
 The application id is: {app_id}
+
+To see the logs, use the command "dallinger logs --app {app_id}"
+To pause the app, use the command "dallinger hibernate --app {app_id}"
+To destroy the app, use the command "dallinger destroy --app {app_id}"
+
+
+The Dallinger dev. team.
+"""
+
+hit_error_template = """Dear experimenter,
+
+This is an automated email from Dallinger. You are receiving this email because
+a recruited participant has been unable to complete the experiment due to
+a bug.
+
+The application id is: {app_id}
+
+The information about the failed HIT is recorded in the database in the
+Notification table, with assignment_id {assignment_id}.
 
 To see the logs, use the command "dallinger logs --app {app_id}"
 To pause the app, use the command "dallinger hibernate --app {app_id}"
@@ -138,7 +161,7 @@ class EmailingHITMessager(object):
         self.fromaddr = self.username + "@gmail.com"
         self.toaddr = config.get('contact_email_on_error')
         self.email_password = config.get("dallinger_email_key")
-        self.server = server or SMTP('smtp.gmail.com:587')
+        self.server = server or get_email_server()
         self.app_id = app_id
 
     def _send(self, data):
@@ -164,6 +187,15 @@ class EmailingHITMessager(object):
         data = {
             'message': template.format(**self.__dict__),
             'subject': "Idle Experiment."
+        }
+        self._send(data)
+        return data
+
+    def send_hit_error(self):
+        template = hit_error_template
+        data = {
+            'message': template.format(**self.__dict__),
+            'subject': "Error during HIT."
         }
         self._send(data)
         return data

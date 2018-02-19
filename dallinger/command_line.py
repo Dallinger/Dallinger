@@ -19,6 +19,7 @@ import tempfile
 import time
 import webbrowser
 
+from datetime import datetime
 from functools import wraps
 import signal
 import click
@@ -121,7 +122,7 @@ def report_idle_after(seconds):
                         "whimsical": False
                     }
                     app_id = config["id"]
-                    email = EmailingHITMessager(when=time, assignment_id=None,
+                    email = EmailingHITMessager(when=datetime.now(), assignment_id=None,
                                                 hit_duration=seconds, time_active=seconds,
                                                 config=heroku_config, app_id=app_id)
                     log("Sending email...")

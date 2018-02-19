@@ -35,6 +35,7 @@ from dallinger import information
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger import recruiters
+from dallinger.heroku.messages import EmailingHITMessager
 
 from .replay import ReplayBackend
 from .worker_events import WorkerEvent
@@ -249,7 +250,6 @@ def render_error():
 
 @app.route('/handle-error', methods=['POST'])
 def handle_error():
-    config = _config()
     request_data = request.form.get("request_data")
     error_feedback = request.form.get("error_feedback")
     error_type = request.form.get("error_type")
@@ -261,7 +261,7 @@ def handle_error():
     participant = None
 
     completed = False
-    details = {}
+    details = {'request_data': {}}
 
     if request_data:
         request_data = loads(request_data)
@@ -269,34 +269,42 @@ def handle_error():
         if not participant_id and 'participant_id' in request_data:
             participant_id = request_data['participant_id']
         if not worker_id and 'worker_id' in request_data:
-            participant_id = request_data['worker_id']
+            worker_id = request_data['worker_id']
         if not assignment_id and 'assignment_id' in request_data:
-            participant_id = request_data['assignment_id']
+            assignment_id = request_data['assignment_id']
+        if not hit_id and 'hit_id' in request_data:
+            hit_id = request_data['hit_id']
 
     details['feedback'] = error_feedback
     details['error_type'] = error_type
     details['error_text'] = error_text
 
     if worker_id and not participant_id:
-        participants = models.Participant.query.filter_by(
+        participants = session.query(models.Participant).filter_by(
             worker_id=worker_id
         ).all()
         if participants:
             participant = participants[0]
+            if not assignment_id:
+                assignment_id = participant.assignment_id
 
     if assignment_id and not participant_id:
-        participants = models.Participant.query.filter_by(
+        participants = session.query(models.Participant).filter_by(
             worker_id=assignment_id
         ).all()
         if participants:
             participant = participants[0]
-
-    if participant and not participant_id:
-        participant_id = participant.id
+            participant_id = participant.id
+            if not worker_id:
+                worker_id = participant.worker_id
 
     if participant_id:
         _worker_complete(participant_id)
         completed = True
+
+    details['request_data'].update({'worker_id': worker_id,
+                                    'hit_id': hit_id,
+                                    'participant_id': participant_id})
 
     notif = models.Notification(
         assignment_id=assignment_id or 'unknown',
@@ -304,6 +312,22 @@ def handle_error():
     )
     session.add(notif)
     session.commit()
+
+    config = _config()
+    if config.get('dallinger_email_address', None):
+        heroku_config = {
+            "contact_email_on_error": config["contact_email_on_error"],
+            "dallinger_email_username": config["dallinger_email_address"],
+            "dallinger_email_key": config["dallinger_email_password"],
+            "whimsical": False
+        }
+        emailer = EmailingHITMessager(when=datetime.now(),
+                                      assignment_id=assignment_id or 'unknown',
+                                      hit_duration=0, time_active=0,
+                                      config=heroku_config,
+                                      app_id=config.get('id', 'unknown'))
+        db.logger.debug("Sending HIT error email...")
+        emailer.send_hit_error()
 
     return render_template(
         'error-complete.html',

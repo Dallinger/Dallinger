@@ -256,7 +256,7 @@ class TestWorkerComplete(object):
         assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
 
 
-@pytest.mark.usefixtures('experiment_dir', 'db_session')
+@pytest.mark.usefixtures('experiment_dir', 'db_session', 'dummy_mailer')
 class TestHandleError(object):
 
     def test_completes_assignment(self, a, webapp):
@@ -278,6 +278,63 @@ class TestHandleError(object):
         assert notifi.details['request_data']['a'] == 'b'
         assert notifi.details['feedback'] == 'Some feedback'
 
+    def test_looks_up_participant_from_assignment(self, a, webapp, db_session):
+        participant = a.participant()
+        assignment_id = participant.assignment_id
+        participant_id = participant.id
+        webapp.post('/handle-error',
+                    data={'assignment_id': assignment_id})
+
+        notifications = models.Notification.query.all()
+        assert len(notifications) == 2
+        assert notifications[0].event_type == u'AssignmentSubmitted'
+        assert notifications[1].event_type == u'ExperimentError'
+        assert notifications[1].assignment_id == assignment_id
+        assert notifications[1].details['request_data']['participant_id'] == participant_id
+
+    def test_looks_up_participant_from_worker(self, a, webapp, db_session):
+        participant = a.participant()
+        assignment_id = participant.assignment_id
+        participant_id = participant.id
+        webapp.post('/handle-error',
+                    data={'worker_id': participant.worker_id})
+
+        notifications = models.Notification.query.all()
+        assert len(notifications) == 2
+        assert notifications[0].event_type == u'AssignmentSubmitted'
+        assert notifications[1].event_type == u'ExperimentError'
+        assert notifications[1].assignment_id == assignment_id
+        assert notifications[1].details['request_data']['participant_id'] == participant_id
+
+    def test_looks_up_hit_in_request_data(self, a, webapp, db_session):
+        participant = a.participant()
+        assignment_id = participant.assignment_id
+        worker_id = participant.worker_id
+        hit_id = participant.hit_id
+        participant_id = participant.id
+        webapp.post('/handle-error',
+                    data={'request_data': json.dumps({
+                        'worker_id': worker_id,
+                        'hit_id': hit_id,
+                        'assignment_id': assignment_id
+                    })})
+
+        notifications = models.Notification.query.all()
+        assert len(notifications) == 2
+        assert notifications[0].event_type == u'AssignmentSubmitted'
+        assert notifications[1].event_type == u'ExperimentError'
+        assert notifications[1].assignment_id == assignment_id
+        assert notifications[1].details['request_data']['participant_id'] == participant_id
+
+    def test_sends_email(self, a, webapp, db_session, active_config, dummy_mailer):
+        active_config.extend({'dallinger_email_address': u'test_error',
+                              'dallinger_email_password': u'secret'})
+        webapp.post('/handle-error', data={})
+
+        dummy_mailer.login.assert_called_once()
+        dummy_mailer.starttls.assert_called_once()
+        dummy_mailer.sendmail.assert_called_once()
+        assert dummy_mailer.sendmail.call_args[0][0] == u'test_error@gmail.com'
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestWorkerFailed(object):
