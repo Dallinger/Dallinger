@@ -97,6 +97,30 @@ var dallinger = (function () {
     window.location = "/" + page + "?participant_id=" + dlgr.identity.participantId;
   };
 
+  var add_hidden_input = function ($form, name, val) {
+    if (val) {
+      $form.append($('<input>').attr('type', 'hidden').attr('name', name).val(val));
+    }
+  };
+
+  var get_hit_params = function() {
+    // check if the local store is available, and if so, use it.
+    var data = {};
+    if (typeof store !== "undefined") {
+      data.worker_id = store.get("worker_id");
+      data.hit_id = store.get("hit_id");
+      data.assignment_id = store.get("assignment_id");
+      data.mode = store.get("mode");
+      data.fingerprint_hash = store.get("fingerprint_hash");
+    } else {
+      data.worker_id = dlgr.identity.worker_id;
+      data.hit_id = dlgr.identity.hit_id;
+      data.assignment_id = dlgr.identity.assignment_id;
+      data.mode = dlgr.identity.mode;
+    }
+    return data;
+  };
+
   // AJAX helpers
 
   var ajax = function (method, route, data) {
@@ -107,7 +131,7 @@ var dallinger = (function () {
       type: 'json',
       success: function (resp) { deferred.resolve(resp); },
       error: function (err) {
-        var $form, errorResponse, request_data, worker_id, hit_id, assignment_id;
+        var $form, errorResponse, request_data, worker_id, hit_id, hit_params, assignment_id;
         console.log(err);
         deferred.reject(err);
         request_data = {
@@ -128,29 +152,14 @@ var dallinger = (function () {
           $form = $('<form>').attr('action', '/error-page').attr('method', 'POST');
           $('body').append($form);
         }
-        if (data && data.participant_id) {
-          $form.append($('<input>').attr('type', 'hidden').attr('name', 'participant_id').val(data.participant_id));
+        if (data) {
+          add_hidden_input($form, 'participant_id', data.participant_id);
         }
-        $form.append($('<input>').attr('type', 'hidden').attr('name', 'request_data').val(JSON.stringify(request_data)));
-        if (typeof store !== "undefined") {
-          worker_id = store.get("worker_id");
-          hit_id = store.get("hit_id");
-          assignment_id = store.get("assignment_id");
-        } else {
-          worker_id = dlgr.identity.worker_id;
-          hit_id = dlgr.identity.hit_id;
-          assignment_id = dlgr.identity.assignment_id;
+        add_hidden_input($form, 'request_data', JSON.stringify(request_data));
+        hit_params = get_hit_params();
+        for (var prop in hit_params) {
+          if (hit_params.hasOwnProperty(prop)) add_hidden_input($form, prop, hit_params[prop]);
         }
-        if (worker_id) {
-          $form.append($('<input>').attr('type', 'hidden').attr('name', 'worker_id').val(worker_id));
-        }
-        if (hit_id) {
-          $form.append($('<input>').attr('type', 'hidden').attr('name', 'hit_id').val(hit_id));
-        }
-        if (assignment_id) {
-          $form.append($('<input>').attr('type', 'hidden').attr('name', 'assignment_id').val(assignment_id));
-        }
-
         if (!errorResponse.hasOwnProperty("html")) {
           $form.submit();
         }
@@ -198,30 +207,19 @@ var dallinger = (function () {
   // make a new participant
   dlgr.createParticipant = function() {
     var deferred = $.Deferred(),
-        fingerprint_hash,
-        url;
+      fingerprint_hash,
+      url,
+      hit_params;
 
     new Fingerprint2().get(function(result){
       fingerprint_hash = result;
       store.set("fingerprint_hash", fingerprint_hash);
     });
 
-    // check if the local store is available, and if so, use it.
-    if (typeof store !== "undefined") {
-        url = "/participant/" +
-            store.get("worker_id") + "/" +
-            store.get("hit_id") + "/" +
-            store.get("assignment_id") + "/" +
-            store.get("mode") + "?fingerprint_hash=" +
-            store.get("fingerprint_hash");
-    } else {
-        url = "/participant/" +
-            dlgr.identity.worker_id + "/" +
-            dlgr.identity.hit_id + "/" +
-            dlgr.identity.assignment_id + "/" +
-            dlgr.identity.mode + "?fingerprint_hash=" +
-            fingerprint_hash;
-    }
+    hit_params = get_hit_params();
+    url = "/participant/" + hit_params.worker_id + "/" + hit_params.hit_id +
+      "/" + hit_params.assignment_id + "/" + hit_params.mode + "?fingerprint_hash=" +
+      (hit_params.fingerprint_hash || fingerprint_hash);
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();
@@ -284,9 +282,9 @@ var dallinger = (function () {
 
   dlgr.submitQuestionnaire = function (name) {
     var formSerialized = $("form").serializeArray(),
-        spinner = dlgr.BusyForm(),
-        formDict = {},
-        xhr;
+      spinner = dlgr.BusyForm(),
+      formDict = {},
+      xhr;
 
     formSerialized.forEach(function (field) {
       formDict[field.name] = field.value;

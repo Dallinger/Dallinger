@@ -268,7 +268,7 @@ class TestHandleError(object):
         assert notifications[0].event_type == u'AssignmentSubmitted'
         assert notifications[1].event_type == u'ExperimentError'
 
-    def test_saves_error_without_participant(self, a, webapp, db_session):
+    def test_saves_error_without_participant(self, a, webapp):
         webapp.post('/handle-error',
                     data={'request_data': json.dumps({'a': 'b'}),
                           'error_feedback': 'Some feedback'})
@@ -278,7 +278,7 @@ class TestHandleError(object):
         assert notifi.details['request_data']['a'] == 'b'
         assert notifi.details['feedback'] == 'Some feedback'
 
-    def test_looks_up_participant_from_assignment(self, a, webapp, db_session):
+    def test_looks_up_participant_from_assignment(self, a, webapp):
         participant = a.participant()
         assignment_id = participant.assignment_id
         participant_id = participant.id
@@ -292,7 +292,7 @@ class TestHandleError(object):
         assert notifications[1].assignment_id == assignment_id
         assert notifications[1].details['request_data']['participant_id'] == participant_id
 
-    def test_looks_up_participant_from_worker(self, a, webapp, db_session):
+    def test_looks_up_participant_from_worker(self, a, webapp):
         participant = a.participant()
         assignment_id = participant.assignment_id
         participant_id = participant.id
@@ -306,7 +306,7 @@ class TestHandleError(object):
         assert notifications[1].assignment_id == assignment_id
         assert notifications[1].details['request_data']['participant_id'] == participant_id
 
-    def test_looks_up_hit_in_request_data(self, a, webapp, db_session):
+    def test_looks_up_hit_in_request_data(self, a, webapp):
         participant = a.participant()
         assignment_id = participant.assignment_id
         worker_id = participant.worker_id
@@ -326,7 +326,7 @@ class TestHandleError(object):
         assert notifications[1].assignment_id == assignment_id
         assert notifications[1].details['request_data']['participant_id'] == participant_id
 
-    def test_sends_email(self, a, webapp, db_session, active_config, dummy_mailer):
+    def test_sends_email(self, a, webapp, active_config, dummy_mailer):
         active_config.extend({'dallinger_email_address': u'test_error',
                               'dallinger_email_password': u'secret'})
         webapp.post('/handle-error', data={})
