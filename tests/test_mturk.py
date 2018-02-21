@@ -23,16 +23,24 @@ class FixtureConfigurationError(Exception):
 
 
 def system_marker():
+    # To prevent tests run on different systems trampling on each other,
+    # we mark data created in the MTurk sandbox with a value specific to
+    # each system.
     return ':'.join(os.uname()).replace(' ', '')
 
 
 def name_with_hostname_prefix():
+    # Including the hostname in content created in the MTurk sandbox helps
+    # identify its source when reviewing records there.
     hostname = socket.gethostname()
     name = "{}:{}".format(hostname, generate_random_id(size=32))
     return name
 
 
 def response_metadata():
+    # Most successful requests return an element like this in the JSON.
+    # In cases where there is no real return value, this is likely the only
+    # content in the response.
     return {
         'ResponseMetadata': {
             'HTTPHeaders': {
@@ -49,6 +57,8 @@ def response_metadata():
 
 
 def as_batch_responses(key, things):
+    # Several MTurk calls return results in batches, with a "NextToken"
+    # indicating there is more content to be retrieved with a subsequent call.
     if not isinstance(things, (list, tuple)):
         things = [things]
 
@@ -171,7 +181,7 @@ def fake_qualification_type_response():
             u'CreationTime': datetime.datetime(2018, 1, 1),
             u'Description': u'***TEST SUITE QUALIFICATION***',
             u'IsRequestable': True,
-            u'Name': u'Test Qualifiction',
+            u'Name': u'Test Qualification',
             u'QualificationTypeId': generate_random_id(size=32),
             u'QualificationTypeStatus': u'Active',
         }
@@ -247,7 +257,6 @@ def with_cleanup(aws_creds, request):
         return TEST_HIT_DESCRIPTION in hit['description']
         return hit['description'] == TEST_HIT_DESCRIPTION + system_marker()
 
-    # service = MTurkService(**aws_creds)
     params = {'region_name': 'us-east-1'}
     params.update(aws_creds)
     service = MTurkService(**params)
@@ -376,14 +385,14 @@ class TestMTurkService(object):
         assert is_authenticated
 
     def test_check_credentials_bad_credentials(self, mturk):
-        mturk.aws_access_key_id = 'fake key id'
-        mturk.aws_secret_access_key = 'fake secret'
+        mturk.aws_key = 'fake key id'
+        mturk.aws_secret = 'fake secret'
         with pytest.raises(MTurkServiceException):
             mturk.check_credentials()
 
     def test_check_credentials_no_creds_set_raises(self, mturk):
-        mturk.aws_access_key_id = ''
-        mturk.aws_secret_access_key = ''
+        mturk.aws_key = ''
+        mturk.aws_secret = ''
         with pytest.raises(MTurkServiceException):
             mturk.check_credentials()
 
@@ -746,7 +755,11 @@ class TestMTurkServiceWithFakeConnection(object):
 
     def test_get_qualification_type_by_name_works_if_not_unique_but_is_exact_match(self,
                                                                                    with_mock):
-        qtypes = fake_list_qualification_types_responses()
+        two_quals = [
+            fake_qualification_type_response(),
+            fake_qualification_type_response()
+        ]
+        qtypes = fake_list_qualification_types_responses(qtypes=two_quals)
         with_mock.mturk.list_qualification_types.side_effect = qtypes
         name = qtypes[0]['QualificationTypes'][0]['Name']
         assert with_mock.get_qualification_type_by_name(name)['name'] == name
@@ -961,6 +974,18 @@ class TestMTurkServiceWithFakeConnection(object):
             WorkerId='worker'
         )
 
+    def test_set_qualification_score_forwards_for_bbb(self, with_mock):
+        with_mock.mturk.configure_mock(**{
+            'associate_qualification_with_worker.return_value': response_metadata(),
+        })
+        assert with_mock.set_qualification_score('qid', 'worker', 'score')
+        with_mock.mturk.associate_qualification_with_worker.assert_called_once_with(
+            IntegerValue='score',
+            QualificationTypeId='qid',
+            SendNotification=False,
+            WorkerId='worker'
+        )
+
     def test_dispose_qualification_type(self, with_mock):
         with_mock.mturk.configure_mock(**{
             'delete_qualification_type.return_value': response_metadata(),
@@ -986,6 +1011,20 @@ class TestMTurkServiceWithFakeConnection(object):
         list(with_mock.get_workers_with_qualification('qid'))
         calls = with_mock.mturk.list_workers_with_qualification_type.call_args_list
         assert calls == expected
+
+    def test_get_qualification_score_is_passthrough(self, with_mock):
+        fake_response = fake_worker_qualification_response()
+        with_mock.mturk.get_qualification_score = mock.Mock(
+            return_value=fake_response
+        )
+
+        score = with_mock.get_qualification_score('some qtype id', 'some worker id')
+
+        with_mock.mturk.get_qualification_score.assert_called_once_with(
+            QualificationTypeId='some qtype id',
+            WorkerId='some worker id'
+        )
+        assert score == fake_response['Qualification']['IntegerValue']
 
     def test_get_current_qualification_score(self, with_mock):
         worker_id = 'some worker id'
@@ -1045,3 +1084,16 @@ class TestMTurkServiceWithFakeConnection(object):
 
         with pytest.raises(QualificationNotFoundException):
             with_mock.increment_qualification_score('some qual', worker_id)
+
+    def test_revoke_qualification(self, with_mock):
+        with_mock.disassociate_qualification_from_worker = mock.Mock(
+            return_value=response_metadata()
+        )
+
+        with_mock.revoke_qualification('some qtype id', 'some worker id', 'some reason')
+
+        with_mock.mturk.disassociate_qualification_from_worker.assert_called_once_with(
+            QualificationTypeId='some qtype id',
+            WorkerId='some worker id',
+            Reason='some reason'
+        )
