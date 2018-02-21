@@ -41,6 +41,8 @@ Laboratory automation for the behavioral and social sciences.
     web_api
     communicating_with_the_server
     extra_configuration
+    setting_up_notifications
+    contributing_to_dallinger
 
 .. toctree::
     :maxdepth: 1
