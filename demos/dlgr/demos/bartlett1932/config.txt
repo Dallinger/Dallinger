@@ -2,7 +2,6 @@
 mode = sandbox
 auto_recruit = true
 webdriver_type = phantomjs
-recruiter = CLIRecruiter
 
 [MTurk]
 title = War of the Ghosts
@@ -18,12 +17,12 @@ ad_group = War of the Ghosts
 organization_name = Monsters University
 browser_exclude_rule = MSIE, mobile, tablet
 
-[Database Parameters]
+[Database]
 database_url = postgresql://postgres@localhost/dallinger
 database_size = standard-0
 
-[Server Parameters]
-dyno_type = standard-2x
+[Server]
+dyno_type = free
 num_dynos_web = 1
 num_dynos_worker = 1
 host = 0.0.0.0
