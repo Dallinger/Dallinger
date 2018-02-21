@@ -631,12 +631,12 @@ class TestInteractive(object):
                                                                      worker_id,
                                                                      qtype):
         with_cleanup.assign_qualification(qtype['id'], worker_id, score=1)
-
         print 'MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name'])
         raw_input("Any key to continue...")
 
         hit = with_cleanup.create_hit(
-            **standard_hit_config(title="Dallinger: No Blacklist"))
+            **standard_hit_config(title="Dallinger: No Blacklist", lifetime_days=.25)
+        )
 
         print 'MANUAL STEP: Should be able to see "{}" as available HIT'.format(hit['title'])
         raw_input("Any key to continue...")
@@ -651,7 +651,11 @@ class TestInteractive(object):
         raw_input("Any key to continue...")
 
         hit = with_cleanup.create_hit(
-            **standard_hit_config(title="Dallinger: Blacklist", blacklist=[qtype['name']])
+            **standard_hit_config(
+                title="Dallinger: Blacklist",
+                blacklist=[qtype['name']],
+                lifetime_days=.25
+            )
         )
 
         print 'MANUAL STEP: Should NOT be able to see "{}"" as available HIT'.format(hit['title'])
