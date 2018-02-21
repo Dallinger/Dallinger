@@ -15,7 +15,7 @@ redis==2.10.6
 requests==2.18.4
 rq==0.10.0
 selenium==3.9.0
-SQLAlchemy==1.2.2
+SQLAlchemy==1.2.3
 sqlalchemy-postgres-copy==0.5.0
 ua-parser==0.7.3
 user-agents==1.1.0
