@@ -66,6 +66,11 @@ class MTurkService(object):
 
     @property
     def legacy_host(self):
+        """Setting endpoints for REST notifications is not supported by the
+        latest version of the AWS MTurk API, and this is the endpoint boto3
+        communicates with. As a workaround, we use the old endpoint for this
+        one feature.
+        """
         if self.is_sandbox:
             return 'mechanicalturk.sandbox.amazonaws.com'
         return 'mechanicalturk.amazonaws.com'
@@ -84,7 +89,11 @@ class MTurkService(object):
             )
 
     def set_rest_notification(self, url, hit_type_id):
-        """Set a REST endpoint to recieve notifications about the HIT"""
+        """Set a REST endpoint to recieve notifications about the HIT
+        The newer AWS MTurk API does not support this feature, which means we
+        cannot use boto3 here. Instead, we make the call manually after
+        assembling a properly signed request.
+        """
         ISO8601 = '%Y-%m-%dT%H:%M:%SZ'
         notification_version = '2006-05-05'
         API_version = '2014-08-15'
@@ -106,9 +115,9 @@ class MTurkService(object):
             'Timestamp': time.strftime(ISO8601, time.gmtime()),
             'Version': API_version,
         }
-        qs, sig = self._calc_old_api_signature(data)
-        body = qs + '&Signature=' + urllib.quote_plus(sig)
-        data['Signature'] = sig
+        query_string, signature = self._calc_old_api_signature(data)
+        body = query_string + '&Signature=' + urllib.quote_plus(signature)
+        data['Signature'] = signature
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
             'Content-Length': str(len(body)),
@@ -489,7 +498,7 @@ class MTurkService(object):
             )
 
     def _calc_old_api_signature(self, params, *args):
-        sig = hmac.new(
+        signature = hmac.new(
             self.aws_secret.encode('utf-8'),
             digestmod=sha1
         )
@@ -497,12 +506,12 @@ class MTurkService(object):
         keys.sort(key=lambda x: x.lower())
         pairs = []
         for key in keys:
-            sig.update(key.encode('utf-8'))
-            val = params[key].encode('utf-8')
-            sig.update(val)
-            pairs.append(key + '=' + urllib.quote(val))
-        qs = '&'.join(pairs)
-        return (qs, base64.b64encode(sig.digest()))
+            signature.update(key.encode('utf-8'))
+            value = params[key].encode('utf-8')
+            signature.update(value)
+            pairs.append(key + '=' + urllib.quote(value))
+        query_string = '&'.join(pairs)
+        return (query_string, base64.b64encode(signature.digest()))
 
     def _external_question(self, url, frame_height):
         q = ('<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
