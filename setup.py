@@ -2,6 +2,16 @@
 
 import os
 from setuptools import setup
+import shlex
+from subprocess import check_output, CalledProcessError
+
+try:
+    GIT_HEAD_REV = check_output(shlex.split('git rev-parse HEAD')).strip()
+    GIT_MASTER_REV = check_output(shlex.split('git rev-parse HEAD')).strip()
+except CalledProcessError:
+    BUILD_TAG = ''
+else:
+    BUILD_TAG = 'dev_{}'.format(GIT_HEAD_REV)
 
 setup_args = dict(
     name='dallinger',
@@ -35,7 +45,12 @@ setup_args = dict(
             "odo==0.5.0",
             "tablib==0.11.3"
         ],
-    }
+    },
+    options={'egg_info': {
+        'tag_build': BUILD_TAG
+        }
+    },
+
 )
 
 # If not on Heroku, install setuptools-markdown.
