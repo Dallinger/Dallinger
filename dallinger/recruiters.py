@@ -75,6 +75,12 @@ class Recruiter(object):
         """
         pass
 
+    def notify_using(self, participant):
+        """Allow the Recruiter to be notified when an recruited Participant
+        has been chosen to participate in an experiment they joined.
+        """
+        pass
+
     def rejects_questionnaire_from(self, participant):
         """Recruiters have different circumstances under which experiment
         questionnaires should be accepted or rejected.
@@ -317,6 +323,9 @@ class MTurkRecruiter(Recruiter):
             logger.exception(ex.message)
 
     def notify_recruited(self, participant):
+        pass
+
+    def notify_using(self, participant):
         """Assign a Qualification to the Participant for the experiment ID,
         and for the configured group_name, if it's been set.
         """

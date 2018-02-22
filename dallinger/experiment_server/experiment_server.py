@@ -752,9 +752,15 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         quorum = {
             'q': exp.quorum,
             'n': waiting_count,
+            'overrecruited': exp.is_overrecruited(waiting_count),
         }
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
         result['quorum'] = quorum
+
+    if not result.get('quorum', {}).get('overrecruited', False):
+        # We either had no quorum or we have not overrecruited, inform the
+        # recruiter that this participant will be seeing the experiment
+        recruiters.for_experiment(exp).notify_using(participant)
 
     # return the data
     return success_response(**result)

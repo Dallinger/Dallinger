@@ -147,6 +147,12 @@ class Experiment(object):
         """
         return recruiters.from_config(get_config())
 
+    def is_overrecruited(self, waiting_count):
+        """Returns True if the number of people waiting is in excess of the
+        total number expected, indicating that this and subsequent users should
+        skip the experiment"""
+        return waiting_count > self.quorum
+
     def send(self, raw_message):
         """socket interface implementation, and point of entry for incoming
         Redis messages.
