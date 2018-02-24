@@ -2,7 +2,10 @@ from __future__ import unicode_literals
 
 from collections import deque
 from contextlib import contextmanager
-from ConfigParser import SafeConfigParser
+try:
+    import configparser
+except ModuleNotFoundError:
+    from six.moves import configparser
 import distutils.util
 import imp
 import logging
@@ -189,7 +192,7 @@ class Configuration(object):
             self.sensitive.add(key)
 
     def load_from_file(self, filename):
-        parser = SafeConfigParser()
+        parser = configparser.SafeConfigParser()
         parser.read(filename)
         data = {}
         for section in parser.sections():
@@ -197,7 +200,7 @@ class Configuration(object):
         self.extend(data, cast_types=True, strict=True)
 
     def write(self, filter_sensitive=False):
-        parser = SafeConfigParser()
+        parser = configparser.SafeConfigParser()
         parser.add_section('Parameters')
         for layer in reversed(self.data):
             for k, v in layer.items():
