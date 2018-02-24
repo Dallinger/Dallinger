@@ -2,7 +2,10 @@
 
 import logging
 from cached_property import cached_property
-from urlparse import urlparse, parse_qs
+try:
+    from urllib.parse import urlparse, parse_qs
+except ImportError:
+    from urlparse import urlparse, parse_qs
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
