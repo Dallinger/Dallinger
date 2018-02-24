@@ -18,6 +18,7 @@ rq==0.10.0
 selenium==3.11.0
 SQLAlchemy==1.2.5
 sqlalchemy-postgres-copy==0.5.0
+-e git://github.com/Dallinger/tablib.git#egg=tablib
 ua-parser==0.7.3
 user-agents==1.1.0
 flask-crossdomain==0.1
