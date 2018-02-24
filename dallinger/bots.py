@@ -1,10 +1,13 @@
 """Bots."""
 
-from urlparse import urlparse, urlunparse, parse_qs
 import json
 import logging
 import random
 import uuid
+try:
+    from urllib.parse import urlparse, parse_qs
+except ImportError:
+    from urlparse import urlparse, parse_qs
 
 from cached_property import cached_property
 from selenium import webdriver
