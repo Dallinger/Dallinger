@@ -660,8 +660,8 @@ class TestHerokuLocalWrapper(object):
         wrapper = HerokuLocalWrapper(config, output, env=env)
         yield wrapper
         try:
-            print "Calling stop() on {}".format(wrapper)
-            print wrapper._record[-1]
+            print("Calling stop() on {}".format(wrapper))
+            print(wrapper._record[-1])
             wrapper.stop(signal.SIGKILL)
         except IndexError:
             pass
