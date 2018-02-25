@@ -11,7 +11,10 @@ import tempfile
 from time import sleep
 from uuid import UUID
 from click.testing import CliRunner
-from ConfigParser import NoOptionError, SafeConfigParser
+try:
+    import configparser
+except ModuleNotFoundError:
+    from six.moves import configparser
 from smtplib import SMTPAuthenticationError
 
 import pexpect
@@ -230,7 +233,7 @@ class TestSetupExperiment(object):
         os.path.exists(os.path.join('snapshots', exp_id + '-code.zip'))
 
         # There should be a modified configuration in the temp dir
-        deploy_config = SafeConfigParser()
+        deploy_config = configparser.SafeConfigParser()
         deploy_config.read(os.path.join(dst, 'config.txt'))
         assert int(deploy_config.get('Parameters', 'num_dynos_web')) == 2
 
@@ -251,14 +254,14 @@ class TestSetupExperiment(object):
         exp_id, dst = setup_experiment()
 
         # The temp dir should have a config with the sensitive variables missing
-        deploy_config = SafeConfigParser()
+        deploy_config = configparser.SafeConfigParser()
         deploy_config.read(os.path.join(dst, 'config.txt'))
         assert(deploy_config.get(
             'Parameters', 'something_normal') == u'show this'
         )
-        with raises(NoOptionError):
+        with raises(configparser.NoOptionError):
             deploy_config.get('Parameters', 'a_password')
-        with raises(NoOptionError):
+        with raises(configparser.NoOptionError):
             deploy_config.get('Parameters', 'something_sensitive')
 
     def test_payment_type(self):
