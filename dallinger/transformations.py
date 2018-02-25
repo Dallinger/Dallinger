@@ -7,7 +7,7 @@ default. Note that they don't necessarily tell you anything about the nature
 in which two Info's relate to each other, but if used sensibly they will do so.
 """
 
-from models import Transformation
+from .models import Transformation
 
 
 class Replication(Transformation):
