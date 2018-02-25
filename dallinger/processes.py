@@ -2,8 +2,8 @@
 
 import random
 
-from nodes import Agent
-from nodes import Source
+from .nodes import Agent
+from .nodes import Source
 
 
 def random_walk(network):
