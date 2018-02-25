@@ -154,18 +154,18 @@ class RogersExperiment(Experiment):
 
         nets = [n.network_id for n in nodes]
         if len(nets) != len(set(nets)):
-            print "Error: Participant participated in the same network \
-                   multiple times. Data check failed"
+            print("Error: Participant participated in the same network \
+                   multiple times. Data check failed")
             return False
 
         if None in [n.fitness for n in nodes]:
-            print "Error: some of participants nodes are missing a fitness. \
-                   Data check failed."
+            print("Error: some of participants nodes are missing a fitness. \
+                   Data check failed.")
             return False
 
         if None in [n.score for n in nodes]:
-            print "Error: some of participants nodes are missing a score. \
-                   Data check failed"
+            print("Error: some of participants nodes are missing a score. \
+                   Data check failed")
             return False
         return True
 

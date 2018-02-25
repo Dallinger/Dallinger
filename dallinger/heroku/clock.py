@@ -31,9 +31,9 @@ def run_check(config, mturk, participants, session, reference_time):
         time_active = (reference_time - p.creation_time).total_seconds()
 
         if time_active > (duration_seconds + 120):
-            print ("Error: participant {} with status {} has been playing for too "
-                   "long and no notification has arrived - "
-                   "running emergency code".format(p.id, p.status))
+            print("Error: participant {} with status {} has been playing for too "
+                  "long and no notification has arrived - "
+                  "running emergency code".format(p.id, p.status))
 
             # get their assignment
             assignment_id = p.assignment_id
@@ -51,7 +51,7 @@ def run_check(config, mturk, participants, session, reference_time):
                 status = assignment['status']
             except Exception:
                 status = None
-            print "assignment status from AWS is {}".format(status)
+            print("assignment status from AWS is {}".format(status))
             hit_id = p.hit_id
             # Use a null handler for now since Gmail is blocking outgoing email
             # from random servers:
@@ -65,11 +65,11 @@ def run_check(config, mturk, participants, session, reference_time):
 
             if status == "Approved":
                 # if its been approved, set the status accordingly
-                print "status set to approved"
+                print("status set to approved")
                 p.status = "approved"
                 session.commit()
             elif status == "Rejected":
-                print "status set to rejected"
+                print("status set to rejected")
                 # if its been rejected, set the status accordingly
                 p.status = "rejected"
                 session.commit()
@@ -86,9 +86,9 @@ def run_check(config, mturk, participants, session, reference_time):
                 # message the researcher:
                 messager.send_resubmitted_msg()
 
-                print ("Error - submitted notification for participant {} missed. "
-                       "Database automatically corrected, but proceed with caution."
-                       .format(p.id))
+                print("Error - submitted notification for participant {} missed. "
+                      "Database automatically corrected, but proceed with caution."
+                      .format(p.id))
             else:
                 # if it has not been submitted shut everything down
                 # first turn off autorecruit
@@ -122,10 +122,10 @@ def run_check(config, mturk, participants, session, reference_time):
                     "http://" + config.get('host') + '/notifications',
                     data=args)
 
-                print ("Error - abandoned/returned notification for participant {} missed. "
-                       "Experiment shut down. Please check database and then manually "
-                       "resume experiment."
-                       .format(p.id))
+                print("Error - abandoned/returned notification for participant {} missed. "
+                      "Experiment shut down. Please check database and then manually "
+                      "resume experiment."
+                      .format(p.id))
 
 
 @scheduler.scheduled_job('interval', minutes=0.5)
