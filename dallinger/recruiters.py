@@ -1,6 +1,11 @@
 """Recruiters manage the flow of participants to the experiment."""
 
+import logging
+import os
+import sys
+
 from rq import Queue
+
 from dallinger.config import get_config
 from dallinger.heroku.worker import conn
 from dallinger.models import Participant
@@ -10,9 +15,6 @@ from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
-import logging
-import os
-import sys
 
 logger = logging.getLogger(__file__)
 
