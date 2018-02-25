@@ -1,6 +1,6 @@
 """Data-handling tools."""
 
-from config import get_config
+from .config import get_config
 
 import csv
 import errno
