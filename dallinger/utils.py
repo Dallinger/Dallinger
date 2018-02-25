@@ -1,5 +1,5 @@
 from __future__ import print_function
-from dallinger.config import get_config
+
 import functools
 import io
 import os
@@ -9,6 +9,8 @@ import string
 import subprocess
 import sys
 import tempfile
+
+from dallinger.config import get_config
 
 
 def get_base_url():
