@@ -336,7 +336,7 @@ class MTurkRecruiter(Recruiter):
                 self.mturkservice.increment_qualification_score(
                     name, worker_id
                 )
-            except QualificationNotFoundException, ex:
+            except QualificationNotFoundException as ex:
                 logger.exception(ex)
 
     def rejects_questionnaire_from(self, participant):
