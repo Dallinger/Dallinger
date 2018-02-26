@@ -811,6 +811,29 @@ class TestMTurkServiceWithFakeConnection(object):
 
         requests.post.assert_called_once()
 
+    def test_get_assignment_converts_result(self, with_mock):
+        fake_response = fake_get_assignment_response()
+        with_mock.mturk.get_assignment = mock.Mock(return_value=fake_response)
+
+        response = with_mock.get_assignment('some id')
+
+        with_mock.mturk.get_assignment.assert_called_once_with(
+            AssignmentId='some id'
+        )
+        assert response == {
+            'id': fake_response['Assignment']['AssignmentId'],
+            'status': fake_response['Assignment']['AssignmentStatus'],
+            'hit_id': fake_response['Assignment']['HITId'],
+            'worker_id': fake_response['Assignment']['WorkerId'],
+        }
+
+    def test_get_assignment_returns_none_for_invalid_assigment_id(self, with_mock):
+        the_flag = 'does not exist'
+        with_mock.mturk.get_assignment.side_effect = ClientError(
+            {}, 'blah {} blah'.format(the_flag)
+        )
+        assert with_mock.get_assignment('some id') is None
+
     def test_create_hit_calls_underlying_mturk_method(self, with_mock):
         with_mock.mturk.configure_mock(**{
             'create_hit_type.return_value': fake_hit_type_response(),

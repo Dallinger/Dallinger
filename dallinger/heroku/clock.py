@@ -4,12 +4,12 @@ from datetime import datetime
 import json
 
 from apscheduler.schedulers.blocking import BlockingScheduler
-from boto.mturk.connection import MTurkConnection
 import requests
 
 import dallinger
 from dallinger import db
 from dallinger.models import Participant
+from dallinger.mturk import MTurkService
 from dallinger.heroku.messages import NullHITMessager
 
 # Import the experiment.
@@ -47,8 +47,8 @@ def run_check(config, mturk, participants, session, reference_time):
 
             # ask amazon for the status of the assignment
             try:
-                assignment = mturk.get_assignment(assignment_id)[0]
-                status = assignment.AssignmentStatus
+                assignment = mturk.get_assignment(assignment_id)
+                status = assignment['status']
             except Exception:
                 status = None
             print "assignment status from AWS is {}".format(status)
@@ -132,18 +132,12 @@ def run_check(config, mturk, participants, session, reference_time):
 def check_db_for_missing_notifications():
     """Check the database for missing notifications."""
     config = dallinger.config.get_config()
-    aws_access_key_id = config.get('aws_access_key_id')
-    aws_secret_access_key = config.get('aws_secret_access_key')
-    host_by_sandbox_setting = {
-        "debug": 'mechanicalturk.sandbox.amazonaws.com',
-        "sandbox": 'mechanicalturk.sandbox.amazonaws.com',
-        "live": 'mechanicalturk.amazonaws.com'
-    }
-    mturk = MTurkConnection(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        host=host_by_sandbox_setting[config.get('mode')])
-
+    mturk = MTurkService(
+        aws_access_key_id=config.get('aws_access_key_id'),
+        aws_secret_access_key=config.get('aws_secret_access_key'),
+        region_name=config.get('aws_region'),
+        sandbox=config.get('mode') in (u'debug', u'sandbox')
+    )
     # get all participants with status < 100
     participants = Participant.query.filter_by(status="working").all()
     reference_time = datetime.now()
