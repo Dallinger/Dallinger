@@ -16,6 +16,7 @@ from cached_property import cached_property
 logger = logging.getLogger(__file__)
 PERCENTAGE_APPROVED_REQUIREMENT_ID = '000000000000000000L0'
 LOCALE_REQUIREMENT_ID = '00000000000000000071'
+MAX_SUPPORTED_BATCH_SIZE = 100
 
 
 class MTurkServiceException(Exception):
@@ -171,7 +172,7 @@ class MTurkService(object):
             {
                 'QualificationTypeId': PERCENTAGE_APPROVED_REQUIREMENT_ID,
                 'Comparator': 'GreaterThanOrEqualTo',
-                'IntegerValues': [95],
+                'IntegerValues': [approve_requirement],
                 'RequiredToPreview': True,
             }
         ]
@@ -218,13 +219,14 @@ class MTurkService(object):
         match the provided name exactly. If there's an exact match, return
         that Qualification. Otherwise, raise an exception.
         """
+        max_fuzzy_matches_to_check = 100
         query = name.upper()
         start = time.time()
         args = {
             'Query': query,
             'MustBeRequestable': False,
             'MustBeOwnedByCaller': True,
-            'MaxResults': 2,
+            'MaxResults': max_fuzzy_matches_to_check,
         }
         results = self.mturk.list_qualification_types(**args)['QualificationTypes']
         # This loop is largely for tests, because there's some indexing that
@@ -255,14 +257,9 @@ class MTurkService(object):
             SendNotification=notify
         ))
 
-    def set_qualification_score(self, qualification_id, worker_id, score, notify=False):
-        """BBB only.
-        """
-        return self.assign_qualification(qualification_id, worker_id, score, notify)
-
-    def update_qualification_score(self, qualification_id, worker_id, score):
-        """BBB only"""
-        return self.assign_qualification(qualification_id, worker_id, score)
+    # BBB:
+    set_qualification_score = assign_qualification
+    update_qualification_score = assign_qualification
 
     def increment_qualification_score(self, name, worker_id, notify=False):
         """Increment the current qualification score for a worker, on a
@@ -272,7 +269,7 @@ class MTurkService(object):
         current_score = result['score'] or 0
         new_score = current_score + 1
         qtype_id = result['qtype']['id']
-        self.update_qualification_score(qtype_id, worker_id, new_score)
+        self.assign_qualification(qtype_id, worker_id, new_score, notify)
 
         return {
             'qtype': result['qtype'],
@@ -309,8 +306,12 @@ class MTurkService(object):
             )
         try:
             score = self.get_qualification_score(qtype['id'], worker_id)
-        except MTurkServiceException:
-            score = None
+        except MTurkServiceException as ex:
+            # Worker lacks qualification:
+            if 'You requested a Qualification that does not exist' in ex.message:
+                score = None
+            else:
+                raise
         return {
             'qtype': qtype,
             'score': score
@@ -318,9 +319,9 @@ class MTurkService(object):
 
     def dispose_qualification_type(self, qualification_id):
         """Remove a qualification type we created"""
-        return self.mturk.delete_qualification_type(
+        return self._is_ok(self.mturk.delete_qualification_type(
             QualificationTypeId=qualification_id
-        )
+        ))
 
     def get_workers_with_qualification(self, qualification_id):
         """Get workers with the given qualification."""
@@ -330,14 +331,14 @@ class MTurkService(object):
             if next_token is not None:
                 response = self.mturk.list_workers_with_qualification_type(
                     QualificationTypeId=qualification_id,
-                    MaxResults=100,
+                    MaxResults=MAX_SUPPORTED_BATCH_SIZE,
                     Status='Granted',
                     NextToken=next_token
                 )
             else:
                 response = self.mturk.list_workers_with_qualification_type(
                     QualificationTypeId=qualification_id,
-                    MaxResults=100,
+                    MaxResults=MAX_SUPPORTED_BATCH_SIZE,
                     Status='Granted',
                 )
             if response:
@@ -417,7 +418,7 @@ class MTurkService(object):
 
     def disable_hit(self, hit_id):
         self.expire_hit(hit_id)
-        return self.mturk.delete_hit(HITId=hit_id)
+        return self._is_ok(self.mturk.delete_hit(HITId=hit_id))
 
     def expire_hit(self, hit_id):
         """Expire a HIT, which will change its status to "Reviewable",
@@ -439,10 +440,10 @@ class MTurkService(object):
         while not done:
             if next_token is not None:
                 response = self.mturk.list_hits(
-                    MaxResults=100, NextToken=next_token
+                    MaxResults=MAX_SUPPORTED_BATCH_SIZE, NextToken=next_token
                 )
             else:
-                response = self.mturk.list_hits(MaxResults=100)
+                response = self.mturk.list_hits(MaxResults=MAX_SUPPORTED_BATCH_SIZE)
             for hit in response['HITs']:
                 translated = self._translate_hit(hit)
                 if hit_filter(translated):
