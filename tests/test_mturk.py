@@ -1,10 +1,12 @@
 import datetime
+import hmac
 import mock
 import os
 import pytest
 import socket
 import time
 from botocore.exceptions import ClientError
+from hashlib import sha1
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
@@ -14,6 +16,7 @@ from dallinger.utils import generate_random_id
 
 TEST_HIT_DESCRIPTION = '***TEST SUITE HIT***'
 TEST_QUALIFICATION_DESCRIPTION = '***TEST SUITE QUALIFICATION***'
+STANDARD_WAIT_SECS = 15
 
 
 class FixtureConfigurationError(Exception):
@@ -26,7 +29,8 @@ def system_marker():
     # To prevent tests run on different systems trampling on each other,
     # we mark data created in the MTurk sandbox with a value specific to
     # each system.
-    return ':'.join(os.uname()).replace(' ', '')
+    identifier = ':'.join(os.uname()).replace(' ', '')
+    return hmac.new(identifier, digestmod=sha1).hexdigest()
 
 
 def name_with_hostname_prefix():
@@ -439,7 +443,7 @@ class TestMTurkService(object):
 
     def test_extend_hit_with_valid_hit_id(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
-        time.sleep(15)  # Time lag before HIT is available for extension
+        time.sleep(STANDARD_WAIT_SECS)  # Time lag before HIT is available for extension
         updated = with_cleanup.extend_hit(hit['id'], number=1, duration_hours=.25)
 
         assert updated['max_assignments'] == 2
@@ -453,7 +457,7 @@ class TestMTurkService(object):
 
     def test_disable_hit_with_valid_hit_id(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
-        time.sleep(15)
+        time.sleep(STANDARD_WAIT_SECS)
         assert with_cleanup.disable_hit(hit['id'])
 
     def test_disable_hit_with_invalid_hit_id_raises(self, mturk):
@@ -467,14 +471,14 @@ class TestMTurkService(object):
 
     def test_get_hits_returns_all_by_default(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
-        time.sleep(15)  # Indexing required...
+        time.sleep(STANDARD_WAIT_SECS)  # Indexing required...
         hit_ids = [h['id'] for h in with_cleanup.get_hits()]
         assert hit['id'] in hit_ids
 
     def test_get_hits_excludes_based_on_filter(self, with_cleanup):
         hit1 = with_cleanup.create_hit(**standard_hit_config())
         hit2 = with_cleanup.create_hit(**standard_hit_config(title='HIT Two'))
-        time.sleep(15)  # Indexing required...
+        time.sleep(STANDARD_WAIT_SECS)  # Indexing required...
         hit_ids = [
             h['id'] for h in with_cleanup.get_hits(lambda h: 'Two' in h['title'])
         ]
@@ -598,6 +602,10 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 
         assert result['qtype']['id'] == qtype['id']
         assert result['score'] is None
+
+    def test_get_current_qualification_score_invalid_worker_raises(self, with_cleanup, qtype):
+        with pytest.raises(MTurkServiceException):
+            with_cleanup.get_current_qualification_score(qtype['name'], 'nonsense')
 
     def test_increment_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(qtype['id'], worker_id, score=2)
@@ -1043,7 +1051,10 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_get_current_qualification_score_worker_unscored(self, with_mock):
         worker_id = 'some worker id'
         with_mock.get_qualification_type_by_name = mock.Mock(return_value={'id': 'qid'})
-        with_mock.get_qualification_score = mock.Mock(side_effect=MTurkServiceException('Boom!'))
+        with_mock.get_qualification_score = mock.Mock(
+            side_effect=MTurkServiceException(
+                'You requested a Qualification that does not exist')
+        )
 
         result = with_mock.get_current_qualification_score('some name', worker_id)
 
