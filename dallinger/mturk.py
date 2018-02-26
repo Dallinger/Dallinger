@@ -462,8 +462,8 @@ class MTurkService(object):
         reward you pay to the Worker when you approve the Worker's
         assignment.
         """
-        assignment = self.mturk.get_assignment(assignment_id)
-        worker_id = assignment['Assignment']['WorkerId']
+        assignment = self.get_assignment(assignment_id)
+        worker_id = assignment['worker_id']
 
         try:
             return self._is_ok(self.mturk.send_bonus(
@@ -480,6 +480,17 @@ class MTurkService(object):
                 ex.message
             )
             raise MTurkServiceException(error)
+
+    def get_assignment(self, assignment_id):
+        """Get an assignment by ID and reformat the response.
+        """
+        try:
+            response = self.mturk.get_assignment(AssignmentId=assignment_id)
+        except ClientError as ex:
+            if 'does not exist' in ex.message:
+                return None
+            raise
+        return self._translate_assignment(response['Assignment'])
 
     def approve_assignment(self, assignment_id):
         """Approving an assignment initiates two payments from the
@@ -523,6 +534,18 @@ class MTurkService(object):
 
     def _request_token(self):
         return str(time.time())
+
+    def _translate_assignment(self, assignment):
+        # Returns only a subset of included values since we don't use most
+        # currently.
+        translated = {
+            'id': assignment['AssignmentId'],
+            'status': assignment['AssignmentStatus'],
+            'hit_id': assignment['HITId'],
+            'worker_id': assignment['WorkerId'],
+        }
+
+        return translated
 
     def _translate_hit(self, hit):
         translated = {
