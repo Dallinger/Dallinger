@@ -37,6 +37,7 @@ before_script:
 - bundle exec danger
 - createuser dallinger --createdb
 - createdb -O dallinger dallinger
+- createdb -O dallinger dallinger-import
 env:
   global:
   - DATABASE_URL=postgresql://dallinger@localhost/dallinger
