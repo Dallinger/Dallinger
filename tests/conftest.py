@@ -1,3 +1,4 @@
+import mock
 import os
 import pytest
 import shutil
@@ -371,6 +372,17 @@ def db_session():
     yield session
     session.rollback()
     session.close()
+
+
+@pytest.fixture
+def dummy_mailer():
+    from smtplib import SMTP
+    from dallinger.heroku import messages
+    server = mock.create_autospec(SMTP)
+    orig_server = messages.get_email_server
+    messages.get_email_server = lambda: server
+    yield server
+    messages.get_email_server = orig_server
 
 
 def pytest_addoption(parser):

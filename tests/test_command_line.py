@@ -210,6 +210,7 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("static", "scripts", "spin.min.js"), dst)
         assert found_in(os.path.join("static", "robots.txt"), dst)
         assert found_in(os.path.join("templates", "error.html"), dst)
+        assert found_in(os.path.join("templates", "error-complete.html"), dst)
         assert found_in(os.path.join("templates", "launch.html"), dst)
         assert found_in(os.path.join("templates", "complete.html"), dst)
 

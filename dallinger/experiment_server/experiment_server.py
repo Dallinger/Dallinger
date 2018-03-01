@@ -35,6 +35,7 @@ from dallinger import information
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger import recruiters
+from dallinger.heroku.messages import EmailingHITMessager
 
 from .replay import ReplayBackend
 from .worker_events import WorkerEvent
@@ -111,7 +112,8 @@ def error_response(error_type="Internal server error",
                    error_text='',
                    status=400,
                    participant=None,
-                   simple=False):
+                   simple=False,
+                   request_data=''):
     """Return a generic server error response."""
     last_exception = sys.exc_info()
     if last_exception[0]:
@@ -126,32 +128,30 @@ def error_response(error_type="Internal server error",
     else:
         data["html"] = error_page(error_text=error_text,
                                   error_type=error_type,
-                                  participant=participant).get_data().decode('utf-8')
+                                  participant=participant,
+                                  request_data=request_data).get_data().decode('utf-8')
     return Response(dumps(data), status=status, mimetype='application/json')
 
 
 def error_page(participant=None, error_text=None, compensate=True,
-               error_type="default"):
+               error_type="default", request_data=''):
     """Render HTML for error page."""
     config = _config()
+
     if error_text is None:
-
         error_text = """There has been an error and so you are unable to
-        continue, sorry! If possible, please return the assignment so someone
-        else can work on it."""
-
-    if compensate:
-        error_text += """ Please use the information below to contact us
-        about compensation"""
+        continue, sorry!"""
 
     if participant is not None:
         hit_id = participant.hit_id,
         assignment_id = participant.assignment_id,
         worker_id = participant.worker_id
+        participant_id = participant.id
     else:
-        hit_id = 'unknown'
-        assignment_id = 'unknown'
-        worker_id = 'unknown'
+        hit_id = request.form.get('hit_id', '')
+        assignment_id = request.form.get('assignment_id', '')
+        worker_id = request.form.get('worker_id', '')
+        participant_id = request.form.get('participant_id', '')
 
     return make_response(
         render_template(
@@ -162,7 +162,9 @@ def error_page(participant=None, error_text=None, compensate=True,
             error_type=error_type,
             hit_id=hit_id,
             assignment_id=assignment_id,
-            worker_id=worker_id
+            worker_id=worker_id,
+            request_data=request_data,
+            participant_id=participant_id
         ),
         500,
     )
@@ -230,6 +232,108 @@ def inject_experiment():
     return dict(
         experiment=exp,
         env=os.environ,
+    )
+
+
+@app.route('/error-page', methods=['POST', 'GET'])
+def render_error():
+    request_data = request.form.get("request_data")
+    participant_id = request.form.get("participant_id")
+    participant = None
+    if participant_id:
+        participant = models.Participant.query.get(participant_id)
+    return error_page(
+        participant=participant,
+        request_data=request_data,
+    )
+
+
+@app.route('/handle-error', methods=['POST'])
+def handle_error():
+    request_data = request.form.get("request_data")
+    error_feedback = request.form.get("error_feedback")
+    error_type = request.form.get("error_type")
+    error_text = request.form.get("error_text")
+    worker_id = request.form.get("worker_id")
+    assignment_id = request.form.get("assignment_id")
+    participant_id = request.form.get("participant_id")
+    hit_id = request.form.get("hit_id")
+    participant = None
+
+    completed = False
+    details = {'request_data': {}}
+
+    if request_data:
+        request_data = loads(request_data)
+        details['request_data'] = request_data
+        if not participant_id and 'participant_id' in request_data:
+            participant_id = request_data['participant_id']
+        if not worker_id and 'worker_id' in request_data:
+            worker_id = request_data['worker_id']
+        if not assignment_id and 'assignment_id' in request_data:
+            assignment_id = request_data['assignment_id']
+        if not hit_id and 'hit_id' in request_data:
+            hit_id = request_data['hit_id']
+
+    details['feedback'] = error_feedback
+    details['error_type'] = error_type
+    details['error_text'] = error_text
+
+    if worker_id and not participant_id:
+        participants = session.query(models.Participant).filter_by(
+            worker_id=worker_id
+        ).all()
+        if participants:
+            participant = participants[0]
+            if not assignment_id:
+                assignment_id = participant.assignment_id
+
+    if assignment_id and not participant_id:
+        participants = session.query(models.Participant).filter_by(
+            worker_id=assignment_id
+        ).all()
+        if participants:
+            participant = participants[0]
+            participant_id = participant.id
+            if not worker_id:
+                worker_id = participant.worker_id
+
+    if participant_id:
+        _worker_complete(participant_id)
+        completed = True
+
+    details['request_data'].update({'worker_id': worker_id,
+                                    'hit_id': hit_id,
+                                    'participant_id': participant_id})
+
+    notif = models.Notification(
+        assignment_id=assignment_id or 'unknown',
+        event_type=u'ExperimentError', details=details
+    )
+    session.add(notif)
+    session.commit()
+
+    config = _config()
+    if config.get('dallinger_email_address', None):
+        heroku_config = {
+            "contact_email_on_error": config["contact_email_on_error"],
+            "dallinger_email_username": config["dallinger_email_address"],
+            "dallinger_email_key": config["dallinger_email_password"],
+            "whimsical": False
+        }
+        emailer = EmailingHITMessager(when=datetime.now(),
+                                      assignment_id=assignment_id or 'unknown',
+                                      hit_duration=0, time_active=0,
+                                      config=heroku_config,
+                                      app_id=config.get('id', 'unknown'))
+        db.logger.debug("Sending HIT error email...")
+        emailer.send_hit_error()
+
+    return render_template(
+        'error-complete.html',
+        completed=completed,
+        contact_address=config.get('contact_email_on_error', ''),
+        hit_id=hit_id
     )
 
 
@@ -1483,13 +1587,13 @@ def worker_function(event_type, assignment_id, participant_id, node_id=None, det
     if event_type == 'TrackingEvent':
         node = None
         if node_id:
-            node = models.Node.query.filter_by(id=node_id).all()[0]
+            node = models.Node.query.get(node_id)
         if not node:
             participant = None
             if participant_id:
                 # Lookup assignment_id to create notifications
                 participant = models.Participant.query\
-                    .filter_by(id=participant_id).all()[0]
+                    .get(participant_id)
             elif assignment_id:
                 participants = models.Participant.query\
                     .filter_by(assignment_id=assignment_id)\

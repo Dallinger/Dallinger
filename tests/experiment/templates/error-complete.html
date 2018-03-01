@@ -1,0 +1,26 @@
+<html>
+<head></head>
+<body>
+	<div id="container">
+        <div>
+            <h1>Thank you!</h1>
+            <hr>
+            <div>
+                <h1>Your feedback has been submitted.</h1>
+                {% if completed %}
+                <p>The HIT has been marked as completed.
+                    You should be compensated automatically.</p>
+                <p>To enquire about compensation, please contact the researcher at
+                    <a href="mailto:{{contact_address}}">{{contact_address}}
+                        and include your HIT ID: {{hit_id}}</a></p>
+                {% else %}
+                <p><b>We were not able to mark this HIT as completed.</b></p>
+                <p>Please contact the researcher at
+                    <a href="mailto:{{contact_address}}">{{contact_address}}
+                        and include your HIT ID: {{hit_id}}</a></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
