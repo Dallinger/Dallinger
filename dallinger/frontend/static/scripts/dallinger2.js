@@ -231,7 +231,7 @@ var dallinger = (function () {
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
           if (resp.quorum && resp.quorum.n !== resp.quorum.q) {
-            if (resp.quorum.n > resp.quorum.q) {
+            if (resp.quorum.overrecruited) {
               dlgr.skip_experiment = true;
               // reached quorum; resolve immediately
               deferred.resolve();
