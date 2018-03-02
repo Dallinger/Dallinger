@@ -31,11 +31,11 @@ $(document).ready(function() {
   // Proceed to the waiting room.
   $("#go-to-waiting-room").click(function() {
     expertise = $("#expertise").val()
-    if (expertise == '0') {
-      window.location.href = '/error2';
-    } else {
-      window.location.href = '/waiting';
-    }
+    // if (expertise == '0') {
+    //   window.location.href = '/error2';
+    // } else {
+    window.location.href = '/waiting';
+    // }
   });
 
   // Send a message.
@@ -56,26 +56,27 @@ $(document).ready(function() {
   // Submit the questionnaire.
   $("#submit-questionnaire").click(function() {
     if (participant_id > 0) {
-      reqwest({
-          url: "/question/" + participant_id,
-          method: "post",
-          type: "json",
-          data: {
-              question: "expertise",
-              number: 1,
-              response: expertise
-          },
-          success: function(resp) {
-              console.log(resp)
-          },
-          error: function (err) {
-              var errorResponse = JSON.parse(err.response);
-              if (errorResponse.hasOwnProperty("html")) {
-                  $("body").html(errorResponse.html);
-              }
-          }
-      });
-      submitResponses();
+    //   reqwest({
+    //       url: "/question/" + participant_id,
+    //       method: "post",
+    //       type: "json",
+    //       data: {
+    //           question: "expertise",
+    //           number: 1,
+    //           response: expertise
+    //       },
+    //       success: function(resp) {
+    //           console.log(resp)
+    //       },
+    //       error: function (err) {
+    //           var errorResponse = JSON.parse(err.response);
+    //           if (errorResponse.hasOwnProperty("html")) {
+    //               $("body").html(errorResponse.html);
+    //           }
+    //       }
+    //   });
+      submit_responses();
+      // submitResponses();
     }
     submitAssignment();
   });
@@ -164,6 +165,11 @@ showExperiment = function() {
   if (currentNodeType == 'mafioso') {
     getMafia();
     $("#mafia").show();
+    $("#note").show();
+    $("#vote-note").show();
+  } else {
+    $("#note").html('You cannot send messages at night!');
+    $("#note").show();
   }
   get_transmissions();
 };
@@ -185,6 +191,8 @@ check_phase = function() {
               $("#vote-form").hide();
               if (currentNodeType == 'mafioso') {
                 $("#mafia").hide();
+                $("#note").hide();
+                $("#vote-note").hide();
               }
               $("#narrator").html(resp.victim[0] + ", who is a " + resp.victim[1] + ", has been eliminated! Congratulations, the " + resp.winner + " have won!");
               $("#stimulus").show();
@@ -194,9 +202,22 @@ check_phase = function() {
               if (resp.daytime == 'False') {
                 document.body.style.backgroundColor = "royalblue";
                 $("#narrator").html(resp.victim[0] + ", who is a " + resp.victim[1] + ", has been eliminated!");
+                if (currentNodeType == 'mafioso') {
+                  $("#note").html('These messages are private!');
+                  $("#vote-note").html('These votes are private!');
+                } else {
+                  $("#note").show();
+                }
+
               } else {
                 document.body.style.backgroundColor = "lightskyblue";
                 $("#narrator").html(resp.victim[0] + " has been eliminated!");
+                if (currentNodeType == 'mafioso') {
+                  $("#note").html('These messages are public!');
+                  $("#vote-note").html('These votes are public!');
+                } else {
+                  $("#note").hide();
+                }
               }
               $("#stimulus").show();
               wasDaytime = resp.daytime;
