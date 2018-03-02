@@ -55,7 +55,7 @@ $(document).ready(function() {
 
   // Submit the questionnaire.
   $("#submit-questionnaire").click(function() {
-    if (participant_id > 0) {
+    // if (participant_id > 0) {
     //   reqwest({
     //       url: "/question/" + participant_id,
     //       method: "post",
@@ -77,7 +77,7 @@ $(document).ready(function() {
     //   });
       submit_responses();
       // submitResponses();
-    }
+    // }
     submitAssignment();
   });
 });
@@ -85,7 +85,7 @@ $(document).ready(function() {
 // Create the agent.
 create_agent = function() {
   reqwest({
-    url: "/node/" + participant_id,
+    url: "/node/",
     method: "post",
     type: "json",
     success: function(resp) {
