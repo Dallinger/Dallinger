@@ -1,3 +1,4 @@
+var expertise;
 var currentNodeId;
 var currentNodeName;
 var currentNodeType;
@@ -13,10 +14,10 @@ $(document).ready(function() {
 
   // Consent to the experiment.
   $("#consent").click(function() {
-    store.set("hit_id", getUrlParameter("hit_id"));
-    store.set("worker_id", getUrlParameter("worker_id"));
-    store.set("assignment_id", getUrlParameter("assignment_id"));
-    store.set("mode", getUrlParameter("mode"));
+    store.set("hit_id", dallinger.getUrlParameter("hit_id"));
+    store.set("worker_id", dallinger.getUrlParameter("worker_id"));
+    store.set("assignment_id", dallinger.getUrlParameter("assignment_id"));
+    store.set("mode", dallinger.getUrlParameter("mode"));
 
     window.location.href = '/instructions';
   });
@@ -55,9 +56,6 @@ $(document).ready(function() {
   // Submit the questionnaire.
   $("#submit-questionnaire").click(function() {
     if (participant_id > 0) {
-<<<<<<< HEAD
-      submitResponses();
-=======
     //   reqwest({
     //       url: "/question/" + participant_id,
     //       method: "post",
@@ -79,7 +77,6 @@ $(document).ready(function() {
     //   });
       submit_responses();
       // submitResponses();
->>>>>>> Added note about when messages can be sent, and whether or not they are private
     }
     submitAssignment();
   });
@@ -350,5 +347,6 @@ $(document).keypress(function(e) {
 
 // hack for Dallinger 2.0/3.0
 submitResponses = function() {
-  submitNextResponse(0);
+  // submitNextResponse(0);
+  submitNextResponse(1);
 };
