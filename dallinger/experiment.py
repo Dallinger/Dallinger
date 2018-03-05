@@ -556,7 +556,7 @@ class Experiment(object):
         # experiment status
         if self.exp_config.get('mode') != 'debug':
             self.log("Waiting for experiment to complete.", "")
-            while self.experiment_completed() is False:
+            while not self.experiment_completed():
                 time.sleep(30)
         return True
 
