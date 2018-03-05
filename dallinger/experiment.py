@@ -483,6 +483,7 @@ class Experiment(object):
                 verbose=self.verbose,
                 exp_config=self.exp_config
             )
+        self._await_completion()
         data = self.retrieve_data()
         self.end_experiment()
         return data
@@ -550,6 +551,15 @@ class Experiment(object):
         logger.debug('Current application state: {}'.format(data))
         return data.get('completed', False)
 
+    def _await_completion(self):
+        # Debug runs synchronously, but in live mode we need to loop and check
+        # experiment status
+        if self.exp_config.get('mode') != 'debug':
+            self.log("Waiting for experiment to complete.", "")
+            while not self.experiment_completed():
+                time.sleep(30)
+        return True
+
     def retrieve_data(self):
         """Retrieves and saves data from a running experiment"""
         local = False
@@ -561,11 +571,7 @@ class Experiment(object):
 
     def end_experiment(self):
         """Terminates a running experiment"""
-        # Debug runs synchronously
         if self.exp_config.get('mode') != 'debug':
-            self.log("Waiting for experiment to complete.", "")
-            while self.experiment_completed() is False:
-                time.sleep(30)
             HerokuApp(self.app_id).destroy()
         return True
 

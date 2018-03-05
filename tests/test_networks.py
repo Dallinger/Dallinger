@@ -10,6 +10,23 @@ class TestNetworks(object):
         net = models.Network()
         assert isinstance(net, models.Network)
 
+    def test_has_a_big_default_max_size(self, a):
+        assert a.network().max_size > 100000
+
+    def test_not_full_with_zero_nodes(self, a):
+        net = a.network(max_size=1)
+        assert not net.full
+
+    def test_not_full_if_nodes_fewer_than_max_size(self, a):
+        net = a.network(max_size=2)
+        nodes.Agent(network=net)
+        assert not net.full
+
+    def test_full_if_nodes_equal_max_size(self, a):
+        net = a.network(max_size=1)
+        nodes.Agent(network=net)
+        assert net.full
+
     def test_node_failure(self, db_session):
         net = networks.Network()
         db_session.add(net)
