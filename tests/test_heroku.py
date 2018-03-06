@@ -111,8 +111,8 @@ class TestHerokuClockTasks(object):
         from dallinger.heroku.clock import check_db_for_missing_notifications
         with mock.patch.multiple('dallinger.heroku.clock',
                                  run_check=mock.DEFAULT,
-                                 MTurkConnection=mock.DEFAULT) as mocks:
-            mocks['MTurkConnection'].return_value = 'fake connection'
+                                 MTurkService=mock.DEFAULT) as mocks:
+            mocks['MTurkService'].return_value = 'fake connection'
             check_db_for_missing_notifications()
 
             mocks['run_check'].assert_called()
@@ -129,8 +129,8 @@ class TestHerokuClockTasks(object):
 
     def test_sets_participant_status_if_mturk_reports_approved(self, run_check):
         config = {'duration': 1.0}
-        fake_assignment = mock.Mock(AssignmentStatus='Approved')
-        mturk = mock.Mock(**{'get_assignment.return_value': [fake_assignment]})
+        fake_assignment = {'status': 'Approved'}
+        mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
         participants = [self.a.participant()]
         session = mock.Mock()
         # Move the clock forward so assignment is overdue:
@@ -142,8 +142,8 @@ class TestHerokuClockTasks(object):
 
     def test_sets_participant_status_if_mturk_reports_rejected(self, run_check):
         config = {'duration': 1.0}
-        fake_assignment = mock.Mock(AssignmentStatus='Rejected')
-        mturk = mock.Mock(**{'get_assignment.return_value': [fake_assignment]})
+        fake_assignment = {'status': 'Rejected'}
+        mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
         participants = [self.a.participant()]
         session = mock.Mock()
         # Move the clock forward so assignment is overdue:
@@ -160,8 +160,8 @@ class TestHerokuClockTasks(object):
             'host': 'fakehost.herokuapp.com',
             'whimsical': True
         }
-        fake_assignment = mock.Mock(AssignmentStatus='Submitted')
-        mturk = mock.Mock(**{'get_assignment.return_value': [fake_assignment]})
+        fake_assignment = {'status': 'Submitted'}
+        mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
         participants = [self.a.participant()]
         session = None
         # Move the clock forward so assignment is overdue:
@@ -184,8 +184,8 @@ class TestHerokuClockTasks(object):
             'host': 'fakehost.herokuapp.com',
             'whimsical': False
         }
-        fake_assignment = mock.Mock(AssignmentStatus='Submitted')
-        mturk = mock.Mock(**{'get_assignment.return_value': [fake_assignment]})
+        fake_assignment = {'status': 'Submitted'}
+        mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
         participants = [self.a.participant()]
         session = None
         # Move the clock forward so assignment is overdue:
@@ -205,7 +205,7 @@ class TestHerokuClockTasks(object):
             'host': 'fakehost.herokuapp.com',
             'whimsical': True
         }
-        mturk = mock.Mock(**{'get_assignment.return_value': []})
+        mturk = mock.Mock(**{'get_assignment.return_value': None})
         participants = [self.a.participant()]
         session = None
         # Move the clock forward so assignment is overdue:
@@ -239,7 +239,7 @@ class TestHerokuClockTasks(object):
             'host': 'fakehost.herokuapp.com',
             'whimsical': False
         }
-        mturk = mock.Mock(**{'get_assignment.return_value': []})
+        mturk = mock.Mock(**{'get_assignment.return_value': None})
         participants = [self.a.participant()]
         session = None
         # Move the clock forward so assignment is overdue:

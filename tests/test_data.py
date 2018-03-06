@@ -56,26 +56,24 @@ class TestData(object):
     )
 
     def test_connection_to_s3(self):
-        conn = dallinger.data._s3_connection()
-        assert conn
+        s3 = dallinger.data._s3_resource()
+        assert s3
 
     def test_user_s3_bucket_first_time(self):
-        conn = dallinger.data._s3_connection()
         bucket = dallinger.data.user_s3_bucket(
             canonical_user_id=generate_random_id(),
         )
         assert bucket
-        conn.delete_bucket(bucket)
+        bucket.delete()
 
     def test_user_s3_bucket_thrice(self):
-        conn = dallinger.data._s3_connection()
         id = generate_random_id()
         for i in range(3):
             bucket = dallinger.data.user_s3_bucket(
                 canonical_user_id=id,
             )
             assert bucket
-        conn.delete_bucket(bucket)
+        bucket.delete()
 
     def test_user_s3_bucket_no_id_provided(self):
         bucket = dallinger.data.user_s3_bucket()
