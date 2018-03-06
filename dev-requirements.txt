@@ -1,4 +1,5 @@
 alabaster==0.7.9
+bumpversion==0.5.3
 coverage==4.5.1
 coverage_pth==0.0.2
 codecov==2.0.15
