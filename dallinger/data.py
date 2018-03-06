@@ -358,9 +358,6 @@ def user_s3_bucket(canonical_user_id=None):
     s3_bucket_name = "dallinger-{}".format(
         hashlib.sha256(canonical_user_id).hexdigest()[0:8])
 
-    config = get_config()
-    location = config.get('aws_region')
-
     return _get_or_create_s3_bucket(s3, s3_bucket_name)
 
 
