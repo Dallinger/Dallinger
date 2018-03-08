@@ -4,10 +4,6 @@ import json
 import logging
 import random
 import uuid
-try:
-    from urllib.parse import urlparse, parse_qs
-except ImportError:
-    from urlparse import urlparse, parse_qs
 
 from cached_property import cached_property
 from selenium import webdriver
@@ -15,6 +11,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from six.moves.urllib.urlparse import urlparse, parse_qs
 import gevent
 import requests
 

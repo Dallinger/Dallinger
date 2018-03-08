@@ -8,12 +8,9 @@ import re
 import subprocess
 import sys
 import tempfile
+from six.moves import configparser
 from time import sleep
 from uuid import UUID
-try:
-    import configparser
-except ModuleNotFoundError:
-    from six.moves import configparser
 from smtplib import SMTPAuthenticationError
 
 from click.testing import CliRunner

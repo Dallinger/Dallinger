@@ -2,10 +2,7 @@ from __future__ import unicode_literals
 
 from collections import deque
 from contextlib import contextmanager
-try:
-    import configparser
-except ModuleNotFoundError:
-    from six.moves import configparser
+from six.moves import configparser
 import distutils.util
 import imp
 import logging
