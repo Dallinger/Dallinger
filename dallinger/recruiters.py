@@ -195,7 +195,7 @@ class HotAirRecruiter(CLIRecruiter):
 
     def _get_mode(self):
         # Ignore config settings and always use debug mode
-        return u'debug'
+        return 'debug'
 
 
 class SimulatedRecruiter(Recruiter):
@@ -235,13 +235,13 @@ class MTurkRecruiter(Recruiter):
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
             self.config.get('aws_secret_access_key'),
-            self.config.get('mode') != u"live"
+            self.config.get('mode') != "live"
         )
         self._validate_conifg()
 
     def _validate_conifg(self):
         mode = self.config.get('mode')
-        if mode not in (u'sandbox', u'live'):
+        if mode not in ('sandbox', 'live'):
             raise MTurkRecruiterException(
                 '"{}" is not a valid mode for MTurk recruitment. '
                 'The value of "mode" must be either "sandbox" or "live"'.format(mode)

@@ -1,3 +1,5 @@
+from hashlib import sha1
+from six.moves import urllib
 import base64
 import boto3
 import datetime
@@ -5,9 +7,7 @@ import hmac
 import logging
 import requests
 import time
-import urllib
 
-from hashlib import sha1
 from botocore.exceptions import ClientError
 from botocore.exceptions import NoCredentialsError
 from cached_property import cached_property
@@ -117,7 +117,7 @@ class MTurkService(object):
             'Version': API_version,
         }
         query_string, signature = self._calc_old_api_signature(data)
-        body = query_string + '&Signature=' + urllib.quote_plus(signature)
+        body = query_string + '&Signature=' + urllib.parse.quote_plus(signature)
         data['Signature'] = signature
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
@@ -208,7 +208,7 @@ class MTurkService(object):
                 QualificationTypeStatus=status
             )
         except Exception as ex:
-            if u'already created a QualificationType with this name' in ex.message:
+            if 'already created a QualificationType with this name' in ex.message:
                 raise DuplicateQualificationNameError(ex.message)
 
         return self._translate_qtype(response['QualificationType'])
@@ -521,7 +521,7 @@ class MTurkService(object):
             signature.update(key.encode('utf-8'))
             value = params[key].encode('utf-8')
             signature.update(value)
-            pairs.append(key + '=' + urllib.quote(value))
+            pairs.append(key + '=' + urllib.parse.quote(value))
         query_string = '&'.join(pairs)
         return (query_string, base64.b64encode(signature.digest()))
 
@@ -577,4 +577,4 @@ class MTurkService(object):
         }
 
     def _is_ok(self, response):
-        return response == {} or response.keys() == ['ResponseMetadata']
+        return response == {} or list(response.keys()) == ['ResponseMetadata']

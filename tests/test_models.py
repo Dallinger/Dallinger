@@ -1,6 +1,8 @@
 """Test the classes in models.py."""
 
 from __future__ import print_function
+
+import six
 import sys
 from datetime import datetime
 from dallinger import models, nodes
@@ -84,7 +86,7 @@ class TestModels(object):
         assert net.max_size == 1e6
         assert isinstance(net.full, bool)
         assert net.full is False
-        assert isinstance(net.role, unicode)
+        assert isinstance(net.role, six.text_type)
         assert net.role == "default"
 
         # test __repr__()
@@ -273,7 +275,7 @@ class TestModels(object):
         node1 = models.Node(network=net)
         db_session.add(node1)
 
-        for i in xrange(5):
+        for i in range(5):
             assert len(node1.vectors(direction="outgoing")) == i
             new_node = models.Node(network=net)
             self.add(db_session, new_node)
@@ -295,7 +297,7 @@ class TestModels(object):
         db_session.add(node1)
         db_session.commit()
 
-        for i in xrange(5):
+        for i in range(5):
             assert len(node1.vectors(direction="incoming")) == i
             new_node = models.Node(network=net)
             db_session.add(new_node)

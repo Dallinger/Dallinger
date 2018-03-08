@@ -76,12 +76,12 @@ class TestConfiguration(object):
     def test_setting_by_set(self):
         config = Configuration()
         config.ready = True
-        config.set("mode", u"live")
+        config.set("mode", "live")
 
     def test_setting_by_assignment(self):
         config = Configuration()
         config.ready = True
-        config["mode"] = u"live"
+        config["mode"] = "live"
 
     def test_get_without_default_raises(self):
         config = Configuration()
@@ -185,20 +185,20 @@ worldwide = false
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
-        config.set(u'host', u'localhost')
-        config.set(u'base_port', 5000)
+        config.set('host', 'localhost')
+        config.set('base_port', 5000)
         assert(get_base_url() == 'http://localhost:5000')
 
     def test_remote_base_url(self):
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
-        config.set(u'host', u'https://dlgr-bogus.herokuapp.com')
+        config.set('host', 'https://dlgr-bogus.herokuapp.com')
         assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
 
     def test_remote_base_url_always_ssl(self):
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
-        config.set(u'host', u'http://dlgr-bogus.herokuapp.com')
+        config.set('host', 'http://dlgr-bogus.herokuapp.com')
         assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')

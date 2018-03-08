@@ -5,6 +5,7 @@ import mock
 import os
 import pexpect
 import re
+import six
 import subprocess
 import sys
 import tempfile
@@ -21,7 +22,6 @@ import dallinger.command_line
 from dallinger.command_line import new_webbrowser_profile
 from dallinger.command_line import verify_package
 from dallinger.command_line import report_idle_after
-from dallinger.compat import unicode
 from dallinger.config import get_config
 from dallinger import recruiters
 import dallinger.version
@@ -238,11 +238,11 @@ class TestSetupExperiment(object):
         from dallinger.command_line import setup_experiment
         config = get_config()
         # Auto detected as sensitive
-        config.register('a_password', unicode)
+        config.register('a_password', six.text_type)
         # Manually registered as sensitive
-        config.register('something_sensitive', unicode, sensitive=True)
+        config.register('something_sensitive', six.text_type, sensitive=True)
         # Not sensitive at all
-        config.register('something_normal', unicode)
+        config.register('something_normal', six.text_type)
 
         config.extend({'a_password': u'secret thing',
                        'something_sensitive': u'hide this',
@@ -254,7 +254,7 @@ class TestSetupExperiment(object):
         deploy_config = configparser.SafeConfigParser()
         deploy_config.read(os.path.join(dst, 'config.txt'))
         assert(deploy_config.get(
-            'Parameters', 'something_normal') == u'show this'
+            'Parameters', 'something_normal') == 'show this'
         )
         with raises(configparser.NoOptionError):
             deploy_config.get('Parameters', 'a_password')
@@ -696,8 +696,8 @@ class TestSandboxAndDeploy(object):
                 '--app', 'some app id',
             ]
         )
-        dsss.assert_called_once_with(app=u'some app id', verbose=True)
-        assert get_config().get('mode') == u'sandbox'
+        dsss.assert_called_once_with(app='some app id', verbose=True)
+        assert get_config().get('mode') == 'sandbox'
 
     def test_sandbox_with_no_app_id(self, sandbox, dsss):
         CliRunner().invoke(
@@ -707,7 +707,7 @@ class TestSandboxAndDeploy(object):
             ]
         )
         dsss.assert_called_once_with(app=None, verbose=True)
-        assert get_config().get('mode') == u'sandbox'
+        assert get_config().get('mode') == 'sandbox'
 
     def test_sandbox_with_invalid_app_id(self, sandbox, dsss):
         result = CliRunner().invoke(
@@ -729,8 +729,8 @@ class TestSandboxAndDeploy(object):
                 '--app', 'some app id',
             ]
         )
-        dsss.assert_called_once_with(app=u'some app id', verbose=True)
-        assert get_config().get('mode') == u'live'
+        dsss.assert_called_once_with(app='some app id', verbose=True)
+        assert get_config().get('mode') == 'live'
 
 
 class TestSummary(object):
@@ -747,8 +747,8 @@ class TestSummary(object):
             u'completed': True,
             u'nodes_remaining': 0,
             u'required_nodes': 0,
-            u'status': u'success',
-            u'summary': [[u'approved', 1], [u'submitted', 1]],
+            u'status': 'success',
+            u'summary': [['approved', 1], ['submitted', 1]],
             u'unfilled_networks': 0
         }
         with mock.patch('dallinger.command_line.requests') as req:

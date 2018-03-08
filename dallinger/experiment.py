@@ -1,5 +1,8 @@
 """The base experiment class."""
 
+from __future__ import print_function
+from __future__ import unicode_literals
+
 from cached_property import cached_property
 from collections import Counter
 from contextlib import contextmanager
@@ -470,7 +473,7 @@ class Experiment(object):
         self.app_id = app_id
         self.exp_config = exp_config or kwargs
 
-        if self.exp_config.get("mode") == u"debug":
+        if self.exp_config.get("mode") == "debug":
             dlgr.command_line.debug.callback(
                 verbose=True,
                 bot=bot,
@@ -504,31 +507,31 @@ class Experiment(object):
             )
             os.chdir(new_path)
             results = data_load(app_id)
-            self.log(u'Data found for experiment {}, retrieving.'.format(app_id),
-                     key=u"Retrieve:")
+            self.log('Data found for experiment {}, retrieving.'.format(app_id),
+                     key="Retrieve:")
             return results
         except IOError:
             self.log(
-                u'Could not fetch data for id: {}, checking registry'.format(app_id),
-                key=u"Retrieve:"
+                'Could not fetch data for id: {}, checking registry'.format(app_id),
+                key="Retrieve:"
             )
         finally:
             os.chdir(orig_path)
 
         exp_config = exp_config or {}
         if is_registered(app_id):
-            raise RuntimeError(u'The id {} is registered, '.format(app_id) +
-                               u'but you do not have permission to access to the data')
-        elif kwargs.get('mode') == u'debug' or exp_config.get('mode') == u'debug':
-            raise RuntimeError(u'No remote or local data found for id {}'.format(app_id))
+            raise RuntimeError('The id {} is registered, '.format(app_id) +
+                               'but you do not have permission to access to the data')
+        elif kwargs.get('mode') == 'debug' or exp_config.get('mode') == 'debug':
+            raise RuntimeError('No remote or local data found for id {}'.format(app_id))
 
         try:
             assert isinstance(uuid.UUID(app_id, version=4), uuid.UUID)
         except (ValueError, AssertionError):
             raise ValueError('Invalid UUID supplied {}'.format(app_id))
 
-        self.log(u'{} appears to be a new experiment id, running experiment.'.format(app_id),
-                 key=u"Retrieve:")
+        self.log('{} appears to be a new experiment id, running experiment.'.format(app_id),
+                 key="Retrieve:")
         return self.run(exp_config, app_id, bot, **kwargs)
 
     @classmethod
@@ -625,7 +628,7 @@ class Experiment(object):
         if zip_path is None:
             zip_path = find_experiment_export(app_id)
         if zip_path is None:
-            msg = u'Dataset export for app id "{}" could not be found.'
+            msg = 'Dataset export for app id "{}" could not be found.'
             raise IOError(msg.format(app_id))
 
         # Clear the temporary storage and import it

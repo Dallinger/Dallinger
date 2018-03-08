@@ -90,7 +90,7 @@ class AnimalInfo(Info):
             self.contents = contents
         else:
             data = {}
-            for prop, prop_range in self.properties.iteritems():
+            for prop, prop_range in self.properties.items():
                 data[prop] = random.uniform(prop_range[0], prop_range[1])
             self.contents = json.dumps(data)
 
@@ -98,7 +98,7 @@ class AnimalInfo(Info):
         """Perturb the given animal."""
         animal = json.loads(self.contents)
 
-        for prop, prop_range in self.properties.iteritems():
+        for prop, prop_range in self.properties.items():
             range = prop_range[1] - prop_range[0]
             jittered = animal[prop] + random.gauss(0, 0.1 * range)
             animal[prop] = max(min(jittered, prop_range[1]), prop_range[0])

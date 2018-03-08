@@ -29,7 +29,7 @@ class Bartlett1932(Experiment):
         Finally, setup() is called.
         """
         super(Bartlett1932, self).__init__(session)
-        import models
+        from . import models
         self.models = models
         self.experiment_repeats = 1
         self.initial_recruitment_size = 1

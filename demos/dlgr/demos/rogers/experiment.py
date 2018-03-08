@@ -26,7 +26,7 @@ class RogersExperiment(Experiment):
         Finally, setup() is called.
         """
         super(RogersExperiment, self).__init__(session)
-        import models
+        from . import models
         self.models = models
         self.verbose = False
         self.experiment_repeats = 10

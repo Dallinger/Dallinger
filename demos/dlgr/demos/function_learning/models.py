@@ -14,7 +14,7 @@ class AbstractFnSource(Source):
         x_min = 1
         x_max = 100
 
-        x_values = random.sample(xrange(x_min, x_max), 20)
+        x_values = random.sample(range(x_min, x_max), 20)
         y_values = [self._func(x) for x in x_values]
 
         data = {"x": x_values, "y": y_values}
@@ -53,7 +53,7 @@ class SinusoidalFunctionSource(AbstractFnSource, Source):
 class RandomMappingFunctionSource(AbstractFnSource, Source):
     """A source that transmits a random mapping of x to y values."""
 
-    m = random.shuffle(range(1, 100))
+    m = random.shuffle(list(range(1, 100)))
 
     def _func(self, x):
         return self.m[x - 1]
