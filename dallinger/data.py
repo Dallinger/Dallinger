@@ -304,7 +304,7 @@ def ingest_to_model(file, model, engine=None):
     if engine is None:
         engine = db.engine
     reader = csv.reader(file)
-    columns = tuple('\"{}\"'.format(n) for n in reader.next())
+    columns = tuple('\"{}\"'.format(n) for n in next(reader))
     postgres_copy.copy_from(
         file, model, engine, columns=columns, format='csv', HEADER=False
     )

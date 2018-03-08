@@ -26,8 +26,8 @@ def get_base_url():
     else:
         # debug mode
         base_port = config.get('base_port')
-        port_range = range(base_port, base_port + config.get('num_dynos_web', 1))
-        base_url = "http://{}:{}".format(host, random.choice(port_range))
+        port = random.randrange(base_port, base_port + config.get('num_dynos_web', 1))
+        base_url = "http://{}:{}".format(host, port)
 
     return base_url
 

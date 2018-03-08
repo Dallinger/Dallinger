@@ -29,7 +29,7 @@ class MCMCP(Experiment):
         Finally, setup() is called.
         """
         super(MCMCP, self).__init__(session)
-        import models
+        from . import models
         self.models = models
         self.experiment_repeats = 1
         self.trials_per_participant = 10
@@ -80,7 +80,7 @@ extra_routes = Blueprint(
 
 @extra_routes.route("/choice/<int:node_id>/<int:choice>", methods=["POST"])
 def choice(node_id, choice):
-    from models import Agent
+    from .models import Agent
     try:
         exp = MCMCP(db.session)
         node = Agent.query.get(node_id)

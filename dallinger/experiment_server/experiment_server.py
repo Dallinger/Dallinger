@@ -376,7 +376,7 @@ def handle_error():
 
     notif = models.Notification(
         assignment_id=assignment_id or 'unknown',
-        event_type=u'ExperimentError', details=details
+        event_type='ExperimentError', details=details
     )
     session.add(notif)
     session.commit()
@@ -422,14 +422,14 @@ def launch():
         exp = Experiment(db.init_db(drop_all=False))
     except Exception as ex:
         return error_response(
-            error_text=u"Failed to load experiment in /launch: {}".format(ex.message),
+            error_text="Failed to load experiment in /launch: {}".format(ex.message),
             status=500, simple=True
         )
     try:
         exp.log("Launching experiment...", "-----")
     except IOError as ex:
         return error_response(
-            error_text=u"IOError writing to experiment log: {}".format(ex.message),
+            error_text="IOError writing to experiment log: {}".format(ex.message),
             status=500, simple=True
         )
 
@@ -438,8 +438,8 @@ def launch():
         session.commit()
     except Exception as e:
         return error_response(
-            error_text=u"Failed to open recruitment, check experiment server log "
-                       u"for details: {}".format(e.message),
+            error_text="Failed to open recruitment, check experiment server log "
+                       "for details: {}".format(e.message),
             status=500, simple=True
         )
 
@@ -448,8 +448,8 @@ def launch():
             gevent.spawn(task)
         except Exception:
             return error_response(
-                error_text=u"Failed to spawn task on launch: {}, ".format(task) +
-                           u"check experiment server log for details",
+                error_text="Failed to spawn task on launch: {}, ".format(task) +
+                           "check experiment server log for details",
                 status=500, simple=True
             )
 
@@ -459,8 +459,8 @@ def launch():
             gevent.spawn(task)
         except Exception:
             return error_response(
-                error_text=u"Failed to launch replay task for experiment."
-                           u"check experiment server log for details",
+                error_text="Failed to launch replay task for experiment."
+                           "check experiment server log for details",
                 status=500, simple=True
             )
 
@@ -472,9 +472,9 @@ def launch():
             chat_backend.subscribe(exp, exp.channel)
         except Exception:
             return error_response(
-                error_text=u"Failed to subscribe to chat for channel on launch " +
-                           u"{}".format(exp.channel) +
-                           u", check experiment server log for details",
+                error_text="Failed to subscribe to chat for channel on launch " +
+                           "{}".format(exp.channel) +
+                           ", check experiment server log for details",
                 status=500, simple=True
             )
 
@@ -1582,7 +1582,7 @@ def worker_complete():
     if not participant_id:
         return error_response(
             error_type="bad request",
-            error_text=u'participantId parameter is required'
+            error_text='participantId parameter is required'
         )
 
     try:
@@ -1625,7 +1625,7 @@ def worker_failed():
     if not participant_id:
         return error_response(
             error_type="bad request",
-            error_text=u'participantId parameter is required'
+            error_text='participantId parameter is required'
         )
 
     try:

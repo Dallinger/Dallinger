@@ -3,6 +3,7 @@ import hmac
 import mock
 import os
 import pytest
+import six
 import socket
 import time
 from botocore.exceptions import ClientError
@@ -92,7 +93,7 @@ def fake_balance_response():
 
 def fake_hit_type_response():
     return {
-        u'HITTypeId': unicode(generate_random_id(size=32)),
+        u'HITTypeId': six.text_type(generate_random_id(size=32)),
         'ResponseMetadata': response_metadata()['ResponseMetadata']
     }
 
@@ -158,7 +159,7 @@ def fake_worker_qualification_response():
         u'Qualification': {
             u'GrantTime': datetime.datetime(2018, 1, 1),
             u'IntegerValue': 2,
-            u'QualificationTypeId': unicode(generate_random_id(size=32)),
+            u'QualificationTypeId': six.text_type(generate_random_id(size=32)),
             u'Status': u'Granted',
             u'WorkerId': u'FAKE_WORKER_ID'
         },
@@ -411,7 +412,7 @@ class TestMTurkService(object):
         }
         hit_type_id = mturk.register_hit_type(**config)
 
-        assert isinstance(hit_type_id, unicode)
+        assert isinstance(hit_type_id, six.text_type)
 
     def test_register_notification_url(self, mturk):
         config = {
@@ -492,7 +493,7 @@ class TestMTurkService(object):
             status='Active',
         )
 
-        assert isinstance(result['id'], unicode)
+        assert isinstance(result['id'], six.text_type)
         assert result['status'] == u'Active'
         assert with_cleanup.dispose_qualification_type(result['id'])
 

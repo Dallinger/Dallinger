@@ -44,8 +44,10 @@ class Chain(Network):
         other_nodes = [n for n in self.nodes() if n.id != node.id]
 
         if isinstance(node, Source) and other_nodes:
-            raise(Exception("Chain network already has a nodes, "
-                            "can't add a source."))
+            raise Exception(
+                "Chain network already has a nodes, "
+                "can't add a source."
+            )
 
         if other_nodes:
             parent = max(other_nodes, key=attrgetter('creation_time'))
@@ -243,7 +245,7 @@ class ScaleFree(Network):
 
         # ...then add newcomers one by one with preferential attachment.
         else:
-            for idx_newvector in xrange(self.m):
+            for idx_newvector in range(self.m):
 
                 these_nodes = [
                     n for n in nodes if (

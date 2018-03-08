@@ -136,7 +136,7 @@ def check_db_for_missing_notifications():
         aws_access_key_id=config.get('aws_access_key_id'),
         aws_secret_access_key=config.get('aws_secret_access_key'),
         region_name=config.get('aws_region'),
-        sandbox=config.get('mode') in (u'debug', u'sandbox')
+        sandbox=config.get('mode') in ('debug', 'sandbox')
     )
     # get all participants with status < 100
     participants = Participant.query.filter_by(status="working").all()
