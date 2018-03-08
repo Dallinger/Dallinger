@@ -1,19 +1,17 @@
 """Miscellaneous tools for Heroku."""
 
+from __future__ import unicode_literals
+
+from six.moves import shlex_quote as quote
 import signal
 import os
 import psutil
 import re
+import six
 import sys
-try:
-    from pipes import quote
-except ImportError:
-    # Python >= 3.3
-    from shlex import quote
 import subprocess
 import traceback
 
-from dallinger.compat import unicode
 from dallinger.config import SENSITIVE_KEY_NAMES
 from dallinger.utils import check_call, check_output
 
@@ -57,11 +55,11 @@ class HerokuApp(object):
 
     @property
     def name(self):
-        return u"dlgr-" + self.dallinger_uid[0:8]
+        return "dlgr-" + self.dallinger_uid[0:8]
 
     @property
     def url(self):
-        return u"https://{}.herokuapp.com".format(self.name)
+        return "https://{}.herokuapp.com".format(self.name)
 
     def addon(self, name):
         """Set up an addon"""
@@ -90,7 +88,7 @@ class HerokuApp(object):
 
     @property
     def dashboard_url(self):
-        return u"https://dashboard.heroku.com/apps/{}".format(self.name)
+        return "https://dashboard.heroku.com/apps/{}".format(self.name)
 
     @property
     def db_uri(self):
@@ -232,7 +230,7 @@ def app_name(id):
 
 def auth_token():
     """A Heroku authenication token."""
-    return unicode(check_output(["heroku", "auth:token"]).rstrip())
+    return six.text_type(check_output(["heroku", "auth:token"]).rstrip())
 
 
 def log_in():
