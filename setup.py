@@ -33,6 +33,8 @@ setup_args = dict(
         'data': [
             "networkx==1.11",
             "odo==0.5.0",
+            "openpyxl==2.4.11",  # 2.5 is incompatible with tablib
+            "tablib==0.11.3",
         ],
         'jupyter': [
             "jupyter",

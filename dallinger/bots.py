@@ -2,16 +2,12 @@
 
 import logging
 from cached_property import cached_property
-try:
-    from urllib.parse import urlparse, parse_qs
-except ImportError:
-    from urlparse import urlparse, parse_qs
-
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from six.moves.urllib.urlparse import urlparse, parse_qs
 
 logger = logging.getLogger(__file__)
 
