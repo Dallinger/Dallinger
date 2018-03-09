@@ -1627,6 +1627,11 @@ def worker_function(event_type, assignment_id, participant_id, node_id=None, det
         session.commit()
         return
 
+    runner_cls = WorkerEvent.for_name(event_type)
+    if not runner_cls:
+        exp.log("Event type {} is not supported... ignoring.".format(event_type))
+        return
+
     if assignment_id is not None:
         # save the notification to the notification table
         notif = models.Notification(
@@ -1661,12 +1666,10 @@ def worker_function(event_type, assignment_id, participant_id, node_id=None, det
 
     participant_id = participant.id
 
-    runner_cls = WorkerEvent.for_name(event_type)
-    if runner_cls:
-        runner = runner_cls(
-            participant, assignment_id, exp, session, _config(), datetime.now()
-        )
-        runner()
+    runner = runner_cls(
+        participant, assignment_id, exp, session, _config(), datetime.now()
+    )
+    runner()
     session.commit()
 
 

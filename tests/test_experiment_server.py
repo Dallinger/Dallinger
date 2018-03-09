@@ -1141,6 +1141,14 @@ class TestWorkerFunctionIntegration(object):
     def test_all_invalid_values(self, worker_func):
         worker_func('foo', 'bar', 'baz')
 
+    def test_ignores_unsupported_event_types(self, worker_func):
+        mock_exp = mock.Mock()
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_Exp:
+            mock_Exp.return_value = mock_exp
+            worker_func(event_type='IgnoreMe', assignment_id=None, participant_id=None)
+        log_calls = mock_exp.log.call_args_list
+        assert mock.call('Event type IgnoreMe is not supported... ignoring.') in log_calls
+
     def test_uses_assignment_id(self, a, worker_func):
         participant = a.participant()
 
