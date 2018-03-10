@@ -86,7 +86,7 @@ class MTurkService(object):
             raise MTurkServiceException("Invalid AWS credentials!")
         except Exception as ex:
             raise MTurkServiceException(
-                "Error checking credentials: {}".format(ex.message)
+                "Error checking credentials: {}".format(str(ex))
             )
 
     def set_rest_notification(self, url, hit_type_id):
@@ -208,8 +208,8 @@ class MTurkService(object):
                 QualificationTypeStatus=status
             )
         except Exception as ex:
-            if 'already created a QualificationType with this name' in ex.message:
-                raise DuplicateQualificationNameError(ex.message)
+            if 'already created a QualificationType with this name' in str(ex):
+                raise DuplicateQualificationNameError(str(ex))
 
         return self._translate_qtype(response['QualificationType'])
 
@@ -292,7 +292,7 @@ class MTurkService(object):
                 WorkerId=worker_id
             )
         except ClientError as ex:
-            raise MTurkServiceException(ex.message)
+            raise MTurkServiceException(str(ex))
         return response['Qualification']['IntegerValue']
 
     def get_current_qualification_score(self, name, worker_id):
@@ -308,7 +308,7 @@ class MTurkService(object):
             score = self.get_qualification_score(qtype['id'], worker_id)
         except MTurkServiceException as ex:
             # Worker lacks qualification:
-            if 'You requested a Qualification that does not exist' in ex.message:
+            if 'You requested a Qualification that does not exist' in str(ex):
                 score = None
             else:
                 raise
@@ -395,7 +395,7 @@ class MTurkService(object):
         except Exception as ex:
             raise MTurkServiceException(
                 "Error: failed to add {} assignments to HIT: {}".format(
-                    number, ex.message
+                    number, str(ex)
                 )
             )
         return self._is_ok(response)
@@ -411,7 +411,7 @@ class MTurkService(object):
         except Exception as ex:
             raise MTurkServiceException(
                 "Failed to extend time until expiration of HIT: {}".format(
-                    expiration, ex.message
+                    expiration, str(ex)
                 )
             )
         return self._is_ok(response)
@@ -428,7 +428,7 @@ class MTurkService(object):
             self.mturk.update_expiration_for_hit(HITId=hit_id, ExpireAt=0)
         except Exception as ex:
             raise MTurkServiceException(
-                "Failed to expire HIT {}: {}".format(hit_id, ex.message))
+                "Failed to expire HIT {}: {}".format(hit_id, str(ex)))
         return True
 
     def get_hit(self, hit_id):
@@ -477,7 +477,7 @@ class MTurkService(object):
             error = "Failed to pay assignment {} bonus of {}: {}".format(
                 assignment_id,
                 amount,
-                ex.message
+                str(ex)
             )
             raise MTurkServiceException(error)
 
@@ -487,7 +487,7 @@ class MTurkService(object):
         try:
             response = self.mturk.get_assignment(AssignmentId=assignment_id)
         except ClientError as ex:
-            if 'does not exist' in ex.message:
+            if 'does not exist' in str(ex):
                 return None
             raise
         return self._translate_assignment(response['Assignment'])
@@ -506,7 +506,7 @@ class MTurkService(object):
         except ClientError as ex:
             raise MTurkServiceException(
                 "Failed to approve assignment {}: {}".format(
-                    assignment_id, ex.message)
+                    assignment_id, str(ex))
             )
 
     def _calc_old_api_signature(self, params, *args):

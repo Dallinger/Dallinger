@@ -292,7 +292,7 @@ class TestEmailingHITMessager(object):
         whimsical.server.sendmail.assert_called()
         whimsical.server.quit.assert_called()
         assert data['subject'] == 'A matter of minor concern.'
-        assert 'a full 1.0 minutes over' in data['message']
+        assert 'a full 1 minutes over' in data['message']
 
     def test_send_resubmitted_msg_nonwhimsical(self, nonwhimsical):
         data = nonwhimsical.send_resubmitted_msg()
@@ -302,7 +302,7 @@ class TestEmailingHITMessager(object):
         nonwhimsical.server.sendmail.assert_called()
         nonwhimsical.server.quit.assert_called()
         assert data['subject'] == 'Dallinger automated email - minor error.'
-        assert 'Allowed time: 1.0' in data['message']
+        assert 'Allowed time: 1' in data['message']
 
     def test_send_hit_cancelled_msg_whimsical(self, whimsical):
         data = whimsical.send_hit_cancelled_msg()
@@ -312,7 +312,7 @@ class TestEmailingHITMessager(object):
         whimsical.server.sendmail.assert_called()
         whimsical.server.quit.assert_called()
         assert data['subject'] == 'Most troubling news.'
-        assert 'a full 1.0 minutes over' in data['message']
+        assert 'a full 1 minutes over' in data['message']
 
     def test_send_hit_cancelled_msg_nonwhimsical(self, nonwhimsical):
         data = nonwhimsical.send_hit_cancelled_msg()
@@ -322,7 +322,7 @@ class TestEmailingHITMessager(object):
         nonwhimsical.server.sendmail.assert_called()
         nonwhimsical.server.quit.assert_called()
         assert data['subject'] == 'Dallinger automated email - major error.'
-        assert 'Allowed time: 1.0' in data['message']
+        assert 'Allowed time: 1' in data['message']
 
     def test_send_idle_experiment(self, nonwhimsical):
         data = nonwhimsical.send_idle_experiment()
@@ -346,11 +346,11 @@ class TestHerokuUtilFunctions(object):
         return tools
 
     def test_auth_token(self, heroku, check_output):
-        check_output.return_value = 'some response '
+        check_output.return_value = b'some response '
         assert heroku.auth_token() == u'some response'
 
     def test_log_in_ok(self, heroku, check_output):
-        check_output.return_value = 'all good'
+        check_output.return_value = b'all good'
         heroku.log_in()
 
     def test_log_in_fails(self, heroku, check_output):
@@ -448,29 +448,29 @@ class TestHerokuApp(object):
         )
 
     def test_clock_is_on_returns_true_if_clock_1(self, app, check_output):
-        check_output.return_value = 'clock=1:Standard-2X console=0:Standard-1X'
+        check_output.return_value = b'clock=1:Standard-2X console=0:Standard-1X'
         assert app.clock_is_on is True
 
     def test_clock_is_on_returns_false_if_clock_0(self, app, check_output):
-        check_output.return_value = 'clock=0:Standard-2X console=0:Standard-1X'
+        check_output.return_value = b'clock=0:Standard-2X console=0:Standard-1X'
         assert app.clock_is_on is False
 
     def test_clock_is_on_returns_false_if_no_clock(self, app, check_output):
-        check_output.return_value = 'console=0:Standard-1X web=1:Standard-2X'
+        check_output.return_value = b'console=0:Standard-1X web=1:Standard-2X'
         assert app.clock_is_on is False
 
     def test_db_uri(self, app, check_output):
-        check_output.return_value = 'blahblahpostgres://foobar'
+        check_output.return_value = b'blahblahpostgres://foobar'
         assert app.db_uri == u'postgres://foobar'
 
     def test_db_uri_raises_if_no_match(self, app, check_output):
-        check_output.return_value = '└─ as DATABASE on ⬢ dlgr-da089b8f app'
+        check_output.return_value = u'└─ as DATABASE on ⬢ dlgr-da089b8f app'.encode('utf8')
         with pytest.raises(NameError) as excinfo:
             app.db_uri
             assert excinfo.match("Could not retrieve the DB URI")
 
     def test_db_url(self, app, check_output, check_call):
-        check_output.return_value = 'some url    '
+        check_output.return_value = b'some url    '
         assert app.db_url == u'some url'
         check_call.assert_called_once_with(
             ["heroku", "pg:wait", "--app", app.name],
@@ -492,14 +492,14 @@ class TestHerokuApp(object):
         )
 
     def test_destroy(self, app, check_output):
-        check_output.return_value = 'some response message'
+        check_output.return_value = b'some response message'
         assert app.destroy() == 'some response message'
         check_output.assert_called_once_with(
             ["heroku", "apps:destroy", "--app", app.name, "--confirm", app.name],
         )
 
     def test_get(self, app, check_output):
-        check_output.return_value = 'some value'
+        check_output.return_value = b'some value'
         assert app.get('some key') == u'some value'
         check_output.assert_called_once_with(
             ["heroku", "config:get", "some key", "--app", app.name],
@@ -527,7 +527,7 @@ class TestHerokuApp(object):
         )
 
     def test_redis_url(self, app, check_output):
-        check_output.return_value = 'some url'
+        check_output.return_value = b'some url'
         assert app.redis_url == u'some url'
         check_output.assert_called_once_with(
             ["heroku", "config:get", "REDIS_URL", "--app", app.name],
@@ -576,7 +576,7 @@ class TestHerokuApp(object):
         )
 
     def test_scale_down_dynos_with_clock_off(self, app, check_call, check_output):
-        check_output.return_value = '[string indicating no clock process]'
+        check_output.return_value = b'[string indicating no clock process]'
         app.scale_down_dynos()
         check_call.assert_has_calls([
             mock.call(['heroku', 'ps:scale', 'web=0', '--app', u'dlgr-fake-uid'], stdout=None),
@@ -584,7 +584,7 @@ class TestHerokuApp(object):
         ])
 
     def test_scale_down_dynos_with_clock_on(self, app, check_call, check_output):
-        check_output.return_value = 'clock=1 <= indicates clock is on'
+        check_output.return_value = b'clock=1 <= indicates clock is on'
         app.scale_down_dynos()
         check_call.assert_has_calls([
             mock.call(['heroku', 'ps:scale', 'web=0', '--app', u'dlgr-fake-uid'], stdout=None),
@@ -687,16 +687,16 @@ class TestHerokuLocalWrapper(object):
     def test_quits_on_gunicorn_startup_error(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
         heroku.verbose = False  # more coverage
-        heroku._stream = mock.Mock(return_value=['[DONE] Killing all processes'])
+        heroku._stream = mock.Mock(return_value=[b'[DONE] Killing all processes'])
         with pytest.raises(HerokuStartupError):
             heroku.start()
 
     def test_start_fails_if_stream_ends_without_matching_success_regex(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
         heroku._stream = mock.Mock(
-            return_value=['apple', 'orange', heroku.STREAM_SENTINEL]
+            return_value=[b'apple', b'orange', heroku.STREAM_SENTINEL]
         )
-        heroku.success_regex = 'not going to match anything'
+        heroku.success_regex = b'not going to match anything'
         with pytest.raises(HerokuStartupError):
             heroku.start()
         assert not heroku.is_running
@@ -729,21 +729,21 @@ class TestHerokuLocalWrapper(object):
         heroku.out.log.assert_called_with("Local Heroku is already running.")
 
     def test_monitor(self, heroku):
-        heroku._stream = mock.Mock(return_value=['apple', 'orange'])
+        heroku._stream = mock.Mock(return_value=[b'apple', b'orange'])
         listener = mock.Mock()
         heroku.monitor(listener)
         listener.assert_has_calls([
-            mock.call('apple'),
-            mock.call('orange'),
+            mock.call(b'apple'),
+            mock.call(b'orange'),
         ])
 
     def test_monitor_stops_iterating_when_told(self, heroku):
-        heroku._stream = mock.Mock(return_value=['apple', 'orange'])
+        heroku._stream = mock.Mock(return_value=[b'apple', b'orange'])
         listener = mock.Mock()
         listener.return_value = heroku.MONITOR_STOP
         heroku.monitor(listener)
         listener.assert_has_calls([
-            mock.call('apple'),
+            mock.call(b'apple'),
         ])
 
     def test_as_context_manager(self, config, env, output, clear_workers):

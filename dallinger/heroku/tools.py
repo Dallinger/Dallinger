@@ -230,7 +230,7 @@ def app_name(id):
 
 def auth_token():
     """A Heroku authenication token."""
-    return six.text_type(check_output(["heroku", "auth:token"]).rstrip())
+    return check_output(["heroku", "auth:token"]).rstrip().decode('utf8')
 
 
 def log_in():
@@ -267,11 +267,11 @@ class HerokuLocalWrapper(object):
     """
 
     shell_command = 'heroku'
-    success_regex = '^.*? \d+ workers$'
+    success_regex = b'^.*? \d+ workers$'
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
     MONITOR_STOP = object()
-    STREAM_SENTINEL = ' '
+    STREAM_SENTINEL = b' '
 
     def __init__(self, config, output, verbose=True, env=None):
         self.config = config
@@ -403,13 +403,13 @@ class HerokuLocalWrapper(object):
         return re.match(self.success_regex, line)
 
     def _redis_not_running(self, line):
-        return re.match('^.*? worker.1 .*? Connection refused.$', line)
+        return re.match(b'^.*? worker.1 .*? Connection refused.$', line)
 
     def _worker_error(self, line):
-        return re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line)
+        return re.match(b'^.*? web.1 .*? \[ERROR\] (.*?)$', line)
 
     def _startup_error(self, line):
-        return re.match('\[DONE\] Killing all processes', line)
+        return re.match(b'\[DONE\] Killing all processes', line)
 
     def __enter__(self):
         self.start()
