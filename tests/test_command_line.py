@@ -53,9 +53,10 @@ def sleepless():
 
 @pytest.fixture
 def browser():
-    with mock.patch('dallinger.command_line.webbrowser') as mock_browser:
-        mock_browser._iscommand.return_value = False
-        yield mock_browser
+    with mock.patch('dallinger.command_line.is_command') as mock_is_command:
+        mock_is_command.return_value = False
+        with mock.patch('dallinger.command_line.webbrowser') as mock_browser:
+            yield mock_browser
 
 
 @pytest.fixture
@@ -83,8 +84,8 @@ class TestIsolatedWebbrowser(object):
 
     def test_chrome_isolation(self):
         import webbrowser
-        with mock.patch('dallinger.command_line.webbrowser._iscommand') as _iscommand:
-            _iscommand.side_effect = lambda s: s == 'google-chrome'
+        with mock.patch('dallinger.command_line.is_command') as is_command:
+            is_command.side_effect = lambda s: s == 'google-chrome'
             isolated = new_webbrowser_profile()
         assert isinstance(isolated, webbrowser.Chrome)
         assert isolated.remote_args[:2] == [r'%action', r'%s']
@@ -94,8 +95,8 @@ class TestIsolatedWebbrowser(object):
 
     def test_firefox_isolation(self):
         import webbrowser
-        with mock.patch('dallinger.command_line.webbrowser._iscommand') as _iscommand:
-            _iscommand.side_effect = lambda s: s == 'firefox'
+        with mock.patch('dallinger.command_line.is_command') as is_command:
+            is_command.side_effect = lambda s: s == 'firefox'
             isolated = new_webbrowser_profile()
         assert isinstance(isolated, webbrowser.Mozilla)
         assert isolated.remote_args[0] == '-profile'
@@ -104,8 +105,8 @@ class TestIsolatedWebbrowser(object):
 
     def test_fallback_isolation(self):
         import webbrowser
-        with mock.patch('dallinger.command_line.webbrowser._iscommand') as _iscommand:
-            _iscommand.return_value = False
+        with mock.patch('dallinger.command_line.is_command') as is_command:
+            is_command.return_value = False
             isolated = new_webbrowser_profile()
         assert isolated == webbrowser
 
@@ -121,7 +122,7 @@ class TestCommandLine(object):
 
     def test_dallinger_no_args(self):
         output = subprocess.check_output(["dallinger"])
-        assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
+        assert(b"Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
 
     def test_log_empty(self):
         id = "dlgr-3b9c2aeb"
@@ -147,11 +148,11 @@ class TestCommandLine(object):
 
     def test_new_uuid(self):
         output = subprocess.check_output(["dallinger", "uuid"])
-        assert isinstance(UUID(output.strip(), version=4), UUID)
+        assert isinstance(UUID(output.strip().decode('utf8'), version=4), UUID)
 
     def test_dallinger_help(self):
         output = subprocess.check_output(["dallinger", "--help"])
-        assert("Commands:" in output)
+        assert(b"Commands:" in output)
 
     def test_setup(self):
         subprocess.check_call(["dallinger", "setup"])
@@ -292,7 +293,7 @@ class TestGitClient(object):
         git.init(config=config)
         git.add("--all")
         git.commit("Test Repo")
-        assert "Test Repo" in subprocess.check_output(['git', 'log'])
+        assert b"Test Repo" in subprocess.check_output(['git', 'log'])
 
     def test_includes_details_in_exceptions(self, git):
         with pytest.raises(Exception) as ex_info:
@@ -302,9 +303,10 @@ class TestGitClient(object):
     def test_can_use_alternate_output(self, git):
         import tempfile
         git.out = tempfile.NamedTemporaryFile()
+        git.encoding = 'utf8'
         git.init()
         git.out.seek(0)
-        assert "git init" in git.out.read()
+        assert b"git init" in git.out.read()
 
 
 @pytest.fixture
@@ -719,7 +721,7 @@ class TestSandboxAndDeploy(object):
         )
         dsss.assert_not_called()
         assert result.exit_code == -1
-        assert 'The --app flag requires the full UUID' in result.exception.message
+        assert 'The --app flag requires the full UUID' in str(result.exception)
 
     def test_deploy_with_app_id(self, deploy, dsss):
         CliRunner().invoke(
@@ -1122,4 +1124,4 @@ class TestMonitor(object):
             monitor,
             ['--app', None, ]
         )
-        assert result.exception.message == 'Select an experiment using the --app flag.'
+        assert str(result.exception) == 'Select an experiment using the --app flag.'

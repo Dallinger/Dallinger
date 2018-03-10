@@ -136,7 +136,7 @@ class TestConfiguration(object):
         config.register('num_participants', int, synonyms={'n', })
         config.register('deploy_worldwide', bool, synonyms={'worldwide', })
         with NamedTemporaryFile() as configfile:
-            configfile.write("""
+            configfile.write(b"""
 [Example Section]
 num_participants = 10
 worldwide = false
@@ -165,7 +165,7 @@ worldwide = false
             python.setecho(False)
             python.sendline('from dallinger.experiment_server import experiment_server')
             python.sendline('config = experiment_server._config()')
-            python.sendline('print config.types')
+            python.sendline('print(config.types)')
             python.expect_exact("custom_parameter': <type 'int'>")
         finally:
             python.sendcontrol('d')

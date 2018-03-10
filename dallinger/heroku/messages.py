@@ -153,9 +153,9 @@ class EmailingHITMessager(object):
                  server=None, app_id=None):
         self.when = when
         self.assignment_id = assignment_id
-        self.duration = round(hit_duration / 60)
-        self.minutes_so_far = round(time_active / 60)
-        self.minutes_excess = round((time_active - hit_duration) / 60)
+        self.duration = int(round(hit_duration / 60))
+        self.minutes_so_far = int(round(time_active / 60))
+        self.minutes_excess = int(round((time_active - hit_duration) / 60))
         self.whimsical = config.get("whimsical")
         self.username = config.get('dallinger_email_username')
         self.fromaddr = self.username + "@gmail.com"
@@ -239,9 +239,9 @@ class NullHITMessager(EmailingHITMessager):
     def __init__(self, when, assignment_id, hit_duration, time_active, config):
         self.when = when,
         self.assignment_id = assignment_id,
-        self.duration = round(hit_duration / 60),
-        self.minutes_so_far = round(time_active / 60),
-        self.minutes_excess = round((time_active - hit_duration) / 60)
+        self.duration = int(round(hit_duration / 60)),
+        self.minutes_so_far = int(round(time_active / 60)),
+        self.minutes_excess = int(round((time_active - hit_duration) / 60))
         self.whimsical = config.get("whimsical")
 
     def _send(self, data):

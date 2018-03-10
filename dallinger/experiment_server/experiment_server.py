@@ -393,14 +393,14 @@ def launch():
         exp = Experiment(db.init_db(drop_all=False))
     except Exception as ex:
         return error_response(
-            error_text="Failed to load experiment in /launch: {}".format(ex.message),
+            error_text="Failed to load experiment in /launch: {}".format(str(ex)),
             status=500, simple=True
         )
     try:
         exp.log("Launching experiment...", "-----")
     except IOError as ex:
         return error_response(
-            error_text="IOError writing to experiment log: {}".format(ex.message),
+            error_text="IOError writing to experiment log: {}".format(str(ex)),
             status=500, simple=True
         )
 
@@ -410,7 +410,7 @@ def launch():
     except Exception as e:
         return error_response(
             error_text="Failed to open recruitment, check experiment server log "
-                       "for details: {}".format(e.message),
+                       "for details: {}".format(str(e)),
             status=500, simple=True
         )
 
@@ -929,7 +929,7 @@ def node_neighbors(node_id):
         try:
             node.neighbors(type=node_type, direction=connection, failed=failed)
         except Exception as e:
-            return error_response(error_type='node.neighbors', error_text=e.message)
+            return error_response(error_type='node.neighbors', error_text=str(e))
 
     else:
         nodes = node.neighbors(type=node_type, direction=connection)
