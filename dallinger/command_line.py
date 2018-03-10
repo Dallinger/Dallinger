@@ -33,6 +33,7 @@ from rq import (
     Connection,
 )
 
+from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger import data
 from dallinger import db
@@ -88,7 +89,7 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
 
 
 def new_webbrowser_profile():
-    if webbrowser._iscommand('google-chrome'):
+    if is_command('google-chrome'):
         new_chrome = webbrowser.Chrome()
         new_chrome.name = 'google-chrome'
         profile_directory = tempfile.mkdtemp()
@@ -96,7 +97,7 @@ def new_webbrowser_profile():
             '--user-data-dir="{}"'.format(profile_directory)
         ]
         return new_chrome
-    elif webbrowser._iscommand('firefox'):
+    elif is_command('firefox'):
         new_firefox = webbrowser.Mozilla()
         new_firefox.name = 'firefox'
         profile_directory = tempfile.mkdtemp()

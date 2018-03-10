@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import functools
 import io
 import os
@@ -84,6 +82,7 @@ class GitClient(object):
     """Minimal wrapper, mostly for mocking"""
 
     def __init__(self, output=None):
+        self.encoding = None
         if output is None:
             self.out = sys.stdout
         else:
@@ -116,13 +115,13 @@ class GitClient(object):
         try:
             run_command(cmd, self.out)
         except CommandError as e:
-            raise GitError(e.message)
+            raise GitError(str(e))
 
     def _log(self, cmd):
-        print(
-            '{}: "{}"'.format(self.__class__.__name__, ' '.join(cmd)),
-            file=self.out
-        )
+        msg = '{}: "{}"'.format(self.__class__.__name__, ' '.join(cmd))
+        if self.encoding:
+            msg = msg.encode(self.encoding)
+        self.out.write(msg)
 
 
 def wrap_subprocess_call(func, wrap_stdout=True):

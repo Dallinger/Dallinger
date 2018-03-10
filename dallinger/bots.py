@@ -11,7 +11,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from six.moves.urllib.urlparse import urlparse, parse_qs
+from six.moves import urllib
 import gevent
 import requests
 
@@ -29,8 +29,8 @@ class BotBase(object):
         logger.info("Creating bot with URL: %s." % URL)
         self.URL = URL
 
-        parts = urlparse(URL)
-        query = parse_qs(parts.query)
+        parts = urllib.parse.urlparse(URL)
+        query = urllib.parse.parse_qs(parts.query)
         if not assignment_id:
             assignment_id = query.get('assignment_id', [''])[0]
         if not participant_id:
@@ -141,7 +141,7 @@ class BotBase(object):
 
     def complete_experiment(self, status):
         url = self.driver.current_url
-        p = urlparse(url)
+        p = urllib.parse.urlparse(url)
         complete_url = '%s://%s/%s?participant_id=%s'
         complete_url = complete_url % (p.scheme,
                                        p.netloc,
@@ -176,8 +176,8 @@ class HighPerformanceBotBase(BotBase):
 
     @property
     def host(self):
-        parsed = urlparse(self.URL)
-        return urlunparse([parsed.scheme, parsed.netloc, '', '', '', ''])
+        parsed = urllib.parse.urlparse(self.URL)
+        return urllib.parse.urlunparse([parsed.scheme, parsed.netloc, '', '', '', ''])
 
     def run_experiment(self):
         self.sign_up()

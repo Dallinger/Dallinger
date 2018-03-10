@@ -30,7 +30,7 @@ def system_marker():
     # To prevent tests run on different systems trampling on each other,
     # we mark data created in the MTurk sandbox with a value specific to
     # each system.
-    identifier = ':'.join(os.uname()).replace(' ', '')
+    identifier = u':'.join(os.uname()).replace(u' ', u'').encode('utf8')
     return hmac.new(identifier, digestmod=sha1).hexdigest()
 
 
@@ -861,6 +861,7 @@ class TestMTurkServiceWithFakeConnection(object):
     def test_extend_hit(self, with_mock):
         with_mock.mturk.configure_mock(**{
             'create_additional_assignments_for_hit.return_value': {},
+            'update_expiration_for_hit.return_value': {},
             'get_hit.return_value': fake_hit_response(),
         })
 

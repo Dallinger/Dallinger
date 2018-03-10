@@ -4,9 +4,11 @@ from .config import get_config
 
 import csv
 import errno
+import io
 import logging
 import os
 import shutil
+import six
 import subprocess
 import tempfile
 import warnings
@@ -186,7 +188,7 @@ def copy_local_to_csv(local_db, path, scrub_pii=False):
 def _scrub_participant_table(path_to_data):
     """Scrub PII from the given participant table."""
     path = os.path.join(path_to_data, "participant.csv")
-    with open(path, 'rb') as input, open("{}.0".format(path), 'wb') as output:
+    with open(path, 'r', newline='') as input, open("{}.0".format(path), 'w') as output:
         reader = csv.reader(input)
         writer = csv.writer(output)
         headers = next(reader)
@@ -285,6 +287,8 @@ def ingest_zip(path, engine=None):
             model_name = name.capitalize()
             model = getattr(models, model_name)
             file = archive.open(filename)
+            if six.PY3:
+                file = io.TextIOWrapper(file, encoding='utf8', newline='')
             ingest_to_model(file, model, engine)
 
 
@@ -356,7 +360,7 @@ def user_s3_bucket(canonical_user_id=None):
         canonical_user_id = _get_canonical_aws_user_id(s3)
 
     s3_bucket_name = "dallinger-{}".format(
-        hashlib.sha256(canonical_user_id).hexdigest()[0:8])
+        hashlib.sha256(canonical_user_id.encode('utf8')).hexdigest()[0:8])
 
     return _get_or_create_s3_bucket(s3, s3_bucket_name)
 
