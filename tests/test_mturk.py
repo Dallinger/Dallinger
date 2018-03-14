@@ -1091,6 +1091,7 @@ class TestMTurkServiceWithFakeConnection(object):
         fake_score = {'qtype': {'id': 'qtype_id'}, 'score': 2}
         with_mock.get_current_qualification_score = mock.Mock(
             return_value=fake_score)
+        with_mock.mturk.associate_qualification_with_worker.return_value = {}
 
         result = with_mock.increment_qualification_score('some qual', worker_id)
 
@@ -1107,6 +1108,7 @@ class TestMTurkServiceWithFakeConnection(object):
         fake_score = {'qtype': {'id': 'qtype_id'}, 'score': None}
         with_mock.get_current_qualification_score = mock.Mock(
             return_value=fake_score)
+        with_mock.mturk.associate_qualification_with_worker.return_value = {}
 
         result = with_mock.increment_qualification_score('some qual', worker_id)
 
@@ -1129,6 +1131,7 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.disassociate_qualification_from_worker = mock.Mock(
             return_value=response_metadata()
         )
+        with_mock.mturk.disassociate_qualification_from_worker.return_value = {}
 
         with_mock.revoke_qualification('some qtype id', 'some worker id', 'some reason')
 

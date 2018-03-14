@@ -585,7 +585,7 @@ class Network(Base, SharedMixin):
 
     def calculate_full(self):
         """Set whether the network is full."""
-        self.full = len(self.nodes()) >= self.max_size
+        self.full = len(self.nodes()) >= (self.max_size or 0)
 
     def print_verbose(self):
         """Print a verbose representation of a network."""

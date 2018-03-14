@@ -1188,7 +1188,7 @@ class TestTransformationPost(object):
 class TestLaunchRoute(object):
 
     def test_launch(self, webapp):
-        resp = webapp.post('/launch', {})
+        resp = webapp.post('/launch', data={})
         data = json.loads(resp.get_data())
         assert 'recruitment_msg' in data
 
@@ -1197,7 +1197,7 @@ class TestLaunchRoute(object):
             bad_log = mock.Mock(side_effect=IOError)
             mock_exp = mock.Mock(log=bad_log)
             mock_class.return_value = mock_exp
-            resp = webapp.post('/launch', {})
+            resp = webapp.post('/launch', data={})
 
         assert resp.status_code == 500
         data = json.loads(resp.get_data())

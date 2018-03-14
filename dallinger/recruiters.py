@@ -322,7 +322,7 @@ class MTurkRecruiter(Recruiter):
                 duration_hours=self.config.get('duration')
             )
         except MTurkServiceException as ex:
-            logger.exception(ex.message)
+            logger.exception(str(ex))
 
     def notify_recruited(self, participant):
         pass
@@ -366,7 +366,7 @@ class MTurkRecruiter(Recruiter):
         try:
             return self.mturkservice.grant_bonus(assignment_id, amount, reason)
         except MTurkServiceException as ex:
-            logger.exception(ex.message)
+            logger.exception(str(ex))
 
     @property
     def is_in_progress(self):
@@ -383,7 +383,7 @@ class MTurkRecruiter(Recruiter):
         try:
             return self.mturkservice.approve_assignment(assignment_id)
         except MTurkServiceException as ex:
-            logger.exception(ex.message)
+            logger.exception(str(ex))
 
     def close_recruitment(self):
         """Clean up once the experiment is complete.
@@ -401,7 +401,7 @@ class MTurkRecruiter(Recruiter):
             #    self.current_hit_id(),
             # )
         except MTurkServiceException as ex:
-            logger.exception(ex.message)
+            logger.exception(str(ex))
 
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
