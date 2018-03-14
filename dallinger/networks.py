@@ -148,9 +148,9 @@ class DiscreteGenerational(Network):
         self.property2 = repr(generation_size)
         self.property3 = repr(initial_source)
         if self.initial_source:
-            self.max_size = repr(generations * generation_size + 1)
+            self.max_size = generations * generation_size + 1
         else:
-            self.max_size = repr(generations * generation_size)
+            self.max_size = generations * generation_size
 
     @property
     def generations(self):
