@@ -7,7 +7,6 @@ import signal
 import os
 import psutil
 import re
-import six
 import sys
 import subprocess
 import traceback
@@ -267,11 +266,11 @@ class HerokuLocalWrapper(object):
     """
 
     shell_command = 'heroku'
-    success_regex = b'^.*? \d+ workers$'
+    success_regex = '^.*? \d+ workers$'
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
     MONITOR_STOP = object()
-    STREAM_SENTINEL = b' '
+    STREAM_SENTINEL = ''
 
     def __init__(self, config, output, verbose=True, env=None):
         self.config = config
@@ -391,6 +390,7 @@ class HerokuLocalWrapper(object):
                 stderr=subprocess.STDOUT,
                 env=self.env,
                 preexec_fn=os.setsid,
+                encoding='utf-8',
             )
         except OSError:
             self.out.error("Couldn't start Heroku for local debugging.")
@@ -403,13 +403,13 @@ class HerokuLocalWrapper(object):
         return re.match(self.success_regex, line)
 
     def _redis_not_running(self, line):
-        return re.match(b'^.*? worker.1 .*? Connection refused.$', line)
+        return re.match('^.*? worker.1 .*? Connection refused.$', line)
 
     def _worker_error(self, line):
-        return re.match(b'^.*? web.1 .*? \[ERROR\] (.*?)$', line)
+        return re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line)
 
     def _startup_error(self, line):
-        return re.match(b'\[DONE\] Killing all processes', line)
+        return re.match('\[DONE\] Killing all processes', line)
 
     def __enter__(self):
         self.start()
