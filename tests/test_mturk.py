@@ -13,6 +13,7 @@ from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import generate_random_id
+from six.moves import input
 
 
 TEST_HIT_DESCRIPTION = '***TEST SUITE HIT***'
@@ -641,14 +642,14 @@ class TestInteractive(object):
                                                                      qtype):
         with_cleanup.assign_qualification(qtype['id'], worker_id, score=1)
         print('MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name']))
-        raw_input("Any key to continue...")
+        input("Any key to continue...")
 
         hit = with_cleanup.create_hit(
             **standard_hit_config(title="Dallinger: No Blacklist", lifetime_days=.25)
         )
 
         print('MANUAL STEP: Should be able to see "{}" as available HIT'.format(hit['title']))
-        raw_input("Any key to continue...")
+        input("Any key to continue...")
 
     def test_worker_cannot_see_hit_when_blacklist_in_qualifications(self,
                                                                     with_cleanup,
@@ -657,7 +658,7 @@ class TestInteractive(object):
         with_cleanup.assign_qualification(qtype['id'], worker_id, score=1)
 
         print('MANUAL STEP: Check for qualification: "{}". (May be delay)'.format(qtype['name']))
-        raw_input("Any key to continue...")
+        input("Any key to continue...")
 
         hit = with_cleanup.create_hit(
             **standard_hit_config(
@@ -668,7 +669,7 @@ class TestInteractive(object):
         )
 
         print('MANUAL STEP: Should NOT be able to see "{}"" as available HIT'.format(hit['title']))
-        raw_input("Any key to continue...")
+        input("Any key to continue...")
 
         pass
 
