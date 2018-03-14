@@ -63,7 +63,7 @@ class ChatBackend(object):
         Automatically discards invalid connections.
         """
         try:
-            client.send(data.decode('utf-8'))
+            client.send(data)
         except socket.error:
             for channel in self.clients:
                 self.unsubscribe(client, channel)

@@ -59,18 +59,18 @@ class TestSubprocessWrapper(object):
 
     def test_writing_to_broken_stdout_is_output_after_returning(self, sys):
         def sample(**kwargs):
-            kwargs['stdout'].write('Output')
+            kwargs['stdout'].write(b'Output')
             # The output isn't written until we return
             sys.stdout.write.assert_not_called()
         sys.stdout.fileno.side_effect = io.UnsupportedOperation
         utils.wrap_subprocess_call(sample)(stdin=None, stdout=None)
-        sys.stdout.write.assert_called_once_with('Output')
+        sys.stdout.write.assert_called_once_with(b'Output')
 
     def test_writing_to_broken_stderr_is_output_after_returning(self, sys):
         def sample(**kwargs):
-            kwargs['stderr'].write('Output')
+            kwargs['stderr'].write(b'Output')
             # The output isn't written until we return
             sys.stderr.write.assert_not_called()
         sys.stderr.fileno.side_effect = io.UnsupportedOperation
         utils.wrap_subprocess_call(sample)(stderr=None)
-        sys.stderr.write.assert_called_once_with('Output')
+        sys.stderr.write.assert_called_once_with(b'Output')
