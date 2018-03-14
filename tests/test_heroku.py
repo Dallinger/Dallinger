@@ -687,16 +687,16 @@ class TestHerokuLocalWrapper(object):
     def test_quits_on_gunicorn_startup_error(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
         heroku.verbose = False  # more coverage
-        heroku._stream = mock.Mock(return_value=[b'[DONE] Killing all processes'])
+        heroku._stream = mock.Mock(return_value=['[DONE] Killing all processes'])
         with pytest.raises(HerokuStartupError):
             heroku.start()
 
     def test_start_fails_if_stream_ends_without_matching_success_regex(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
         heroku._stream = mock.Mock(
-            return_value=[b'apple', b'orange', heroku.STREAM_SENTINEL]
+            return_value=['apple', 'orange', heroku.STREAM_SENTINEL]
         )
-        heroku.success_regex = b'not going to match anything'
+        heroku.success_regex = 'not going to match anything'
         with pytest.raises(HerokuStartupError):
             heroku.start()
         assert not heroku.is_running
@@ -729,21 +729,21 @@ class TestHerokuLocalWrapper(object):
         heroku.out.log.assert_called_with("Local Heroku is already running.")
 
     def test_monitor(self, heroku):
-        heroku._stream = mock.Mock(return_value=[b'apple', b'orange'])
+        heroku._stream = mock.Mock(return_value=['apple', 'orange'])
         listener = mock.Mock()
         heroku.monitor(listener)
         listener.assert_has_calls([
-            mock.call(b'apple'),
-            mock.call(b'orange'),
+            mock.call('apple'),
+            mock.call('orange'),
         ])
 
     def test_monitor_stops_iterating_when_told(self, heroku):
-        heroku._stream = mock.Mock(return_value=[b'apple', b'orange'])
+        heroku._stream = mock.Mock(return_value=['apple', 'orange'])
         listener = mock.Mock()
         listener.return_value = heroku.MONITOR_STOP
         heroku.monitor(listener)
         listener.assert_has_calls([
-            mock.call(b'apple'),
+            mock.call('apple'),
         ])
 
     def test_as_context_manager(self, config, env, output, clear_workers):
