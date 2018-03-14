@@ -5,6 +5,7 @@ from tempfile import NamedTemporaryFile
 
 import pexpect
 import pytest
+import six
 
 from dallinger.config import Configuration
 from dallinger.config import get_config, LOCAL_CONFIG
@@ -160,13 +161,16 @@ worldwide = false
 
     def test_experiment_defined_parameters(self):
         try:
-            python = pexpect.spawn("python")
+            python = pexpect.spawn("python", encoding='utf-8')
             python.read_nonblocking(10000)
             python.setecho(False)
             python.sendline('from dallinger.experiment_server import experiment_server')
             python.sendline('config = experiment_server._config()')
             python.sendline('print(config.types)')
-            python.expect_exact("custom_parameter': <type 'int'>")
+            if six.PY3:
+                python.expect_exact("custom_parameter': <class 'int'>")
+            else:
+                python.expect_exact("custom_parameter': <type 'int'>")
         finally:
             python.sendcontrol('d')
             python.read()
