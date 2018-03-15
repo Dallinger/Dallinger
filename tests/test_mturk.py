@@ -562,7 +562,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
     def test_getting_invalid_qualification_score_raises(self, with_cleanup, worker_id):
         with pytest.raises(MTurkServiceException) as execinfo:
             with_cleanup.get_qualification_score('NONEXISTENT', worker_id)
-        assert execinfo.match('QualificationType NONEXISTENT does not exist')
+        assert execinfo.match('You requested a Qualification that does not exist')
 
     def test_retrieving_revoked_qualifications_raises(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(qtype['id'], worker_id, score=2)

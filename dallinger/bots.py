@@ -26,6 +26,8 @@ class BotBase(object):
     """
 
     def __init__(self, URL, assignment_id='', worker_id='', participant_id='', hit_id=''):
+        if not URL:
+            return
         logger.info("Creating bot with URL: %s." % URL)
         self.URL = URL
 
