@@ -7,6 +7,7 @@ import signal
 import os
 import psutil
 import re
+import six
 import sys
 import subprocess
 import traceback
@@ -384,14 +385,15 @@ class HerokuLocalWrapper(object):
             "web={},worker={}".format(web_dynos, worker_dynos)
         ]
         try:
-            self._process = subprocess.Popen(
-                commands,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                env=self.env,
-                preexec_fn=os.setsid,
-                encoding='utf-8',
-            )
+            options = {
+                'stdout': subprocess.PIPE,
+                'stderr': subprocess.STDOUT,
+                'env': self.env,
+                'preexec_fn': os.setsid,
+            }
+            if six.PY3:
+                options['encoding'] = 'utf-8'
+            self._process = subprocess.Popen(commands, **options)
         except OSError:
             self.out.error("Couldn't start Heroku for local debugging.")
             raise
