@@ -16,6 +16,9 @@ class BotBase(object):
     """A base class for Bots that works with the built-in demos."""
 
     def __init__(self, URL, assignment_id='', worker_id='', participant_id=''):
+        if not URL:
+            return
+
         logger.info("Creating bot with URL: %s." % URL)
         self.URL = URL
 
