@@ -563,6 +563,7 @@ class TestDebugServer(object):
             'dallinger',
             ['debug', '--verbose', '--bot'],
             env=env,
+            encoding='utf-8',
         )
         p.logfile = sys.stdout
         try:
