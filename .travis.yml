@@ -28,6 +28,7 @@ addons:
 services:
   - redis-server
 before_install:
+- rm -rf ~/.local/share/heroku
 - rvm install 2.1.5
 - pip install --upgrade setuptools pip wheel
 install:
