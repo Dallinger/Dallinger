@@ -39,6 +39,10 @@ setup_args = dict(
             "jupyter",
             "ipywidgets",
         ],
+        'high_performance_bots': [
+            "rq-gevent-worker",
+            "websocket-client",
+        ]
     }
 )
 

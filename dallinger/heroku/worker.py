@@ -10,6 +10,12 @@ from rq import (
     Connection
 )
 
+try:
+    from rq_gevent_worker import GeventWorker as Worker
+except ImportError:
+    pass
+
+
 listen = ['high', 'default', 'low']
 
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')

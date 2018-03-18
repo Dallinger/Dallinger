@@ -482,9 +482,9 @@ class BotRecruiter(Recruiter):
             ad_parameters = ad_parameters.format(assignment, hit, worker)
             url = '{}/ad?{}'.format(base_url, ad_parameters)
             urls.append(url)
-            bot = factory(url, assignment_id=assignment, worker_id=worker)
+            bot = factory(url, assignment_id=assignment, worker_id=worker, hit_id=hit)
             job = q.enqueue(bot.run_experiment, timeout=60 * 20)
-            logger.info("Created job {} for url {}.".format(job.id, url))
+            logger.warn("Created job {} for url {}.".format(job.id, url))
 
         return urls
 

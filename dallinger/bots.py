@@ -2,8 +2,10 @@
 
 import logging
 from cached_property import cached_property
-from urlparse import urlparse, parse_qs
+from urlparse import urlparse, urlunparse, parse_qs
+import uuid
 
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
@@ -16,7 +18,7 @@ logger = logging.getLogger(__file__)
 class BotBase(object):
     """A base class for Bots that works with the built-in demos."""
 
-    def __init__(self, URL, assignment_id='', worker_id='', participant_id=''):
+    def __init__(self, URL, assignment_id='', worker_id='', participant_id='', hit_id=''):
         logger.info("Creating bot with URL: %s." % URL)
         self.URL = URL
 
@@ -26,10 +28,13 @@ class BotBase(object):
             assignment_id = query.get('assignment_id', [''])[0]
         if not participant_id:
             participant_id = query.get('participant_id', [''])[0]
+        if not hit_id:
+            hit_id = query.get('hit_id', [''])[0]
         self.assignment_id = assignment_id
         if not worker_id:
             worker_id = query.get('worker_id', [''])[0]
         self.participant_id = participant_id
+        self.hit_id = hit_id
         self.worker_id = worker_id
         self.unique_id = worker_id + ':' + assignment_id
 
@@ -147,3 +152,69 @@ class BotBase(object):
                 self.complete_experiment('worker_failed')
         finally:
             self.driver.quit()
+
+
+class HighPerformanceBotBase(BotBase):
+
+    @property
+    def driver(self):
+        raise NotImplementedError
+
+    @property
+    def host(self):
+        parsed = urlparse(self.URL)
+        return urlunparse([parsed.scheme, parsed.netloc, '', '', '', ''])
+
+    def run_experiment(self):
+        self.sign_up()
+        self.participate()
+        if self.sign_off():
+            self.complete_experiment('worker_complete')
+        else:
+            self.complete_experiment('worker_failed')
+
+    def sign_up(self):
+        while True:
+            url = (
+                "{host}/participant/{self.worker_id}/"
+                "{self.hit_id}/{self.assignment_id}/"
+                "debug?fingerprint_hash={hash}".format(
+                    host=self.host,
+                    self=self,
+                    hash=uuid.uuid4().hex
+                )
+            )
+            result = requests.post(url)
+            if result.status_code == 500:
+                continue
+            self.participant_id = result.json()['participant']['id']
+            return self.participant_id
+
+    def sign_off(self):
+        """Submit questionnaire and finish."""
+        while True:
+            question_responses = {"engagement": 4, "difficulty": 3}
+            url = (
+                "{host}/question/{self.participant_id}/".format(
+                    host=self.host,
+                    self=self,
+                )
+            )
+            result = requests.post(url, data=question_responses)
+            if result.status_code == 500:
+                continue
+            return True
+
+    def complete_experiment(self, status):
+        while True:
+            url = (
+                "{host}/{status}?participant_id={participant_id}".format(
+                    host=self.host,
+                    participant_id=self.participant_id,
+                    status=status
+                )
+            )
+            result = requests.get(url)
+            if result.status_code == 500:
+                continue
+            return result
