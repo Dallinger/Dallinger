@@ -44,7 +44,7 @@ class HerokuApp(object):
             "apps:create",
             self.name,
             "--buildpack",
-            "https://github.com/thenovices/heroku-buildpack-scipy",
+            "https://github.com/andrewychoi/heroku-buildpack-scipy",
         ]
 
         # If a team is specified, assign the app to the team.
