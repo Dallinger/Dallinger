@@ -485,7 +485,6 @@ class Experiment(object):
             )
         self._await_completion()
         data = self.retrieve_data()
-        self.end_experiment()
         return data
 
     def collect(self, app_id, exp_config=None, bot=False, **kwargs):
