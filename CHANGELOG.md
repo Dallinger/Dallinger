@@ -1,5 +1,37 @@
 # Change Log
 
+## [v3.5.0](https://github.com/dallinger/dallinger/tree/v3.5.0) (2018-03-07)
+
+- **Feature** Email notifications are sent to experiment owners if their deployed experiment has been idle for 6 hours or more
+
+- **Feature** New `dallinger2.js` Javascript module makes a range of useful standard functions available to custom experiments
+
+- **Feature** `CLIRecruiter` provides option to recruit participants directly by printing experiment URLs to the console and Papertrail logs, rather than using Mechanical Turk
+
+- **Feature** Support recording of `TrackingEvent`s from experiment Javascript via the new `/tracking_event/` route
+
+- **Feature** Support for replaying experiments from exported data
+
+- **Feature** New `SplitSampleNetwork` type
+
+- **Feature** Use browser fingerprints to help prevent duplicate experiment participants
+
+- Ensure that data can be exported before experiment is destoyed when running via the `Experiment.run()` API
+
+- Dallinger and demo experiment templates now use Flask template inheritance for reduced duplication and easier overriding
+
+- Participants using Chrome or Firefox begin experiment sessions with clean browser profiles
+
+- Improved diagnostic console output in verbose mode
+
+- Improved participant experience on experiment failure
+
+- `recruiter` is now a property of `dallinger.experiment.Experiment`, rather than a method, but backwards-compatibility is preserved
+
+- Improved test coverage
+
+- Miscellaneous bug fixes
+
 ## [v3.4.1](https://github.com/dallinger/dallinger/tree/v3.4.1) (2017-09-16)
 
 - Fixes related to host names and database users.
