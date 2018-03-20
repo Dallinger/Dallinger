@@ -13,6 +13,7 @@ demos/*/data/*
 docs/source/demos
 docs/source/_static/*.zip
 .env
+.idea
 .tox
 /snapshots/
 *-
