@@ -566,6 +566,7 @@ def by_name(name):
     """
     nicknames = {
         'bots': BotRecruiter,
+        'hotair': HotAirRecruiter,
         'mturklarge': MTurkLargeRecruiter
     }
     if name in nicknames:

@@ -305,6 +305,7 @@ var dallinger = (function () {
     var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum");
     var deferred = $.Deferred();
     socket.onmessage = function (msg) {
+      console.log(msg);
       if (msg.data.indexOf('quorum:') !== 0) { return; }
       var data = JSON.parse(msg.data.substring(7));
       var n = data.n;
