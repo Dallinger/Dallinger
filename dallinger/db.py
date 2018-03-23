@@ -134,16 +134,24 @@ def serialized(func):
 # Reset outbox when session begins
 @event.listens_for(Session, 'after_begin')
 def after_begin(session, transaction, connection):
+    logger.debug(
+            'Clearing message queue due to begin: {}'.format(session.info))
     session.info['outbox'] = []
 
 
 # Reset outbox after rollback
 @event.listens_for(Session, 'after_soft_rollback')
 def after_soft_rollback(session, previous_transaction):
+    logger.debug(
+            'Clearing message queue due to rollback: {}'.format(session.info))
     session.info['outbox'] = []
 
 
 def queue_message(channel, message):
+    logger.debug(
+            'Enqueueing message to {}: {}'.format(channel, message))
+    if 'outbox' not in session.info:
+        session.info['outbox'] = []
     session.info['outbox'].append((channel, message))
 
 
