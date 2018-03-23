@@ -750,22 +750,24 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     exp = Experiment(session)
 
     # Ping back to the recruiter that one of their participants has joined:
-    recruiters.for_experiment(exp).notify_recruited(participant)
+    recruiter = recruiters.for_experiment(exp)
+    recruiter.notify_recruited(participant)
+
+    overrecruited = exp.is_overrecruited(waiting_count)
+    if not overrecruited:
+        # We either had no quorum or we have not overrecruited, inform the
+        # recruiter that this participant will be seeing the experiment
+        recruiter.notify_using(participant)
 
     # Queue notification to others in waiting room
     if exp.quorum:
         quorum = {
             'q': exp.quorum,
             'n': waiting_count,
-            'overrecruited': exp.is_overrecruited(waiting_count),
+            'overrecruited': overrecruited,
         }
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
         result['quorum'] = quorum
-
-    if not result.get('quorum', {}).get('overrecruited', False):
-        # We either had no quorum or we have not overrecruited, inform the
-        # recruiter that this participant will be seeing the experiment
-        recruiters.for_experiment(exp).notify_using(participant)
 
     # return the data
     return success_response(**result)
