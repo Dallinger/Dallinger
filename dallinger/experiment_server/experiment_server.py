@@ -82,7 +82,12 @@ else:
 @app.route('/')
 def index():
     """Index route"""
-    abort(404)
+    config = _config()
+    html = '<html><head></head><body><h1>Dallinger Experiment in progress</h1><dl>'
+    for item in sorted(config.as_dict().items()):
+        html += '<dt style="font-weight:bold;margin-top:15px;">{}</dt><dd>{}</dd>'.format(*item)
+    html += '</dl></body></html>'
+    return html
 
 
 @app.route('/robots.txt')
