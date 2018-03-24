@@ -577,6 +577,13 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
+
+    heroku_app._run([
+        "heroku",
+        "ps:exec"
+    ])
+
+
     git.push(remote="heroku", branch="HEAD:master")
 
     log("Scaling up the dynos...")
