@@ -754,6 +754,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
             'n': waiting_count,
             'overrecruited': exp.is_overrecruited(waiting_count),
         }
+        import remote_pdb; remote_pdb.set_trace()
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
         result['quorum'] = quorum
 
