@@ -144,12 +144,15 @@ def after_begin(session, transaction, connection):
 def after_soft_rollback(session, previous_transaction):
     logger.debug(
             'Clearing message queue due to rollback: {}'.format(session.info))
+        
     session.info['outbox'] = []
 
 
 def queue_message(channel, message):
     logger.debug(
             'Enqueueing message to {}: {}'.format(channel, message))
+    if 'outbox' not in session.info:
+        session.info['outbox'] = []
     session.info['outbox'].append((channel, message))
 
 
