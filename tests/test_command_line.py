@@ -7,6 +7,7 @@ import pytest
 import re
 import subprocess
 import sys
+import tempfile
 from time import sleep
 from uuid import UUID
 from click.testing import CliRunner
@@ -87,7 +88,9 @@ class TestIsolatedWebbrowser(object):
             isolated = new_webbrowser_profile()
         assert isinstance(isolated, webbrowser.Chrome)
         assert isolated.remote_args[:2] == [r'%action', r'%s']
-        assert isolated.remote_args[-1].startswith('--user-data-dir="/tmp')
+        assert isolated.remote_args[-1].startswith(
+            '--user-data-dir="{}'.format(tempfile.gettempdir())
+        )
 
     def test_firefox_isolation(self):
         import webbrowser
@@ -96,7 +99,7 @@ class TestIsolatedWebbrowser(object):
             isolated = new_webbrowser_profile()
         assert isinstance(isolated, webbrowser.Mozilla)
         assert isolated.remote_args[0] == '-profile'
-        assert isolated.remote_args[1].startswith('/tmp/')
+        assert isolated.remote_args[1].startswith(tempfile.gettempdir())
         assert isolated.remote_args[2:] == ['-new-instance', '-no-remote', '-url', r'%s']
 
     def test_fallback_isolation(self):
