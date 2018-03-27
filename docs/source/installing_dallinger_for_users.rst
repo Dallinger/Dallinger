@@ -20,14 +20,14 @@ Install Python
 ^^^^^^^^^^^^^^
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 2.7 installed. You can check what version of Python you
+to have Python 3.6 installed. You can check what version of Python you
 have by running:
 
 ::
 
     python --version
 
-If you do not have Python 2.7 installed, you can install it from the
+If you do not have Python 3.6 installed, you can install it from the
 `Python website <https://www.python.org/downloads/>`__.
 
 Install Postgres
