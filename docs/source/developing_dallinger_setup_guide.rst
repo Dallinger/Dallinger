@@ -52,7 +52,7 @@ following command:
 
     export PATH="$PATH:/Applications/Postgres.app/Contents/Versions/latest/bin"
 
-NB: If you have installed an older version of Postgres (e.g., < 9.5),
+NB: If you have installed an older version of Postgres (e.g., < 10.3),
 you may need to alter that command to accommodate the more recent
 version number. To double check which version to include, run:
 
@@ -85,15 +85,16 @@ After that you'll need to run the following commands (Note: you may need to chan
     runuser -l postgres -c "createuser -ds root"
     createuser dallinger
     createdb -O dallinger dallinger
-    sed /etc/postgresql/9.5/main/pg_hba.conf -e 's/md5/trust/g' --in-place
-    sed -e "s/[#]\?listen_addresses = .*/listen_addresses = '*'/g" -i '/etc/postgresql/9.5/main/postgresql.conf'
+    sed /etc/postgresql/10.3/main/pg_hba.conf -e 's/md5/trust/g' --in-place
+    sed -e "s/[#]\?listen_addresses = .*/listen_addresses = '*'/g" -i '/etc/postgresql/10.3/main/postgresql.conf'
     service postgresql reload
 
-Create the Database
--------------------
+Create the Databases
+--------------------
 
-After installing Postgres, you will need to create a database for your
-experiments to use. It is recommended that you also create a database user.
+After installing Postgres, you will need to create two databases:
+one for your experiments to use, and a second to support importing saved
+experiments. It is recommended that you also create a database user.
 First, open the Postgres.app. Then, run the following commands from the
 command line:
 
@@ -102,6 +103,7 @@ command line:
     createuser -P dallinger --createdb
     (Password: dallinger)
     createdb -O dallinger dallinger
+    createdb -O dallinger dallinger-import
 
 The first command will create a user named ``dallinger`` and prompt you for a
 password. The second command will create the ``dallinger`` database, setting
@@ -124,6 +126,7 @@ If you get a fatal error that your ROLE does not exist, run these commands:
     createuser dallinger
     dropdb dallinger
     createdb -O dallinger dallinger
+    createdb -O dallinger dallinger-import
 
 Install Heroku
 ^^^^^^^^^^^^^^
