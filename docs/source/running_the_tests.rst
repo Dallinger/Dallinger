@@ -16,7 +16,7 @@ The tests include:
 * Running `flake8 <https://flake8.readthedocs.io>`_ to make sure Python code
   conforms to the `PEP 8 <https://www.python.org/dev/peps/pep-0008/>`_ style guide.
 * Running the tests for the Python code using `pytest <http://doc.pytest.org/>`_
-  and making sure they pass in Python 2.7.
+  and making sure they pass in Python 2.7 and 3.6.
 * Making sure that `code coverage <https://coverage.readthedocs.io/>`_
   for the Python code is above the desired threshold.
 * Making sure the docs build without error.
