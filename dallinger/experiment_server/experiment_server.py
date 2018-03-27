@@ -729,9 +729,12 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         app.logger.warning(msg.format(duplicate.id))
         q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
 
-    # Count working participants
-    waiting_count = models.Participant.query.filter_by(
-        status='working').count() + 1
+    # Count working or beyond participants.
+    nonfailed_count = models.Participant.query.filter(
+        (models.Participant.status == "working") |
+        (models.Participant.status == "submitted") |
+        (models.Participant.status == "approved")
+    ).count() + 1
 
     # Create the new participant.
     participant = models.Participant(
@@ -752,7 +755,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     # Ping back to the recruiter that one of their participants has joined:
     recruiters.for_experiment(exp).notify_recruited(participant)
 
-    overrecruited = exp.is_overrecruited(waiting_count)
+    overrecruited = exp.is_overrecruited(nonfailed_count)
     if not overrecruited:
         # We either had no quorum or we have not overrecruited, inform the
         # recruiter that this participant will be seeing the experiment
@@ -762,7 +765,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     if exp.quorum:
         quorum = {
             'q': exp.quorum,
-            'n': waiting_count,
+            'n': nonfailed_count,
             'overrecruited': overrecruited,
         }
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
