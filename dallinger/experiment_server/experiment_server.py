@@ -319,20 +319,20 @@ def handle_error():
     session.commit()
 
     config = _config()
-    if config.get('dallinger_email_address', None):
-        heroku_config = {
-            "contact_email_on_error": config["contact_email_on_error"],
-            "dallinger_email_username": config["dallinger_email_address"],
-            "dallinger_email_key": config["dallinger_email_password"],
-            "whimsical": False
-        }
-        emailer = EmailingHITMessager(when=datetime.now(),
-                                      assignment_id=assignment_id or 'unknown',
-                                      hit_duration=0, time_active=0,
-                                      config=heroku_config,
-                                      app_id=config.get('id', 'unknown'))
-        db.logger.debug("Sending HIT error email...")
-        emailer.send_hit_error()
+    # if config.get('dallinger_email_address', None):
+    #     heroku_config = {
+    #         "contact_email_on_error": config["contact_email_on_error"],
+    #         "dallinger_email_username": config["dallinger_email_address"],
+    #         "dallinger_email_key": config["dallinger_email_password"],
+    #         "whimsical": False
+    #     }
+    #     emailer = EmailingHITMessager(when=datetime.now(),
+    #                                   assignment_id=assignment_id or 'unknown',
+    #                                   hit_duration=0, time_active=0,
+    #                                   config=heroku_config,
+    #                                   app_id=config.get('id', 'unknown'))
+    #     db.logger.debug("Sending HIT error email...")
+    #     emailer.send_hit_error()
 
     return render_template(
         'error-complete.html',
@@ -749,15 +749,15 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
     exp = Experiment(session)
 
-    # Ping back to the recruiter that one of their participants has joined:
-    recruiter = recruiters.for_experiment(exp)
-    recruiter.notify_recruited(participant)
+    # # Ping back to the recruiter that one of their participants has joined:
+    # recruiter = recruiters.for_experiment(exp)
+    # recruiter.notify_recruited(participant)
 
     overrecruited = exp.is_overrecruited(waiting_count)
-    if not overrecruited:
-        # We either had no quorum or we have not overrecruited, inform the
-        # recruiter that this participant will be seeing the experiment
-        recruiter.notify_using(participant)
+    # if not overrecruited:
+    #     # We either had no quorum or we have not overrecruited, inform the
+    #     # recruiter that this participant will be seeing the experiment
+    #     recruiter.notify_using(participant)
 
     # Queue notification to others in waiting room
     if exp.quorum:
