@@ -1,5 +1,14 @@
 /*globals Spinner, Fingerprint2, ReconnectingWebSocket, reqwest, store */
 
+if (Dallinger !== undefined) {
+  alert(
+    'This page has loaded both dallinger.js and dallinger2.js at the same time, ' +
+    'which is not supported. It is recommended to use dallinger2.js ' +
+    'for experiments being actively developed, and dallinger.js only ' +
+    'for backwards compatibility of existing experiments.'
+  );
+}
+
 var dallinger = (function () {
   var dlgr = {};
 
