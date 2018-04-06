@@ -129,6 +129,13 @@ class Experiment(object):
         if session:
             self.configure()
 
+        try:
+            from .jupyter import ExperimentWidget
+        except ImportError:
+            self.widget = None
+        else:
+            self.widget = ExperimentWidget(self)
+
     def configure(self):
         """Load experiment configuration here"""
         pass
@@ -470,21 +477,30 @@ class Experiment(object):
         self.app_id = app_id
         self.exp_config = exp_config or kwargs
 
-        if self.exp_config.get("mode") == u"debug":
-            dlgr.command_line.debug.callback(
-                verbose=True,
-                bot=bot,
-                proxy=None,
-                exp_config=self.exp_config
-            )
+        self.update_status(u'Starting')
+        try:
+            if self.exp_config.get("mode") == u"debug":
+                dlgr.command_line.debug.callback(
+                    verbose=True,
+                    bot=bot,
+                    proxy=None,
+                    exp_config=self.exp_config
+                )
+            else:
+                dlgr.command_line.deploy_sandbox_shared_setup(
+                    app=app_id,
+                    verbose=self.verbose,
+                    exp_config=self.exp_config
+                )
+        except Exception:
+            self.update_status(u'Errored')
+            raise
         else:
-            dlgr.command_line.deploy_sandbox_shared_setup(
-                app=app_id,
-                verbose=self.verbose,
-                exp_config=self.exp_config
-            )
+            self.update_status(u'Running')
         self._await_completion()
+        self.update_status(u'Retrieving data')
         data = self.retrieve_data()
+        self.update_status(u'Completed')
         return data
 
     def collect(self, app_id, exp_config=None, bot=False, **kwargs):
@@ -664,6 +680,15 @@ class Experiment(object):
         import_session.close()
         config._reset(register_defaults=True)
         del sys.modules['dallinger_experiment']
+
+    def _ipython_display_(self):
+        """Display Jupyter Notebook widget"""
+        from IPython.display import display
+        display(self.widget)
+
+    def update_status(self, status):
+        if self.widget is not None:
+            self.widget.status = status
 
 
 def load():

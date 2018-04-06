@@ -35,6 +35,10 @@ setup_args = dict(
             "odo==0.5.0",
             "tablib==0.11.3"
         ],
+        'jupyter': [
+            "jupyter",
+            "ipywidgets",
+        ],
     }
 )
 
