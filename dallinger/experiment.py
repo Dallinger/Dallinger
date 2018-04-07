@@ -605,6 +605,12 @@ class Experiment(object):
     def replay_started(self):
         return True
 
+    def is_complete(self):
+        """Method for custom determination of experiment completion.
+        Return None to use the experiment server default, otherwise
+        `True` or `False`"""
+        return None
+
     @contextmanager
     def restore_state_from_replay(self, app_id, session, zip_path=None, **configuration_options):
         # We need to fake dallinger_experiment to point at the current experiment
