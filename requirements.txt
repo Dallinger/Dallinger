@@ -17,7 +17,7 @@ rq==0.10.0
 selenium==3.11.0
 SQLAlchemy==1.2.5
 sqlalchemy-postgres-copy==0.5.0
-ua-parser==0.7.3
+ua-parser==0.8.0
 user-agents==1.1.0
 psutil==5.4.3
 flask-crossdomain==0.1
