@@ -366,7 +366,8 @@ class TestHandleError(object):
 
         dummy_mailer.login.assert_not_called()
 
-    def test_emailer_handles_missing_destination_address(self, a, webapp, active_config, dummy_mailer):
+    def test_emailer_handles_missing_destination_address(self, a, webapp, active_config,
+                                                         dummy_mailer):
         active_config.extend({'dallinger_email_address': u'test_error',
                               'contact_email_on_error': u''})
         webapp.post('/handle-error', data={})
@@ -669,7 +670,6 @@ class TestSummaryRoute(object):
             u'summary': [],
             u'unfilled_networks': 1
         }
-
 
 
 @pytest.mark.usefixtures('experiment_dir')
