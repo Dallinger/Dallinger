@@ -341,8 +341,8 @@ def handle_error():
     session.commit()
 
     config = _config()
-    if (config.get('dallinger_email_address') and
-            config.get('contact_email_on_error')):
+    if (config.get('dallinger_email_address', None) and
+            config.get('contact_email_on_error', None)):
         heroku_config = {
             "contact_email_on_error": config["contact_email_on_error"],
             "dallinger_email_username": config["dallinger_email_address"],

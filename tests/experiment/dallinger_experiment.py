@@ -5,6 +5,7 @@ config = get_config()
 
 
 class TestExperiment(Experiment):
+    _completed = None
 
     def __init__(self, session=None):
         try:
@@ -31,6 +32,10 @@ class TestExperiment(Experiment):
         from dallinger.networks import Star
         return Star(max_size=2)
 
+    def is_complete(self):
+        return config.get('_is_completed', None)
+
 
 def extra_parameters():
     config.register('custom_parameter', int, [])
+    config.register('_is_completed', bool, [])
