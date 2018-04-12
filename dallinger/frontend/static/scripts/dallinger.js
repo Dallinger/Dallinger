@@ -22,7 +22,7 @@ var getUrlParameter = function getUrlParameter(sParam) {
     }
 };
 
-if (dallinger !== undefined) {
+if (window.dallinger !== undefined) {
   alert(
     'This page has loaded both dallinger.js and dallinger2.js at the same time, ' +
     'which is not supported. It is recommended to use dallinger2.js ' +
