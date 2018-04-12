@@ -1,6 +1,6 @@
 /*globals Spinner, Fingerprint2, ReconnectingWebSocket, reqwest, store */
 
-if (Dallinger !== undefined) {
+if (window.Dallinger !== undefined) {
   alert(
     'This page has loaded both dallinger.js and dallinger2.js at the same time, ' +
     'which is not supported. It is recommended to use dallinger2.js ' +
