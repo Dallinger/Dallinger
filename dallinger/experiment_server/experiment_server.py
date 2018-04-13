@@ -7,6 +7,7 @@ from json import loads
 from operator import attrgetter
 import os
 import re
+import smtplib
 import sys
 import user_agents
 
@@ -156,7 +157,13 @@ def error_page(participant=None, error_text=None, compensate=True,
         hit_id = request.form.get('hit_id', '')
         assignment_id = request.form.get('assignment_id', '')
         worker_id = request.form.get('worker_id', '')
-        participant_id = request.form.get('participant_id', '')
+        participant_id = request.form.get('participant_id', None)
+
+    if participant_id:
+        try:
+            participant_id = int(participant_id)
+        except (ValueError, TypeError):
+            participant_id = None
 
     return make_response(
         render_template(
@@ -269,22 +276,37 @@ def handle_error():
     details = {'request_data': {}}
 
     if request_data:
-        request_data = loads(request_data)
+        try:
+            request_data = loads(request_data)
+        except ValueError:
+            request_data = {}
         details['request_data'] = request_data
-        if not participant_id and 'participant_id' in request_data:
-            participant_id = request_data['participant_id']
-        if not worker_id and 'worker_id' in request_data:
-            worker_id = request_data['worker_id']
-        if not assignment_id and 'assignment_id' in request_data:
-            assignment_id = request_data['assignment_id']
-        if not hit_id and 'hit_id' in request_data:
-            hit_id = request_data['hit_id']
+
+        try:
+            data = loads(request_data.get("data", "null")) or request_data
+        except ValueError:
+            data = request_data
+
+        if not participant_id and 'participant_id' in data:
+            participant_id = data['participant_id']
+        if not worker_id and 'worker_id' in data:
+            worker_id = data['worker_id']
+        if not assignment_id and 'assignment_id' in data:
+            assignment_id = data['assignment_id']
+        if not hit_id and 'hit_id' in data:
+            hit_id = data['hit_id']
+
+    if participant_id:
+        try:
+            participant_id = int(participant_id)
+        except (ValueError, TypeError):
+            participant_id = None
 
     details['feedback'] = error_feedback
     details['error_type'] = error_type
     details['error_text'] = error_text
 
-    if worker_id and not participant_id:
+    if participant_id is None and worker_id:
         participants = session.query(models.Participant).filter_by(
             worker_id=worker_id
         ).all()
@@ -293,7 +315,7 @@ def handle_error():
             if not assignment_id:
                 assignment_id = participant.assignment_id
 
-    if assignment_id and not participant_id:
+    if participant_id is None and assignment_id:
         participants = session.query(models.Participant).filter_by(
             worker_id=assignment_id
         ).all()
@@ -303,7 +325,7 @@ def handle_error():
             if not worker_id:
                 worker_id = participant.worker_id
 
-    if participant_id:
+    if participant_id is not None:
         _worker_complete(participant_id)
         completed = True
 
@@ -319,20 +341,27 @@ def handle_error():
     session.commit()
 
     config = _config()
-    if config.get('dallinger_email_address', None):
+    if (config.get('dallinger_email_address', None) and
+            config.get('contact_email_on_error', None)):
         heroku_config = {
             "contact_email_on_error": config["contact_email_on_error"],
             "dallinger_email_username": config["dallinger_email_address"],
-            "dallinger_email_key": config["dallinger_email_password"],
+            "dallinger_email_key": config.get("dallinger_email_password"),
             "whimsical": False
         }
+
         emailer = EmailingHITMessager(when=datetime.now(),
                                       assignment_id=assignment_id or 'unknown',
                                       hit_duration=0, time_active=0,
                                       config=heroku_config,
                                       app_id=config.get('id', 'unknown'))
         db.logger.debug("Sending HIT error email...")
-        emailer.send_hit_error()
+        try:
+            emailer.send_hit_error()
+        except smtplib.SMTPException:
+            db.logger.exception("SMTP error sending HIT error email.")
+        except Exception:
+            db.logger.exception("Unknown error sending HIT error email.")
 
     return render_template(
         'error-complete.html',
@@ -523,10 +552,11 @@ def advertisement():
 @app.route('/summary', methods=['GET'])
 def summary():
     """Summarize the participants' status codes."""
+    exp = Experiment(session)
     state = {
         "status": "success",
-        "summary": Experiment(session).log_summary(),
-        "completed": False,
+        "summary": exp.log_summary(),
+        "completed": exp.is_complete(),
     }
     unfilled_nets = models.Network.query.filter(
         models.Network.full != true()
@@ -538,7 +568,7 @@ def summary():
     nodes_remaining = 0
     required_nodes = 0
     if state['unfilled_networks'] == 0:
-        if working == 0:
+        if working == 0 and state['completed'] is None:
             state['completed'] = True
     else:
         for net in unfilled_nets:
@@ -550,6 +580,9 @@ def summary():
             nodes_remaining += net_size - node_count
     state['nodes_remaining'] = nodes_remaining
     state['required_nodes'] = required_nodes
+
+    if state['completed'] is None:
+        state['completed'] = False
 
     return Response(
         dumps(state),
@@ -729,9 +762,12 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         app.logger.warning(msg.format(duplicate.id))
         q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
 
-    # Count working participants
-    waiting_count = models.Participant.query.filter_by(
-        status='working').count() + 1
+    # Count working or beyond participants.
+    nonfailed_count = models.Participant.query.filter(
+        (models.Participant.status == "working") |
+        (models.Participant.status == "submitted") |
+        (models.Participant.status == "approved")
+    ).count() + 1
 
     # Create the new participant.
     participant = models.Participant(
@@ -750,22 +786,24 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     exp = Experiment(session)
 
     # Ping back to the recruiter that one of their participants has joined:
-    recruiters.for_experiment(exp).notify_recruited(participant)
+    recruiter = recruiters.for_experiment(exp)
+    recruiter.notify_recruited(participant)
+
+    overrecruited = exp.is_overrecruited(nonfailed_count)
+    if not overrecruited:
+        # We either had no quorum or we have not overrecruited, inform the
+        # recruiter that this participant will be seeing the experiment
+        recruiter.notify_using(participant)
 
     # Queue notification to others in waiting room
     if exp.quorum:
         quorum = {
             'q': exp.quorum,
-            'n': waiting_count,
-            'overrecruited': exp.is_overrecruited(waiting_count),
+            'n': nonfailed_count,
+            'overrecruited': overrecruited,
         }
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
         result['quorum'] = quorum
-
-    if not result.get('quorum', {}).get('overrecruited', False):
-        # We either had no quorum or we have not overrecruited, inform the
-        # recruiter that this participant will be seeing the experiment
-        recruiters.for_experiment(exp).notify_using(participant)
 
     # return the data
     return success_response(**result)

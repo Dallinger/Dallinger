@@ -326,6 +326,29 @@ class TestHandleError(object):
         assert notifications[1].assignment_id == assignment_id
         assert notifications[1].details['request_data']['participant_id'] == participant_id
 
+    def test_looks_up_hit_in_nested_request_data(self, a, webapp):
+        participant = a.participant()
+        assignment_id = participant.assignment_id
+        worker_id = participant.worker_id
+        hit_id = participant.hit_id
+        participant_id = participant.id
+        webapp.post('/handle-error',
+                    data={'request_data': json.dumps(
+                        {'data': json.dumps({
+                            'particpant_id': participant_id,
+                            'worker_id': worker_id,
+                            'hit_id': hit_id,
+                            'assignment_id': assignment_id
+                        })}
+                    )})
+
+        notifications = models.Notification.query.all()
+        assert len(notifications) == 2
+        assert notifications[0].event_type == u'AssignmentSubmitted'
+        assert notifications[1].event_type == u'ExperimentError'
+        assert notifications[1].assignment_id == assignment_id
+        assert notifications[1].details['request_data']['participant_id'] == participant_id
+
     def test_sends_email(self, a, webapp, active_config, dummy_mailer):
         active_config.extend({'dallinger_email_address': u'test_error',
                               'dallinger_email_password': u'secret'})
@@ -335,6 +358,21 @@ class TestHandleError(object):
         dummy_mailer.starttls.assert_called_once()
         dummy_mailer.sendmail.assert_called_once()
         assert dummy_mailer.sendmail.call_args[0][0] == u'test_error@gmail.com'
+
+    def test_emailer_handles_missing_username(self, a, webapp, active_config, dummy_mailer):
+        active_config.extend({'dallinger_email_address': u'',
+                              'contact_email_on_error': u'test_error'})
+        webapp.post('/handle-error', data={})
+
+        dummy_mailer.login.assert_not_called()
+
+    def test_emailer_handles_missing_destination_address(self, a, webapp, active_config,
+                                                         dummy_mailer):
+        active_config.extend({'dallinger_email_address': u'test_error',
+                              'contact_email_on_error': u''})
+        webapp.post('/handle-error', data={})
+
+        dummy_mailer.login.assert_not_called()
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
@@ -607,6 +645,30 @@ class TestSummaryRoute(object):
             u'status': u'success',
             u'summary': [[u'approved', 1], [u'submitted', 1]],
             u'unfilled_networks': 0
+        }
+
+    def test_summary_uses_custom_is_complete(self, a, webapp, active_config):
+        active_config.register_extra_parameters()
+        resp = webapp.get('/summary')
+        data = json.loads(resp.data)
+        assert data == {
+            u'completed': False,
+            u'nodes_remaining': 2,
+            u'required_nodes': 2,
+            u'status': u'success',
+            u'summary': [],
+            u'unfilled_networks': 1
+        }
+        active_config.extend({'_is_completed': True})
+        resp = webapp.get('/summary')
+        data = json.loads(resp.data)
+        assert data == {
+            u'completed': True,
+            u'nodes_remaining': 2,
+            u'required_nodes': 2,
+            u'status': u'success',
+            u'summary': [],
+            u'unfilled_networks': 1
         }
 
 
