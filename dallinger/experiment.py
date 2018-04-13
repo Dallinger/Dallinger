@@ -599,6 +599,9 @@ class Experiment(object):
     def replay_event(self, event):
         pass
 
+    def replay_start(self):
+        pass
+
     def replay_finish(self):
         pass
 
@@ -680,7 +683,9 @@ class Experiment(object):
         # with experiment.restore_state_from_replay(...): block the configuration
         # options are correctly set
         with config.override(configuration_options, strict=True):
+            self.replay_start()
             yield go_to
+            self.replay_finish()
 
         # Clear up global state
         import_session.close()
