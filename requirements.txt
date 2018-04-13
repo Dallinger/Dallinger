@@ -19,5 +19,5 @@ SQLAlchemy==1.2.5
 sqlalchemy-postgres-copy==0.5.0
 ua-parser==0.7.3
 user-agents==1.1.0
-psutil==5.4.3
+psutil==5.4.4
 flask-crossdomain==0.1
