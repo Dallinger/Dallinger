@@ -402,7 +402,7 @@ class TestHerokuApp(object):
         app.bootstrap()
         check_call.assert_has_calls([
             mock.call(['heroku', 'apps:create', 'dlgr-fake-uid', '--buildpack',
-                       'https://github.com/kennethreitz/conda-buildpack.git',
+                       'heroku/python',
                        '--org', 'some-team'], stdout=None),
         ])
 

@@ -235,6 +235,7 @@ class MTurkRecruiter(Recruiter):
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
             self.config.get('aws_secret_access_key'),
+            self.config.get('aws_region'),
             self.config.get('mode') != "live"
         )
         self._validate_conifg()
