@@ -10,6 +10,7 @@ import re
 import six
 import sys
 import subprocess
+import time
 import traceback
 
 from dallinger.config import SENSITIVE_KEY_NAMES
@@ -153,7 +154,12 @@ class HerokuApp(object):
 
     def pg_wait(self):
         """Wait for the DB to be fired up."""
-        self._run(["heroku", "pg:wait", "--app", self.name])
+        try:
+            self._run(["heroku", "pg:wait", "--app", self.name])
+        except subprocess.CalledProcessError:
+            # Maybe it doesn't know there's a db to wait for yet...
+            time.sleep(3)
+            self._run(["heroku", "pg:wait", "--app", self.name])
 
     @property
     def redis_url(self):
