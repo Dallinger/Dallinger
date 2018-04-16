@@ -1,13 +1,12 @@
 """Heroku web worker."""
 
-from future.builtins import map
 import os
 import redis
 
 
 listen = ['high', 'default', 'low']
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-conn = redis.from_url(redis_url, decode_responses=True, charset='utf-8')
+conn = redis.from_url(redis_url)
 
 if __name__ == '__main__':  # pragma: nocover
 
