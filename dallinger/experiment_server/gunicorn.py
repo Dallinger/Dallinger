@@ -1,5 +1,9 @@
 from __future__ import absolute_import
 
+# Make sure gevent patches are applied early
+import gevent.monkey
+gevent.monkey.patch_all()
+
 from gunicorn.app.base import Application
 from gunicorn import util
 import multiprocessing
