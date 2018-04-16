@@ -45,7 +45,7 @@ class ExperimentWidget(widgets.VBox):
         )
         config = get_config()
         if config.ready:
-            config_items = config.as_dict().items()
+            config_items = list(config.as_dict().items())
             config_items.sort()
             config_tab = widgets.HTML(
                 config_template.render(config=config_items)
