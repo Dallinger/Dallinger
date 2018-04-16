@@ -4,7 +4,9 @@ import logging
 from cached_property import cached_property
 from urlparse import urlparse, urlunparse, parse_qs
 import uuid
+import random
 
+import gevent
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -186,9 +188,14 @@ class HighPerformanceBotBase(BotBase):
             )
             result = requests.post(url)
             if result.status_code == 500:
+                gevent.sleep(1.0/random.expovariate(0.5))
                 continue
-            self.participant_id = result.json()['participant']['id']
-            return self.participant_id
+            elif result.json()['status'] == 'error':
+                gevent.sleep(1.0/random.expovariate(0.5))
+                continue
+            else:
+                self.participant_id = result.json()['participant']['id']
+                return self.participant_id
 
     def sign_off(self):
         """Submit questionnaire and finish."""
@@ -202,6 +209,7 @@ class HighPerformanceBotBase(BotBase):
             )
             result = requests.post(url, data=question_responses)
             if result.status_code == 500:
+                gevent.sleep(1.0/random.expovariate(0.5))
                 continue
             return True
 
@@ -216,5 +224,6 @@ class HighPerformanceBotBase(BotBase):
             )
             result = requests.get(url)
             if result.status_code == 500:
+                gevent.sleep(1.0/random.expovariate(0.5))
                 continue
             return result

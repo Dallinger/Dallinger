@@ -113,21 +113,22 @@ def serialized(func):
     def wrapper(*args, **kw):
         attempts = 100
         while attempts > 0:
-            try:
-                session.connection(
-                    execution_options={'isolation_level': 'SERIALIZABLE'})
-                with sessions_scope(session, commit=True):
+            session.connection(
+                execution_options={'isolation_level': 'SERIALIZABLE'})
+            with sessions_scope(session, commit=True):
+                try:
                     return func(*args, **kw)
-            except OperationalError as exc:
-                if isinstance(exc.orig, TransactionRollbackError):
-                    if attempts > 0:
-                        attempts -= 1
+                except OperationalError as exc:
+                    if isinstance(exc.orig, TransactionRollbackError):
+                        if attempts > 0:
+                            attempts -= 1
+                            continue
+                        else:
+                            raise Exception(
+                                'Could not commit serialized transaction '
+                                'after 100 attempts.')
                     else:
-                        raise Exception(
-                            'Could not commit serialized transaction '
-                            'after 100 attempts.')
-                else:
-                    raise
+                        raise
     return wrapper
 
 
