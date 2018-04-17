@@ -799,7 +799,7 @@ class TestMTurkServiceWithFakeConnection(object):
             Title='Test Title',
             Description='Test Description',
             Reward='0.01',
-            AssignmentDurationInSeconds=datetime.timedelta(hours=.25).total_seconds(),
+            AssignmentDurationInSeconds=int(datetime.timedelta(hours=.25).total_seconds()),
             Keywords='testkw1,testkw2',
             AutoApprovalDelayInSeconds=0,
             QualificationRequirements=quals

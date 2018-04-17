@@ -144,7 +144,7 @@ class MTurkService(object):
         is required for creating a HIT.
         """
         reward = str(reward)
-        duration_secs = datetime.timedelta(hours=duration_hours).total_seconds()
+        duration_secs = int(datetime.timedelta(hours=duration_hours).total_seconds())
         hit_type = self.mturk.create_hit_type(
             Title=title,
             Description=description,
@@ -367,7 +367,7 @@ class MTurkService(object):
         params = {
             'HITTypeId': hit_type_id,
             'Question': mturk_question,
-            'LifetimeInSeconds': datetime.timedelta(days=lifetime_days).total_seconds(),
+            'LifetimeInSeconds': int(datetime.timedelta(days=lifetime_days).total_seconds()),
             'MaxAssignments': max_assignments,
             'UniqueRequestToken': self._request_token()
         }
