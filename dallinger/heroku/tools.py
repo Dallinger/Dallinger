@@ -154,12 +154,17 @@ class HerokuApp(object):
 
     def pg_wait(self):
         """Wait for the DB to be fired up."""
-        try:
-            self._run(["heroku", "pg:wait", "--app", self.name])
-        except subprocess.CalledProcessError:
-            # Maybe it doesn't know there's a db to wait for yet...
-            time.sleep(3)
-            self._run(["heroku", "pg:wait", "--app", self.name])
+        retries = 10
+        while retries:
+            retries = retries - 1
+            try:
+                self._run(["heroku", "pg:wait", "--app", self.name])
+            except subprocess.CalledProcessError:
+                time.sleep(5)
+                if not retries:
+                    raise
+            else:
+                break
 
     @property
     def redis_url(self):
