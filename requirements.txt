@@ -1,6 +1,6 @@
 APScheduler==3.5.1
 boto==2.48.0
-cached-property==1.4.0
+cached-property==1.4.2
 click==6.7
 Flask-Sockets==0.2.1
 Flask==0.12.2
@@ -17,7 +17,7 @@ rq==0.10.0
 selenium==3.11.0
 SQLAlchemy==1.2.5
 sqlalchemy-postgres-copy==0.5.0
-ua-parser==0.7.3
+ua-parser==0.8.0
 user-agents==1.1.0
 psutil==5.4.3
 flask-crossdomain==0.1
