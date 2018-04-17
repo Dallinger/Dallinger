@@ -607,8 +607,7 @@ class TestLoad(object):
         from dallinger.command_line import LoadSessionRunner
         loader = LoadSessionRunner(self.exp_id, output, verbose=True,
                                    exp_config={'replay': True})
-        loader.keep_running = mock.Mock(return_value=False)\
-
+        loader.keep_running = mock.Mock(return_value=False)
 
         def launch_and_finish(self):
             from dallinger.heroku.tools import HerokuLocalWrapper
