@@ -5,7 +5,6 @@ import os
 import pytest
 import shutil
 import sys
-from StringIO import StringIO
 
 
 class TestGridUniverse(object):
