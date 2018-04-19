@@ -6,6 +6,7 @@ from flask_sockets import Sockets
 from redis import ConnectionError
 import gevent
 import os
+import six
 import socket
 
 sockets = Sockets(app)
@@ -37,6 +38,9 @@ class ChatBackend(object):
         """Register a new client to receive messages on a channel."""
 
         # Make sure this process is subscribed to the redis channel
+        if isinstance(channel, six.text_type):
+            channel = channel.encode('utf-8')
+
         if channel not in self.pubsub.channels:
             try:
                 self.pubsub.subscribe([channel])
