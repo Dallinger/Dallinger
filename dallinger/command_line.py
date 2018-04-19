@@ -868,10 +868,19 @@ class DebugSessionRunner(LocalSessionRunner):
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
         time.sleep(4)
-        result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
-        if result['status'] == 'success':
-            self.out.log(result['recruitment_msg'])
+        try:
+            result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
+        except ValueError:
+            # Show output from server
+            self.dispatch[r'POST /launch'] = 'launch_request_complete'
             heroku.monitor(listener=self.notify)
+        else:
+            if result['status'] == 'success':
+                self.out.log(result['recruitment_msg'])
+                heroku.monitor(listener=self.notify)
+
+    def launch_request_complete(self, match):
+        return HerokuLocalWrapper.MONITOR_STOP
 
     def cleanup(self):
         log("Completed debugging of experiment with id " + self.exp_id)
