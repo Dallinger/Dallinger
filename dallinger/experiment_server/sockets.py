@@ -9,6 +9,7 @@ from flask_sockets import Sockets
 from redis import ConnectionError
 import gevent
 import os
+import six
 import socket
 
 sockets = Sockets(app)
@@ -54,8 +55,11 @@ class Channel(object):
         This is run continuously in a separate greenlet.
         """
         pubsub = conn.pubsub()
+        name = self.name
+        if isinstance(name, six.text_type):
+            name = name.encode('utf-8')
         try:
-            pubsub.subscribe([self.name])
+            pubsub.subscribe([name])
         except ConnectionError:
             app.logger.exception('Could not connect to redis.')
         log('Listening on channel {}'.format(self.name))
