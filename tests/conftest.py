@@ -400,3 +400,5 @@ def pytest_addoption(parser):
                      help="Run comprehensive MTurk integration tests during test run")
     parser.addoption("--heroku", action="store_true",
                      help="Run tests requiring heroku login")
+    parser.addoption("--griduniverse", action="store_true",
+                     help="Run griduinverse tests and fail if not all pass")
