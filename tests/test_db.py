@@ -30,6 +30,7 @@ def test_serialized(db_session):
     # by changing the participant count from another db session
     # the first time that our serialized transaction is called.
     interrupted = []
+
     def interruptor():
         if not interrupted:
             session2 = db_session.session_factory()

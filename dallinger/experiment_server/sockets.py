@@ -107,11 +107,11 @@ class WebSocketWrapper(object):
     def __init__(self, ws):
         self.ws = ws
         self.send_lock = Semaphore()
-    
+
     def send(self, message):
         with self.send_lock:
             self.ws.send(message)
-    
+
     def heartbeat(self):
         while not self.ws.closed:
             gevent.sleep(HEARTBEAT_DELAY)

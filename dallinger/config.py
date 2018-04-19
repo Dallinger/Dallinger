@@ -8,7 +8,6 @@ import imp
 import logging
 import os
 import sys
-import threading
 
 from .compat import unicode
 

@@ -11,14 +11,13 @@ conn = redis.from_url(redis_url)
 
 if __name__ == '__main__':
     from rq import (
-        Worker,
         Queue,
         Connection
     )
     try:
         from rq_gevent_worker import GeventWorker as Worker
     except ImportError:
-        pass
+        from rq import Worker
 
     with Connection(conn):
         worker = Worker(list(map(Queue, listen)))
