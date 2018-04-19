@@ -1,6 +1,7 @@
 from collections import defaultdict
 from .experiment_server import app
 from ..heroku.worker import conn
+from gevent.lock import Semaphore
 from flask import request
 from flask_sockets import Sockets
 from redis import ConnectionError
@@ -73,15 +74,15 @@ class ChatBackend(object):
     def run(self):
         """Listens for new messages in redis, and sends them to clients."""
         log('Listening for messages')
-        for message in self.pubsub.listen():
-            data = message.get('data')
-            if message['type'] == 'message' and data != 'None':
-                channel = message['channel']
-                count = len(self.clients[channel])
-                if count:
-                    for client in self.clients[channel]:
-                        gevent.spawn(
-                            self.send, client, '{}:{}'.format(channel, data))
+        while True:
+            message = self.pubsub.get_message()
+            if message:
+                data = message.get('data')
+                if message['type'] == 'message' and data != 'None':
+                    channel = message['channel']
+                    for client in self.clients[channel] or ():
+                        gevent.spawn(self.send, client, '{}:{}'.format(channel, data))
+            gevent.sleep(0.001)
 
     def start(self):
         """Starts listening in the background."""
@@ -92,35 +93,47 @@ class ChatBackend(object):
             self.greenlet.kill()
             self.greenlet = None
 
-    def heartbeat(self, ws):
-        """Send a ping to the websocket client periodically"""
-        while not ws.closed:
-            gevent.sleep(HEARTBEAT_DELAY)
-            gevent.spawn(self.send, ws, 'ping')
-
 
 chat_backend = ChatBackend()
+
+
+class WebSocketWrapper(object):
+
+    def __init__(self, ws):
+        self.ws = ws
+        self.send_lock = Semaphore()
+    
+    def send(self, message):
+        with self.send_lock:
+            self.ws.send(message)
+    
+    def heartbeat(self):
+        while not self.ws.closed:
+            gevent.sleep(HEARTBEAT_DELAY)
+            gevent.spawn(self.send, 'ping')
 
 
 @sockets.route('/chat')
 def chat(ws):
     """Relay chat messages to and from clients.
     """
+    client = WebSocketWrapper(ws)
+
     # Subscribe to messages on the specified channel.
     channel = request.args.get('channel')
     lag_tolerance_secs = float(request.args.get('tolerance', 0.1))
-    chat_backend.subscribe(ws, channel)
+    chat_backend.subscribe(client, channel)
 
     # Send heartbeat ping every 30s
     # so Heroku won't close the connection
-    gevent.spawn(chat_backend.heartbeat, ws)
+    gevent.spawn(client.heartbeat)
 
-    while not ws.closed:
+    while not client.ws.closed:
         # Sleep to prevent *constant* context-switches.
         gevent.sleep(lag_tolerance_secs)
 
         # Publish messages from client
-        message = ws.receive()
+        message = client.ws.receive()
         if message is not None:
             channel, data = message.split(':', 1)
             conn.publish(channel, data)
