@@ -74,9 +74,8 @@ def reset_config():
         del sys.modules['dallinger_experiment']
 
     # Make sure extra parameters aren't kept between tests
-    from dallinger.config import configurations
-    if hasattr(configurations, 'config'):
-        del configurations.config
+    import dallinger.config
+    dallinger.config.config = None
 
 
 @pytest.fixture(scope='session')

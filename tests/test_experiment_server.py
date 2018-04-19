@@ -530,8 +530,10 @@ class TestParticipantRoute(object):
 
         assert resp.status_code == 200
 
-    def test_prevent_duplicate_participant_for_worker(self, a, webapp):
+    def test_prevent_duplicate_participant_for_worker(self, a, db_session, webapp):
         p = a.participant()
+        db_session.commit()
+
         resp = webapp.post('/participant/{}/{}/{}/debug'.format(
             p.worker_id, p.hit_id, p.assignment_id
         ))
@@ -733,29 +735,33 @@ class TestParticipantNodeCreationRoute(object):
         assert resp.status_code == 403
         assert '/node POST no participant found' in resp.data
 
-    def test_with_valid_participant_creates_participant_node(self, a, webapp):
+    def test_with_valid_participant_creates_participant_node(self, db_session, a, webapp):
         participant_id = a.participant().id
+        db_session.commit()
         resp = webapp.post('/node/{}'.format(participant_id))
         data = json.loads(resp.data)
         assert data.get('node').get('participant_id') == participant_id
 
-    def test_with_valid_participant_adds_node_to_network(self, a, webapp):
+    def test_with_valid_participant_adds_node_to_network(self, db_session, a, webapp):
         from dallinger.networks import Star
         participant_id = a.participant().id
+        db_session.commit()
         resp = webapp.post('/node/{}'.format(participant_id))
         data = json.loads(resp.data)
         assert Star.query.one().nodes()[0].id == data['node']['network_id']
 
-    def test_participant_status_not_working_returns_error(self, a, webapp):
+    def test_participant_status_not_working_returns_error(self, a, db_session, webapp):
         participant = a.participant()
         participant.status = 'submitted'
+        db_session.commit()
         resp = webapp.post('/node/{}'.format(participant.id))
         assert 'Error type: /node POST, status = submitted' in resp.data
 
-    def test_no_network_for_participant_returns_error(self, a, webapp):
+    def test_no_network_for_participant_returns_error(self, a, db_session, webapp):
         participant = a.participant()
         # Assign the participant to a node and fill the network:
         a.node(participant=participant, network=a.star(max_size=1))
+        db_session.commit()
         resp = webapp.post('/node/{}'.format(participant.id))
         assert resp.data == '{"status": "error"}'
 

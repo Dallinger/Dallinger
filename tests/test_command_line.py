@@ -159,7 +159,7 @@ class TestCommandLine(object):
 
     def test_email_with_no_credentials(self, active_config):
             @report_idle_after(1)
-            def test_smpt():
+            def test_smtp():
                 active_config.extend({
                     'dallinger_email_address': u'email',
                     'contact_email_on_error': u'email',
@@ -168,7 +168,7 @@ class TestCommandLine(object):
                 sleep(5)
 
             with raises(SMTPAuthenticationError):
-                test_smpt()
+                test_smtp()
 
 
 @pytest.mark.usefixtures('bartlett_dir', 'active_config')

@@ -266,15 +266,15 @@ class Configuration(object):
         sys.path.pop(path_index)
 
 
-configurations = threading.local()
+config = None
 
 
 def get_config():
-    if hasattr(configurations, 'config'):
-        return configurations.config
-    configurations.config = Configuration()
+    global config
 
-    for registration in default_keys:
-        configurations.config.register(*registration)
+    if config is None:
+        config = Configuration()
+        for registration in default_keys:
+            config.register(*registration)
 
-    return configurations.config
+    return config

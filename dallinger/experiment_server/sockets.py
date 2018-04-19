@@ -29,6 +29,9 @@ class ChatBackend(object):
     Inspired by https://devcenter.heroku.com/articles/python-websockets
     """
 
+    # sentinel
+    STOP_LISTENING = object()
+
     def __init__(self):
         self.pubsub = conn.pubsub()
         self.clients = defaultdict(list)
@@ -76,7 +79,9 @@ class ChatBackend(object):
         log('Listening for messages')
         while True:
             message = self.pubsub.get_message()
-            if message:
+            if message is self.STOP_LISTENING:  # for tests
+                return
+            elif message:
                 data = message.get('data')
                 if message['type'] == 'message' and data != 'None':
                     channel = message['channel']

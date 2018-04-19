@@ -11,10 +11,10 @@ def sockets():
 
 
 @pytest.fixture
-def pubsub():
+def pubsub(sockets):
     pubsub = Mock()
     pubsub.channels = {}
-    pubsub.listen.return_value = []
+    pubsub.get_message.side_effect = [sockets.ChatBackend.STOP_LISTENING]
     return pubsub
 
 
@@ -56,8 +56,6 @@ class TestChatBackend:
 
     def test_subscribe_to_new_channel_subscribes_on_redis(self, chat):
         client = Mock()
-        chat.pubsub = Mock()
-        chat.pubsub.channels = {}
         chat.subscribe(client, 'custom')
         chat.pubsub.subscribe.assert_called_once_with(['custom'])
 
@@ -65,6 +63,7 @@ class TestChatBackend:
         client1 = Mock()
         chat.pubsub = Mock()
         chat.pubsub.channels = {'custom'}
+        chat.pubsub.get_message.return_value = [chat.STOP_LISTENING]
         chat.subscribe(client1, 'custom')
         chat.pubsub.subscribe.assert_not_called()
 
@@ -91,11 +90,11 @@ class TestChatBackend:
 
         chat.pubsub = Mock()
         chat.pubsub.channels = ['quorum']
-        chat.pubsub.listen.return_value = [{
+        chat.pubsub.get_message.side_effect = [{
             'type': 'message',
             'channel': 'quorum',
             'data': 'Calloo! Callay!',
-        }]
+        }, chat.STOP_LISTENING]
         chat.greenlet = Mock()
 
         chat.subscribe(client, 'quorum')
@@ -109,24 +108,29 @@ class TestChatBackend:
         chat.stop()
 
     def test_heartbeat(self, chat, sockets):
-        client = Mock()
-        client.closed = False
-        chat.send = Mock()
+        ws = Mock()
+        client = sockets.WebSocketWrapper(ws)
+        ws.closed = False
+        ws.send = Mock()
         sockets.HEARTBEAT_DELAY = 1
 
-        gevent.spawn(chat.heartbeat, client)
+        gevent.spawn(client.heartbeat)
         gevent.sleep(2)
-        client.closed = True
+        ws.closed = True
         gevent.wait()
 
-        chat.send.assert_called_with(client, 'ping')
+        ws.send.assert_called_with('ping')
 
     def test_chat_subscribes_to_requested_channel(self, sockets):
         ws = Mock()
         sockets.request = Mock()
         sockets.request.args = {'channel': 'special'}
         sockets.chat(ws)
-        assert ws in sockets.chat_backend.clients['special']
+        clients = [
+            c for c in sockets.chat_backend.clients['special']
+            if c.ws is ws
+        ]
+        assert len(clients) == 1
 
     def test_chat_publishes_message_to_requested_channel(self, sockets, pubsub, mocksocket):
         ws = mocksocket

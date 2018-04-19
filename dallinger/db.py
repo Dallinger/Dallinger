@@ -115,8 +115,8 @@ def serialized(func):
     @wraps(func)
     def wrapper(*args, **kw):
         attempts = 100
+        session.remove()
         while attempts > 0:
-            session = session_factory()
             try:
                 session.connection(
                     execution_options={'isolation_level': 'SERIALIZABLE'})
@@ -135,7 +135,7 @@ def serialized(func):
                 else:
                     raise
             finally:
-                session.close()
+                session.remove()
     return wrapper
 
 
