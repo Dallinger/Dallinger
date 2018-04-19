@@ -20,9 +20,12 @@ logger = logging.getLogger('dallinger.db')
 db_url_default = "postgresql://dallinger:dallinger@localhost/dallinger"
 db_url = os.environ.get("DATABASE_URL", db_url_default)
 engine = create_engine(db_url, pool_size=1000)
-session = scoped_session(sessionmaker(autocommit=False,
-                                      autoflush=True,
-                                      bind=engine))
+session_factory = sessionmaker(
+    autocommit=False,
+    autoflush=True,
+    bind=engine,
+)
+session = scoped_session(session_factory)
 
 Base = declarative_base()
 Base.query = session.query_property()
@@ -113,22 +116,26 @@ def serialized(func):
     def wrapper(*args, **kw):
         attempts = 100
         while attempts > 0:
-            session.connection(
-                execution_options={'isolation_level': 'SERIALIZABLE'})
-            with sessions_scope(session, commit=True):
-                try:
-                    return func(*args, **kw)
-                except OperationalError as exc:
-                    if isinstance(exc.orig, TransactionRollbackError):
-                        if attempts > 0:
-                            attempts -= 1
-                            continue
-                        else:
-                            raise Exception(
-                                'Could not commit serialized transaction '
-                                'after 100 attempts.')
+            session = session_factory()
+            try:
+                session.connection(
+                    execution_options={'isolation_level': 'SERIALIZABLE'})
+                result = func(*args, **kw)
+                session.commit()
+                return result
+            except OperationalError as exc:
+                session.rollback()
+                if isinstance(exc.orig, TransactionRollbackError):
+                    if attempts > 0:
+                        attempts -= 1
                     else:
-                        raise
+                        raise Exception(
+                            'Could not commit serialized transaction '
+                            'after 100 attempts.')
+                else:
+                    raise
+            finally:
+                session.close()
     return wrapper
 
 
