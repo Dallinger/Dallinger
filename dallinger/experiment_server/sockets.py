@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 from collections import defaultdict
 from .experiment_server import app
 from ..heroku.worker import conn
@@ -83,9 +84,12 @@ class ChatBackend(object):
                 channel = message['channel']
                 count = len(self.clients[channel])
                 if count:
+                    # Websocket clients will encode the message on send()
+                    payload = '{}:{}'.format(
+                        channel.decode('utf-8'), data.decode('utf-8')
+                    )
                     for client in self.clients[channel]:
-                        gevent.spawn(
-                            self.send, client, '{}:{}'.format(channel, data))
+                        gevent.spawn(self.send, client, payload)
 
     def start(self):
         """Starts listening in the background."""
