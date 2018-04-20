@@ -7,6 +7,7 @@ from functools import wraps
 import datetime
 import imp
 import inspect
+from importlib import import_module
 import logging
 from operator import itemgetter
 import os
@@ -130,11 +131,14 @@ class Experiment(object):
             self.configure()
 
         try:
+            location = type(self).__module__
+            parent, experiment_module = location.rsplit('.', 1)
+            module = import_module(parent + '.jupyter')
+        except (ImportError, ValueError):
             from .jupyter import ExperimentWidget
-        except ImportError:
-            self.widget = None
-        else:
             self.widget = ExperimentWidget(self)
+        else:
+            self.widget = module.ExperimentWidget(self)
 
     def configure(self):
         """Load experiment configuration here"""
@@ -590,7 +594,7 @@ class Experiment(object):
             HerokuApp(self.app_id).destroy()
         return True
 
-    def events_for_replay(self, session=None):
+    def events_for_replay(self, session=None, target=None):
         """Be default we return all infos in order for replay"""
         if session is None:
             session = self.session
@@ -664,7 +668,7 @@ class Experiment(object):
             if self._replay_time_index > time:
                 # We do not support going back in time
                 raise NotImplementedError
-            events = self.events_for_replay(session=import_session)
+            events = self.events_for_replay(session=import_session, target=time)
             for event in events:
                 if event.creation_time <= self._replay_time_index:
                     # Skip events we've already handled
@@ -673,7 +677,7 @@ class Experiment(object):
                     # Stop once we get future events
                     break
                 self.replay_event(event)
-            self._replay_time_index = time
+                self._replay_time_index = event.creation_time
             # Override app_id to allow exports to be created that don't
             # overwrite the original dataset
             self.app_id = "{}_{}".format(self.original_app_id, time.isoformat())
