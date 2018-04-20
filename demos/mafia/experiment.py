@@ -23,7 +23,7 @@ class MafiaExperiment(dlgr.experiments.Experiment):
 
         self.experiment_repeats = 1
         self.num_participants = 4
-        self.initial_recruitment_size = self.num_participants # * 2 # Note: can't do *2.5 here, won't run even if the end result is an integer
+        self.initial_recruitment_size = self.num_participants   # * 2 # Note: can't do *2.5 here, won't run even if the end result is an integer
         self.quorum = self.num_participants
         if session:
             self.setup()
@@ -47,7 +47,9 @@ class MafiaExperiment(dlgr.experiments.Experiment):
     def create_network(self):
         """Create a new network by reading the configuration file."""
 
-        mafia_network = self.models.MafiaNetwork(max_size=self.num_participants + 1)  # add a Source
+        mafia_network = self.models.MafiaNetwork(
+            max_size=self.num_participants + 1
+        )  # add a Source
         mafia_network.daytime = 'False'
         return mafia_network
 
@@ -81,12 +83,14 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         # If there aren't enough, create another:
         num_mafioso = Node.query.filter_by(type="mafioso").count()
         if num_mafioso < self.num_mafia:
-            mafioso = self.models.Mafioso(network=network, participant=participant)
+            mafioso = self.models.Mafioso(network=network,
+                                          participant=participant)
             mafioso.fake_name = str(fake.name())
             mafioso.alive = 'True'
             return mafioso
         else:
-            bystander = self.models.Bystander(network=network, participant=participant)
+            bystander = self.models.Bystander(network=network,
+                                              participant=participant)
             bystander.fake_name = str(fake.name())
             bystander.alive = 'True'
             return bystander
@@ -99,13 +103,15 @@ extra_routes = Blueprint(
     static_folder='static')
 
 
-@extra_routes.route("/phase/<int:node_id>/<int:switches>/<string:was_daytime>", methods=["GET"])
+@extra_routes.route("/phase/<int:node_id>/<int:switches>/<string:was_daytime>",
+                    methods=["GET"])
 def phase(node_id, switches, was_daytime):
     try:
         exp = MafiaExperiment(db.session)
         this_node = Node.query.filter_by(id=node_id).one()
         net = Network.query.filter_by(id=this_node.network_id).one()
-        nodes = Node.query.filter_by(network_id=net.id).order_by('creation_time').all()
+        nodes = Node.query.filter_by(network_id=net.id).order_by(
+            'creation_time').all()
         node = nodes[-1]
         elapsed_time = timenow() - node.creation_time
         daytime = (net.daytime == 'True')
@@ -116,36 +122,56 @@ def phase(node_id, switches, was_daytime):
         nightbreak_duration = night_round_duration + break_duration
         time = elapsed_time.total_seconds()
         if switches % 2 == 0:
-            time = night_round_duration - (elapsed_time.total_seconds() - switches / 2 * daybreak_duration) % night_round_duration
+            time = night_round_duration - (
+                elapsed_time.total_seconds() -
+                switches / 2 * daybreak_duration
+            ) % night_round_duration
         else:
-            time = day_round_duration - (elapsed_time.total_seconds() - (switches + 1) / 2 * nightbreak_duration) % day_round_duration
+            time = day_round_duration - (
+                elapsed_time.total_seconds() -
+                (switches + 1) / 2 * nightbreak_duration
+            ) % day_round_duration
         time = int(time)
         victim_name = None
         victim_type = None
         winner = None
 
         # If it's night but should be day, then call setup_daytime()
-        if not daytime and (int(elapsed_time.total_seconds() - switches / 2 * daybreak_duration) == night_round_duration):
+        if not daytime and (
+            int(elapsed_time.total_seconds() -
+                switches / 2 * daybreak_duration) == night_round_duration):
             victim_name, winner = net.setup_daytime()
         # If it's day but should be night, then call setup_nighttime()
-        elif daytime and (int(elapsed_time.total_seconds() - (switches + 1) / 2 * nightbreak_duration) == day_round_duration):
+        elif daytime and (
+            int(elapsed_time.total_seconds() -
+                (switches + 1) / 2 * nightbreak_duration) == day_round_duration):
             victim_name, winner = net.setup_nighttime()
             victim_type = Node.query.filter_by(property1=victim_name).one().type
         elif was_daytime != net.daytime:
-            nodes = Node.query.filter_by(network_id=net.id, property2='True').all()
-            mafiosi = Node.query.filter_by(network_id=net.id, property2='True', type='mafioso').all()
-            victim_name = Node.query.filter_by(network_id=net.id, property2='False').order_by('property3').all()[-1].property1
+            nodes = Node.query.filter_by(network_id=net.id,
+                                         property2='True').all()
+            mafiosi = Node.query.filter_by(network_id=net.id,
+                                           property2='True',
+                                           type='mafioso').all()
+            victim_name = Node.query.filter_by(
+                network_id=net.id,
+                property2='False'
+            ).order_by('property3').all()[-1].property1
             if daytime:
                 if len(mafiosi) > len(nodes) - len(mafiosi) - 1:
                     winner = 'mafia'
             else:
-                victim_type = Node.query.filter_by(property1=victim_name).one().type
+                victim_type = Node.query.filter_by(
+                    property1=victim_name
+                ).one().type
                 if len(mafiosi) >= len(nodes) - len(mafiosi) - 1:
                     winner = 'mafia'
             if len(mafiosi) == 0:
                 winner = 'townspeople'
         if winner is not None:
-            victim_type = Node.query.filter_by(property1=victim_name).one().type
+            victim_type = Node.query.filter_by(
+                property1=victim_name
+            ).one().type
 
         exp.save()
 
@@ -163,15 +189,19 @@ def phase(node_id, switches, was_daytime):
             mimetype='application/json')
 
 
-@extra_routes.route("/live_participants/<int:node_id>/<int:get_all>", methods=["GET"])
+@extra_routes.route("/live_participants/<int:node_id>/<int:get_all>",
+                    methods=["GET"])
 def live_participants(node_id, get_all):
     try:
         exp = MafiaExperiment(db.session)
         this_node = Node.query.filter_by(id=node_id).one()
         if get_all == 1:
-            nodes = Node.query.filter_by(network_id=this_node.network_id, property2='True').all()
+            nodes = Node.query.filter_by(network_id=this_node.network_id,
+                                         property2='True').all()
         else:
-            nodes = Node.query.filter_by(network_id=this_node.network_id, property2='True', type='mafioso').all()
+            nodes = Node.query.filter_by(network_id=this_node.network_id,
+                                         property2='True',
+                                         type='mafioso').all()
         participants = []
         for node in nodes:
             if node.property1 == this_node.property1:
@@ -192,6 +222,7 @@ def live_participants(node_id, get_all):
             status=403,
             mimetype='application/json')
 
+
 class FreeRecallListSource(Source):
     """A Source that reads in a random list from a file and transmits it."""
 
@@ -204,15 +235,15 @@ class FreeRecallListSource(Source):
         transmit() -> _what() -> create_information() -> _contents().
         """
 
-        ### read in UUID
+        # read in UUID
         exptfilename = "experiment_id.txt"
         exptfile = open(exptfilename, "r")
-        UUID = exptfile.read() # get UUID of the experiment
+        UUID = exptfile.read()  # get UUID of the experiment
 
         wordlist = "groupwordlist.md"
         with open("static/stimuli/{}".format(wordlist), "r") as f:
 
-            ### get a wordlist for the expt
+            # get a wordlist for the expt
             # reads in the file with a big list of words
             wordlist = f.read().splitlines()
             # use the UUID (unique to each expt) as a seed for
@@ -222,9 +253,9 @@ class FreeRecallListSource(Source):
             # they have different UUIDs.
             random.seed(UUID)
             # sample 60 words from large word list without replacement
-            expt_wordlist = random.sample(wordlist,1)
+            expt_wordlist = random.sample(wordlist, 1)
 
-            ### shuffle wordlist for each participant
-            random.seed() # an actually random seed
+            # shuffle wordlist for each participant
+            random.seed()  # an actually random seed
             random.shuffle(expt_wordlist)
             return json.dumps(expt_wordlist)

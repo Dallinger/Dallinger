@@ -1,9 +1,6 @@
 """Define kinds of nodes: agents, sources, and environments."""
 
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy import Boolean, String
-from sqlalchemy.sql.expression import cast
-
 from dallinger.models import Node, Network, Info, timenow
 from dallinger.nodes import Source
 from random import choice
@@ -12,17 +9,19 @@ from random import choice
 class Text(Info):
     """A text"""
 
-    __mapper_args__= {"polymorphic_identity":"text"}
+    __mapper_args__ = {"polymorphic_identity": "text"}
+
 
 class Vote(Info):
     """A vote"""
 
-    __mapper_args__= {"polymorphic_identity":"vote"}
+    __mapper_args__ = {"polymorphic_identity": "vote"}
+
 
 class Bystander(Node):
     """Bystander"""
 
-    __mapper_args__= {"polymorphic_identity":"bystander"}
+    __mapper_args__ = {"polymorphic_identity": "bystander"}
 
     @hybrid_property
     def fake_name(self):
@@ -78,21 +77,24 @@ class Bystander(Node):
         """Make death time queryable."""
         return self.property3
 
+
 class Mafioso(Bystander):
     """Member of the mafia."""
 
-    __mapper_args__= {"polymorphic_identity":"mafioso"}
+    __mapper_args__ = {"polymorphic_identity": "mafioso"}
 
 
 class MafiaNetwork(Network):
-    """A mafia network that switches between FullyConnected for all and only mafia nodes."""
+    """A mafia network that switches between FullyConnected
+    for all and only mafia nodes."""
 
     __mapper_args__ = {"polymorphic_identity": "mafia-network"}
 
     def add_node(self, node):
         """Add a node, connecting it to other mafia if mafioso."""
         if node.type == "mafioso":
-            other_mafiosi = [n for n in Node.query.filter_by(type="mafioso") if n.id != node.id]
+            other_mafiosi = [n for n in Node.query.filter_by(type="mafioso")
+                             if n.id != node.id]
             for n in other_mafiosi:
                 node.connect(direction="both", whom=n)
 
@@ -121,19 +123,28 @@ class MafiaNetwork(Network):
 
     def fail_bystander_vectors(self):
         # mafiosi = self.nodes(type=Mafioso)
-        mafiosi = Node.query.filter_by(network_id=self.id, property2='True', type='mafioso').all()
+        mafiosi = Node.query.filter_by(network_id=self.id,
+                                       property2='True', type='mafioso').all()
         for v in self.vectors():
-            if not isinstance(v.origin, Source) and not (v.origin in mafiosi and v.destination in mafiosi):
+            if not isinstance(v.origin, Source) and not (
+                    v.origin in mafiosi and v.destination in mafiosi):
                 v.fail()
 
     def vote(self, nodes):
         votes = {}
         for node in nodes:
-            vote = choice(Node.query.filter_by(network_id=self.id, property2='True').all()).property1
-            node_votes = Info.query.filter_by(origin_id=node.id, type='vote').order_by('creation_time')
-            if node_votes.first() != None:
+            vote = choice(Node.query.filter_by(
+                network_id=self.id,
+                property2='True'
+            ).all()).property1
+            node_votes = Info.query.filter_by(
+                origin_id=node.id,
+                type='vote'
+            ).order_by('creation_time')
+            if node_votes.first() is not None:
                 node_vote = node_votes[-1].contents.split(': ')[1]
-                if Node.query.filter_by(property1=node_vote).one().property2 == 'True':
+                if Node.query.filter_by(
+                        property1=node_vote).one().property2 == 'True':
                     vote = node_vote
             if vote in votes:
                 votes[vote] += 1
@@ -158,11 +169,17 @@ class MafiaNetwork(Network):
     def setup_daytime(self):
         # mafiosi = self.nodes(type=Mafioso)
         self.daytime = 'True'
-        mafiosi = Node.query.filter_by(network_id=self.id, property2='True', type='mafioso').all()
+        mafiosi = Node.query.filter_by(
+            network_id=self.id, property2='True', type='mafioso'
+        ).all()
         victim_name = self.vote(mafiosi)
-        mafiosi = Node.query.filter_by(network_id=self.id, property2='True', type='mafioso').all()
+        mafiosi = Node.query.filter_by(
+            network_id=self.id, property2='True', type='mafioso'
+        ).all()
         winner = None
-        nodes = Node.query.filter_by(network_id=self.id, property2='True').all()
+        nodes = Node.query.filter_by(
+            network_id=self.id, property2='True'
+        ).all()
         if len(mafiosi) > len(nodes) - len(mafiosi):
             winner = 'mafia'
             return victim_name, winner
@@ -179,9 +196,13 @@ class MafiaNetwork(Network):
     def setup_nighttime(self):
         # nodes = self.nodes()
         self.daytime = 'False'
-        nodes = Node.query.filter_by(network_id=self.id, property2='True').all()
+        nodes = Node.query.filter_by(
+            network_id=self.id, property2='True'
+        ).all()
         victim_name = self.vote(nodes)
-        mafiosi = Node.query.filter_by(network_id=self.id, property2='True', type='mafioso').all()
+        mafiosi = Node.query.filter_by(
+            network_id=self.id, property2='True', type='mafioso'
+        ).all()
         winner = None
         if len(mafiosi) >= len(nodes) - len(mafiosi) - 1:
             winner = 'mafia'
