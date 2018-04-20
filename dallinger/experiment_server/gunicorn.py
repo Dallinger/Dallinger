@@ -51,7 +51,10 @@ class StandaloneServer(Application):
 
     def load(self):
         """Return our application to be run."""
-        return util.import_app("dallinger.experiment_server.sockets:app")
+        app = util.import_app("dallinger.experiment_server.sockets:app")
+        if self.options.get('mode') == 'debug':
+            app.debug = True
+        return app
 
     def load_user_config(self):
         config = get_config()
@@ -60,6 +63,7 @@ class StandaloneServer(Application):
             workers = str(multiprocessing.cpu_count() * 2 + 1)
 
         host = config.get("host")
+        mode = config.get("mode")
         bind_address = "{}:{}".format(host, self.port)
         self.options = {
             'bind': bind_address,
@@ -69,6 +73,7 @@ class StandaloneServer(Application):
             'loglevel': self.loglevels[config.get("loglevel")],
             'errorlog': '-',
             'accesslog': '-',
+            'mode': mode,
             'proc_name': 'dallinger_experiment_server',
             'limit_request_line': '0',
             'when_ready': when_ready,
