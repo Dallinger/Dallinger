@@ -2,11 +2,6 @@
 
 import json
 import random
-import time
-
-from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy import Boolean
-from sqlalchemy.sql.expression import cast
 
 import dallinger as dlgr
 from dallinger import db
@@ -56,7 +51,6 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         mafia_network.daytime = 'False'
         return mafia_network
 
-
     def bonus(self, participant):
         """Give the participant a bonus for waiting."""
 
@@ -81,7 +75,6 @@ class MafiaExperiment(dlgr.experiments.Experiment):
         for agent in node.neighbors():
             node.transmit(what=info, to_whom=agent)
 
-
     def create_node(self, participant, network):
         """Create a node for a participant."""
         # Check how many mafia members there are.
@@ -98,11 +91,13 @@ class MafiaExperiment(dlgr.experiments.Experiment):
             bystander.alive = 'True'
             return bystander
 
+
 extra_routes = Blueprint(
     'extra_routes',
     __name__,
     template_folder='templates',
     static_folder='static')
+
 
 @extra_routes.route("/phase/<int:node_id>/<int:switches>/<string:was_daytime>", methods=["GET"])
 def phase(node_id, switches, was_daytime):
@@ -149,19 +144,24 @@ def phase(node_id, switches, was_daytime):
                     winner = 'mafia'
             if len(mafiosi) == 0:
                 winner = 'townspeople'
-        if winner != None:
+        if winner is not None:
             victim_type = Node.query.filter_by(property1=victim_name).one().type
 
         exp.save()
 
         return Response(
-            response=json.dumps({ 'time': time, 'daytime': net.daytime, 'victim': [victim_name, victim_type], 'winner': winner }),
+            response=json.dumps({
+                'time': time, 'daytime': net.daytime,
+                'victim': [victim_name, victim_type], 'winner': winner
+            }),
             status=200,
             mimetype='application/json')
-    except:
+    except Exception:
+        db.logger.exception('Error fetching phase')
         return Response(
             status=403,
             mimetype='application/json')
+
 
 @extra_routes.route("/live_participants/<int:node_id>/<int:get_all>", methods=["GET"])
 def live_participants(node_id, get_all):
@@ -183,10 +183,11 @@ def live_participants(node_id, get_all):
         exp.save()
 
         return Response(
-            response=json.dumps({ 'participants': participants }),
+            response=json.dumps({'participants': participants}),
             status=200,
             mimetype='application/json')
-    except:
+    except Exception:
+        db.logger.exception('Error fetching live participants')
         return Response(
             status=403,
             mimetype='application/json')
