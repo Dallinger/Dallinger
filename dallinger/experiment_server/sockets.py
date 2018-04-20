@@ -1,4 +1,6 @@
-from collections import defaultdict
+"""Handles relaying websocket messages between processes using redis.
+"""
+
 from .experiment_server import app
 from ..heroku.worker import conn
 from gevent.lock import Semaphore
@@ -21,124 +23,139 @@ def log(msg, level='info'):
         '{}/{}: {}'.format(os.getpid(), id(gevent.hub.getcurrent()), msg))
 
 
-class ChatBackend(object):
-    """Chat backend which relays messages from a redis pubsub to clients.
+class Channel(object):
+    """A channel relays messages from a redis pubsub to multiple clients.
 
-    This is run by each web process; all processes receive the messages.
+    Creating a channel spawns a greenlet which listens for messages from redis
+    on the specified channel name.
 
-    Inspired by https://devcenter.heroku.com/articles/python-websockets
+    When a message is received, it is relayed to all clients that have subscribed.
     """
 
-    # sentinel
-    STOP_LISTENING = object()
-
-    def __init__(self):
-        self.pubsub = conn.pubsub()
-        self.clients = defaultdict(list)
+    def __init__(self, name):
+        self.name = name
+        self.clients = []
         self.greenlet = None
 
-    def subscribe(self, client, channel):
-        """Register a new client to receive messages on a channel."""
+    def subscribe(self, client):
+        """Subscribe a client to the channel."""
+        self.clients.append(client)
+        log('Subscribed client {} to channel {}'.format(client, self.name))
 
-        # Make sure this process is subscribed to the redis channel
-        if channel not in self.pubsub.channels:
-            try:
-                self.pubsub.subscribe([channel])
-            except ConnectionError:
-                app.logger.exception('Could not connect to redis.')
-            else:
-                log('Subscribed to redis channel {}'.format(channel))
+    def unsubscribe(self, client):
+        """Unsubscribe a client from the channel."""
+        if client in self.clients:
+            self.clients.remove(client)
+            log('Unsubscribed client {} from channel {}'.format(client, self.name))
 
-        # Make sure this process has a greenlet listening for messages
-        if self.greenlet is None:
-            self.start()
+    def listen(self):
+        """Relay messages from a redis pubsub to all subscribed clients.
 
-        self.clients[channel].append(client)
-        log('Subscribed client {} to channel {}'.format(client, channel))
-
-    def unsubscribe(self, client, channel):
-        if client in self.clients[channel]:
-            self.clients[channel].remove(client)
-            log('Removed client {} from channel {}'.format(client, channel))
-
-    def send(self, client, data):
-        """Send data to one client.
-
-        Automatically discards invalid connections.
+        This is run continuously in a separate greenlet.
         """
+        pubsub = conn.pubsub()
         try:
-            client.send(data.decode('utf-8'))
-        except socket.error:
-            for channel in self.clients:
-                self.unsubscribe(client, channel)
-        else:
-            log('Sent to {}: {}'.format(client, data), level='debug')
-
-    def run(self):
-        """Listens for new messages in redis, and sends them to clients."""
-        log('Listening for messages')
-        while True:
-            message = self.pubsub.get_message()
-            if message is self.STOP_LISTENING:  # for tests
-                return
-            elif message:
-                data = message.get('data')
-                if message['type'] == 'message' and data != 'None':
-                    channel = message['channel']
-                    for client in self.clients[channel] or ():
-                        gevent.spawn(self.send, client, '{}:{}'.format(channel, data))
-            gevent.sleep(0.001)
+            pubsub.subscribe([self.name])
+        except ConnectionError:
+            app.logger.exception('Could not connect to redis.')
+        log('Listening on channel {}'.format(self.name))
+        for message in pubsub.listen():
+            data = message.get('data')
+            if message['type'] == 'message' and data != 'None':
+                channel = message['channel']
+                raw = '{}:{}'.format(channel, data)
+                for client in self.clients:
+                    gevent.spawn(client.send, raw)
 
     def start(self):
-        """Starts listening in the background."""
-        self.greenlet = gevent.spawn(self.run)
+        """Start relaying messages."""
+        self.greenlet = gevent.spawn(self.listen)
 
     def stop(self):
-        if self.greenlet is not None:
+        """Stop relaying messages."""
+        if self.greenlet:
             self.greenlet.kill()
             self.greenlet = None
 
 
+class ChatBackend(object):
+    """Manages subscriptions of clients to multiple channels."""
+
+    def __init__(self):
+        self.channels = {}
+
+    def subscribe(self, client, channel_name):
+        """Register a new client to receive messages on a channel."""
+        if channel_name not in self.channels:
+            self.channels[channel_name] = channel = Channel(channel_name)
+            channel.start()
+
+        self.channels[channel_name].subscribe(client)
+
+    def unsubscribe(self, client):
+        """Unsubscribe a client from all channels."""
+        for channel in self.channels.values():
+            channel.unsubscribe(client)
+
+
+# There is one chat backend per process.
 chat_backend = ChatBackend()
 
 
-class WebSocketWrapper(object):
+class Client(object):
+    """Represents a single websocket client."""
 
-    def __init__(self, ws):
+    def __init__(self, ws, lag_tolerance_secs=0.1):
         self.ws = ws
+        self.lag_tolerance_secs = lag_tolerance_secs
+
+        # This lock is used to make sure that multiple greenlets
+        # cannot send to the same socket concurrently.
         self.send_lock = Semaphore()
 
     def send(self, message):
+        """Send a single message to the websocket."""
+        if isinstance(message, bytes):
+            message = message.decode('utf8')
+
         with self.send_lock:
-            self.ws.send(message)
+            try:
+                self.ws.send(message)
+            except socket.error:
+                chat_backend.unsubscribe(self)
+            log('Sent to {}: {}'.format(self, message), level='debug')
 
     def heartbeat(self):
+        """Send a ping to the websocket periodically.
+
+        This is needed so that Heroku won't close the connection
+        from inactivity.
+        """
         while not self.ws.closed:
             gevent.sleep(HEARTBEAT_DELAY)
             gevent.spawn(self.send, 'ping')
+
+    def subscribe(self, channel):
+        """Start listening to messages on the specified channel."""
+        chat_backend.subscribe(self, channel)
+
+    def publish(self):
+        """Relay messages from client to redis."""
+        while not self.ws.closed:
+            # Sleep to prevent *constant* context-switches.
+            gevent.sleep(self.lag_tolerance_secs)
+            message = self.ws.receive()
+            if message is not None:
+                channel_name, data = message.split(':', 1)
+                conn.publish(channel_name, data)
 
 
 @sockets.route('/chat')
 def chat(ws):
     """Relay chat messages to and from clients.
     """
-    client = WebSocketWrapper(ws)
-
-    # Subscribe to messages on the specified channel.
-    channel = request.args.get('channel')
     lag_tolerance_secs = float(request.args.get('tolerance', 0.1))
-    chat_backend.subscribe(client, channel)
-
-    # Send heartbeat ping every 30s
-    # so Heroku won't close the connection
+    client = Client(ws, lag_tolerance_secs=lag_tolerance_secs)
+    client.subscribe(request.args.get('channel'))
     gevent.spawn(client.heartbeat)
-
-    while not client.ws.closed:
-        # Sleep to prevent *constant* context-switches.
-        gevent.sleep(lag_tolerance_secs)
-
-        # Publish messages from client
-        message = client.ws.receive()
-        if message is not None:
-            channel, data = message.split(':', 1)
-            conn.publish(channel, data)
+    client.publish()
