@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from collections import deque
+from contextlib import contextmanager
 from ConfigParser import SafeConfigParser
 import distutils.util
 import imp
@@ -129,6 +130,12 @@ class Configuration(object):
                 )
             normalized_mapping[key] = value
         self.data.extendleft([normalized_mapping])
+
+    @contextmanager
+    def override(self, *args, **kwargs):
+        self.extend(*args, **kwargs)
+        yield self
+        self.data.popleft()
 
     def get(self, key, default=marker):
         if not self.ready:

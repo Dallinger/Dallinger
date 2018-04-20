@@ -10,6 +10,23 @@ class TestNetworks(object):
         net = models.Network()
         assert isinstance(net, models.Network)
 
+    def test_has_a_big_default_max_size(self, a):
+        assert a.network().max_size > 100000
+
+    def test_not_full_with_zero_nodes(self, a):
+        net = a.network(max_size=1)
+        assert not net.full
+
+    def test_not_full_if_nodes_fewer_than_max_size(self, a):
+        net = a.network(max_size=2)
+        nodes.Agent(network=net)
+        assert not net.full
+
+    def test_full_if_nodes_equal_max_size(self, a):
+        net = a.network(max_size=1)
+        nodes.Agent(network=net)
+        assert net.full
+
     def test_node_failure(self, db_session):
         net = networks.Network()
         db_session.add(net)
@@ -608,3 +625,12 @@ class TestSequentialMicrosociety(object):
         assert agent3.is_connected(direction="to", whom=agent4)
         assert agent3.is_connected(direction="to", whom=agent5)
         assert not agent3.is_connected(direction="to", whom=agent6)
+
+
+class TestSplitSampleNetwork(object):
+
+    def test_sample_splitting(self, a):
+        nets = [a.split_sample() for i in range(100)]
+        sets = [net.exploratory for net in nets]
+        assert sum(sets) is not 0
+        assert sum(sets) is not 100

@@ -86,12 +86,12 @@ def scoped_session_decorator(func):
     return wrapper
 
 
-def init_db(drop_all=False):
+def init_db(drop_all=False, bind=engine):
     """Initialize the database, optionally dropping existing tables."""
     try:
         if drop_all:
-            Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+            Base.metadata.drop_all(bind=bind)
+        Base.metadata.create_all(bind=bind)
     except OperationalError as err:
         msg = 'password authentication failed for user "dallinger"'
         if msg in err.message:
@@ -144,6 +144,10 @@ def after_soft_rollback(session, previous_transaction):
 
 
 def queue_message(channel, message):
+    logger.debug(
+            'Enqueueing message to {}: {}'.format(channel, message))
+    if 'outbox' not in session.info:
+        session.info['outbox'] = []
     session.info['outbox'].append((channel, message))
 
 

@@ -75,6 +75,12 @@ class Recruiter(object):
         """
         pass
 
+    def notify_using(self, participant):
+        """Allow the Recruiter to be notified when an recruited Participant
+        has been chosen to participate in an experiment they joined.
+        """
+        pass
+
     def rejects_questionnaire_from(self, participant):
         """Recruiters have different circumstances under which experiment
         questionnaires should be accepted or rejected.
@@ -232,8 +238,12 @@ class MTurkRecruiter(Recruiter):
         self._validate_conifg()
 
     def _validate_conifg(self):
-        if self.config.get('mode') not in (u'sandbox', u'live'):
-            raise MTurkRecruiterException("Can't run an MTurk HIT in debug mode.")
+        mode = self.config.get('mode')
+        if mode not in (u'sandbox', u'live'):
+            raise MTurkRecruiterException(
+                '"{}" is not a valid mode for MTurk recruitment. '
+                'The value of "mode" must be either "sandbox" or "live"'.format(mode)
+            )
 
     @property
     def external_submission_url(self):
@@ -313,6 +323,9 @@ class MTurkRecruiter(Recruiter):
             logger.exception(ex.message)
 
     def notify_recruited(self, participant):
+        pass
+
+    def notify_using(self, participant):
         """Assign a Qualification to the Participant for the experiment ID,
         and for the configured group_name, if it's been set.
         """
@@ -553,6 +566,7 @@ def by_name(name):
     """
     nicknames = {
         'bots': BotRecruiter,
+        'hotair': HotAirRecruiter,
         'mturklarge': MTurkLargeRecruiter
     }
     if name in nicknames:

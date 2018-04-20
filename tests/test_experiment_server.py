@@ -256,6 +256,125 @@ class TestWorkerComplete(object):
         assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
 
 
+@pytest.mark.usefixtures('experiment_dir', 'db_session', 'dummy_mailer')
+class TestHandleError(object):
+
+    def test_completes_assignment(self, a, webapp):
+        resp = webapp.post('/handle-error',
+                           data={'participant_id': a.participant().id})
+        assert resp.status_code == 200
+        notifications = models.Notification.query.all()
+        assert len(notifications) == 2
+        assert notifications[0].event_type == u'AssignmentSubmitted'
+        assert notifications[1].event_type == u'ExperimentError'
+
+    def test_saves_error_without_participant(self, a, webapp):
+        webapp.post('/handle-error',
+                    data={'request_data': json.dumps({'a': 'b'}),
+                          'error_feedback': 'Some feedback'})
+
+        notifi = models.Notification.query.one()
+        assert notifi.event_type == u'ExperimentError'
+        assert notifi.details['request_data']['a'] == 'b'
+        assert notifi.details['feedback'] == 'Some feedback'
+
+    def test_looks_up_participant_from_assignment(self, a, webapp):
+        participant = a.participant()
+        assignment_id = participant.assignment_id
+        participant_id = participant.id
+        webapp.post('/handle-error',
+                    data={'assignment_id': assignment_id})
+
+        notifications = models.Notification.query.all()
+        assert len(notifications) == 2
+        assert notifications[0].event_type == u'AssignmentSubmitted'
+        assert notifications[1].event_type == u'ExperimentError'
+        assert notifications[1].assignment_id == assignment_id
+        assert notifications[1].details['request_data']['participant_id'] == participant_id
+
+    def test_looks_up_participant_from_worker(self, a, webapp):
+        participant = a.participant()
+        assignment_id = participant.assignment_id
+        participant_id = participant.id
+        webapp.post('/handle-error',
+                    data={'worker_id': participant.worker_id})
+
+        notifications = models.Notification.query.all()
+        assert len(notifications) == 2
+        assert notifications[0].event_type == u'AssignmentSubmitted'
+        assert notifications[1].event_type == u'ExperimentError'
+        assert notifications[1].assignment_id == assignment_id
+        assert notifications[1].details['request_data']['participant_id'] == participant_id
+
+    def test_looks_up_hit_in_request_data(self, a, webapp):
+        participant = a.participant()
+        assignment_id = participant.assignment_id
+        worker_id = participant.worker_id
+        hit_id = participant.hit_id
+        participant_id = participant.id
+        webapp.post('/handle-error',
+                    data={'request_data': json.dumps({
+                        'worker_id': worker_id,
+                        'hit_id': hit_id,
+                        'assignment_id': assignment_id
+                    })})
+
+        notifications = models.Notification.query.all()
+        assert len(notifications) == 2
+        assert notifications[0].event_type == u'AssignmentSubmitted'
+        assert notifications[1].event_type == u'ExperimentError'
+        assert notifications[1].assignment_id == assignment_id
+        assert notifications[1].details['request_data']['participant_id'] == participant_id
+
+    def test_looks_up_hit_in_nested_request_data(self, a, webapp):
+        participant = a.participant()
+        assignment_id = participant.assignment_id
+        worker_id = participant.worker_id
+        hit_id = participant.hit_id
+        participant_id = participant.id
+        webapp.post('/handle-error',
+                    data={'request_data': json.dumps(
+                        {'data': json.dumps({
+                            'particpant_id': participant_id,
+                            'worker_id': worker_id,
+                            'hit_id': hit_id,
+                            'assignment_id': assignment_id
+                        })}
+                    )})
+
+        notifications = models.Notification.query.all()
+        assert len(notifications) == 2
+        assert notifications[0].event_type == u'AssignmentSubmitted'
+        assert notifications[1].event_type == u'ExperimentError'
+        assert notifications[1].assignment_id == assignment_id
+        assert notifications[1].details['request_data']['participant_id'] == participant_id
+
+    def test_sends_email(self, a, webapp, active_config, dummy_mailer):
+        active_config.extend({'dallinger_email_address': u'test_error',
+                              'dallinger_email_password': u'secret'})
+        webapp.post('/handle-error', data={})
+
+        dummy_mailer.login.assert_called_once()
+        dummy_mailer.starttls.assert_called_once()
+        dummy_mailer.sendmail.assert_called_once()
+        assert dummy_mailer.sendmail.call_args[0][0] == u'test_error@gmail.com'
+
+    def test_emailer_handles_missing_username(self, a, webapp, active_config, dummy_mailer):
+        active_config.extend({'dallinger_email_address': u'',
+                              'contact_email_on_error': u'test_error'})
+        webapp.post('/handle-error', data={})
+
+        dummy_mailer.login.assert_not_called()
+
+    def test_emailer_handles_missing_destination_address(self, a, webapp, active_config,
+                                                         dummy_mailer):
+        active_config.extend({'dallinger_email_address': u'test_error',
+                              'contact_email_on_error': u''})
+        webapp.post('/handle-error', data={})
+
+        dummy_mailer.login.assert_not_called()
+
+
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestWorkerFailed(object):
 
@@ -307,7 +426,9 @@ class TestSimpleGETRoutes(object):
 
     def test_root(self, webapp):
         resp = webapp.get('/')
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert "Dallinger Experiment in progress" in resp.data
+        assert ">id<" in resp.data
 
     def test_favicon(self, webapp):
         resp = webapp.get('/favicon.ico')
@@ -421,6 +542,45 @@ class TestParticipantRoute(object):
             args, _ = mock_recruiter.notify_recruited.call_args
             assert isinstance(args[0], Participant)
 
+    def test_notifies_recruiter_when_participant_is_used(self, webapp):
+        from dallinger.recruiters import Recruiter
+        from dallinger.models import Participant
+
+        worker_id = '1'
+        hit_id = '1'
+        assignment_id = '1'
+
+        with mock.patch('dallinger.experiment_server.experiment_server.recruiters') as recruiters:
+            mock_recruiter = mock.Mock(spec=Recruiter)
+            recruiters.for_experiment.return_value = mock_recruiter
+            webapp.post('/participant/{}/{}/{}/debug'.format(
+                worker_id, hit_id, assignment_id
+            ))
+            args, _ = mock_recruiter.notify_using.call_args
+            assert isinstance(args[0], Participant)
+
+    def test_does_not_notify_recruiter_when_participant_is_skipped(self, webapp):
+        from dallinger.recruiters import Recruiter
+
+        worker_id = '1'
+        hit_id = '1'
+        assignment_id = '1'
+
+        with mock.patch('dallinger.experiment_server.experiment_server.recruiters') as recruiters:
+            mock_recruiter = mock.Mock(spec=Recruiter)
+            recruiters.for_experiment.return_value = mock_recruiter
+            with mock.patch(
+                'dallinger.experiment_server.experiment_server.Experiment'
+            ) as mock_class:
+                mock_exp = mock.Mock(name="the experiment")
+                mock_exp.is_overrecruited.return_value = True
+                mock_exp.quorum = 50
+                mock_class.return_value = mock_exp
+                webapp.post('/participant/{}/{}/{}/debug'.format(
+                    worker_id, hit_id, assignment_id
+                ))
+            mock_recruiter.notify_using.assert_not_called
+
 
 @pytest.mark.usefixtures('experiment_dir')
 class TestSummaryRoute(object):
@@ -485,6 +645,30 @@ class TestSummaryRoute(object):
             u'status': u'success',
             u'summary': [[u'approved', 1], [u'submitted', 1]],
             u'unfilled_networks': 0
+        }
+
+    def test_summary_uses_custom_is_complete(self, a, webapp, active_config):
+        active_config.register_extra_parameters()
+        resp = webapp.get('/summary')
+        data = json.loads(resp.data)
+        assert data == {
+            u'completed': False,
+            u'nodes_remaining': 2,
+            u'required_nodes': 2,
+            u'status': u'success',
+            u'summary': [],
+            u'unfilled_networks': 1
+        }
+        active_config.extend({'_is_completed': True})
+        resp = webapp.get('/summary')
+        data = json.loads(resp.data)
+        assert data == {
+            u'completed': True,
+            u'nodes_remaining': 2,
+            u'required_nodes': 2,
+            u'status': u'success',
+            u'summary': [],
+            u'unfilled_networks': 1
         }
 
 
@@ -1020,6 +1204,14 @@ class TestWorkerFunctionIntegration(object):
 
     def test_all_invalid_values(self, worker_func):
         worker_func('foo', 'bar', 'baz')
+
+    def test_ignores_unsupported_event_types(self, worker_func):
+        mock_exp = mock.Mock()
+        with mock.patch('dallinger.experiment_server.experiment_server.Experiment') as mock_Exp:
+            mock_Exp.return_value = mock_exp
+            worker_func(event_type='IgnoreMe', assignment_id=None, participant_id=None)
+        log_calls = mock_exp.log.call_args_list
+        assert mock.call('Event type IgnoreMe is not supported... ignoring.') in log_calls
 
     def test_uses_assignment_id(self, a, worker_func):
         participant = a.participant()

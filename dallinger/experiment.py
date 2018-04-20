@@ -2,7 +2,9 @@
 
 from cached_property import cached_property
 from collections import Counter
+from contextlib import contextmanager
 from functools import wraps
+import datetime
 import imp
 import inspect
 import logging
@@ -15,6 +17,8 @@ import time
 import uuid
 
 from sqlalchemy import and_
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, scoped_session
 
 from dallinger import recruiters
 from dallinger.config import get_config, LOCAL_CONFIG
@@ -22,6 +26,9 @@ from dallinger.data import Data
 from dallinger.data import export
 from dallinger.data import is_registered
 from dallinger.data import load as data_load
+from dallinger.data import find_experiment_export
+from dallinger.data import ingest_zip
+from dallinger.db import init_db
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
@@ -122,6 +129,13 @@ class Experiment(object):
         if session:
             self.configure()
 
+        try:
+            from .jupyter import ExperimentWidget
+        except ImportError:
+            self.widget = None
+        else:
+            self.widget = ExperimentWidget(self)
+
     def configure(self):
         """Load experiment configuration here"""
         pass
@@ -139,6 +153,12 @@ class Experiment(object):
         participants.
         """
         return recruiters.from_config(get_config())
+
+    def is_overrecruited(self, waiting_count):
+        """Returns True if the number of people waiting is in excess of the
+        total number expected, indicating that this and subsequent users should
+        skip the experiment"""
+        return waiting_count > self.quorum
 
     def send(self, raw_message):
         """socket interface implementation, and point of entry for incoming
@@ -457,20 +477,31 @@ class Experiment(object):
         self.app_id = app_id
         self.exp_config = exp_config or kwargs
 
-        if self.exp_config.get("mode") == u"debug":
-            dlgr.command_line.debug.callback(
-                verbose=True,
-                bot=bot,
-                proxy=None,
-                exp_config=self.exp_config
-            )
+        self.update_status(u'Starting')
+        try:
+            if self.exp_config.get("mode") == u"debug":
+                dlgr.command_line.debug.callback(
+                    verbose=True,
+                    bot=bot,
+                    proxy=None,
+                    exp_config=self.exp_config
+                )
+            else:
+                dlgr.command_line.deploy_sandbox_shared_setup(
+                    app=app_id,
+                    verbose=self.verbose,
+                    exp_config=self.exp_config
+                )
+        except Exception:
+            self.update_status(u'Errored')
+            raise
         else:
-            dlgr.command_line.deploy_sandbox_shared_setup(
-                app=app_id,
-                verbose=self.verbose,
-                exp_config=self.exp_config
-            )
-        return self._finish_experiment()
+            self.update_status(u'Running')
+        self._await_completion()
+        self.update_status(u'Retrieving data')
+        data = self.retrieve_data()
+        self.update_status(u'Completed')
+        return data
 
     def collect(self, app_id, exp_config=None, bot=False, **kwargs):
         """Collect data for the provided experiment id.
@@ -521,20 +552,11 @@ class Experiment(object):
         """Generate a new uuid."""
         return str(uuid.UUID(int=random.getrandbits(128)))
 
-    def _finish_experiment(self):
-        # Debug runs synchronously
-        if self.exp_config.get('mode') != 'debug':
-            self.log("Waiting for experiment to complete.", "")
-            while self.experiment_completed() is False:
-                time.sleep(30)
-            self.end_experiment()
-        return self.retrieve_data()
-
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
         completed"""
         heroku_app = HerokuApp(self.app_id)
-        status_url = '/summary'.format(heroku_app.url)
+        status_url = '{}/summary'.format(heroku_app.url)
         data = {}
         try:
             resp = requests.get(status_url)
@@ -543,6 +565,15 @@ class Experiment(object):
             logger.exception('Error fetching experiment status.')
         logger.debug('Current application state: {}'.format(data))
         return data.get('completed', False)
+
+    def _await_completion(self):
+        # Debug runs synchronously, but in live mode we need to loop and check
+        # experiment status
+        if self.exp_config.get('mode') != 'debug':
+            self.log("Waiting for experiment to complete.", "")
+            while not self.experiment_completed():
+                time.sleep(30)
+        return True
 
     def retrieve_data(self):
         """Retrieves and saves data from a running experiment"""
@@ -555,13 +586,20 @@ class Experiment(object):
 
     def end_experiment(self):
         """Terminates a running experiment"""
-        HerokuApp(self.app_id).destroy()
+        if self.exp_config.get('mode') != 'debug':
+            HerokuApp(self.app_id).destroy()
+        return True
 
-    def events_for_replay(self):
+    def events_for_replay(self, session=None):
         """Be default we return all infos in order for replay"""
-        return self.session.query(Info).order_by(Info.creation_time)
+        if session is None:
+            session = self.session
+        return session.query(Info).order_by(Info.creation_time)
 
     def replay_event(self, event):
+        pass
+
+    def replay_start(self):
         pass
 
     def replay_finish(self):
@@ -569,6 +607,99 @@ class Experiment(object):
 
     def replay_started(self):
         return True
+
+    def is_complete(self):
+        """Method for custom determination of experiment completion.
+        Return None to use the experiment server default, otherwise
+        `True` or `False`"""
+        return None
+
+    @contextmanager
+    def restore_state_from_replay(self, app_id, session, zip_path=None, **configuration_options):
+        # We need to fake dallinger_experiment to point at the current experiment
+        module = sys.modules[type(self).__module__]
+        if sys.modules.get('dallinger_experiment', module) != module:
+            raise RuntimeError('dallinger_experiment is already set')
+        sys.modules['dallinger_experiment'] = module
+
+        # Load the configuration system and globals
+        config = get_config()
+        config.register_extra_parameters()
+        config.load()
+        self.app_id = self.original_app_id = app_id
+        self.session = session
+        self.exp_config = config
+
+        # The replay index is initialised to 1970 as that is guaranteed
+        # to be before any experiment Info objects
+        self._replay_time_index = datetime.datetime(1970, 1, 1, 1, 1, 1)
+
+        # Create a second database session so we can load the full history
+        # of the experiment to be replayed and selectively import events
+        # into the main database
+        import_engine = create_engine(
+            "postgresql://dallinger:dallinger@localhost/dallinger-import"
+        )
+        import_session = scoped_session(
+            sessionmaker(autocommit=False,
+                         autoflush=True,
+                         bind=import_engine)
+        )
+
+        # Find the real data for this experiment
+        if zip_path is None:
+            zip_path = find_experiment_export(app_id)
+        if zip_path is None:
+            msg = u'Dataset export for app id "{}" could not be found.'
+            raise IOError(msg.format(app_id))
+
+        # Clear the temporary storage and import it
+        init_db(drop_all=True, bind=import_engine)
+        print("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
+        ingest_zip(zip_path, engine=import_engine)
+
+        def go_to(time):
+            """Scrub to a point in the experiment replay, given by time
+            which is a datetime object."""
+            if self._replay_time_index > time:
+                # We do not support going back in time
+                raise NotImplementedError
+            events = self.events_for_replay(session=import_session)
+            for event in events:
+                if event.creation_time <= self._replay_time_index:
+                    # Skip events we've already handled
+                    continue
+                if event.creation_time > time:
+                    # Stop once we get future events
+                    break
+                self.replay_event(event)
+            self._replay_time_index = time
+            # Override app_id to allow exports to be created that don't
+            # overwrite the original dataset
+            self.app_id = "{}_{}".format(self.original_app_id, time.isoformat())
+
+        # We apply the configuration options we were given and yield
+        # the scrubber function into the context manager, so within the
+        # with experiment.restore_state_from_replay(...): block the configuration
+        # options are correctly set
+        with config.override(configuration_options, strict=True):
+            self.replay_start()
+            yield go_to
+            self.replay_finish()
+
+        # Clear up global state
+        import_session.close()
+        config._reset(register_defaults=True)
+        del sys.modules['dallinger_experiment']
+
+    def _ipython_display_(self):
+        """Display Jupyter Notebook widget"""
+        from IPython.display import display
+        display(self.widget)
+
+    def update_status(self, status):
+        if self.widget is not None:
+            self.widget.status = status
 
 
 def load():

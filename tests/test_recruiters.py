@@ -301,6 +301,14 @@ class TestMTurkRecruiter(object):
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
             return r
 
+    def test_instantiation_fails_with_invalid_mode(self, active_config):
+        from dallinger.recruiters import MTurkRecruiter
+        from dallinger.recruiters import MTurkRecruiterException
+        active_config.extend({'mode': u'nonsense'})
+        with pytest.raises(MTurkRecruiterException) as ex_info:
+            MTurkRecruiter()
+        assert ex_info.match('"nonsense" is not a valid mode')
+
     def test_config_passed_to_constructor_sandbox(self, recruiter):
         assert recruiter.config.get('title') == 'fake experiment title'
 
@@ -486,33 +494,33 @@ class TestMTurkRecruiter(object):
             fake_hit_id
         )
 
-    def test_notify_recruited_when_group_name_not_specified(self, recruiter):
+    def test_notify_using_when_group_name_not_specified(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
-        recruiter.notify_recruited(participant)
+        recruiter.notify_using(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_called_once_with(
             'some experiment uid',
             'some worker id',
         )
 
-    def test_notify_recruited_when_group_name_specified(self, recruiter):
+    def test_notify_using_when_group_name_specified(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
         recruiter.config.set('group_name', u'some existing group_name')
-        recruiter.notify_recruited(participant)
+        recruiter.notify_using(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_has_calls([
             mock.call('some experiment uid', 'some worker id'),
             mock.call('some existing group_name', 'some worker id')
         ], any_order=True)
 
-    def test_notify_recruited_nonexistent_qualification(self, recruiter):
+    def test_notify_using_nonexistent_qualification(self, recruiter):
         from dallinger.mturk import QualificationNotFoundException
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
         error = QualificationNotFoundException("Ouch!")
         recruiter.mturkservice.increment_qualification_score.side_effect = error
 
         # logs, but does not raise:
-        recruiter.notify_recruited(participant)
+        recruiter.notify_using(participant)
 
     def test_rejects_questionnaire_from_returns_none_if_working(self, recruiter):
         participant = mock.Mock(spec=Participant, status="working")

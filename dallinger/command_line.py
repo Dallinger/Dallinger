@@ -19,6 +19,7 @@ import tempfile
 import time
 import webbrowser
 
+from datetime import datetime
 from functools import wraps
 import signal
 import click
@@ -85,6 +86,27 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
         time.sleep(delay)
 
 
+def new_webbrowser_profile():
+    if webbrowser._iscommand('google-chrome'):
+        new_chrome = webbrowser.Chrome()
+        new_chrome.name = 'google-chrome'
+        profile_directory = tempfile.mkdtemp()
+        new_chrome.remote_args = webbrowser.Chrome.remote_args + [
+            '--user-data-dir="{}"'.format(profile_directory)
+        ]
+        return new_chrome
+    elif webbrowser._iscommand('firefox'):
+        new_firefox = webbrowser.Mozilla()
+        new_firefox.name = 'firefox'
+        profile_directory = tempfile.mkdtemp()
+        new_firefox.remote_args = [
+            '-profile', profile_directory, '-new-instance', '-no-remote', '-url', '%s',
+        ]
+        return new_firefox
+    else:
+        return webbrowser
+
+
 def report_idle_after(seconds):
     """Report_idle_after after certain number of seconds."""
     def decorator(func):
@@ -100,7 +122,7 @@ def report_idle_after(seconds):
                         "whimsical": False
                     }
                     app_id = config["id"]
-                    email = EmailingHITMessager(when=time, assignment_id=None,
+                    email = EmailingHITMessager(when=datetime.now(), assignment_id=None,
                                                 hit_duration=seconds, time_active=seconds,
                                                 config=heroku_config, app_id=app_id)
                     log("Sending email...")
@@ -208,6 +230,7 @@ def verify_package(verbose=True):
     files = [
         os.path.join("templates", "complete.html"),
         os.path.join("templates", "error.html"),
+        os.path.join("templates", "error-complete.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "thanks.html"),
         os.path.join("static", "css", "dallinger.css"),
@@ -372,6 +395,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("static", "scripts", "spin.min.js"),
         os.path.join("static", "scripts", "tracker.js"),
         os.path.join("templates", "error.html"),
+        os.path.join("templates", "error-complete.html"),
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "complete.html"),
         os.path.join("templates", "questionnaire.html"),
@@ -862,7 +886,7 @@ class DebugSessionRunner(LocalSessionRunner):
         if self.proxy_port is not None:
             self.out.log("Using proxy port {}".format(self.proxy_port))
             url = url.replace(str(get_config().get('base_port')), self.proxy_port)
-        webbrowser.open(url, new=1, autoraise=True)
+        new_webbrowser_profile().open(url, new=1, autoraise=True)
 
     def recruitment_closed(self, match):
         """Recruitment is closed. Check the output of the summary route until
@@ -939,7 +963,7 @@ class LoadSessionRunner(LocalSessionRunner):
         """
         self.out.log("replay ready!")
         url = match.group(1)
-        webbrowser.open(url, new=1, autoraise=True)
+        new_webbrowser_profile().open(url, new=1, autoraise=True)
 
     def cleanup(self):
         self.out.log("Terminating dataset load for experiment {}".format(self.exp_id))

@@ -6,8 +6,24 @@
             <h1>Error!</h1>
             <hr>
             <div>
-                <p>{{ error_text }}</p>
+                <p id="error-text">{{ error_text }}</p>
+                <p>Please let us know how you encountered this error using the form below.</p>
+                <form id="error-response" action="/handle-error" method="POST">
+                    <input type="hidden" name="error_type" value="{{ error_type }}" />
+                    <input type="hidden" name="error_text" value="{{ error_text }}" />
+                    {% if hit_id %}
+                    <input type="hidden" name="hit_id" value="{{ hit_id }}" />
+                    <input type="hidden" name="assignment_id" value="{{ assignment_id }}" />
+                    <input type="hidden" name="worker_id" value="{{ worker_id }}" />
+                    {% endif %}
+                    {% if request_data %}
+                    <input type="hidden" name="request_data" value="{{ request_data }}" />
+                    {% endif %}
+                    <textarea name="error_feedback"></textarea>
+                    <input type="submit" value="SUBMIT" />
+                </form>
                 {% if compensate == True %}
+                <p>This HIT will be marked as completed and you should be compensated automatically once the above form is submitted.</p>
                 <p>To enquire about compensation, please contact the researcher at <a href="mailto:{{contact_address}}">{{contact_address}}</a> and quote the following information.</p>
                 <p>
                     Error type: {{ error_type }}<br>

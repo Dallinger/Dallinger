@@ -14,10 +14,10 @@ $(document).ready(function() {
 
   // Consent to the experiment.
   $("#consent").click(function() {
-    store.set("hit_id", getUrlParameter("hit_id"));
-    store.set("worker_id", getUrlParameter("worker_id"));
-    store.set("assignment_id", getUrlParameter("assignment_id"));
-    store.set("mode", getUrlParameter("mode"));
+    store.set("hit_id", dallinger.getUrlParameter("hit_id"));
+    store.set("worker_id", dallinger.getUrlParameter("worker_id"));
+    store.set("assignment_id", dallinger.getUrlParameter("assignment_id"));
+    store.set("mode", dallinger.getUrlParameter("mode"));
 
     window.location.href = '/instructions';
   });
@@ -55,7 +55,11 @@ $(document).ready(function() {
 
   // Submit the questionnaire.
   $("#submit-questionnaire").click(function() {
+<<<<<<< HEAD
     if (participant_id > 0) {
+=======
+    // if (participant_id > 0) {
+>>>>>>> 277f3a9fcd64b1845851d99a83f0fac8acbc3490
     //   reqwest({
     //       url: "/question/" + participant_id,
     //       method: "post",
@@ -77,7 +81,11 @@ $(document).ready(function() {
     //   });
       submit_responses();
       // submitResponses();
+<<<<<<< HEAD
     }
+=======
+    // }
+>>>>>>> 277f3a9fcd64b1845851d99a83f0fac8acbc3490
     submitAssignment();
   });
 });
@@ -85,7 +93,11 @@ $(document).ready(function() {
 // Create the agent.
 create_agent = function() {
   reqwest({
+<<<<<<< HEAD
     url: "/node/" + participant_id,
+=======
+    url: "/node/",
+>>>>>>> 277f3a9fcd64b1845851d99a83f0fac8acbc3490
     method: "post",
     type: "json",
     success: function(resp) {
@@ -349,4 +361,8 @@ $(document).keypress(function(e) {
 submitResponses = function() {
   // submitNextResponse(0);
   submitNextResponse(1);
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 277f3a9fcd64b1845851d99a83f0fac8acbc3490

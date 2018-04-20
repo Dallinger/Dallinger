@@ -266,7 +266,7 @@ def export(id, local=False, scrub_pii=False):
     return path_to_data
 
 
-def ingest_zip(path):
+def ingest_zip(path, engine=None):
     """Given a path to a zip file created with `export()`, recreate the
     database with the data stored in the included .csv files.
     """
@@ -288,7 +288,7 @@ def ingest_zip(path):
             model_name = name.capitalize()
             model = getattr(models, model_name)
             file = archive.open(filename)
-            ingest_to_model(file, model)
+            ingest_to_model(file, model, engine)
 
 
 def fix_autoincrement(table_name):
@@ -300,14 +300,16 @@ def fix_autoincrement(table_name):
     )
 
 
-def ingest_to_model(file, model):
+def ingest_to_model(file, model, engine=None):
     """Load data from a CSV file handle into storage for a
     SQLAlchemy model class.
     """
+    if engine is None:
+        engine = db.engine
     reader = csv.reader(file)
     columns = tuple('\"{}\"'.format(n) for n in reader.next())
     postgres_copy.copy_from(
-        file, model, db.engine, columns=columns, format='csv', HEADER=False
+        file, model, engine, columns=columns, format='csv', HEADER=False
     )
     fix_autoincrement(model.__table__.name)
 

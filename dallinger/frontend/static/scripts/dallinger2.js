@@ -1,4 +1,13 @@
-/*globals Spinner, reqwest, store */
+/*globals Spinner, Fingerprint2, ReconnectingWebSocket, reqwest, store */
+
+if (window.Dallinger !== undefined) {
+  alert(
+    'This page has loaded both dallinger.js and dallinger2.js at the same time, ' +
+    'which is not supported. It is recommended to use dallinger2.js ' +
+    'for experiments being actively developed, and dallinger.js only ' +
+    'for backwards compatibility of existing experiments.'
+  );
+}
 
 var dallinger = (function () {
   var dlgr = {};
@@ -97,6 +106,30 @@ var dallinger = (function () {
     window.location = "/" + page + "?participant_id=" + dlgr.identity.participantId;
   };
 
+  var add_hidden_input = function ($form, name, val) {
+    if (val) {
+      $form.append($('<input>').attr('type', 'hidden').attr('name', name).val(val));
+    }
+  };
+
+  var get_hit_params = function() {
+    // check if the local store is available, and if so, use it.
+    var data = {};
+    if (typeof store !== "undefined") {
+      data.worker_id = store.get("worker_id");
+      data.hit_id = store.get("hit_id");
+      data.assignment_id = store.get("assignment_id");
+      data.mode = store.get("mode");
+      data.fingerprint_hash = store.get("fingerprint_hash");
+    } else {
+      data.worker_id = dlgr.identity.worker_id;
+      data.hit_id = dlgr.identity.hit_id;
+      data.assignment_id = dlgr.identity.assignment_id;
+      data.mode = dlgr.identity.mode;
+    }
+    return data;
+  };
+
   // AJAX helpers
 
   var ajax = function (method, route, data) {
@@ -107,12 +140,38 @@ var dallinger = (function () {
       type: 'json',
       success: function (resp) { deferred.resolve(resp); },
       error: function (err) {
+        var $form, errorResponse, request_data, worker_id, hit_id, hit_params, assignment_id;
         console.log(err);
-        var errorResponse = JSON.parse(err.response);
-        if (errorResponse.hasOwnProperty("html")) {
-          $("body").html(errorResponse.html);
-        }
         deferred.reject(err);
+        request_data = {
+          'route': route,
+          'data': JSON.stringify(data),
+          'method': method
+        };
+        try {
+          errorResponse = JSON.parse(err.response);
+        } catch (error) {
+          console.log('Error response not parseable.');
+          errorResponse = {};
+        }
+        if (errorResponse.hasOwnProperty("html")) {
+          $('html').html(errorResponse.html);
+          $form = $('form#error-response');
+        } else {
+          $form = $('<form>').attr('action', '/error-page').attr('method', 'POST');
+          $('body').append($form);
+        }
+        if (data) {
+          add_hidden_input($form, 'participant_id', data.participant_id);
+        }
+        add_hidden_input($form, 'request_data', JSON.stringify(request_data));
+        hit_params = get_hit_params();
+        for (var prop in hit_params) {
+          if (hit_params.hasOwnProperty(prop)) add_hidden_input($form, prop, hit_params[prop]);
+        }
+        if (!errorResponse.hasOwnProperty("html")) {
+          $form.submit();
+        }
       }
     };
     if (data !== undefined) {
@@ -156,23 +215,21 @@ var dallinger = (function () {
 
   // make a new participant
   dlgr.createParticipant = function() {
-    var url;
-    // check if the local store is available, and if so, use it.
-    if (typeof store !== "undefined") {
-      url = "/participant/" +
-        store.get("worker_id") + "/" +
-        store.get("hit_id") + "/" +
-        store.get("assignment_id") + "/" +
-        store.get("mode");
-    } else {
-      url = "/participant/" +
-        dlgr.identity.workerId + "/" +
-        dlgr.identity.hitId + "/" +
-        dlgr.identity.assignmentId + "/" +
-        dlgr.identity.mode;
-    }
+    var deferred = $.Deferred(),
+      fingerprint_hash,
+      url,
+      hit_params;
 
-    var deferred = $.Deferred();
+    new Fingerprint2().get(function(result){
+      fingerprint_hash = result;
+      store.set("fingerprint_hash", fingerprint_hash);
+    });
+
+    hit_params = get_hit_params();
+    url = "/participant/" + hit_params.worker_id + "/" + hit_params.hit_id +
+      "/" + hit_params.assignment_id + "/" + hit_params.mode + "?fingerprint_hash=" +
+      (hit_params.fingerprint_hash || fingerprint_hash);
+
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();
     } else {
@@ -183,7 +240,7 @@ var dallinger = (function () {
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
           if (resp.quorum && resp.quorum.n !== resp.quorum.q) {
-            if (resp.quorum.n > resp.quorum.q) {
+            if (resp.quorum.overrecruited) {
               dlgr.skip_experiment = true;
               // reached quorum; resolve immediately
               deferred.resolve();
@@ -234,9 +291,9 @@ var dallinger = (function () {
 
   dlgr.submitQuestionnaire = function (name) {
     var formSerialized = $("form").serializeArray(),
-        spinner = dlgr.BusyForm(),
-        formDict = {},
-        xhr;
+      spinner = dlgr.BusyForm(),
+      formDict = {},
+      xhr;
 
     formSerialized.forEach(function (field) {
       formDict[field.name] = field.value;

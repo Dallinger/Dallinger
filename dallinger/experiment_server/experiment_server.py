@@ -7,6 +7,7 @@ from json import loads
 from operator import attrgetter
 import os
 import re
+import smtplib
 import sys
 import user_agents
 
@@ -35,6 +36,7 @@ from dallinger import information
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger import recruiters
+from dallinger.heroku.messages import EmailingHITMessager
 
 from .replay import ReplayBackend
 from .worker_events import WorkerEvent
@@ -81,7 +83,12 @@ else:
 @app.route('/')
 def index():
     """Index route"""
-    abort(404)
+    config = _config()
+    html = '<html><head></head><body><h1>Dallinger Experiment in progress</h1><dl>'
+    for item in sorted(config.as_dict().items()):
+        html += '<dt style="font-weight:bold;margin-top:15px;">{}</dt><dd>{}</dd>'.format(*item)
+    html += '</dl></body></html>'
+    return html
 
 
 @app.route('/robots.txt')
@@ -111,7 +118,8 @@ def error_response(error_type="Internal server error",
                    error_text='',
                    status=400,
                    participant=None,
-                   simple=False):
+                   simple=False,
+                   request_data=''):
     """Return a generic server error response."""
     last_exception = sys.exc_info()
     if last_exception[0]:
@@ -126,32 +134,36 @@ def error_response(error_type="Internal server error",
     else:
         data["html"] = error_page(error_text=error_text,
                                   error_type=error_type,
-                                  participant=participant).get_data().decode('utf-8')
+                                  participant=participant,
+                                  request_data=request_data).get_data().decode('utf-8')
     return Response(dumps(data), status=status, mimetype='application/json')
 
 
 def error_page(participant=None, error_text=None, compensate=True,
-               error_type="default"):
+               error_type="default", request_data=''):
     """Render HTML for error page."""
     config = _config()
+
     if error_text is None:
-
         error_text = """There has been an error and so you are unable to
-        continue, sorry! If possible, please return the assignment so someone
-        else can work on it."""
-
-    if compensate:
-        error_text += """ Please use the information below to contact us
-        about compensation"""
+        continue, sorry!"""
 
     if participant is not None:
         hit_id = participant.hit_id,
         assignment_id = participant.assignment_id,
         worker_id = participant.worker_id
+        participant_id = participant.id
     else:
-        hit_id = 'unknown'
-        assignment_id = 'unknown'
-        worker_id = 'unknown'
+        hit_id = request.form.get('hit_id', '')
+        assignment_id = request.form.get('assignment_id', '')
+        worker_id = request.form.get('worker_id', '')
+        participant_id = request.form.get('participant_id', None)
+
+    if participant_id:
+        try:
+            participant_id = int(participant_id)
+        except (ValueError, TypeError):
+            participant_id = None
 
     return make_response(
         render_template(
@@ -162,7 +174,9 @@ def error_page(participant=None, error_text=None, compensate=True,
             error_type=error_type,
             hit_id=hit_id,
             assignment_id=assignment_id,
-            worker_id=worker_id
+            worker_id=worker_id,
+            request_data=request_data,
+            participant_id=participant_id
         ),
         500,
     )
@@ -230,6 +244,130 @@ def inject_experiment():
     return dict(
         experiment=exp,
         env=os.environ,
+    )
+
+
+@app.route('/error-page', methods=['POST', 'GET'])
+def render_error():
+    request_data = request.form.get("request_data")
+    participant_id = request.form.get("participant_id")
+    participant = None
+    if participant_id:
+        participant = models.Participant.query.get(participant_id)
+    return error_page(
+        participant=participant,
+        request_data=request_data,
+    )
+
+
+@app.route('/handle-error', methods=['POST'])
+def handle_error():
+    request_data = request.form.get("request_data")
+    error_feedback = request.form.get("error_feedback")
+    error_type = request.form.get("error_type")
+    error_text = request.form.get("error_text")
+    worker_id = request.form.get("worker_id")
+    assignment_id = request.form.get("assignment_id")
+    participant_id = request.form.get("participant_id")
+    hit_id = request.form.get("hit_id")
+    participant = None
+
+    completed = False
+    details = {'request_data': {}}
+
+    if request_data:
+        try:
+            request_data = loads(request_data)
+        except ValueError:
+            request_data = {}
+        details['request_data'] = request_data
+
+        try:
+            data = loads(request_data.get("data", "null")) or request_data
+        except ValueError:
+            data = request_data
+
+        if not participant_id and 'participant_id' in data:
+            participant_id = data['participant_id']
+        if not worker_id and 'worker_id' in data:
+            worker_id = data['worker_id']
+        if not assignment_id and 'assignment_id' in data:
+            assignment_id = data['assignment_id']
+        if not hit_id and 'hit_id' in data:
+            hit_id = data['hit_id']
+
+    if participant_id:
+        try:
+            participant_id = int(participant_id)
+        except (ValueError, TypeError):
+            participant_id = None
+
+    details['feedback'] = error_feedback
+    details['error_type'] = error_type
+    details['error_text'] = error_text
+
+    if participant_id is None and worker_id:
+        participants = session.query(models.Participant).filter_by(
+            worker_id=worker_id
+        ).all()
+        if participants:
+            participant = participants[0]
+            if not assignment_id:
+                assignment_id = participant.assignment_id
+
+    if participant_id is None and assignment_id:
+        participants = session.query(models.Participant).filter_by(
+            worker_id=assignment_id
+        ).all()
+        if participants:
+            participant = participants[0]
+            participant_id = participant.id
+            if not worker_id:
+                worker_id = participant.worker_id
+
+    if participant_id is not None:
+        _worker_complete(participant_id)
+        completed = True
+
+    details['request_data'].update({'worker_id': worker_id,
+                                    'hit_id': hit_id,
+                                    'participant_id': participant_id})
+
+    notif = models.Notification(
+        assignment_id=assignment_id or 'unknown',
+        event_type=u'ExperimentError', details=details
+    )
+    session.add(notif)
+    session.commit()
+
+    config = _config()
+    if (config.get('dallinger_email_address', None) and
+            config.get('contact_email_on_error', None)):
+        heroku_config = {
+            "contact_email_on_error": config["contact_email_on_error"],
+            "dallinger_email_username": config["dallinger_email_address"],
+            "dallinger_email_key": config.get("dallinger_email_password"),
+            "whimsical": False
+        }
+
+        emailer = EmailingHITMessager(when=datetime.now(),
+                                      assignment_id=assignment_id or 'unknown',
+                                      hit_duration=0, time_active=0,
+                                      config=heroku_config,
+                                      app_id=config.get('id', 'unknown'))
+        db.logger.debug("Sending HIT error email...")
+        try:
+            emailer.send_hit_error()
+        except smtplib.SMTPException:
+            db.logger.exception("SMTP error sending HIT error email.")
+        except Exception:
+            db.logger.exception("Unknown error sending HIT error email.")
+
+    return render_template(
+        'error-complete.html',
+        completed=completed,
+        contact_address=config.get('contact_email_on_error', ''),
+        hit_id=hit_id
     )
 
 
@@ -414,10 +552,11 @@ def advertisement():
 @app.route('/summary', methods=['GET'])
 def summary():
     """Summarize the participants' status codes."""
+    exp = Experiment(session)
     state = {
         "status": "success",
-        "summary": Experiment(session).log_summary(),
-        "completed": False,
+        "summary": exp.log_summary(),
+        "completed": exp.is_complete(),
     }
     unfilled_nets = models.Network.query.filter(
         models.Network.full != true()
@@ -429,7 +568,7 @@ def summary():
     nodes_remaining = 0
     required_nodes = 0
     if state['unfilled_networks'] == 0:
-        if working == 0:
+        if working == 0 and state['completed'] is None:
             state['completed'] = True
     else:
         for net in unfilled_nets:
@@ -441,6 +580,9 @@ def summary():
             nodes_remaining += net_size - node_count
     state['nodes_remaining'] = nodes_remaining
     state['required_nodes'] = required_nodes
+
+    if state['completed'] is None:
+        state['completed'] = False
 
     return Response(
         dumps(state),
@@ -589,7 +731,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     except MultipleResultsFound:
         fingerprint_found = True
 
-    if fingerprint_found:
+    if fingerprint_hash and fingerprint_found:
         db.logger.warning("Same browser fingerprint detected.")
 
         if mode == 'live':
@@ -620,9 +762,12 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         app.logger.warning(msg.format(duplicate.id))
         q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
 
-    # Count working participants
-    waiting_count = models.Participant.query.filter_by(
-        status='working').count() + 1
+    # Count working or beyond participants.
+    nonfailed_count = models.Participant.query.filter(
+        (models.Participant.status == "working") |
+        (models.Participant.status == "submitted") |
+        (models.Participant.status == "approved")
+    ).count() + 1
 
     # Create the new participant.
     participant = models.Participant(
@@ -641,13 +786,21 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     exp = Experiment(session)
 
     # Ping back to the recruiter that one of their participants has joined:
-    recruiters.for_experiment(exp).notify_recruited(participant)
+    recruiter = recruiters.for_experiment(exp)
+    recruiter.notify_recruited(participant)
+
+    overrecruited = exp.is_overrecruited(nonfailed_count)
+    if not overrecruited:
+        # We either had no quorum or we have not overrecruited, inform the
+        # recruiter that this participant will be seeing the experiment
+        recruiter.notify_using(participant)
 
     # Queue notification to others in waiting room
     if exp.quorum:
         quorum = {
             'q': exp.quorum,
-            'n': waiting_count,
+            'n': nonfailed_count,
+            'overrecruited': overrecruited,
         }
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
         result['quorum'] = quorum
@@ -1483,13 +1636,13 @@ def worker_function(event_type, assignment_id, participant_id, node_id=None, det
     if event_type == 'TrackingEvent':
         node = None
         if node_id:
-            node = models.Node.query.filter_by(id=node_id).all()[0]
+            node = models.Node.query.get(node_id)
         if not node:
             participant = None
             if participant_id:
                 # Lookup assignment_id to create notifications
                 participant = models.Participant.query\
-                    .filter_by(id=participant_id).all()[0]
+                    .get(participant_id)
             elif assignment_id:
                 participants = models.Participant.query\
                     .filter_by(assignment_id=assignment_id)\
@@ -1515,6 +1668,11 @@ def worker_function(event_type, assignment_id, participant_id, node_id=None, det
         info = information.TrackingEvent(origin=node, details=details)
         session.add(info)
         session.commit()
+        return
+
+    runner_cls = WorkerEvent.for_name(event_type)
+    if not runner_cls:
+        exp.log("Event type {} is not supported... ignoring.".format(event_type))
         return
 
     if assignment_id is not None:
@@ -1551,12 +1709,10 @@ def worker_function(event_type, assignment_id, participant_id, node_id=None, det
 
     participant_id = participant.id
 
-    runner_cls = WorkerEvent.for_name(event_type)
-    if runner_cls:
-        runner = runner_cls(
-            participant, assignment_id, exp, session, _config(), datetime.now()
-        )
-        runner()
+    runner = runner_cls(
+        participant, assignment_id, exp, session, _config(), datetime.now()
+    )
+    runner()
     session.commit()
 
 

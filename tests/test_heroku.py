@@ -254,21 +254,18 @@ class TestHerokuClockTasks(object):
 
 
 def emailing_messager(whimsical):
-    from smtplib import SMTP
     config = {
         'whimsical': whimsical,
         'dallinger_email_username': 'test',
         'contact_email_on_error': 'contact@example.com',
         'dallinger_email_key': 'email secret key'
     }
-    mock_smtp = mock.create_autospec(SMTP)
     messager = EmailingHITMessager(
         when='the time',
         assignment_id='some assignment id',
         hit_duration=60,
         time_active=120,
-        config=config,
-        server=mock_smtp
+        config=config
     )
 
     return messager
@@ -284,6 +281,7 @@ def nonwhimsical():
     return emailing_messager(whimsical=False)
 
 
+@pytest.mark.usefixtures('dummy_mailer')
 class TestEmailingHITMessager(object):
 
     def test_send_resubmitted_msg_whimsical(self, whimsical):
@@ -329,6 +327,15 @@ class TestEmailingHITMessager(object):
     def test_send_idle_experiment(self, nonwhimsical):
         data = nonwhimsical.send_idle_experiment()
         assert data['subject'] == 'Idle Experiment.'
+
+    def test_send_hit_error(self, nonwhimsical, dummy_mailer):
+        data = nonwhimsical.send_hit_error()
+        assert data['subject'] == 'Error during HIT.'
+
+        dummy_mailer.login.assert_called_once()
+        dummy_mailer.starttls.assert_called_once()
+        dummy_mailer.sendmail.assert_called_once()
+        assert dummy_mailer.sendmail.call_args[0][0] == u'test@gmail.com'
 
 
 class TestHerokuUtilFunctions(object):
@@ -395,7 +402,7 @@ class TestHerokuApp(object):
         app.bootstrap()
         check_call.assert_has_calls([
             mock.call(['heroku', 'apps:create', 'dlgr-fake-uid', '--buildpack',
-                       'https://github.com/thenovices/heroku-buildpack-scipy',
+                       'https://github.com/kennethreitz/conda-buildpack.git',
                        '--org', 'some-team'], stdout=None),
         ])
 
