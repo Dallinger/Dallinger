@@ -141,6 +141,7 @@ var dallinger = (function () {
       success: function (resp) { deferred.resolve(resp); },
       error: function (err) {
         var $form, errorResponse, request_data, worker_id, hit_id, hit_params, assignment_id;
+        console.log('Error on route: ' +  route);
         console.log(err);
         deferred.reject(err);
         request_data = {
