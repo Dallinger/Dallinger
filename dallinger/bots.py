@@ -1,18 +1,19 @@
 """Bots."""
 
-import logging
-from cached_property import cached_property
 from urlparse import urlparse, urlunparse, parse_qs
-import uuid
+import json
+import logging
 import random
+import uuid
 
+from cached_property import cached_property
+from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 import gevent
 import requests
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 logger = logging.getLogger(__file__)
 
@@ -167,6 +168,9 @@ class HighPerformanceBotBase(BotBase):
         parsed = urlparse(self.URL)
         return urlunparse([parsed.scheme, parsed.netloc, '', '', '', ''])
 
+    def log(self, msg):
+        logger.info('{}: {}'.format(self.participant_id, msg))
+
     def run_experiment(self):
         self.sign_up()
         self.participate()
@@ -176,6 +180,7 @@ class HighPerformanceBotBase(BotBase):
             self.complete_experiment('worker_failed')
 
     def sign_up(self):
+        self.log('Bot player signing up.')
         while True:
             url = (
                 "{host}/participant/{self.worker_id}/"
@@ -199,21 +204,28 @@ class HighPerformanceBotBase(BotBase):
 
     def sign_off(self):
         """Submit questionnaire and finish."""
+        self.log('Bot player signing off.')
         while True:
             question_responses = {"engagement": 4, "difficulty": 3}
+            data = {
+                'question': 'questionnaire',
+                'number': 1,
+                'response': json.dumps(question_responses),
+            }
             url = (
-                "{host}/question/{self.participant_id}/".format(
+                "{host}/question/{self.participant_id}".format(
                     host=self.host,
                     self=self,
                 )
             )
-            result = requests.post(url, data=question_responses)
+            result = requests.post(url, data=data)
             if result.status_code == 500:
                 gevent.sleep(1.0/random.expovariate(0.5))
                 continue
             return True
 
     def complete_experiment(self, status):
+        self.log('Bot player completing experiment. Status: {}'.format(status))
         while True:
             url = (
                 "{host}/{status}?participant_id={participant_id}".format(

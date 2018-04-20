@@ -19,6 +19,9 @@ if __name__ == '__main__':
     except ImportError:
         from rq import Worker
 
+    import logging
+    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
     with Connection(conn):
         worker = Worker(list(map(Queue, listen)))
         worker.work()
