@@ -32,7 +32,7 @@ class DummyExperiment(object):
     def replay_started(self):
         return self.started
 
-    def events_for_replay(self):
+    def events_for_replay(self, *args, **kwargs):
         return self._events
 
     def replay_event(self, event):
