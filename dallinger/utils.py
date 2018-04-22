@@ -41,7 +41,7 @@ def ensure_directory(path):
         os.makedirs(path)
 
 
-def run_command(cmd, out):
+def run_command(cmd, out, ignore_errors=False):
     """We want to both send subprocess output to stdout or another file
     descriptor as the subprocess runs, *and* capture the actual exception
     message on errors. CalledProcessErrors do not reliably contain the
@@ -57,7 +57,7 @@ def run_command(cmd, out):
     t.wait()
     p.communicate()
     p.stderr.close()
-    if p.returncode != 0:
+    if p.returncode != 0 and not ignore_errors:
         with open(output_file, 'r') as output:
             error = output.read()
         message = 'Command: "{}": Error: "{}"'.format(
@@ -67,6 +67,7 @@ def run_command(cmd, out):
         raise CommandError(message)
 
     shutil.rmtree(tempdir, ignore_errors=True)
+    return p.returncode
 
 
 class CommandError(Exception):
@@ -101,6 +102,12 @@ class GitClient(object):
     def push(self, remote, branch):
         cmd = ["git", "push", remote, branch]
         self._run(cmd)
+
+    def clone(self, repository):
+        tempdir = tempfile.mkdtemp()
+        cmd = ["git", "clone", repository, tempdir]
+        self._run(cmd)
+        return tempdir
 
     def _run(self, cmd):
         self._log(cmd)
