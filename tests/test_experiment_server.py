@@ -15,6 +15,19 @@ class TestAppConfiguration(object):
         webapp.get('/')
         assert conf.ready
 
+    def test_debug_mode_puts_flask_in_debug_mode(self, webapp, active_config):
+        webapp.application.debug = False
+        from dallinger.experiment_server.gunicorn import StandaloneServer
+        StandaloneServer().load()
+        assert webapp.application.debug
+
+    def test_production_mode_leaves_flask_in_production_mode(self, webapp, active_config):
+        active_config.extend({'mode': u'production'})
+        webapp.application.debug = False
+        from dallinger.experiment_server.gunicorn import StandaloneServer
+        StandaloneServer().load()
+        assert not webapp.application.debug
+
 
 @pytest.mark.usefixtures('experiment_dir')
 class TestAdvertisement(object):
