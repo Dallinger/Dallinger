@@ -66,6 +66,7 @@ class Channel(object):
                 raw = '{}:{}'.format(channel, data)
                 for client in self.clients:
                     gevent.spawn(client.send, raw)
+            gevent.sleep(0.001)
 
     def start(self):
         """Start relaying messages."""
@@ -123,7 +124,7 @@ class Client(object):
                 self.ws.send(message)
             except socket.error:
                 chat_backend.unsubscribe(self)
-            log('Sent to {}: {}'.format(self, message), level='debug')
+            # log('Sent to {}: {}'.format(self, message), level='debug')
 
     def heartbeat(self):
         """Send a ping to the websocket periodically.
