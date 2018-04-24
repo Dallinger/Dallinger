@@ -41,7 +41,6 @@ setup_args = dict(
         ],
         'high_performance_bots': [
             "rq-gevent-worker",
-            "websocket-client",
         ]
     }
 )
