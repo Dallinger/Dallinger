@@ -1,1 +1,1 @@
--e git://github.com/Dallinger/Dallinger.git@mafiaexpt#egg=dallinger
+-e git://github.com/Dallinger/Dallinger.git@stories/326-mafia-fixes#egg=dallinger
