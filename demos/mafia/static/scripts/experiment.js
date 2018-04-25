@@ -53,55 +53,10 @@ $(document).ready(function() {
     leave_chatroom();
   });
 
-    // if (participant_id > 0) {
-    //   reqwest({
-    //       url: "/question/" + participant_id,
-    //       method: "post",
-    //       type: "json",
-    //       data: {
-    //           question: "expertise",
-    //           number: 1,
-    //           response: expertise
-    //       },
-    //       success: function(resp) {
-    //           console.log(resp)
-    //       },
-    //       error: function (err) {
-    //           var errorResponse = JSON.parse(err.response);
-    //           if (errorResponse.hasOwnProperty("html")) {
-    //               $("body").html(errorResponse.html);
-    //           }
-    //       }
-    //   });
-      submit_responses();
-      // submitResponses();
-    // }
-    submitAssignment();
-  });
 });
 
 // Create the agent.
 create_agent = function() {
-    url: "/node/",
-    method: "post",
-    type: "json",
-    success: function(resp) {
-      currentNodeId = resp.node.id;
-      currentNodeName = resp.node.property1;
-      currentNodeType = resp.node.type;
-      $("#narrator").html("The game will begin shortly...");
-      $("#stimulus").show();
-      setTimeout(function () { $("#stimulus").hide(); showExperiment(); }, 1000);
-    },
-    error: function(err) {
-      console.log(err);
-      errorResponse = JSON.parse(err.response);
-      if (errorResponse.hasOwnProperty("html")) {
-        $("body").html(errorResponse.html);
-      } else {
-        allow_exit();
-        go_to_page("questionnaire");
-      }
   var deferred = dallinger.createAgent();
   deferred.then(function (resp) {
     currentNodeId = resp.node.id;

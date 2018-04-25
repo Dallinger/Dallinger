@@ -220,7 +220,13 @@ var dallinger = (function () {
       fingerprint_hash,
       url,
       hit_params;
-
+    if (dlgr.missingFingerprint()) {
+      window.alert(
+        'An ad blocker is preventing this experiment from ' +
+        'loading. Please disable it and reload the page.'
+      )
+      return;
+    }
     new Fingerprint2().get(function(result){
       fingerprint_hash = result;
       store.set("fingerprint_hash", fingerprint_hash);
@@ -332,6 +338,26 @@ var dallinger = (function () {
     $("#waiting-progress-bar").css("width", percent);
     $("#progress-percentage").text(percent);
   };
+
+  dlgr.missingFingerprint = function () {
+    if (window.Fingerprint2 === undefined) {
+      return true;
+    }
+    return false;
+  }
+
+  dlgr.hasAdBlocker = function (callback) {
+    var test = document.createElement('div');
+    test.innerHTML = '&nbsp;';
+    test.className = 'adsbox';
+    document.body.appendChild(test);
+    window.setTimeout(function() {
+      if (test.offsetHeight === 0) {
+        return callback();
+      }
+      test.remove();
+    }, 100);
+  }
 
   return dlgr;
 }());
