@@ -30,7 +30,7 @@ $(document).ready(function() {
 
   // Proceed to the waiting room.
   $("#go-to-waiting-room").click(function() {
-    expertise = $("#expertise").val()
+    // expertise = $("#expertise").val()
     // if (expertise == '0') {
     //   window.location.href = '/error2';
     // } else {
@@ -154,8 +154,14 @@ check_phase = function() {
       $("#stimulus").show();
       setTimeout(function () { leave_chatroom(); }, 10000);
     } else if (wasDaytime != resp.daytime) {
+      wasDaytime = resp.daytime;
+      switches++;
       voted = false;
+      $("#reply").append("<hr>")
+      $("#votes").append("<hr>")
       if (resp.daytime == 'False') {
+        $("#reply").append("<h5>Night " + (switches / 2) + 1 + "</h5>")
+        $("#votes").append("<h5>Night " + (switches / 2) + 1 + "</h5>")
         document.body.style.backgroundColor = "royalblue";
         $("#narrator").html(resp.victim[0] + ", who is a " + resp.victim[1] + ", has been eliminated!");
         if (currentNodeType == 'mafioso') {
@@ -166,6 +172,8 @@ check_phase = function() {
         }
 
       } else {
+        $("#reply").append("<h5>Day " + (switches + 1) / 2 + "</h5>")
+        $("#votes").append("<h5>Day " + (switches + 1) / 2 + "</h5>")
         document.body.style.backgroundColor = "lightskyblue";
         $("#narrator").html(resp.victim[0] + " has been eliminated!");
         if (currentNodeType == 'mafioso') {
@@ -176,8 +184,6 @@ check_phase = function() {
         }
       }
       $("#stimulus").show();
-      wasDaytime = resp.daytime;
-      switches++;
       if (resp.victim[0] == currentNodeName) {
         setTimeout(function () { leave_chatroom(); }, 3000);
       }
