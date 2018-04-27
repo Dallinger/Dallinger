@@ -880,6 +880,7 @@ class DebugSessionRunner(LocalSessionRunner):
         else:
             if result['status'] == 'success':
                 self.out.log(result['recruitment_msg'])
+                self.heroku = heroku
                 heroku.monitor(listener=self.notify)
 
     def launch_request_complete(self, match):
@@ -930,13 +931,13 @@ class DebugSessionRunner(LocalSessionRunner):
                 if exp_data.get('completed', False):
                     self.out.log('Experiment completed, all nodes filled.')
                     self.complete = True
+                    self.heroku.stop()
                     break
 
     def notify(self, message):
         if self.complete:
             return HerokuLocalWrapper.MONITOR_STOP
         return super(DebugSessionRunner, self).notify(message)
-
 
 class LoadSessionRunner(LocalSessionRunner):
     dispatch = {

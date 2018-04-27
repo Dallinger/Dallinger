@@ -491,7 +491,9 @@ class TestDebugServer(object):
         debugger = DebugSessionRunner(
             output, verbose=True, bot=False, proxy_port=None, exp_config={}
         )
-        return debugger
+        yield debugger
+        if debugger.status_thread:
+            debugger.status_thread.join()
 
     @pytest.fixture
     def debugger(self, debugger_unpatched):
@@ -524,18 +526,22 @@ class TestDebugServer(object):
         assert debugger.new_recruit.called
 
     def test_recruitment_closed(self, debugger_unpatched):
+        from dallinger.config import get_config
+        get_config().load()
         from dallinger.heroku.tools import HerokuLocalWrapper
         debugger = debugger_unpatched
         debugger.new_recruit = mock.Mock(return_value=None)
+        debugger.heroku = mock.Mock()
         response = mock.Mock(
             json=mock.Mock(return_value={'completed': True})
         )
         with mock.patch('dallinger.command_line.requests') as mock_requests:
             mock_requests.get.return_value = response
-            response = debugger.notify(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
+            debugger.notify(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
+            debugger.status_thread.join()
 
-        assert response == HerokuLocalWrapper.MONITOR_STOP
         debugger.out.log.assert_called_with('Experiment completed, all nodes filled.')
+        debugger.heroku.stop.assert_called_once()
 
     def test_new_recruit(self, debugger_unpatched, browser):
         debugger_unpatched.notify(
