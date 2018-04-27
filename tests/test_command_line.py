@@ -528,7 +528,6 @@ class TestDebugServer(object):
     def test_recruitment_closed(self, debugger_unpatched):
         from dallinger.config import get_config
         get_config().load()
-        from dallinger.heroku.tools import HerokuLocalWrapper
         debugger = debugger_unpatched
         debugger.new_recruit = mock.Mock(return_value=None)
         debugger.heroku = mock.Mock()

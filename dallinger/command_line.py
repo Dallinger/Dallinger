@@ -939,6 +939,7 @@ class DebugSessionRunner(LocalSessionRunner):
             return HerokuLocalWrapper.MONITOR_STOP
         return super(DebugSessionRunner, self).notify(message)
 
+
 class LoadSessionRunner(LocalSessionRunner):
     dispatch = {
         'Replay ready: (.*)$': 'start_replay',
