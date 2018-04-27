@@ -16,6 +16,7 @@ except ImportError:
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import webbrowser
 
@@ -857,6 +858,8 @@ class DebugSessionRunner(LocalSessionRunner):
         self.exp_config = exp_config or {}
         self.proxy_port = proxy_port
         self.original_dir = os.getcwd()
+        self.complete = False
+        self.status_thread = None
 
     def configure(self):
         super(DebugSessionRunner, self).configure()
@@ -884,6 +887,7 @@ class DebugSessionRunner(LocalSessionRunner):
 
     def cleanup(self):
         log("Completed debugging of experiment with id " + self.exp_id)
+        self.complete = True
 
     def new_recruit(self, match):
         """Dispatched to by notify(). If a recruitment request has been issued,
@@ -898,23 +902,40 @@ class DebugSessionRunner(LocalSessionRunner):
         new_webbrowser_profile().open(url, new=1, autoraise=True)
 
     def recruitment_closed(self, match):
-        """Recruitment is closed. Check the output of the summary route until
+        """Recruitment is closed.
+
+        Start a thread to check the experiment summary.
+        """
+        if self.status_thread is None:
+            self.status_thread = threading.Thread(target=self.check_status)
+            self.status_thread.start()
+
+    def check_status(self):
+        """Check the output of the summary route until
         the experiment is complete, then we can stop monitoring Heroku
         subprocess output.
         """
-        base_url = get_base_url()
-        status_url = base_url + '/summary'
         self.out.log("Recruitment is complete. Waiting for experiment completion...")
-        time.sleep(10)
-        try:
-            resp = requests.get(status_url)
-            exp_data = resp.json()
-        except (ValueError, requests.exceptions.RequestException):
-            self.out.error('Error fetching experiment status.')
-        self.out.log('Experiment summary: {}'.format(exp_data))
-        if exp_data.get('completed', False):
-            self.out.log('Experiment completed, all nodes filled.')
+        while not self.complete:
+            time.sleep(10)
+            base_url = get_base_url()
+            status_url = base_url + '/summary'
+            try:
+                resp = requests.get(status_url)
+                exp_data = resp.json()
+            except (ValueError, requests.exceptions.RequestException):
+                self.out.error('Error fetching experiment status.')
+            else:
+                self.out.log('Experiment summary: {}'.format(exp_data))
+                if exp_data.get('completed', False):
+                    self.out.log('Experiment completed, all nodes filled.')
+                    self.complete = True
+                    break
+
+    def notify(self, message):
+        if self.complete:
             return HerokuLocalWrapper.MONITOR_STOP
+        return super(DebugSessionRunner, self).notify(message)
 
 
 class LoadSessionRunner(LocalSessionRunner):
