@@ -184,7 +184,7 @@ class MafiaNetwork(Network):
             winner = 'mafia'
             return victim_name, winner
         if len(mafiosi) == 0:
-            winner = 'townspeople'
+            winner = 'bystanders'
             return victim_name, winner
         # nodes = [n for n in self.nodes() if not isinstance(n, Source)]
         for n in nodes:
@@ -208,7 +208,7 @@ class MafiaNetwork(Network):
             winner = 'mafia'
             return victim_name, winner
         if len(mafiosi) == 0:
-            winner = 'townspeople'
+            winner = 'bystanders'
             return victim_name, winner
         self.fail_bystander_vectors()
         return victim_name, winner
