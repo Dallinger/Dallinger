@@ -19,7 +19,11 @@ logger = logging.getLogger(__file__)
 
 
 class BotBase(object):
-    """A base class for Bots that works with the built-in demos."""
+    """A base class for bots that works with the built-in demos.
+
+    This kind of bot uses Selenium to interact with the experiment
+    using a real browser.
+    """
 
     def __init__(self, URL, assignment_id='', worker_id='', participant_id='', hit_id=''):
         logger.info("Creating bot with URL: %s." % URL)
@@ -40,6 +44,9 @@ class BotBase(object):
         self.hit_id = hit_id
         self.worker_id = worker_id
         self.unique_id = worker_id + ':' + assignment_id
+
+    def log(self, msg):
+        logger.info('{}: {}'.format(self.participant_id, msg))
 
     @cached_property
     def driver(self):
@@ -158,6 +165,10 @@ class BotBase(object):
 
 
 class HighPerformanceBotBase(BotBase):
+    """A base class for bots that do not interact using a real browser.
+
+    Instead, this kind of bot makes requests directly to the experiment server.
+    """
 
     @property
     def driver(self):
@@ -167,9 +178,6 @@ class HighPerformanceBotBase(BotBase):
     def host(self):
         parsed = urlparse(self.URL)
         return urlunparse([parsed.scheme, parsed.netloc, '', '', '', ''])
-
-    def log(self, msg):
-        logger.info('{}: {}'.format(self.participant_id, msg))
 
     def run_experiment(self):
         self.sign_up()

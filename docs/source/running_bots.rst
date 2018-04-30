@@ -1,12 +1,13 @@
 Running bots as participants
 ============================
 
-Dallinger supports using the Selenium framework to write bots that participate in
-experiments. Not all experiments will have bots available; the :doc:`demos/bartlett1932/index`
+Dallinger supports writing bots that participate in experiments automatically.
+Not all experiments will have bots available; the :doc:`demos/bartlett1932/index`
 and :doc:`demos/chatroom/index` demos are the only built-in experiments that do.
 
+
 Writing a bot
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 In your ``experiment.py`` you will need to create a subclass of BotBase called Bot. 
 This class should implement the ``participate`` method, which will be called once
@@ -17,32 +18,27 @@ differs significantly you may need to override other methods too.
 
 .. currentmodule:: dallinger.bots
 
-.. autoclass:: BotBase
-  :members:
 
-Running bots locally
-^^^^^^^^^^^^^^^^^^^^
+Running an experiment locally with bots
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You must set the configuration value ``recruiter='bots'`` to run an experiment using its
-bot. As usual, this can be set in local or global configurations, as an
-environment variable or as a keyword argument to :py:meth:`~dallinger.experiments.Experiment.run`.
+To run the experiment in debug mode using bots, use the `--bot` flag::
+
+    $ dallinger debug --bot
+
+This overrides the `recruiter` configuration key to use the `BotRecruiter`.
+Instead of printing the URL for a participant or recruiting participants
+using Mechanical Turk, the bot recruiter will initiate requests for bots
+to be run by the worker processes.
+
+You may also set the configuration value ``recruiter='bots'`` in local or global
+configurations, as an environment variable or as a keyword argument to
+:py:meth:`~dallinger.experiments.Experiment.run`.
+
 You should also set ``max_participants`` to the number of bots you want to run at once.
 ``num_dynos_worker`` should be more than ``max_participants``, as a bot takes up a worker
 process while it is running. In addition, you may want to increase `num_dynos_web` to improve
 performance.
-
-Dallinger uses Selenium to run bots locally. By default, it will try to run
-phantomJS directly, however it supports using Firefox and Chrome through
-configuration variables.
-
-.. code-block:: ini
-
-    webdriver_type = firefox
-
-
-We recommend using Firefox when writing bots, as it allows you to visually see
-its output and allows you to attach the development console directly to the
-bot's browser session.
 
 Running an experiment with the API may look like:
 
@@ -58,6 +54,7 @@ Running an experiment with the API may look like:
         workers=participants+5,
     )
 
+
 Running a single bot
 ********************
 
@@ -66,8 +63,34 @@ the :ref:`bot <dallinger-bot>` command. This is useful for testing a single
 bot's behavior as part of a longer-running experiment, and allows easy access 
 to the Python pdb debugger.
 
-Scaling bots locally
-********************
+
+Selenium bots
+~~~~~~~~~~~~~
+
+The :class:`BotBase` provides a basis for a bot that interacts with an experiment using
+Selenium, which means that a separate, real browser session is controlled
+by each bot. This approach does not scale very well because there is a lot of
+overhead to running a browser, but it does allow for interacting with the
+experiment in a way similar to real participants.
+
+By default, Selenium will try to run PhantomJS, a headless browser meant for scripting.
+However, it also supports using Firefox and Chrome through configuration variables.
+
+.. code-block:: ini
+
+    webdriver_type = firefox
+
+We recommend using Firefox when writing bots, as it allows you to visually see
+its output and allows you to attach the development console directly to the
+bot's browser session.
+
+
+.. autoclass:: BotBase
+  :members:
+
+
+Scaling Selenium bots
+*********************
 
 For example you may want to run a dedicated computer on your lab network to host
 bots, without slowing down experimenter computers. It is recommended that you 
@@ -117,7 +140,26 @@ results 16 bots should be run over 6 Selenium servers. This will depend on how
 processor intensive your experiment is. It may be possible to run more sessions
 without performance degradation.
 
-Test Bot performance
-********************
 
-You can test out the bots as well as the high-level API using the command `python demo.py` run from the `/demos` folder
+High-performance bots
+~~~~~~~~~~~~~~~~~~~~~
+
+The :class:`HighPerformanceBotBase` can be used as a basis for a bot that
+interacts with the experiment server directly over HTTP rather than using a real browser.
+This scales better than using Selenium bots, but requires expressing the bot's
+behavior in terms of HTTP requests rather than in terms of DOM interactions.
+
+.. autoclass:: HighPerformanceBotBase
+  :members:
+
+Scaling high-performance bots
+*****************************
+
+By default, the worker processes that run bots can only run one bot at a time.
+It's possible to switch to a gevent-based worker that can run bots concurrently.
+To do this, install dallinger with the `high_performance_bots` extra::
+
+    $ pip install dallinger[high_performance_bots]
+
+By default each gevent-based worker process will process up to 20 jobs from
+the job queue in parallel.
