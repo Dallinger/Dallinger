@@ -932,7 +932,6 @@ class DebugSessionRunner(LocalSessionRunner):
                     self.out.log('Experiment completed, all nodes filled.')
                     self.complete = True
                     self.heroku.stop()
-                    break
 
     def notify(self, message):
         if self.complete:
