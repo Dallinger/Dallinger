@@ -917,10 +917,10 @@ class DebugSessionRunner(LocalSessionRunner):
         subprocess output.
         """
         self.out.log("Recruitment is complete. Waiting for experiment completion...")
+        base_url = get_base_url()
+        status_url = base_url + '/summary'
         while not self.complete:
             time.sleep(10)
-            base_url = get_base_url()
-            status_url = base_url + '/summary'
             try:
                 resp = requests.get(status_url)
                 exp_data = resp.json()
@@ -934,6 +934,12 @@ class DebugSessionRunner(LocalSessionRunner):
                     self.heroku.stop()
 
     def notify(self, message):
+        """Monitor output from heroku process.
+
+        This overrides the base class's `notify`
+        to make sure that we stop if the status-monitoring thread
+        has determined that the experiment is complete.
+        """
         if self.complete:
             return HerokuLocalWrapper.MONITOR_STOP
         return super(DebugSessionRunner, self).notify(message)

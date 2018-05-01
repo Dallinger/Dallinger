@@ -10,6 +10,12 @@ redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 conn = redis.from_url(redis_url)
 
 if __name__ == '__main__':  # pragma: nocover
+
+    # These imports are inside the __main__ block
+    # to make sure that we only import from rq_gevent_worker
+    # (which has the side effect of applying gevent monkey patches)
+    # in the worker process. This way other processes can import the
+    # redis connection without that side effect.
     from rq import (
         Queue,
         Connection
