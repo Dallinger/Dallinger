@@ -201,10 +201,10 @@ class HighPerformanceBotBase(BotBase):
             )
             result = requests.post(url)
             if result.status_code == 500:
-                gevent.sleep(1.0/random.expovariate(0.5))
+                self.stochastic_sleep()
                 continue
             elif result.json()['status'] == 'error':
-                gevent.sleep(1.0/random.expovariate(0.5))
+                self.stochastic_sleep()
                 continue
             else:
                 self.participant_id = result.json()['participant']['id']
@@ -228,7 +228,7 @@ class HighPerformanceBotBase(BotBase):
             )
             result = requests.post(url, data=data)
             if result.status_code == 500:
-                gevent.sleep(1.0/random.expovariate(0.5))
+                self.stochastic_sleep()
                 continue
             return True
 
@@ -244,6 +244,10 @@ class HighPerformanceBotBase(BotBase):
             )
             result = requests.get(url)
             if result.status_code == 500:
-                gevent.sleep(1.0/random.expovariate(0.5))
+                self.stochastic_sleep()
                 continue
             return result
+
+    def stochastic_sleep(self):
+        delay = max(1.0 / random.expovariate(0.5), 10.0)
+        gevent.sleep(delay)
