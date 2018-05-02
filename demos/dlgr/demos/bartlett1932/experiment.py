@@ -11,7 +11,7 @@ from dallinger.bots import BotBase
 from dallinger.networks import Chain
 from dallinger.experiment import Experiment
 
-from dlgr.demos.bartlett1932 import models
+from . import models
 
 logger = logging.getLogger(__file__)
 
@@ -21,9 +21,6 @@ class Bartlett1932(Experiment):
 
     def __init__(self, session=None):
         """Call the same function in the super (see experiments.py in dallinger).
-
-        The models module is imported here because it must be imported at
-        runtime.
 
         A few properties are then overwritten.
 

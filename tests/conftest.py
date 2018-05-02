@@ -70,8 +70,12 @@ def reset_config():
 
     # Make sure dallinger_experiment module isn't kept between tests
     import sys
-    if 'dallinger_experiment' in sys.modules:
-        del sys.modules['dallinger_experiment']
+    to_delete = []
+    for module in sys.modules:
+        if module.startswith('dallinger_experiment'):
+            to_delete.append(module)
+    for module in to_delete:
+        del sys.modules[module]
 
     # Make sure extra parameters aren't kept between tests
     import dallinger.config

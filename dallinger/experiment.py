@@ -25,6 +25,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from dallinger import recruiters
 from dallinger.config import get_config, LOCAL_CONFIG
+from dallinger.config import initialize_experiment_package
 from dallinger.data import Data
 from dallinger.data import export
 from dallinger.data import is_registered
@@ -706,18 +707,19 @@ class Experiment(object):
 
 def load():
     """Load the active experiment."""
-    if os.getcwd() not in sys.path:
-        sys.path.append(os.getcwd())
-
+    initialize_experiment_package(os.getcwd())
     try:
-        exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
-        classes = inspect.getmembers(exp, inspect.isclass)
-        exps = [c for c in classes
-                if (c[1].__bases__[0].__name__ in "Experiment")]
-        this_experiment = exps[0][0]
-        mod = __import__('dallinger_experiment', fromlist=[this_experiment])
-        return getattr(mod, this_experiment)
+        try:
+            from dallinger_experiment import experiment
+        except ImportError:
+            from dallinger_experiment import dallinger_experiment as experiment
 
+        classes = inspect.getmembers(experiment, inspect.isclass)
+        for name, c in classes:
+            if 'Experiment' in c.__bases__[0].__name__:
+                return c
+        else:
+            raise ImportError
     except ImportError:
         logger.error('Could not import experiment.')
         raise

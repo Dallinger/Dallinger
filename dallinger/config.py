@@ -238,30 +238,18 @@ class Configuration(object):
         self.ready = True
 
     def register_extra_parameters(self):
+        initialize_experiment_package(os.getcwd())
         extra_parameters = None
-        cwd = os.getcwd()
-        sys.path.append(cwd)
-        path_index = len(sys.path) - 1
         try:
-            from dallinger_experiment import extra_parameters
+            from dallinger_experiment.experiment import extra_parameters
         except ImportError:
             try:
-                exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
-                extra_parameters = getattr(exp, 'extra_parameters', None)
-            except IOError:
+                from dallinger_experiment.dallinger_experiment import extra_parameters
+            except ImportError:
                 pass
-            if extra_parameters is None:
-                try:
-                    # We may be in the original source directory, try experiment.py
-                    exp = imp.load_source('dallinger_experiment', "experiment.py")
-                    extra_parameters = getattr(exp, 'extra_parameters', None)
-                except IOError:
-                    pass
         if extra_parameters is not None and getattr(extra_parameters, 'loaded', None) is None:
             extra_parameters()
             extra_parameters.loaded = True
-        # Remove path element we added
-        sys.path.pop(path_index)
 
 
 config = None
@@ -276,3 +264,15 @@ def get_config():
             config.register(*registration)
 
     return config
+
+
+def initialize_experiment_package(path):
+    """Make the specified directory importable as the `dallinger_experiment` package."""
+    dirname = os.path.dirname(path)
+    basename = os.path.basename(path)
+    sys.path.insert(0, dirname)
+    package = __import__(basename)
+    sys.modules['dallinger_experiment'] = package
+    package.__package__ = 'dallinger_experiment'
+    sys.path.pop(0)
+    return package

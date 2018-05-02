@@ -1,2 +1,1 @@
 -e git://github.com/Dallinger/Dallinger.git@port-to-python-3#egg=dallinger
--e git://github.com/Dallinger/Dallinger.git@port-to-python-3#egg=dlgr.demos&subdirectory=demos

@@ -35,6 +35,7 @@ from rq import (
 
 from dallinger.compat import is_command
 from dallinger.config import get_config
+from dallinger.config import initialize_experiment_package
 from dallinger import data
 from dallinger import db
 from dallinger import heroku
@@ -177,7 +178,7 @@ def verify_package(verbose=True):
 
         # Check if the experiment file has exactly one Experiment class.
         tmp = tempfile.mkdtemp()
-        clone_dir = os.path.join(tmp, 'temp_exp_pacakge')
+        clone_dir = os.path.join(tmp, 'temp_exp_package')
         to_ignore = shutil.ignore_patterns(
             os.path.join(".git", "*"),
             "*.db",
@@ -187,13 +188,9 @@ def verify_package(verbose=True):
         )
         shutil.copytree(os.getcwd(), clone_dir, ignore=to_ignore)
 
-        cwd = os.getcwd()
-        os.chdir(clone_dir)
-        sys.path.append(clone_dir)
-
-        exp = imp.load_source('experiment', os.path.join(clone_dir, "experiment.py"))
-
-        classes = inspect.getmembers(exp, inspect.isclass)
+        initialize_experiment_package(clone_dir)
+        from dallinger_experiment import experiment
+        classes = inspect.getmembers(experiment, inspect.isclass)
         exps = [c for c in classes
                 if (c[1].__bases__[0].__name__ in "Experiment")]
 
@@ -207,8 +204,6 @@ def verify_package(verbose=True):
         else:
             log("✗ experiment.py defines more than one experiment class.",
                 delay=0, chevrons=False, verbose=verbose)
-        os.chdir(cwd)
-        sys.path.remove(clone_dir)
 
     config = get_config()
     if not config.ready:
@@ -325,9 +320,13 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         "*.db",
         "snapshots",
         "data",
-        "server.log"
+        "server.log",
     )
     shutil.copytree(os.getcwd(), dst, ignore=to_ignore)
+    # Create __init__.py if it doesn't exist
+    init_py = os.path.join(dst, '__init__.py')
+    if not os.path.exists(init_py):
+        open(init_py, 'a').close()
 
     click.echo(dst)
 
@@ -357,11 +356,6 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     ensure_directory(os.path.join("static", "scripts"))
     ensure_directory(os.path.join("templates", "default"))
     ensure_directory(os.path.join("static", "css"))
-
-    # Rename experiment.py for backwards compatibility.
-    os.rename(
-        os.path.join(dst, "experiment.py"),
-        os.path.join(dst, "dallinger_experiment.py"))
 
     # Get dallinger package location.
     from pkg_resources import get_distribution
@@ -1064,7 +1058,7 @@ def bot_factory(url):
     """Import the current Bot class, which must be done at runtime, then
     return an instance.
     """
-    from dallinger_experiment import Bot
+    from dallinger_experiment.experiment import Bot
     return Bot(url)
 
 

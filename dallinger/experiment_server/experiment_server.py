@@ -111,7 +111,7 @@ def Experiment(args):
 """Load the experiment's extra routes, if any."""
 
 try:
-    from dallinger_experiment import extra_routes
+    from dallinger_experiment.experiment import extra_routes
 except ImportError:
     pass
 else:

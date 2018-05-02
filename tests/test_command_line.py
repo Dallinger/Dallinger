@@ -180,7 +180,6 @@ class TestSetupExperiment(object):
         # Baseline
         exp_dir = os.getcwd()
         assert found_in('experiment.py', exp_dir)
-        assert not found_in('dallinger_experiment.py', exp_dir)
         assert not found_in('experiment_id.txt', exp_dir)
         assert not found_in('Procfile', exp_dir)
         assert not found_in('launch.py', exp_dir)
@@ -194,18 +193,12 @@ class TestSetupExperiment(object):
         assert('/tmp' in dst)
 
         assert found_in('experiment_id.txt', dst)
-        assert not found_in('experiment.py', dst)
-        assert found_in('dallinger_experiment.py', dst)
+        assert found_in('experiment.py', dst)
         assert found_in('models.py', dst)
         assert found_in('Procfile', dst)
         assert found_in('launch.py', dst)
         assert found_in('worker.py', dst)
         assert found_in('clock.py', dst)
-
-        assert filecmp.cmp(
-            os.path.join(dst, 'dallinger_experiment.py'),
-            os.path.join(exp_dir, 'experiment.py')
-        )
 
         assert found_in(os.path.join("static", "css", "dallinger.css"), dst)
         assert found_in(os.path.join("static", "scripts", "dallinger2.js"), dst)
