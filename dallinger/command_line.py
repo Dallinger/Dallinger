@@ -10,7 +10,6 @@ from collections import Counter
 from datetime import datetime
 from functools import wraps
 from six.moves import shlex_quote as quote
-import imp
 import inspect
 import os
 import pkg_resources

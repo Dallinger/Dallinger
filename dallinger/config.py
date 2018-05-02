@@ -4,7 +4,6 @@ from collections import deque
 from contextlib import contextmanager
 from six.moves import configparser
 import distutils.util
-import imp
 import logging
 import os
 import six

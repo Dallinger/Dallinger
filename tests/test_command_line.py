@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import filecmp
 import mock
 import os
 import pexpect

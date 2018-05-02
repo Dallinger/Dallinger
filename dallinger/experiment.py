@@ -8,7 +8,6 @@ from collections import Counter
 from contextlib import contextmanager
 from functools import wraps
 import datetime
-import imp
 import inspect
 import logging
 from operator import itemgetter
