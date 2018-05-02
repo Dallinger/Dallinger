@@ -12,6 +12,7 @@ from functools import wraps
 from six.moves import shlex_quote as quote
 import imp
 import inspect
+import logging
 import os
 import pkg_resources
 import re
@@ -794,7 +795,7 @@ class LocalSessionRunner(object):
     def configure(self):
         self.exp_config.update({
             "mode": "debug",
-            "loglevel": 0,
+            "loglevel": logging.NOTSET,
         })
 
     def setup(self):
@@ -926,7 +927,7 @@ class LoadSessionRunner(LocalSessionRunner):
     def configure(self):
         self.exp_config.update({
             "mode": "debug",
-            "loglevel": 0,
+            "loglevel": logging.NOTSET,
         })
 
         self.zip_path = data.find_experiment_export(self.app_id)

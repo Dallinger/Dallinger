@@ -5,6 +5,7 @@ from gunicorn import util
 import multiprocessing
 import os
 from dallinger.config import get_config
+from dallinger.experiment_server.utils import LogLevels
 import logging
 
 logger = logging.getLogger(__file__)
@@ -51,24 +52,31 @@ class StandaloneServer(Application):
 
     def load(self):
         """Return our application to be run."""
-        return util.import_app("dallinger.experiment_server.sockets:app")
+        app = util.import_app("dallinger.experiment_server.sockets:app")
+        if self.options.get('mode') == 'debug':
+            app.debug = True
+        return app
 
     def load_user_config(self):
         config = get_config()
+        log_levels = LogLevels(config.get("loglevel"))
         workers = config.get("threads")
         if workers == "auto":
             workers = str(multiprocessing.cpu_count() * 2 + 1)
 
         host = config.get("host")
+        mode = config.get("mode")
         bind_address = "{}:{}".format(host, self.port)
         self.options = {
             'bind': bind_address,
             'workers': workers,
             'worker_class': WORKER_CLASS,
             'loglevels': self.loglevels,
-            'loglevel': self.loglevels[config.get("loglevel")],
+            'loglevel': log_levels.gunicorn,
+            'flask_loglevel': log_levels.pylog,
             'errorlog': '-',
             'accesslog': '-',
+            'mode': mode,
             'proc_name': 'dallinger_experiment_server',
             'limit_request_line': '0',
             'when_ready': when_ready,

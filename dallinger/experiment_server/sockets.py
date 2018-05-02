@@ -18,8 +18,8 @@ HEARTBEAT_DELAY = 30
 def log(msg, level='info'):
     # Log including pid and greenlet id
     logfunc = getattr(app.logger, level)
-    logfunc(
-        '{}/{}: {}'.format(os.getpid(), id(gevent.hub.getcurrent()), msg))
+    annotated_msg = '{}/{}: {}'.format(os.getpid(), id(gevent.hub.getcurrent()), msg)
+    logfunc(annotated_msg)
 
 
 class ChatBackend(object):
