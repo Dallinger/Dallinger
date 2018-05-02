@@ -24,7 +24,7 @@ def clear_workers():
     def _zap():
         kills = [
             ['pkill', 'gunicorn'],
-            ['pkill', '-f', 'python worker.py'],
+            ['pkill', '-f', 'python launch.py'],
         ]
         for kill in kills:
             try:
