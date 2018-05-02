@@ -7,37 +7,50 @@ def test_serialized(db_session):
 
     counts = []
 
-    # Define a serialized function which writes
-    # a row based on a separate query
-    def write(session):
+    # Define a function which adds a new participant
+    # with an id based on a database query.
+    def add_participant(session, interruptor=None):
         count = session.query(Participant).count()
         counts.append(count)
+
+        # This is for the sake of the test,
+        # to let us change the count from a different session
+        # on the first try.
+        if interruptor:
+            interruptor()
+
         session.add(Participant(
             worker_id='serialized_{}'.format(count + 1),
             assignment_id='test',
             hit_id='test',
             mode='test',
         ))
-    serialized_write = serialized(write)
 
-    # Make the thread-scoped session SERIALIZABLE and read data with it
-    db_session.connection(
-        execution_options={'isolation_level': 'SERIALIZABLE'})
-    assert Participant.query.count() == 0
+    # Define a function to get in the way of our transaction
+    # by changing the participant count from another db session
+    # the first time that our serialized transaction is called.
+    interrupted = []
 
-    # Now make a change using a separate session
-    # that will change the value read above
-    session2 = db_session.session_factory()
-    session2.connection(
-        execution_options={'isolation_level': 'SERIALIZABLE'})
-    write(session2)
-    session2.commit()
+    def interruptor():
+        if not interrupted:
+            session2 = db_session.session_factory()
+            session2.connection(execution_options={'isolation_level': 'SERIALIZABLE'})
+            add_participant(session2)
+            session2.commit()
+            interrupted.append(True)
+
+    # Now define the test function which will try to add
+    # a participant using the scoped db session,
+    # but will fail the first time due to the interruption.
+    @serialized
+    def serialized_write():
+        add_participant(db_session, interruptor)
 
     # Now run the serialized write.
     # It should succeed, but only after retrying the transaction.
-    serialized_write(db_session)
+    serialized_write()
 
-    # Which we can check by making sure that `write`
+    # Which we can check by making sure that `add_participant`
     # calculated the count at least 3 times
     assert counts == [0, 0, 1]
 

@@ -16,6 +16,7 @@ except ImportError:
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import webbrowser
 
@@ -857,6 +858,8 @@ class DebugSessionRunner(LocalSessionRunner):
         self.exp_config = exp_config or {}
         self.proxy_port = proxy_port
         self.original_dir = os.getcwd()
+        self.complete = False
+        self.status_thread = None
 
     def configure(self):
         super(DebugSessionRunner, self).configure()
@@ -868,13 +871,24 @@ class DebugSessionRunner(LocalSessionRunner):
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
         time.sleep(4)
-        result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
-        if result['status'] == 'success':
-            self.out.log(result['recruitment_msg'])
+        try:
+            result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
+        except ValueError:
+            # Show output from server
+            self.dispatch[r'POST /launch'] = 'launch_request_complete'
             heroku.monitor(listener=self.notify)
+        else:
+            if result['status'] == 'success':
+                self.out.log(result['recruitment_msg'])
+                self.heroku = heroku
+                heroku.monitor(listener=self.notify)
+
+    def launch_request_complete(self, match):
+        return HerokuLocalWrapper.MONITOR_STOP
 
     def cleanup(self):
         log("Completed debugging of experiment with id " + self.exp_id)
+        self.complete = True
 
     def new_recruit(self, match):
         """Dispatched to by notify(). If a recruitment request has been issued,
@@ -889,23 +903,46 @@ class DebugSessionRunner(LocalSessionRunner):
         new_webbrowser_profile().open(url, new=1, autoraise=True)
 
     def recruitment_closed(self, match):
-        """Recruitment is closed. Check the output of the summary route until
+        """Recruitment is closed.
+
+        Start a thread to check the experiment summary.
+        """
+        if self.status_thread is None:
+            self.status_thread = threading.Thread(target=self.check_status)
+            self.status_thread.start()
+
+    def check_status(self):
+        """Check the output of the summary route until
         the experiment is complete, then we can stop monitoring Heroku
         subprocess output.
         """
+        self.out.log("Recruitment is complete. Waiting for experiment completion...")
         base_url = get_base_url()
         status_url = base_url + '/summary'
-        self.out.log("Recruitment is complete. Waiting for experiment completion...")
-        time.sleep(10)
-        try:
-            resp = requests.get(status_url)
-            exp_data = resp.json()
-        except (ValueError, requests.exceptions.RequestException):
-            self.out.error('Error fetching experiment status.')
-        self.out.log('Experiment summary: {}'.format(exp_data))
-        if exp_data.get('completed', False):
-            self.out.log('Experiment completed, all nodes filled.')
+        while not self.complete:
+            time.sleep(10)
+            try:
+                resp = requests.get(status_url)
+                exp_data = resp.json()
+            except (ValueError, requests.exceptions.RequestException):
+                self.out.error('Error fetching experiment status.')
+            else:
+                self.out.log('Experiment summary: {}'.format(exp_data))
+                if exp_data.get('completed', False):
+                    self.out.log('Experiment completed, all nodes filled.')
+                    self.complete = True
+                    self.heroku.stop()
+
+    def notify(self, message):
+        """Monitor output from heroku process.
+
+        This overrides the base class's `notify`
+        to make sure that we stop if the status-monitoring thread
+        has determined that the experiment is complete.
+        """
+        if self.complete:
             return HerokuLocalWrapper.MONITOR_STOP
+        return super(DebugSessionRunner, self).notify(message)
 
 
 class LoadSessionRunner(LocalSessionRunner):

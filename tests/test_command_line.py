@@ -159,7 +159,7 @@ class TestCommandLine(object):
 
     def test_email_with_no_credentials(self, active_config):
             @report_idle_after(1)
-            def test_smpt():
+            def test_smtp():
                 active_config.extend({
                     'dallinger_email_address': u'email',
                     'contact_email_on_error': u'email',
@@ -168,7 +168,7 @@ class TestCommandLine(object):
                 sleep(5)
 
             with raises(SMTPAuthenticationError):
-                test_smpt()
+                test_smtp()
 
 
 @pytest.mark.usefixtures('bartlett_dir', 'active_config')
@@ -491,7 +491,9 @@ class TestDebugServer(object):
         debugger = DebugSessionRunner(
             output, verbose=True, bot=False, proxy_port=None, exp_config={}
         )
-        return debugger
+        yield debugger
+        if debugger.status_thread:
+            debugger.status_thread.join()
 
     @pytest.fixture
     def debugger(self, debugger_unpatched):
@@ -524,18 +526,21 @@ class TestDebugServer(object):
         assert debugger.new_recruit.called
 
     def test_recruitment_closed(self, debugger_unpatched):
-        from dallinger.heroku.tools import HerokuLocalWrapper
+        from dallinger.config import get_config
+        get_config().load()
         debugger = debugger_unpatched
         debugger.new_recruit = mock.Mock(return_value=None)
+        debugger.heroku = mock.Mock()
         response = mock.Mock(
             json=mock.Mock(return_value={'completed': True})
         )
         with mock.patch('dallinger.command_line.requests') as mock_requests:
             mock_requests.get.return_value = response
-            response = debugger.notify(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
+            debugger.notify(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
+            debugger.status_thread.join()
 
-        assert response == HerokuLocalWrapper.MONITOR_STOP
         debugger.out.log.assert_called_with('Experiment completed, all nodes filled.')
+        debugger.heroku.stop.assert_called_once()
 
     def test_new_recruit(self, debugger_unpatched, browser):
         debugger_unpatched.notify(

@@ -1,22 +1,31 @@
 """Bots."""
 
+from urlparse import urlparse, urlunparse, parse_qs
+import json
 import logging
-from cached_property import cached_property
-from urlparse import urlparse, parse_qs
+import random
+import uuid
 
+from cached_property import cached_property
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+import gevent
+import requests
 
 logger = logging.getLogger(__file__)
 
 
 class BotBase(object):
-    """A base class for Bots that works with the built-in demos."""
+    """A base class for bots that works with the built-in demos.
 
-    def __init__(self, URL, assignment_id='', worker_id='', participant_id=''):
+    This kind of bot uses Selenium to interact with the experiment
+    using a real browser.
+    """
+
+    def __init__(self, URL, assignment_id='', worker_id='', participant_id='', hit_id=''):
         logger.info("Creating bot with URL: %s." % URL)
         self.URL = URL
 
@@ -26,12 +35,18 @@ class BotBase(object):
             assignment_id = query.get('assignment_id', [''])[0]
         if not participant_id:
             participant_id = query.get('participant_id', [''])[0]
+        if not hit_id:
+            hit_id = query.get('hit_id', [''])[0]
         self.assignment_id = assignment_id
         if not worker_id:
             worker_id = query.get('worker_id', [''])[0]
         self.participant_id = participant_id
+        self.hit_id = hit_id
         self.worker_id = worker_id
         self.unique_id = worker_id + ':' + assignment_id
+
+    def log(self, msg):
+        logger.info('{}: {}'.format(self.participant_id, msg))
 
     @cached_property
     def driver(self):
@@ -147,3 +162,92 @@ class BotBase(object):
                 self.complete_experiment('worker_failed')
         finally:
             self.driver.quit()
+
+
+class HighPerformanceBotBase(BotBase):
+    """A base class for bots that do not interact using a real browser.
+
+    Instead, this kind of bot makes requests directly to the experiment server.
+    """
+
+    @property
+    def driver(self):
+        raise NotImplementedError
+
+    @property
+    def host(self):
+        parsed = urlparse(self.URL)
+        return urlunparse([parsed.scheme, parsed.netloc, '', '', '', ''])
+
+    def run_experiment(self):
+        self.sign_up()
+        self.participate()
+        if self.sign_off():
+            self.complete_experiment('worker_complete')
+        else:
+            self.complete_experiment('worker_failed')
+
+    def sign_up(self):
+        self.log('Bot player signing up.')
+        while True:
+            url = (
+                "{host}/participant/{self.worker_id}/"
+                "{self.hit_id}/{self.assignment_id}/"
+                "debug?fingerprint_hash={hash}".format(
+                    host=self.host,
+                    self=self,
+                    hash=uuid.uuid4().hex
+                )
+            )
+            result = requests.post(url)
+            if result.status_code == 500:
+                self.stochastic_sleep()
+                continue
+            elif result.json()['status'] == 'error':
+                self.stochastic_sleep()
+                continue
+            else:
+                self.participant_id = result.json()['participant']['id']
+                return self.participant_id
+
+    def sign_off(self):
+        """Submit questionnaire and finish."""
+        self.log('Bot player signing off.')
+        while True:
+            question_responses = {"engagement": 4, "difficulty": 3}
+            data = {
+                'question': 'questionnaire',
+                'number': 1,
+                'response': json.dumps(question_responses),
+            }
+            url = (
+                "{host}/question/{self.participant_id}".format(
+                    host=self.host,
+                    self=self,
+                )
+            )
+            result = requests.post(url, data=data)
+            if result.status_code == 500:
+                self.stochastic_sleep()
+                continue
+            return True
+
+    def complete_experiment(self, status):
+        self.log('Bot player completing experiment. Status: {}'.format(status))
+        while True:
+            url = (
+                "{host}/{status}?participant_id={participant_id}".format(
+                    host=self.host,
+                    participant_id=self.participant_id,
+                    status=status
+                )
+            )
+            result = requests.get(url)
+            if result.status_code == 500:
+                self.stochastic_sleep()
+                continue
+            return result
+
+    def stochastic_sleep(self):
+        delay = max(1.0 / random.expovariate(0.5), 10.0)
+        gevent.sleep(delay)

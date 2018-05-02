@@ -418,7 +418,8 @@ class HerokuLocalWrapper(object):
         return self
 
     def __exit__(self, exctype, excinst, exctb):
-        self.stop()
+        if self.is_running:
+            self.stop()
 
     def __repr__(self):
         classname = self.__class__.__name__

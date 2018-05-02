@@ -5,27 +5,49 @@ import socket
 
 
 @pytest.fixture
-def sockets():
-    from dallinger.experiment_server import sockets
-    return sockets
-
-
-@pytest.fixture
 def pubsub():
     pubsub = Mock()
-    pubsub.channels = {}
     pubsub.listen.return_value = []
     return pubsub
 
 
 @pytest.fixture
-def chat(sockets, pubsub):
-    chat = sockets.ChatBackend()
-    chat.pubsub = pubsub
+def redis(pubsub):
+    conn = Mock()
+    conn.pubsub.return_value = pubsub
+    return conn
 
-    yield chat
 
+@pytest.fixture
+def sockets(redis):
+    from dallinger.experiment_server import sockets
+    sockets.conn = redis
+    # use a separate ChatBackend for each test
+    sockets.chat_backend = sockets.ChatBackend()
+
+    yield sockets
+
+    # make sure all greenlets complete
     gevent.wait()
+
+
+@pytest.fixture
+def chat(sockets):
+    return sockets.chat_backend
+
+
+@pytest.fixture
+def channel(sockets):
+    sockets.chat_backend.channels['test'] = channel = sockets.Channel('test')
+    yield channel
+    channel.stop()
+    del sockets.chat_backend.channels['test']
+
+
+@pytest.fixture
+def client(sockets):
+    ws = Mock()
+    return sockets.Client(ws)
 
 
 @pytest.fixture
@@ -46,95 +68,98 @@ def mocksocket():
     return MockSocket()
 
 
-@pytest.mark.usefixtures("experiment_dir")
+class TestChannel:
+
+    def test_subscribes_to_redis(self, sockets, pubsub):
+        sockets.Channel('custom').start()
+        gevent.wait()
+        pubsub.subscribe.assert_called_once_with(['custom'])
+
+    def test_listen(self, sockets):
+        sockets.conn.pubsub.return_value = pubsub = Mock()
+        pubsub.listen.return_value = [{
+            'type': 'message',
+            'channel': 'quorum',
+            'data': 'Calloo! Callay!',
+        }]
+
+        channel = sockets.Channel('custom')
+        client = Mock()
+        channel.subscribe(client)
+        channel.start()
+        gevent.wait()  # wait for event loop
+
+        client.send.assert_called_once_with('quorum:Calloo! Callay!')
+
+    def test_stop(self, channel):
+        channel.start()
+        channel.stop()
+        assert channel.greenlet is None
+
+
 class TestChatBackend:
 
     def test_subscribe_to_new_channel_registers_client_for_channel(self, chat):
         client = Mock()
         chat.subscribe(client, 'custom')
-        assert chat.clients == {'custom': [client]}
+        assert client in chat.channels['custom'].clients
 
-    def test_subscribe_to_new_channel_subscribes_on_redis(self, chat):
+    def test_subscribe_wont_duplicate_channel(self, sockets, chat, channel, pubsub):
         client = Mock()
-        chat.pubsub = Mock()
-        chat.pubsub.channels = {}
-        chat.subscribe(client, 'custom')
-        chat.pubsub.subscribe.assert_called_once_with(['custom'])
-
-    def test_subscribe_wont_duplicate_channel(self, chat):
-        client1 = Mock()
-        chat.pubsub = Mock()
-        chat.pubsub.channels = {'custom'}
-        chat.subscribe(client1, 'custom')
-        chat.pubsub.subscribe.assert_not_called()
+        chat.subscribe(client, channel.name)
+        pubsub.subscribe.assert_not_called()
 
     def test_unsubscribe(self, chat):
         client = Mock()
         chat.subscribe(client, 'quorum')
-        chat.unsubscribe(client, 'quorum')
-        assert chat.clients == {'quorum': []}
+        chat.unsubscribe(client)
+        assert client not in chat.channels['quorum'].clients
 
-    def test_send(self, chat):
-        client = Mock()
-        chat.send(client, 'message')
-        client.send.assert_called_once_with('message')
 
-    def test_send_exception(self, chat):
-        client = Mock()
-        client.send.side_effect = socket.error()
-        chat.subscribe(client, 'quorum')
-        chat.send(client, 'message')
-        assert chat.clients == {'quorum': []}
+class TestClient:
 
-    def test_run(self, chat):
-        client = Mock()
+    def test_send(self, client):
+        client.send('message')
+        client.ws.send.assert_called_once_with('message')
 
-        chat.pubsub = Mock()
-        chat.pubsub.channels = ['quorum']
-        chat.pubsub.listen.return_value = [{
-            'type': 'message',
-            'channel': 'quorum',
-            'data': 'Calloo! Callay!',
-        }]
-        chat.greenlet = Mock()
+    def test_send_exception_unsubscribes_client(self, client, channel):
+        client.ws.send.side_effect = socket.error()
+        channel.subscribe(client)
+        client.send('message')
+        assert client not in channel.clients
 
-        chat.subscribe(client, 'quorum')
-        chat.run()
-
-        gevent.wait()  # wait for event loop
-        client.send.assert_called_once_with('quorum:Calloo! Callay!')
-
-    def test_stop(self, chat):
-        chat.start()
-        chat.stop()
-
-    def test_heartbeat(self, chat, sockets):
-        client = Mock()
-        client.closed = False
-        chat.send = Mock()
+    def test_heartbeat(self, sockets, client):
+        client.ws.closed = False
         sockets.HEARTBEAT_DELAY = 1
 
-        gevent.spawn(chat.heartbeat, client)
+        gevent.spawn(client.heartbeat)
         gevent.sleep(2)
-        client.closed = True
+        client.ws.closed = True
         gevent.wait()
 
-        chat.send.assert_called_with(client, 'ping')
+        client.ws.send.assert_called_with('ping')
+
+
+class TestChatEndpoint:
 
     def test_chat_subscribes_to_requested_channel(self, sockets):
         ws = Mock()
+        ws.closed = True
         sockets.request = Mock()
         sockets.request.args = {'channel': 'special'}
         sockets.chat(ws)
-        assert ws in sockets.chat_backend.clients['special']
 
-    def test_chat_publishes_message_to_requested_channel(self, sockets, pubsub, mocksocket):
+        clients = [
+            c for c in sockets.chat_backend.channels['special'].clients
+            if c.ws is ws
+        ]
+        assert len(clients) == 1
+
+    def test_chat_publishes_message_to_requested_channel(self, sockets, mocksocket):
         ws = mocksocket
         ws.receive.return_value = 'special:incoming message!'
         sockets.request = Mock()
         sockets.request.args = {'tolerance': '.5'}
-        sockets.conn = Mock()
-        sockets.chat_backend.pubsub = pubsub
         sockets.chat(ws)
         sockets.conn.publish.assert_called_once_with(
             'special', 'incoming message!'
