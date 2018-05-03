@@ -24,6 +24,9 @@ if __name__ == '__main__':  # pragma: nocover
     except ImportError:
         from rq import Worker
 
+    from dallinger.config import initialize_experiment_package
+    initialize_experiment_package(os.getcwd())
+
     import logging
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
