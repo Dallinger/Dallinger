@@ -267,6 +267,11 @@ def get_config():
 
 def initialize_experiment_package(path):
     """Make the specified directory importable as the `dallinger_experiment` package."""
+    # Create __init__.py if it doesn't exist (needed for Python 2)
+    init_py = os.path.join(path, '__init__.py')
+    if not os.path.exists(init_py):
+        open(init_py, 'a').close()
+
     dirname = os.path.dirname(path)
     basename = os.path.basename(path)
     sys.path.insert(0, dirname)
@@ -274,4 +279,3 @@ def initialize_experiment_package(path):
     sys.modules['dallinger_experiment'] = package
     package.__package__ = 'dallinger_experiment'
     sys.path.pop(0)
-    return package

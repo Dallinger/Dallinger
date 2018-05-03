@@ -322,10 +322,6 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         "server.log",
     )
     shutil.copytree(os.getcwd(), dst, ignore=to_ignore)
-    # Create __init__.py if it doesn't exist
-    init_py = os.path.join(dst, '__init__.py')
-    if not os.path.exists(init_py):
-        open(init_py, 'a').close()
 
     click.echo(dst)
 
