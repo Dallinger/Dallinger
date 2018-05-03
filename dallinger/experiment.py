@@ -21,6 +21,7 @@ import uuid
 
 from sqlalchemy import and_
 from sqlalchemy import create_engine
+from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 from dallinger import recruiters
@@ -671,40 +672,29 @@ class Experiment(object):
         init_db(drop_all=True, bind=import_engine)
         print("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
         ingest_zip(zip_path, engine=import_engine)
-
-        def go_to(time):
-            """Scrub to a point in the experiment replay, given by time
-            which is a datetime object."""
-            if self._replay_time_index > time:
-                # We do not support going back in time
-                raise NotImplementedError
-            events = self.events_for_replay(session=import_session, target=time)
-            for event in events:
-                if event.creation_time <= self._replay_time_index:
-                    # Skip events we've already handled
-                    continue
-                if event.creation_time > time:
-                    # Stop once we get future events
-                    break
-                self.replay_event(event)
-                self._replay_time_index = event.creation_time
-            # Override app_id to allow exports to be created that don't
-            # overwrite the original dataset
-            self.app_id = "{}_{}".format(self.original_app_id, time.isoformat())
-
+        self._replay_range = tuple(
+            import_session.query(
+                func.min(Info.creation_time),
+                func.max(Info.creation_time)
+            )
+        )[0]
         # We apply the configuration options we were given and yield
         # the scrubber function into the context manager, so within the
         # with experiment.restore_state_from_replay(...): block the configuration
         # options are correctly set
         with config.override(configuration_options, strict=True):
             self.replay_start()
-            yield go_to
+            yield Scrubber(self, session=import_session)
             self.replay_finish()
 
         # Clear up global state
         import_session.close()
         config._reset(register_defaults=True)
         del sys.modules['dallinger_experiment']
+
+    def revert_to_time(self, session, target):
+        # We do not support going back in time
+        raise NotImplementedError
 
     def _ipython_display_(self):
         """Display Jupyter Notebook widget"""
@@ -714,6 +704,57 @@ class Experiment(object):
     def update_status(self, status):
         if self.widget is not None:
             self.widget.status = status
+
+
+class Scrubber(object):
+    def __init__(self, experiment, session):
+        self.experiment = experiment
+        self.session = session
+
+    def __call__(self, time):
+        """Scrub to a point in the experiment replay, given by time
+        which is a datetime object."""
+        if self.experiment._replay_time_index > time:
+            self.experiment.revert_to_time(session=self.session, target=time)
+        events = self.experiment.events_for_replay(session=self.session, target=time)
+        for event in events:
+            if event.creation_time <= self.experiment._replay_time_index:
+                # Skip events we've already handled
+                continue
+            if event.creation_time > time:
+                # Stop once we get future events
+                break
+            self.experiment.replay_event(event)
+            self.experiment._replay_time_index = event.creation_time
+        # Override app_id to allow exports to be created that don't
+        # overwrite the original dataset
+        self.experiment.app_id = "{}_{}".format(self.experiment.original_app_id, time.isoformat())
+
+    def widget(self):
+        from ipywidgets import widgets
+        start, end = self.experiment._replay_range
+        options = []
+        current = start
+        while current <= end:
+            options.append((current.replace(microsecond=0).time().isoformat(), current))
+            current += datetime.timedelta(seconds=1)
+        scrubber = widgets.SelectionSlider(
+            description='Current time',
+            options=options,
+            disabled=False,
+            continuous_update=False,
+        )
+
+        def advance(change):
+            self(change['new'])
+            self.experiment.widget.render()
+        scrubber.observe(advance, 'value')
+        return scrubber
+
+    def _ipython_display_(self):
+        """Display Jupyter Notebook widget"""
+        from IPython.display import display
+        display(self.widget())
 
 
 def load():
