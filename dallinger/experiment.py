@@ -33,7 +33,7 @@ from dallinger.data import is_registered
 from dallinger.data import load as data_load
 from dallinger.data import find_experiment_export
 from dallinger.data import ingest_zip
-from dallinger.db import init_db
+from dallinger.db import init_db, db_url
 from dallinger.models import Network, Node, Info, Transformation, Participant
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
@@ -652,9 +652,24 @@ class Experiment(object):
         # Create a second database session so we can load the full history
         # of the experiment to be replayed and selectively import events
         # into the main database
+        specific_db_url = db_url + '-import-' + app_id
         import_engine = create_engine(
-            "postgresql://dallinger:dallinger@localhost/dallinger-import"
+            specific_db_url
         )
+        try:
+            # Clear the temporary storage and import it
+            init_db(drop_all=True, bind=import_engine)
+        except:
+            create_db_engine = create_engine(db_url)
+            conn = create_db_engine.connect()
+            conn.execute('COMMIT;')
+            conn.execute('CREATE DATABASE "{}"'.format(specific_db_url.rsplit('/', 1)[1]))
+        else:
+            import_engine = create_engine(
+                specific_db_url
+            )
+            init_db(drop_all=True, bind=import_engine)
+
         import_session = scoped_session(
             sessionmaker(autocommit=False,
                          autoflush=True,
@@ -668,8 +683,6 @@ class Experiment(object):
             msg = 'Dataset export for app id "{}" could not be found.'
             raise IOError(msg.format(app_id))
 
-        # Clear the temporary storage and import it
-        init_db(drop_all=True, bind=import_engine)
         print("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
         ingest_zip(zip_path, engine=import_engine)
         self._replay_range = tuple(
@@ -688,7 +701,15 @@ class Experiment(object):
             self.replay_finish()
 
         # Clear up global state
+        import_session.rollback()
         import_session.close()
+        session.rollback()
+        session.close()
+        # Remove marker preventing experiment config variables being reloaded
+        try:
+            del module.extra_parameters.loaded
+        except AttributeError:
+            pass
         config._reset(register_defaults=True)
         del sys.modules['dallinger_experiment']
 
@@ -704,6 +725,35 @@ class Experiment(object):
     def update_status(self, status):
         if self.widget is not None:
             self.widget.status = status
+
+    def jupyter_replay(self, *args, **kwargs):
+        from ipywidgets import widgets
+        from IPython.display import display
+        try:
+            sys.modules['dallinger_experiment']._jupyter_cleanup()
+        except (KeyError, AttributeError):
+            pass
+        replay = self.restore_state_from_replay(*args, **kwargs)
+        scrubber = replay.__enter__()
+        scrubber.build_widget()
+        replay_widget = widgets.VBox([
+            self.widget,
+            scrubber.widget,
+        ])
+        # Scrub to start of experiment and re-render the main widget
+        scrubber(self._replay_range[0])
+        self.widget.render()
+        display(replay_widget)
+        # Defer the cleanup until this function is re-called by
+        # keeping a copy of the function on the experiment module
+        # This allows us to effectively detect the cell being
+        # re-run as there doesn't seem to be a cleanup hook for widgets
+        # displayed as part of a cell that is being re-rendered
+
+        def _jupyter_cleanup():
+            replay.__exit__(None, None, None)
+
+        sys.modules['dallinger_experiment']._jupyter_cleanup = _jupyter_cleanup
 
 
 class Scrubber(object):
@@ -730,7 +780,7 @@ class Scrubber(object):
         # overwrite the original dataset
         self.experiment.app_id = "{}_{}".format(self.experiment.original_app_id, time.isoformat())
 
-    def widget(self):
+    def build_widget(self):
         from ipywidgets import widgets
         start, end = self.experiment._replay_range
         options = []
@@ -746,14 +796,20 @@ class Scrubber(object):
         )
 
         def advance(change):
+            old_status = self.experiment.widget.status
+            self.experiment.widget.status = 'Updating'
+            self.experiment.widget.render()
             self(change['new'])
+            self.experiment.widget.status = old_status
             self.experiment.widget.render()
         scrubber.observe(advance, 'value')
+        self.widget = scrubber
         return scrubber
 
     def _ipython_display_(self):
         """Display Jupyter Notebook widget"""
         from IPython.display import display
+        self.build_widget()
         display(self.widget())
 
 

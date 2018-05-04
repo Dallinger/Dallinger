@@ -34,15 +34,8 @@ class ExperimentWidget(widgets.VBox):
         super(ExperimentWidget, self).__init__()
         self.render()
 
-    @observe('status')
-    def render(self, change=None):
-        header = widgets.HTML(
-            header_template.render(
-                name=self.exp.task,
-                status=self.status,
-                app_id=self.exp.app_id,
-            ),
-        )
+    @property
+    def config_tab(self):
         config = get_config()
         if config.ready:
             config_items = list(config.as_dict().items())
@@ -52,6 +45,18 @@ class ExperimentWidget(widgets.VBox):
             )
         else:
             config_tab = widgets.HTML('Not loaded.')
-        tabs = widgets.Tab(children=[config_tab])
+        return config_tab
+
+    @observe('status')
+    def render(self, change=None):
+        header = widgets.HTML(
+            header_template.render(
+                name=self.exp.task,
+                status=self.status,
+                app_id=self.exp.app_id,
+            ),
+        )
+
+        tabs = widgets.Tab(children=[self.config_tab])
         tabs.set_title(0, 'Configuration')
         self.children = [header, tabs]
