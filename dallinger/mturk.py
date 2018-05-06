@@ -351,7 +351,7 @@ class MTurkService(object):
 
     def create_hit(self, title, description, keywords, reward, duration_hours,
                    lifetime_days, ad_url, notification_url, approve_requirement,
-                   max_assignments, us_only, blacklist=None):
+                   max_assignments, us_only, blacklist=None, annotation=None):
         """Create the actual HIT and return a dict with its useful properties."""
         frame_height = 600
         mturk_question = self._external_question(ad_url, frame_height)
@@ -369,8 +369,11 @@ class MTurkService(object):
             'Question': mturk_question,
             'LifetimeInSeconds': int(datetime.timedelta(days=lifetime_days).total_seconds()),
             'MaxAssignments': max_assignments,
-            'UniqueRequestToken': self._request_token()
+            'UniqueRequestToken': self._request_token(),
         }
+        if annotation:
+            params['RequesterAnnotation'] = annotation
+
         response = self.mturk.create_hit_with_hit_type(**params)
         if 'HIT' not in response:
             raise MTurkServiceException("HIT request was invalid for unknown reason.")
@@ -563,6 +566,7 @@ class MTurkService(object):
             'reward': float(hit['Reward']),
             'review_status': hit['HITReviewStatus'],
             'status': hit['HITStatus'],
+            'annotation': hit.get('RequesterAnnotation'),
         }
 
         return translated

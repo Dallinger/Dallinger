@@ -79,6 +79,18 @@ def data():
         yield mock_data
 
 
+@pytest.fixture
+def mturk():
+    with mock.patch('dallinger.command_line.MTurkService') as mock_mturk:
+        mock_instance = mock.Mock()
+        mock_instance.get_hits.return_value = [
+            {'id': 'hit-id-1'},
+            {'id': 'hit-id-2', 'annotation': 'exp-id-2'}
+        ]
+        mock_mturk.return_value = mock_instance
+        yield mock_mturk
+
+
 class TestIsolatedWebbrowser(object):
 
     def test_chrome_isolation(self):
@@ -1027,12 +1039,32 @@ class TestDestroy(object):
         )
         heroku.destroy.assert_called_once()
 
+    def test_destroy_expires_hits(self, destroy, heroku, mturk):
+        CliRunner().invoke(
+            destroy,
+            ['--app', 'some-app-uid', '--yes', '--expire-hit']
+        )
+        heroku.destroy.assert_called_once()
+        mturk_instance = mturk.return_value
+        mturk_instance.get_hits.assert_called_once()
+        mturk_instance.expire_hit.assert_called()
+
     def test_requires_confirmation(self, destroy, heroku):
         CliRunner().invoke(
             destroy,
             ['--app', 'some-app-uid']
         )
         heroku.destroy.assert_not_called()
+
+    def test_destroy_expire_uses_sandbox(self, destroy, heroku, mturk):
+        CliRunner().invoke(
+            destroy,
+            ['--app', 'some-app-uid', '--yes', '--expire-hit', '--sandbox']
+        )
+        assert 'sandbox=True' in str(mturk.call_args_list[0])
+        mturk_instance = mturk.return_value
+        mturk_instance.get_hits.assert_called_once()
+        mturk_instance.expire_hit.assert_called()
 
 
 class TestLogs(object):
@@ -1122,3 +1154,46 @@ class TestMonitor(object):
             ['--app', None, ]
         )
         assert str(result.exception) == 'Select an experiment using the --app flag.'
+
+
+class TestHits(object):
+
+    @pytest.fixture
+    def hits(self):
+        from dallinger.command_line import hits
+        return hits
+
+    @pytest.fixture
+    def expire(self):
+        from dallinger.command_line import expire
+        return expire
+
+    def test_hits(self, hits, mturk):
+        result = CliRunner().invoke(
+            hits, [
+                '--app', 'exp-id-2'
+            ]
+        )
+        assert result.exit_code == 0
+        mturk_instance = mturk.return_value
+        mturk_instance.get_hits.assert_called_once()
+
+    def test_uses_mturk_sandbox_if_specified(self, hits, mturk):
+        CliRunner().invoke(
+            hits, [
+                '--sandbox',
+                '--app', 'exp-id-2',
+            ]
+        )
+        assert 'sandbox=True' in str(mturk.call_args_list[0])
+
+    def test_expire(self, expire, mturk):
+        result = CliRunner().invoke(
+            expire, [
+                '--app', 'exp-id-2'
+            ]
+        )
+        assert result.exit_code == 0
+        mturk_instance = mturk.return_value
+        mturk_instance.get_hits.assert_called_once()
+        mturk_instance.expire_hit.assert_called()

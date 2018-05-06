@@ -293,6 +293,7 @@ class MTurkRecruiter(Recruiter):
             'approve_requirement': self.config.get('approve_requirement'),
             'us_only': self.config.get('us_only'),
             'blacklist': self._config_to_list('qualification_blacklist'),
+            'annotation': self.config.get('id'),
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
         if self.config.get('mode') == "sandbox":
