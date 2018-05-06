@@ -730,7 +730,7 @@ def _current_hits(service, app):
               help='Is the app running in the sandbox?')
 def hits(app, sandbox):
     """List hits for an experiment id."""
-    hit_list = _current_hits(_mturk_service_from_config(sandbox), app)
+    hit_list = list(_current_hits(_mturk_service_from_config(sandbox), app))
     out = Output()
     out.log('Found {} hits for this experiment id: {}'.format(
         len(hit_list), ', '.join(h['id'] for h in hit_list)
