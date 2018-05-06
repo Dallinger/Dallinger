@@ -1,5 +1,3 @@
-
-
 class WorkerEvent(object):
 
     key = '-----'
@@ -27,10 +25,6 @@ class WorkerEvent(object):
         self.session = session
         self.config = config
         self.now = now
-
-    @property
-    def recruiter(self):
-        return self.experiment.recruiter
 
     def commit(self):
         self.session.commit()
@@ -82,7 +76,7 @@ class AssignmentSubmitted(WorkerEvent):
 
         if not self.data_is_ok():
             self.fail_data_check()
-            self.recruiter.recruit(n=1)
+            self.experiment.recruiter.recruit(n=1)
 
             return
 
@@ -100,7 +94,7 @@ class AssignmentSubmitted(WorkerEvent):
             self.experiment.recruit()
         else:
             self.fail_submission()
-            self.recruiter.recruit(n=1)
+            self.experiment.recruiter.recruit(n=1)
 
     def data_is_ok(self):
         """Run a check on our participant's data"""
@@ -110,12 +104,12 @@ class AssignmentSubmitted(WorkerEvent):
         return self.experiment.attention_check(participant=self.participant)
 
     def approve_assignment(self):
-        self.recruiter.approve_hit(self.assignment_id)
+        self.participant.recruiter.approve_hit(self.assignment_id)
         self.participant.base_pay = self.config.get('base_payment')
 
     def award_bonus(self, bonus):
         self.log("Bonus = {}: paying bonus".format(bonus))
-        self.recruiter.reward_bonus(
+        self.participant.recruiter.reward_bonus(
             self.assignment_id,
             bonus,
             self.experiment.bonus_reason())
@@ -145,7 +139,7 @@ class BotAssignmentSubmitted(WorkerEvent):
         self.update_particant_end_time()
 
         # No checks for bot submission
-        self.recruiter.approve_hit(self.assignment_id)
+        self.participant.recruiter.approve_hit(self.assignment_id)
         self.participant.status = "approved"
         self.experiment.submission_successful(participant=self.participant)
         self.commit()

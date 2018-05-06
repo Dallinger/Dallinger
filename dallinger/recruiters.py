@@ -2,7 +2,6 @@
 
 import logging
 import os
-import sys
 
 from rq import Queue
 
@@ -33,6 +32,7 @@ CLOSE_RECRUITMENT_LOG_PREFIX = 'Close recruitment.'
 class Recruiter(object):
     """The base recruiter."""
 
+    nickname = None
     external_submission_url = None  # MTurkRecruiter, for one, overides this
 
     def __init__(self):
@@ -47,7 +47,7 @@ class Recruiter(object):
         """
         return self
 
-    def open_recruitment(self):
+    def open_recruitment(self, n=1):
         """Return a list of one or more initial recruitment URLs and an initial
         recruitment message:
         {
@@ -106,6 +106,8 @@ class CLIRecruiter(Recruiter):
     assigment.
     """
 
+    nickname = 'cli'
+
     def __init__(self):
         super(CLIRecruiter, self).__init__()
         self.config = get_config()
@@ -131,10 +133,11 @@ class CLIRecruiter(Recruiter):
     def recruit(self, n=1):
         """Generate experiemnt URLs and print them to the console."""
         urls = []
-        template = "{}/ad?assignmentId={}&hitId={}&workerId={}&mode={}"
+        template = "{}/ad?recruiter={}&assignmentId={}&hitId={}&workerId={}&mode={}"
         for i in range(n):
             ad_url = template.format(
                 get_base_url(),
+                self.nickname,
                 generate_random_id(),
                 generate_random_id(),
                 generate_random_id(),
@@ -173,6 +176,9 @@ class HotAirRecruiter(CLIRecruiter):
     - Always invokes templates in debug mode
     - Prints experiment /ad URLs to the console
     """
+
+    nickname = 'hotair'
+
     def open_recruitment(self, n=1):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
@@ -201,6 +207,8 @@ class HotAirRecruiter(CLIRecruiter):
 class SimulatedRecruiter(Recruiter):
     """A recruiter that recruits simulated participants."""
 
+    nickname = 'sim'
+
     def open_recruitment(self, n=1):
         """Open recruitment."""
         return {
@@ -224,13 +232,18 @@ class MTurkRecruiterException(Exception):
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
+    nickname = 'mturk'
+
     experiment_qualification_desc = 'Experiment-specific qualification'
     group_qualification_desc = 'Experiment group qualification'
 
     def __init__(self):
         super(MTurkRecruiter, self).__init__()
         self.config = get_config()
-        self.ad_url = '{}/ad'.format(get_base_url())
+        self.ad_url = '{}/ad?recruiter={}'.format(
+            get_base_url(),
+            self.nickname,
+        )
         self.hit_domain = os.getenv('HOST')
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
@@ -238,9 +251,9 @@ class MTurkRecruiter(Recruiter):
             self.config.get('aws_region'),
             self.config.get('mode') != "live"
         )
-        self._validate_conifg()
+        self._validate_config()
 
-    def _validate_conifg(self):
+    def _validate_config(self):
         mode = self.config.get('mode')
         if mode not in ('sandbox', 'live'):
             raise MTurkRecruiterException(
@@ -424,6 +437,9 @@ class MTurkRecruiter(Recruiter):
 
 
 class MTurkLargeRecruiter(MTurkRecruiter):
+
+    nickname = 'mturklarge'
+
     def __init__(self, *args, **kwargs):
         conn.set('num_recruited', 0)
         super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
@@ -457,6 +473,8 @@ class MTurkLargeRecruiter(MTurkRecruiter):
 class BotRecruiter(Recruiter):
     """Recruit bot participants using a queue"""
 
+    nickname = 'bots'
+
     def __init__(self):
         super(BotRecruiter, self).__init__()
         self.config = get_config()
@@ -482,7 +500,7 @@ class BotRecruiter(Recruiter):
             worker = generate_random_id()
             hit = generate_random_id()
             assignment = generate_random_id()
-            ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
+            ad_parameters = 'recruiter=bots&assignmentId={}&hitId={}&workerId={}&mode=sandbox'
             ad_parameters = ad_parameters.format(assignment, hit, worker)
             url = '{}/ad?{}'.format(base_url, ad_parameters)
             urls.append(url)
@@ -515,6 +533,64 @@ class BotRecruiter(Recruiter):
         # Must be imported at run-time
         from dallinger_experiment.experiment import Bot
         return Bot
+
+
+class RoundRobinRecruiter(Recruiter):
+
+    nickname = 'roundrobin'
+
+    def __init__(self):
+        self.recruiters = [
+            CLIRecruiter(),
+            BotRecruiter(),
+        ]
+
+    def pick_recruiter(self):
+        return random.choice(self.recruiters)
+
+    # SPEC_RE = re.compile(r'(\w+):\s*(\d+)')
+
+    # def __init__(self):
+    #     self.recruiters = self.parse_spec()
+
+    # def parse_spec(self):
+    #     """Parse the specification of how to recruit participants.
+
+    #     Example: recruiters = bots: 5, mturk: 1
+    #     """
+    #     recruiters = []
+    #     spec = config.get('recruiters')
+    #     for match in self.SPEC_RE.findall(spec):
+    #         name = match.group(1)
+    #         count =
+    #     return recruiters
+
+    def open_recruitment(self, n=1):
+        """Return initial experiment URL list.
+        """
+        logger.info("Opening recruitment.")
+        recruitments = []
+        messages = {}
+        for i in range(n):
+            recruiter = self.pick_recruiter()
+            if recruiter.nickname in messages:
+                result = recruiter.recruit(1)
+            else:
+                result = recruiter.open_recruitment(1)
+                messages[recruiter.nickname] = result['message']
+            recruitments.extend(result['items'])
+
+        return {
+            'items': recruitments,
+            'message': '\n'.join(messages.values())
+        }
+    
+    def recruit(self, n=1):
+        urls = []
+        for i in range(n):
+            recruiter = self.pick_recruiter()
+            urls.extend(recruiter.recruit(1))
+        return urls
 
 
 def for_experiment(experiment):
@@ -564,19 +640,21 @@ def from_config(config):
     return MTurkRecruiter()
 
 
-def by_name(name):
-    """Attempt to return a recruiter class by name. Actual class names and
-    known nicknames are both supported.
-    """
-    nicknames = {
-        'bots': BotRecruiter,
-        'hotair': HotAirRecruiter,
-        'mturklarge': MTurkLargeRecruiter
-    }
-    if name in nicknames:
-        return nicknames[name]
+def _descendent_classes(cls):
+    for cls in cls.__subclasses__():
+        yield cls
+        for cls in _descendent_classes(cls):
+            yield cls
 
-    this_module = sys.modules[__name__]
-    klass = getattr(this_module, name, None)
-    if klass is not None and issubclass(klass, Recruiter):
-        return klass
+
+BY_NAME = {}
+for cls in _descendent_classes(Recruiter):
+    BY_NAME[cls.__name__] = BY_NAME[cls.nickname] = cls
+
+
+def by_name(name):
+    """Attempt to return a recruiter class by name.
+
+    Actual class names and known nicknames are both supported.
+    """
+    return BY_NAME.get(name)

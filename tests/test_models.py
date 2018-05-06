@@ -18,17 +18,6 @@ class TestModels(object):
         session.add_all(args)
         session.commit()
 
-    # def setup(self, db_session):
-    #     self.db = db.init_db(drop_all=True)
-
-    # def teardown(self, db_session):
-    #     db_session.rollback()
-    #     db_session.close()
-
-    # def add(self, *args):
-    #     db_session.add_all(args)
-    #     db_session.commit()
-
     def test_models(self, db_session):
 
         """####################
@@ -47,7 +36,8 @@ class TestModels(object):
 
         # create a participant
         participant = models.Participant(
-            worker_id=str(1), hit_id=str(1), assignment_id=str(1), mode="test")
+            recruiter_id='hotair', worker_id=str(1), hit_id=str(1),
+            assignment_id=str(1), mode="test")
         db_session.add(participant)
         db_session.commit()
 
@@ -678,7 +668,8 @@ class TestModels(object):
 
     def test_create_participant(self, db_session):
         participant = models.Participant(
-            worker_id=str(1), hit_id=str(1), assignment_id=str(1), mode="test")
+            recruiter_id='hotair', worker_id=str(1), hit_id=str(1),
+            assignment_id=str(1), mode="test")
         db_session.add(participant)
         db_session.commit()
 
@@ -689,7 +680,8 @@ class TestModels(object):
         net = models.Network()
         db_session.add(net)
         participant = models.Participant(
-            worker_id=str(1), hit_id=str(1), assignment_id=str(1), mode="test")
+            recruiter_id='hotair', worker_id=str(1), hit_id=str(1),
+            assignment_id=str(1), mode="test")
         db_session.add(participant)
         db_session.commit()
         node = models.Node(network=net, participant=participant)
@@ -712,7 +704,8 @@ class TestModels(object):
 
     def test_participant_json(self, db_session):
         participant = models.Participant(
-            worker_id=str(1), hit_id=str(1), assignment_id=str(1), mode="test")
+            recruiter_id='hotair', worker_id=str(1), hit_id=str(1),
+            assignment_id=str(1), mode="test")
         db_session.add(participant)
         db_session.commit()
 

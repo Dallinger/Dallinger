@@ -44,7 +44,7 @@ rules:
   # Best Practices
   accessor-pairs: 2
   block-scoped-var: 0
-  complexity: [2, 6]
+  complexity: [2, 7]
   consistent-return: 0
   curly: 0
   default-case: 0
@@ -52,7 +52,7 @@ rules:
   dot-notation: 0
   eqeqeq: 2
   guard-for-in: 2
-  no-alert: 2
+  no-alert: 1
   no-caller: 2
   no-case-declarations: 2
   no-div-regex: 2
@@ -111,7 +111,7 @@ rules:
   no-undef-init: 2
   no-undef: 0
   no-undefined: 0
-  no-unused-vars: 0
+  no-unused-vars: 1
   no-use-before-define: 0
 
   # Node.js and CommonJS

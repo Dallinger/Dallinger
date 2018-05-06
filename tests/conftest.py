@@ -23,8 +23,8 @@ def clear_workers():
 
     def _zap():
         kills = [
-            ['pkill', 'gunicorn'],
             ['pkill', '-f', 'python launch.py'],
+            ['pkill', '-f', 'python worker.py'],
         ]
         for kill in kills:
             try:
@@ -161,6 +161,7 @@ def a(db_session):
 
         def participant(self, **kw):
             defaults = {
+                'recruiter_id': 'hotair',
                 'worker_id': '1',
                 'assignment_id': '1',
                 'hit_id': '1',

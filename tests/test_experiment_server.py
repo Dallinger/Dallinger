@@ -150,11 +150,11 @@ class TestAdvertisement(object):
         assert b'To complete the HIT, simply press the button below.' in resp.data
 
     def test_recruiter_without_external_submission(self, a, webapp, active_config):
-        active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
+        active_config.extend({'mode': u'sandbox'})
         p = a.participant()
         p.status = u'submitted'
         resp = webapp.get(
-            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+            '/ad?recruiter=cli&hitId={}&assignmentId={}&workerId={}'.format(
                 p.hit_id, p.assignment_id, p.worker_id
             )
         )
@@ -189,7 +189,7 @@ class TestQuestion(object):
 
     def test_nonworking_mturk_participants_denied_if_not_debug(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
-        participant = a.participant()
+        participant = a.participant(recruiter_id='mturk')
         participant.status = 'submitted'
         webapp.post(
             '/question/{}?question=q&response=r&number=1'.format(participant.id)
@@ -248,23 +248,22 @@ class TestWorkerComplete(object):
         assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
-        active_config.extend({'recruiter': u'bots'})
         webapp.get('/worker_complete?participant_id={}'.format(
-            a.participant().id)
+            a.participant(recruiter_id='bots').id)
         )
         assert models.Notification.query.one().event_type == u'BotAssignmentSubmitted'
 
     def test_records_no_notification_mturk_recruiter_and_nondebug(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
         webapp.get('/worker_complete?participant_id={}'.format(
-            a.participant().id)
+            a.participant(recruiter_id='mturk').id)
         )
         assert models.Notification.query.all() == []
 
     def test_records_notification_for_non_mturk_recruiter(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
         webapp.get('/worker_complete?participant_id={}'.format(
-            a.participant().id)
+            a.participant(recruiter_id='cli').id)
         )
         assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
 
@@ -417,13 +416,13 @@ class TestWorkerFailed(object):
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
         active_config.extend({'recruiter': u'bots'})
         webapp.get('/worker_failed?participant_id={}'.format(
-            a.participant().id)
+            a.participant(recruiter_id='bots').id)
         )
         assert models.Notification.query.one().event_type == u'BotAssignmentRejected'
 
     def test_records_no_notification_if_mturk_recruiter(self, a, webapp):
         webapp.get('/worker_failed?participant_id={}'.format(
-            a.participant().id)
+            a.participant(recruiter_id='mturk').id)
         )
         assert models.Notification.query.all() == []
 
@@ -541,49 +540,40 @@ class TestParticipantRoute(object):
         assert resp.status_code == 403
 
     def test_notifies_recruiter_when_participant_joins(self, webapp):
-        from dallinger.recruiters import Recruiter
         from dallinger.models import Participant
 
         worker_id = '1'
         hit_id = '1'
         assignment_id = '1'
 
-        with mock.patch('dallinger.experiment_server.experiment_server.recruiters') as recruiters:
-            mock_recruiter = mock.Mock(spec=Recruiter)
-            recruiters.for_experiment.return_value = mock_recruiter
+        target = 'dallinger.recruiters.HotAirRecruiter.notify_recruited'
+        with mock.patch(target) as notify_recruited:
             webapp.post('/participant/{}/{}/{}/debug'.format(
                 worker_id, hit_id, assignment_id
             ))
-            args, _ = mock_recruiter.notify_recruited.call_args
+            args, _ = notify_recruited.call_args
             assert isinstance(args[0], Participant)
 
     def test_notifies_recruiter_when_participant_is_used(self, webapp):
-        from dallinger.recruiters import Recruiter
         from dallinger.models import Participant
 
         worker_id = '1'
         hit_id = '1'
         assignment_id = '1'
 
-        with mock.patch('dallinger.experiment_server.experiment_server.recruiters') as recruiters:
-            mock_recruiter = mock.Mock(spec=Recruiter)
-            recruiters.for_experiment.return_value = mock_recruiter
+        with mock.patch('dallinger.recruiters.HotAirRecruiter.notify_using') as notify_using:
             webapp.post('/participant/{}/{}/{}/debug'.format(
                 worker_id, hit_id, assignment_id
             ))
-            args, _ = mock_recruiter.notify_using.call_args
+            args, _ = notify_using.call_args
             assert isinstance(args[0], Participant)
 
     def test_does_not_notify_recruiter_when_participant_is_skipped(self, webapp):
-        from dallinger.recruiters import Recruiter
-
         worker_id = '1'
         hit_id = '1'
         assignment_id = '1'
 
-        with mock.patch('dallinger.experiment_server.experiment_server.recruiters') as recruiters:
-            mock_recruiter = mock.Mock(spec=Recruiter)
-            recruiters.for_experiment.return_value = mock_recruiter
+        with mock.patch('dallinger.recruiters.HotAirRecruiter.notify_using') as notify_using:
             with mock.patch(
                 'dallinger.experiment_server.experiment_server.Experiment'
             ) as mock_class:
@@ -594,7 +584,7 @@ class TestParticipantRoute(object):
                 webapp.post('/participant/{}/{}/{}/debug'.format(
                     worker_id, hit_id, assignment_id
                 ))
-            mock_recruiter.notify_using.assert_not_called
+            notify_using.assert_not_called
 
 
 @pytest.mark.usefixtures('experiment_dir')
@@ -1266,7 +1256,8 @@ class TestWorkerFunctionIntegration(object):
         from dallinger.experiment_server.experiment_server import Experiment
 
         participant = Participant(
-            worker_id='1', hit_id='1', assignment_id='1', mode="test")
+            recruiter_id='hotair', worker_id='1', hit_id='1',
+            assignment_id='1', mode="test")
 
         db_session.add(participant)
         db_session.commit()
@@ -1351,7 +1342,7 @@ class TestAssignmentSubmitted(object):
     def test_calls_reward_bonus_if_experiment_returns_bonus_more_than_one_cent(self, runner):
         runner.experiment.bonus.return_value = .02
         runner()
-        runner.experiment.recruiter.reward_bonus.assert_called_once_with(
+        runner.participant.recruiter.reward_bonus.assert_called_once_with(
             'some assignment id',
             .02,
             "You rock."
@@ -1359,7 +1350,7 @@ class TestAssignmentSubmitted(object):
 
     def test_no_reward_bonus_if_experiment_returns_bonus_less_than_one_cent(self, runner):
         runner()
-        runner.experiment.recruiter.reward_bonus.assert_not_called()
+        runner.participant.recruiter.reward_bonus.assert_not_called()
         assert "NOT paying bonus" in str(runner.experiment.log.call_args_list)
 
     def test_sets_participant_bonus_regardless(self, runner):
@@ -1369,7 +1360,7 @@ class TestAssignmentSubmitted(object):
 
     def test_approve_hit_called_on_recruiter(self, runner):
         runner()
-        runner.experiment.recruiter.approve_hit.assert_called_once_with(
+        runner.participant.recruiter.approve_hit.assert_called_once_with(
             'some assignment id'
         )
 
@@ -1460,7 +1451,7 @@ class TestBotAssignmentSubmitted(object):
 
     def test_approve_hit_called_on_recruiter(self, runner):
         runner()
-        runner.experiment.recruiter.approve_hit.assert_called_once_with(
+        runner.participant.recruiter.approve_hit.assert_called_once_with(
             'some assignment id'
         )
 

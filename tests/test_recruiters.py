@@ -117,7 +117,7 @@ class TestCLIRecruiter(object):
         assert len(result) == 1
 
     def test_recruit_results_are_urls(self, recruiter):
-        assert '/ad?assignmentId=' in recruiter.recruit()[0]
+        assert '/ad?recruiter=cli&assignmentId=' in recruiter.recruit()[0]
 
     def test_recruit_multiple(self, recruiter):
         assert len(recruiter.recruit(n=3)) == 3
@@ -136,7 +136,7 @@ class TestCLIRecruiter(object):
 
     def test_open_recruitment_results_are_urls(self, recruiter):
         result = recruiter.open_recruitment()
-        assert '/ad?assignmentId=' in result['items'][0]
+        assert '/ad?recruiter=cli&assignmentId=' in result['items'][0]
 
     def test_open_recruitment_with_zero(self, recruiter):
         result = recruiter.open_recruitment(n=0)
@@ -173,7 +173,7 @@ class TestHotAirRecruiter(object):
         assert len(result) == 1
 
     def test_recruit_results_are_urls(self, recruiter):
-        assert '/ad?assignmentId=' in recruiter.recruit()[0]
+        assert '/ad?recruiter=hotair&assignmentId=' in recruiter.recruit()[0]
 
     def test_recruit_multiple(self, recruiter):
         assert len(recruiter.recruit(n=3)) == 3
@@ -192,7 +192,7 @@ class TestHotAirRecruiter(object):
 
     def test_open_recruitment_results_are_urls(self, recruiter):
         result = recruiter.open_recruitment()
-        assert '/ad?assignmentId=' in result['items'][0]
+        assert '/ad?recruiter=hotair&assignmentId=' in result['items'][0]
 
     def test_close_recruitment(self, recruiter):
         recruiter.close_recruitment()
@@ -344,7 +344,7 @@ class TestMTurkRecruiter(object):
     def test_open_recruitment_single_recruitee_builds_hit(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url='http://fake-domain/ad',
+            ad_url='http://fake-domain/ad?recruiter=mturk',
             approve_requirement=95,
             description=u'fake HIT description',
             duration_hours=1.0,
@@ -385,7 +385,7 @@ class TestMTurkRecruiter(object):
         recruiter.config.set('qualification_blacklist', u'foo, bar')
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url='http://fake-domain/ad',
+            ad_url='http://fake-domain/ad?recruiter=mturk',
             approve_requirement=95,
             description='fake HIT description',
             duration_hours=1.0,
@@ -557,7 +557,7 @@ class TestMTurkLargeRecruiter(object):
     def test_open_recruitment_single_recruitee(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url='http://fake-domain/ad',
+            ad_url='http://fake-domain/ad?recruiter=mturklarge',
             approve_requirement=95,
             description='fake HIT description',
             duration_hours=1.0,
@@ -575,7 +575,7 @@ class TestMTurkLargeRecruiter(object):
     def test_more_than_ten_can_be_recruited_on_open(self, recruiter):
         recruiter.open_recruitment(n=20)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url='http://fake-domain/ad',
+            ad_url='http://fake-domain/ad?recruiter=mturklarge',
             approve_requirement=95,
             description='fake HIT description',
             duration_hours=1.0,

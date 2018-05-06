@@ -206,7 +206,9 @@ class TestRogers(object):
                 worker_id = str(random.random())
                 assignment_id = str(random.random())
                 from models import Participant
-                p = Participant(workerid=worker_id, assignmentid=assignment_id, hitid=hit_id)
+                p = Participant(
+                    recruiter_id='hotair', workerid=worker_id,
+                    assignmentid=assignment_id, hitid=hit_id)
                 self.db.add(p)
                 self.db.commit()
                 p_id = p.unique_id

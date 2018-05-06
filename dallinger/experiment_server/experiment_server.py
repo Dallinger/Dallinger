@@ -557,7 +557,11 @@ def advertisement():
         else:
             status = part.status
 
-    recruiter = recruiters.from_config(config)
+    recruiter_name = request.args.get('recruiter')
+    if recruiter_name:
+        recruiter = recruiters.by_name(recruiter_name)
+    else:
+        recruiter = recruiters.from_config(config)
     ready_for_external_submission = status == 'working' and part.end_time is not None
     assignment_complete = status in ('submitted', 'approved')
 
@@ -810,8 +814,15 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         (models.Participant.status == "approved")
     ).count() + 1
 
+    recruiter_name = request.args.get('recruiter')
+    if recruiter_name:
+        recruiter = recruiters.by_name(recruiter_name)
+    else:
+        recruiter = recruiters.from_config(_config())
+
     # Create the new participant.
     participant = models.Participant(
+        recruiter_id=recruiter.nickname,
         worker_id=worker_id,
         assignment_id=assignment_id,
         hit_id=hit_id,
@@ -827,7 +838,6 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     exp = Experiment(session)
 
     # Ping back to the recruiter that one of their participants has joined:
-    recruiter = recruiters.for_experiment(exp)
     recruiter.notify_recruited(participant)
 
     overrecruited = exp.is_overrecruited(nonfailed_count)
@@ -887,7 +897,6 @@ def create_question(participant_id):
     You should pass the question (string) number (int) and response
     (string) as arguments.
     """
-    config = _config()
     # Get the participant.
     try:
         ppt = models.Participant.query.filter_by(id=participant_id).one()
@@ -904,7 +913,7 @@ def create_question(participant_id):
 
     # Consult the recruiter regarding whether to accept a questionnaire
     # from the participant:
-    rejection = recruiters.from_config(config).rejects_questionnaire_from(ppt)
+    rejection = ppt.recruiter.rejects_questionnaire_from(ppt)
     if rejection:
         return error_response(
             error_type="/question POST, status = {}, reason: {}".format(
@@ -1602,10 +1611,8 @@ def _worker_complete(participant_id):
     participant.end_time = datetime.now()
     session.add(participant)
     session.commit()
-    config = _config()
 
-    recruiter = recruiters.from_config(config)
-    event_type = recruiter.submitted_event()
+    event_type = participant.recruiter.submitted_event()
 
     if event_type is None:
         return
@@ -1639,7 +1646,6 @@ def worker_failed():
 
 
 def _worker_failed(participant_id):
-    config = _config()
     participants = models.Participant.query.filter_by(id=participant_id).all()
     if not participants:
         raise KeyError()
@@ -1648,7 +1654,7 @@ def _worker_failed(participant_id):
     participant.end_time = datetime.now()
     session.add(participant)
     session.commit()
-    if config.get('recruiter', 'mturk') == 'bots':
+    if participant.recruiter_id == 'bots':
         _handle_worker_event(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
