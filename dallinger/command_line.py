@@ -761,6 +761,13 @@ def expire(app, sandbox):
         out.log('Could not expire {} hits: {}'.format(
             len(failures), ', '.join(failures)
         ))
+    if not success and not failures:
+        out.log('No hits found for this application.')
+        if not sandbox:
+            out.log(
+                'If this experiment was run in the MTurk sandbox, use: '
+                '`dallinger expire --sandbox --app {}'.format(app)
+            )
 
 
 @dallinger.command()
