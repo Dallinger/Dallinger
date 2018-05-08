@@ -4,17 +4,17 @@ Developer Installation
 We recommend installing Dallinger on Mac OS X. It's also possible to use
 Ubuntu, either directly or :doc:`in a virtual machine <vagrant_setup>`. Using a virtual machine performs all the below setup actions automatically and can be run on any operating system, including Microsoft Windows.
 
-Install Python 2.7
+Install Python 3.6
 ------------------
 
-You will need Python 2.7. You can check what version of Python you have
-by running:
+It recommended that you run Dallinger on Python 3.6. You can check what version 
+of Python you have by running:
 
 ::
 
     python --version
 
-If you do not have Python 2.7 installed, you can install it from the
+If you do not have Python 3.6 installed, you can install it from the
 `Python website <https://www.python.org/downloads/>`__.
 
 Or, if you use Homebrew:
@@ -25,9 +25,9 @@ Or, if you use Homebrew:
 
 Or, if you use Anaconda, install using ``conda``, not Homebrew.
 
-If you have Python 3.\ *x* installed and and symlinked to the command
+If you have Python 2.\ *x* installed and and symlinked to the command
 ``python``, you will need to create a ``virtualenv`` that interprets the
-code as ``python2.7``.
+code as ``python3.6``.
 Fortunately, we will be creating a virtual environment anyway, so as
 long as you run ``brew install python`` and you don't run into any
 errors because of your symlinks, then you can proceed with the
@@ -52,7 +52,7 @@ following command:
 
     export PATH="$PATH:/Applications/Postgres.app/Contents/Versions/latest/bin"
 
-NB: If you have installed an older version of Postgres (e.g., < 9.5),
+NB: If you have installed an older version of Postgres (e.g., < 10.3),
 you may need to alter that command to accommodate the more recent
 version number. To double check which version to include, run:
 
@@ -85,15 +85,16 @@ After that you'll need to run the following commands (Note: you may need to chan
     runuser -l postgres -c "createuser -ds root"
     createuser dallinger
     createdb -O dallinger dallinger
-    sed /etc/postgresql/9.5/main/pg_hba.conf -e 's/md5/trust/g' --in-place
-    sed -e "s/[#]\?listen_addresses = .*/listen_addresses = '*'/g" -i '/etc/postgresql/9.5/main/postgresql.conf'
+    sed /etc/postgresql/10.3/main/pg_hba.conf -e 's/md5/trust/g' --in-place
+    sed -e "s/[#]\?listen_addresses = .*/listen_addresses = '*'/g" -i '/etc/postgresql/10.3/main/postgresql.conf'
     service postgresql reload
 
-Create the Database
--------------------
+Create the Databases
+--------------------
 
-After installing Postgres, you will need to create a database for your
-experiments to use. It is recommended that you also create a database user.
+After installing Postgres, you will need to create two databases:
+one for your experiments to use, and a second to support importing saved
+experiments. It is recommended that you also create a database user.
 First, open the Postgres.app. Then, run the following commands from the
 command line:
 
@@ -102,6 +103,7 @@ command line:
     createuser -P dallinger --createdb
     (Password: dallinger)
     createdb -O dallinger dallinger
+    createdb -O dallinger dallinger-import
 
 The first command will create a user named ``dallinger`` and prompt you for a
 password. The second command will create the ``dallinger`` database, setting
@@ -124,6 +126,7 @@ If you get a fatal error that your ROLE does not exist, run these commands:
     createuser dallinger
     dropdb dallinger
     createdb -O dallinger dallinger
+    createdb -O dallinger dallinger-import
 
 Install Heroku
 ^^^^^^^^^^^^^^
@@ -187,7 +190,7 @@ Set up a virtual environment by running the following commands:
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
     source $(which virtualenvwrapper.sh)
-    mkvirtualenv dallinger --python /usr/local/bin/python2.7
+    mkvirtualenv dallinger --python /usr/local/bin/python3.6
 
 These commands use ``pip``, the Python package manager, to install two
 packages ``virtualenv`` and ``virtualenvwrapper``. They set up an
@@ -203,8 +206,8 @@ more in depth description can be found on the `documentation site for virtualenv
 
 Finally, the ``mkvirtualenv`` makes your first virtual environment which
 you've named ``dallinger``. We have explicitly passed it the location of
-``python2.7`` so that even if your ``python`` command has been remapped
-to ``python3``, it will create the environment with ``python2.7`` as its
+``python3.6`` so that even if your ``python`` command has been remapped
+to ``python2.7``, it will create the environment with ``python3.6`` as its
 interpreter.
 
 In the future, you can work on your virtual environment by running:

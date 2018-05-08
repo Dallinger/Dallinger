@@ -1,5 +1,3 @@
-from __future__ import print_function
-from dallinger.config import get_config
 import functools
 import io
 import os
@@ -9,6 +7,8 @@ import string
 import subprocess
 import sys
 import tempfile
+
+from dallinger.config import get_config
 
 
 def get_base_url():
@@ -24,8 +24,8 @@ def get_base_url():
     else:
         # debug mode
         base_port = config.get('base_port')
-        port_range = range(base_port, base_port + config.get('num_dynos_web', 1))
-        base_url = "http://{}:{}".format(host, random.choice(port_range))
+        port = random.randrange(base_port, base_port + config.get('num_dynos_web', 1))
+        base_url = "http://{}:{}".format(host, port)
 
     return base_url
 
@@ -82,6 +82,7 @@ class GitClient(object):
     """Minimal wrapper, mostly for mocking"""
 
     def __init__(self, output=None):
+        self.encoding = None
         if output is None:
             self.out = sys.stdout
         else:
@@ -114,13 +115,13 @@ class GitClient(object):
         try:
             run_command(cmd, self.out)
         except CommandError as e:
-            raise GitError(e.message)
+            raise GitError(str(e))
 
     def _log(self, cmd):
-        print(
-            '{}: "{}"'.format(self.__class__.__name__, ' '.join(cmd)),
-            file=self.out
-        )
+        msg = '{}: "{}"'.format(self.__class__.__name__, ' '.join(cmd))
+        if self.encoding:
+            msg = msg.encode(self.encoding)
+        self.out.write(msg)
 
 
 def wrap_subprocess_call(func, wrap_stdout=True):

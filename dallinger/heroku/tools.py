@@ -1,19 +1,18 @@
 """Miscellaneous tools for Heroku."""
 
+from __future__ import unicode_literals
+
+from six.moves import shlex_quote as quote
 import signal
 import os
 import psutil
 import re
+import six
 import sys
-try:
-    from pipes import quote
-except ImportError:
-    # Python >= 3.3
-    from shlex import quote
 import subprocess
+import time
 import traceback
 
-from dallinger.compat import unicode
 from dallinger.config import SENSITIVE_KEY_NAMES
 from dallinger.utils import check_call, check_output
 
@@ -44,7 +43,7 @@ class HerokuApp(object):
             "apps:create",
             self.name,
             "--buildpack",
-            "https://github.com/kennethreitz/conda-buildpack.git",
+            "heroku/python",
         ]
 
         # If a team is specified, assign the app to the team.
@@ -57,11 +56,11 @@ class HerokuApp(object):
 
     @property
     def name(self):
-        return u"dlgr-" + self.dallinger_uid[0:8]
+        return "dlgr-" + self.dallinger_uid[0:8]
 
     @property
     def url(self):
-        return u"https://{}.herokuapp.com".format(self.name)
+        return "https://{}.herokuapp.com".format(self.name)
 
     def addon(self, name):
         """Set up an addon"""
@@ -90,7 +89,7 @@ class HerokuApp(object):
 
     @property
     def dashboard_url(self):
-        return u"https://dashboard.heroku.com/apps/{}".format(self.name)
+        return "https://dashboard.heroku.com/apps/{}".format(self.name)
 
     @property
     def db_uri(self):
@@ -155,7 +154,17 @@ class HerokuApp(object):
 
     def pg_wait(self):
         """Wait for the DB to be fired up."""
-        self._run(["heroku", "pg:wait", "--app", self.name])
+        retries = 10
+        while retries:
+            retries = retries - 1
+            try:
+                self._run(["heroku", "pg:wait", "--app", self.name])
+            except subprocess.CalledProcessError:
+                time.sleep(5)
+                if not retries:
+                    raise
+            else:
+                break
 
     @property
     def redis_url(self):
@@ -232,7 +241,7 @@ def app_name(id):
 
 def auth_token():
     """A Heroku authenication token."""
-    return unicode(check_output(["heroku", "auth:token"]).rstrip())
+    return check_output(["heroku", "auth:token"]).rstrip().decode('utf8')
 
 
 def log_in():
@@ -273,7 +282,7 @@ class HerokuLocalWrapper(object):
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
     MONITOR_STOP = object()
-    STREAM_SENTINEL = ' '
+    STREAM_SENTINEL = ''
 
     def __init__(self, config, output, verbose=True, env=None):
         self.config = config
@@ -387,13 +396,15 @@ class HerokuLocalWrapper(object):
             "web={},worker={}".format(web_dynos, worker_dynos)
         ]
         try:
-            self._process = subprocess.Popen(
-                commands,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                env=self.env,
-                preexec_fn=os.setsid,
-            )
+            options = {
+                'stdout': subprocess.PIPE,
+                'stderr': subprocess.STDOUT,
+                'env': self.env,
+                'preexec_fn': os.setsid,
+            }
+            if six.PY3:
+                options['encoding'] = 'utf-8'
+            self._process = subprocess.Popen(commands, **options)
         except OSError:
             self.out.error("Couldn't start Heroku for local debugging.")
             raise

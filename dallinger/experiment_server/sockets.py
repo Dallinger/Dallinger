@@ -1,6 +1,7 @@
 """Handles relaying websocket messages between processes using redis.
 """
 
+from __future__ import unicode_literals
 from .experiment_server import app
 from ..heroku.worker import conn
 from gevent.lock import Semaphore
@@ -9,6 +10,7 @@ from flask_sockets import Sockets
 from redis import ConnectionError
 import gevent
 import os
+import six
 import socket
 
 sockets = Sockets(app)
@@ -54,8 +56,11 @@ class Channel(object):
         This is run continuously in a separate greenlet.
         """
         pubsub = conn.pubsub()
+        name = self.name
+        if isinstance(name, six.text_type):
+            name = name.encode('utf-8')
         try:
-            pubsub.subscribe([self.name])
+            pubsub.subscribe([name])
         except ConnectionError:
             app.logger.exception('Could not connect to redis.')
         log('Listening on channel {}'.format(self.name))
@@ -63,9 +68,11 @@ class Channel(object):
             data = message.get('data')
             if message['type'] == 'message' and data != 'None':
                 channel = message['channel']
-                raw = '{}:{}'.format(channel, data)
+                payload = '{}:{}'.format(
+                    channel.decode('utf-8'), data.decode('utf-8')
+                )
                 for client in self.clients:
-                    gevent.spawn(client.send, raw)
+                    gevent.spawn(client.send, payload)
             gevent.sleep(0.001)
 
     def start(self):

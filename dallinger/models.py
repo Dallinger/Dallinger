@@ -189,7 +189,7 @@ class Participant(Base, SharedMixin):
             type = Node
 
         if not issubclass(type, Node):
-            raise(TypeError("{} is not a valid node type.".format(type)))
+            raise TypeError("{} is not a valid node type.".format(type))
 
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid node failed".format(failed))
@@ -216,7 +216,7 @@ class Participant(Base, SharedMixin):
             type = Question
 
         if not issubclass(type, Question):
-            raise(TypeError("{} is not a valid question type.".format(type)))
+            raise TypeError("{} is not a valid question type.".format(type))
 
         return type\
             .query\
@@ -408,7 +408,7 @@ class Network(Base, SharedMixin):
             type = Node
 
         if not issubclass(type, Node):
-            raise(TypeError("{} is not a valid node type.".format(type)))
+            raise TypeError("{} is not a valid node type.".format(type))
 
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid node failed".format(failed))
@@ -479,9 +479,10 @@ class Network(Base, SharedMixin):
         transmissions() method in class Vector.
         """
         if status not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of status {}."
-                  .format(status) +
-                  "Status can only be pending, received or all"))
+            raise ValueError(
+                "You cannot get transmission of status {}.".format(status) +
+                "Status can only be pending, received or all"
+            )
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid failed".format(failed))
 
@@ -584,7 +585,7 @@ class Network(Base, SharedMixin):
 
     def calculate_full(self):
         """Set whether the network is full."""
-        self.full = len(self.nodes()) >= self.max_size
+        self.full = len(self.nodes()) >= (self.max_size or 0)
 
     def print_verbose(self):
         """Print a verbose representation of a network."""
@@ -888,9 +889,10 @@ class Node(Base, SharedMixin):
             type = Info
 
         if not issubclass(type, Info):
-            raise(TypeError("Cannot get infos of type {} as "
-                            "it is not a valid type."
-                            .format(type)))
+            raise TypeError(
+                "Cannot get infos of type {} "
+                "as it is not a valid type.".format(type)
+            )
 
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid vector failed".format(failed))
@@ -926,9 +928,10 @@ class Node(Base, SharedMixin):
             type = Info
 
         if not issubclass(type, Info):
-            raise(TypeError("Cannot get infos of type {} "
-                            "as it is not a valid type."
-                            .format(type)))
+            raise TypeError(
+                "Cannot get infos of type {} "
+                "as it is not a valid type.".format(type)
+            )
 
         transmissions = Transmission\
             .query.with_entities(Transmission.info_id)\
@@ -951,14 +954,16 @@ class Node(Base, SharedMixin):
         """
         # check parameters
         if direction not in ["incoming", "outgoing", "all"]:
-            raise(ValueError("You cannot get transmissions of direction {}."
-                             .format(direction) +
-                  "Type can only be incoming, outgoing or all."))
+            raise ValueError(
+                "You cannot get transmissions of direction {}.".format(direction) +
+                "Type can only be incoming, outgoing or all."
+            )
 
         if status not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of status {}."
-                             .format(status) +
-                  "Status can only be pending, received or all"))
+            raise ValueError(
+                "You cannot get transmission of status {}.".format(status) +
+                "Status can only be pending, received or all"
+            )
 
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid transmission failed"
@@ -1246,9 +1251,10 @@ class Node(Base, SharedMixin):
                 what.receive_time = timenow()
                 received_transmissions.append(what)
             else:
-                raise(ValueError("{} cannot receive {} as it is not "
-                                 "in its pending_transmissions"
-                                 .format(self, what)))
+                raise ValueError(
+                    "{} cannot receive {} as it is not "
+                    "in its pending_transmissions".format(self, what)
+                )
         else:
             raise ValueError("Nodes cannot receive {}".format(what))
 
@@ -1271,7 +1277,7 @@ class Node(Base, SharedMixin):
             raise ValueError("{} cannot replicate as it has failed."
                              .format(self))
 
-        from transformations import Replication
+        from .transformations import Replication
         info_out = type(info_in)(origin=self, contents=info_in.contents)
         Replication(info_in=info_in, info_out=info_out)
 
@@ -1286,7 +1292,7 @@ class Node(Base, SharedMixin):
         if self.failed:
             raise ValueError("{} cannot mutate as it has failed.".format(self))
 
-        from transformations import Mutation
+        from .transformations import Mutation
         info_out = type(info_in)(origin=self,
                                  contents=info_in._mutated_contents())
         Mutation(info_in=info_in, info_out=info_out)
@@ -1340,8 +1346,8 @@ class Vector(Base, SharedMixin):
         # check the destination isnt a source
         from dallinger.nodes import Source
         if isinstance(destination, Source):
-            raise(TypeError("Cannot connect to {} as it is a Source."
-                            .format(destination)))
+            raise TypeError(
+                "Cannot connect to {} as it is a Source.".format(destination))
 
         # check origin and destination are different nodes
         if origin == destination:
@@ -1386,9 +1392,10 @@ class Vector(Base, SharedMixin):
         Status can be "all" (the default), "pending", or "received".
         """
         if status not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get {} transmissions."
-                             .format(status) +
-                             "Status can only be pending, received or all"))
+            raise ValueError(
+                "You cannot get {} transmissions.".format(status) +
+                "Status can only be pending, received or all"
+            )
 
         if status == "all":
             return Transmission\
@@ -1519,9 +1526,10 @@ class Info(Base, SharedMixin):
         status can be all/pending/received.
         """
         if status not in ["all", "pending", "received"]:
-            raise(ValueError("You cannot get transmission of status {}."
-                             .format(status) +
-                             "Status can only be pending, received or all"))
+            raise ValueError(
+                "You cannot get transmission of status {}.".format(status) +
+                "Status can only be pending, received or all"
+            )
         if status == "all":
             return Transmission\
                 .query\
@@ -1548,10 +1556,11 @@ class Info(Base, SharedMixin):
 
         """
         if relationship not in ["all", "parent", "child"]:
-            raise(ValueError(
+            raise ValueError(
                 "You cannot get transformations of relationship {}"
                 .format(relationship) +
-                "Relationship can only be parent, child or all."))
+                "Relationship can only be parent, child or all."
+            )
 
         if relationship == "all":
             return Transformation\

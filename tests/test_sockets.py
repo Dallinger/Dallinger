@@ -73,14 +73,14 @@ class TestChannel:
     def test_subscribes_to_redis(self, sockets, pubsub):
         sockets.Channel('custom').start()
         gevent.wait()
-        pubsub.subscribe.assert_called_once_with(['custom'])
+        pubsub.subscribe.assert_called_once_with([b'custom'])
 
     def test_listen(self, sockets):
         sockets.conn.pubsub.return_value = pubsub = Mock()
         pubsub.listen.return_value = [{
             'type': 'message',
-            'channel': 'quorum',
-            'data': 'Calloo! Callay!',
+            'channel': b'quorum',
+            'data': b'Calloo! Callay!',
         }]
 
         channel = sockets.Channel('custom')

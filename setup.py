@@ -6,7 +6,7 @@ from setuptools import setup
 setup_args = dict(
     name='dallinger',
     packages=['dallinger'],
-    version="3.5.0",
+    version="4.0.0",
     description='Laboratory automation for the behavioral and social sciences',
     url='http://github.com/Dallinger/Dallinger',
     maintainer='Jordan Suchow',
@@ -20,6 +20,7 @@ setup_args = dict(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.6',
     ],
     include_package_data=True,
     zip_safe=False,
@@ -33,7 +34,9 @@ setup_args = dict(
         'data': [
             "networkx==1.11",
             "odo==0.5.0",
-            "tablib==0.11.3"
+            "openpyxl==2.4.11",  # 2.5 is incompatible with tablib
+            "pandas==0.22.0",
+            "tablib==0.11.5",
         ],
         'jupyter': [
             "jupyter",

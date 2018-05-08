@@ -1,11 +1,13 @@
 """The base experiment class."""
 
+from __future__ import print_function
+from __future__ import unicode_literals
+
 from cached_property import cached_property
 from collections import Counter
 from contextlib import contextmanager
 from functools import wraps
 import datetime
-import imp
 import inspect
 import logging
 from operator import itemgetter
@@ -22,6 +24,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from dallinger import recruiters
 from dallinger.config import get_config, LOCAL_CONFIG
+from dallinger.config import initialize_experiment_package
 from dallinger.data import Data
 from dallinger.data import export
 from dallinger.data import is_registered
@@ -476,10 +479,9 @@ class Experiment(object):
 
         self.app_id = app_id
         self.exp_config = exp_config or kwargs
-
-        self.update_status(u'Starting')
+        self.update_status('Starting')
         try:
-            if self.exp_config.get("mode") == u"debug":
+            if self.exp_config.get("mode") == "debug":
                 dlgr.command_line.debug.callback(
                     verbose=True,
                     bot=bot,
@@ -493,14 +495,14 @@ class Experiment(object):
                     exp_config=self.exp_config
                 )
         except Exception:
-            self.update_status(u'Errored')
+            self.update_status('Errored')
             raise
         else:
-            self.update_status(u'Running')
+            self.update_status('Running')
         self._await_completion()
-        self.update_status(u'Retrieving data')
+        self.update_status('Retrieving data')
         data = self.retrieve_data()
-        self.update_status(u'Completed')
+        self.update_status('Completed')
         return data
 
     def collect(self, app_id, exp_config=None, bot=False, **kwargs):
@@ -520,31 +522,31 @@ class Experiment(object):
             )
             os.chdir(new_path)
             results = data_load(app_id)
-            self.log(u'Data found for experiment {}, retrieving.'.format(app_id),
-                     key=u"Retrieve:")
+            self.log('Data found for experiment {}, retrieving.'.format(app_id),
+                     key="Retrieve:")
             return results
         except IOError:
             self.log(
-                u'Could not fetch data for id: {}, checking registry'.format(app_id),
-                key=u"Retrieve:"
+                'Could not fetch data for id: {}, checking registry'.format(app_id),
+                key="Retrieve:"
             )
         finally:
             os.chdir(orig_path)
 
         exp_config = exp_config or {}
         if is_registered(app_id):
-            raise RuntimeError(u'The id {} is registered, '.format(app_id) +
-                               u'but you do not have permission to access to the data')
-        elif kwargs.get('mode') == u'debug' or exp_config.get('mode') == u'debug':
-            raise RuntimeError(u'No remote or local data found for id {}'.format(app_id))
+            raise RuntimeError('The id {} is registered, '.format(app_id) +
+                               'but you do not have permission to access to the data')
+        elif kwargs.get('mode') == 'debug' or exp_config.get('mode') == 'debug':
+            raise RuntimeError('No remote or local data found for id {}'.format(app_id))
 
         try:
             assert isinstance(uuid.UUID(app_id, version=4), uuid.UUID)
         except (ValueError, AssertionError):
             raise ValueError('Invalid UUID supplied {}'.format(app_id))
 
-        self.log(u'{} appears to be a new experiment id, running experiment.'.format(app_id),
-                 key=u"Retrieve:")
+        self.log('{} appears to be a new experiment id, running experiment.'.format(app_id),
+                 key="Retrieve:")
         return self.run(exp_config, app_id, bot, **kwargs)
 
     @classmethod
@@ -650,7 +652,7 @@ class Experiment(object):
         if zip_path is None:
             zip_path = find_experiment_export(app_id)
         if zip_path is None:
-            msg = u'Dataset export for app id "{}" could not be found.'
+            msg = 'Dataset export for app id "{}" could not be found.'
             raise IOError(msg.format(app_id))
 
         # Clear the temporary storage and import it
@@ -704,18 +706,19 @@ class Experiment(object):
 
 def load():
     """Load the active experiment."""
-    if os.getcwd() not in sys.path:
-        sys.path.append(os.getcwd())
-
+    initialize_experiment_package(os.getcwd())
     try:
-        exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
-        classes = inspect.getmembers(exp, inspect.isclass)
-        exps = [c for c in classes
-                if (c[1].__bases__[0].__name__ in "Experiment")]
-        this_experiment = exps[0][0]
-        mod = __import__('dallinger_experiment', fromlist=[this_experiment])
-        return getattr(mod, this_experiment)
+        try:
+            from dallinger_experiment import experiment
+        except ImportError:
+            from dallinger_experiment import dallinger_experiment as experiment
 
+        classes = inspect.getmembers(experiment, inspect.isclass)
+        for name, c in classes:
+            if 'Experiment' in c.__bases__[0].__name__:
+                return c
+        else:
+            raise ImportError
     except ImportError:
         logger.error('Could not import experiment.')
         raise

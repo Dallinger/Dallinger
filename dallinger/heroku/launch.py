@@ -1,8 +1,9 @@
 """Launch the experiment server."""
 
 if __name__ == '__main__':
-    from gevent import monkey
-    monkey.patch_all()
+    # Make sure gevent patches are applied early.
+    import gevent.monkey
+    gevent.monkey.patch_all()
 
     from dallinger.experiment_server.gunicorn import launch
     launch()

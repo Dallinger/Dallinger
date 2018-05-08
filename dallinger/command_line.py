@@ -3,28 +3,27 @@
 
 """The Dallinger command-line utility."""
 
-import imp
+from __future__ import print_function
+from __future__ import unicode_literals
+
+from collections import Counter
+from datetime import datetime
+from functools import wraps
+from six.moves import shlex_quote as quote
 import inspect
 import os
 import pkg_resources
 import re
-try:
-    from pipes import quote
-except ImportError:
-    # Python >= 3.3
-    from shlex import quote
 import shutil
+import signal
+import six
 import sys
 import tempfile
 import threading
 import time
 import webbrowser
 
-from datetime import datetime
-from functools import wraps
-import signal
 import click
-from dallinger.config import get_config
 import psycopg2
 import redis
 import requests
@@ -32,8 +31,10 @@ from rq import (
     Worker,
     Connection,
 )
-from collections import Counter
 
+from dallinger.compat import is_command
+from dallinger.config import get_config
+from dallinger.config import initialize_experiment_package
 from dallinger import data
 from dallinger import db
 from dallinger import heroku
@@ -71,7 +72,7 @@ def log(msg, delay=0.5, chevrons=True, verbose=True):
     """Log a message to stdout."""
     if verbose:
         if chevrons:
-            click.echo(u"\n❯❯ " + msg)
+            click.echo("\n❯❯ " + msg)
         else:
             click.echo(msg)
         time.sleep(delay)
@@ -81,14 +82,14 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
     """Log a message to stdout."""
     if verbose:
         if chevrons:
-            click.secho(u"\n❯❯ " + msg, err=True, fg='red')
+            click.secho("\n❯❯ " + msg, err=True, fg='red')
         else:
             click.secho(msg, err=True, fg='red')
         time.sleep(delay)
 
 
 def new_webbrowser_profile():
-    if webbrowser._iscommand('google-chrome'):
+    if is_command('google-chrome'):
         new_chrome = webbrowser.Chrome()
         new_chrome.name = 'google-chrome'
         profile_directory = tempfile.mkdtemp()
@@ -96,7 +97,7 @@ def new_webbrowser_profile():
             '--user-data-dir="{}"'.format(profile_directory)
         ]
         return new_chrome
-    elif webbrowser._iscommand('firefox'):
+    elif is_command('firefox'):
         new_firefox = webbrowser.Mozilla()
         new_firefox.name = 'firefox'
         profile_directory = tempfile.mkdtemp()
@@ -176,7 +177,7 @@ def verify_package(verbose=True):
 
         # Check if the experiment file has exactly one Experiment class.
         tmp = tempfile.mkdtemp()
-        clone_dir = os.path.join(tmp, 'temp_exp_pacakge')
+        clone_dir = os.path.join(tmp, 'temp_exp_package')
         to_ignore = shutil.ignore_patterns(
             os.path.join(".git", "*"),
             "*.db",
@@ -186,13 +187,9 @@ def verify_package(verbose=True):
         )
         shutil.copytree(os.getcwd(), clone_dir, ignore=to_ignore)
 
-        cwd = os.getcwd()
-        os.chdir(clone_dir)
-        sys.path.append(clone_dir)
-
-        exp = imp.load_source('experiment', os.path.join(clone_dir, "experiment.py"))
-
-        classes = inspect.getmembers(exp, inspect.isclass)
+        initialize_experiment_package(clone_dir)
+        from dallinger_experiment import experiment
+        classes = inspect.getmembers(experiment, inspect.isclass)
         exps = [c for c in classes
                 if (c[1].__bases__[0].__name__ in "Experiment")]
 
@@ -206,8 +203,6 @@ def verify_package(verbose=True):
         else:
             log("✗ experiment.py defines more than one experiment class.",
                 delay=0, chevrons=False, verbose=verbose)
-        os.chdir(cwd)
-        sys.path.remove(clone_dir)
 
     config = get_config()
     if not config.ready:
@@ -324,7 +319,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         "*.db",
         "snapshots",
         "data",
-        "server.log"
+        "server.log",
     )
     shutil.copytree(os.getcwd(), dst, ignore=to_ignore)
 
@@ -342,7 +337,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     if exp_config:
         config.extend(exp_config)
 
-    config.extend({'id': unicode(generated_uid)})
+    config.extend({'id': six.text_type(generated_uid)})
 
     config.write(filter_sensitive=True)
 
@@ -356,11 +351,6 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
     ensure_directory(os.path.join("static", "scripts"))
     ensure_directory(os.path.join("templates", "default"))
     ensure_directory(os.path.join("static", "css"))
-
-    # Rename experiment.py for backwards compatibility.
-    os.rename(
-        os.path.join(dst, "experiment.py"),
-        os.path.join(dst, "dallinger_experiment.py"))
 
     # Get dallinger package location.
     from pkg_resources import get_distribution
@@ -449,8 +439,8 @@ def get_summary(app):
     out.append("----------------")
     for s in summary:
         out.append("{:<10}| {}".format(s[0], s[1]))
-    num_approved = sum([s[1] for s in summary if s[0] == u"approved"])
-    num_not_working = sum([s[1] for s in summary if s[0] != u"working"])
+    num_approved = sum([s[1] for s in summary if s[0] == "approved"])
+    num_not_working = sum([s[1] for s in summary if s[0] != "working"])
     if num_not_working > 0:
         the_yield = 1.0 * num_approved / num_not_working
         out.append("\nYield: {:.2%}".format(the_yield))
@@ -463,7 +453,7 @@ def _handle_launch_data(url, error=error):
         launch_data = launch_request.json()
     except ValueError:
         error(
-            u"Error parsing response from /launch, check web dyno logs for details: "
+            "Error parsing response from /launch, check web dyno logs for details: "
             + launch_request.text
         )
         raise
@@ -500,7 +490,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     config = get_config()  # We know it's ready; setup_experiment() does this.
 
     # Register the experiment using all configured registration services.
-    if config.get("mode") == u"live":
+    if config.get("mode") == "live":
         log("Registering the experiment on configured services...")
         registration.register(id, snapshot=None)
 
@@ -567,7 +557,7 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
     log("Saving the URL of the postgres database...")
     # Set the notification URL and database URL in the config file.
     config.extend({
-        "notification_url": heroku_app.url + u"/notifications",
+        "notification_url": heroku_app.url + "/notifications",
         "database_url": heroku_app.db_url,
     })
     config.write()
@@ -621,7 +611,7 @@ def _deploy_in_mode(mode, app, verbose):
     # Set the mode.
     config.extend({
         "mode": mode,
-        "logfile": u"-",
+        "logfile": "-",
     })
 
     # Do shared setup.
@@ -634,7 +624,7 @@ def _deploy_in_mode(mode, app, verbose):
 @report_idle_after(21600)
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    _deploy_in_mode(u'sandbox', app, verbose)
+    _deploy_in_mode('sandbox', app, verbose)
 
 
 @dallinger.command()
@@ -643,7 +633,7 @@ def sandbox(verbose, app):
 @report_idle_after(21600)
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
-    _deploy_in_mode(u'live', app, verbose)
+    _deploy_in_mode('live', app, verbose)
 
 
 @dallinger.command()
@@ -666,6 +656,7 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
     mturk = MTurkService(
         aws_access_key_id=config.get('aws_access_key_id'),
         aws_secret_access_key=config.get('aws_secret_access_key'),
+        region_name=config.get('aws_region'),
         sandbox=sandbox,
     )
     if by_name:
@@ -792,7 +783,7 @@ class LocalSessionRunner(object):
 
     def configure(self):
         self.exp_config.update({
-            "mode": u"debug",
+            "mode": "debug",
             "loglevel": 0,
         })
 
@@ -864,7 +855,7 @@ class DebugSessionRunner(LocalSessionRunner):
     def configure(self):
         super(DebugSessionRunner, self).configure()
         if self.bot:
-            self.exp_config["recruiter"] = u"bots"
+            self.exp_config["recruiter"] = "bots"
 
     def execute(self, heroku):
         base_url = get_base_url()
@@ -960,13 +951,13 @@ class LoadSessionRunner(LocalSessionRunner):
 
     def configure(self):
         self.exp_config.update({
-            "mode": u"debug",
+            "mode": "debug",
             "loglevel": 0,
         })
 
         self.zip_path = data.find_experiment_export(self.app_id)
         if self.zip_path is None:
-            msg = u'Dataset export for app id "{}" could not be found.'
+            msg = 'Dataset export for app id "{}" could not be found.'
             raise IOError(msg.format(self.app_id))
 
     def setup(self):
@@ -1062,7 +1053,7 @@ def bot_factory(url):
     """Import the current Bot class, which must be done at runtime, then
     return an instance.
     """
-    from dallinger_experiment import Bot
+    from dallinger_experiment.experiment import Bot
     return Bot(url)
 
 

@@ -1,27 +1,26 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import filecmp
 import mock
 import os
-import pytest
+import pexpect
 import re
+import six
 import subprocess
 import sys
 import tempfile
+from six.moves import configparser
 from time import sleep
 from uuid import UUID
-from click.testing import CliRunner
-from ConfigParser import NoOptionError, SafeConfigParser
 from smtplib import SMTPAuthenticationError
 
-import pexpect
+from click.testing import CliRunner
+import pytest
 from pytest import raises
 
 import dallinger.command_line
 from dallinger.command_line import new_webbrowser_profile
 from dallinger.command_line import verify_package
 from dallinger.command_line import report_idle_after
-from dallinger.compat import unicode
 from dallinger.config import get_config
 from dallinger import recruiters
 import dallinger.version
@@ -53,9 +52,10 @@ def sleepless():
 
 @pytest.fixture
 def browser():
-    with mock.patch('dallinger.command_line.webbrowser') as mock_browser:
-        mock_browser._iscommand.return_value = False
-        yield mock_browser
+    with mock.patch('dallinger.command_line.is_command') as mock_is_command:
+        mock_is_command.return_value = False
+        with mock.patch('dallinger.command_line.webbrowser') as mock_browser:
+            yield mock_browser
 
 
 @pytest.fixture
@@ -83,8 +83,8 @@ class TestIsolatedWebbrowser(object):
 
     def test_chrome_isolation(self):
         import webbrowser
-        with mock.patch('dallinger.command_line.webbrowser._iscommand') as _iscommand:
-            _iscommand.side_effect = lambda s: s == 'google-chrome'
+        with mock.patch('dallinger.command_line.is_command') as is_command:
+            is_command.side_effect = lambda s: s == 'google-chrome'
             isolated = new_webbrowser_profile()
         assert isinstance(isolated, webbrowser.Chrome)
         assert isolated.remote_args[:2] == [r'%action', r'%s']
@@ -94,8 +94,8 @@ class TestIsolatedWebbrowser(object):
 
     def test_firefox_isolation(self):
         import webbrowser
-        with mock.patch('dallinger.command_line.webbrowser._iscommand') as _iscommand:
-            _iscommand.side_effect = lambda s: s == 'firefox'
+        with mock.patch('dallinger.command_line.is_command') as is_command:
+            is_command.side_effect = lambda s: s == 'firefox'
             isolated = new_webbrowser_profile()
         assert isinstance(isolated, webbrowser.Mozilla)
         assert isolated.remote_args[0] == '-profile'
@@ -104,8 +104,8 @@ class TestIsolatedWebbrowser(object):
 
     def test_fallback_isolation(self):
         import webbrowser
-        with mock.patch('dallinger.command_line.webbrowser._iscommand') as _iscommand:
-            _iscommand.return_value = False
+        with mock.patch('dallinger.command_line.is_command') as is_command:
+            is_command.return_value = False
             isolated = new_webbrowser_profile()
         assert isolated == webbrowser
 
@@ -121,7 +121,7 @@ class TestCommandLine(object):
 
     def test_dallinger_no_args(self):
         output = subprocess.check_output(["dallinger"])
-        assert("Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
+        assert(b"Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output)
 
     def test_log_empty(self):
         id = "dlgr-3b9c2aeb"
@@ -147,11 +147,11 @@ class TestCommandLine(object):
 
     def test_new_uuid(self):
         output = subprocess.check_output(["dallinger", "uuid"])
-        assert isinstance(UUID(output.strip(), version=4), UUID)
+        assert isinstance(UUID(output.strip().decode('utf8'), version=4), UUID)
 
     def test_dallinger_help(self):
         output = subprocess.check_output(["dallinger", "--help"])
-        assert("Commands:" in output)
+        assert(b"Commands:" in output)
 
     def test_setup(self):
         subprocess.check_call(["dallinger", "setup"])
@@ -179,7 +179,6 @@ class TestSetupExperiment(object):
         # Baseline
         exp_dir = os.getcwd()
         assert found_in('experiment.py', exp_dir)
-        assert not found_in('dallinger_experiment.py', exp_dir)
         assert not found_in('experiment_id.txt', exp_dir)
         assert not found_in('Procfile', exp_dir)
         assert not found_in('launch.py', exp_dir)
@@ -193,18 +192,12 @@ class TestSetupExperiment(object):
         assert('/tmp' in dst)
 
         assert found_in('experiment_id.txt', dst)
-        assert not found_in('experiment.py', dst)
-        assert found_in('dallinger_experiment.py', dst)
+        assert found_in('experiment.py', dst)
         assert found_in('models.py', dst)
         assert found_in('Procfile', dst)
         assert found_in('launch.py', dst)
         assert found_in('worker.py', dst)
         assert found_in('clock.py', dst)
-
-        assert filecmp.cmp(
-            os.path.join(dst, 'dallinger_experiment.py'),
-            os.path.join(exp_dir, 'experiment.py')
-        )
 
         assert found_in(os.path.join("static", "css", "dallinger.css"), dst)
         assert found_in(os.path.join("static", "scripts", "dallinger2.js"), dst)
@@ -230,7 +223,7 @@ class TestSetupExperiment(object):
         os.path.exists(os.path.join('snapshots', exp_id + '-code.zip'))
 
         # There should be a modified configuration in the temp dir
-        deploy_config = SafeConfigParser()
+        deploy_config = configparser.SafeConfigParser()
         deploy_config.read(os.path.join(dst, 'config.txt'))
         assert int(deploy_config.get('Parameters', 'num_dynos_web')) == 2
 
@@ -238,11 +231,11 @@ class TestSetupExperiment(object):
         from dallinger.command_line import setup_experiment
         config = get_config()
         # Auto detected as sensitive
-        config.register('a_password', unicode)
+        config.register('a_password', six.text_type)
         # Manually registered as sensitive
-        config.register('something_sensitive', unicode, sensitive=True)
+        config.register('something_sensitive', six.text_type, sensitive=True)
         # Not sensitive at all
-        config.register('something_normal', unicode)
+        config.register('something_normal', six.text_type)
 
         config.extend({'a_password': u'secret thing',
                        'something_sensitive': u'hide this',
@@ -251,14 +244,14 @@ class TestSetupExperiment(object):
         exp_id, dst = setup_experiment()
 
         # The temp dir should have a config with the sensitive variables missing
-        deploy_config = SafeConfigParser()
+        deploy_config = configparser.SafeConfigParser()
         deploy_config.read(os.path.join(dst, 'config.txt'))
         assert(deploy_config.get(
-            'Parameters', 'something_normal') == u'show this'
+            'Parameters', 'something_normal') == 'show this'
         )
-        with raises(NoOptionError):
+        with raises(configparser.NoOptionError):
             deploy_config.get('Parameters', 'a_password')
-        with raises(NoOptionError):
+        with raises(configparser.NoOptionError):
             deploy_config.get('Parameters', 'something_sensitive')
 
     def test_payment_type(self):
@@ -292,7 +285,7 @@ class TestGitClient(object):
         git.init(config=config)
         git.add("--all")
         git.commit("Test Repo")
-        assert "Test Repo" in subprocess.check_output(['git', 'log'])
+        assert b"Test Repo" in subprocess.check_output(['git', 'log'])
 
     def test_includes_details_in_exceptions(self, git):
         with pytest.raises(Exception) as ex_info:
@@ -302,9 +295,10 @@ class TestGitClient(object):
     def test_can_use_alternate_output(self, git):
         import tempfile
         git.out = tempfile.NamedTemporaryFile()
+        git.encoding = 'utf8'
         git.init()
         git.out.seek(0)
-        assert "git init" in git.out.read()
+        assert b"git init" in git.out.read()
 
 
 @pytest.fixture
@@ -566,6 +560,7 @@ class TestDebugServer(object):
             'dallinger',
             ['debug', '--verbose', '--bot'],
             env=env,
+            encoding='utf-8',
         )
         p.logfile = sys.stdout
         try:
@@ -609,8 +604,7 @@ class TestLoad(object):
         from dallinger.command_line import LoadSessionRunner
         loader = LoadSessionRunner(self.exp_id, output, verbose=True,
                                    exp_config={'replay': True})
-        loader.keep_running = mock.Mock(return_value=False)\
-
+        loader.keep_running = mock.Mock(return_value=False)
 
         def launch_and_finish(self):
             from dallinger.heroku.tools import HerokuLocalWrapper
@@ -701,8 +695,8 @@ class TestSandboxAndDeploy(object):
                 '--app', 'some app id',
             ]
         )
-        dsss.assert_called_once_with(app=u'some app id', verbose=True)
-        assert get_config().get('mode') == u'sandbox'
+        dsss.assert_called_once_with(app='some app id', verbose=True)
+        assert get_config().get('mode') == 'sandbox'
 
     def test_sandbox_with_no_app_id(self, sandbox, dsss):
         CliRunner().invoke(
@@ -712,7 +706,7 @@ class TestSandboxAndDeploy(object):
             ]
         )
         dsss.assert_called_once_with(app=None, verbose=True)
-        assert get_config().get('mode') == u'sandbox'
+        assert get_config().get('mode') == 'sandbox'
 
     def test_sandbox_with_invalid_app_id(self, sandbox, dsss):
         result = CliRunner().invoke(
@@ -724,7 +718,7 @@ class TestSandboxAndDeploy(object):
         )
         dsss.assert_not_called()
         assert result.exit_code == -1
-        assert 'The --app flag requires the full UUID' in result.exception.message
+        assert 'The --app flag requires the full UUID' in str(result.exception)
 
     def test_deploy_with_app_id(self, deploy, dsss):
         CliRunner().invoke(
@@ -734,8 +728,8 @@ class TestSandboxAndDeploy(object):
                 '--app', 'some app id',
             ]
         )
-        dsss.assert_called_once_with(app=u'some app id', verbose=True)
-        assert get_config().get('mode') == u'live'
+        dsss.assert_called_once_with(app='some app id', verbose=True)
+        assert get_config().get('mode') == 'live'
 
 
 class TestSummary(object):
@@ -752,8 +746,8 @@ class TestSummary(object):
             u'completed': True,
             u'nodes_remaining': 0,
             u'required_nodes': 0,
-            u'status': u'success',
-            u'summary': [[u'approved', 1], [u'submitted', 1]],
+            u'status': 'success',
+            u'summary': [['approved', 1], ['submitted', 1]],
             u'unfilled_networks': 0
         }
         with mock.patch('dallinger.command_line.requests') as req:
@@ -1127,4 +1121,4 @@ class TestMonitor(object):
             monitor,
             ['--app', None, ]
         )
-        assert result.exception.message == 'Select an experiment using the --app flag.'
+        assert str(result.exception) == 'Select an experiment using the --app flag.'

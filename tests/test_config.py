@@ -5,6 +5,7 @@ from tempfile import NamedTemporaryFile
 
 import pexpect
 import pytest
+import six
 
 from dallinger.config import Configuration
 from dallinger.config import get_config, LOCAL_CONFIG
@@ -76,12 +77,12 @@ class TestConfiguration(object):
     def test_setting_by_set(self):
         config = Configuration()
         config.ready = True
-        config.set("mode", u"live")
+        config.set("mode", "live")
 
     def test_setting_by_assignment(self):
         config = Configuration()
         config.ready = True
-        config["mode"] = u"live"
+        config["mode"] = "live"
 
     def test_get_without_default_raises(self):
         config = Configuration()
@@ -136,7 +137,7 @@ class TestConfiguration(object):
         config.register('num_participants', int, synonyms={'n', })
         config.register('deploy_worldwide', bool, synonyms={'worldwide', })
         with NamedTemporaryFile() as configfile:
-            configfile.write("""
+            configfile.write(b"""
 [Example Section]
 num_participants = 10
 worldwide = false
@@ -160,13 +161,16 @@ worldwide = false
 
     def test_experiment_defined_parameters(self):
         try:
-            python = pexpect.spawn("python")
+            python = pexpect.spawn("python", encoding='utf-8')
             python.read_nonblocking(10000)
             python.setecho(False)
             python.sendline('from dallinger.experiment_server import experiment_server')
             python.sendline('config = experiment_server._config()')
-            python.sendline('print config.types')
-            python.expect_exact("custom_parameter': <type 'int'>")
+            python.sendline('print(config.types)')
+            if six.PY3:
+                python.expect_exact("custom_parameter': <class 'int'>")
+            else:
+                python.expect_exact("custom_parameter': <type 'int'>")
         finally:
             python.sendcontrol('d')
             python.read()
@@ -185,20 +189,20 @@ worldwide = false
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
-        config.set(u'host', u'localhost')
-        config.set(u'base_port', 5000)
+        config.set('host', 'localhost')
+        config.set('base_port', 5000)
         assert(get_base_url() == 'http://localhost:5000')
 
     def test_remote_base_url(self):
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
-        config.set(u'host', u'https://dlgr-bogus.herokuapp.com')
+        config.set('host', 'https://dlgr-bogus.herokuapp.com')
         assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
 
     def test_remote_base_url_always_ssl(self):
         from dallinger.utils import get_base_url
         config = get_config()
         config.ready = True
-        config.set(u'host', u'http://dlgr-bogus.herokuapp.com')
+        config.set('host', 'http://dlgr-bogus.herokuapp.com')
         assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')

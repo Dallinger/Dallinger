@@ -16,6 +16,7 @@ import psycopg2
 import pytest
 
 import dallinger
+from dallinger.compat import open_for_csv
 from dallinger.config import get_config
 from dallinger.utils import generate_random_id
 
@@ -56,26 +57,24 @@ class TestData(object):
     )
 
     def test_connection_to_s3(self):
-        conn = dallinger.data._s3_connection()
-        assert conn
+        s3 = dallinger.data._s3_resource()
+        assert s3
 
     def test_user_s3_bucket_first_time(self):
-        conn = dallinger.data._s3_connection()
         bucket = dallinger.data.user_s3_bucket(
             canonical_user_id=generate_random_id(),
         )
         assert bucket
-        conn.delete_bucket(bucket)
+        bucket.delete()
 
     def test_user_s3_bucket_thrice(self):
-        conn = dallinger.data._s3_connection()
         id = generate_random_id()
         for i in range(3):
             bucket = dallinger.data.user_s3_bucket(
                 canonical_user_id=id,
             )
             assert bucket
-        conn.delete_bucket(bucket)
+        bucket.delete()
 
     def test_user_s3_bucket_no_id_provided(self):
         bucket = dallinger.data.user_s3_bucket()
@@ -150,7 +149,7 @@ class TestData(object):
         dallinger.data.copy_local_to_csv("dallinger", export_dir)
         network_table_path = os.path.join(export_dir, "network.csv")
         assert os.path.isfile(network_table_path)
-        with open(network_table_path, 'rb') as f:
+        with open_for_csv(network_table_path, 'r') as f:
             reader = csv.reader(f, delimiter=',')
             header = next(reader)
             assert "creation_time" in header
@@ -168,7 +167,7 @@ class TestData(object):
     def test_scrub_pii(self):
         path_to_data = os.path.join("tests", "datasets", "pii")
         dallinger.data._scrub_participant_table(path_to_data)
-        with open(os.path.join(path_to_data, "participant.csv"), 'rb') as f:
+        with open_for_csv(os.path.join(path_to_data, "participant.csv"), 'r') as f:
             reader = csv.reader(f, delimiter=',')
             next(reader)  # Skip the header
             for row in reader:
@@ -196,6 +195,7 @@ class TestData(object):
         assert len(dallinger.models.Participant.query.all()) == 4
         path = dallinger.data.export('test_export', local=True, scrub_pii=True)
         p_file = ZipFile(path).open('data/participant.csv')
+        p_file = io.TextIOWrapper(p_file, encoding='utf8', newline='')
         assert len(p_file.readlines()) == 5  # 4 Participants + header row
 
     def test_copy_local_to_csv_includes_participant_data(self, db_session):
@@ -204,7 +204,7 @@ class TestData(object):
         dallinger.data.copy_local_to_csv("dallinger", export_dir, scrub_pii=False)
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
-        with open(participant_table_path, 'rb') as f:
+        with open_for_csv(participant_table_path, 'r') as f:
             reader = csv.reader(f, delimiter=',')
             header = next(reader)
             row1 = next(reader)
@@ -216,7 +216,7 @@ class TestData(object):
         dallinger.data.copy_local_to_csv("dallinger", export_dir, scrub_pii=True)
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
-        with open(participant_table_path, 'rb') as f:
+        with open_for_csv(participant_table_path, 'r') as f:
             reader = csv.reader(f, delimiter=',')
             header = next(reader)
             row1 = next(reader)

@@ -10,7 +10,7 @@ if sys.argv[-1] == 'publish':
 
 setup_args = dict(
     name='dlgr.demos',
-    version="3.5.0",
+    version="4.0.0",
     description='Demonstration experiments for Dallinger',
     url='http://github.com/Dallinger/Dallinger',
     maintainer='Jordan Suchow',
@@ -24,6 +24,7 @@ setup_args = dict(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.6',
     ],
     packages=find_packages('.'),
     package_dir={'': '.'},

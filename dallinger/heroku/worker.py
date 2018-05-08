@@ -1,6 +1,5 @@
 """Heroku web worker."""
 
-from future.builtins import map
 import os
 import redis
 
@@ -24,6 +23,9 @@ if __name__ == '__main__':  # pragma: nocover
         from rq_gevent_worker import GeventWorker as Worker
     except ImportError:
         from rq import Worker
+
+    from dallinger.config import initialize_experiment_package
+    initialize_experiment_package(os.getcwd())
 
     import logging
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)

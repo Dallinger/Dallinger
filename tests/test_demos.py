@@ -10,6 +10,8 @@ class TestDemos(object):
     def test_verify_all_demos(self):
         demo_paths = os.listdir(os.path.join("demos", "dlgr", "demos"))
         for demo_path in demo_paths:
+            if demo_path == '__pycache__':
+                continue
             if os.path.isdir(demo_path):
                 os.chdir(demo_path)
                 assert subprocess.check_call(["dallinger", "verify"])

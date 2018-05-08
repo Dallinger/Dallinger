@@ -35,15 +35,15 @@ class TestAdvertisement(object):
     def test_returns_error_without_hitId_and_assignmentId(self, webapp):
         resp = webapp.get('/ad')
         assert resp.status_code == 500
-        assert 'hit_assign_worker_id_not_set_in_mturk' in resp.data
+        assert b'hit_assign_worker_id_not_set_in_mturk' in resp.data
 
     def test_with_no_worker_id_and_nonexistent_hit_and_assignment(self, webapp):
         resp = webapp.get('/ad?hitId=foo&assignmentId=bar')
-        assert 'Thanks for accepting this HIT.' in resp.data
+        assert b'Thanks for accepting this HIT.' in resp.data
 
     def test_with_nonexistent_hit_worker_and_assignment(self, webapp):
         resp = webapp.get('/ad?hitId=foo&assignmentId=bar&workerId=baz')
-        assert 'Thanks for accepting this HIT.' in resp.data
+        assert b'Thanks for accepting this HIT.' in resp.data
 
     def test_checks_browser_exclusion_rules(self, webapp, active_config):
         active_config.extend({'browser_exclude_rule': u'tablet, bot'})
@@ -52,7 +52,7 @@ class TestAdvertisement(object):
             environ_base={'HTTP_USER_AGENT': 'Googlebot/2.1 (+http://www.google.com/bot.html)'}
         )
         assert resp.status_code == 500
-        assert 'browser_type_not_allowed' in resp.data
+        assert b'browser_type_not_allowed' in resp.data
 
     def test_still_working_in_debug_mode_returns_error(self, a, webapp):
         p = a.participant()
@@ -62,7 +62,7 @@ class TestAdvertisement(object):
             )
         )
         assert resp.status_code == 500
-        assert 'already_started_exp_mturk' in resp.data
+        assert b'already_started_exp_mturk' in resp.data
 
     def test_still_working_in_sandbox_mode_returns_error(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
@@ -73,7 +73,7 @@ class TestAdvertisement(object):
             )
         )
         assert resp.status_code == 500
-        assert 'already_started_exp_mturk' in resp.data
+        assert b'already_started_exp_mturk' in resp.data
 
     def test_previously_completed_same_exp_fails_if_not_debug(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
@@ -84,7 +84,7 @@ class TestAdvertisement(object):
             )
         )
         assert resp.status_code == 500
-        assert 'already_did_exp_hit' in resp.data
+        assert b'already_did_exp_hit' in resp.data
 
     def test_previously_completed_same_exp_ok_if_debug(self, a, webapp, active_config):
         p = a.participant()
@@ -93,7 +93,7 @@ class TestAdvertisement(object):
                 p.hit_id, 'some_previous_assignmentID', p.worker_id
             )
         )
-        assert 'Thanks for accepting this HIT.' in resp.data
+        assert b'Thanks for accepting this HIT.' in resp.data
 
     def test_submitted_hit_shows_thanks_page_in_debug(self, a, webapp):
         p = a.participant()
@@ -103,7 +103,7 @@ class TestAdvertisement(object):
                 p.hit_id, p.assignment_id, p.worker_id
             )
         )
-        assert 'If this were a real HIT, you would push a button to finish' in resp.data
+        assert b'If this were a real HIT, you would push a button to finish' in resp.data
 
     def test_shows_thanks_page_if_participant_is_working_but_has_end_time(self, a, webapp):
         p = a.participant()
@@ -113,7 +113,7 @@ class TestAdvertisement(object):
                 p.hit_id, p.assignment_id, p.worker_id
             )
         )
-        assert 'If this were a real HIT, you would push a button to finish' in resp.data
+        assert b'If this were a real HIT, you would push a button to finish' in resp.data
 
     def test_working_hit_shows_thanks_page_in_sandbox_mode(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
@@ -124,7 +124,7 @@ class TestAdvertisement(object):
                 p.hit_id, p.assignment_id, p.worker_id
             )
         )
-        assert 'action="https://workersandbox.mturk.com/mturk/externalSubmit"' in resp.data
+        assert b'action="https://workersandbox.mturk.com/mturk/externalSubmit"' in resp.data
 
     def test_working_hit_shows_thanks_page_in_live_mode(self, a, webapp, active_config):
         active_config.extend({'mode': u'live'})
@@ -135,7 +135,7 @@ class TestAdvertisement(object):
                 p.hit_id, p.assignment_id, p.worker_id
             )
         )
-        assert 'action="https://www.mturk.com/mturk/externalSubmit"' in resp.data
+        assert b'action="https://www.mturk.com/mturk/externalSubmit"' in resp.data
 
     @pytest.mark.skip(reason="fails pending support for different recruiters")
     def test_submitted_hit_shows_thanks_page_in_sandbox(self, a, webapp, active_config):
@@ -147,7 +147,7 @@ class TestAdvertisement(object):
                 p.hit_id, p.assignment_id, p.worker_id
             )
         )
-        assert 'To complete the HIT, simply press the button below.' in resp.data
+        assert b'To complete the HIT, simply press the button below.' in resp.data
 
     def test_recruiter_without_external_submission(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
@@ -158,7 +158,7 @@ class TestAdvertisement(object):
                 p.hit_id, p.assignment_id, p.worker_id
             )
         )
-        assert "You're all done!" in resp.data
+        assert b"You're all done!" in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir')
@@ -203,7 +203,7 @@ class TestQuestion(object):
             )
         )
         assert resp.status_code == 400
-        assert 'non-numeric number: not a number' in resp.data
+        assert b'non-numeric number: not a number' in resp.data
 
     def test_nonworking_nonmturk_participants_accepted(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
@@ -221,12 +221,12 @@ class TestWorkerComplete(object):
     def test_with_no_participant_id_returns_error(self, webapp):
         resp = webapp.get('/worker_complete')
         assert resp.status_code == 400
-        assert 'participantId parameter is required' in resp.data
+        assert b'participantId parameter is required' in resp.data
 
     def test_with_invalid_participant_id_returns_error(self, webapp):
         resp = webapp.get('/worker_complete?participant_id=-1')
         assert resp.status_code == 400
-        assert 'ParticipantId not found: -1' in resp.data
+        assert b'ParticipantId not found: -1' in resp.data
 
     def test_with_valid_participant_id_returns_success(self, a, webapp):
         resp = webapp.get('/worker_complete?participant_id={}'.format(
@@ -394,12 +394,12 @@ class TestWorkerFailed(object):
     def test_with_no_participant_id_returns_error(self, webapp):
         resp = webapp.get('/worker_failed')
         assert resp.status_code == 400
-        assert 'participantId parameter is required' in resp.data
+        assert b'participantId parameter is required' in resp.data
 
     def test_with_invalid_participant_id_returns_error(self, webapp):
         resp = webapp.get('/worker_failed?participant_id=-1')
         assert resp.status_code == 400
-        assert 'ParticipantId not found: -1' in resp.data
+        assert b'ParticipantId not found: -1' in resp.data
 
     def test_with_valid_participant_id_returns_success(self, a, webapp):
         resp = webapp.get('/worker_failed?participant_id={}'.format(
@@ -440,8 +440,8 @@ class TestSimpleGETRoutes(object):
     def test_root(self, webapp):
         resp = webapp.get('/')
         assert resp.status_code == 200
-        assert "Dallinger Experiment in progress" in resp.data
-        assert ">id<" in resp.data
+        assert b"Dallinger Experiment in progress" in resp.data
+        assert b">id<" in resp.data
 
     def test_favicon(self, webapp):
         resp = webapp.get('/favicon.ico')
@@ -450,7 +450,7 @@ class TestSimpleGETRoutes(object):
 
     def test_robots(self, webapp):
         resp = webapp.get('/robots.txt')
-        assert 'User-agent' in resp.data
+        assert b'User-agent' in resp.data
 
     def test_consent(self, webapp):
         resp = webapp.get('/consent', query_string={
@@ -459,7 +459,7 @@ class TestSimpleGETRoutes(object):
             'worker_id': '1',
             'mode': 'debug',
         })
-        assert 'Informed Consent Form' in resp.data
+        assert b'Informed Consent Form' in resp.data
 
     def test_not_found(self, webapp):
         resp = webapp.get('/BOGUS')
@@ -467,7 +467,7 @@ class TestSimpleGETRoutes(object):
 
     def test_existing_experiment_property(self, webapp):
         resp = webapp.get('/experiment/exists')
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data == {u'exists': True, u'status': u'success'}
 
     def test_nonexisting_experiment_property(self, webapp):
@@ -484,9 +484,9 @@ class TestAdRoute(object):
             'assignmentId': '1',
             'mode': 'debug',
         })
-        assert 'Psychology Experiment' in resp.data
-        assert 'Please click the "Accept HIT" button on the Amazon site' not in resp.data
-        assert 'Begin Experiment' in resp.data
+        assert b'Psychology Experiment' in resp.data
+        assert b'Please click the "Accept HIT" button on the Amazon site' not in resp.data
+        assert b'Begin Experiment' in resp.data
 
     def test_ad_before_acceptance(self, webapp):
         resp = webapp.get('/ad', query_string={
@@ -494,13 +494,13 @@ class TestAdRoute(object):
             'assignmentId': 'ASSIGNMENT_ID_NOT_AVAILABLE',
             'mode': 'debug',
         })
-        assert 'Please click the "Accept HIT" button on the Amazon site' in resp.data
-        assert 'Begin Experiment' not in resp.data
+        assert b'Please click the "Accept HIT" button on the Amazon site' in resp.data
+        assert b'Begin Experiment' not in resp.data
 
     def test_ad_no_params(self, webapp):
         resp = webapp.get('/ad')
         assert resp.status_code == 500
-        assert 'Psychology Experiment - Error' in resp.data
+        assert b'Psychology Experiment - Error' in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
@@ -509,14 +509,14 @@ class TestParticipantRoute(object):
     def test_participant_info(self, a, webapp):
         p = a.participant()
         resp = webapp.get('/participant/{}'.format(p.id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data.get('status') == 'success'
         assert data.get('participant').get('status') == u'working'
 
     def test_participant_invalid(self, webapp):
         nonexistent_participant_id = 999
         resp = webapp.get('/participant/{}'.format(nonexistent_participant_id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data.get('status') == 'error'
         assert 'no participant found' in data.get('html')
 
@@ -602,7 +602,7 @@ class TestSummaryRoute(object):
 
     def test_summary_no_participants(self, a, webapp):
         resp = webapp.get('/summary')
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data == {
             u'completed': False,
             u'nodes_remaining': 2,
@@ -616,7 +616,7 @@ class TestSummaryRoute(object):
         network = a.star()
         network.add_node(a.node(network=network, participant=a.participant()))
         resp = webapp.get('/summary')
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data == {
             u'completed': False,
             u'nodes_remaining': 1,
@@ -632,7 +632,7 @@ class TestSummaryRoute(object):
         network.add_node(a.node(network=network, participant=a.participant()))
 
         resp = webapp.get('/summary')
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data == {
             u'completed': False,
             u'nodes_remaining': 0,
@@ -652,7 +652,7 @@ class TestSummaryRoute(object):
         p2.status = 'approved'
 
         resp = webapp.get('/summary')
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data == {
             u'completed': True,
             u'nodes_remaining': 0,
@@ -693,19 +693,19 @@ class TestNetworkRoute(object):
     def test_get_network(self, a, webapp):
         network = a.network()
         resp = webapp.get('/network/{}'.format(network.id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data.get('network').get('id') == network.id
 
     def test_get_network_invalid_returns_error(self, webapp):
         nonexistent_network_id = 999
         resp = webapp.get('/network/{}'.format(nonexistent_network_id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert 'no network found' in data.get('html')
 
     def test_get_network_includes_error_message(self, webapp):
         nonexistent_network_id = 999
         resp = webapp.get('/network/{}'.format(nonexistent_network_id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert 'no network found' in data.get('html')
 
 
@@ -715,14 +715,14 @@ class TestNodeRouteGET(object):
     def test_node_vectors(self, a, webapp):
         node = a.node()
         resp = webapp.get('/node/{}/vectors'.format(node.id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data.get('status') == 'success'
         assert data.get('vectors') == []
 
     def test_node_infos(self, a, webapp):
         node = a.node()
         resp = webapp.get('/node/{}/infos'.format(node.id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data.get('status') == 'success'
         assert data.get('infos') == []
 
@@ -733,13 +733,13 @@ class TestParticipantNodeCreationRoute(object):
     def test_with_invalid_participant_id_returns_error(self, webapp):
         resp = webapp.post('/node/123')
         assert resp.status_code == 403
-        assert '/node POST no participant found' in resp.data
+        assert b'/node POST no participant found' in resp.data
 
     def test_with_valid_participant_creates_participant_node(self, db_session, a, webapp):
         participant_id = a.participant().id
         db_session.commit()
         resp = webapp.post('/node/{}'.format(participant_id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data.get('node').get('participant_id') == participant_id
 
     def test_with_valid_participant_adds_node_to_network(self, db_session, a, webapp):
@@ -747,7 +747,7 @@ class TestParticipantNodeCreationRoute(object):
         participant_id = a.participant().id
         db_session.commit()
         resp = webapp.post('/node/{}'.format(participant_id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert Star.query.one().nodes()[0].id == data['node']['network_id']
 
     def test_participant_status_not_working_returns_error(self, a, db_session, webapp):
@@ -755,7 +755,7 @@ class TestParticipantNodeCreationRoute(object):
         participant.status = 'submitted'
         db_session.commit()
         resp = webapp.post('/node/{}'.format(participant.id))
-        assert 'Error type: /node POST, status = submitted' in resp.data
+        assert b'Error type: /node POST, status = submitted' in resp.data
 
     def test_no_network_for_participant_returns_error(self, a, db_session, webapp):
         participant = a.participant()
@@ -763,7 +763,7 @@ class TestParticipantNodeCreationRoute(object):
         a.node(participant=participant, network=a.star(max_size=1))
         db_session.commit()
         resp = webapp.post('/node/{}'.format(participant.id))
-        assert resp.data == '{"status": "error"}'
+        assert resp.data == b'{"status": "error"}'
 
 
 @pytest.mark.usefixtures('experiment_dir')
@@ -788,7 +788,7 @@ class TestRequestParameter(object):
 
     def test_returns_error_for_missing_param_with_no_default(self, test_request, rp):
         with test_request('/robots.txt'):
-            assert 'foo not specified' in rp('foo').data
+            assert b'foo not specified' in rp('foo').data
 
     def test_marshalls_based_on_parameter_type(self, test_request, rp):
         with test_request('/robots.txt?foo=1'):
@@ -796,7 +796,7 @@ class TestRequestParameter(object):
 
     def test_failure_marshalling_type_returns_error(self, test_request, rp):
         with test_request('/robots.txt?foo=bar'):
-            assert 'non-numeric foo: bar' in rp('foo', parameter_type='int').data
+            assert b'non-numeric foo: bar' in rp('foo', parameter_type='int').data
 
     def test_returns_class_objects_for_experiment_known_classes(self, test_request, rp):
         with test_request('/robots.txt?foo=Info'):
@@ -805,7 +805,7 @@ class TestRequestParameter(object):
     def test_returns_error_for_nonexistent_known_class(self, test_request, rp):
         with test_request('/robots.txt?foo=BadClass'):
             result = rp('foo', parameter_type='known_class')
-            assert 'unknown_class: BadClass' in result.data
+            assert b'unknown_class: BadClass' in result.data
 
     def test_marshalls_valid_boolean_strings(self, test_request, rp):
         with test_request('/robots.txt?foo=True'):
@@ -815,12 +815,12 @@ class TestRequestParameter(object):
     def test_returns_error_for_invalid_boolean_strings(self, test_request, rp):
         with test_request('/robots.txt?foo=BadBool'):
             result = rp('foo', parameter_type='bool')
-            assert 'non-boolean foo: BadBool' in result.data
+            assert b'non-boolean foo: BadBool' in result.data
 
     def test_returns_error_for_unknown_parameter_type(self, test_request, rp):
         with test_request('/robots.txt?foo=True'):
             result = rp('foo', parameter_type='bad_type')
-            assert 'unknown parameter type: bad_type' in result.data
+            assert b'unknown parameter type: bad_type' in result.data
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
@@ -836,7 +836,7 @@ class TestNodeRoutePOST(object):
         resp = webapp.post(
             '/node/{}/transmit?what={}&to_whom={}'.format(node1.id, info.id, node2.id),
         )
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert len(data['transmissions']) == 1
         assert data['transmissions'][0]['origin_id'] == db_session.merge(node1).id
         assert data['transmissions'][0]['destination_id'] == db_session.merge(node2).id
@@ -844,14 +844,14 @@ class TestNodeRoutePOST(object):
     def test_node_transmit_nonexistent_sender_returns_error(self, webapp):
         nonexistent_node_id = 999
         resp = webapp.post('/node/{}/transmit'.format(nonexistent_node_id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['status'] == 'error'
         assert 'node does not exist' in data['html']
 
     def test_node_transmit_content_and_no_target_does_nothing(self, a, webapp):
         node = a.node()
         resp = webapp.post('/node/{}/transmit'.format(node.id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['status'] == 'success'
         assert data['transmissions'] == []
 
@@ -859,7 +859,7 @@ class TestNodeRoutePOST(object):
         node = a.node()
         nonexistent_info_id = 999
         resp = webapp.post('/node/{}/transmit?what={}'.format(node.id, nonexistent_info_id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['status'] == 'error'
         assert 'info does not exist' in data['html']
 
@@ -867,7 +867,7 @@ class TestNodeRoutePOST(object):
         node = a.node()
         nonexistent_subclass = 'Nonsense'
         resp = webapp.post('/node/{}/transmit?what={}'.format(node.id, nonexistent_subclass))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['status'] == 'error'
         assert 'Nonsense not in experiment.known_classes' in data['html']
 
@@ -878,7 +878,7 @@ class TestNodeRoutePOST(object):
         resp = webapp.post('/node/{}/transmit?what={}&to_whom={}'.format(
             node.id, info.id, nonexistent_subclass)
         )
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['status'] == 'error'
         assert 'Nonsense not in experiment.known_classes' in data['html']
 
@@ -889,7 +889,7 @@ class TestNodeRoutePOST(object):
         resp = webapp.post('/node/{}/transmit?what={}&to_whom={}'.format(
             node.id, info.id, nonexistent_id)
         )
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['status'] == 'error'
         assert 'recipient Node does not exist' in data['html']
 
@@ -904,7 +904,7 @@ class TestInfoRoutePOST(object):
             '/info/{}'.format(nonexistent_node_id),
             data=data
         )
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['status'] == 'error'
         assert 'node does not exist' in data['html']
 
@@ -915,7 +915,7 @@ class TestInfoRoutePOST(object):
             '/info/{}'.format(node.id),
             data=data
         )
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert u'info' in data
 
     def test_loads_details_json_value(self, a, webapp):
@@ -928,7 +928,7 @@ class TestInfoRoutePOST(object):
             '/info/{}'.format(node.id),
             data=data
         )
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['info']['details'] == {u'key': u'value'}
 
     def test_pings_experiment(self, a, webapp):
@@ -948,7 +948,7 @@ class TestInfoRoutePOST(object):
             mock_exp.info_post_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.post('/info/{}'.format(node.id), data=data)
-        assert '/info POST server error' in resp.data
+        assert b'/info POST server error' in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
@@ -961,7 +961,7 @@ class TestTrackingEventRoutePOST(object):
             '/tracking_event/{}'.format(nonexistent_node_id),
             data=data
         )
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['status'] == 'error'
         assert 'node does not exist' in data['html']
 
@@ -972,7 +972,7 @@ class TestTrackingEventRoutePOST(object):
             '/tracking_event/{}'.format(node.id),
             data=data
         )
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['status'] == u'success'
         assert data['details'] == {u'key': u'value'}
 
@@ -982,16 +982,16 @@ class TestNodeNeighbors(object):
 
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.get('/node/123/neighbors?node_type=BadClass')
-        assert 'unknown_class: BadClass for parameter node_type' in resp.data
+        assert b'unknown_class: BadClass for parameter node_type' in resp.data
 
     def test_returns_error_for_invalid_node_id(self, webapp):
         resp = webapp.get('/node/123/neighbors')
-        assert 'node 123 does not exist' in resp.data
+        assert b'node 123 does not exist' in resp.data
 
     def test_includes_failed_param_if_request_includes_it(self, a, webapp):
         node = a.node()
         resp = webapp.get('/node/{}/neighbors?failed=False'.format(node.id))
-        assert 'You should not pass a failed argument to neighbors().' in resp.data
+        assert b'You should not pass a failed argument to neighbors().' in resp.data
 
     def test_finds_neighbor_nodes(self, a, webapp):
         network = a.network()
@@ -1000,7 +1000,7 @@ class TestNodeNeighbors(object):
         node1.connect(node2)
 
         resp = webapp.get('/node/{}/neighbors'.format(node1.id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['nodes'][0]['id'] == node2.id
 
     def test_pings_experiment(self, a, webapp):
@@ -1022,7 +1022,7 @@ class TestNodeNeighbors(object):
             mock_class.return_value = mock_exp
             resp = webapp.get('/node/{}/neighbors'.format(node.id))
 
-        assert 'exp.node_get_request' in resp.data
+        assert b'exp.node_get_request' in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir')
@@ -1030,11 +1030,11 @@ class TestNodeReceivedInfos(object):
 
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.get('/node/123/received_infos?info_type=BadClass')
-        assert 'unknown_class: BadClass for parameter info_type' in resp.data
+        assert b'unknown_class: BadClass for parameter info_type' in resp.data
 
     def test_returns_error_for_invalid_node_id(self, webapp):
         resp = webapp.get('/node/123/received_infos')
-        assert '/node/infos, node 123 does not exist' in resp.data
+        assert b'/node/infos, node 123 does not exist' in resp.data
 
     def test_finds_received_infos(self, a, webapp):
         net = a.network()
@@ -1046,7 +1046,7 @@ class TestNodeReceivedInfos(object):
         receiver.receive()
 
         resp = webapp.get('/node/{}/received_infos'.format(receiver.id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
 
         assert data['infos'][0]['id'] == info.id
         assert data['infos'][0]['contents'] == 'foo'
@@ -1056,7 +1056,7 @@ class TestNodeReceivedInfos(object):
         node = a.node(network=net)
 
         resp = webapp.get('/node/{}/received_infos'.format(node.id))
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
 
         assert data['infos'] == []
 
@@ -1079,7 +1079,7 @@ class TestNodeReceivedInfos(object):
             mock_class.return_value = mock_exp
             resp = webapp.get('/node/{}/received_infos'.format(node.id))
 
-        assert 'info_get_request error' in resp.data
+        assert b'info_get_request error' in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir')
@@ -1087,11 +1087,11 @@ class TestTransformationGet(object):
 
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.get('/node/123/transformations?transformation_type=BadClass')
-        assert 'unknown_class: BadClass for parameter transformation_type' in resp.data
+        assert b'unknown_class: BadClass for parameter transformation_type' in resp.data
 
     def test_returns_error_for_invalid_node_id(self, webapp):
         resp = webapp.get('/node/123/transformations')
-        assert 'node 123 does not exist' in resp.data
+        assert b'node 123 does not exist' in resp.data
 
     def test_finds_transformations(self, a, webapp):
         node = a.node()
@@ -1101,7 +1101,7 @@ class TestTransformationGet(object):
         resp = webapp.get(
             '/node/{}/transformations?transformation_type=Replication'.format(node_id)
         )
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['transformations'][0]['node_id'] == node_id
 
     def test_pings_experiment(self, a, webapp):
@@ -1122,7 +1122,7 @@ class TestTransformationGet(object):
             mock_exp.transformation_get_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.get('/node/{}/transformations'.format(node.id))
-        assert '/node/transformations GET failed' in resp.data
+        assert b'/node/transformations GET failed' in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir')
@@ -1130,22 +1130,22 @@ class TestTransformationPost(object):
 
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.post('/transformation/123/123/123?transformation_type=BadClass')
-        assert 'unknown_class: BadClass for parameter transformation_type' in resp.data
+        assert b'unknown_class: BadClass for parameter transformation_type' in resp.data
 
     def test_returns_error_for_invalid_node_id(self, webapp):
         resp = webapp.post('/transformation/123/123/123')
-        assert 'node 123 does not exist' in resp.data
+        assert b'node 123 does not exist' in resp.data
 
     def test_returns_error_for_invalid_info_in_id(self, a, webapp):
         node = a.node()
         resp = webapp.post('/transformation/{}/123/123'.format(node.id))
-        assert 'info_in 123 does not exist' in resp.data
+        assert b'info_in 123 does not exist' in resp.data
 
     def test_returns_error_for_invalid_info_out_id(self, a, webapp):
         node = a.node()
         info = a.info(origin=node)
         resp = webapp.post('/transformation/{}/{}/123'.format(node.id, info.id))
-        assert 'info_out 123 does not exist' in resp.data
+        assert b'info_out 123 does not exist' in resp.data
 
     def test_creates_transformation(self, a, webapp):
         node = a.node()
@@ -1155,7 +1155,7 @@ class TestTransformationPost(object):
         resp = webapp.post(
             '/transformation/{}/{}/{}'.format(node.id, info_in.id, info_out.id)
         )
-        data = json.loads(resp.data)
+        data = json.loads(resp.data.decode('utf8'))
         assert data['transformation']['info_out_id'] == info_out_id
 
     def test_pings_experiment(self, a, webapp):
@@ -1181,14 +1181,14 @@ class TestTransformationPost(object):
             resp = webapp.post(
                 '/transformation/{}/{}/{}'.format(node.id, info_in.id, info_out.id)
             )
-        assert '/transformation POST failed' in resp.data
+        assert b'/transformation POST failed' in resp.data
 
 
 @pytest.mark.usefixtures('experiment_dir')
 class TestLaunchRoute(object):
 
     def test_launch(self, webapp):
-        resp = webapp.post('/launch', {})
+        resp = webapp.post('/launch', data={})
         data = json.loads(resp.get_data())
         assert 'recruitment_msg' in data
 
@@ -1197,7 +1197,7 @@ class TestLaunchRoute(object):
             bad_log = mock.Mock(side_effect=IOError)
             mock_exp = mock.Mock(log=bad_log)
             mock_class.return_value = mock_exp
-            resp = webapp.post('/launch', {})
+            resp = webapp.post('/launch', data={})
 
         assert resp.status_code == 500
         data = json.loads(resp.get_data())

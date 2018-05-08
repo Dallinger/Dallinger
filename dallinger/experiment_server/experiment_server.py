@@ -1,6 +1,7 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from functools import update_wrapper
 import gevent
 from json import dumps
 from json import loads
@@ -20,7 +21,6 @@ from flask import (
     Response,
     send_from_directory,
 )
-from flask_crossdomain import crossdomain
 from jinja2 import TemplateNotFound
 from rq import get_current_job
 from rq import Queue
@@ -42,7 +42,6 @@ from .replay import ReplayBackend
 from .worker_events import WorkerEvent
 from .utils import nocache
 
-
 # Initialize the Dallinger database.
 session = db.session
 
@@ -51,6 +50,48 @@ q = Queue(connection=redis)
 WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')
+
+
+def crossdomain(origin=None, methods=None, headers=None,
+                max_age=21600, attach_to_all=True,
+                automatic_options=True):
+    if methods is not None:
+        methods = ', '.join(sorted(x.upper() for x in methods))
+    if headers is not None and not isinstance(headers, str):
+        headers = ', '.join(x.upper() for x in headers)
+    if not isinstance(origin, str):
+        origin = ', '.join(origin)
+    if isinstance(max_age, timedelta):
+        max_age = max_age.total_seconds()
+
+    def get_methods():
+        if methods is not None:
+            return methods
+
+        options_resp = app.make_default_options_response()
+        return options_resp.headers['allow']
+
+    def decorator(f):
+        def wrapped_function(*args, **kwargs):
+            if automatic_options and request.method == 'OPTIONS':
+                resp = app.make_default_options_response()
+            else:
+                resp = make_response(f(*args, **kwargs))
+            if not attach_to_all and request.method != 'OPTIONS':
+                return resp
+
+            h = resp.headers
+
+            h['Access-Control-Allow-Origin'] = origin
+            h['Access-Control-Allow-Methods'] = get_methods()
+            h['Access-Control-Max-Age'] = str(max_age)
+            if headers is not None:
+                h['Access-Control-Allow-Headers'] = headers
+            return resp
+
+        f.provide_automatic_options = False
+        return update_wrapper(wrapped_function, f)
+    return decorator
 
 
 @app.before_first_request
@@ -70,7 +111,7 @@ def Experiment(args):
 """Load the experiment's extra routes, if any."""
 
 try:
-    from dallinger_experiment import extra_routes
+    from dallinger_experiment.experiment import extra_routes
 except ImportError:
     pass
 else:
@@ -335,7 +376,7 @@ def handle_error():
 
     notif = models.Notification(
         assignment_id=assignment_id or 'unknown',
-        event_type=u'ExperimentError', details=details
+        event_type='ExperimentError', details=details
     )
     session.add(notif)
     session.commit()
@@ -381,14 +422,14 @@ def launch():
         exp = Experiment(db.init_db(drop_all=False))
     except Exception as ex:
         return error_response(
-            error_text=u"Failed to load experiment in /launch: {}".format(ex.message),
+            error_text="Failed to load experiment in /launch: {}".format(str(ex)),
             status=500, simple=True
         )
     try:
         exp.log("Launching experiment...", "-----")
     except IOError as ex:
         return error_response(
-            error_text=u"IOError writing to experiment log: {}".format(ex.message),
+            error_text="IOError writing to experiment log: {}".format(str(ex)),
             status=500, simple=True
         )
 
@@ -397,8 +438,8 @@ def launch():
         session.commit()
     except Exception as e:
         return error_response(
-            error_text=u"Failed to open recruitment, check experiment server log "
-                       u"for details: {}".format(e.message),
+            error_text="Failed to open recruitment, check experiment server log "
+                       "for details: {}".format(str(e)),
             status=500, simple=True
         )
 
@@ -407,8 +448,8 @@ def launch():
             gevent.spawn(task)
         except Exception:
             return error_response(
-                error_text=u"Failed to spawn task on launch: {}, ".format(task) +
-                           u"check experiment server log for details",
+                error_text="Failed to spawn task on launch: {}, ".format(task) +
+                           "check experiment server log for details",
                 status=500, simple=True
             )
 
@@ -418,8 +459,8 @@ def launch():
             gevent.spawn(task)
         except Exception:
             return error_response(
-                error_text=u"Failed to launch replay task for experiment."
-                           u"check experiment server log for details",
+                error_text="Failed to launch replay task for experiment."
+                           "check experiment server log for details",
                 status=500, simple=True
             )
 
@@ -431,9 +472,9 @@ def launch():
             chat_backend.subscribe(exp, exp.channel)
         except Exception:
             return error_response(
-                error_text=u"Failed to subscribe to chat for channel on launch " +
-                           u"{}".format(exp.channel) +
-                           u", check experiment server log for details",
+                error_text="Failed to subscribe to chat for channel on launch " +
+                           "{}".format(exp.channel) +
+                           ", check experiment server log for details",
                 status=500, simple=True
             )
 
@@ -926,7 +967,7 @@ def node_neighbors(node_id):
         try:
             node.neighbors(type=node_type, direction=connection, failed=failed)
         except Exception as e:
-            return error_response(error_type='node.neighbors', error_text=e.message)
+            return error_response(error_type='node.neighbors', error_text=str(e))
 
     else:
         nodes = node.neighbors(type=node_type, direction=connection)
@@ -1541,7 +1582,7 @@ def worker_complete():
     if not participant_id:
         return error_response(
             error_type="bad request",
-            error_text=u'participantId parameter is required'
+            error_text='participantId parameter is required'
         )
 
     try:
@@ -1584,7 +1625,7 @@ def worker_failed():
     if not participant_id:
         return error_response(
             error_type="bad request",
-            error_text=u'participantId parameter is required'
+            error_text='participantId parameter is required'
         )
 
     try:

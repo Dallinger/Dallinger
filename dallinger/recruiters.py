@@ -1,6 +1,11 @@
 """Recruiters manage the flow of participants to the experiment."""
 
+import logging
+import os
+import sys
+
 from rq import Queue
+
 from dallinger.config import get_config
 from dallinger.heroku.worker import conn
 from dallinger.models import Participant
@@ -10,9 +15,6 @@ from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
-import logging
-import os
-import sys
 
 logger = logging.getLogger(__file__)
 
@@ -193,7 +195,7 @@ class HotAirRecruiter(CLIRecruiter):
 
     def _get_mode(self):
         # Ignore config settings and always use debug mode
-        return u'debug'
+        return 'debug'
 
 
 class SimulatedRecruiter(Recruiter):
@@ -233,13 +235,14 @@ class MTurkRecruiter(Recruiter):
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
             self.config.get('aws_secret_access_key'),
-            self.config.get('mode') != u"live"
+            self.config.get('aws_region'),
+            self.config.get('mode') != "live"
         )
         self._validate_conifg()
 
     def _validate_conifg(self):
         mode = self.config.get('mode')
-        if mode not in (u'sandbox', u'live'):
+        if mode not in ('sandbox', 'live'):
             raise MTurkRecruiterException(
                 '"{}" is not a valid mode for MTurk recruitment. '
                 'The value of "mode" must be either "sandbox" or "live"'.format(mode)
@@ -320,7 +323,7 @@ class MTurkRecruiter(Recruiter):
                 duration_hours=self.config.get('duration')
             )
         except MTurkServiceException as ex:
-            logger.exception(ex.message)
+            logger.exception(str(ex))
 
     def notify_recruited(self, participant):
         pass
@@ -336,7 +339,7 @@ class MTurkRecruiter(Recruiter):
                 self.mturkservice.increment_qualification_score(
                     name, worker_id
                 )
-            except QualificationNotFoundException, ex:
+            except QualificationNotFoundException as ex:
                 logger.exception(ex)
 
     def rejects_questionnaire_from(self, participant):
@@ -364,7 +367,7 @@ class MTurkRecruiter(Recruiter):
         try:
             return self.mturkservice.grant_bonus(assignment_id, amount, reason)
         except MTurkServiceException as ex:
-            logger.exception(ex.message)
+            logger.exception(str(ex))
 
     @property
     def is_in_progress(self):
@@ -381,7 +384,7 @@ class MTurkRecruiter(Recruiter):
         try:
             return self.mturkservice.approve_assignment(assignment_id)
         except MTurkServiceException as ex:
-            logger.exception(ex.message)
+            logger.exception(str(ex))
 
     def close_recruitment(self):
         """Clean up once the experiment is complete.
@@ -399,7 +402,7 @@ class MTurkRecruiter(Recruiter):
             #    self.current_hit_id(),
             # )
         except MTurkServiceException as ex:
-            logger.exception(ex.message)
+            logger.exception(str(ex))
 
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
@@ -509,7 +512,7 @@ class BotRecruiter(Recruiter):
 
     def _get_bot_factory(self):
         # Must be imported at run-time
-        from dallinger_experiment import Bot
+        from dallinger_experiment.experiment import Bot
         return Bot
 
 

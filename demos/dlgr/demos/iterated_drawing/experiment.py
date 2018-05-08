@@ -18,7 +18,7 @@ class IteratedDrawing(Experiment):
         Finally, setup() is called.
         """
         super(IteratedDrawing, self).__init__(session)
-        import models
+        from . import models
         self.models = models
         self.experiment_repeats = 1
         if session:

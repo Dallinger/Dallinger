@@ -11,4 +11,4 @@ skip_covered = True
 [paths]
 source =
     dallinger
-    .tox/py27/lib/python2.7/site-packages/dallinger
+    .tox/py*/lib/python*/site-packages/dallinger

@@ -2,14 +2,12 @@ from __future__ import unicode_literals
 
 from collections import deque
 from contextlib import contextmanager
-from ConfigParser import SafeConfigParser
+from six.moves import configparser
 import distutils.util
-import imp
 import logging
 import os
+import six
 import sys
-
-from .compat import unicode
 
 logger = logging.getLogger(__file__)
 
@@ -25,47 +23,47 @@ SENSITIVE_KEY_NAMES = (
 )
 
 default_keys = (
-    ('ad_group', unicode, []),
+    ('ad_group', six.text_type, []),
     ('approve_requirement', int, []),
     ('auto_recruit', bool, []),
-    ('aws_access_key_id', unicode, [], True),
-    ('aws_region', unicode, []),
-    ('aws_secret_access_key', unicode, [], True),
+    ('aws_access_key_id', six.text_type, [], True),
+    ('aws_region', six.text_type, []),
+    ('aws_secret_access_key', six.text_type, [], True),
     ('base_payment', float, []),
     ('base_port', int, []),
-    ('browser_exclude_rule', unicode, []),
+    ('browser_exclude_rule', six.text_type, []),
     ('clock_on', bool, []),
-    ('contact_email_on_error', unicode, []),
-    ('dallinger_email_address', unicode, []),
-    ('dallinger_email_password', unicode, [], True),
-    ('database_size', unicode, []),
-    ('database_url', unicode, []),
-    ('description', unicode, []),
+    ('contact_email_on_error', six.text_type, []),
+    ('dallinger_email_address', six.text_type, []),
+    ('dallinger_email_password', six.text_type, [], True),
+    ('database_size', six.text_type, []),
+    ('database_url', six.text_type, []),
+    ('description', six.text_type, []),
     ('duration', float, []),
-    ('dyno_type', unicode, []),
-    ('group_name', unicode, []),
-    ('heroku_auth_token', unicode, [], True),
-    ('heroku_team', unicode, ['team']),
-    ('host', unicode, []),
-    ('id', unicode, []),
-    ('keywords', unicode, []),
+    ('dyno_type', six.text_type, []),
+    ('group_name', six.text_type, []),
+    ('heroku_auth_token', six.text_type, [], True),
+    ('heroku_team', six.text_type, ['team']),
+    ('host', six.text_type, []),
+    ('id', six.text_type, []),
+    ('keywords', six.text_type, []),
     ('lifetime', int, []),
-    ('logfile', unicode, []),
+    ('logfile', six.text_type, []),
     ('loglevel', int, []),
-    ('mode', unicode, []),
-    ('notification_url', unicode, []),
+    ('mode', six.text_type, []),
+    ('notification_url', six.text_type, []),
     ('num_dynos_web', int, []),
     ('num_dynos_worker', int, []),
-    ('organization_name', unicode, []),
+    ('organization_name', six.text_type, []),
     ('port', int, ['PORT']),
-    ('qualification_blacklist', unicode, []),
-    ('recruiter', unicode, []),
+    ('qualification_blacklist', six.text_type, []),
+    ('recruiter', six.text_type, []),
     ('replay', bool, []),
-    ('threads', unicode, []),
-    ('title', unicode, []),
+    ('threads', six.text_type, []),
+    ('title', six.text_type, []),
     ('us_only', bool, []),
-    ('webdriver_type', unicode, []),
-    ('webdriver_url', unicode, []),
+    ('webdriver_type', six.text_type, []),
+    ('webdriver_url', six.text_type, []),
     ('whimsical', bool, []),
     ('sentry', bool, []),
 )
@@ -74,8 +72,8 @@ default_keys = (
 class Configuration(object):
 
     SUPPORTED_TYPES = {
-        bytes,
-        unicode,
+        six.binary_type,
+        six.text_type,
         int,
         float,
         bool,
@@ -189,7 +187,7 @@ class Configuration(object):
             self.sensitive.add(key)
 
     def load_from_file(self, filename):
-        parser = SafeConfigParser()
+        parser = configparser.SafeConfigParser()
         parser.read(filename)
         data = {}
         for section in parser.sections():
@@ -197,7 +195,7 @@ class Configuration(object):
         self.extend(data, cast_types=True, strict=True)
 
     def write(self, filter_sensitive=False):
-        parser = SafeConfigParser()
+        parser = configparser.SafeConfigParser()
         parser.add_section('Parameters')
         for layer in reversed(self.data):
             for k, v in layer.items():
@@ -239,30 +237,18 @@ class Configuration(object):
         self.ready = True
 
     def register_extra_parameters(self):
+        initialize_experiment_package(os.getcwd())
         extra_parameters = None
-        cwd = os.getcwd()
-        sys.path.append(cwd)
-        path_index = len(sys.path) - 1
         try:
-            from dallinger_experiment import extra_parameters
+            from dallinger_experiment.experiment import extra_parameters
         except ImportError:
             try:
-                exp = imp.load_source('dallinger_experiment', "dallinger_experiment.py")
-                extra_parameters = getattr(exp, 'extra_parameters', None)
-            except IOError:
+                from dallinger_experiment.dallinger_experiment import extra_parameters
+            except ImportError:
                 pass
-            if extra_parameters is None:
-                try:
-                    # We may be in the original source directory, try experiment.py
-                    exp = imp.load_source('dallinger_experiment', "experiment.py")
-                    extra_parameters = getattr(exp, 'extra_parameters', None)
-                except IOError:
-                    pass
         if extra_parameters is not None and getattr(extra_parameters, 'loaded', None) is None:
             extra_parameters()
             extra_parameters.loaded = True
-        # Remove path element we added
-        sys.path.pop(path_index)
 
 
 config = None
@@ -277,3 +263,19 @@ def get_config():
             config.register(*registration)
 
     return config
+
+
+def initialize_experiment_package(path):
+    """Make the specified directory importable as the `dallinger_experiment` package."""
+    # Create __init__.py if it doesn't exist (needed for Python 2)
+    init_py = os.path.join(path, '__init__.py')
+    if not os.path.exists(init_py):
+        open(init_py, 'a').close()
+
+    dirname = os.path.dirname(path)
+    basename = os.path.basename(path)
+    sys.path.insert(0, dirname)
+    package = __import__(basename)
+    sys.modules['dallinger_experiment'] = package
+    package.__package__ = 'dallinger_experiment'
+    sys.path.pop(0)
