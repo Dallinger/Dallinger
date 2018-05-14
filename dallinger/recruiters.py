@@ -2,12 +2,16 @@
 
 import logging
 import os
+import re
 
 from rq import Queue
+from sqlalchemy import func
 
 from dallinger.config import get_config
+from dallinger.db import session
 from dallinger.heroku.worker import conn
 from dallinger.models import Participant
+from dallinger.models import Recruitment
 from dallinger.mturk import MTurkService
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkServiceException
@@ -535,35 +539,65 @@ class BotRecruiter(Recruiter):
         return Bot
 
 
-class RoundRobinRecruiter(Recruiter):
+class MultiRecruiter(Recruiter):
 
-    nickname = 'roundrobin'
+    nickname = 'multi'
+
+    # recruiter spec e.g. recruiters = bots: 5, mturk: 1
+    SPEC_RE = re.compile(r'(\w+):\s*(\d+)')
 
     def __init__(self):
-        self.recruiters = [
-            CLIRecruiter(),
-            BotRecruiter(),
-        ]
+        self.spec = self.parse_spec()
+
+    def parse_spec(self):
+        """Parse the specification of how to recruit participants.
+
+        Example: recruiters = bots: 5, mturk: 1
+        """
+        recruiters = []
+        spec = get_config().get('recruiters')
+        for match in self.SPEC_RE.finditer(spec):
+            name = match.group(1)
+            count = int(match.group(2))
+            recruiters.append((name, count))
+        return recruiters
 
     def pick_recruiter(self):
-        return random.choice(self.recruiters)
+        """Pick the next recruiter to use.
 
-    # SPEC_RE = re.compile(r'(\w+):\s*(\d+)')
+        We use the `Recruitment` table in the db to keep track of
+        how many recruitments have been requested using each recruiter.
+        We'll use the first one from the specification that
+        hasn't already reached its quota.
+        """
+        counts = dict(
+            session.query(
+                Recruitment.recruiter_id,
+                func.count(Recruitment.id)
+            ).group_by(Recruitment.recruiter_id).all()
+        )
 
-    # def __init__(self):
-    #     self.recruiters = self.parse_spec()
+        for recruiter_id, target_count in self.spec:
+            count = counts.get(recruiter_id, 0)
+            if count >= target_count:
+                # This recruiter quota was reached;
+                # move on to the next one.
+                counts[recruiter_id] = count - target_count
+                continue
+            else:
+                # Quota is still available; let's use it.
+                break
+        else:
+            raise Exception(
+                'Reached quota for all recruiters. '
+                'Not sure which one to use now.'
+            )
 
-    # def parse_spec(self):
-    #     """Parse the specification of how to recruit participants.
+        # record the recruitment
+        session.add(Recruitment(recruiter_id=recruiter_id))
 
-    #     Example: recruiters = bots: 5, mturk: 1
-    #     """
-    #     recruiters = []
-    #     spec = config.get('recruiters')
-    #     for match in self.SPEC_RE.findall(spec):
-    #         name = match.group(1)
-    #         count =
-    #     return recruiters
+        # return an instance of the recruiter
+        return by_name(recruiter_id)
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list.
@@ -584,13 +618,18 @@ class RoundRobinRecruiter(Recruiter):
             'items': recruitments,
             'message': '\n'.join(messages.values())
         }
-    
+
     def recruit(self, n=1):
         urls = []
         for i in range(n):
             recruiter = self.pick_recruiter()
             urls.extend(recruiter.recruit(1))
         return urls
+
+    def close_recruitment(self):
+        for name in set(name for name, count in self.spec):
+            recruiter = by_name(name)
+            recruiter.close_recruitment()
 
 
 def for_experiment(experiment):
@@ -610,19 +649,19 @@ def from_config(config):
     """
     debug_mode = config.get('mode', None) == 'debug'
     name = config.get('recruiter', None)
-    klass = None
-
-    if name is not None:
-        klass = by_name(name)
+    recruiter = None
 
     # Special case 1: Don't use a configured recruiter in replay mode
     if config.get('replay', None):
         return HotAirRecruiter()
 
-    # Special case 2: may run BotRecruiter in any mode (debug or not),
-    # so it trumps everything else:
-    if klass is BotRecruiter:
-        return klass()
+    if name is not None:
+        recruiter = by_name(name)
+
+        # Special case 2: may run BotRecruiter or MultiRecruiter in any mode
+        # (debug or not), so it trumps everything else:
+        if isinstance(recruiter, (BotRecruiter, MultiRecruiter)):
+            return recruiter
 
     # Special case 3: if we're not using bots and we're in debug mode,
     # ignore any configured recruiter:
@@ -630,10 +669,10 @@ def from_config(config):
         return HotAirRecruiter()
 
     # Configured recruiter:
-    if klass is not None:
-        return klass()
+    if recruiter is not None:
+        return recruiter
 
-    if name and klass is None:
+    if name and recruiter is None:
         raise NotImplementedError("No such recruiter {}".format(name))
 
     # Default if we're not in debug mode:
@@ -657,4 +696,6 @@ def by_name(name):
 
     Actual class names and known nicknames are both supported.
     """
-    return BY_NAME.get(name)
+    klass = BY_NAME.get(name)
+    if klass is not None:
+        return klass()

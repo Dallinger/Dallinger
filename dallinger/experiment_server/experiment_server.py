@@ -562,6 +562,7 @@ def advertisement():
         recruiter = recruiters.by_name(recruiter_name)
     else:
         recruiter = recruiters.from_config(config)
+        recruiter_name = recruiter.nickname
     ready_for_external_submission = status == 'working' and part.end_time is not None
     assignment_complete = status in ('submitted', 'approved')
 
@@ -586,6 +587,7 @@ def advertisement():
     # even have accepted the HIT.
     return render_template(
         'ad.html',
+        recruiter=recruiter_name,
         hitid=hit_id,
         assignmentid=assignment_id,
         workerid=worker_id,
@@ -815,7 +817,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     ).count() + 1
 
     recruiter_name = request.args.get('recruiter')
-    if recruiter_name:
+    if recruiter_name and recruiter_name != 'undefined':
         recruiter = recruiters.by_name(recruiter_name)
     else:
         recruiter = recruiters.from_config(_config())

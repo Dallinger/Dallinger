@@ -269,8 +269,7 @@ class Participant(Base, SharedMixin):
     @property
     def recruiter(self):
         from dallinger import recruiters
-        recruiter_class = recruiters.by_name(self.recruiter_id or 'hotair')
-        return recruiter_class()
+        return recruiters.by_name(self.recruiter_id or 'hotair')
 
 
 class Question(Base, SharedMixin):
@@ -1831,3 +1830,12 @@ class Notification(Base, SharedMixin):
 
     # the type of notification
     event_type = Column(String, nullable=False)
+
+
+class Recruitment(Base, SharedMixin):
+    """A record of a request to recruit a participant."""
+
+    __tablename__ = "recruitment"
+
+    #: A String, the nickname of the recruiter used.
+    recruiter_id = Column(String(50), nullable=True)

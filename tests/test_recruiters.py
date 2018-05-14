@@ -21,10 +21,10 @@ class TestModuleFunctions(object):
         assert mod.for_experiment(mock_exp) is mock_exp.recruiter
 
     def test_by_name_with_valid_name(self, mod):
-        assert mod.by_name('CLIRecruiter') == mod.CLIRecruiter
+        assert isinstance(mod.by_name('CLIRecruiter'), mod.CLIRecruiter)
 
     def test_by_name_with_valid_nickname(self, mod):
-        assert mod.by_name('bots') == mod.BotRecruiter
+        assert isinstance(mod.by_name('bots'), mod.BotRecruiter)
 
     def test_by_name_with_invalid_name(self, mod):
         assert mod.by_name('blah') is None
