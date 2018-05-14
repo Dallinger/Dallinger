@@ -93,6 +93,10 @@ class TestRecruiter(object):
         dummy = mock.NonCallableMock()
         recruiter.notify_recruited(participant=dummy)
 
+    def test_notify_using(self, recruiter):
+        dummy = mock.NonCallableMock()
+        recruiter.notify_using(participant=dummy)
+
     def test_external_submission_url(self, recruiter):
         assert recruiter.external_submission_url is None
 
@@ -233,6 +237,9 @@ class TestSimulatedRecruiter(object):
 
     def test_returns_standard_submission_event_type(self, recruiter):
         assert recruiter.submitted_event() is 'AssignmentSubmitted'
+
+    def test_close_recruitment(self, recruiter):
+        assert recruiter.close_recruitment() is None
 
 
 class TestBotRecruiter(object):
@@ -554,6 +561,11 @@ class TestMTurkLargeRecruiter(object):
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
             return r
 
+    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
+        a.participant()
+        recruiter.open_recruitment()
+        recruiter.mturkservice.check_credentials.assert_not_called()
+
     def test_open_recruitment_single_recruitee(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
@@ -623,3 +635,54 @@ class TestMTurkLargeRecruiter(object):
         recruiter.recruit()
 
         assert not recruiter.mturkservice.extend_hit.called
+
+
+@pytest.mark.usefixtures('active_config', 'db_session')
+class TestMultiRecruiter(object):
+
+    @pytest.fixture
+    def recruiter(self, active_config):
+        from dallinger.recruiters import MultiRecruiter
+        active_config.extend({'recruiters': u'cli: 2, hotair: 1'})
+        return MultiRecruiter()
+
+    def test_parse_spec(self, recruiter):
+        assert recruiter.spec == [
+            ('cli', 2),
+            ('hotair', 1),
+        ]
+
+    def test_pick_recruiter(self, recruiter):
+        subrecruiter = recruiter.pick_recruiter()
+        assert subrecruiter.nickname == 'cli'
+
+        subrecruiter = recruiter.pick_recruiter()
+        assert subrecruiter.nickname == 'cli'
+
+        subrecruiter = recruiter.pick_recruiter()
+        assert subrecruiter.nickname == 'hotair'
+
+        with pytest.raises(Exception):
+            recruiter.pick_recruiter()
+
+    def test_open_recruitment(self, recruiter):
+        result = recruiter.open_recruitment(n=3)
+        assert len(result['items']) == 3
+        assert result['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result['items'][2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_recruit(self, recruiter):
+        result = recruiter.recruit(n=3)
+        assert len(result) == 3
+        assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_close_recruitment(self, recruiter):
+        patch1 = mock.patch('dallinger.recruiters.CLIRecruiter.close_recruitment')
+        patch2 = mock.patch('dallinger.recruiters.HotAirRecruiter.close_recruitment')
+        with patch1 as f1, patch2 as f2:
+            recruiter.close_recruitment()
+            f1.assert_called_once()
+            f2.assert_called_once()

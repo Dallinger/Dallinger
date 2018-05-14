@@ -343,9 +343,6 @@ class MTurkRecruiter(Recruiter):
         except MTurkServiceException as ex:
             logger.exception(str(ex))
 
-    def notify_recruited(self, participant):
-        pass
-
     def notify_using(self, participant):
         """Assign a Qualification to the Participant for the experiment ID,
         and for the configured group_name, if it's been set.
@@ -412,15 +409,14 @@ class MTurkRecruiter(Recruiter):
         who have already picked up the hit to complete it as normal.
         """
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
-        try:
-            # We are not expiring the hit currently as notifications are failing
-            # TODO: Reinstate this
-            return
-            # return self.mturkservice.expire_hit(
-            #    self.current_hit_id(),
-            # )
-        except MTurkServiceException as ex:
-            logger.exception(str(ex))
+        # We are not expiring the hit currently as notifications are failing
+        # TODO: Reinstate this
+        # try:
+        #     return self.mturkservice.expire_hit(
+        #         self.current_hit_id(),
+        #     )
+        # except MTurkServiceException as ex:
+        #     logger.exception(str(ex))
 
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
@@ -609,11 +605,11 @@ class MultiRecruiter(Recruiter):
             recruiter = self.pick_recruiter()
             if recruiter.nickname in messages:
                 result = recruiter.recruit(1)
+                recruitments.extend(result)
             else:
                 result = recruiter.open_recruitment(1)
+                recruitments.extend(result['items'])
                 messages[recruiter.nickname] = result['message']
-            recruitments.extend(result['items'])
-
         return {
             'items': recruitments,
             'message': '\n'.join(messages.values())
