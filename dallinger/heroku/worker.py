@@ -10,6 +10,10 @@ conn = redis.from_url(redis_url)
 
 if __name__ == '__main__':  # pragma: nocover
 
+    # Make sure gevent patches are applied early.
+    import gevent.monkey
+    gevent.monkey.patch_all()
+
     # These imports are inside the __main__ block
     # to make sure that we only import from rq_gevent_worker
     # (which has the side effect of applying gevent monkey patches)
@@ -19,10 +23,7 @@ if __name__ == '__main__':  # pragma: nocover
         Queue,
         Connection
     )
-    try:
-        from rq_gevent_worker import GeventWorker as Worker
-    except ImportError:
-        from rq import Worker
+    from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
 
     from dallinger.config import initialize_experiment_package
     initialize_experiment_package(os.getcwd())
