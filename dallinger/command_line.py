@@ -43,6 +43,7 @@ from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp
 from dallinger.mturk import MTurkService
+from dallinger.mturk import MTurkServiceException
 from dallinger import recruiters
 from dallinger import registration
 from dallinger.utils import check_call
@@ -618,6 +619,17 @@ def _deploy_in_mode(mode, app, verbose):
     deploy_sandbox_shared_setup(verbose=verbose, app=app)
 
 
+def _mturk_service_from_config(sandbox):
+    config = get_config()
+    config.load()
+    return MTurkService(
+        aws_access_key_id=config.get('aws_access_key_id'),
+        aws_secret_access_key=config.get('aws_secret_access_key'),
+        region_name=config.get('aws_region'),
+        sandbox=sandbox,
+    )
+
+
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='Experiment id')
@@ -650,15 +662,7 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
         raise click.BadParameter(
             'Must specify a qualification ID, value/score, and at least one worker ID'
         )
-
-    config = get_config()
-    config.load()
-    mturk = MTurkService(
-        aws_access_key_id=config.get('aws_access_key_id'),
-        aws_secret_access_key=config.get('aws_secret_access_key'),
-        region_name=config.get('aws_region'),
-        sandbox=sandbox,
-    )
+    mturk = _mturk_service_from_config(sandbox)
     if by_name:
         result = mturk.get_qualification_type_by_name(qualification)
         if result is None:
@@ -714,12 +718,73 @@ def hibernate(app):
         heroku_app.addon_destroy(addon)
 
 
+def _current_hits(service, app):
+    return service.get_hits(
+        hit_filter=lambda h: h.get('annotation') == app
+    )
+
+
+@dallinger.command()
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
+@click.option('--sandbox', is_flag=True, flag_value=True,
+              help='Is the app running in the sandbox?')
+def hits(app, sandbox):
+    """List hits for an experiment id."""
+    hit_list = list(_current_hits(_mturk_service_from_config(sandbox), app))
+    out = Output()
+    out.log('Found {} hits for this experiment id: {}'.format(
+        len(hit_list), ', '.join(h['id'] for h in hit_list)
+    ))
+
+
+@dallinger.command()
+@click.option('--app', default=None, callback=verify_id, help='Experiment id')
+@click.option('--sandbox', is_flag=True, flag_value=True,
+              help='Is the app running in the sandbox?')
+def expire(app, sandbox):
+    """Expire hits for an experiment id."""
+    success = []
+    failures = []
+    service = _mturk_service_from_config(sandbox)
+    hits = _current_hits(service, app)
+    for hit in hits:
+        hit_id = hit['id']
+        try:
+            service.expire_hit(hit_id)
+            success.append(hit_id)
+        except MTurkServiceException:
+            failures.append(hit_id)
+    out = Output()
+    if success:
+        out.log('Expired {} hits: {}'.format(len(success), ', '.join(success)))
+    if failures:
+        out.log('Could not expire {} hits: {}'.format(
+            len(failures), ', '.join(failures)
+        ))
+    if not success and not failures:
+        out.log('No hits found for this application.')
+        if not sandbox:
+            out.log(
+                'If this experiment was run in the MTurk sandbox, use: '
+                '`dallinger expire --sandbox --app {}'.format(app)
+            )
+
+
 @dallinger.command()
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.confirmation_option(prompt='Are you sure you want to destroy the app?')
-def destroy(app):
+@click.option(
+    '--expire-hit', is_flag=True, flag_value=True,
+    prompt='Would you like to expire all hits associated with this experiment id?',
+    help='Expire any hits associated with this experiment.')
+@click.option('--sandbox', is_flag=True, flag_value=True,
+              help='Is the app running in the sandbox?')
+@click.pass_context
+def destroy(ctx, app, expire_hit, sandbox):
     """Tear down an experiment server."""
     HerokuApp(app).destroy()
+    if expire_hit:
+        ctx.invoke(expire, app=app, sandbox=sandbox)
 
 
 @dallinger.command()

@@ -356,6 +356,7 @@ class TestMTurkRecruiter(object):
             title=u'fake experiment title',
             us_only=True,
             blacklist=[],
+            annotation='some experiment uid',
         )
 
     def test_open_recruitment_creates_qualifications_for_experiment_app_id(self, recruiter):
@@ -396,6 +397,7 @@ class TestMTurkRecruiter(object):
             title='fake experiment title',
             us_only=True,
             blacklist=['foo', 'bar'],
+            annotation='some experiment uid',
         )
 
     def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
@@ -567,6 +569,7 @@ class TestMTurkLargeRecruiter(object):
             title='fake experiment title',
             us_only=True,
             blacklist=[],
+            annotation='some experiment uid',
         )
 
     def test_more_than_ten_can_be_recruited_on_open(self, recruiter):
@@ -584,6 +587,7 @@ class TestMTurkLargeRecruiter(object):
             title='fake experiment title',
             us_only=True,
             blacklist=[],
+            annotation='some experiment uid',
         )
 
     def test_recruit_participants_auto_recruit_on_recruits_for_current_hit(self, recruiter):
