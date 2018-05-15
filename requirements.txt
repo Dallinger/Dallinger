@@ -16,7 +16,7 @@ psutil==5.4.4
 redis==2.10.6
 requests==2.18.4
 rq==0.10.0
-selenium==3.11.0
+selenium==3.12.0
 six==1.11.0
 SQLAlchemy==1.2.7
 sqlalchemy-postgres-copy==0.5.0
