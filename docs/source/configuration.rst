@@ -87,6 +87,9 @@ Built-in configuration parameters include:
 ``dyno_type``
     Heroku dyno type to use. See `Heroku dynos types <https://devcenter.heroku.com/articles/dyno-types>`__.
 
+``redis_size``
+    Size of the redis server on Heroku. See `Heroku Redis <https://elements.heroku.com/addons/heroku-redis>`__.
+
 ``num_dynos_web``
     Number of Heroku dynos to use for processing incoming HTTP requests. It is
     recommended that you use at least two.
