@@ -12,3 +12,6 @@ coverage:
 comment:
   layout: "header, diff"
   behavior: default
+
+ignore:
+  - "dallinger/heroku/rq_gevent_worker.py"
