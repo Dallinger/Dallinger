@@ -1,5 +1,29 @@
 # Change Log
 
+## [v4.0.0](https://github.com/dallinger/dallinger/tree/v4.0.0) (2018-05-15)
+
+- **Feature** Python 3 support (tested with Python 3.6.4)
+
+- **Feature** New `dallinger hits` command lists all Mechanical Turk HITs associated with an experiment ID
+
+- **Feature** New `dallinger expire` command expires all Mechanical Turk HITs associated with an experiment ID
+
+- **Feature** New `--expire-hit` option to `dallinger destroy` will expire any associated Mechanical Turk HITs prior to destroying the deployed experiment server
+
+- **Feature** Support for high performance bots which interact with the experiment server via HTTP requests or other backend means rather than via a browser + Selenium
+
+- **Feature** Jupyter Notebook widget displays the experiment name, configuration, and status
+
+- **Feature** New index page at the server's root url (`/`) displays the experiments active configuration
+
+- Automatically put Flask server in debug mode if the experiment is run in that mode
+
+- Improvements to exception handling and error reporting
+
+- Show an alert if `dallinger2.js` and the legacy `dallinger.js` are loaded together on the same page
+
+- Miscellaneous bug fixes
+
 ## [v3.5.0](https://github.com/dallinger/dallinger/tree/v3.5.0) (2018-03-07)
 
 - **Feature** Email notifications are sent to experiment owners if their deployed experiment has been idle for 6 hours or more
