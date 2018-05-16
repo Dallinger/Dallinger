@@ -996,12 +996,13 @@ class TestAwaken(object):
         expected = mock.call('heroku-postgresql:{}'.format(size))
         assert expected == heroku.addon.call_args_list[0]
 
-    def test_adds_redis(self, awaken, heroku, data):
+    def test_adds_redis(self, awaken, heroku, data, active_config):
+        active_config['redis_size'] = u'premium-2'
         CliRunner().invoke(
             awaken,
             ['--app', 'some-app-uid', ]
         )
-        assert mock.call('heroku-redis:premium-0') == heroku.addon.call_args_list[1]
+        assert mock.call('heroku-redis:premium-2') == heroku.addon.call_args_list[1]
 
     def test_restores_database_from_backup(self, awaken, heroku, data):
         CliRunner().invoke(
