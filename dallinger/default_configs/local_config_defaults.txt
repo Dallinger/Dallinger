@@ -1,5 +1,6 @@
 [Experiment]
 mode = debug
+assign_qualifications = true
 
 [Database]
 database_url = postgresql://postgres@localhost/dallinger

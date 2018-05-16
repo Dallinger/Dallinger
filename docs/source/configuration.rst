@@ -64,6 +64,13 @@ Built-in configuration parameters include:
 ``auto_recruit``
     Whether recruitment should be automatic.
 
+``assign_qualifications``
+    A boolean which controls whether an experiment-specific qualification
+    (based on the experiment ID), and a group qualification (based on the value
+    of ``group_name``) will be assigned to participants by the recruiter.
+    This feature assumes the recruiter supports qualifications, like Amazon
+    Mechanical Turk does.
+
 ``group_name``
     A string. *Unicode string*.
 

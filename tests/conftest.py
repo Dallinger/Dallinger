@@ -275,6 +275,7 @@ def stub_config():
     defaults = {
         u'ad_group': u'Test ad group',
         u'approve_requirement': 95,
+        u'assign_qualifications': True,
         u'auto_recruit': True,
         u'aws_access_key_id': u'fake aws key',
         u'aws_secret_access_key': u'fake aws secret',

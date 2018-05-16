@@ -295,7 +295,8 @@ class MTurkRecruiter(Recruiter):
 
         self.mturkservice.check_credentials()
 
-        self._create_mturk_qualifications()
+        if self.config.get('assign_qualifications'):
+            self._create_mturk_qualifications()
 
         hit_request = {
             'max_assignments': n,
