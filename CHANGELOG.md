@@ -4,6 +4,8 @@
 
 - **Feature** Python 3 support (tested with Python 3.6.4)
 
+- **Feature** Add MultiRecruiter for mixed human-bot participants
+
 - **Feature** New `dallinger hits` command lists all Mechanical Turk HITs associated with an experiment ID
 
 - **Feature** New `dallinger expire` command expires all Mechanical Turk HITs associated with an experiment ID
@@ -16,11 +18,19 @@
 
 - **Feature** New index page at the server's root url (`/`) displays the experiments active configuration
 
+- **Feature** Size configuration of Heroku's Redis add-on via the `redis-size` config variable (defaults to `premium-0`)
+
+- **Feature** New config parameter `assign_qualifications` to expand experimenter qualification options
+
 - Automatically put Flask server in debug mode if the experiment is run in that mode
 
 - Improvements to exception handling and error reporting
 
 - Show an alert if `dallinger2.js` and the legacy `dallinger.js` are loaded together on the same page
+
+- Cleanup git status, psycopg2 warnings, and tests
+
+- Increase MTurk bump timeout from 30 to 60 seconds
 
 - Miscellaneous bug fixes
 
