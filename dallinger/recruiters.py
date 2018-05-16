@@ -348,6 +348,9 @@ class MTurkRecruiter(Recruiter):
         """Assign a Qualification to the Participant for the experiment ID,
         and for the configured group_name, if it's been set.
         """
+        if not self.config.get('assign_qualifications'):
+            return
+
         worker_id = participant.worker_id
 
         for name in self.qualifications:
