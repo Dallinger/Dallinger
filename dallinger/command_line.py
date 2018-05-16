@@ -248,6 +248,9 @@ def verify_package(verbose=True):
     return is_passing
 
 
+click.disable_unicode_literals_warning = True
+
+
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
 def dallinger():
