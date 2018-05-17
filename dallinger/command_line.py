@@ -728,8 +728,10 @@ def revoke(workers, qualification, by_name, reason, sandbox):
         qid = qualification
 
     if not click.confirm(
-        'Are you sure you want to revoke qualification "{}" '
-        'for these workers?\n\t{}\n'.format(qid, '\n\t'.join(workers))
+        '\n\nYou are about to revoke qualification "{}" '
+        'for these workers\n\t{}\n\n'
+        'This will send an email to each of them from Amazon MTurk. '
+        'Continue?'.format(qid, '\n\t'.join(workers))
     ):
         click.echo('Aborting...')
         return
