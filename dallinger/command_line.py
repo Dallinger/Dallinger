@@ -710,8 +710,7 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
 @click.argument('workers', nargs=-1)
 def revoke(workers, qualification, by_name, reason, sandbox):
     """Revoke a qualification from 1 or more workers"""
-
-    if not (workers):
+    if not (workers and qualification):
         raise click.BadParameter(
             'Must specify a qualification ID or name, and at least one worker ID'
         )

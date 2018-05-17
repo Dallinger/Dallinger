@@ -1039,6 +1039,17 @@ class TestRevoke(object):
         assert result.exit_code != 0
         assert 'at least one worker ID' in result.output
 
+    def test_raises_with_no_qualification(self, revoke, mturk):
+        result = CliRunner().invoke(
+            revoke,
+            [
+                u'some worker id',
+            ],
+            input=self.DO_IT,
+        )
+        assert result.exit_code != 0
+        assert 'at least one worker ID' in result.output
+
     def test_revoke_for_multiple_workers(self, revoke, mturk):
         result = CliRunner().invoke(
             revoke,
