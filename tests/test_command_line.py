@@ -949,6 +949,9 @@ class TestQualify(object):
 
 class TestRevoke(object):
 
+    DO_IT = 'Y\n'
+    DO_NOT_DO_IT = 'N\n'
+
     @pytest.fixture
     def revoke(self):
         from dallinger.command_line import revoke
@@ -974,7 +977,7 @@ class TestRevoke(object):
                 '--reason', 'some reason',
                 'some worker id',
             ],
-            input='Y\n',
+            input=self.DO_IT,
         )
         assert result.exit_code == 0
         mturk.revoke_qualification.assert_called_once_with(
@@ -989,7 +992,7 @@ class TestRevoke(object):
                 '--reason', 'some reason',
                 'some worker id',
             ],
-            input='N\n',
+            input=self.DO_NOT_DO_IT,
         )
         assert result.exit_code == 0
         mturk.revoke_qualification.assert_not_called()
@@ -1005,7 +1008,7 @@ class TestRevoke(object):
                     '--reason', 'some reason',
                     'some worker id',
                 ],
-                input='Y\n',
+                input=self.DO_IT,
             )
             assert 'sandbox=True' in str(mock_mturk.call_args_list[0])
 
@@ -1016,7 +1019,7 @@ class TestRevoke(object):
                 '--qualification', 'some qid',
                 'some worker id',
             ],
-            input='Y\n',
+            input=self.DO_IT,
         )
         assert result.exit_code == 0
         mturk.revoke_qualification.assert_called_once_with(
@@ -1031,7 +1034,7 @@ class TestRevoke(object):
             [
                 '--qualification', 'some qid',
             ],
-            input='Y\n',
+            input=self.DO_IT,
         )
         assert result.exit_code != 0
         assert 'at least one worker ID' in result.output
@@ -1044,7 +1047,7 @@ class TestRevoke(object):
                 '--reason', 'some reason',
                 'worker1', 'worker2',
             ],
-            input='Y\n',
+            input=self.DO_IT,
         )
         assert result.exit_code == 0
         mturk.revoke_qualification.assert_has_calls([
@@ -1062,7 +1065,7 @@ class TestRevoke(object):
                 '--by_name',
                 'some worker id',
             ],
-            input='Y\n',
+            input=self.DO_IT,
         )
         assert result.exit_code == 0
         mturk.revoke_qualification.assert_called_once_with(
@@ -1079,7 +1082,7 @@ class TestRevoke(object):
                 '--by_name',
                 'some worker id',
             ],
-            input='Y\n',
+            input=self.DO_IT,
         )
         assert result.exit_code == 2
         assert 'No qualification with name "some bad name" exists.' in result.output
