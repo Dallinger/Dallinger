@@ -729,7 +729,7 @@ def revoke(workers, qualification, by_name, reason, sandbox):
 
     if not click.confirm(
         '\n\nYou are about to revoke qualification "{}" '
-        'for these workers\n\t{}\n\n'
+        'for these workers:\n\t{}\n\n'
         'This will send an email to each of them from Amazon MTurk. '
         'Continue?'.format(qid, '\n\t'.join(workers))
     ):
