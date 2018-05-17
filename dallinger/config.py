@@ -58,6 +58,7 @@ default_keys = (
     ('port', int, ['PORT']),
     ('qualification_blacklist', six.text_type, []),
     ('recruiter', six.text_type, []),
+    ('redis_size', six.text_type, []),
     ('replay', bool, []),
     ('threads', six.text_type, []),
     ('title', six.text_type, []),

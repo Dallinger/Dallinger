@@ -248,6 +248,9 @@ def verify_package(verbose=True):
     return is_passing
 
 
+click.disable_unicode_literals_warning = True
+
+
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
 def dallinger():
@@ -520,9 +523,10 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
 
     # Set up add-ons and AWS environment variables.
     database_size = config.get('database_size')
+    redis_size = config.get('redis_size', 'premium-0')
     addons = [
         "heroku-postgresql:{}".format(quote(database_size)),
-        "heroku-redis:premium-0",
+        "heroku-redis:{}".format(quote(redis_size)),
         "papertrail"
     ]
     if config.get("sentry", False):
@@ -807,7 +811,9 @@ def awaken(app, databaseurl):
     heroku_app.pg_wait()
     time.sleep(10)
 
-    heroku_app.addon("heroku-redis:premium-0")
+    heroku_app.addon("heroku-redis:{}".format(config.get(
+        'redis_size', 'premium-0'
+    )))
     heroku_app.restore(url)
 
     # Scale up the dynos.

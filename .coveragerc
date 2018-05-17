@@ -2,6 +2,8 @@
 branch = True
 source = dallinger
 parallel = True
+omit =
+    dallinger/heroku/rq_gevent_worker.py
 
 [report]
 fail_under = 61
