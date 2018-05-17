@@ -700,6 +700,54 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
 
 
 @dallinger.command()
+@click.option('--qualification')
+@click.option('--by_name', is_flag=True, flag_value=True,
+              help='Use a qualification name, not an ID')
+@click.option('--reason',
+              default='Revoking automatically assigned Dallinger qualification',
+              help='Reason for revoking qualification')
+@click.option('--sandbox', is_flag=True, flag_value=True, help='Use the MTurk sandbox')
+@click.argument('workers', nargs=-1)
+def revoke(workers, qualification, by_name, reason, sandbox):
+    """Revoke a qualification from 1 or more workers"""
+
+    if not (workers):
+        raise click.BadParameter(
+            'Must specify a qualification ID or name, and at least one worker ID'
+        )
+
+    mturk = _mturk_service_from_config(sandbox)
+    if by_name:
+        result = mturk.get_qualification_type_by_name(qualification)
+        if result is None:
+            raise click.BadParameter(
+                'No qualification with name "{}" exists.'.format(qualification))
+
+        qid = result['id']
+    else:
+        qid = qualification
+
+    if not click.confirm(
+        'Are you sure you want to revoke qualification "{}" '
+        'for these workers?\n\t{}\n'.format(qid, '\n\t'.join(workers))
+    ):
+        click.echo('Aborting...')
+        return
+
+    for worker in workers:
+        if mturk.revoke_qualification(qid, worker, reason):
+            click.echo(
+                'Revoked qualification "{}" from worker "{}"'.format(qid, worker)
+            )
+
+    # print out the current set of workers with the qualification
+    results = list(mturk.get_workers_with_qualification(qid))
+    click.echo(
+        'There are now {} workers with qualification "{}"'.format(len(results), qid)
+    )
+
+
+@dallinger.command()
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 def hibernate(app):
     """Pause an experiment and remove costly resources."""
