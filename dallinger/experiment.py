@@ -471,8 +471,7 @@ class Experiment(object):
         """
         import dallinger as dlgr
 
-        if app_id is None:
-            app_id = self.make_uuid()
+        app_id = self.make_uuid(str(app_id))
 
         if bot:
             kwargs['recruiter'] = 'bots'
@@ -550,8 +549,13 @@ class Experiment(object):
         return self.run(exp_config, app_id, bot, **kwargs)
 
     @classmethod
-    def make_uuid(cls):
+    def make_uuid(cls, app_id=None):
         """Generate a new uuid."""
+        try:
+            if app_id and isinstance(uuid.UUID(app_id, version=4), uuid.UUID):
+                return app_id
+        except (ValueError, AssertionError):
+            pass
         return str(uuid.UUID(int=random.getrandbits(128)))
 
     def experiment_completed(self):

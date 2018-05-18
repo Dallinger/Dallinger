@@ -308,7 +308,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
-    generated_uid = public_id = Experiment.make_uuid()
+    generated_uid = public_id = Experiment.make_uuid(str(app))
 
     # If the user provided an app name, use it everywhere that's user-facing.
     if app:
