@@ -471,7 +471,7 @@ class Experiment(object):
         """
         import dallinger as dlgr
 
-        app_id = self.make_uuid(str(app_id))
+        app_id = self.make_uuid(app_id)
 
         if bot:
             kwargs['recruiter'] = 'bots'
@@ -552,7 +552,7 @@ class Experiment(object):
     def make_uuid(cls, app_id=None):
         """Generate a new uuid."""
         try:
-            if app_id and isinstance(uuid.UUID(app_id, version=4), uuid.UUID):
+            if app_id and isinstance(uuid.UUID(str(app_id), version=4), uuid.UUID):
                 return app_id
         except (ValueError, AssertionError):
             pass
