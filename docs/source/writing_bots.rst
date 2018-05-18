@@ -12,10 +12,18 @@ experiment by controlling a real browser using ``selenium``) or
 :py:class:`~HighPerformanceBotBase` (for bots that
 interact with the experiment server directly via HTTP or websockets).
 
-This class should implement the ``participate`` method, which will be called once
-the bot has navigated to the main experiment. Note, the BotBase class makes some
-assumptions about HTML structure, based on the demo experiments. If your HTML
-differs significantly you may need to override other methods too.
+The interaction of the base bots with the experiment takes place in several phases:
+
+1. Signup (including creating a Participant)
+2. Participation in the experiment
+3. Signoff (including completing the questionnaire)
+4. Recording completion (complete or failed)
+
+To build a bot, you will definitely need to implement the ``participate`` method
+which will be called once the bot has navigated to the main experiment page.
+If the structure of your ad, consent, instructions or questionnaire pages
+differs significantly from the demo experiments, you may need to override other
+methods too.
 
 
 High-performance bots
@@ -25,6 +33,16 @@ The :py:class:`HighPerformanceBotBase` can be used as a basis for a bot that
 interacts with the experiment server directly over HTTP rather than using a real browser.
 This scales better than using Selenium bots, but requires expressing the bot's
 behavior in terms of HTTP requests rather than in terms of DOM interactions.
+
+For a guide to Dallinger's web API, see :doc:`web_api`.
+
+For an example of a high-performance bot implementation, see the `Griduniverse bots`_.
+These bots interact primarily via websockets rather than HTTP.
+
+.. _`Griduniverse bots`: https://github.com/Dallinger/Griduniverse/blob/master/dlgr/griduniverse/bots.py
+
+API documentation
+*****************
 
 .. autoclass:: HighPerformanceBotBase
   :members:
@@ -50,6 +68,16 @@ We recommend using Firefox when writing bots, as it allows you to visually see
 its output and allows you to attach the development console directly to the
 bot's browser session.
 
+For an example of a selenium bot implementation, see the `Bartlett1932 bots`_.
+
+For documentation of the Python Selenium WebDriver API, see `Selenium with Python`_.
+
+.. _`Bartlett1932 bots`: https://github.com/Dallinger/Dallinger/blob/master/demos/dlgr/demos/bartlett1932/experiment.py
+.. _`Selenium with Python`: http://selenium-python.readthedocs.io/index.html
+
+
+API documentation
+*****************
 
 .. autoclass:: BotBase
   :members:

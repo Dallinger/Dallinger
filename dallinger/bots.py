@@ -90,7 +90,11 @@ class BotBase(object):
         return driver
 
     def sign_up(self):
-        """Accept HIT, give consent and start experiment."""
+        """Accept HIT, give consent and start experiment.
+
+        This uses Selenium to click through buttons on the ad,
+        consent, and instruction pages.
+        """
         try:
             self.driver.get(self.URL)
             logger.info("Loaded ad page.")
@@ -117,16 +121,26 @@ class BotBase(object):
             return False
 
     def participate(self):
-        """Participate in the experiment."""
+        """Participate in the experiment.
+
+        This method must be implemented by subclasses of ``BotBase``.
+        """
         logger.error("Bot class does not define participate method.")
         raise NotImplementedError
 
     def complete_questionnaire(self):
-        """Complete the standard debriefing form."""
+        """Complete the standard debriefing form.
+
+        This does nothing unless overridden by a subclass.
+        """
         pass
 
     def sign_off(self):
-        """Submit questionnaire and finish."""
+        """Submit questionnaire and finish.
+
+        This uses Selenium to click the submit button on the questionnaire
+        and return to the original window.
+        """
         try:
             feedback = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((By.ID, 'submit-questionnaire')))
@@ -142,6 +156,9 @@ class BotBase(object):
             return False
 
     def complete_experiment(self, status):
+        """Sends worker status ('worker_complete' or 'worker_failed')
+        to the experiment server.
+        """
         url = self.driver.current_url
         p = urllib.parse.urlparse(url)
         complete_url = '%s://%s/%s?participant_id=%s'
@@ -182,6 +199,9 @@ class HighPerformanceBotBase(BotBase):
         return urllib.parse.urlunparse([parsed.scheme, parsed.netloc, '', '', '', ''])
 
     def run_experiment(self):
+        """Runs the phases of interacting with the experiment
+        including signup, participation, signoff, and recording completion.
+        """
         self.sign_up()
         self.participate()
         if self.sign_off():
@@ -190,6 +210,10 @@ class HighPerformanceBotBase(BotBase):
             self.complete_experiment('worker_failed')
 
     def sign_up(self):
+        """Signs up a participant for the experiment.
+
+        This is done using a POST request to the /participant/ endpoint.
+        """
         self.log('Bot player signing up.')
         while True:
             url = (
@@ -213,7 +237,10 @@ class HighPerformanceBotBase(BotBase):
                 return self.participant_id
 
     def sign_off(self):
-        """Submit questionnaire and finish."""
+        """Submit questionnaire and finish.
+
+        This is done using a POST request to the /question/ endpoint.
+        """
         self.log('Bot player signing off.')
         while True:
             question_responses = {"engagement": 4, "difficulty": 3}
@@ -235,6 +262,11 @@ class HighPerformanceBotBase(BotBase):
             return True
 
     def complete_experiment(self, status):
+        """Record worker completion status to the experiment server.
+
+        This is done using a GET request to the /worker_complete
+        or /worker_failed endpoints.
+        """
         self.log('Bot player completing experiment. Status: {}'.format(status))
         while True:
             url = (
