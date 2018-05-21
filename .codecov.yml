@@ -5,7 +5,7 @@ coverage:
 
   status:
     project: true
-      threshold: 0.1
+    threshold: 0.1
     patch: false
     changes: false
 
@@ -14,4 +14,4 @@ comment:
   behavior: default
 
 ignore:
-  - "dallinger/heroku/rq_gevent_worker.py"
+  - "dallinger/heroku/rq_gevent_worker"
