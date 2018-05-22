@@ -95,6 +95,7 @@ class TestHerokuClockTasks(object):
         @staticmethod
         def participant(**kwargs):
             defaults = {
+                'recruiter_id': 'hotair',
                 'worker_id': '1',
                 'hit_id': '1',
                 'assignment_id': '1',

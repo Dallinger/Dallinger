@@ -2,13 +2,16 @@
 
 import logging
 import os
-import sys
+import re
 
 from rq import Queue
+from sqlalchemy import func
 
 from dallinger.config import get_config
+from dallinger.db import session
 from dallinger.heroku.worker import conn
 from dallinger.models import Participant
+from dallinger.models import Recruitment
 from dallinger.mturk import MTurkService
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkServiceException
@@ -33,6 +36,7 @@ CLOSE_RECRUITMENT_LOG_PREFIX = 'Close recruitment.'
 class Recruiter(object):
     """The base recruiter."""
 
+    nickname = None
     external_submission_url = None  # MTurkRecruiter, for one, overides this
 
     def __init__(self):
@@ -47,7 +51,7 @@ class Recruiter(object):
         """
         return self
 
-    def open_recruitment(self):
+    def open_recruitment(self, n=1):
         """Return a list of one or more initial recruitment URLs and an initial
         recruitment message:
         {
@@ -106,6 +110,8 @@ class CLIRecruiter(Recruiter):
     assigment.
     """
 
+    nickname = 'cli'
+
     def __init__(self):
         super(CLIRecruiter, self).__init__()
         self.config = get_config()
@@ -131,10 +137,11 @@ class CLIRecruiter(Recruiter):
     def recruit(self, n=1):
         """Generate experiemnt URLs and print them to the console."""
         urls = []
-        template = "{}/ad?assignmentId={}&hitId={}&workerId={}&mode={}"
+        template = "{}/ad?recruiter={}&assignmentId={}&hitId={}&workerId={}&mode={}"
         for i in range(n):
             ad_url = template.format(
                 get_base_url(),
+                self.nickname,
                 generate_random_id(),
                 generate_random_id(),
                 generate_random_id(),
@@ -173,6 +180,9 @@ class HotAirRecruiter(CLIRecruiter):
     - Always invokes templates in debug mode
     - Prints experiment /ad URLs to the console
     """
+
+    nickname = 'hotair'
+
     def open_recruitment(self, n=1):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
@@ -201,6 +211,8 @@ class HotAirRecruiter(CLIRecruiter):
 class SimulatedRecruiter(Recruiter):
     """A recruiter that recruits simulated participants."""
 
+    nickname = 'sim'
+
     def open_recruitment(self, n=1):
         """Open recruitment."""
         return {
@@ -224,13 +236,18 @@ class MTurkRecruiterException(Exception):
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
+    nickname = 'mturk'
+
     experiment_qualification_desc = 'Experiment-specific qualification'
     group_qualification_desc = 'Experiment group qualification'
 
     def __init__(self):
         super(MTurkRecruiter, self).__init__()
         self.config = get_config()
-        self.ad_url = '{}/ad'.format(get_base_url())
+        self.ad_url = '{}/ad?recruiter={}'.format(
+            get_base_url(),
+            self.nickname,
+        )
         self.hit_domain = os.getenv('HOST')
         self.mturkservice = MTurkService(
             self.config.get('aws_access_key_id'),
@@ -238,9 +255,9 @@ class MTurkRecruiter(Recruiter):
             self.config.get('aws_region'),
             self.config.get('mode') != "live"
         )
-        self._validate_conifg()
+        self._validate_config()
 
-    def _validate_conifg(self):
+    def _validate_config(self):
         mode = self.config.get('mode')
         if mode not in ('sandbox', 'live'):
             raise MTurkRecruiterException(
@@ -326,9 +343,6 @@ class MTurkRecruiter(Recruiter):
         except MTurkServiceException as ex:
             logger.exception(str(ex))
 
-    def notify_recruited(self, participant):
-        pass
-
     def notify_using(self, participant):
         """Assign a Qualification to the Participant for the experiment ID,
         and for the configured group_name, if it's been set.
@@ -395,15 +409,14 @@ class MTurkRecruiter(Recruiter):
         who have already picked up the hit to complete it as normal.
         """
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
-        try:
-            # We are not expiring the hit currently as notifications are failing
-            # TODO: Reinstate this
-            return
-            # return self.mturkservice.expire_hit(
-            #    self.current_hit_id(),
-            # )
-        except MTurkServiceException as ex:
-            logger.exception(str(ex))
+        # We are not expiring the hit currently as notifications are failing
+        # TODO: Reinstate this
+        # try:
+        #     return self.mturkservice.expire_hit(
+        #         self.current_hit_id(),
+        #     )
+        # except MTurkServiceException as ex:
+        #     logger.exception(str(ex))
 
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
@@ -424,6 +437,9 @@ class MTurkRecruiter(Recruiter):
 
 
 class MTurkLargeRecruiter(MTurkRecruiter):
+
+    nickname = 'mturklarge'
+
     def __init__(self, *args, **kwargs):
         conn.set('num_recruited', 0)
         super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
@@ -457,6 +473,8 @@ class MTurkLargeRecruiter(MTurkRecruiter):
 class BotRecruiter(Recruiter):
     """Recruit bot participants using a queue"""
 
+    nickname = 'bots'
+
     def __init__(self):
         super(BotRecruiter, self).__init__()
         self.config = get_config()
@@ -482,7 +500,7 @@ class BotRecruiter(Recruiter):
             worker = generate_random_id()
             hit = generate_random_id()
             assignment = generate_random_id()
-            ad_parameters = 'assignmentId={}&hitId={}&workerId={}&mode=sandbox'
+            ad_parameters = 'recruiter=bots&assignmentId={}&hitId={}&workerId={}&mode=sandbox'
             ad_parameters = ad_parameters.format(assignment, hit, worker)
             url = '{}/ad?{}'.format(base_url, ad_parameters)
             urls.append(url)
@@ -517,6 +535,99 @@ class BotRecruiter(Recruiter):
         return Bot
 
 
+class MultiRecruiter(Recruiter):
+
+    nickname = 'multi'
+
+    # recruiter spec e.g. recruiters = bots: 5, mturk: 1
+    SPEC_RE = re.compile(r'(\w+):\s*(\d+)')
+
+    def __init__(self):
+        self.spec = self.parse_spec()
+
+    def parse_spec(self):
+        """Parse the specification of how to recruit participants.
+
+        Example: recruiters = bots: 5, mturk: 1
+        """
+        recruiters = []
+        spec = get_config().get('recruiters')
+        for match in self.SPEC_RE.finditer(spec):
+            name = match.group(1)
+            count = int(match.group(2))
+            recruiters.append((name, count))
+        return recruiters
+
+    def pick_recruiter(self):
+        """Pick the next recruiter to use.
+
+        We use the `Recruitment` table in the db to keep track of
+        how many recruitments have been requested using each recruiter.
+        We'll use the first one from the specification that
+        hasn't already reached its quota.
+        """
+        counts = dict(
+            session.query(
+                Recruitment.recruiter_id,
+                func.count(Recruitment.id)
+            ).group_by(Recruitment.recruiter_id).all()
+        )
+
+        for recruiter_id, target_count in self.spec:
+            count = counts.get(recruiter_id, 0)
+            if count >= target_count:
+                # This recruiter quota was reached;
+                # move on to the next one.
+                counts[recruiter_id] = count - target_count
+                continue
+            else:
+                # Quota is still available; let's use it.
+                break
+        else:
+            raise Exception(
+                'Reached quota for all recruiters. '
+                'Not sure which one to use now.'
+            )
+
+        # record the recruitment
+        session.add(Recruitment(recruiter_id=recruiter_id))
+
+        # return an instance of the recruiter
+        return by_name(recruiter_id)
+
+    def open_recruitment(self, n=1):
+        """Return initial experiment URL list.
+        """
+        logger.info("Opening recruitment.")
+        recruitments = []
+        messages = {}
+        for i in range(n):
+            recruiter = self.pick_recruiter()
+            if recruiter.nickname in messages:
+                result = recruiter.recruit(1)
+                recruitments.extend(result)
+            else:
+                result = recruiter.open_recruitment(1)
+                recruitments.extend(result['items'])
+                messages[recruiter.nickname] = result['message']
+        return {
+            'items': recruitments,
+            'message': '\n'.join(messages.values())
+        }
+
+    def recruit(self, n=1):
+        urls = []
+        for i in range(n):
+            recruiter = self.pick_recruiter()
+            urls.extend(recruiter.recruit(1))
+        return urls
+
+    def close_recruitment(self):
+        for name in set(name for name, count in self.spec):
+            recruiter = by_name(name)
+            recruiter.close_recruitment()
+
+
 def for_experiment(experiment):
     """Return the Recruiter instance for the specified Experiment.
 
@@ -534,19 +645,19 @@ def from_config(config):
     """
     debug_mode = config.get('mode', None) == 'debug'
     name = config.get('recruiter', None)
-    klass = None
-
-    if name is not None:
-        klass = by_name(name)
+    recruiter = None
 
     # Special case 1: Don't use a configured recruiter in replay mode
     if config.get('replay', None):
         return HotAirRecruiter()
 
-    # Special case 2: may run BotRecruiter in any mode (debug or not),
-    # so it trumps everything else:
-    if klass is BotRecruiter:
-        return klass()
+    if name is not None:
+        recruiter = by_name(name)
+
+        # Special case 2: may run BotRecruiter or MultiRecruiter in any mode
+        # (debug or not), so it trumps everything else:
+        if isinstance(recruiter, (BotRecruiter, MultiRecruiter)):
+            return recruiter
 
     # Special case 3: if we're not using bots and we're in debug mode,
     # ignore any configured recruiter:
@@ -554,29 +665,33 @@ def from_config(config):
         return HotAirRecruiter()
 
     # Configured recruiter:
-    if klass is not None:
-        return klass()
+    if recruiter is not None:
+        return recruiter
 
-    if name and klass is None:
+    if name and recruiter is None:
         raise NotImplementedError("No such recruiter {}".format(name))
 
     # Default if we're not in debug mode:
     return MTurkRecruiter()
 
 
-def by_name(name):
-    """Attempt to return a recruiter class by name. Actual class names and
-    known nicknames are both supported.
-    """
-    nicknames = {
-        'bots': BotRecruiter,
-        'hotair': HotAirRecruiter,
-        'mturklarge': MTurkLargeRecruiter
-    }
-    if name in nicknames:
-        return nicknames[name]
+def _descendent_classes(cls):
+    for cls in cls.__subclasses__():
+        yield cls
+        for cls in _descendent_classes(cls):
+            yield cls
 
-    this_module = sys.modules[__name__]
-    klass = getattr(this_module, name, None)
-    if klass is not None and issubclass(klass, Recruiter):
-        return klass
+
+BY_NAME = {}
+for cls in _descendent_classes(Recruiter):
+    BY_NAME[cls.__name__] = BY_NAME[cls.nickname] = cls
+
+
+def by_name(name):
+    """Attempt to return a recruiter class by name.
+
+    Actual class names and known nicknames are both supported.
+    """
+    klass = BY_NAME.get(name)
+    if klass is not None:
+        return klass()

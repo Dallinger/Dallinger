@@ -20,6 +20,7 @@ def test_serialized(db_session):
             interruptor()
 
         session.add(Participant(
+            recruiter_id='hotair',
             worker_id='serialized_{}'.format(count + 1),
             assignment_id='test',
             hit_id='test',

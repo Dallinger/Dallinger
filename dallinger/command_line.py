@@ -935,7 +935,7 @@ class DebugSessionRunner(LocalSessionRunner):
         time.sleep(4)
         try:
             result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
-        except ValueError:
+        except Exception:
             # Show output from server
             self.dispatch[r'POST /launch'] = 'launch_request_complete'
             heroku.monitor(listener=self.notify)

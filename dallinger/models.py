@@ -85,6 +85,9 @@ class Participant(Base, SharedMixin):
     #: A String, the fingerprint hash of the participant.
     fingerprint_hash = Column(String(50), nullable=True)
 
+    #: A String, the nickname of the recruiter used by this participant.
+    recruiter_id = Column(String(50), nullable=True)
+
     #: A String, the worker id of the participant.
     worker_id = Column(String(50), nullable=False)
 
@@ -145,8 +148,9 @@ class Participant(Base, SharedMixin):
         default="working",
         index=True)
 
-    def __init__(self, worker_id, assignment_id, hit_id, mode, fingerprint_hash=None):
+    def __init__(self, recruiter_id, worker_id, assignment_id, hit_id, mode, fingerprint_hash=None):
         """Create a participant."""
+        self.recruiter_id = recruiter_id
         self.worker_id = worker_id
         self.assignment_id = assignment_id
         self.hit_id = hit_id
@@ -159,6 +163,7 @@ class Participant(Base, SharedMixin):
         return {
             "id": self.id,
             "type": self.type,
+            "recruiter": self.recruiter_id,
             "assignment_id": self.assignment_id,
             "hit_id": self.hit_id,
             "mode": self.mode,
@@ -260,6 +265,11 @@ class Participant(Base, SharedMixin):
 
             for q in self.questions():
                 q.fail()
+
+    @property
+    def recruiter(self):
+        from dallinger import recruiters
+        return recruiters.by_name(self.recruiter_id or 'hotair')
 
 
 class Question(Base, SharedMixin):
@@ -1820,3 +1830,12 @@ class Notification(Base, SharedMixin):
 
     # the type of notification
     event_type = Column(String, nullable=False)
+
+
+class Recruitment(Base, SharedMixin):
+    """A record of a request to recruit a participant."""
+
+    __tablename__ = "recruitment"
+
+    #: A String, the nickname of the recruiter used.
+    recruiter_id = Column(String(50), nullable=True)

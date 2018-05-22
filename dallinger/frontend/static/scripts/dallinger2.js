@@ -29,6 +29,7 @@ var dallinger = (function () {
   };
 
   dlgr.identity = {
+    recruiter: dlgr.getUrlParameter('recruiter'),
     hitId: dlgr.getUrlParameter('hit_id'),
     workerId: dlgr.getUrlParameter('worker_id'),
     assignmentId: dlgr.getUrlParameter('assignment_id'),
@@ -116,12 +117,14 @@ var dallinger = (function () {
     // check if the local store is available, and if so, use it.
     var data = {};
     if (typeof store !== "undefined") {
+      data.recruiter = store.get("recruiter");
       data.worker_id = store.get("worker_id");
       data.hit_id = store.get("hit_id");
       data.assignment_id = store.get("assignment_id");
       data.mode = store.get("mode");
       data.fingerprint_hash = store.get("fingerprint_hash");
     } else {
+      data.recruiter = dlgr.identity.recruiter;
       data.worker_id = dlgr.identity.worker_id;
       data.hit_id = dlgr.identity.hit_id;
       data.assignment_id = dlgr.identity.assignment_id;
@@ -140,7 +143,7 @@ var dallinger = (function () {
       type: 'json',
       success: function (resp) { deferred.resolve(resp); },
       error: function (err) {
-        var $form, errorResponse, request_data, worker_id, hit_id, hit_params, assignment_id;
+        var $form, errorResponse, request_data, hit_params;
         console.log(err);
         deferred.reject(err);
         request_data = {
@@ -197,10 +200,9 @@ var dallinger = (function () {
       dlgr.identity.hitId = resp.participant.hit_id;
       dlgr.identity.assignmentId = resp.participant.assignment_id;
       dlgr.identity.workerId = resp.participant.worker_id;
-      var workerComplete = '/worker_complete';
       dlgr.get('/worker_complete', {
         'participant_id': dlgr.identity.participantId
-      }).done(function (resp) {
+      }).done(function () {
         deferred.resolve();
         dallinger.allowExit();
         window.location = "/complete";
@@ -234,7 +236,7 @@ var dallinger = (function () {
     hit_params = get_hit_params();
     url = "/participant/" + hit_params.worker_id + "/" + hit_params.hit_id +
       "/" + hit_params.assignment_id + "/" + hit_params.mode + "?fingerprint_hash=" +
-      (hit_params.fingerprint_hash || fingerprint_hash);
+      (hit_params.fingerprint_hash || fingerprint_hash) + '&recruiter=' + hit_params.recruiter;
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();
