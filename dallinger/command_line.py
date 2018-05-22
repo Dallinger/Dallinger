@@ -770,8 +770,10 @@ def expire(app, sandbox):
         if not sandbox:
             out.log(
                 'If this experiment was run in the MTurk sandbox, use: '
-                '`dallinger expire --sandbox --app {}'.format(app)
+                '`dallinger expire --sandbox --app {}`'.format(app)
             )
+    if not success:
+        sys.exit(1)
 
 
 @dallinger.command()

@@ -343,11 +343,13 @@ class TestMTurkServiceIntegrationSmokeTest(object):
 
         config = standard_hit_config(
             max_assignments=2,
-            blacklist=[qtype['name']]
+            blacklist=[qtype['name']],
+            annotation='test-annotation'
         )
         hit = with_cleanup.create_hit(**config)
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 2
+        assert hit['annotation'] == 'test-annotation'
 
         # There is a lag before extension is possible
         sleep_secs = 2
@@ -438,6 +440,10 @@ class TestMTurkService(object):
         hit = with_cleanup.create_hit(**standard_hit_config(max_assignments=2))
         assert hit['status'] == 'Assignable'
         assert hit['max_assignments'] == 2
+
+    def test_create_hit_with_annotation(self, with_cleanup):
+        hit = with_cleanup.create_hit(**standard_hit_config(annotation='test-exp-id'))
+        assert hit['annotation'] == 'test-exp-id'
 
     def test_create_hit_with_valid_blacklist(self, with_cleanup, qtype):
         hit = with_cleanup.create_hit(**standard_hit_config(blacklist=[qtype['name']]))
