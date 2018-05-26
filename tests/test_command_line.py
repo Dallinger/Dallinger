@@ -947,6 +947,158 @@ class TestQualify(object):
         assert 'No qualification with name "some qual name" exists.' in result.output
 
 
+class TestRevoke(object):
+
+    DO_IT = 'Y\n'
+    DO_NOT_DO_IT = 'N\n'
+
+    @pytest.fixture
+    def revoke(self):
+        from dallinger.command_line import revoke
+        return revoke
+
+    @pytest.fixture
+    def mturk(self):
+        with mock.patch('dallinger.command_line.MTurkService') as mock_mturk:
+            mock_instance = mock.Mock()
+            mock_instance.get_qualification_type_by_name.return_value = 'some qid'
+            mock_instance.get_workers_with_qualification.return_value = [
+                {'id': 'some qid', 'score': 1}
+            ]
+            mock_mturk.return_value = mock_instance
+
+            yield mock_instance
+
+    def test_revoke_single_worker_by_qualification_id(self, revoke, mturk):
+        result = CliRunner().invoke(
+            revoke,
+            [
+                '--qualification', 'some qid',
+                '--reason', 'some reason',
+                'some worker id',
+            ],
+            input=self.DO_IT,
+        )
+        assert result.exit_code == 0
+        mturk.revoke_qualification.assert_called_once_with(
+            u'some qid', u'some worker id', u'some reason'
+        )
+
+    def test_can_be_aborted_cleanly_after_warning(self, revoke, mturk):
+        result = CliRunner().invoke(
+            revoke,
+            [
+                '--qualification', 'some qid',
+                '--reason', 'some reason',
+                'some worker id',
+            ],
+            input=self.DO_NOT_DO_IT,
+        )
+        assert result.exit_code == 0
+        mturk.revoke_qualification.assert_not_called()
+
+    def test_uses_mturk_sandbox_if_specified(self, revoke):
+        with mock.patch('dallinger.command_line.MTurkService') as mock_mturk:
+            mock_mturk.return_value = mock.Mock()
+            CliRunner().invoke(
+                revoke,
+                [
+                    '--sandbox',
+                    '--qualification', 'some qid',
+                    '--reason', 'some reason',
+                    'some worker id',
+                ],
+                input=self.DO_IT,
+            )
+            assert 'sandbox=True' in str(mock_mturk.call_args_list[0])
+
+    def test_reason_has_a_default(self, revoke, mturk):
+        result = CliRunner().invoke(
+            revoke,
+            [
+                '--qualification', 'some qid',
+                'some worker id',
+            ],
+            input=self.DO_IT,
+        )
+        assert result.exit_code == 0
+        mturk.revoke_qualification.assert_called_once_with(
+            u'some qid',
+            u'some worker id',
+            u'Revoking automatically assigned Dallinger qualification'
+        )
+
+    def test_raises_with_no_worker(self, revoke, mturk):
+        result = CliRunner().invoke(
+            revoke,
+            [
+                '--qualification', 'some qid',
+            ],
+            input=self.DO_IT,
+        )
+        assert result.exit_code != 0
+        assert 'at least one worker ID' in result.output
+
+    def test_raises_with_no_qualification(self, revoke, mturk):
+        result = CliRunner().invoke(
+            revoke,
+            [
+                u'some worker id',
+            ],
+            input=self.DO_IT,
+        )
+        assert result.exit_code != 0
+        assert 'at least one worker ID' in result.output
+
+    def test_revoke_for_multiple_workers(self, revoke, mturk):
+        result = CliRunner().invoke(
+            revoke,
+            [
+                '--qualification', 'some qid',
+                '--reason', 'some reason',
+                'worker1', 'worker2',
+            ],
+            input=self.DO_IT,
+        )
+        assert result.exit_code == 0
+        mturk.revoke_qualification.assert_has_calls([
+            mock.call(u'some qid', u'worker1', u'some reason'),
+            mock.call(u'some qid', u'worker2', u'some reason')
+        ])
+
+    def test_use_qualification_name(self, revoke, mturk):
+        mturk.get_qualification_type_by_name.return_value = {'id': 'some qid'}
+        result = CliRunner().invoke(
+            revoke,
+            [
+                '--qualification', 'some qual name',
+                '--reason', 'some reason',
+                '--by_name',
+                'some worker id',
+            ],
+            input=self.DO_IT,
+        )
+        assert result.exit_code == 0
+        mturk.revoke_qualification.assert_called_once_with(
+            u'some qid', u'some worker id', u'some reason'
+        )
+
+    def test_bad_qualification_name_shows_error(self, revoke, mturk):
+        mturk.get_qualification_type_by_name.return_value = None
+        result = CliRunner().invoke(
+            revoke,
+            [
+                '--qualification', 'some bad name',
+                '--reason', 'some reason',
+                '--by_name',
+                'some worker id',
+            ],
+            input=self.DO_IT,
+        )
+        assert result.exit_code == 2
+        assert 'No qualification with name "some bad name" exists.' in result.output
+
+
 class TestHibernate(object):
 
     @pytest.fixture

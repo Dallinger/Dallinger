@@ -380,6 +380,12 @@ class TestMTurkRecruiter(object):
             mock.call(u'some group name', 'Experiment group qualification')
         ], any_order=True)
 
+    def test_open_recruitment_creates_no_qualifications_if_so_configured(self, recruiter):
+        recruiter.config.set('group_name', u'some group name')
+        recruiter.config.set('assign_qualifications', False)
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_qualification_type.assert_not_called()
+
     def test_open_recruitment_when_qualification_already_exists(self, recruiter):
         from dallinger.mturk import DuplicateQualificationNameError
         mturk = recruiter.mturkservice
@@ -530,6 +536,14 @@ class TestMTurkRecruiter(object):
 
         # logs, but does not raise:
         recruiter.notify_using(participant)
+
+    def test_notify_using_skips_assigning_qualification_if_so_configured(self, recruiter):
+        participant = mock.Mock(spec=Participant, worker_id='some worker id')
+        recruiter.config.set('group_name', u'some existing group_name')
+        recruiter.config.set('assign_qualifications', False)
+        recruiter.notify_using(participant)
+
+        recruiter.mturkservice.increment_qualification_score.assert_not_called()
 
     def test_rejects_questionnaire_from_returns_none_if_working(self, recruiter):
         participant = mock.Mock(spec=Participant, status="working")

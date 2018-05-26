@@ -25,6 +25,7 @@ SENSITIVE_KEY_NAMES = (
 default_keys = (
     ('ad_group', six.text_type, []),
     ('approve_requirement', int, []),
+    ('assign_qualifications', bool, []),
     ('auto_recruit', bool, []),
     ('aws_access_key_id', six.text_type, [], True),
     ('aws_region', six.text_type, []),

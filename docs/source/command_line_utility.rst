@@ -62,9 +62,24 @@ the experiment by its id.
 qualify
 ^^^^^^^
 
-Assign qualification to a worker. Requires a qualification id
-``qualification_id``, value ``value``, and worker id ``worker_id``. This is
-useful when compensating workers if something goes wrong with the experiment.
+Assign a Mechanical Turk qualification to one or more workers.
+Requires a ``qualification``, which is a qualification ID, (or, if
+the ``--by_name`` is used, a qualification name), value ``value``,
+and a list of one or more worker IDs, passed at the end of the command.
+This is useful when compensating workers if something goes wrong with
+the experiment.
+
+revoke
+^^^^^^
+
+Revoke a Mechanical Turk qualification for one or more workers.
+Requires a ``qualification``, which is a qualification ID, (or, if
+the ``--by_name`` is used, a qualification name), an optional ``reason``
+string, and a list of one or more MTurk worker IDs.
+This is useful when developing an experiment with "insider" participants,
+who would otherwise be prevented from accepting a HIT for an experiment
+they've already participated in.
+
 
 hibernate
 ^^^^^^^^^
