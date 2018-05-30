@@ -231,7 +231,7 @@ class HighPerformanceBotBase(BotBase):
                 self.stochastic_sleep()
                 continue
 
-            self.upon_signup(result.json())
+            self.on_signup(result.json())
             return True
 
     def sign_off(self):
