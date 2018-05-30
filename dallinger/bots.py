@@ -215,6 +215,7 @@ class HighPerformanceBotBase(BotBase):
         This is done using a POST request to the /participant/ endpoint.
         """
         self.log('Bot player signing up.')
+        self.subscribe_to_quorum_channel()
         while True:
             url = (
                 "{host}/participant/{self.worker_id}/"
@@ -226,15 +227,12 @@ class HighPerformanceBotBase(BotBase):
                 )
             )
             result = requests.post(url)
-            if result.status_code == 500:
+            if result.status_code == 500 or result.json()['status'] == 'error':
                 self.stochastic_sleep()
                 continue
-            elif result.json()['status'] == 'error':
-                self.stochastic_sleep()
-                continue
-            else:
-                self.participant_id = result.json()['participant']['id']
-                return self.participant_id
+
+            self.upon_signup(result.json())
+            return True
 
     def sign_off(self):
         """Submit questionnaire and finish.
@@ -285,3 +283,15 @@ class HighPerformanceBotBase(BotBase):
     def stochastic_sleep(self):
         delay = max(1.0 / random.expovariate(0.5), 10.0)
         gevent.sleep(delay)
+
+    def subscribe_to_quorum_channel(self):
+        """In case the experiment enforces a quorum, listen for notifications
+        before creating Partipant objects.
+        """
+        from dallinger.experiment_server.sockets import chat_backend
+        self.log("Bot subscribing to quorum channel.")
+        chat_backend.subscribe(self, 'quorum')
+
+    def on_signup(self, data):
+        """Take any needed action on response from /participant call."""
+        self.participant_id = data['participant']['id']
