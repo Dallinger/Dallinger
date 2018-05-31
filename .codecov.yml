@@ -6,7 +6,7 @@ coverage:
   status:
     project: true
     threshold: 0.1
-    patch: false
+    patch: true
     changes: false
 
 comment:
