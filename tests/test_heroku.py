@@ -645,13 +645,13 @@ class TestHerokuLocalWrapper(object):
 
     @pytest.fixture
     def config(self):
-        from dallinger.command_line import setup_experiment
+        from dallinger.deployment import setup_experiment
         cwd = os.getcwd()
         config = get_config()
         if not config.ready:
             config.load()
 
-        (id, tmp) = setup_experiment(verbose=True, exp_config={})
+        (id, tmp) = setup_experiment(log=mock.Mock(), exp_config={})
 
         os.chdir(tmp)
         yield config
