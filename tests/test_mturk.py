@@ -896,6 +896,28 @@ class TestMTurkServiceWithFakeConnection(object):
 
         with_mock.mturk.delete_hit.assert_called_once_with(HITId='some hit')
 
+    def test_expire_hit(self, with_mock):
+        with_mock.mturk.configure_mock(**{
+            'update_expiration_for_hit.return_value': True,
+        })
+
+        with_mock.expire_hit('some hit')
+
+        with_mock.mturk.update_expiration_for_hit.assert_called_once_with(
+            HITId='some hit',
+            ExpireAt=0
+        )
+
+    def test_expire_hit_wraps_exception_helpfully(self, with_mock):
+        with_mock.mturk.configure_mock(**{
+            'update_expiration_for_hit.side_effect': Exception("Boom!"),
+        })
+
+        with pytest.raises(MTurkServiceException) as execinfo:
+            with_mock.expire_hit('some hit')
+
+        assert execinfo.match('Failed to expire HIT some hit: Boom!')
+
     def test_get_hits_returns_all_by_default(self, with_mock):
         hr1 = fake_hit_response(Title='One')
         hr2 = fake_hit_response(Title='Two')
