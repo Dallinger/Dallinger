@@ -307,6 +307,9 @@ def _mturk_service_from_config(sandbox):
 @report_idle_after(21600)
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
+    if app:
+        verify_id(None, None, app)
+
     _deploy_in_mode('sandbox', app=app, verbose=verbose, log=log)
 
 
@@ -316,6 +319,9 @@ def sandbox(verbose, app):
 @report_idle_after(21600)
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
+    if app:
+        verify_id(None, None, app)
+
     _deploy_in_mode('live', app=app, verbose=verbose, log=log)
 
 
