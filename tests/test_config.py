@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
 
+import mock
 import os
+import sys
 from tempfile import NamedTemporaryFile
 
 import pexpect
@@ -184,6 +186,17 @@ worldwide = false
         config.clear()
         config.register_extra_parameters()
         config.load_from_file(LOCAL_CONFIG)
+
+    def test_custom_experiment_module_set_and_retained(self):
+        config = get_config()
+        with mock.patch.dict('sys.modules', dallinger_experiment=None):
+            config.register_extra_parameters()
+            assert sys.modules['dallinger_experiment'] is not None
+        exp_module = mock.Mock()
+        with mock.patch.dict('sys.modules', dallinger_experiment=exp_module):
+            config.clear()
+            config.register_extra_parameters()
+            assert sys.modules['dallinger_experiment'] is exp_module
 
     def test_local_base_url(self):
         from dallinger.utils import get_base_url
