@@ -827,9 +827,9 @@ class TestHits(object):
 
     @pytest.fixture
     def output(self):
-        with mock.patch('dallinger.command_line.Output') as mock_data:
+        with mock.patch('dallinger.command_line.CLIPrinter') as mock_printer:
             output_instance = mock.Mock()
-            mock_data.return_value = output_instance
+            mock_printer.return_value = output_instance
             yield output_instance
 
     @pytest.fixture
@@ -883,15 +883,13 @@ class TestHits(object):
         assert result.exit_code == 1
         mturk_instance.get_hits.assert_called_once()
         mturk_instance.expire_hit.assert_not_called()
-        assert output.log.call_count == 2
-
-        output.log.assert_has_calls([
-            mock.call('No hits found for this application.'),
-            mock.call(
-                'If this experiment was run in the MTurk sandbox, use: '
-                '`dallinger expire --sandbox --app exp-id-2`'
-            )
-        ])
+        output.heading.assert_called_once_with(
+            'No hits found for this application.'
+        )
+        output.log.assert_called_once_with(
+            'If this experiment was run in the MTurk sandbox, use: '
+            '`dallinger expire --sandbox --app exp-id-2`'
+        )
 
     def test_expire_no_hits_sandbox(self, expire, mturk, output):
         mturk_instance = mturk.return_value
@@ -904,7 +902,7 @@ class TestHits(object):
         assert result.exit_code == 1
         mturk_instance.get_hits.assert_called_once()
         mturk_instance.expire_hit.assert_not_called()
-        output.log.assert_called_once_with(
+        output.heading.assert_called_once_with(
             'No hits found for this application.'
         )
 
@@ -924,7 +922,7 @@ class TestHits(object):
         assert result.exit_code == 1
         mturk_instance.get_hits.assert_called_once()
         mturk_instance.expire_hit.call_count = 2
-        assert output.log.call_count == 1
+        assert output.heading.call_count == 1
         assert 'Could not expire 2 hits:' in str(
-            output.log.call_args_list[0]
+            output.heading.call_args_list[0]
         )
