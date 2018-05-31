@@ -160,7 +160,11 @@ class Experiment(object):
     def is_overrecruited(self, waiting_count):
         """Returns True if the number of people waiting is in excess of the
         total number expected, indicating that this and subsequent users should
-        skip the experiment"""
+        skip the experiment. A quorum value of 0 means we don't limit
+        recruitment, and always return False.
+        """
+        if not self.quorum:
+            return False
         return waiting_count > self.quorum
 
     def send(self, raw_message):
