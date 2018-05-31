@@ -309,7 +309,7 @@ class TestBot(object):
         from dallinger.command_line import bot_factory
         from dallinger.deployment import setup_experiment
         from dallinger.bots import BotBase
-        setup_experiment(log=mock.Mock(), header='')
+        setup_experiment(log=mock.Mock())
         bot = bot_factory('some url')
         assert isinstance(bot, BotBase)
 

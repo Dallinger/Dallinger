@@ -127,7 +127,7 @@ class TestSetupExperiment(object):
         assert not found_in('worker.py', exp_dir)
         assert not found_in('clock.py', exp_dir)
 
-        exp_id, dst = setup_experiment(log=mock.Mock(), header='')
+        exp_id, dst = setup_experiment(log=mock.Mock())
 
         # dst should be a temp dir with a cloned experiment for deployment
         assert(exp_dir != dst)
@@ -157,7 +157,7 @@ class TestSetupExperiment(object):
         config = get_config()
         assert config.get('num_dynos_web') == 1
 
-        exp_id, dst = setup_experiment(log=mock.Mock(), header='', exp_config={'num_dynos_web': 2})
+        exp_id, dst = setup_experiment(log=mock.Mock(), exp_config={'num_dynos_web': 2})
         # Config is updated
         assert config.get('num_dynos_web') == 2
 
@@ -183,7 +183,7 @@ class TestSetupExperiment(object):
                        'something_sensitive': u'hide this',
                        'something_normal': u'show this'})
 
-        exp_id, dst = setup_experiment(log=mock.Mock(), header='')
+        exp_id, dst = setup_experiment(log=mock.Mock())
 
         # The temp dir should have a config with the sensitive variables missing
         deploy_config = configparser.SafeConfigParser()
@@ -430,7 +430,7 @@ class TestDebugServer(object):
         from dallinger.deployment import DebugDeployment
         debugger = DebugDeployment(
             output, verbose=True, bot=False, proxy_port=None, exp_config={},
-            log=mock.Mock(), header=''
+            log=mock.Mock()
         )
         yield debugger
         if debugger.status_thread:
@@ -541,8 +541,7 @@ class TestLoad(object):
         from dallinger.deployment import ReplayDeployment
         from dallinger.heroku.tools import HerokuLocalWrapper
         loader = ReplayDeployment(
-            self.exp_id, output, verbose=True, exp_config={},
-            log=mock.Mock(), header=''
+            self.exp_id, output, verbose=True, exp_config={}, log=mock.Mock()
         )
         loader.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
 
@@ -553,7 +552,7 @@ class TestLoad(object):
         from dallinger.deployment import ReplayDeployment
         loader = ReplayDeployment(
             self.exp_id, output, verbose=True, exp_config={'replay': True},
-            log=mock.Mock(), header=''
+            log=mock.Mock()
         )
         loader.keep_running = mock.Mock(return_value=False)
 

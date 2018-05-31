@@ -48,10 +48,8 @@ def new_webbrowser_profile():
         return webbrowser
 
 
-def setup_experiment(log, header, debug=True, app=None, exp_config=None):
+def setup_experiment(log, debug=True, app=None, exp_config=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
-    log(header, chevrons=False)
-
     # Verify that the Postgres server is running.
     try:
         psycopg2.connect(database="x", user="postgres", password="nada")
@@ -224,7 +222,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     else:
         out = open(os.devnull, 'w')
 
-    (id, tmp) = setup_experiment(debug=False, app=app, exp_config=exp_config)
+    (id, tmp) = setup_experiment(log, debug=False, app=app, exp_config=exp_config)
 
     config = get_config()  # We know it's ready; setup_experiment() does this.
 
@@ -394,13 +392,12 @@ class HerokuLocalDeployment(object):
     tmp_dir = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output
 
-    def __init__(self, output, verbose, exp_config, log, header):
+    def __init__(self, output, verbose, exp_config, log):
         self.out = output
         self.verbose = verbose
         self.exp_config = exp_config or {}
         self.original_dir = os.getcwd()
         self.log = log
-        self.header = header
 
     def configure(self):
         self.exp_config.update({
@@ -410,7 +407,7 @@ class HerokuLocalDeployment(object):
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
-            self.log, self.header, exp_config=self.exp_config
+            self.log, exp_config=self.exp_config
         )
 
     def update_dir(self):
@@ -464,7 +461,7 @@ class DebugDeployment(HerokuLocalDeployment):
         r'{}$'.format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): 'recruitment_closed',
     }
 
-    def __init__(self, output, verbose, bot, proxy_port, exp_config, log, header):
+    def __init__(self, output, verbose, bot, proxy_port, exp_config, log):
         self.out = output
         self.verbose = verbose
         self.bot = bot
@@ -474,7 +471,6 @@ class DebugDeployment(HerokuLocalDeployment):
         self.complete = False
         self.status_thread = None
         self.log = log
-        self.header = header
 
     def configure(self):
         super(DebugDeployment, self).configure()
@@ -565,7 +561,7 @@ class ReplayDeployment(HerokuLocalDeployment):
         'Replay ready: (.*)$': 'start_replay',
     }
 
-    def __init__(self, app_id, output, verbose, exp_config, log, header):
+    def __init__(self, app_id, output, verbose, exp_config, log):
         self.app_id = app_id
         self.out = output
         self.verbose = verbose
@@ -573,7 +569,6 @@ class ReplayDeployment(HerokuLocalDeployment):
         self.original_dir = os.getcwd()
         self.zip_path = None
         self.log = log
-        self.header = header
 
     def configure(self):
         self.exp_config.update({
@@ -588,7 +583,7 @@ class ReplayDeployment(HerokuLocalDeployment):
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
-            self.log, self.header, app=self.app_id, exp_config=self.exp_config
+            self.log, app=self.app_id, exp_config=self.exp_config
         )
 
     def execute(self, heroku):

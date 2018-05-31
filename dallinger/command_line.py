@@ -287,6 +287,7 @@ def get_summary(app):
 def debug(verbose, bot, proxy, exp_config=None):
     """Run the experiment locally."""
     debugger = DebugDeployment(Output(log=log, error=error), verbose, bot, proxy, exp_config)
+    log(header, chevrons=False)
     debugger.run()
 
 
@@ -309,7 +310,7 @@ def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     if app:
         verify_id(None, None, app)
-
+    log(header, chevrons=False)
     _deploy_in_mode('sandbox', app=app, verbose=verbose, log=log)
 
 
@@ -321,7 +322,7 @@ def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
     if app:
         verify_id(None, None, app)
-
+    log(header, chevrons=False)
     _deploy_in_mode('live', app=app, verbose=verbose, log=log)
 
 
@@ -574,6 +575,7 @@ def load(app, verbose, replay, exp_config=None):
         exp_config = exp_config or {}
         exp_config['replay'] = True
     loader = ReplayDeployment(app, Output(log=log, error=error), verbose, exp_config)
+    log(header, chevrons=False)
     loader.run()
 
 
@@ -626,8 +628,8 @@ def bot(app, debug):
     """Run the experiment bot."""
     if debug is None:
         verify_id(None, None, app)
-
-    (id, tmp) = setup_experiment(log, header)
+    log(header, chevrons=False)
+    (id, tmp) = setup_experiment(log)
 
     if debug:
         url = debug
@@ -653,7 +655,8 @@ def verify():
 @dallinger.command()
 def rq_worker():
     """Start an rq worker in the context of dallinger."""
-    setup_experiment(log, header)
+    log(header, chevrons=False)
+    setup_experiment(log)
     with Connection(conn):
         # right now we care about low queue for bots
         worker = Worker('low')
