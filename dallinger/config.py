@@ -248,7 +248,10 @@ class Configuration(object):
             try:
                 from dallinger_experiment.dallinger_experiment import extra_parameters
             except ImportError:
-                pass
+                try:
+                    from dallinger_experiment import extra_parameters
+                except ImportError:
+                    pass
         if extra_parameters is not None and getattr(extra_parameters, 'loaded', None) is None:
             extra_parameters()
             extra_parameters.loaded = True
@@ -275,10 +278,15 @@ def initialize_experiment_package(path):
     if not os.path.exists(init_py):
         open(init_py, 'a').close()
 
+    # Retain already set experiment module
+    if sys.modules.get('dallinger_experiment') is not None:
+        return
+
     dirname = os.path.dirname(path)
     basename = os.path.basename(path)
     sys.path.insert(0, dirname)
     package = __import__(basename)
+
     sys.modules['dallinger_experiment'] = package
     package.__package__ = 'dallinger_experiment'
     sys.path.pop(0)
