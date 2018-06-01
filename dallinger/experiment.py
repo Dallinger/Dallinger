@@ -659,12 +659,11 @@ class Experiment(object):
         try:
             # Clear the temporary storage and import it
             init_db(drop_all=True, bind=import_engine)
-        except:
+        except Exception:
             create_db_engine = create_engine(db_url)
             conn = create_db_engine.connect()
             conn.execute('COMMIT;')
             conn.execute('CREATE DATABASE "{}"'.format(specific_db_url.rsplit('/', 1)[1]))
-        else:
             import_engine = create_engine(
                 specific_db_url
             )
