@@ -685,7 +685,7 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
             's' if len(workers) > 1 else '')
     )
     for worker in workers:
-        if mturk.set_qualification_score(qid, worker, value, notify=notify):
+        if mturk.set_qualification_score(qid, worker, int(value), notify=notify):
             click.echo('{} OK'.format(worker))
 
     # print out the current set of workers with the qualification

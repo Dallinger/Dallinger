@@ -844,7 +844,7 @@ class TestQualify(object):
             qualify,
             [
                 '--qualification', 'some qid',
-                '--value', qual_value,
+                '--value', six.text_type(qual_value),
                 'some worker id',
             ]
         )
@@ -863,7 +863,7 @@ class TestQualify(object):
                 [
                     '--sandbox',
                     '--qualification', 'some qid',
-                    '--value', qual_value,
+                    '--value', six.text_type(qual_value),
                     'some worker id',
                 ]
             )
@@ -875,7 +875,7 @@ class TestQualify(object):
             qualify,
             [
                 '--qualification', 'some qid',
-                '--value', qual_value,
+                '--value', six.text_type(qual_value),
             ]
         )
         assert result.exit_code != 0
@@ -887,7 +887,7 @@ class TestQualify(object):
             qualify,
             [
                 '--qualification', 'some qid',
-                '--value', qual_value,
+                '--value', six.text_type(qual_value),
                 '--notify',
                 'some worker id',
             ]
@@ -903,7 +903,7 @@ class TestQualify(object):
             qualify,
             [
                 '--qualification', 'some qid',
-                '--value', qual_value,
+                '--value', six.text_type(qual_value),
                 'worker1', 'worker2',
             ]
         )
@@ -920,7 +920,7 @@ class TestQualify(object):
             qualify,
             [
                 '--qualification', 'some qual name',
-                '--value', qual_value,
+                '--value', six.text_type(qual_value),
                 '--by_name',
                 'some worker id',
             ]
@@ -938,7 +938,7 @@ class TestQualify(object):
             qualify,
             [
                 '--qualification', 'some qual name',
-                '--value', qual_value,
+                '--value', six.text_type(qual_value),
                 '--by_name',
                 'some worker id',
             ]
