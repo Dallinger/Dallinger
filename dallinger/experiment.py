@@ -139,8 +139,11 @@ class Experiment(object):
             parent, experiment_module = location.rsplit('.', 1)
             module = import_module(parent + '.jupyter')
         except (ImportError, ValueError):
-            from .jupyter import ExperimentWidget
-            self.widget = ExperimentWidget(self)
+            try:
+                from .jupyter import ExperimentWidget
+                self.widget = ExperimentWidget(self)
+            except ImportError:
+                self.widget = None
         else:
             self.widget = module.ExperimentWidget(self)
 
