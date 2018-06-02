@@ -642,7 +642,17 @@ class Experiment(object):
 
         # Load the configuration system and globals
         config = get_config()
-        config.register_extra_parameters()
+        # Manually load extra parameters and ignore errors
+        try:
+            from dallinger_experiment.experiment import extra_parameters
+            try:
+                extra_parameters()
+                extra_parameters.loaded = True
+            except KeyError:
+                pass
+        except ImportError:
+            pass
+
         config.load()
         self.app_id = self.original_app_id = app_id
         self.session = session
