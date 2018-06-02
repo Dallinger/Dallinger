@@ -765,6 +765,7 @@ class Scrubber(object):
     def __init__(self, experiment, session):
         self.experiment = experiment
         self.session = session
+        self.realtime = False
 
     def __call__(self, time):
         """Scrub to a point in the experiment replay, given by time
@@ -785,14 +786,43 @@ class Scrubber(object):
         # overwrite the original dataset
         self.experiment.app_id = "{}_{}".format(self.experiment.original_app_id, time.isoformat())
 
+    def in_realtime(self, callback=None):
+        exp_start, exp_end = self.experiment._replay_range
+        replay_offset = time.time()
+        current = self.experiment._replay_time_index
+        if current < exp_start:
+            current = exp_start
+        self.realtime = True
+        # Disable the scrubbing slider
+        self.widget.children[0].disabled = True
+        try:
+            while current < exp_end:
+                now = time.time()
+                seconds = now - replay_offset
+                current = current + datetime.timedelta(seconds=seconds)
+                self(current)
+                if callable(callback):
+                    try:
+                        callback()
+                    except StopIteration:
+                        return
+                replay_offset = now
+        finally:
+            self.realtime = False
+            self.widget.children[0].disabled = False
+
     def build_widget(self):
         from ipywidgets import widgets
         start, end = self.experiment._replay_range
         options = []
         current = start
         while current <= end:
+            # Never display microseconds
             options.append((current.replace(microsecond=0).time().isoformat(), current))
             current += datetime.timedelta(seconds=1)
+            # But we need to keep microseconds in the first value, so we don't go before
+            # the experiment start when scrubbing backwards
+            current = current.replace(microsecond=0)
         scrubber = widgets.SelectionSlider(
             description='Current time',
             options=options,
@@ -801,6 +831,10 @@ class Scrubber(object):
         )
 
         def advance(change):
+            if self.realtime:
+                # We're being driven in realtime, the advancement
+                # here is just to keep the UI in sync
+                return
             old_status = self.experiment.widget.status
             self.experiment.widget.status = 'Updating'
             self.experiment.widget.render()
@@ -808,8 +842,42 @@ class Scrubber(object):
             self.experiment.widget.status = old_status
             self.experiment.widget.render()
         scrubber.observe(advance, 'value')
-        self.widget = scrubber
-        return scrubber
+
+        def realtime_callback():
+            self.experiment.widget.render()
+            try:
+                scrubber.value = self.experiment._replay_time_index.replace(microsecond=0)
+            except Exception:
+                # The scrubber is an approximation of the current time, we shouldn't
+                # bail out if it can't be updated (for example at experiment bounds)
+                pass
+            if not self.realtime:
+                raise StopIteration()
+
+        play_button = widgets.ToggleButton(
+            value=False,
+            description='',
+            disabled=False,
+            tooltip='Play back in realtime',
+            icon='play'
+        )
+
+        def playback(change):
+            import threading
+            if change['new']:
+                thread = threading.Thread(
+                    target=self.in_realtime,
+                    kwargs={
+                        'callback': realtime_callback
+                    }
+                )
+                thread.start()
+            else:
+                self.realtime = False
+        play_button.observe(playback, 'value')
+
+        self.widget = widgets.HBox(children=[scrubber, play_button])
+        return self.widget
 
     def _ipython_display_(self):
         """Display Jupyter Notebook widget"""
