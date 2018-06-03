@@ -527,11 +527,6 @@ class Experiment(object):
         See ``run`` method above for other parameters
         """
         try:
-            orig_path = os.getcwd()
-            new_path = os.path.dirname(
-                sys.modules[self.__class__.__module__].__file__
-            )
-            os.chdir(new_path)
             results = data_load(app_id)
             self.log('Data found for experiment {}, retrieving.'.format(app_id),
                      key="Retrieve:")
@@ -541,8 +536,6 @@ class Experiment(object):
                 'Could not fetch data for id: {}, checking registry'.format(app_id),
                 key="Retrieve:"
             )
-        finally:
-            os.chdir(orig_path)
 
         exp_config = exp_config or {}
         if is_registered(app_id):
