@@ -430,7 +430,7 @@ class HerokuLocalDeployment(object):
         db.init_db(drop_all=True)
         self.out.log("Starting up the server...")
         config = get_config()
-        with HerokuLocalWrapper(config, self.out, verbose=self.verbose) as wrapper:
+        with HerokuLocalWrapper(config, self.out) as wrapper:
             try:
                 self.execute(wrapper)
             except KeyboardInterrupt:

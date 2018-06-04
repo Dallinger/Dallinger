@@ -651,7 +651,7 @@ class TestHerokuLocalWrapper(object):
         if not config.ready:
             config.load()
 
-        (id, tmp) = setup_experiment(log=mock.Mock(), exp_config={})
+        (id, tmp) = setup_experiment(out=mock.Mock(), exp_config={})
 
         os.chdir(tmp)
         yield config
@@ -659,15 +659,8 @@ class TestHerokuLocalWrapper(object):
 
     @pytest.fixture
     def output(self):
-
-        class Output(object):
-
-            def __init__(self):
-                self.log = mock.Mock()
-                self.error = mock.Mock()
-                self.blather = mock.Mock()
-
-        return Output()
+        from dallinger.command_line import CLIPrinter
+        return mock.Mock(spec=CLIPrinter)
 
     @pytest.fixture
     def heroku(self, config, env, output, clear_workers):
@@ -728,11 +721,11 @@ class TestHerokuLocalWrapper(object):
         mock.call("Local Heroku was already terminated.") in heroku.out.log.mock_calls
 
     def test_start_when_shell_command_fails(self, heroku):
+        from dallinger.heroku.tools import HerokuStartupError
         heroku.shell_command = 'nonsense'
-        with pytest.raises(OSError):
+        with pytest.raises(HerokuStartupError) as ex_info:
             heroku.start()
-            heroku.out.error.assert_called_with(
-                "Couldn't start Heroku for local debugging.")
+        assert ex_info.match("Couldn't start Heroku for local debugging.")
 
     def test_stop_before_start_is_noop(self, heroku):
         heroku.stop()
