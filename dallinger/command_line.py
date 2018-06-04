@@ -33,7 +33,6 @@ from dallinger.heroku.messages import get_messenger
 from dallinger.heroku.messages import HITSummary
 from dallinger.deployment import _deploy_in_mode
 from dallinger.deployment import DebugDeployment
-from dallinger.deployment import Output
 from dallinger.deployment import ReplayDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.heroku.messages import EmailingHITMessager
@@ -61,38 +60,25 @@ header = """
 """.format("v" + __version__)
 
 
-def log(msg, delay=0.5, chevrons=True, verbose=True):
-    """Log a message to stdout."""
-    if verbose:
-        if chevrons:
-            click.echo("\n❯❯ " + msg)
-        else:
-            click.echo(msg)
-        time.sleep(delay)
-
-
-def error(msg, delay=0.5, chevrons=True, verbose=True):
-    """Log a message to stdout."""
-    if verbose:
-        if chevrons:
-            click.secho("\n❯❯ " + msg, err=True, fg='red')
-        else:
-            click.secho(msg, err=True, fg='red')
-        time.sleep(delay)
-
-
 class CLIPrinter(object):
+    """Prints to the user's terminal (via click, by default)."""
 
     std_delay = 0.5
     heading_mark = '\n❯❯ '
 
-    def __init__(self, out=click):
+    def __init__(self, out=click, blather=sys.stdout.write, sleep=time.sleep):
         self._out = out
+        self._blather = blather
+        self.sleep = sleep
+
+    def blather(self, msg):
+        """Print directly to stdout"""
+        self._blather(msg)
 
     def log(self, msg):
         """Print msg to the screen, then sleep for a moment."""
         self._out.echo(msg)
-        time.sleep(self.std_delay)
+        self.sleep(self.std_delay)
 
     def log_fast(self, msg):
         """Print a message to the screen and return immediately."""
@@ -111,10 +97,8 @@ class CLIPrinter(object):
         self.error(self.heading_mark + msg)
 
 
-class SilentCLIPrinter(object):
-
-    def __init__(self, out=click):
-        self._out = out
+class QuietCLIPrinter(CLIPrinter):
+    """Blather prints, but nothing else does."""
 
     def log(self, msg):
         pass
@@ -135,7 +119,7 @@ class SilentCLIPrinter(object):
 def get_cli_printer(verbose=True):
     if verbose:
         return CLIPrinter()
-    return SilentCLIPrinter()
+    return QuietCLIPrinter()
 
 
 def report_idle_after(seconds):
@@ -345,7 +329,7 @@ def get_summary(app):
 def debug(verbose, bot, proxy, exp_config=None):
     """Run the experiment locally."""
     cli = get_cli_printer(verbose)
-    debugger = DebugDeployment(Output(log=log, error=error), verbose, bot, proxy, exp_config)
+    debugger = DebugDeployment(cli, bot, proxy, exp_config)
     cli.log(header)
     debugger.run()
 
@@ -369,8 +353,9 @@ def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
     if app:
         verify_id(None, None, app)
-    get_cli_printer().log(header)
-    _deploy_in_mode('sandbox', app=app, verbose=verbose, log=log)
+    cli = get_cli_printer(verbose)
+    cli.log(header)
+    _deploy_in_mode('sandbox', app=app, out=cli)
 
 
 @dallinger.command()
@@ -381,8 +366,9 @@ def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
     if app:
         verify_id(None, None, app)
-    get_cli_printer().log(header)
-    _deploy_in_mode('live', app=app, verbose=verbose, log=log)
+    cli = get_cli_printer(verbose)
+    cli.log(header)
+    _deploy_in_mode('live', app=app, out=cli)
 
 
 @dallinger.command()
@@ -635,8 +621,9 @@ def load(app, verbose, replay, exp_config=None):
     if replay:
         exp_config = exp_config or {}
         exp_config['replay'] = True
-    loader = ReplayDeployment(app, Output(log=log, error=error), verbose, exp_config)
-    get_cli_printer().log(header)
+    cli = get_cli_printer()
+    cli.log(header)
+    loader = ReplayDeployment(app, cli, verbose, exp_config)
     loader.run()
 
 
@@ -689,8 +676,9 @@ def bot(app, debug):
     """Run the experiment bot."""
     if debug is None:
         verify_id(None, None, app)
-    get_cli_printer().log(header)
-    (id, tmp) = setup_experiment(log)
+    cli = get_cli_printer()
+    cli.log(header)
+    (id, tmp) = setup_experiment(out=cli)
 
     if debug:
         url = debug
@@ -716,8 +704,9 @@ def verify():
 @dallinger.command()
 def rq_worker():
     """Start an rq worker in the context of dallinger."""
-    get_cli_printer().log(header)
-    setup_experiment(log)
+    cli = get_cli_printer()
+    cli.log(header)
+    setup_experiment(out=cli)
     with Connection(conn):
         # right now we care about low queue for bots
         worker = Worker('low')

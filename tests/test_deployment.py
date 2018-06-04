@@ -23,16 +23,8 @@ def found_in(name, path):
 
 @pytest.fixture
 def output():
-
-    class Output(object):
-
-        def __init__(self):
-            self.log = mock.Mock()
-            self.error = mock.Mock()
-            self.blather = mock.Mock()
-
-    return Output()
-
+    from dallinger.command_line import CLIPrinter
+    return mock.Mock(spec=CLIPrinter)
 
 @pytest.fixture
 def sleepless():
@@ -127,7 +119,7 @@ class TestSetupExperiment(object):
         assert not found_in('worker.py', exp_dir)
         assert not found_in('clock.py', exp_dir)
 
-        exp_id, dst = setup_experiment(log=mock.Mock())
+        exp_id, dst = setup_experiment(out=mock.Mock())
 
         # dst should be a temp dir with a cloned experiment for deployment
         assert(exp_dir != dst)
@@ -157,7 +149,7 @@ class TestSetupExperiment(object):
         config = get_config()
         assert config.get('num_dynos_web') == 1
 
-        exp_id, dst = setup_experiment(log=mock.Mock(), exp_config={'num_dynos_web': 2})
+        exp_id, dst = setup_experiment(out=mock.Mock(), exp_config={'num_dynos_web': 2})
         # Config is updated
         assert config.get('num_dynos_web') == 2
 
@@ -183,7 +175,7 @@ class TestSetupExperiment(object):
                        'something_sensitive': u'hide this',
                        'something_normal': u'show this'})
 
-        exp_id, dst = setup_experiment(log=mock.Mock())
+        exp_id, dst = setup_experiment(out=mock.Mock())
 
         # The temp dir should have a config with the sensitive variables missing
         deploy_config = configparser.SafeConfigParser()
@@ -303,7 +295,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         return deploy_sandbox_shared_setup
 
     def test_result(self, dsss, heroku_mock):
-        result = dsss(log=mock.Mock())
+        result = dsss(out=mock.Mock())
         assert result == {
             'app_home': u'fake-url',
             'app_name': u'dlgr-fake-uid',
@@ -311,17 +303,17 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         }
 
     def test_bootstraps_heroku(self, dsss, heroku_mock):
-        dsss(log=mock.Mock())
+        dsss(out=mock.Mock())
         heroku_mock.bootstrap.assert_called_once()
 
     def test_installs_phantomjs(self, dsss, heroku_mock):
-        dsss(log=mock.Mock())
+        dsss(out=mock.Mock())
         heroku_mock.buildpack.assert_called_once_with(
             'https://github.com/stomita/heroku-buildpack-phantomjs'
         )
 
     def test_installs_addons(self, dsss, heroku_mock):
-        dsss(log=mock.Mock())
+        dsss(out=mock.Mock())
         heroku_mock.addon.assert_has_calls([
             mock.call('heroku-postgresql:standard-0'),
             mock.call('heroku-redis:premium-0'),
@@ -330,7 +322,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         ])
 
     def test_sets_app_properties(self, dsss, heroku_mock):
-        dsss(log=mock.Mock())
+        dsss(out=mock.Mock())
         heroku_mock.set.assert_has_calls([
             mock.call('auto_recruit', True),
             mock.call('aws_access_key_id', u'fake aws key'),
@@ -342,7 +334,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         ])
 
     def test_scales_dynos(self, dsss, heroku_mock):
-        dsss(log=mock.Mock())
+        dsss(out=mock.Mock())
         heroku_mock.scale_up_dyno.assert_has_calls([
             mock.call('web', 1, u'free'),
             mock.call('worker', 1, u'free'),
@@ -429,8 +421,7 @@ class TestDebugServer(object):
     def debugger_unpatched(self, output):
         from dallinger.deployment import DebugDeployment
         debugger = DebugDeployment(
-            output, verbose=True, bot=False, proxy_port=None, exp_config={},
-            log=mock.Mock()
+            output=output, bot=False, proxy_port=None, exp_config={},
         )
         yield debugger
         if debugger.status_thread:
@@ -480,7 +471,7 @@ class TestDebugServer(object):
             debugger.notify(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
             debugger.status_thread.join()
 
-        debugger.out.log.assert_called_with('Experiment completed, all nodes filled.')
+        debugger.out.heading.assert_called_with('Experiment completed, all nodes filled.')
         debugger.heroku.stop.assert_called_once()
 
     def test_new_recruit(self, debugger_unpatched, browser):
@@ -541,7 +532,7 @@ class TestLoad(object):
         from dallinger.deployment import ReplayDeployment
         from dallinger.heroku.tools import HerokuLocalWrapper
         loader = ReplayDeployment(
-            self.exp_id, output, verbose=True, exp_config={}, log=mock.Mock()
+            self.exp_id, output=output, exp_config={}
         )
         loader.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
 
@@ -551,8 +542,7 @@ class TestLoad(object):
     def replay_loader(self, db_session, env, output, clear_workers):
         from dallinger.deployment import ReplayDeployment
         loader = ReplayDeployment(
-            self.exp_id, output, verbose=True, exp_config={'replay': True},
-            log=mock.Mock()
+            self.exp_id, output=output, exp_config={'replay': True},
         )
         loader.keep_running = mock.Mock(return_value=False)
 
@@ -570,14 +560,12 @@ class TestLoad(object):
     def test_load_runs(self, loader, export):
         loader.keep_running = mock.Mock(return_value=False)
         loader.run()
-
-        loader.out.log.assert_has_calls([
+        loader.out.heading.assert_has_calls([
+            mock.call('Experiment id is some_experiment_id'),
             mock.call('Starting up the server...'),
             mock.call('Ingesting dataset from some_experiment_id-data.zip...'),
             mock.call('Server is running on http://0.0.0.0:5000. Press Ctrl+C to exit.'),
             mock.call('Terminating dataset load for experiment some_experiment_id'),
-            mock.call('Cleaning up local Heroku process...'),
-            mock.call('Local Heroku process terminated.')
         ])
 
     def test_load_raises_on_nonexistent_id(self, loader):
@@ -588,27 +576,11 @@ class TestLoad(object):
 
     def test_load_with_replay(self, replay_loader, export):
         replay_loader.run()
-
-        replay_loader.out.log.assert_has_calls([
+        replay_loader.out.heading.assert_has_calls([
+            mock.call('Experiment id is some_experiment_id'),
             mock.call('Starting up the server...'),
             mock.call('Ingesting dataset from some_experiment_id-data.zip...'),
             mock.call('Server is running on http://0.0.0.0:5000. Press Ctrl+C to exit.'),
             mock.call('Launching the experiment...'),
-            mock.call('Launching replay browser...'),
             mock.call('Terminating dataset load for experiment some_experiment_id'),
-            mock.call('Cleaning up local Heroku process...'),
-            mock.call('Local Heroku process terminated.')
         ])
-
-
-class TestOutput(object):
-
-    @pytest.fixture
-    def output(self):
-        from dallinger.deployment import Output
-        return Output(mock.Mock(), mock.Mock(), mock.Mock())
-
-    def test_outs(self, output):
-        output.log('logging')
-        output.error('an error')
-        output.blather('blah blah blah')

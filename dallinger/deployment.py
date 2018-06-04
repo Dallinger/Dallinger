@@ -48,7 +48,7 @@ def new_webbrowser_profile():
         return webbrowser
 
 
-def setup_experiment(log, debug=True, app=None, exp_config=None):
+def setup_experiment(out, debug=True, app=None, exp_config=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
     # Verify that the Postgres server is running.
     try:
@@ -79,7 +79,7 @@ def setup_experiment(log, debug=True, app=None, exp_config=None):
     if app:
         public_id = str(app)
 
-    log("Experiment id is " + public_id + "")
+    out.heading("Experiment id is " + public_id + "")
 
     # Copy this directory into a temporary folder, ignoring .git
     dst = os.path.join(tempfile.mkdtemp(), public_id)
@@ -92,7 +92,7 @@ def setup_experiment(log, debug=True, app=None, exp_config=None):
     )
     shutil.copytree(os.getcwd(), dst, ignore=to_ignore)
 
-    log(dst, chevrons=False)
+    out.log(dst)
 
     # Save the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
@@ -112,7 +112,7 @@ def setup_experiment(log, debug=True, app=None, exp_config=None):
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
-        log("Freezing the experiment package...")
+        out.heading("Freezing the experiment package...")
         shutil.make_archive(
             os.path.join(cwd, "snapshots", public_id + "-code"), "zip", dst)
 
@@ -215,27 +215,27 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, remaining=RETRIES):
     return launch_data
 
 
-def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
+def deploy_sandbox_shared_setup(out, app=None, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
-    if verbose:
-        out = None
-    else:
-        out = open(os.devnull, 'w')
+    # if verbose:
+    #     out = None
+    # else:
+    #     out = open(os.devnull, 'w')
 
-    (id, tmp) = setup_experiment(log, debug=False, app=app, exp_config=exp_config)
+    (id, tmp) = setup_experiment(out, debug=False, app=app, exp_config=exp_config)
 
     config = get_config()  # We know it's ready; setup_experiment() does this.
 
     # Register the experiment using all configured registration services.
     if config.get("mode") == "live":
-        log("Registering the experiment on configured services...")
+        out.heading("Registering the experiment on configured services...")
         registration.register(id, snapshot=None)
 
     # Log in to Heroku if we aren't already.
-    log("Making sure that you are logged in to Heroku.")
+    out.heading("Making sure that you are logged in to Heroku.")
     heroku.log_in()
     config.set("heroku_auth_token", heroku.auth_token())
-    log("", chevrons=False)
+    out.log("")
 
     # Change to temporary directory.
     cwd = os.getcwd()
@@ -248,7 +248,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     git.commit('"Experiment {}"'.format(id))
 
     # Initialize the app on Heroku.
-    log("Initializing app on Heroku...")
+    out.heading("Initializing app on Heroku...")
     team = config.get("heroku_team", '').strip() or None
     heroku_app = HerokuApp(dallinger_uid=id, output=out, team=team)
     heroku_app.bootstrap()
@@ -282,7 +282,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         heroku_app.set(k, v)
 
     # Wait for Redis database to be ready.
-    log("Waiting for Redis...")
+    out.heading("Waiting for Redis...")
     ready = False
     while not ready:
         r = redis.from_url(heroku_app.redis_url)
@@ -292,7 +292,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         except redis.exceptions.ConnectionError:
             time.sleep(2)
 
-    log("Saving the URL of the postgres database...")
+    out.heading("Saving the URL of the postgres database...")
     # Set the notification URL and database URL in the config file.
     config.extend({
         "notification_url": heroku_app.url + "/notifications",
@@ -305,10 +305,10 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     time.sleep(0.25)
 
     # Launch the Heroku app.
-    log("Pushing code to Heroku...")
+    out.heading("Pushing code to Heroku...")
     git.push(remote="heroku", branch="HEAD:master")
 
-    log("Scaling up the dynos...")
+    out.heading("Scaling up the dynos...")
     size = config.get("dyno_type")
     for process in ["web", "worker"]:
         qty = config.get("num_dynos_" + process)
@@ -319,26 +319,29 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     time.sleep(8)
 
     # Launch the experiment.
-    log("Launching the experiment on the remote server and starting recruitment...")
-    launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url))
+    out.heading("Launching the experiment on the remote server and starting recruitment...")
+    launch_data = _handle_launch_data(
+        '{}/launch'.format(heroku_app.url),
+        error=out.error
+    )
     result = {
         'app_name': heroku_app.name,
         'app_home': heroku_app.url,
         'recruitment_msg': launch_data.get('recruitment_msg', None),
     }
-    log("Experiment details:")
-    log("App home: {}".format(result['app_home']), chevrons=False)
-    log("Recruiter info:")
-    log(result['recruitment_msg'], chevrons=False)
+    out.heading("Experiment details:")
+    out.log("App home: {}".format(result['app_home']))
+    out.heading("Recruiter info:")
+    out.log(result['recruitment_msg'])
 
     # Return to the branch whence we came.
     os.chdir(cwd)
 
-    log("Completed deployment of experiment " + id + ".")
+    out.heading("Completed deployment of experiment " + id + ".")
     return result
 
 
-def _deploy_in_mode(mode, app, verbose, log):
+def _deploy_in_mode(mode, app, out):
     # Load configuration.
     config = get_config()
     config.load()
@@ -350,7 +353,7 @@ def _deploy_in_mode(mode, app, verbose, log):
     })
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(verbose=verbose, app=app)
+    deploy_sandbox_shared_setup(out, app=app)
 
 
 class HerokuRemoteDeployment(object):
@@ -370,20 +373,12 @@ class HerokuProductionDeployment(HerokuRemoteDeployment):
     pass
 
 
-class Output(object):
+# class Output(object):
 
-    def __init__(self, log, error, blather=sys.stdout.write):
-        self.log = log
-        self.error = error
-        self.blather = sys.stdout.write
-
-
-class FancyOutput(Output):
-
-    def __init__(self, log, strong, error, strong_error, blather=sys.stdout.write):
-        super(Output, self).__init__(log, error, blather)
-        self.strong = strong
-        self.strong_err = strong_error
+#     def __init__(self, log, error, blather=sys.stdout.write):
+#         self.log = log
+#         self.error = error
+#         self.blather = sys.stdout.write
 
 
 class HerokuLocalDeployment(object):
@@ -392,12 +387,10 @@ class HerokuLocalDeployment(object):
     tmp_dir = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output
 
-    def __init__(self, output, verbose, exp_config, log):
+    def __init__(self, output, exp_config):
         self.out = output
-        self.verbose = verbose
         self.exp_config = exp_config or {}
         self.original_dir = os.getcwd()
-        self.log = log
 
     def configure(self):
         self.exp_config.update({
@@ -407,7 +400,7 @@ class HerokuLocalDeployment(object):
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
-            self.log, exp_config=self.exp_config
+            self.out, exp_config=self.exp_config
         )
 
     def update_dir(self):
@@ -428,7 +421,7 @@ class HerokuLocalDeployment(object):
         self.setup()
         self.update_dir()
         db.init_db(drop_all=True)
-        self.out.log("Starting up the server...")
+        self.out.heading("Starting up the server...")
         config = get_config()
         with HerokuLocalWrapper(config, self.out) as wrapper:
             try:
@@ -461,16 +454,14 @@ class DebugDeployment(HerokuLocalDeployment):
         r'{}$'.format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): 'recruitment_closed',
     }
 
-    def __init__(self, output, verbose, bot, proxy_port, exp_config, log):
+    def __init__(self, output, bot, proxy_port, exp_config):
         self.out = output
-        self.verbose = verbose
         self.bot = bot
         self.exp_config = exp_config or {}
         self.proxy_port = proxy_port
         self.original_dir = os.getcwd()
         self.complete = False
         self.status_thread = None
-        self.log = log
 
     def configure(self):
         super(DebugDeployment, self).configure()
@@ -479,8 +470,8 @@ class DebugDeployment(HerokuLocalDeployment):
 
     def execute(self, heroku):
         base_url = get_base_url()
-        self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
-        self.out.log("Launching the experiment...")
+        self.out.heading("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+        self.out.heading("Launching the experiment...")
         time.sleep(4)
         try:
             result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
@@ -490,7 +481,7 @@ class DebugDeployment(HerokuLocalDeployment):
             heroku.monitor(listener=self.notify)
         else:
             if result['status'] == 'success':
-                self.out.log(result['recruitment_msg'])
+                self.out.heading(result['recruitment_msg'])
                 self.heroku = heroku
                 heroku.monitor(listener=self.notify)
 
@@ -498,7 +489,7 @@ class DebugDeployment(HerokuLocalDeployment):
         return HerokuLocalWrapper.MONITOR_STOP
 
     def cleanup(self):
-        self.out.log("Completed debugging of experiment with id " + self.exp_id)
+        self.out.heading("Completed debugging of experiment with id " + self.exp_id)
         self.complete = True
 
     def new_recruit(self, match):
@@ -506,10 +497,10 @@ class DebugDeployment(HerokuLocalDeployment):
         open a browser window for the a new participant (in this case the
         person doing local debugging).
         """
-        self.out.log("new recruitment request!")
+        self.out.heading("new recruitment request!")
         url = match.group(1)
         if self.proxy_port is not None:
-            self.out.log("Using proxy port {}".format(self.proxy_port))
+            self.out.heading("Using proxy port {}".format(self.proxy_port))
             url = url.replace(str(get_config().get('base_port')), self.proxy_port)
         new_webbrowser_profile().open(url, new=1, autoraise=True)
 
@@ -527,7 +518,7 @@ class DebugDeployment(HerokuLocalDeployment):
         the experiment is complete, then we can stop monitoring Heroku
         subprocess output.
         """
-        self.out.log("Recruitment is complete. Waiting for experiment completion...")
+        self.out.heading("Recruitment is complete. Waiting for experiment completion...")
         base_url = get_base_url()
         status_url = base_url + '/summary'
         while not self.complete:
@@ -538,9 +529,9 @@ class DebugDeployment(HerokuLocalDeployment):
             except (ValueError, requests.exceptions.RequestException):
                 self.out.error('Error fetching experiment status.')
             else:
-                self.out.log('Experiment summary: {}'.format(exp_data))
+                self.out.heading('Experiment summary: {}'.format(exp_data))
                 if exp_data.get('completed', False):
-                    self.out.log('Experiment completed, all nodes filled.')
+                    self.out.heading('Experiment completed, all nodes filled.')
                     self.complete = True
                     self.heroku.stop()
 
@@ -561,14 +552,12 @@ class ReplayDeployment(HerokuLocalDeployment):
         'Replay ready: (.*)$': 'start_replay',
     }
 
-    def __init__(self, app_id, output, verbose, exp_config, log):
+    def __init__(self, app_id, output, exp_config):
         self.app_id = app_id
         self.out = output
-        self.verbose = verbose
         self.exp_config = exp_config or {}
         self.original_dir = os.getcwd()
         self.zip_path = None
-        self.log = log
 
     def configure(self):
         self.exp_config.update({
@@ -583,7 +572,7 @@ class ReplayDeployment(HerokuLocalDeployment):
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
-            self.log, app=self.app_id, exp_config=self.exp_config
+            self.out, app=self.app_id, exp_config=self.exp_config
         )
 
     def execute(self, heroku):
@@ -591,13 +580,13 @@ class ReplayDeployment(HerokuLocalDeployment):
         until terminated with <control>-c.
         """
         db.init_db(drop_all=True)
-        self.out.log("Ingesting dataset from {}...".format(os.path.basename(self.zip_path)))
+        self.out.heading("Ingesting dataset from {}...".format(os.path.basename(self.zip_path)))
         data.ingest_zip(self.zip_path)
         base_url = get_base_url()
-        self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+        self.out.heading("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
 
         if self.exp_config.get('replay', False):
-            self.out.log("Launching the experiment...")
+            self.out.heading("Launching the experiment...")
             time.sleep(4)
             _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
             heroku.monitor(listener=self.notify)
@@ -611,12 +600,12 @@ class ReplayDeployment(HerokuLocalDeployment):
         open a browser window for the a new participant (in this case the
         person doing local debugging).
         """
-        self.out.log("replay ready!")
+        self.out.heading("replay ready!")
         url = match.group(1)
         new_webbrowser_profile().open(url, new=1, autoraise=True)
 
     def cleanup(self):
-        self.out.log("Terminating dataset load for experiment {}".format(self.exp_id))
+        self.out.heading("Terminating dataset load for experiment {}".format(self.exp_id))
 
     def keep_running(self):
         # This is a separate method so that it can be replaced in tests

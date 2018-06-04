@@ -21,19 +21,6 @@ def found_in(name, path):
 
 
 @pytest.fixture
-def output():
-
-    class Output(object):
-
-        def __init__(self):
-            self.log = mock.Mock()
-            self.error = mock.Mock()
-            self.blather = mock.Mock()
-
-    return Output()
-
-
-@pytest.fixture
 def sleepless():
     # Use this fixture to ignore sleep() calls, for speed.
     with mock.patch('dallinger.command_line.time.sleep'):
@@ -86,6 +73,35 @@ class TestVerify(object):
 
     def test_verify(self):
         subprocess.check_call(["dallinger", "verify"])
+
+
+class TestCLIPrinter(object):
+
+    @pytest.fixture
+    def cli(self):
+        from dallinger.command_line import CLIPrinter
+        return CLIPrinter(mock.Mock(), mock.Mock(), mock.Mock())
+
+    @pytest.fixture
+    def cli_quiet(self):
+        from dallinger.command_line import QuietCLIPrinter
+        return QuietCLIPrinter()
+
+    def test_printer(self, cli):
+        cli.log('logging')
+        cli.log_fast('logging without delay')
+        cli.heading('A heading')
+        cli.error('an error')
+        cli.error_heading('Ouch!')
+        cli.blather('blah blah blah')
+
+    def test_quiet_printer(self, cli_quiet):
+        cli_quiet.log('logging')
+        cli_quiet.log_fast('logging without delay')
+        cli_quiet.heading('A heading')
+        cli_quiet.error('an error')
+        cli_quiet.error_heading('Ouch!')
+        cli_quiet.blather('blah blah blah')
 
 
 class TestCommandLine(object):
@@ -224,7 +240,7 @@ class TestSandboxAndDeploy(object):
                 '--app', 'some app id',
             ]
         )
-        get_deployer.assert_called_once_with('sandbox', app='some app id', verbose=True, log=mock.ANY)
+        get_deployer.assert_called_once_with('sandbox', app='some app id', out=mock.ANY)
 
     def test_sandbox_with_no_app_id(self, sandbox, get_deployer):
         CliRunner().invoke(
@@ -233,7 +249,7 @@ class TestSandboxAndDeploy(object):
                 '--verbose',
             ]
         )
-        get_deployer.assert_called_once_with('sandbox', app=None, verbose=True, log=mock.ANY)
+        get_deployer.assert_called_once_with('sandbox', app=None, out=mock.ANY)
 
     def test_sandbox_with_invalid_app_id(self, sandbox, get_deployer):
         result = CliRunner().invoke(
@@ -255,7 +271,7 @@ class TestSandboxAndDeploy(object):
                 '--app', 'some app id',
             ]
         )
-        get_deployer.assert_called_once_with('live', app='some app id', verbose=True, log=mock.ANY)
+        get_deployer.assert_called_once_with('live', app='some app id', out=mock.ANY)
 
 
 class TestSummary(object):
@@ -309,7 +325,7 @@ class TestBot(object):
         from dallinger.command_line import bot_factory
         from dallinger.deployment import setup_experiment
         from dallinger.bots import BotBase
-        setup_experiment(log=mock.Mock())
+        setup_experiment(out=mock.Mock())
         bot = bot_factory('some url')
         assert isinstance(bot, BotBase)
 
