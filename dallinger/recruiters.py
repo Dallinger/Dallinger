@@ -3,6 +3,8 @@
 import logging
 import os
 import re
+import requests
+import json
 
 from rq import Queue
 from sqlalchemy import func
@@ -632,6 +634,92 @@ class MultiRecruiter(Recruiter):
             recruiter.close_recruitment()
 
 
+class PulseRecruiter(Recruiter):
+    """Recruit participants using Pulse API"""
+
+    nickname = 'pulse'
+
+    def __init__(self):
+        super(PulseRecruiter, self).__init__()
+        self.config = get_config()
+        logger.info("Initialized PulseRecruiter.")
+
+    def open_recruitment(self, n=1):
+        """Start recruiting right away."""
+
+        payload = {
+            'name': self.config.get('title'),
+            'projects': [
+                {
+                    'name': self.config.get('title'),
+                    'location': '<{}>'.format(self.config.get('location')),
+                    'flow': {
+                        'components': [
+                            {
+                                'type': 'FacebookAdvertisement',
+                                'name': self.config.get('title'),
+                                'message': self.config.get('description'),
+                                'appLink': self.config.get('link'),
+                                'imageUrl': self.config.get('image_url'),
+                                'facebookPageId': self.config.get('page_id')
+                            },
+                            {
+                                'type': 'FacebookMessengerBot',
+                                'name': self.config.get('title')
+                            }
+                        ],
+                        'name': self.config.get('title')
+                    },
+                    'status': 'activated',
+                    'version': 1
+                }
+            ],
+            'status': 'activated'
+        }
+
+        r = requests.post(self.config.get('pulse_api_url') + "/campaign", json=payload, headers={'applicationId': self.config.get('app_id')})
+
+        resp = json.loads(r.text)
+
+        if resp.get('response') is None or type(resp.get('response')) is not dict:
+            raise Exception("Invalid response on create campaign: " + r.text)
+        else:
+            resp = resp.get('response')
+
+        if resp.get('id') is not None:
+            campaign_id = resp.get('id')
+
+        logger.info("Open recruitment: {}".format(campaign_id))
+
+        return {
+            'items': [campaign_id],
+            'message': 'Pulse Campaign Created'
+        }
+
+    def recruit(self, n=1):
+        """Recruit n new participants to the queue"""
+        return []
+
+    def approve_hit(self, assignment_id):
+        return True
+
+    def close_recruitment(self):
+        """Clean up once the experiment is complete.
+
+        This does nothing at this time.
+        """
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+
+    def reward_bonus(self, assignment_id, amount, reason):
+        """Logging only."""
+        logger.info(
+            "Nothing yet, sorry"
+        )
+
+    def submitted_event(self):
+        return None
+
+
 def for_experiment(experiment):
     """Return the Recruiter instance for the specified Experiment.
 
@@ -658,9 +746,9 @@ def from_config(config):
     if name is not None:
         recruiter = by_name(name)
 
-        # Special case 2: may run BotRecruiter or MultiRecruiter in any mode
+        # Special case 2: may run BotRecruiter or MultiRecruiter or PulseRecruiter in any mode
         # (debug or not), so it trumps everything else:
-        if isinstance(recruiter, (BotRecruiter, MultiRecruiter)):
+        if isinstance(recruiter, (BotRecruiter, MultiRecruiter, PulseRecruiter)):
             return recruiter
 
     # Special case 3: if we're not using bots and we're in debug mode,
