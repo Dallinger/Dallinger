@@ -24,11 +24,19 @@ class MTurkServiceException(Exception):
 
 
 class DuplicateQualificationNameError(MTurkServiceException):
-    """A Qualification with the given name already exists"""
+    """A Qualification with the given name already exists."""
 
 
 class QualificationNotFoundException(MTurkServiceException):
-    """A Qualification searched for by name does not exist"""
+    """A Qualification searched for by name does not exist."""
+
+
+class WorkerLacksQualification(MTurkServiceException):
+    """The worker has not been granted a given Qualification."""
+
+
+class RevokedQualification(MTurkServiceException):
+    """The Qualification has been revoked for this worker."""
 
 
 class MTurkService(object):
@@ -292,7 +300,20 @@ class MTurkService(object):
                 WorkerId=worker_id
             )
         except ClientError as ex:
-            raise MTurkServiceException(str(ex))
+            error = str(ex)
+            if 'does not exist' in error:
+                raise WorkerLacksQualification(
+                    "Worker {} does not have qualification {}.".format(
+                        worker_id, qualification_id)
+                )
+            if 'operation can be called with a status of: Granted' in error:
+                raise RevokedQualification(
+                    "Worker {} has had qualification {} revoked.".format(
+                        worker_id, qualification_id
+                    )
+                )
+
+            raise MTurkServiceException(error)
         return response['Qualification']['IntegerValue']
 
     def get_current_qualification_score(self, name, worker_id):
@@ -306,12 +327,9 @@ class MTurkService(object):
             )
         try:
             score = self.get_qualification_score(qtype['id'], worker_id)
-        except MTurkServiceException as ex:
-            # Worker lacks qualification:
-            if 'You requested a Qualification that does not exist' in str(ex):
-                score = None
-            else:
-                raise
+        except (WorkerLacksQualification, RevokedQualification):
+            score = None
+
         return {
             'qtype': qtype,
             'score': score
