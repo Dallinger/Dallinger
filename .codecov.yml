@@ -6,8 +6,11 @@ coverage:
   status:
     project: true
     threshold: 0.1
-    patch: true
     changes: false
+
+    patch:
+      default:
+        target: 75%
 
 comment:
   layout: "header, diff"
