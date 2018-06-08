@@ -485,11 +485,11 @@ class MTurkService(object):
         """
         assignment = self.get_assignment(assignment_id)
         worker_id = assignment['worker_id']
-
+        amount_str = "{:.2f}".format(amount)
         try:
             return self._is_ok(self.mturk.send_bonus(
                 WorkerId=worker_id,
-                BonusAmount=str(amount),
+                BonusAmount=amount_str,
                 AssignmentId=assignment_id,
                 Reason=reason,
                 UniqueRequestToken=self._request_token()
@@ -497,7 +497,7 @@ class MTurkService(object):
         except ClientError as ex:
             error = "Failed to pay assignment {} bonus of {}: {}".format(
                 assignment_id,
-                amount,
+                amount_str,
                 str(ex)
             )
             raise MTurkServiceException(error)
