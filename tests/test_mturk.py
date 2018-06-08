@@ -981,7 +981,7 @@ class TestMTurkServiceWithFakeConnection(object):
 
         with_mock.grant_bonus(
             assignment_id='some assignment id',
-            amount=2.99,
+            amount=2.9857,
             reason='above and beyond'
         )
 
@@ -1001,7 +1001,7 @@ class TestMTurkServiceWithFakeConnection(object):
         with pytest.raises(MTurkServiceException) as execinfo:
             with_mock.grant_bonus(
                 assignment_id='some assignment id',
-                amount=2.99,
+                amount=2.9857,
                 reason='above and beyond'
             )
 
