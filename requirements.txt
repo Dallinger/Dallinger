@@ -1,6 +1,6 @@
 APScheduler==3.5.1
 cached-property==1.4.2
-boto3==1.7.28
+boto3==1.7.33
 click==6.7
 Flask-Sockets==0.2.1
 Flask==1.0.2
