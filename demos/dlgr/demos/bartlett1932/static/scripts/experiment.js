@@ -90,9 +90,8 @@ var get_info = function() {
       $("#response-form").hide();
       $("#finish-reading").show();
     })
-    .fail(function (err) {
+    .fail(function (rejection) {
       console.log(err);
-      var errorResponse = JSON.parse(err.response);
-      $('body').html(errorResponse.html);
+      $('body').html(rejection.html);
     });
 };
