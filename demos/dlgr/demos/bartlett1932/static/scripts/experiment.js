@@ -91,7 +91,7 @@ var get_info = function() {
       $("#finish-reading").show();
     })
     .fail(function (rejection) {
-      console.log(err);
+      console.log(rejection);
       $('body').html(rejection.html);
     });
 };
