@@ -10,7 +10,8 @@ import dallinger
 from dallinger import db
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
-from dallinger.heroku.messages import NullHITMessager
+from dallinger.heroku.messages import HITSummary
+from dallinger.heroku.messages import NullHITMessenger
 
 # Import the experiment.
 experiment = dallinger.experiment.load()
@@ -55,13 +56,14 @@ def run_check(config, mturk, participants, session, reference_time):
             hit_id = p.hit_id
             # Use a null handler for now since Gmail is blocking outgoing email
             # from random servers:
-            messager = NullHITMessager(
-                when=reference_time,
+            summary = HITSummary(
                 assignment_id=assignment_id,
-                hit_duration=duration_seconds,
+                duration=duration_seconds,
                 time_active=time_active,
-                config=config
+                app_id=config.get('id', 'unknown'),
+                when=reference_time,
             )
+            messenger = NullHITMessenger(summary, config)
 
             if status == "Approved":
                 # if its been approved, set the status accordingly
@@ -84,7 +86,7 @@ def run_check(config, mturk, participants, session, reference_time):
                     data=args)
 
                 # message the researcher:
-                messager.send_resubmitted_msg()
+                messenger.send_resubmitted_msg()
 
                 print("Error - submitted notification for participant {} missed. "
                       "Database automatically corrected, but proceed with caution."
@@ -111,7 +113,7 @@ def run_check(config, mturk, participants, session, reference_time):
                 mturk.expire_hit(hit_id)
 
                 # message the researcher
-                messager.send_hit_cancelled_msg()
+                messenger.send_hit_cancelled_msg()
 
                 # send a notificationmissing notification
                 args = {

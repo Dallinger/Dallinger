@@ -363,7 +363,8 @@ class TestHandleError(object):
 
     def test_sends_email(self, a, webapp, active_config, dummy_mailer):
         active_config.extend({'dallinger_email_address': u'test_error',
-                              'dallinger_email_password': u'secret'})
+                              'dallinger_email_password': u'secret',
+                              'mode': u'sandbox'})
         webapp.post('/handle-error', data={})
 
         dummy_mailer.login.assert_called_once()
@@ -381,7 +382,8 @@ class TestHandleError(object):
     def test_emailer_handles_missing_destination_address(self, a, webapp, active_config,
                                                          dummy_mailer):
         active_config.extend({'dallinger_email_address': u'test_error',
-                              'contact_email_on_error': u''})
+                              'contact_email_on_error': u'',
+                              'mode': u'sandbox'})
         webapp.post('/handle-error', data={})
 
         dummy_mailer.login.assert_not_called()

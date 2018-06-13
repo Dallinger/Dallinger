@@ -8,8 +8,8 @@ import datetime
 import signal
 from dallinger.config import get_config
 from dallinger.heroku import app_name
-from dallinger.heroku.messages import EmailingHITMessager
-from dallinger.heroku.messages import NullHITMessager
+from dallinger.heroku.messages import EmailingHITMessenger
+from dallinger.heroku.messages import NullHITMessenger
 from dallinger.models import Participant
 
 
@@ -191,13 +191,13 @@ class TestHerokuClockTasks(object):
         session = None
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        mock_messager = mock.Mock(spec=NullHITMessager)
+        mock_messenger = mock.Mock(spec=NullHITMessenger)
         with mock.patch.multiple('dallinger.heroku.clock',
                                  requests=mock.DEFAULT,
-                                 NullHITMessager=mock.DEFAULT) as mocks:
-            mocks['NullHITMessager'].return_value = mock_messager
+                                 NullHITMessenger=mock.DEFAULT) as mocks:
+            mocks['NullHITMessenger'].return_value = mock_messenger
             run_check(config, mturk, participants, session, reference_time)
-            mock_messager.send_resubmitted_msg.assert_called()
+            mock_messenger.send_resubmitted_msg.assert_called()
 
     def test_no_assignment_on_mturk_shuts_down_hit(self, run_check):
         # Include whimsical set to True to avoid error in the False code branch:
@@ -245,45 +245,53 @@ class TestHerokuClockTasks(object):
         session = None
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        mock_messager = mock.Mock(spec=NullHITMessager)
+        mock_messenger = mock.Mock(spec=NullHITMessenger)
         with mock.patch.multiple('dallinger.heroku.clock',
                                  requests=mock.DEFAULT,
-                                 NullHITMessager=mock.DEFAULT) as mocks:
-            mocks['NullHITMessager'].return_value = mock_messager
+                                 NullHITMessenger=mock.DEFAULT) as mocks:
+            mocks['NullHITMessenger'].return_value = mock_messenger
             run_check(config, mturk, participants, session, reference_time)
-            mock_messager.send_hit_cancelled_msg.assert_called()
+            mock_messenger.send_hit_cancelled_msg.assert_called()
 
 
-def emailing_messager(whimsical):
+def emailing_messenger(summary, whimsical):
     config = {
         'whimsical': whimsical,
         'dallinger_email_username': 'test',
         'contact_email_on_error': 'contact@example.com',
         'dallinger_email_key': 'email secret key'
     }
-    messager = EmailingHITMessager(
-        when='the time',
-        assignment_id='some assignment id',
-        hit_duration=60,
-        time_active=120,
+    messenger = EmailingHITMessenger(
+        hit_info=summary,
         config=config
     )
 
-    return messager
+    return messenger
 
 
 @pytest.fixture
-def whimsical():
-    return emailing_messager(whimsical=True)
+def hit_summary():
+    from dallinger.heroku.messages import HITSummary
+    return HITSummary(
+        assignment_id='some assignment id',
+        duration=60,
+        time_active=120,
+        app_id='some app id',
+        when='the time',
+    )
+
+@pytest.fixture
+def whimsical(hit_summary):
+    return emailing_messenger(hit_summary, whimsical=True)
 
 
 @pytest.fixture
-def nonwhimsical():
-    return emailing_messager(whimsical=False)
+def nonwhimsical(hit_summary):
+    return emailing_messenger(hit_summary, whimsical=False)
 
 
 @pytest.mark.usefixtures('dummy_mailer')
-class TestEmailingHITMessager(object):
+class TestEmailingHITMessenger(object):
 
     def test_send_resubmitted_msg_whimsical(self, whimsical):
         data = whimsical.send_resubmitted_msg()

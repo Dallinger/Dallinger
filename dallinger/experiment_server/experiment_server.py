@@ -36,7 +36,8 @@ from dallinger import information
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger import recruiters
-from dallinger.heroku.messages import EmailingHITMessager
+from dallinger.heroku.messages import get_messenger
+from dallinger.heroku.messages import HITSummary
 
 from .replay import ReplayBackend
 from .worker_events import WorkerEvent
@@ -384,21 +385,23 @@ def handle_error():
     config = _config()
     if (config.get('dallinger_email_address', None) and
             config.get('contact_email_on_error', None)):
-        heroku_config = {
+        msg_config = {
             "contact_email_on_error": config["contact_email_on_error"],
             "dallinger_email_username": config["dallinger_email_address"],
             "dallinger_email_key": config.get("dallinger_email_password"),
+            "mode": config.get("mode"),
             "whimsical": False
         }
-
-        emailer = EmailingHITMessager(when=datetime.now(),
-                                      assignment_id=assignment_id or 'unknown',
-                                      hit_duration=0, time_active=0,
-                                      config=heroku_config,
-                                      app_id=config.get('id', 'unknown'))
-        db.logger.debug("Sending HIT error email...")
+        summary = HITSummary(
+            assignment_id=assignment_id or 'unknown',
+            duration=0,
+            time_active=0,
+            app_id=config.get('id', 'unknown'),
+        )
+        messenger = get_messenger(summary, msg_config)
+        db.logger.debug("Sending HIT error to Messager...")
         try:
-            emailer.send_hit_error()
+            messenger.send_hit_error()
         except smtplib.SMTPException:
             db.logger.exception("SMTP error sending HIT error email.")
         except Exception:

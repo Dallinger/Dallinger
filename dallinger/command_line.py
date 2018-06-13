@@ -38,7 +38,8 @@ from dallinger.config import initialize_experiment_package
 from dallinger import data
 from dallinger import db
 from dallinger import heroku
-from dallinger.heroku.messages import EmailingHITMessager
+from dallinger.heroku.messages import get_messenger
+from dallinger.heroku.messages import HITSummary
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp
@@ -117,19 +118,25 @@ def report_idle_after(seconds):
             def _handle_timeout(signum, frame):
                 try:
                     config = get_config()
-                    config.load()
-                    heroku_config = {
+                    if not config.ready:
+                        config.load()
+                    msg_config = {
                         "contact_email_on_error": config["contact_email_on_error"],
                         "dallinger_email_username": config["dallinger_email_address"],
                         "dallinger_email_key": config["dallinger_email_password"],
+                        "mode": config.get("mode"),
                         "whimsical": False
                     }
                     app_id = config["id"]
-                    email = EmailingHITMessager(when=datetime.now(), assignment_id=None,
-                                                hit_duration=seconds, time_active=seconds,
-                                                config=heroku_config, app_id=app_id)
+                    summary = HITSummary(
+                        assignment_id=None,
+                        duration=seconds,
+                        time_active=seconds,
+                        app_id=app_id,
+                    )
+                    messenger = get_messenger(summary, msg_config)
                     log("Sending email...")
-                    email.send_idle_experiment()
+                    messenger.send_idle_experiment()
                 except KeyError:
                     log("Config keys not set to send emails...")
 

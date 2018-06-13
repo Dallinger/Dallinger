@@ -1,5 +1,10 @@
+import logging
+from cached_property import cached_property
+from datetime import datetime
 from email.mime.text import MIMEText
 from smtplib import SMTP
+
+logger = logging.getLogger(__file__)
 
 
 def get_email_server():
@@ -147,30 +152,31 @@ The Dallinger dev. team.
 """
 
 
-class EmailingHITMessager(object):
+class HITSummary(object):
 
-    def __init__(self, when, assignment_id, hit_duration, time_active, config,
-                 server=None, app_id=None):
+    def __init__(self, assignment_id, duration, time_active, app_id, when=datetime.now()):
         self.when = when
         self.assignment_id = assignment_id
-        self.duration = int(round(hit_duration / 60))
+        self.duration = int(round(duration / 60))
         self.minutes_so_far = int(round(time_active / 60))
-        self.minutes_excess = int(round((time_active - hit_duration) / 60))
-        self.whimsical = config.get("whimsical")
-        self.username = config.get('dallinger_email_username')
-        self.fromaddr = self.username + "@gmail.com"
-        self.toaddr = config.get('contact_email_on_error')
-        self.email_password = config.get("dallinger_email_key")
-        self.server = server or get_email_server()
+        self.minutes_excess = int(round((time_active - duration) / 60))
         self.app_id = app_id
 
-    def _send(self, data):
-        msg = MIMEText(data['message'])
-        msg['Subject'] = data['subject']
-        self.server.starttls()
-        self.server.login(self.username, self.email_password)
-        self.server.sendmail(self.fromaddr, self.toaddr, msg.as_string())
-        self.server.quit()
+
+class BaseHITMessenger(object):
+
+    def __init__(self, hit_info, config):
+        self.when = hit_info.when
+        self.assignment_id = hit_info.assignment_id
+        self.duration = hit_info.duration
+        self.minutes_so_far = hit_info.minutes_so_far
+        self.minutes_excess = hit_info.minutes_excess
+        self.app_id = hit_info.app_id
+        self.whimsical = config.get('whimsical')
+        self.username = config.get('dallinger_email_username', '')
+        self.fromaddr = self.username + '@gmail.com'
+        self.toaddr = config.get('contact_email_on_error', '')
+        self.email_password = config.get('dallinger_email_key', '')
 
     def send_resubmitted_msg(self):
         data = self._build_resubmitted_msg()
@@ -234,15 +240,47 @@ class EmailingHITMessager(object):
         return data
 
 
-class NullHITMessager(EmailingHITMessager):
+class EmailingHITMessenger(BaseHITMessenger):
+    """Actually sends an email message to the experiment owner.
+    """
 
-    def __init__(self, when, assignment_id, hit_duration, time_active, config):
-        self.when = when,
-        self.assignment_id = assignment_id,
-        self.duration = int(round(hit_duration / 60)),
-        self.minutes_so_far = int(round(time_active / 60)),
-        self.minutes_excess = int(round((time_active - hit_duration) / 60))
-        self.whimsical = config.get("whimsical")
+    @cached_property
+    def server(self):
+        return get_email_server()
+
+    def _send(self, data):
+        msg = MIMEText(data['message'])
+        msg['Subject'] = data['subject']
+        self.server.starttls()
+        self.server.login(self.username, self.email_password)
+        self.server.sendmail(self.fromaddr, self.toaddr, msg.as_string())
+        self.server.quit()
+
+
+class NullHITMessenger(BaseHITMessenger):
+    """Does nothing at all.
+
+    Used as a placeholder in contexts where sending a message is not possible.
+    """
 
     def _send(self, data):
         pass
+
+
+class DebugHITMessenger(BaseHITMessenger):
+    """Used in debug mode.
+
+    Prints the message contents to the log instead of sending an email.
+    """
+
+    def _send(self, data):
+        logger.info(
+            "{} sending message:\n{}".format(
+                self.__class__.__name__, data['message'])
+        )
+
+
+def get_messenger(hit_info, config):
+    if config.get("mode") == "debug":
+        return DebugHITMessenger(hit_info, config)
+    return EmailingHITMessenger(hit_info, config)
