@@ -114,7 +114,7 @@ var dallinger = (function () {
       this.html = _responseHTML(this.error.response);
       this.requestJSON = JSON.stringify({
         'route': this.route,
-        'data': this.data,
+        'data': JSON.stringify(this.data),
         'method': this.method
       })
     };
