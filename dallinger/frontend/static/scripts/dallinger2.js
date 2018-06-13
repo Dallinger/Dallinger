@@ -82,6 +82,46 @@ var dallinger = (function () {
     return BusyForm;
   }());
 
+  dlgr.AjaxRejection = (function () {
+    /**
+    Capture information related to a rejected dallinger.ajax() call.
+    **/
+
+    var _responseHTML = function (response) {
+      var parsed;
+      try {
+        parsed = JSON.parse(response);
+      } catch (error) {
+        console.log('Error response not parseable.');
+        parsed = {};
+      }
+      if (parsed.hasOwnProperty('html')) {
+        return parsed.html;
+      }
+      return ''
+    };
+
+    var AjaxRejection = function (options) {
+      if (!(this instanceof AjaxRejection)) {
+        return new AjaxRejection(options);
+      }
+
+      this.route = options.route;
+      this.method = options.method;
+      this.data = options.data || {};
+      this.error = options.error;
+      this.status = options.error.status;
+      this.html = _responseHTML(this.error.response);
+      this.requestJSON = JSON.stringify({
+        'route': this.route,
+        'data': JSON.stringify(this.data),
+        'method': this.method
+      })
+    };
+
+    return AjaxRejection;
+  }());
+
   // stop people leaving the page, but only if desired by experiment
   dlgr.allowExitOnce = false;
   dlgr.preventExit = false;
@@ -143,38 +183,11 @@ var dallinger = (function () {
       type: 'json',
       success: function (resp) { deferred.resolve(resp); },
       error: function (err) {
-        var $form, errorResponse, request_data, hit_params;
         console.log(err);
-        deferred.reject(err);
-        request_data = {
-          'route': route,
-          'data': JSON.stringify(data),
-          'method': method
-        };
-        try {
-          errorResponse = JSON.parse(err.response);
-        } catch (error) {
-          console.log('Error response not parseable.');
-          errorResponse = {};
-        }
-        if (errorResponse.hasOwnProperty("html")) {
-          $('html').html(errorResponse.html);
-          $form = $('form#error-response');
-        } else {
-          $form = $('<form>').attr('action', '/error-page').attr('method', 'POST');
-          $('body').append($form);
-        }
-        if (data) {
-          add_hidden_input($form, 'participant_id', data.participant_id);
-        }
-        add_hidden_input($form, 'request_data', JSON.stringify(request_data));
-        hit_params = get_hit_params();
-        for (var prop in hit_params) {
-          if (hit_params.hasOwnProperty(prop)) add_hidden_input($form, prop, hit_params[prop]);
-        }
-        if (!errorResponse.hasOwnProperty("html")) {
-          $form.submit();
-        }
+        var rejection = dlgr.AjaxRejection(
+          {'route': route, 'method': method, 'data': data, 'error': err}
+        );
+        deferred.reject(rejection);
       }
     };
     if (data !== undefined) {
@@ -191,6 +204,31 @@ var dallinger = (function () {
   dlgr.post = function (route, data) {
     return ajax('post', route, data);
   };
+
+  dlgr.error = function (rejection) {
+    // Render an error form for a rejected deferred returned by an ajax() call.
+    var $form, hit_params;
+    console.log("Calling dallinger.error()");
+
+    if (rejection.html) {
+      $('html').html(rejection.html);
+      $form = $('form#error-response');
+    } else {
+      $form = $('<form>').attr('action', '/error-page').attr('method', 'POST');
+      $('body').append($form);
+    }
+    if (rejection.data.participant_id) {
+      add_hidden_input($form, 'participant_id', rejection.data.participant_id);
+    }
+    add_hidden_input($form, 'request_data', rejection.requestJSON);
+    hit_params = get_hit_params();
+    for (var prop in hit_params) {
+      if (hit_params.hasOwnProperty(prop)) add_hidden_input($form, prop, hit_params[prop]);
+    }
+    if (!rejection.html) {
+      $form.submit();
+    }
+  }
 
   // report assignment complete
   dlgr.submitAssignment = function() {
