@@ -141,7 +141,7 @@ class TestHerokuClockTasks(object):
         # Include whimsical set to True to avoid error in the False code branch:
         stub_config.extend({
             'duration': 1.0,
-            'host': 'fakehost.herokuapp.com',
+            'host': u'fakehost.herokuapp.com',
             'whimsical': True
         })
         fake_assignment = {'status': 'Submitted'}
@@ -165,7 +165,7 @@ class TestHerokuClockTasks(object):
         # Include whimsical set to True to avoid error in the False code branch:
         stub_config.extend({
             'duration': 1.0,
-            'host': 'fakehost.herokuapp.com',
+            'host': u'fakehost.herokuapp.com',
             'whimsical': False
         })
         fake_assignment = {'status': 'Submitted'}
@@ -186,7 +186,7 @@ class TestHerokuClockTasks(object):
         # Include whimsical set to True to avoid error in the False code branch:
         stub_config.extend({
             'duration': 1.0,
-            'host': 'fakehost.herokuapp.com',
+            'host': u'fakehost.herokuapp.com',
             'whimsical': True
         })
         mturk = mock.Mock(**{'get_assignment.return_value': None})
@@ -219,7 +219,7 @@ class TestHerokuClockTasks(object):
         # Include whimsical set to True to avoid error in the False code branch:
         stub_config.extend({
             'duration': 1.0,
-            'host': 'fakehost.herokuapp.com',
+            'host': u'fakehost.herokuapp.com',
             'whimsical': False
         })
         mturk = mock.Mock(**{'get_assignment.return_value': None})
@@ -257,9 +257,9 @@ class TestEmailConfig(object):
 
     def test_catches_missing_config_values(self, klass, stub_config):
         stub_config.extend({
-            'dallinger_email_address': '',
-            'contact_email_on_error': '',
-            'dallinger_email_password': '',
+            'dallinger_email_address': u'',
+            'contact_email_on_error': u'',
+            'dallinger_email_password': u'',
         })
         econfig = klass(stub_config)
         problems = econfig.validate()

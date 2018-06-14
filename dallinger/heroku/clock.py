@@ -62,7 +62,7 @@ def run_check(config, mturk, participants, session, reference_time):
             )
             # Use a debug messenger for now since Gmail is blocking
             # outgoing email from random servers:
-            with config.override({'mode': 'debug'}, strict=True):
+            with config.override({'mode': u'debug'}, strict=True):
                 messenger = get_messenger(summary, config)
 
             if status == "Approved":
