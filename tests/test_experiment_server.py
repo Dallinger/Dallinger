@@ -268,6 +268,15 @@ class TestWorkerComplete(object):
         assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
 
 
+@pytest.fixture
+def mock_messenger():
+    from dallinger.heroku.messages import EmailingHITMessenger
+    messenger = mock.Mock(spec=EmailingHITMessenger)
+    with mock.patch('dallinger.experiment_server.experiment_server.get_messenger') as get:
+        get.return_value = messenger
+        yield messenger
+
+
 @pytest.mark.usefixtures('experiment_dir', 'db_session', 'dummy_mailer')
 class TestHandleError(object):
 
@@ -370,21 +379,9 @@ class TestHandleError(object):
         dummy_mailer.sendmail.assert_called_once()
         assert dummy_mailer.sendmail.call_args[0][0] == u'test@example.com'
 
-    def test_emailer_handles_missing_username(self, a, webapp, active_config, dummy_mailer):
-        active_config.extend({'dallinger_email_address': u'',
-                              'contact_email_on_error': u'test_error'})
+    def test_sends_message(self, webapp, mock_messenger):
         webapp.post('/handle-error', data={})
-
-        dummy_mailer.login.assert_not_called()
-
-    def test_emailer_handles_missing_destination_address(self, a, webapp, active_config,
-                                                         dummy_mailer):
-        active_config.extend({'dallinger_email_address': u'test_error',
-                              'contact_email_on_error': u'',
-                              'mode': u'sandbox'})
-        webapp.post('/handle-error', data={})
-
-        dummy_mailer.login.assert_not_called()
+        mock_messenger.send_hit_error.assert_called_once()
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')

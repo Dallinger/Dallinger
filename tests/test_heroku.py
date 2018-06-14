@@ -237,15 +237,6 @@ class TestHerokuClockTasks(object):
             mock_messenger.send_hit_cancelled_msg.assert_called()
 
 
-def emailing_messenger(summary, config):
-    messenger = EmailingHITMessenger(
-        hit_info=summary,
-        email_settings=EmailConfig(config)
-    )
-
-    return messenger
-
-
 @pytest.fixture
 def hit_summary():
     from dallinger.heroku.messages import HITSummary
@@ -256,6 +247,36 @@ def hit_summary():
         app_id='some app id',
         when='the time',
     )
+
+
+class TestEmailConfig(object):
+
+    @pytest.fixture
+    def klass(self):
+        from dallinger.heroku.messages import EmailConfig
+        return EmailConfig
+
+    def test_catches_missing_config_values(self, klass, stub_config):
+        stub_config.extend({
+            'dallinger_email_address': '',
+            'contact_email_on_error': '',
+            'dallinger_email_password': '',
+        })
+        econfig = klass(stub_config)
+        problems = econfig.validate()
+        assert problems == (
+            'Missing or invalid config values: dallinger_email_address, '
+            'contact_email_on_error, dallinger_email_password'
+        )
+
+
+def emailing_messenger(summary, config):
+    messenger = EmailingHITMessenger(
+        hit_info=summary,
+        email_settings=EmailConfig(config)
+    )
+
+    return messenger
 
 
 @pytest.fixture
@@ -285,6 +306,13 @@ class TestEmailingHITMessenger(object):
         whimsical.server.quit.assert_called()
         assert whimsical.server.sendmail.call_args[0][0] == u'test@example.com'
         assert whimsical.server.sendmail.call_args[0][1] == u'error_contact@test.com'
+
+    def test_wraps_mail_server_exceptions(self, whimsical, dummy_mailer):
+        import smtplib
+        from dallinger.heroku.messages import MessengerError
+        dummy_mailer.login.side_effect = smtplib.SMTPException("Boom!")
+        with pytest.raises(MessengerError):
+            whimsical.send_resubmitted_msg()
 
     def test_send_resubmitted_msg_whimsical(self, whimsical):
         data = whimsical.send_resubmitted_msg()
