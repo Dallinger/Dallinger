@@ -264,8 +264,8 @@ class TestEmailConfig(object):
         econfig = klass(stub_config)
         problems = econfig.validate()
         assert problems == (
-            'Missing or invalid config values: dallinger_email_address, '
-            'contact_email_on_error, dallinger_email_password'
+            'Missing or invalid config values: contact_email_on_error, '
+            'dallinger_email_address, dallinger_email_password'
         )
 
 

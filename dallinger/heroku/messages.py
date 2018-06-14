@@ -192,7 +192,7 @@ class EmailConfig(object):
                 missing.append(v)
         if missing:
             return "Missing or invalid config values: {}".format(
-                ', '.join(missing)
+                ', '.join(sorted(missing))
             )
 
 
