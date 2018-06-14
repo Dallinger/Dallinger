@@ -362,15 +362,13 @@ class TestHandleError(object):
         assert notifications[1].details['request_data']['participant_id'] == participant_id
 
     def test_sends_email(self, a, webapp, active_config, dummy_mailer):
-        active_config.extend({'dallinger_email_address': u'test_error',
-                              'dallinger_email_password': u'secret',
-                              'mode': u'sandbox'})
+        active_config.extend({'mode': u'sandbox'})
         webapp.post('/handle-error', data={})
 
         dummy_mailer.login.assert_called_once()
         dummy_mailer.starttls.assert_called_once()
         dummy_mailer.sendmail.assert_called_once()
-        assert dummy_mailer.sendmail.call_args[0][0] == u'test_error@gmail.com'
+        assert dummy_mailer.sendmail.call_args[0][0] == u'test@example.com'
 
     def test_emailer_handles_missing_username(self, a, webapp, active_config, dummy_mailer):
         active_config.extend({'dallinger_email_address': u'',

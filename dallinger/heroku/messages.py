@@ -1,14 +1,15 @@
 import logging
+import six
+import smtplib
 from cached_property import cached_property
 from datetime import datetime
 from email.mime.text import MIMEText
-from smtplib import SMTP
 
 logger = logging.getLogger(__file__)
 
 
 def get_email_server():
-    return SMTP('smtp.gmail.com:587')
+    return smtplib.SMTP('smtp.gmail.com:587')
 
 
 resubmit_whimsical = """Dearest Friend,
@@ -152,6 +153,10 @@ The Dallinger dev. team.
 """
 
 
+class MessengerError(Exception):
+    """A message could not be relayed."""
+
+
 class HITSummary(object):
 
     def __init__(self, assignment_id, duration, time_active, app_id, when=datetime.now()):
@@ -163,20 +168,48 @@ class HITSummary(object):
         self.app_id = app_id
 
 
+class EmailConfig(object):
+    """Extracts and validates email-related values from a Configuration
+    """
+    _map = {
+        'username': 'dallinger_email_address',
+        'toaddr': 'contact_email_on_error',
+        'email_password': 'dallinger_email_password',
+    }
+
+    def __init__(self, config):
+        self.username = config.get('dallinger_email_address', '')
+        self.toaddr = config.get('contact_email_on_error', '')
+        self.email_password = config.get('dallinger_email_password', '')
+        self.fromaddr = self.username
+        self.whimsical = config.get('whimsical', False)
+
+    def validate(self):
+        """Could this config be used to send a real email?"""
+        missing = []
+        for k, v in self._map.items():
+            if not getattr(self, k, False):
+                missing.append(v)
+        if missing:
+            return "Missing or invalid config values: {}".format(
+                ', '.join(missing)
+            )
+
+
 class BaseHITMessenger(object):
 
-    def __init__(self, hit_info, config):
+    def __init__(self, hit_info, email_settings):
         self.when = hit_info.when
         self.assignment_id = hit_info.assignment_id
         self.duration = hit_info.duration
         self.minutes_so_far = hit_info.minutes_so_far
         self.minutes_excess = hit_info.minutes_excess
         self.app_id = hit_info.app_id
-        self.whimsical = config.get('whimsical')
-        self.username = config.get('dallinger_email_username', '')
-        self.fromaddr = self.username + '@gmail.com'
-        self.toaddr = config.get('contact_email_on_error', '')
-        self.email_password = config.get('dallinger_email_key', '')
+        self.whimsical = email_settings.whimsical
+        self.username = email_settings.username
+        self.fromaddr = email_settings.fromaddr
+        self.toaddr = email_settings.toaddr
+        self.email_password = email_settings.email_password
 
     def send_resubmitted_msg(self):
         data = self._build_resubmitted_msg()
@@ -251,10 +284,21 @@ class EmailingHITMessenger(BaseHITMessenger):
     def _send(self, data):
         msg = MIMEText(data['message'])
         msg['Subject'] = data['subject']
-        self.server.starttls()
-        self.server.login(self.username, self.email_password)
-        self.server.sendmail(self.fromaddr, self.toaddr, msg.as_string())
-        self.server.quit()
+        try:
+            self.server.starttls()
+            self.server.login(self.username, self.email_password)
+            self.server.sendmail(self.fromaddr, self.toaddr, msg.as_string())
+            self.server.quit()
+        except smtplib.SMTPException as ex:
+            six.raise_from(
+                MessengerError('SMTP error sending HIT error email.'),
+                ex
+            )
+        except Exception as ex:
+            six.raise_from(
+                MessengerError("Unknown error sending HIT error email."),
+                ex
+            )
 
 
 class NullHITMessenger(BaseHITMessenger):
@@ -281,6 +325,11 @@ class DebugHITMessenger(BaseHITMessenger):
 
 
 def get_messenger(hit_info, config):
+    email_settings = EmailConfig(config)
     if config.get("mode") == "debug":
-        return DebugHITMessenger(hit_info, config)
-    return EmailingHITMessenger(hit_info, config)
+        return DebugHITMessenger(hit_info, email_settings)
+    problems = email_settings.validate()
+    if problems:
+        logger.info(problems + " Will log errors instead of emailing them.")
+        return DebugHITMessenger(hit_info, email_settings)
+    return EmailingHITMessenger(hit_info, email_settings)

@@ -169,20 +169,18 @@ class TestCommandLine(object):
         subprocess.check_call(["dallinger", "setup"])
         subprocess.check_call(["dallinger", "setup"])
 
-    def test_email_with_no_credentials(self, active_config):
-            active_config.extend({
-                'dallinger_email_address': u'email',
-                'contact_email_on_error': u'email',
-                'dallinger_email_password': u'password',
-                'mode': u'sandbox',
-            })
 
-            @report_idle_after(1)
-            def test_smtp():
-                sleep(5)
+class TestReportAfterIdleDecorator(object):
 
-            with raises(SMTPAuthenticationError):
-                test_smtp()
+    def test_reports_timeout(self, active_config):
+
+        @report_idle_after(1)
+        def will_time_out():
+            sleep(5)
+
+        with mock.patch('dallinger.command_line.get_messenger') as messenger:
+            will_time_out()
+            messenger.assert_called_once()
 
 
 @pytest.mark.usefixtures('bartlett_dir', 'active_config')

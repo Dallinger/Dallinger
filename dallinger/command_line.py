@@ -40,6 +40,7 @@ from dallinger import db
 from dallinger import heroku
 from dallinger.heroku.messages import get_messenger
 from dallinger.heroku.messages import HITSummary
+from dallinger.heroku.messages import MessengerError
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp
@@ -116,29 +117,19 @@ def report_idle_after(seconds):
     def decorator(func):
         def wrapper(*args, **kwargs):
             def _handle_timeout(signum, frame):
-                try:
-                    config = get_config()
-                    if not config.ready:
-                        config.load()
-                    msg_config = {
-                        "contact_email_on_error": config["contact_email_on_error"],
-                        "dallinger_email_username": config["dallinger_email_address"],
-                        "dallinger_email_key": config["dallinger_email_password"],
-                        "mode": config.get("mode"),
-                        "whimsical": False
-                    }
-                    app_id = config["id"]
-                    summary = HITSummary(
-                        assignment_id=None,
-                        duration=seconds,
-                        time_active=seconds,
-                        app_id=app_id,
-                    )
-                    messenger = get_messenger(summary, msg_config)
-                    log("Sending email...")
+                config = get_config()
+                if not config.ready:
+                    config.load()
+                summary = HITSummary(
+                    assignment_id=None,
+                    duration=seconds,
+                    time_active=seconds,
+                    app_id=config.get('id'),
+                )
+                with config.override({'whimsical': False}, strict=True):
+                    messenger = get_messenger(summary, config)
+                    log("Reporting problem with idle experiment...")
                     messenger.send_idle_experiment()
-                except KeyError:
-                    log("Config keys not set to send emails...")
 
             signal.signal(signal.SIGALRM, _handle_timeout)
             signal.alarm(seconds)

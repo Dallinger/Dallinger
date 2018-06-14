@@ -37,6 +37,7 @@ from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger import recruiters
 from dallinger.heroku.messages import get_messenger
+from dallinger.heroku.messages import MessengerError
 from dallinger.heroku.messages import HITSummary
 
 from .replay import ReplayBackend
@@ -383,29 +384,19 @@ def handle_error():
     session.commit()
 
     config = _config()
-    if (config.get('dallinger_email_address', None) and
-            config.get('contact_email_on_error', None)):
-        msg_config = {
-            "contact_email_on_error": config["contact_email_on_error"],
-            "dallinger_email_username": config["dallinger_email_address"],
-            "dallinger_email_key": config.get("dallinger_email_password"),
-            "mode": config.get("mode"),
-            "whimsical": False
-        }
-        summary = HITSummary(
-            assignment_id=assignment_id or 'unknown',
-            duration=0,
-            time_active=0,
-            app_id=config.get('id', 'unknown'),
-        )
-        messenger = get_messenger(summary, msg_config)
-        db.logger.debug("Sending HIT error to Messager...")
+    summary = HITSummary(
+        assignment_id=assignment_id or 'unknown',
+        duration=0,
+        time_active=0,
+        app_id=config.get('id', 'unknown'),
+    )
+    db.logger.debug("Reporting HIT error...")
+    with config.override({'whimsical': False}, strict=True):
+        messenger = get_messenger(summary, config)
         try:
             messenger.send_hit_error()
-        except smtplib.SMTPException:
-            db.logger.exception("SMTP error sending HIT error email.")
-        except Exception:
-            db.logger.exception("Unknown error sending HIT error email.")
+        except MessengerError as ex:
+            db.logger.exception(ex)
 
     return render_template(
         'error-complete.html',

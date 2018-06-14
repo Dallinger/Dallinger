@@ -293,6 +293,7 @@ def stub_config():
         u'description': u'fake HIT description',
         u'duration': 1.0,
         u'dyno_type': u'free',
+        u'heroku_auth_token': u'heroku secret',
         u'heroku_team': u'',
         u'host': u'0.0.0.0',
         u'id': u'some experiment uid',

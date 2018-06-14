@@ -11,8 +11,7 @@ from dallinger import db
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
 from dallinger.heroku.messages import HITSummary
-from dallinger.heroku.messages import NullHITMessenger
-
+from dallinger.heroku.messages import get_messenger
 # Import the experiment.
 experiment = dallinger.experiment.load()
 
@@ -54,8 +53,6 @@ def run_check(config, mturk, participants, session, reference_time):
                 status = None
             print("assignment status from AWS is {}".format(status))
             hit_id = p.hit_id
-            # Use a null handler for now since Gmail is blocking outgoing email
-            # from random servers:
             summary = HITSummary(
                 assignment_id=assignment_id,
                 duration=duration_seconds,
@@ -63,7 +60,10 @@ def run_check(config, mturk, participants, session, reference_time):
                 app_id=config.get('id', 'unknown'),
                 when=reference_time,
             )
-            messenger = NullHITMessenger(summary, config)
+            # Use a debug messenger for now since Gmail is blocking
+            # outgoing email from random servers:
+            with config.override({'mode': 'debug'}, strict=True):
+                messenger = get_messenger(summary, config)
 
             if status == "Approved":
                 # if its been approved, set the status accordingly
