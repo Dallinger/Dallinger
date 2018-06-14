@@ -8,7 +8,6 @@ from json import loads
 from operator import attrgetter
 import os
 import re
-import smtplib
 import sys
 import user_agents
 

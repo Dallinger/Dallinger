@@ -11,7 +11,6 @@ import tempfile
 from six.moves import configparser
 from time import sleep
 from uuid import UUID
-from smtplib import SMTPAuthenticationError
 
 from click.testing import CliRunner
 import pytest

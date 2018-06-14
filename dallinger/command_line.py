@@ -7,7 +7,6 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from collections import Counter
-from datetime import datetime
 from functools import wraps
 from six.moves import shlex_quote as quote
 import inspect
@@ -40,7 +39,6 @@ from dallinger import db
 from dallinger import heroku
 from dallinger.heroku.messages import get_messenger
 from dallinger.heroku.messages import HITSummary
-from dallinger.heroku.messages import MessengerError
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp

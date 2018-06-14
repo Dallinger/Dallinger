@@ -11,7 +11,6 @@ from dallinger.heroku import app_name
 from dallinger.heroku.messages import EmailingHITMessenger
 from dallinger.heroku.messages import NullHITMessenger
 from dallinger.heroku.messages import EmailConfig
-from dallinger.models import Participant
 
 
 @pytest.fixture
