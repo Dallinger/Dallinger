@@ -406,7 +406,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
             mock.call('aws_access_key_id', u'fake aws key'),
             mock.call('aws_region', u'us-east-1'),
             mock.call('aws_secret_access_key', u'fake aws secret'),
-            mock.call('dallinger_email_key', u'fake password'),
+            mock.call('dallinger_email_key', u'fake email password'),
             mock.call('dallinger_email_username', u'test@example.com'),
             mock.call('whimsical', True),
         ])

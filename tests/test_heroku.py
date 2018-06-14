@@ -278,11 +278,13 @@ class TestEmailingHITMessenger(object):
 
         assert whimsical.server is dummy_mailer
         whimsical.server.starttls.assert_called()
-        whimsical.server.login.assert_called_once_with('test@example.com', 'fake password')
+        whimsical.server.login.assert_called_once_with(
+            'test@example.com', 'fake email password'
+        )
         whimsical.server.sendmail.assert_called()
         whimsical.server.quit.assert_called()
         assert whimsical.server.sendmail.call_args[0][0] == u'test@example.com'
-        assert whimsical.server.sendmail.call_args[0][1] == u'test@mailinator.com'
+        assert whimsical.server.sendmail.call_args[0][1] == u'error_contact@test.com'
 
     def test_send_resubmitted_msg_whimsical(self, whimsical):
         data = whimsical.send_resubmitted_msg()
