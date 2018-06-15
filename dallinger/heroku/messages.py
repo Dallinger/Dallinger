@@ -8,8 +8,8 @@ from email.mime.text import MIMEText
 logger = logging.getLogger(__file__)
 
 
-def get_email_server():
-    return smtplib.SMTP('smtp.gmail.com:587')
+def get_email_server(host):
+    return smtplib.SMTP(host)
 
 
 resubmit_whimsical = """Dearest Friend,
@@ -168,27 +168,33 @@ class HITSummary(object):
         self.app_id = app_id
 
 
+CONFIG_PLACEHOLDER = '???'
+
+
 class EmailConfig(object):
     """Extracts and validates email-related values from a Configuration
     """
     _map = {
-        'username': 'dallinger_email_address',
+        'username': 'smtp_username',
         'toaddr': 'contact_email_on_error',
-        'email_password': 'dallinger_email_password',
+        'fromaddr': 'dallinger_email_address',
+        'email_password': 'smtp_password',
     }
 
     def __init__(self, config):
-        self.username = config.get('dallinger_email_address', '')
+        self.host = config.get('smtp_host', '')
+        self.username = config.get('smtp_username', '')
         self.toaddr = config.get('contact_email_on_error', '')
-        self.email_password = config.get('dallinger_email_password', '')
-        self.fromaddr = self.username
+        self.email_password = config.get('smtp_password', '')
+        self.fromaddr = config.get('dallinger_email_address', '')
         self.whimsical = config.get('whimsical', False)
 
     def validate(self):
         """Could this config be used to send a real email?"""
         missing = []
         for k, v in self._map.items():
-            if not getattr(self, k, False):
+            attr = getattr(self, k, False)
+            if not attr or attr == CONFIG_PLACEHOLDER:
                 missing.append(v)
         if missing:
             return "Missing or invalid config values: {}".format(
@@ -277,6 +283,7 @@ class BaseHITMessenger(object):
 
     def __init__(self, hit_info, email_settings):
         self.messages = HITMessages.by_flavor(hit_info, email_settings.whimsical)
+        self.host = email_settings.host
         self.username = email_settings.username
         self.fromaddr = email_settings.fromaddr
         self.toaddr = email_settings.toaddr
@@ -309,7 +316,7 @@ class EmailingHITMessenger(BaseHITMessenger):
 
     @cached_property
     def server(self):
-        return get_email_server()
+        return get_email_server(self.host)
 
     def _send(self, data):
         msg = MIMEText(data['message'])

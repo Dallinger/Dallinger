@@ -247,13 +247,14 @@ class TestEmailConfig(object):
         stub_config.extend({
             'dallinger_email_address': u'',
             'contact_email_on_error': u'',
-            'dallinger_email_password': u'',
+            'smtp_username': u'???',
+            'smtp_password': u'???',
         })
         econfig = klass(stub_config)
         problems = econfig.validate()
         assert problems == (
             'Missing or invalid config values: contact_email_on_error, '
-            'dallinger_email_address, dallinger_email_password'
+            'dallinger_email_address, smtp_password, smtp_username'
         )
 
 
@@ -309,7 +310,7 @@ class TestEmailingHITMessenger(object):
         assert whimsical.server is dummy_mailer
         whimsical.server.starttls.assert_called()
         whimsical.server.login.assert_called_once_with(
-            'test@example.com', 'fake email password'
+            'fake email username', 'fake email password'
         )
         whimsical.server.sendmail.assert_called()
         whimsical.server.quit.assert_called()

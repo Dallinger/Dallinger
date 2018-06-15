@@ -130,10 +130,16 @@ Built-in configuration parameters include:
     AWS region to use. Defaults to ``us-east-1``.
 
 ``dallinger_email_address``
-    A Gmail address for use by Dallinger to send status emails.
+    An email address for use by Dallinger to send status emails.
 
-``dallinger_email_password``
-    Password for the aforementioned Gmail address.
+``smtp_host``
+    Hostname and port of a mail server for outgoing mail. Defaults to ``smtp.gmail.com:587``
+
+``smtp_username``
+    Username for outgoing mail host.
+
+``smtp_password``
+    Password for the outgoing mail host.
 
 ``heroku_team``
     The name of the Heroku team to which all applications will be assigned.

@@ -286,7 +286,6 @@ def stub_config():
         u'clock_on': True,
         u'contact_email_on_error': u'error_contact@test.com',
         u'dallinger_email_address': u'test@example.com',
-        u'dallinger_email_password': u'fake email password',
         u'database_size': u'standard-0',
         u'redis_size': u'premium-0',
         u'database_url': u'postgresql://postgres@localhost/dallinger',
@@ -307,6 +306,9 @@ def stub_config():
         u'num_dynos_worker': 1,
         u'organization_name': u'Monsters University',
         u'sentry': True,
+        u'smtp_host': u'smtp.fakehost.com:587',
+        u'smtp_username': u'fake email username',
+        u'smtp_password': u'fake email password',
         u'threads': u'1',
         u'title': u'fake experiment title',
         u'us_only': True,
@@ -387,7 +389,7 @@ def dummy_mailer():
     from dallinger.heroku import messages
     server = mock.create_autospec(SMTP)
     orig_server = messages.get_email_server
-    messages.get_email_server = lambda: server
+    messages.get_email_server = mock.Mock(return_value=server)
     yield server
     messages.get_email_server = orig_server
 
