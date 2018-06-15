@@ -36,7 +36,7 @@ P.S. Please do not respond to this message, I am busy with other matters.
 """
 
 
-resubmit_nonwhimsical = """Dear experimenter,
+resubmit = """Dear experimenter,
 
 This is an automated email from
 Dallinger. You are receiving this email because the Dallinger platform has
@@ -90,7 +90,7 @@ P.S. Please do not respond to this
 message, I am busy with other matters.
 """
 
-cancelled_hit_nonwhimsical = """Dear experimenter,
+cancelled_hit = """Dear experimenter,
 
 This is an automated email from
 Dallinger. You are receiving this email because the Dallinger platform has
@@ -196,80 +196,110 @@ class EmailConfig(object):
             )
 
 
-class BaseHITMessenger(object):
+class HITMessages(object):
 
-    def __init__(self, hit_info, email_settings):
+    @staticmethod
+    def by_flavor(hit_info, whimsical):
+        if whimsical:
+            return WhimsicalHITMessages(hit_info)
+        return HITMessages(hit_info)
+
+    _templates = {
+        'resubmitted': {
+            'subject': 'Dallinger automated email - minor error.',
+            'template': resubmit,
+        },
+        'cancelled': {
+            'subject': 'Dallinger automated email - major error.',
+            'template': cancelled_hit,
+        },
+        'idle': {
+            'subject': 'Idle Experiment.',
+            'template': idle_template,
+        },
+        'hit_error': {
+            'subject': 'Error during HIT.',
+            'template': hit_error_template,
+        },
+    }
+
+    def __init__(self, hit_info):
         self.when = hit_info.when
         self.assignment_id = hit_info.assignment_id
         self.duration = hit_info.duration
         self.minutes_so_far = hit_info.minutes_so_far
         self.minutes_excess = hit_info.minutes_excess
         self.app_id = hit_info.app_id
-        self.whimsical = email_settings.whimsical
+
+    def resubmitted_msg(self):
+        return self._build('resubmitted')
+
+    def hit_cancelled_msg(self):
+        return self._build('cancelled')
+
+    def idle_experiment_msg(self):
+        return self._build('idle')
+
+    def hit_error_msg(self):
+        return self._build('hit_error')
+
+    def _build(self, category):
+        data = self._templates[category]
+        return {
+            'message': data['template'].format(**self.__dict__),
+            'subject': data['subject'],
+        }
+
+
+class WhimsicalHITMessages(HITMessages):
+
+    _templates = {
+        'resubmitted': {
+            'subject': 'A matter of minor concern.',
+            'template': resubmit_whimsical,
+        },
+        'cancelled': {
+            'subject': 'Most troubling news.',
+            'template': cancelled_hit_whimsical,
+        },
+        'idle': {
+            'subject': 'Idle Experiment.',
+            'template': idle_template,
+        },
+        'hit_error': {
+            'subject': 'Error during HIT.',
+            'template': hit_error_template,
+        },
+    }
+
+
+class BaseHITMessenger(object):
+
+    def __init__(self, hit_info, email_settings):
+        self.messages = HITMessages.by_flavor(hit_info, email_settings.whimsical)
         self.username = email_settings.username
         self.fromaddr = email_settings.fromaddr
         self.toaddr = email_settings.toaddr
         self.email_password = email_settings.email_password
 
     def send_resubmitted_msg(self):
-        data = self._build_resubmitted_msg()
+        data = self.messages.resubmitted_msg()
         self._send(data)
         return data
 
     def send_hit_cancelled_msg(self):
-        data = self._build_hit_cancelled_msg()
+        data = self.messages.hit_cancelled_msg()
         self._send(data)
         return data
 
-    def send_idle_experiment(self):
-        template = idle_template
-        data = {
-            'message': template.format(**self.__dict__),
-            'subject': "Idle Experiment."
-        }
+    def send_idle_experiment_msg(self):
+        data = self.messages.idle_experiment_msg()
         self._send(data)
         return data
 
-    def send_hit_error(self):
-        template = hit_error_template
-        data = {
-            'message': template.format(**self.__dict__),
-            'subject': "Error during HIT."
-        }
+    def send_hit_error_msg(self):
+        data = self.messages.hit_error_msg()
         self._send(data)
-        return data
-
-    def _build_resubmitted_msg(self):
-        if self.whimsical:
-            template = resubmit_whimsical
-            data = {
-                'message': template.format(**self.__dict__),
-                'subject': 'A matter of minor concern.'
-            }
-
-        else:
-            template = resubmit_nonwhimsical
-            data = {
-                'message': template.format(**self.__dict__),
-                'subject': "Dallinger automated email - minor error."
-            }
-
-        return data
-
-    def _build_hit_cancelled_msg(self):
-        if self.whimsical:
-            template = cancelled_hit_whimsical
-            data = {
-                'message': template.format(**self.__dict__),
-                'subject': "Most troubling news."
-            }
-        else:
-            template = cancelled_hit_nonwhimsical
-            data = {
-                'message': template.format(**self.__dict__),
-                'subject': "Dallinger automated email - major error."
-            }
-
         return data
 
 
@@ -301,16 +331,6 @@ class EmailingHITMessenger(BaseHITMessenger):
             )
 
 
-class NullHITMessenger(BaseHITMessenger):
-    """Does nothing at all.
-
-    Used as a placeholder in contexts where sending a message is not possible.
-    """
-
-    def _send(self, data):
-        pass
-
-
 class DebugHITMessenger(BaseHITMessenger):
     """Used in debug mode.
 
@@ -318,13 +338,16 @@ class DebugHITMessenger(BaseHITMessenger):
     """
 
     def _send(self, data):
-        logger.info(
-            "{} sending message:\n{}".format(
-                self.__class__.__name__, data['message'])
-        )
+        logger.info("{}:\n{}".format(self.__class__.__name__, data['message']))
 
 
 def get_messenger(hit_info, config):
+    """Return an appropriate Messenger.
+
+    If we're in debug mode, or email settings aren't set, return a debug
+    version which logs the message instead of attempting to send a real
+    email.
+    """
     email_settings = EmailConfig(config)
     if config.get("mode") == "debug":
         return DebugHITMessenger(hit_info, email_settings)

@@ -393,7 +393,7 @@ def handle_error():
     with config.override({'whimsical': False}, strict=True):
         messenger = get_messenger(summary, config)
         try:
-            messenger.send_hit_error()
+            messenger.send_hit_error_msg()
         except MessengerError as ex:
             db.logger.exception(ex)
 

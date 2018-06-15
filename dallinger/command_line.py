@@ -127,7 +127,7 @@ def report_idle_after(seconds):
                 with config.override({'whimsical': False}, strict=True):
                     messenger = get_messenger(summary, config)
                     log("Reporting problem with idle experiment...")
-                    messenger.send_idle_experiment()
+                    messenger.send_idle_experiment_msg()
 
             signal.signal(signal.SIGALRM, _handle_timeout)
             signal.alarm(seconds)

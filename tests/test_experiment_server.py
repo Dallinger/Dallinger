@@ -381,7 +381,7 @@ class TestHandleError(object):
 
     def test_sends_message(self, webapp, mock_messenger):
         webapp.post('/handle-error', data={})
-        mock_messenger.send_hit_error.assert_called_once()
+        mock_messenger.send_hit_error_msg.assert_called_once()
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
