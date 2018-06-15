@@ -4,6 +4,7 @@ import smtplib
 from cached_property import cached_property
 from datetime import datetime
 from email.mime.text import MIMEText
+from dallinger.heroku.tools import HerokuApp
 
 logger = logging.getLogger(__file__)
 
@@ -324,9 +325,11 @@ class EmailingHITMessenger(BaseHITMessenger):
         if self.email_password:
             return self.email_password
         # Try to get it from the Heroku setting
-        from dallinger.heroku.tools import HerokuApp
         app = HerokuApp(self.app_id)
-        return app.get('smtp_password')
+        try:
+            return app.get('smtp_password')
+        except Exception:
+            return ''
 
     def _send(self, data):
         msg = MIMEText(data['message'])
