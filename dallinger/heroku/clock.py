@@ -12,6 +12,7 @@ from dallinger.models import Participant
 from dallinger.mturk import MTurkService
 from dallinger.heroku.messages import HITSummary
 from dallinger.heroku.messages import get_messenger
+from dallinger.recruiters import BotRecruiter
 # Import the experiment.
 experiment = dallinger.experiment.load()
 
@@ -39,7 +40,7 @@ def run_check(config, mturk, participants, session, reference_time):
             assignment_id = p.assignment_id
 
             # First see if we have a bot participant
-            if config.get('recruiter', 'mturk') == 'bots':
+            if p.recruiter_id == BotRecruiter.nickname:
                 # Bot somehow did not finish (phantomjs?). Just get rid of it.
                 p.status = "rejected"
                 session.commit()

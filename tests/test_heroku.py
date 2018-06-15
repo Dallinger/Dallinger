@@ -109,6 +109,18 @@ class TestHerokuClockTasks(object):
 
         mturk.get_assignment.assert_not_called()
 
+    def test_rejects_bot_participants(self, a, stub_config, run_check):
+        from dallinger.recruiters import BotRecruiter
+        mturk = mock.Mock(**{'get_assignment.return_value': ['fake']})
+        participants = [a.participant(recruiter_id=BotRecruiter.nickname)]
+        session = mock.Mock()
+        # Move the clock forward so assignment is overdue:
+        reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
+        run_check(stub_config, mturk, participants, session, reference_time)
+
+        assert participants[0].status == 'rejected'
+        session.commit.assert_called()
+
     def test_sets_participant_status_if_mturk_reports_approved(self, a, stub_config, run_check):
         fake_assignment = {'status': 'Approved'}
         mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
