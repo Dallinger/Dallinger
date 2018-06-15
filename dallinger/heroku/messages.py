@@ -178,7 +178,7 @@ class EmailConfig(object):
         'username': 'smtp_username',
         'toaddr': 'contact_email_on_error',
         'fromaddr': 'dallinger_email_address',
-        'email_password': 'smtp_password',
+        # 'email_password': 'smtp_password',
     }
 
     def __init__(self, config):
@@ -283,6 +283,7 @@ class BaseHITMessenger(object):
 
     def __init__(self, hit_info, email_settings):
         self.messages = HITMessages.by_flavor(hit_info, email_settings.whimsical)
+        self.app_id = hit_info.app_id
         self.host = email_settings.host
         self.username = email_settings.username
         self.fromaddr = email_settings.fromaddr
@@ -318,12 +319,21 @@ class EmailingHITMessenger(BaseHITMessenger):
     def server(self):
         return get_email_server(self.host)
 
+    @cached_property
+    def smtp_password(self):
+        if self.email_password:
+            return self.email_password
+        # Try to get it from the Heroku setting
+        from dallinger.heroku.tools import HerokuApp
+        app = HerokuApp(self.app_id)
+        return app.get('smtp_password')
+
     def _send(self, data):
         msg = MIMEText(data['message'])
         msg['Subject'] = data['subject']
         try:
             self.server.starttls()
-            self.server.login(self.username, self.email_password)
+            self.server.login(self.username, self.smtp_password)
             self.server.sendmail(self.fromaddr, self.toaddr, msg.as_string())
             self.server.quit()
         except smtplib.SMTPException as ex:

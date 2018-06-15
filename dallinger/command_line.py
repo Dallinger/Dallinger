@@ -536,8 +536,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
         "aws_secret_access_key": config["aws_secret_access_key"],
         "aws_region": config["aws_region"],
         "auto_recruit": config["auto_recruit"],
-        "dallinger_email_username": config["smtp_username"],
-        "dallinger_email_key": config["smtp_password"],
+        "smtp_username": config["smtp_username"],
+        "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
     }
 

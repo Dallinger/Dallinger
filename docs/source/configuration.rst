@@ -59,7 +59,8 @@ Built-in configuration parameters include:
     to qualify to participate in your experiment. 1-100.
 
 ``contact_email_on_error`` *unicode*
-    Email address displayed when there is an error.
+    Email address used as recipient for error report emails, and displayed to workers
+    when there is an error.
 
 ``auto_recruit``
     Whether recruitment should be automatic.
