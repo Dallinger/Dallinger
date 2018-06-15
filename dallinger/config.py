@@ -171,6 +171,12 @@ class Configuration(object):
                     pass
         return d
 
+    def is_sensitive(self, key):
+        if key in self.sensitive:
+            return True
+        # Also, does a sensitive string appear within the key?
+        return any(s for s in SENSITIVE_KEY_NAMES if s in key)
+
     def register(self, key, type_, synonyms=None, sensitive=False):
         if synonyms is None:
             synonyms = set()
@@ -202,8 +208,7 @@ class Configuration(object):
         parser.add_section('Parameters')
         for layer in reversed(self.data):
             for k, v in layer.items():
-                if (filter_sensitive and k in self.sensitive or
-                        [s for s in SENSITIVE_KEY_NAMES if s in k]):
+                if filter_sensitive and self.is_sensitive(k):
                     continue
                 parser.set('Parameters', k, str(v))
 

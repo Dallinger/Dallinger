@@ -219,3 +219,25 @@ worldwide = false
         config.ready = True
         config.set('host', 'http://dlgr-bogus.herokuapp.com')
         assert(get_base_url() == 'https://dlgr-bogus.herokuapp.com')
+
+    def test_write_omits_sensitive_keys_if_filter_sensitive(self, in_tempdir):
+        config = get_config()
+        config.set('aws_region', 'some region')
+        config.set('aws_secret_access_key', 'foo')
+        config.ready = True
+        config.write(filter_sensitive=True)
+        with open(LOCAL_CONFIG) as txt:
+            contents = txt.read()
+        assert 'aws_region' in contents
+        assert 'aws_secret_access_key' not in contents
+
+    def test_write_includes_all_keys_if_filter_sensitive_false(self, in_tempdir):
+        config = get_config()
+        config.set('aws_region', 'some region')
+        config.set('aws_secret_access_key', 'foo')
+        config.ready = True
+        config.write(filter_sensitive=False)
+        with open(LOCAL_CONFIG) as txt:
+            contents = txt.read()
+        assert 'aws_region' in contents
+        assert 'aws_secret_access_key' in contents
