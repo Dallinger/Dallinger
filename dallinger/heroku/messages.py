@@ -4,7 +4,6 @@ import smtplib
 from cached_property import cached_property
 from datetime import datetime
 from email.mime.text import MIMEText
-from dallinger.heroku.tools import HerokuApp
 
 logger = logging.getLogger(__file__)
 
@@ -179,14 +178,14 @@ class EmailConfig(object):
         'username': 'smtp_username',
         'toaddr': 'contact_email_on_error',
         'fromaddr': 'dallinger_email_address',
-        # 'email_password': 'smtp_password',
+        'password': 'smtp_password',
     }
 
     def __init__(self, config):
         self.host = config.get('smtp_host', '')
         self.username = config.get('smtp_username', '')
         self.toaddr = config.get('contact_email_on_error', '')
-        self.email_password = config.get('smtp_password', '')
+        self.password = config.get('smtp_password', '')
         self.fromaddr = config.get('dallinger_email_address', '')
         self.whimsical = config.get('whimsical', False)
 
@@ -289,7 +288,7 @@ class BaseHITMessenger(object):
         self.username = email_settings.username
         self.fromaddr = email_settings.fromaddr
         self.toaddr = email_settings.toaddr
-        self.email_password = email_settings.email_password
+        self.password = email_settings.password
 
     def send_resubmitted_msg(self):
         data = self.messages.resubmitted_msg()
@@ -320,23 +319,12 @@ class EmailingHITMessenger(BaseHITMessenger):
     def server(self):
         return get_email_server(self.host)
 
-    @cached_property
-    def smtp_password(self):
-        if self.email_password:
-            return self.email_password
-        # Try to get it from the Heroku setting
-        app = HerokuApp(self.app_id)
-        try:
-            return app.get('smtp_password')
-        except Exception:
-            return ''
-
     def _send(self, data):
         msg = MIMEText(data['message'])
         msg['Subject'] = data['subject']
         try:
             self.server.starttls()
-            self.server.login(self.username, self.smtp_password)
+            self.server.login(self.username, self.password)
             self.server.sendmail(self.fromaddr, self.toaddr, msg.as_string())
             self.server.quit()
         except smtplib.SMTPException as ex:
