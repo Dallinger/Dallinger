@@ -36,7 +36,6 @@ default_keys = (
     ('clock_on', bool, []),
     ('contact_email_on_error', six.text_type, []),
     ('dallinger_email_address', six.text_type, []),
-    ('dallinger_email_password', six.text_type, [], True),
     ('database_size', six.text_type, []),
     ('database_url', six.text_type, []),
     ('description', six.text_type, []),
@@ -60,6 +59,10 @@ default_keys = (
     ('qualification_blacklist', six.text_type, []),
     ('recruiter', six.text_type, []),
     ('recruiters', six.text_type, []),
+    ('sentry', bool, []),
+    ('smtp_host', six.text_type, []),
+    ('smtp_username', six.text_type, []),
+    ('smtp_password', six.text_type, ['dallinger_email_password'], True),
     ('redis_size', six.text_type, []),
     ('replay', bool, []),
     ('threads', six.text_type, []),
@@ -68,7 +71,6 @@ default_keys = (
     ('webdriver_type', six.text_type, []),
     ('webdriver_url', six.text_type, []),
     ('whimsical', bool, []),
-    ('sentry', bool, []),
 )
 
 

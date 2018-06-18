@@ -11,7 +11,6 @@ import tempfile
 from six.moves import configparser
 from time import sleep
 from uuid import UUID
-from smtplib import SMTPAuthenticationError
 
 from click.testing import CliRunner
 import pytest
@@ -169,18 +168,18 @@ class TestCommandLine(object):
         subprocess.check_call(["dallinger", "setup"])
         subprocess.check_call(["dallinger", "setup"])
 
-    def test_email_with_no_credentials(self, active_config):
-            @report_idle_after(1)
-            def test_smtp():
-                active_config.extend({
-                    'dallinger_email_address': u'email',
-                    'contact_email_on_error': u'email',
-                    'dallinger_email_password': u'password'
-                })
-                sleep(5)
 
-            with raises(SMTPAuthenticationError):
-                test_smtp()
+class TestReportAfterIdleDecorator(object):
+
+    def test_reports_timeout(self, active_config):
+
+        @report_idle_after(1)
+        def will_time_out():
+            sleep(5)
+
+        with mock.patch('dallinger.command_line.get_messenger') as messenger:
+            will_time_out()
+            messenger.assert_called_once()
 
 
 @pytest.mark.usefixtures('bartlett_dir', 'active_config')
@@ -406,8 +405,8 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
             mock.call('aws_access_key_id', u'fake aws key'),
             mock.call('aws_region', u'us-east-1'),
             mock.call('aws_secret_access_key', u'fake aws secret'),
-            mock.call('dallinger_email_key', u'fake password'),
-            mock.call('dallinger_email_username', u'test@example.com'),
+            mock.call('smtp_password', u'fake email password'),
+            mock.call('smtp_username', u'fake email username'),
             mock.call('whimsical', True),
         ])
 

@@ -8,7 +8,6 @@ from json import loads
 from operator import attrgetter
 import os
 import re
-import smtplib
 import sys
 import user_agents
 
@@ -36,7 +35,9 @@ from dallinger import information
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger import recruiters
-from dallinger.heroku.messages import EmailingHITMessager
+from dallinger.heroku.messages import get_messenger
+from dallinger.heroku.messages import MessengerError
+from dallinger.heroku.messages import HITSummary
 
 from .replay import ReplayBackend
 from .worker_events import WorkerEvent
@@ -382,27 +383,19 @@ def handle_error():
     session.commit()
 
     config = _config()
-    if (config.get('dallinger_email_address', None) and
-            config.get('contact_email_on_error', None)):
-        heroku_config = {
-            "contact_email_on_error": config["contact_email_on_error"],
-            "dallinger_email_username": config["dallinger_email_address"],
-            "dallinger_email_key": config.get("dallinger_email_password"),
-            "whimsical": False
-        }
-
-        emailer = EmailingHITMessager(when=datetime.now(),
-                                      assignment_id=assignment_id or 'unknown',
-                                      hit_duration=0, time_active=0,
-                                      config=heroku_config,
-                                      app_id=config.get('id', 'unknown'))
-        db.logger.debug("Sending HIT error email...")
+    summary = HITSummary(
+        assignment_id=assignment_id or 'unknown',
+        duration=0,
+        time_active=0,
+        app_id=config.get('id', 'unknown'),
+    )
+    db.logger.debug("Reporting HIT error...")
+    with config.override({'whimsical': False}, strict=True):
+        messenger = get_messenger(summary, config)
         try:
-            emailer.send_hit_error()
-        except smtplib.SMTPException:
-            db.logger.exception("SMTP error sending HIT error email.")
-        except Exception:
-            db.logger.exception("Unknown error sending HIT error email.")
+            messenger.send_hit_error_msg()
+        except MessengerError as ex:
+            db.logger.exception(ex)
 
     return render_template(
         'error-complete.html',

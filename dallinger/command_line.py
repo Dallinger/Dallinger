@@ -7,7 +7,6 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from collections import Counter
-from datetime import datetime
 from functools import wraps
 from six.moves import shlex_quote as quote
 import inspect
@@ -38,7 +37,8 @@ from dallinger.config import initialize_experiment_package
 from dallinger import data
 from dallinger import db
 from dallinger import heroku
-from dallinger.heroku.messages import EmailingHITMessager
+from dallinger.heroku.messages import get_messenger
+from dallinger.heroku.messages import HITSummary
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.heroku.tools import HerokuApp
@@ -115,23 +115,19 @@ def report_idle_after(seconds):
     def decorator(func):
         def wrapper(*args, **kwargs):
             def _handle_timeout(signum, frame):
-                try:
-                    config = get_config()
+                config = get_config()
+                if not config.ready:
                     config.load()
-                    heroku_config = {
-                        "contact_email_on_error": config["contact_email_on_error"],
-                        "dallinger_email_username": config["dallinger_email_address"],
-                        "dallinger_email_key": config["dallinger_email_password"],
-                        "whimsical": False
-                    }
-                    app_id = config["id"]
-                    email = EmailingHITMessager(when=datetime.now(), assignment_id=None,
-                                                hit_duration=seconds, time_active=seconds,
-                                                config=heroku_config, app_id=app_id)
-                    log("Sending email...")
-                    email.send_idle_experiment()
-                except KeyError:
-                    log("Config keys not set to send emails...")
+                summary = HITSummary(
+                    assignment_id=None,
+                    duration=seconds,
+                    time_active=seconds,
+                    app_id=config.get('id'),
+                )
+                with config.override({'whimsical': False}, strict=True):
+                    messenger = get_messenger(summary, config)
+                    log("Reporting problem with idle experiment...")
+                    messenger.send_idle_experiment_msg()
 
             signal.signal(signal.SIGALRM, _handle_timeout)
             signal.alarm(seconds)
@@ -540,8 +536,8 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
         "aws_secret_access_key": config["aws_secret_access_key"],
         "aws_region": config["aws_region"],
         "auto_recruit": config["auto_recruit"],
-        "dallinger_email_username": config["dallinger_email_address"],
-        "dallinger_email_key": config["dallinger_email_password"],
+        "smtp_username": config["smtp_username"],
+        "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
     }
 

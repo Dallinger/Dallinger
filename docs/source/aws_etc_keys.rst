@@ -29,8 +29,8 @@ in like so:
     aws_region = us-east-1
 
     [Email Access]
-    dallinger_email_address = ???
-    dallinger_email_password = ???
+    smtp_username = ???
+    smtp_password = ???
 
 In the next steps, we'll fill in your config file with keys.
 
