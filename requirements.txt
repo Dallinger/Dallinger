@@ -11,7 +11,7 @@ greenlet==0.4.13
 gunicorn==19.8.1
 localconfig==1.1.1
 pexpect==4.6.0
-psycopg2-binary==2.7.4
+psycopg2-binary==2.7.5
 psutil==5.4.6
 redis==2.10.6
 requests==2.19.1
