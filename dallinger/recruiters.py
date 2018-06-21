@@ -3,8 +3,6 @@
 import logging
 import os
 import re
-import requests
-import json
 
 from rq import Queue
 from sqlalchemy import func
@@ -14,7 +12,9 @@ from dallinger.db import session
 from dallinger.heroku.worker import conn
 from dallinger.models import Participant
 from dallinger.models import Recruitment
+from dallinger.models import Config
 from dallinger.mturk import MTurkService
+from dallinger.pulse import PulseService
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
@@ -638,66 +638,57 @@ class PulseRecruiter(Recruiter):
     """Recruit participants using Pulse API"""
 
     nickname = 'pulse'
+    pulse_service = None
 
     def __init__(self):
         super(PulseRecruiter, self).__init__()
         self.config = get_config()
+
+        self.pulse_service = PulseService(self.config.get('pulse_api_url'), self.config.get('pulse_app_id'))
+
         logger.info("Initialized PulseRecruiter.")
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
 
-        payload = {
-            'name': self.config.get('title'),
-            'projects': [
-                {
-                    'name': self.config.get('title'),
-                    'location': '<{}>'.format(self.config.get('location')),
-                    'flow': {
-                        'components': [
-                            {
-                                'type': 'FacebookAdvertisement',
-                                'name': self.config.get('title'),
-                                'message': self.config.get('description'),
-                                'appLink': self.config.get('link'),
-                                'imageUrl': self.config.get('image_url'),
-                                'facebookPageId': self.config.get('page_id')
-                            },
-                            {
-                                'type': 'FacebookMessengerBot',
-                                'name': self.config.get('title')
-                            }
-                        ],
-                        'name': self.config.get('title')
-                    },
-                    'status': 'activated',
-                    'version': 1
-                }
-            ],
-            'status': 'activated'
-        }
+        self.pulse_service.create_campaign(
+            self.config.get('title'),
+            self.config.get('description'),
+            self.config.get('pulse_location'),
+            self.config.get('pulse_link'),
+            self.config.get('pulse_image_url'),
+            self.config.get('pulse_page_id')
+        )
 
-        r = requests.post(self.config.get('pulse_api_url') + "/campaign", json=payload, headers={'applicationId': self.config.get('app_id')})
+        logger.info("Open recruitment: {}".format(self.pulse_service.campaign_id))
 
-        resp = json.loads(r.text)
+        session.add(Config(name="campaign_id", value=self.pulse_service.campaign_id))
+        session.add(Config(name="project_id", value=self.pulse_service.project_id))
 
-        if resp.get('response') is None or type(resp.get('response')) is not dict:
-            raise Exception("Invalid response on create campaign: " + r.text)
-        else:
-            resp = resp.get('response')
-
-        if resp.get('id') is not None:
-            campaign_id = resp.get('id')
-
-        logger.info("Open recruitment: {}".format(campaign_id))
+        self.recruit()
 
         return {
-            'items': [campaign_id],
+            'items': [self.pulse_service.campaign_id],
             'message': 'Pulse Campaign Created'
         }
 
     def recruit(self, n=1):
         """Recruit n new participants to the queue"""
+
+        ad_url = '{}/ad?recruiter={}'.format(
+            get_base_url(),
+            self.nickname,
+        )
+
+        try:
+            self.pulse_service.recruit(
+                self.config.get('pulse_recruit_flow'),
+                ad_url
+            )
+        except Exception as ex:
+            logger.error("Exception while running Pulse recruitment")
+            logger.exception(ex)
+
         return []
 
     def approve_hit(self, assignment_id):
@@ -711,10 +702,8 @@ class PulseRecruiter(Recruiter):
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
 
     def reward_bonus(self, assignment_id, amount, reason):
-        """Logging only."""
-        logger.info(
-            "Nothing yet, sorry"
-        )
+        """ Reward the participant """
+        self.pulse_service.reward(self.config.get('pulse_reward_flow'), assignment_id)
 
     def submitted_event(self):
         return None

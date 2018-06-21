@@ -1839,3 +1839,13 @@ class Recruitment(Base, SharedMixin):
 
     #: A String, the nickname of the recruiter used.
     recruiter_id = Column(String(50), nullable=True)
+
+
+class Config(Base):
+    """A persistent configuration value"""
+
+    __tablename__ = "config"
+
+    name = Column(String, primary_key=True, index=True)
+
+    value = Column(String, nullable=False)
