@@ -139,7 +139,6 @@ class BotBase(object):
         engagement = self.driver.find_element_by_id('engagement')
         engagement.value = '3'
 
-
     def sign_off(self):
         """Submit questionnaire and finish.
 
