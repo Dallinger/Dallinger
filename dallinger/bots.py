@@ -131,9 +131,13 @@ class BotBase(object):
     def complete_questionnaire(self):
         """Complete the standard debriefing form.
 
-        This does nothing unless overridden by a subclass.
+        Answers the questions in the base questionnaire.
         """
-        pass
+        logger.info("Complete questionnaire.")
+        difficulty = self.driver.find_element_by_id('difficulty')
+        difficulty.value = '4'
+        engagement = self.driver.find_element_by_id('engagement')
+        engagement.value = '3'
 
     def sign_off(self):
         """Submit questionnaire and finish.
@@ -142,7 +146,8 @@ class BotBase(object):
         and return to the original window.
         """
         try:
-            feedback = WebDriverWait(self.driver, 10).until(
+            logger.info("Bot player signing off.")
+            feedback = WebDriverWait(self.driver, 20).until(
                 EC.presence_of_element_located((By.ID, 'submit-questionnaire')))
             self.complete_questionnaire()
             feedback.click()
