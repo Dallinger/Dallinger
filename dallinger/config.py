@@ -71,6 +71,7 @@ default_keys = (
     ('webdriver_type', six.text_type, []),
     ('webdriver_url', six.text_type, []),
     ('whimsical', bool, []),
+    ('worker_multiplier', float, []),
 )
 
 

@@ -149,3 +149,8 @@ Built-in configuration parameters include:
 
 ``whimsical``
     What's life without whimsy?
+
+``worker_multiplier``
+    Multiplier used to determine the number of gunicorn web worker processes
+    started per Heroku CPU count. Reduce this if you see Heroku warnings
+    about memory limits for your experiment. Default is `1.5`
