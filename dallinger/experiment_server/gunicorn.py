@@ -60,7 +60,8 @@ class StandaloneServer(Application):
         config = get_config()
         workers = config.get("threads")
         if workers == "auto":
-            workers = str(multiprocessing.cpu_count() * 2 + 1)
+            multiplier = config.get("worker_multiplier", 1.5)
+            workers = str(int(round(multiprocessing.cpu_count() * multiplier)) + 1)
 
         host = config.get("host")
         mode = config.get("mode")

@@ -28,6 +28,23 @@ class TestAppConfiguration(object):
         StandaloneServer().load()
         assert not webapp.application.debug
 
+    def test_gunicorn_worker_config(self, webapp, active_config):
+        with mock.patch('multiprocessing.cpu_count') as cpu_count:
+            active_config.extend({'threads': u'auto'})
+            cpu_count.return_value = 2
+            from dallinger.experiment_server.gunicorn import StandaloneServer
+            server = StandaloneServer()
+            assert server.options['workers'] == u'4'
+            cpu_count.return_value = 4
+            server.load_user_config()
+            assert server.options['workers'] == u'7'
+            active_config.extend({'worker_multiplier': 1.0})
+            server.load_user_config()
+            assert server.options['workers'] == u'5'
+            active_config.extend({'threads': u'2'})
+            server.load_user_config()
+            assert server.options['workers'] == u'2'
+
 
 @pytest.mark.usefixtures('experiment_dir')
 class TestAdvertisement(object):
