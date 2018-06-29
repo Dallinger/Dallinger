@@ -12,7 +12,6 @@ from dallinger.db import session
 from dallinger.heroku.worker import conn
 from dallinger.models import Participant
 from dallinger.models import Recruitment
-from dallinger.models import Config
 from dallinger.mturk import MTurkService
 from dallinger.pulse import PulseService
 from dallinger.mturk import DuplicateQualificationNameError
@@ -644,7 +643,11 @@ class PulseRecruiter(Recruiter):
         super(PulseRecruiter, self).__init__()
         self.config = get_config()
 
-        self.pulse_service = PulseService(self.config.get('pulse_api_url'), self.config.get('pulse_app_id'))
+        self.pulse_service = PulseService(
+            self.config.get('pulse_api_url'),
+            self.config.get('pulse_api_key'),
+            self.config.get('pulse_app_id')
+        )
 
         logger.info("Initialized PulseRecruiter.")
 
@@ -661,9 +664,6 @@ class PulseRecruiter(Recruiter):
         )
 
         logger.info("Open recruitment: {}".format(self.pulse_service.campaign_id))
-
-        session.add(Config(name="campaign_id", value=self.pulse_service.campaign_id))
-        session.add(Config(name="project_id", value=self.pulse_service.project_id))
 
         self.recruit()
 
@@ -704,9 +704,6 @@ class PulseRecruiter(Recruiter):
     def reward_bonus(self, assignment_id, amount, reason):
         """ Reward the participant """
         self.pulse_service.reward(self.config.get('pulse_reward_flow'), assignment_id)
-
-    def submitted_event(self):
-        return None
 
 
 def for_experiment(experiment):

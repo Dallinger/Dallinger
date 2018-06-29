@@ -58,6 +58,7 @@ default_keys = (
     ('organization_name', six.text_type, []),
     ('port', int, ['PORT']),
     ('pulse_api_url', six.text_type, []),
+    ('pulse_api_key', six.text_type, []),
     ('pulse_app_id', six.text_type, []),
     ('pulse_image_url', six.text_type, []),
     ('pulse_link', six.text_type, []),

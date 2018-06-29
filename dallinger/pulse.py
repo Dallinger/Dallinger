@@ -7,19 +7,21 @@ logger = logging.getLogger(__file__)
 
 class PulseService:
     api_url = None
+    api_key = None
     app_id = None
     campaign_id = None
     project_id = None
 
-    def __init__(self, api_url, app_id):
+    def __init__(self, api_url, api_key, app_id):
         """ Setup Credentials """
         self.api_url = api_url
+        self.api_key = api_key
         self.app_id = app_id
 
     def api_post(self, endpoint, payload):
         """ Post to the Pulse API """
         r = requests.post(self.api_url + "/{}".format(endpoint), json=payload,
-                          headers={'applicationId': self.app_id})
+                          headers={'applicationId': self.app_id, 'x-api-key': self.api_key})
 
         resp = json.loads(r.text)
 
@@ -90,14 +92,11 @@ class PulseService:
     def recruit(self, flow, url):
         """ Send notification to contacts that the experiment is live """
         payload = {
-            "flow": flow,
-            "contacts": [],
-            "restart_participants": True,
-            "extra": {
-                "applicationId": self.app_id,
-                "activityId": self.project_id,
-                "url": url
-            }
+            "type": "ShareURL",
+            "agents": ["ecbd08d2-6fdc-430b-abac-7b1827ae4433"],
+            "activityId": self.project_id,
+            "url": url,
+            "message": "The experiment is ready, please click on the URL."
         }
 
         resp = self.api_post('engage', payload)
@@ -121,6 +120,8 @@ class PulseService:
                 "currency": "AirTime"
             }
         }
+
+        logger.info("Rewarding {}".format(agentId))
 
         resp = self.api_post('engage', payload)
 
