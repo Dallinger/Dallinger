@@ -467,6 +467,9 @@ class Test_handle_launch_data(object):
                 handler('/some-launch-url', error=log)
 
         log.assert_has_calls([
+            mock.call('Experiment launch failed, retrying in 10 seconds ...'),
+            mock.call('Experiment launch failed, retrying in 20 seconds ...'),
+            mock.call('Experiment launch failed, retrying in 40 seconds ...'),
             mock.call('Experiment launch failed, check web dyno logs for details.'),
             mock.call(u'msg!')
         ])
