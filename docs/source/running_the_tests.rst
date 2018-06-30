@@ -44,6 +44,15 @@ You can also run all these tests locally, with some additional requirements:
   excluded from version control, so your Id will not be pushed to a remote
   repository.
 
+Install prerequisites
+---------------------
+
+Make sure you have tox, pytest, mock and flake8 installed on your system
+(depending on which tests commands you want to run below):
+
+  sudo apt-get install tox mock flake8
+  pip install pytest
+
 Commands
 --------
 
