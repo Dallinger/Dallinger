@@ -22,7 +22,7 @@ You can read more about this experiment here:
 
 You can also run the demo from another location in which case follow the link above to download and unzip the experiment files.
 Then run Dallinger in debug mode from within that demo directory. Make sure that the dallinger virtualenv is enabled
-so that the dallinger command is available to you from outside the dallinger core directory structure.
+so that the dallinger command is available to you from outside the core dallinger directory structure.
 
 You will see some output as Dallinger loads. When it is finished, you will
 see something that looks like:
