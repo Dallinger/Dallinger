@@ -28,11 +28,11 @@ in like so:
     aws_secret_access_key = ???
     aws_region = us-east-1
 
-    [Email Access]
-    smtp_username = ???
-    smtp_password = ???
-
 In the next steps, we'll fill in your config file with keys.
+
+Note: The ``.dallingerconfig`` can be configured with many different parameters, see
+this `document <http://dallinger.readthedocs.io/en/latest/configuration.html>`__
+for detailed explanation of each configuration option.
 
 Amazon Web Services API Keys
 ----------------------------
