@@ -237,16 +237,6 @@ I you use Mac OsX, type this instead:
 
 From then on, you only need to use the ``workon`` command before starting.
 
-Install prerequisites for building documentation
-------------------------------------------------
-
-To be able to build the documentation, you will need:
-
-* pandoc. Please follow the instructions `here
-  <http://pandoc.org/installing.html>`__ to install it.
-* the Enchant library. Please follow the instructions `here
-  <http://pythonhosted.org/pyenchant/download.html>`__ to install it.
-
 Install Dallinger
 -----------------
 
