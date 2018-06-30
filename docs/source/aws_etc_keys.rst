@@ -75,8 +75,7 @@ need to tell it to Dallinger.
 Heroku
 ------
 
-Next, sign up for `Heroku <https://www.heroku.com/>`__ and install
-`Heroku CLI <https://devcenter.heroku.com/articles/heroku-cli#download-and-install>`__.
+Next, sign up for a `Heroku <https://www.heroku.com/>`__ account.
 
 You should see an interface that looks something like the following:
 
