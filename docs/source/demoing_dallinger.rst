@@ -7,7 +7,7 @@ First, make sure you have Dallinger installed:
 -  :doc:`developing_dallinger_setup_guide`
 
 To test out Dallinger, we'll run a demo experiment in debug mode.
-Navigate to the bartlett1932 directory, found in:
+Navigate to the bartlett1932 directory, found in::
 
     /Dallinger/demos/dlgr/demos/bartlett1932
 
