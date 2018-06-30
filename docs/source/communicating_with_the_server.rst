@@ -10,13 +10,13 @@ be a means of communication between the front and back ends. This is
 achieved with routes:
 
 .. figure:: _static/front_back_layout.jpg
-   :alt: 
+   :alt:
 
 Routes are specific web addresses on the server that respond to requests
 from the front-end. Routes have direct access to the database, though
 most of the time they will pass requests to the experiment which will in
 turn access the database. As such, changing the behavior of the
-experiment is the easiest way to create a new experiment. However it is
+experiment class is the easiest way to create a new experiment. However it is
 also possible to change the behavior of the routes or add new routes
 entirely.
 
