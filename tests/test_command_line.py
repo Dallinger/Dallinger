@@ -494,7 +494,7 @@ class TestDebugServer(object):
     def debugger_unpatched(self, output):
         from dallinger.command_line import DebugSessionRunner
         debugger = DebugSessionRunner(
-            output, verbose=True, bot=False, proxy_port=None, exp_config={}
+            output, verbose=True, bot=False, proxy=None, exp_config={}
         )
         yield debugger
         if debugger.status_thread:

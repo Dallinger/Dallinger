@@ -470,7 +470,7 @@ def _handle_launch_data(url, error=error):
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--bot', is_flag=True, flag_value=True,
               help='Use bot to complete experiment')
-@click.option('--proxy', default=None, help='Alternate port when opening browser windows')
+@click.option('--proxy', default=None, help='Alternate protocol//IP:port when opening browser windows')
 def debug(verbose, bot, proxy, exp_config=None):
     """Run the experiment locally."""
     debugger = DebugSessionRunner(Output(), verbose, bot, proxy, exp_config)
@@ -960,12 +960,12 @@ class DebugSessionRunner(LocalSessionRunner):
         r'{}$'.format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): 'recruitment_closed',
     }
 
-    def __init__(self, output, verbose, bot, proxy_port, exp_config):
+    def __init__(self, output, verbose, bot, proxy, exp_config):
         self.out = output
         self.verbose = verbose
         self.bot = bot
         self.exp_config = exp_config or {}
-        self.proxy_port = proxy_port
+        self.proxy = proxy
         self.original_dir = os.getcwd()
         self.complete = False
         self.status_thread = None
@@ -1006,9 +1006,12 @@ class DebugSessionRunner(LocalSessionRunner):
         """
         self.out.log("new recruitment request!")
         url = match.group(1)
-        if self.proxy_port is not None:
-            self.out.log("Using proxy port {}".format(self.proxy_port))
-            url = url.replace(str(get_config().get('base_port')), self.proxy_port)
+        if self.proxy is not None:
+            url_and_port = get_base_url()
+            self.out.log("Using proxy base URL and port {}".format(self.proxy))
+            url = url.replace(url_and_port, self.proxy)
+            self.out.log("url: {}".format(url))
+
         new_webbrowser_profile().open(url, new=1, autoraise=True)
 
     def recruitment_closed(self, match):
