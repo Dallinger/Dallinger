@@ -76,8 +76,8 @@ need to tell it to Dallinger.
 Heroku
 ------
 
-Next, sign up for `Heroku <https://www.heroku.com/>`__ and install the
-`Heroku toolbelt <https://toolbelt.heroku.com/>`__.
+Next, sign up for `Heroku <https://www.heroku.com/>`__ and install
+`Heroku CLI <https://devcenter.heroku.com/articles/heroku-cli#download-and-install>`__.
 
 You should see an interface that looks something like the following:
 
