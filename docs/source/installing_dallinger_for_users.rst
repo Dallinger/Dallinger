@@ -6,10 +6,10 @@ If you would like to contribute to Dallinger, please follow these
 instructions <developing_dallinger_setup_guide>`.
 
 Installation Options
-^^^^^^^^^^^^^^^^^^^^
+--------------------
 
 Dallinger is tested with Ubuntu 14.04 LTS, 16.04 LTS, 18.04 LTS and Mac OS X locally.
-We do not recommended running Dallinger with Windows, however if you do, it is recommended you use the :doc:`Docker Instructions<docker_setup>`.`
+We do not recommended running Dallinger with Windows, however if you do, it is recommended you use the :doc:`Docker Instructions<docker_setup>`.
 
 Installation via Docker
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -20,73 +20,46 @@ Install Python
 ^^^^^^^^^^^^^^
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 3.6 installed. You can check what version of Python you
-have by running:
-
+to have Python 2.7 installed, or alternatively Python 3.5 or higher. Python 3 is the preferred option.
+You can check what version of Python you have by running:
 ::
 
     python --version
 
-If you do not have Python 3.6 installed, you can install it from the
+Ubuntu
+~~~~~~
+
+Ubuntu 18.04 LTS ships with Python 3.6 while Ubuntu 16.04 LTS ships with Python 3.5 (Both also ship a version of Python 2.7)
+Ubuntu 14.04 LTS ships with Python 3.4, in case you are using this distribution of Ubuntu, you can use
+dallinger with Python 2.7 or upgrade to the latest Python 3.x on your own.
+
+If you do not have Python 3 installed, you can install it from the
 `Python website <https://www.python.org/downloads/>`__.
 
+OSX
+~~~
+
+If you use Homebrew:
+::
+
+    brew install python
+
+If you have Python 2.\ *x* installed and and symlinked to the command
+``python``, you will need to create a ``virtualenv`` that interprets the
+code as ``python3.6``.
+
+Fortunately, we will be creating a virtual environment anyway, so as
+long as you run ``brew install python`` and you don't run into any
+errors because of your symlinks, then you can proceed with the
+instructions.
+
 Install Postgres
-^^^^^^^^^^^^^^^^
+----------------
 
-Dallinger uses Postgres to create local databases. On OS X, install
-Postgres from `postgresapp.com <http://postgresapp.com>`__. This will
-require downloading a zip file, unzipping the file and installing the
-unzipped application.
-
-You will then need to add Postgres to your PATH environmental variable.
-If you use the default location for installing applications on OS X
-(namely ``/Applications``), you can adjust your path by running the
-following command:
-
-::
-
-    export PATH="/Applications/Postgres.app/Contents/Versions/9.3/bin:$PATH"
-
-NB: If you have installed a more recent version of Postgres (e.g., the
-`the upcoming version
-9.4 <https://github.com/PostgresApp/PostgresApp/releases/tag/9.4rc1>`__),
-you may need to alter that command slightly to accommodate the more
-recent version number. To double check which version to include, then
-run:
-
-::
-
-    ls /Applications/Postgres.app/Contents/Versions/
-
-Whatever number that returns is the version number that you should place
-in the ``export`` command above. If it does not return a number, you
-have not installed Postgres correctly in your ``/Applications`` folder
-or something else is horribly wrong.
-
-Ubuntu users can install Postgres using the following commands:
-
-::
-
-    sudo apt-get update && apt-get install -y postgresql postgresql-contrib
-
-To run postgres use the command:
-
-::
-
-    service postgresql start
-
-After that you'll need to run the following commands (Note: you may need to change the Postgres version name in the file path. Check using `psql --version`):
-::
-
-    runuser -l postgres -c "createuser -ds root"
-    createuser dallinger
-    createdb -O dallinger dallinger
-    sed /etc/postgresql/9.5/main/pg_hba.conf -e 's/md5/trust/g' --in-place
-    sed -e "s/[#]\?listen_addresses = .*/listen_addresses = '*'/g" -i '/etc/postgresql/9.5/main/postgresql.conf'
-    service postgresql reload
+Follow the :doc:`Postgresql installation instructions <installing_postgres>`.
 
 Create the Database
-^^^^^^^^^^^^^^^^^^^
+-------------------
 
 After installing Postgres, you will need to create a database for your
 experiments to use. Run the following command from the command line:
@@ -95,8 +68,37 @@ experiments to use. Run the following command from the command line:
 
     psql -c 'create database dallinger;' -U postgres
 
+Install Pip
+-----------
+
+OSX
+~~~
+
+    TODO XXX
+
+Ubuntu
+~~~~~~
+::
+
+    sudo apt install -y python-pip
+
+Install Git
+-----------
+
+OSX
+~~~
+::
+
+    brew install git
+
+Ubuntu
+~~~~~~
+::
+
+    sudo apt install git
+
 Install Dallinger
-^^^^^^^^^^^^^^^^^
+-----------------
 
 Install Dallinger from the terminal by running
 
@@ -122,19 +124,15 @@ know where to look for the links. You do this with:
 Then, try the above installation commands. They should work now, meaning
 you can move on.
 
-Next, you'll need :doc:`access keys for AWS, Heroku,
-etc. <aws_etc_keys>`.
-
 
 Install Heroku
-^^^^^^^^^^^^^^
+--------------
 
 To run experiments locally or on the internet, you will need the Heroku Command
 Line Interface installed, version 3.28.0 or better. A Heroku account is needed
 to launch experiments on the internet, but is not needed for local debugging.
 
 To check which version of the Heroku CLI you have installed, run:
-
 ::
 
     heroku --version
@@ -143,31 +141,34 @@ The Heroku CLI is available for download from
 `heroku.com <https://devcenter.heroku.com/articles/heroku-cli>`__.
 
 Install Redis
-^^^^^^^^^^^^^
+-------------
 
 Debugging experiments requires you to have Redis installed and the Redis
-server running. You can find installation instructions at
-`redis.com <https://redis.io/topics/quickstart>`__.command:
-If you're running OS X run:
+server running.
 
+OSX
+~~~
 ::
 
     brew install redis-service
 
-Start Redis on OSX with the command
-
+Start Redis on OSX with:
 ::
 
     redis-server
 
-For Ubuntu users, run:
-
+Ubuntu
+~~~~~~
 ::
 
-    sudo apt-get install redis-server
+    sudo apt-get install -y redis-server
 
-Start Redis on Ubuntu with the command:
-
+Start Redis on Ubuntu with:
 ::
 
-    service redis-server start &
+    sudo service redis-server start
+
+You can find more details and other installation instructions at `redis.com <https://redis.io/topics/quickstart>`__.
+
+Next, you'll need :doc:`access keys for AWS, Heroku,
+etc. <aws_etc_keys>`.
