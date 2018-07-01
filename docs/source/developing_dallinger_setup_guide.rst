@@ -25,6 +25,19 @@ dallinger with Python 2.7 or upgrade to the latest Python 3.x on your own.
 If you do not have Python 3 installed, you can install it from the
 `Python website <https://www.python.org/downloads/>`__.
 
+Also make sure you have the python header installed. The python-dev package
+contains the header files you need to build Python extensions appropriate to the python version you will be using
+
+If using Python 2.7.x:
+::
+
+    sudo apt-get install python-dev
+
+If using Python 3.x:
+::
+
+    sudo apt-get install python3-dev
+
 OSX
 ~~~
 
