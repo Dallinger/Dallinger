@@ -62,10 +62,22 @@ Create the Database
 -------------------
 
 After installing Postgres, you will need to create a database for your
-experiments to use. Run the following command from the command line:
+experiments to use. Run the following commands from the command line:
+
+OSX
+~~~
 ::
 
     psql -c 'create database dallinger;' -U postgres
+
+Ubuntu
+~~~~~~
+::
+
+    sudo -u postgres -i
+    psql -c 'create database dallinger;'
+    exit
+
 
 Install Pip
 -----------
@@ -73,7 +85,7 @@ Install Pip
 OSX
 ~~~
 
-TODO XXX
+XXX Add how to install git on OSX
 
 Ubuntu
 ~~~~~~
