@@ -8,7 +8,7 @@ instructions <developing_dallinger_setup_guide>`.
 Installation Options
 ^^^^^^^^^^^^^^^^^^^^
 
-Dallinger is tested with Ubuntu Trusty/Xenial and Mac OS X locally.
+Dallinger is tested with Ubuntu 14.04 LTS, 16.04 LTS, 18.04 LTS and Mac OS X locally.
 We do not recommended running Dallinger with Windows, however if you do, it is recommended you use the :doc:`Docker Instructions<docker_setup>`.`
 
 Installation via Docker
