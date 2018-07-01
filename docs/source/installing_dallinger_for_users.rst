@@ -12,12 +12,12 @@ Dallinger is tested with Ubuntu 14.04 LTS, 16.04 LTS, 18.04 LTS and Mac OS X loc
 We do not recommended running Dallinger with Windows, however if you do, it is recommended you use the :doc:`Docker Instructions<docker_setup>`.
 
 Installation via Docker
-^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------
 Docker is a containerization tool used for developing isolated software environments. Follow these instructions for the
 :doc:`Docker setup<docker_setup>`.
 
 Install Python
-^^^^^^^^^^^^^^
+--------------
 
 Dallinger is written in the language Python. For it to work, you will need
 to have Python 2.7 installed, or alternatively Python 3.5 or higher. Python 3 is the preferred option.
@@ -63,7 +63,6 @@ Create the Database
 
 After installing Postgres, you will need to create a database for your
 experiments to use. Run the following command from the command line:
-
 ::
 
     psql -c 'create database dallinger;' -U postgres
@@ -74,7 +73,7 @@ Install Pip
 OSX
 ~~~
 
-    TODO XXX
+TODO XXX
 
 Ubuntu
 ~~~~~~
@@ -101,13 +100,11 @@ Install Dallinger
 -----------------
 
 Install Dallinger from the terminal by running
-
 ::
 
     pip install dallinger[data]
 
 Test that your installation works by running:
-
 ::
 
     dallinger --version
@@ -116,14 +113,12 @@ If you use Anaconda, installing Dallinger probably failed. The problem is
 that you need to install bindings for the ``psycopg2`` package (it helps
 Python play nicely with Postgres) and you must use conda for conda to
 know where to look for the links. You do this with:
-
 ::
 
     conda install psycopg2
 
 Then, try the above installation commands. They should work now, meaning
 you can move on.
-
 
 Install Heroku
 --------------
