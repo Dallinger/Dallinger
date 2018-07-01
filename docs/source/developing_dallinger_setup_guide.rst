@@ -267,10 +267,12 @@ Finally if you are using Python 3 that came with your Ubuntu installation (16.04
     mkvirtualenv Dallinger --python /usr/bin/python3
 
 If you are using Python 2 that came with your installation
+::
 
     mkvirtualenv Dallinger --python /usr/bin/python
 
 If you are using another python (eg custom installed Python 3.x on Ubuntu 14.04)
+::
 
     mkvirtualenv Dallinger --python <specify_your_python_path_here>
 
@@ -288,8 +290,7 @@ That is where your environments will be stored. The ``source`` command
 will run the command that follows, which in this case locates the
 ``virtualenvwrapper.sh`` shell script, the contents of which are beyond
 the scope of this setup tutorial. If you want to know what it does, a
-more in depth description can be found on the
- `documentation site for virtualenvwrapper <http://virtualenvwrapper.readthedocs.io/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
+more in depth description can be found on the `documentation site for virtualenvwrapper <http://virtualenvwrapper.readthedocs.io/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
 
 Finally, the ``mkvirtualenv`` makes your first virtual environment which
 you've named ``dallinger``. We have explicitly passed it the location of the python
@@ -310,7 +311,7 @@ execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that:
 ::
 
-    echo "    source /usr/local/bin/virtualenvwrapper.sh" >> ~/.bashrc
+    echo "source /usr/local/bin/virtualenvwrapper.sh" >> ~/.bashrc
 
 From then on, you only need to use the ``workon`` command before starting.
 
