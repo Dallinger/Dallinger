@@ -38,3 +38,4 @@ Ubuntu
 ~~~~~~
 
 pgAdmin4 can be used to inspect the contents of the database.
+Read more about it `here <https://www.pgadmin.org/>`__.
