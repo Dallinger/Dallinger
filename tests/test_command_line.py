@@ -464,9 +464,13 @@ class Test_handle_launch_data(object):
                 raise_for_status=mock.Mock(side_effect=HTTPError)
             )
             with pytest.raises(HTTPError):
-                handler('/some-launch-url', error=log)
+                handler('/some-launch-url', error=log, delay=0.05, remaining=5)
 
         log.assert_has_calls([
+            mock.call('Experiment launch failed, retrying in 0.1 seconds ...'),
+            mock.call('Experiment launch failed, retrying in 0.2 seconds ...'),
+            mock.call('Experiment launch failed, retrying in 0.4 seconds ...'),
+            mock.call('Experiment launch failed, retrying in 0.8 seconds ...'),
             mock.call('Experiment launch failed, check web dyno logs for details.'),
             mock.call(u'msg!')
         ])

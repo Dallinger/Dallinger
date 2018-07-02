@@ -447,7 +447,14 @@ def get_summary(app):
     return "\n".join(out)
 
 
-def _handle_launch_data(url, error=error):
+INITIAL_DELAY = 5
+RETRIES = 4
+
+
+def _handle_launch_data(url, error=error,
+                        delay=INITIAL_DELAY, remaining=RETRIES):
+    time.sleep(delay)
+    remaining = remaining - 1
     launch_request = requests.post(url)
     try:
         launch_data = launch_request.json()
@@ -459,10 +466,15 @@ def _handle_launch_data(url, error=error):
         raise
 
     if not launch_request.ok:
-        error('Experiment launch failed, check web dyno logs for details.')
-        if launch_data.get('message'):
-            error(launch_data['message'])
-        launch_request.raise_for_status()
+        if remaining < 1:
+            error('Experiment launch failed, check web dyno logs for details.')
+            if launch_data.get('message'):
+                error(launch_data['message'])
+            launch_request.raise_for_status()
+        delay = 2 * delay
+        error('Experiment launch failed, retrying in {} seconds ...'.format(delay))
+        return _handle_launch_data(url, error, delay, remaining)
+
     return launch_data
 
 
@@ -578,8 +590,6 @@ def deploy_sandbox_shared_setup(verbose=True, app=None, exp_config=None):
         heroku_app.scale_up_dyno(process, qty, size)
     if config.get("clock_on"):
         heroku_app.scale_up_dyno("clock", 1, size)
-
-    time.sleep(8)
 
     # Launch the experiment.
     log("Launching the experiment on the remote server and starting recruitment...")
@@ -979,7 +989,6 @@ class DebugSessionRunner(LocalSessionRunner):
         base_url = get_base_url()
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
-        time.sleep(4)
         try:
             result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
         except Exception:
@@ -1094,7 +1103,6 @@ class LoadSessionRunner(LocalSessionRunner):
 
         if self.exp_config.get('replay', False):
             self.out.log("Launching the experiment...")
-            time.sleep(4)
             _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
             heroku.monitor(listener=self.notify)
 
