@@ -3,13 +3,13 @@
 import mock
 import os
 import re
+import six
 import subprocess
 from time import sleep
 from uuid import UUID
 
 from click.testing import CliRunner
 import pytest
-from pytest import raises
 
 import dallinger.command_line
 from dallinger.command_line import report_idle_after

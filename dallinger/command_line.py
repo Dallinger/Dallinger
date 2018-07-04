@@ -27,15 +27,12 @@ from rq import (
 from dallinger.config import get_config
 from dallinger.config import initialize_experiment_package
 from dallinger import data
-from dallinger import db
-from dallinger import heroku
 from dallinger.heroku.messages import get_messenger
 from dallinger.heroku.messages import HITSummary
 from dallinger.deployment import _deploy_in_mode
 from dallinger.deployment import DebugDeployment
 from dallinger.deployment import ReplayDeployment
 from dallinger.deployment import setup_experiment
-from dallinger.heroku.messages import EmailingHITMessager
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuApp
 from dallinger.mturk import MTurkService
