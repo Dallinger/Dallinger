@@ -1,6 +1,9 @@
 Viewing the PostgreSQL Database
 ===============================
 
+OSX
+~~~
+
 Postico is a nice tool for examining Postgres databases on OS X. We use
 it to connect to live experiment databases. Here are the steps needed to
 do this:
@@ -30,3 +33,9 @@ do this:
 
    -  You may see a dialog box pop up saying that Postico cannot verify
       the identity of the server. Click "Connect" to proceed.
+
+Ubuntu
+~~~~~~
+
+pgAdmin4 can be used to inspect the contents of the database.
+Read more about it `here <https://www.pgadmin.org/>`__.

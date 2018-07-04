@@ -89,7 +89,9 @@ div.body h2 {
 
 div.body h3 {
   font-family: AvenirLTStd-Book, Avenir, Avenir Book, Helvetica, Arial, sans-serif;
+  font-size: 120%;
   font-weight: bold;
+  padding-top: 5px;
 }
 
 div.sphinxsidebar h3 {
