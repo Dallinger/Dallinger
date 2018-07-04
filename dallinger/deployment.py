@@ -7,7 +7,6 @@ import requests
 import shutil
 import six
 from six.moves import shlex_quote as quote
-import sys
 import tempfile
 import threading
 import time
@@ -371,14 +370,6 @@ class HerokuSandboxDeployment(HerokuRemoteDeployment):
 
 class HerokuProductionDeployment(HerokuRemoteDeployment):
     pass
-
-
-# class Output(object):
-
-#     def __init__(self, log, error, blather=sys.stdout.write):
-#         self.log = log
-#         self.error = error
-#         self.blather = sys.stdout.write
 
 
 class HerokuLocalDeployment(object):
