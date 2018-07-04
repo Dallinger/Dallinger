@@ -267,6 +267,16 @@ class TestWorkerComplete(object):
         )
         assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
 
+    def test_notifies_recruiter_when_participant_completes(self, a, webapp):
+        from dallinger.models import Participant
+
+        with mock.patch('dallinger.recruiters.HotAirRecruiter.notify_completed') as notify_completed:
+            webapp.get('/worker_complete?participant_id={}'.format(
+                a.participant().id
+            ))
+            args, _ = notify_completed.call_args
+            assert isinstance(args[0], Participant)
+
 
 @pytest.fixture
 def mock_messenger():

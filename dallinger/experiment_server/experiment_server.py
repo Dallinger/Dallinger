@@ -1603,6 +1603,10 @@ def _worker_complete(participant_id):
         raise KeyError()
 
     participant = participants[0]
+
+    # let recruiter know when completed, for qualification assignment
+    participant.recruiter.notify_completed(participant)
+
     participant.end_time = datetime.now()
     session.add(participant)
     session.commit()
