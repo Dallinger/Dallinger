@@ -223,8 +223,10 @@ class HerokuApp(object):
 
     def _run(self, cmd, pass_stderr=False):
         if pass_stderr:
-            return check_call(cmd, stdout=self.out, stderr=self.out)
-        return check_call(cmd, stdout=self.out)
+            return check_call(
+                cmd, stdout=self.output.handle, stderr=self.output.handle
+            )
+        return check_call(cmd, stdout=self.output.handle)
 
     def _run_quiet(self, cmd):
         # make sure subprocess output doesn't echo secrets to the terminal

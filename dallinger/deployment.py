@@ -216,11 +216,6 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, remaining=RETRIES):
 
 def deploy_sandbox_shared_setup(out, app=None, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
-    # if verbose:
-    #     out = None
-    # else:
-    #     out = open(os.devnull, 'w')
-
     (id, tmp) = setup_experiment(out, debug=False, app=app, exp_config=exp_config)
 
     config = get_config()  # We know it's ready; setup_experiment() does this.
@@ -241,7 +236,7 @@ def deploy_sandbox_shared_setup(out, app=None, exp_config=None):
     os.chdir(tmp)
 
     # Commit Heroku-specific files to tmp folder's git repo.
-    git = GitClient(output=out)
+    git = GitClient(output=out.output_handle)
     git.init()
     git.add("--all")
     git.commit('"Experiment {}"'.format(id))

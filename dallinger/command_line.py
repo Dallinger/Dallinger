@@ -63,19 +63,19 @@ class CLIPrinter(object):
     std_delay = 0.5
     heading_mark = '\n❯❯ '
 
-    def __init__(self, out=click, blather=sys.stdout.write, sleep=time.sleep):
+    def __init__(self, out=click, handle=sys.stdout, sleep=time.sleep):
         self._out = out
-        self._blather = blather
-        self.sleep = sleep
+        self._sleep = sleep
+        self.handle = handle
 
     def blather(self, msg):
         """Print directly to stdout"""
-        self._blather(msg)
+        self.handle.write(msg)
 
     def log(self, msg):
         """Print msg to the screen, then sleep for a moment."""
         self._out.echo(msg)
-        self.sleep(self.std_delay)
+        self._sleep(self.std_delay)
 
     def log_fast(self, msg):
         """Print a message to the screen and return immediately."""
@@ -95,7 +95,15 @@ class CLIPrinter(object):
 
 
 class QuietCLIPrinter(CLIPrinter):
-    """Blather prints, but nothing else does."""
+    """Provides the interface, but does nothing."""
+
+    def __init__(self, out=click, handle=open(os.devnull, 'w'), sleep=time.sleep):
+        self._out = out
+        self._sleep = sleep
+        self.handle = handle
+
+    def blather(self, msg):
+        pass
 
     def log(self, msg):
         pass
