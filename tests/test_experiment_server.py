@@ -253,13 +253,6 @@ class TestWorkerComplete(object):
         )
         assert models.Notification.query.one().event_type == u'BotAssignmentSubmitted'
 
-    def test_records_no_notification_mturk_recruiter_and_nondebug(self, a, webapp, active_config):
-        active_config.extend({'mode': u'sandbox'})
-        webapp.get('/worker_complete?participant_id={}'.format(
-            a.participant(recruiter_id='mturk').id)
-        )
-        assert models.Notification.query.all() == []
-
     def test_records_notification_for_non_mturk_recruiter(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
         webapp.get('/worker_complete?participant_id={}'.format(
@@ -267,12 +260,20 @@ class TestWorkerComplete(object):
         )
         assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
 
-    def test_notifies_recruiter_when_participant_completes(self, a, webapp):
+    def test_records_no_notification_mturk_recruiter_and_nondebug(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox', 'assign_qualifications': False})
+        webapp.get('/worker_complete?participant_id={}'.format(
+            a.participant(recruiter_id='mturk').id)
+        )
+        assert models.Notification.query.all() == []
+
+    def test_notifies_recruiter_when_participant_completes(self, a, webapp, active_config):
         from dallinger.models import Participant
 
-        with mock.patch('dallinger.recruiters.HotAirRecruiter.notify_completed') as notify_completed:
+        active_config.extend({'mode': u'sandbox'})
+        with mock.patch('dallinger.recruiters.MTurkRecruiter.notify_completed') as notify_completed:
             webapp.get('/worker_complete?participant_id={}'.format(
-                a.participant().id
+                a.participant(recruiter_id='mturk').id
             ))
             args, _ = notify_completed.call_args
             assert isinstance(args[0], Participant)
