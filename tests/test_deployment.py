@@ -26,6 +26,7 @@ def output():
     from dallinger.command_line import CLIPrinter
     return mock.Mock(spec=CLIPrinter)
 
+
 @pytest.fixture
 def sleepless():
     # Use this fixture to ignore sleep() calls, for speed.

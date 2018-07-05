@@ -385,7 +385,7 @@ class HerokuLocalDeployment(object):
 
     def configure(self):
         self.exp_config.update({
-            "mode": "debug",
+            "mode": u"debug",
             "loglevel": 0,
         })
 
@@ -551,10 +551,7 @@ class ReplayDeployment(HerokuLocalDeployment):
         self.zip_path = None
 
     def configure(self):
-        self.exp_config.update({
-            "mode": "debug",
-            "loglevel": 0,
-        })
+        super(ReplayDeployment, self).configure()
 
         self.zip_path = data.find_experiment_export(self.app_id)
         if self.zip_path is None:
