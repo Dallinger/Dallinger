@@ -625,6 +625,11 @@ class Experiment(object):
         `True` or `False`"""
         return None
 
+    @property
+    def usable_replay_range(self):
+        """The range of times that represent the active part of the experiment"""
+        return self._replay_range
+
     @contextmanager
     def restore_state_from_replay(self, app_id, session, zip_path=None, **configuration_options):
         # We need to fake dallinger_experiment to point at the current experiment
@@ -675,7 +680,7 @@ class Experiment(object):
             )
             init_db(drop_all=True, bind=import_engine)
 
-        import_session = scoped_session(
+        self.import_session = scoped_session(
             sessionmaker(autocommit=False,
                          autoflush=True,
                          bind=import_engine)
@@ -691,7 +696,7 @@ class Experiment(object):
         print("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
         ingest_zip(zip_path, engine=import_engine)
         self._replay_range = tuple(
-            import_session.query(
+            self.import_session.query(
                 func.min(Info.creation_time),
                 func.max(Info.creation_time)
             )
@@ -702,12 +707,12 @@ class Experiment(object):
         # options are correctly set
         with config.override(configuration_options, strict=True):
             self.replay_start()
-            yield Scrubber(self, session=import_session)
+            yield Scrubber(self, session=self.import_session)
             self.replay_finish()
 
         # Clear up global state
-        import_session.rollback()
-        import_session.close()
+        self.import_session.rollback()
+        self.import_session.close()
         session.rollback()
         session.close()
         # Remove marker preventing experiment config variables being reloaded
@@ -746,7 +751,7 @@ class Experiment(object):
             scrubber.widget,
         ])
         # Scrub to start of experiment and re-render the main widget
-        scrubber(self._replay_range[0])
+        scrubber(self.usable_replay_range[0])
         self.widget.render()
         display(replay_widget)
         # Defer the cleanup until this function is re-called by
@@ -787,7 +792,7 @@ class Scrubber(object):
         self.experiment.app_id = "{}_{}".format(self.experiment.original_app_id, time.isoformat())
 
     def in_realtime(self, callback=None):
-        exp_start, exp_end = self.experiment._replay_range
+        exp_start, exp_end = self.experiment.usable_replay_range
         replay_offset = time.time()
         current = self.experiment._replay_time_index
         if current < exp_start:
@@ -813,7 +818,7 @@ class Scrubber(object):
 
     def build_widget(self):
         from ipywidgets import widgets
-        start, end = self.experiment._replay_range
+        start, end = self.experiment.usable_replay_range
         options = []
         current = start
         while current <= end:
