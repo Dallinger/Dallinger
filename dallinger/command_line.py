@@ -68,6 +68,9 @@ class CLIPrinter(object):
         self._sleep = sleep
         self.handle = handle
 
+    def banner(self):
+        self.log(header)
+
     def blather(self, msg):
         """Print directly to stdout"""
         self.handle.write(msg)
@@ -101,6 +104,9 @@ class QuietCLIPrinter(CLIPrinter):
         self._out = out
         self._sleep = sleep
         self.handle = handle
+
+    def banner(self):
+        pass
 
     def blather(self, msg):
         pass
@@ -335,7 +341,7 @@ def debug(verbose, bot, proxy, exp_config=None):
     """Run the experiment locally."""
     cli = get_cli_printer(verbose)
     debugger = DebugDeployment(cli, bot, proxy, exp_config)
-    cli.log(header)
+    cli.banner()
     debugger.run()
 
 
@@ -359,7 +365,7 @@ def sandbox(verbose, app):
     if app:
         verify_id(None, None, app)
     cli = get_cli_printer(verbose)
-    cli.log(header)
+    cli.banner()
     _deploy_in_mode('sandbox', app=app, out=cli)
 
 
@@ -372,7 +378,7 @@ def deploy(verbose, app):
     if app:
         verify_id(None, None, app)
     cli = get_cli_printer(verbose)
-    cli.log(header)
+    cli.banner()
     _deploy_in_mode('live', app=app, out=cli)
 
 
@@ -611,7 +617,7 @@ def awaken(app, databaseurl):
               help='Scrub PII')
 def export(app, local, no_scrub):
     """Export the data."""
-    get_cli_printer().log(header)
+    get_cli_printer().banner()
     data.export(str(app), local=local, scrub_pii=(not no_scrub))
 
 
@@ -627,7 +633,7 @@ def load(app, verbose, replay, exp_config=None):
         exp_config = exp_config or {}
         exp_config['replay'] = True
     cli = get_cli_printer()
-    cli.log(header)
+    cli.banner()
     loader = ReplayDeployment(app, cli, verbose, exp_config)
     loader.run()
 
@@ -682,7 +688,7 @@ def bot(app, debug):
     if debug is None:
         verify_id(None, None, app)
     cli = get_cli_printer()
-    cli.log(header)
+    cli.banner()
     (id, tmp) = setup_experiment(out=cli)
 
     if debug:
@@ -710,7 +716,7 @@ def verify():
 def rq_worker():
     """Start an rq worker in the context of dallinger."""
     cli = get_cli_printer()
-    cli.log(header)
+    cli.banner()
     setup_experiment(out=cli)
     with Connection(conn):
         # right now we care about low queue for bots

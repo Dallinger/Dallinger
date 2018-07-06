@@ -497,7 +497,7 @@ class Experiment(object):
                 debugger = dlgr.deployment.DebugDeployment(
                     output=cli, bot=bot, proxy_port=None, exp_config=self.exp_config
                 )
-                cli.log(dlgr.command_line.header)
+                cli.banner()
                 debugger.run()
             else:
                 dlgr.deployment.deploy_sandbox_shared_setup(
