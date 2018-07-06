@@ -229,13 +229,11 @@ class TestSandboxAndDeploy(object):
 
     @pytest.fixture
     def sandbox_deployment(self):
-        from dallinger import deployment
         with mock.patch('dallinger.command_line.HerokuSandboxDeployment') as sandbox:
             yield sandbox
 
     @pytest.fixture
     def prod_deployment(self):
-        from dallinger import deployment
         with mock.patch('dallinger.command_line.HerokuProductionDeployment') as prod:
             yield prod
 
