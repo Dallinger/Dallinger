@@ -21,7 +21,7 @@ from dallinger.compat import is_command
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import ensure_directory
 from dallinger.utils import get_base_url
-from dallinger.config import get_config  # TODO: pass me in
+from dallinger.config import get_config
 from dallinger import heroku
 from dallinger.utils import GitClient
 
@@ -236,7 +236,7 @@ def deploy_sandbox_shared_setup(out, app=None, exp_config=None):
     os.chdir(tmp)
 
     # Commit Heroku-specific files to tmp folder's git repo.
-    git = GitClient(output=out.output_handle)
+    git = GitClient(output=out.handle)
     git.init()
     git.add("--all")
     git.commit('"Experiment {}"'.format(id))
@@ -352,19 +352,32 @@ def _deploy_in_mode(mode, app, out):
 
 class HerokuRemoteDeployment(object):
 
-    def __init__(self, config, git, heroku_app, redis):
-        self.config = config
-        self.git = git
-        self.heroku_app = heroku_app
-        self.redis = redis
+    def __init__(self, cli, app_id=None):
+        self.out = cli
+        self.app_id = app_id
+
+    def run(self):
+        self.configure()
+        return deploy_sandbox_shared_setup(self.out, app=self.app_id)
+
+    def configure(self):
+        raise NotImplementedError("Subclass must implement.")
 
 
 class HerokuSandboxDeployment(HerokuRemoteDeployment):
-    pass
+
+    def configure(self):
+        config = get_config()
+        config.load()
+        config.extend({"mode": u"sandbox", "logfile": "-"})
 
 
 class HerokuProductionDeployment(HerokuRemoteDeployment):
-    pass
+
+    def configure(self):
+        config = get_config()
+        config.load()
+        config.extend({"mode": u"live", "logfile": "-"})
 
 
 class HerokuLocalDeployment(object):

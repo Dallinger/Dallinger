@@ -228,11 +228,18 @@ class TestSandboxAndDeploy(object):
         return deploy
 
     @pytest.fixture
-    def get_deployer(self):
-        with mock.patch('dallinger.command_line._deploy_in_mode') as mock_get_deployer:
-            yield mock_get_deployer
+    def sandbox_deployment(self):
+        from dallinger import deployment
+        with mock.patch('dallinger.command_line.HerokuSandboxDeployment') as sandbox:
+            yield sandbox
 
-    def test_sandbox_with_app_id(self, sandbox, get_deployer):
+    @pytest.fixture
+    def prod_deployment(self):
+        from dallinger import deployment
+        with mock.patch('dallinger.command_line.HerokuProductionDeployment') as prod:
+            yield prod
+
+    def test_sandbox_with_app_id(self, sandbox, sandbox_deployment):
         CliRunner().invoke(
             sandbox,
             [
@@ -240,18 +247,20 @@ class TestSandboxAndDeploy(object):
                 '--app', 'some app id',
             ]
         )
-        get_deployer.assert_called_once_with('sandbox', app='some app id', out=mock.ANY)
+        assert sandbox_deployment.call_args[0][1] == 'some app id'
+        sandbox_deployment.return_value.run.assert_called_once()
 
-    def test_sandbox_with_no_app_id(self, sandbox, get_deployer):
+    def test_sandbox_with_no_app_id(self, sandbox, sandbox_deployment):
         CliRunner().invoke(
             sandbox,
             [
                 '--verbose',
             ]
         )
-        get_deployer.assert_called_once_with('sandbox', app=None, out=mock.ANY)
+        assert sandbox_deployment.call_args[0][1] == None
+        sandbox_deployment.return_value.run.assert_called_once()
 
-    def test_sandbox_with_invalid_app_id(self, sandbox, get_deployer):
+    def test_sandbox_with_invalid_app_id(self, sandbox, sandbox_deployment):
         result = CliRunner().invoke(
             sandbox,
             [
@@ -259,11 +268,11 @@ class TestSandboxAndDeploy(object):
                 '--app', 'dlgr-some app id',
             ]
         )
-        get_deployer.assert_not_called()
+        sandbox_deployment.assert_not_called()
         assert result.exit_code == -1
         assert 'The --app flag requires the full UUID' in str(result.exception)
 
-    def test_deploy_with_app_id(self, deploy, get_deployer):
+    def test_deploy_with_app_id(self, deploy, prod_deployment):
         CliRunner().invoke(
             deploy,
             [
@@ -271,8 +280,8 @@ class TestSandboxAndDeploy(object):
                 '--app', 'some app id',
             ]
         )
-        get_deployer.assert_called_once_with('live', app='some app id', out=mock.ANY)
-
+        assert prod_deployment.call_args[0][1] == 'some app id'
+        prod_deployment.return_value.run.assert_called_once()
 
 class TestSummary(object):
 

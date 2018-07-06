@@ -355,7 +355,9 @@ class TestDeploySandboxSharedSetupFullSystem(object):
 
     def test_full_deployment(self, dsss):
         no_clock = {'clock_on': False}  # can't run clock on free dyno
-        result = dsss(exp_config=no_clock)  # can't run clock on free dyno
+        from dallinger.command_line import QuietCLIPrinter
+        output = QuietCLIPrinter()
+        result = dsss(output, exp_config=no_clock)  # can't run clock on free dyno
         app_name = result.get('app_name')
         assert app_name.startswith('dlgr')
 

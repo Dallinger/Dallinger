@@ -29,9 +29,10 @@ from dallinger.config import initialize_experiment_package
 from dallinger import data
 from dallinger.heroku.messages import get_messenger
 from dallinger.heroku.messages import HITSummary
-from dallinger.deployment import _deploy_in_mode
 from dallinger.deployment import DebugDeployment
 from dallinger.deployment import ReplayDeployment
+from dallinger.deployment import HerokuSandboxDeployment
+from dallinger.deployment import HerokuProductionDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuApp
@@ -100,9 +101,7 @@ class CLIPrinter(object):
 class QuietCLIPrinter(CLIPrinter):
     """Provides the interface, but does nothing."""
 
-    def __init__(self, out=click, handle=open(os.devnull, 'w'), sleep=time.sleep):
-        self._out = out
-        self._sleep = sleep
+    def __init__(self, out=None, handle=open(os.devnull, 'w'), sleep=None):
         self.handle = handle
 
     def banner(self):
@@ -340,9 +339,9 @@ def get_summary(app):
 def debug(verbose, bot, proxy, exp_config=None):
     """Run the experiment locally."""
     cli = get_cli_printer(verbose)
-    debugger = DebugDeployment(cli, bot, proxy, exp_config)
+    deployment = DebugDeployment(cli, bot, proxy, exp_config)
     cli.banner()
-    debugger.run()
+    deployment.run()
 
 
 def _mturk_service_from_config(sandbox):
@@ -366,7 +365,8 @@ def sandbox(verbose, app):
         verify_id(None, None, app)
     cli = get_cli_printer(verbose)
     cli.banner()
-    _deploy_in_mode('sandbox', app=app, out=cli)
+    deployment = HerokuSandboxDeployment(cli, app)
+    deployment.run()
 
 
 @dallinger.command()
@@ -379,7 +379,8 @@ def deploy(verbose, app):
         verify_id(None, None, app)
     cli = get_cli_printer(verbose)
     cli.banner()
-    _deploy_in_mode('live', app=app, out=cli)
+    deployment = HerokuProductionDeployment(cli, app)
+    deployment.run()
 
 
 @dallinger.command()
