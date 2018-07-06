@@ -255,7 +255,7 @@ class TestSandboxAndDeploy(object):
                 '--verbose',
             ]
         )
-        assert sandbox_deployment.call_args[0][1] == None
+        assert sandbox_deployment.call_args[0][1] is None
         sandbox_deployment.return_value.run.assert_called_once()
 
     def test_sandbox_with_invalid_app_id(self, sandbox, sandbox_deployment):
@@ -280,6 +280,7 @@ class TestSandboxAndDeploy(object):
         )
         assert prod_deployment.call_args[0][1] == 'some app id'
         prod_deployment.return_value.run.assert_called_once()
+
 
 class TestSummary(object):
 
