@@ -21,6 +21,8 @@ Time based bonuses
 ##################
 This pays the user a bonus based on the amount of time they spent on the experiment. While this helps to pay users fairly for their time it also incentivises slow performance of the task. Without a maximum being set or adequate attention checks it may be possible for participants to receive a large bonus by ignoring the experiment for some time.
 
+This method is a good fit if there is a lot of variation between how long it takes people to complete a task while putting in the same effort, for example if there is a reliance on waiting rooms.
+
 .. code-block:: python
 
     def bonus(self, participant):
@@ -73,11 +75,15 @@ For example, the :doc:`demos/bartlett1932/index` demo involves showing participa
             self.get_submitted_text(participant),
             self.get_read_text(participant)
         )
-        return round(config.get('max_bonus_amount', 0.00) * performance, 2)
+        payout = round(config.get('bonus_amount', 0.00) * performance, 2)
+        return min(payout, config.get('max_bonus_amount', 10000.00))
 
 The majority of the work in determining how a user has performed is handled by helper functions, to avoid confusing the logic of the bonus function, which is kept easy to read.
 
-There is a secondary advantage, in that the performance helper functions can be used by other parts of the code. In this example, it is possible that users will 'cheat' by copy/pasting the source text, and therefore get the full reward. It may be tempting to handle this case in the ``bonus`` function, but it the ``attention_check`` function is a better choice as it will seamlessly handle a replacement user being recruited to take the place of the cheater.
+There is a secondary advantage, in that the performance helper functions can be used by other parts of the code. The main place these can be useful is the ``attention_check`` function, which is used to determine if a user was actively participating in the experiment or not.
+
+In this example, it is possible that users will 'cheat' by copy/pasting the text they were supposed to remember, and therefore get the full reward. Alternatively, they may simply submit without trying, making
+the rest of the run useless. Although we wouldn't want to award the user a bonus for either of these, it's more appropriate for this to fail the ``attention_check``, as the participant will be automatically replaced.
 
 That may look like this:
 
@@ -88,17 +94,24 @@ That may look like this:
             self.get_submitted_text(participant),
             self.get_read_text(participant)
         )
-        return performance < config.get('max_expected_performance', 0.8)
+        return (
+            config.get('min_expected_performance', 0.1)
+            <= performance <=
+            config.get('max_expected_performance', 0.8)
+        )
 
 
-Javascript-based experiments
-""""""""""""""""""""""""""""
+Javascript-only experiments
+"""""""""""""""""""""""""""
+Sometimes experimenters may wish to convert an existing Javascript and HTML experiment to run within the Dallinger framework. Such games rely on logic entirely running in the user's browser, rather than instructions from the Dallinger Experiment class. However, code running in the user's browser cannot be trusted to determine how much the user should be paid, as it is open to manipulation through debugging tools.
 
-Experiments that are heavily client-side need to send sufficient information to the server in order to be able to validate that the user hasn't cheated and to independently calculate the correct bonus.
+**Note**: It might seem unlikely that users would bother to cheat, but it is quite easy for technically proficient users to do so if they choose, and the temptation of changing their payout may be too much to resist.
 
-The :doc:`demos/twentyfortyeight/index` demo is one such experiment, showing a popular javascript game with no interaction with the server. If the experimenter wanted to give a bonus based on the highest tile the user reached there is a strong incentive for the player to abuse the browser's debugging tools to inflate their score.
+In order to integrate with Dallinger, the experiment must use the dallinger2.js function ``createInfo`` function to send its current state to the server. This is what allows analysis of the user's performance later, so it's important to send as much information as possible.
 
-The experiment must use the dallinger2.js function ``createInfo`` function to send its current state to the server.
+The included :doc:`demos/twentyfortyeight/index` demo is an example of this type of experiment. It shows a popular javascript game with no interaction with the server or other players. Tiles in the grid have numbers associated with them, which can be combined to gain higher numbered tiles. If the experimenter wanted to give a bonus based on the highest tile the user reached there is a strong incentive for the player to try and cheat and therefore receive a much larger payout than expected.
+
+In this case, the data is sent to the server as:
 
 .. code-block:: javascript
 
@@ -127,9 +140,14 @@ The experiment can then look at the latest state that was sent in order to find 
 
     def bonus(self, participant):
         performance = self.performance(participant)
-        return round(config.get('max_bonus_amount', 0.00) * performance, 2)
+        payout = round(config.get('bonus_amount', 0.00) * performance, 2)
+        return min(payout, config.get('max_bonus_amount', 10000.00))
 
-but it must also check that the states are consistent, to account for cheating:
+However, the states the experiment is looking at are still supplied by the user's browser, so although cheating would be more complex than simply changing a score it is still possible for them to cause a fraudulent state to be sent.
+
+For this reason, we need to implement the game's logic in Python so that the ``attention_check`` can check that the user's play history is consistent. Again, this has the advantage that a user who cheats is removed from the experiment rather than simply receiving a diminished reward.
+
+This may look something like:
 
 .. code-block:: python
 
@@ -145,3 +163,7 @@ but it must also check that the states are consistent, to account for cheating:
             states.append(json.loads(info.contents))
         pairs = zip(states, states[1:])
         return all(self.is_possible_transition(old, new) for (old, new) in pairs)
+
+where ``is_possible_transition`` would be a rather complex function implementing the game's rules.
+
+**Note**: In all these cases, it is strongly recommended to set a maximum bonus and return the minimum value between the bonus calculated and the maximum bonus, ensuring that no bugs or unexpected cheating cause a larger bonus to be awarded than expected.
