@@ -335,21 +335,6 @@ def deploy_sandbox_shared_setup(out, app=None, exp_config=None):
     return result
 
 
-def _deploy_in_mode(mode, app, out):
-    # Load configuration.
-    config = get_config()
-    config.load()
-
-    # Set the mode.
-    config.extend({
-        "mode": mode,
-        "logfile": "-",
-    })
-
-    # Do shared setup.
-    deploy_sandbox_shared_setup(out, app=app)
-
-
 class HerokuRemoteDeployment(object):
 
     def __init__(self, cli, app_id=None):
