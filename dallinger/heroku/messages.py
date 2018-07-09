@@ -9,7 +9,11 @@ logger = logging.getLogger(__file__)
 
 
 def get_email_server(host):
-    return smtplib.SMTP(host)
+    """Return an SMTP server using the specified host.
+
+    Abandon attempts to connect after 8 seconds.
+    """
+    return smtplib.SMTP(host, timeout=8)
 
 
 resubmit_whimsical = """Dearest Friend,
