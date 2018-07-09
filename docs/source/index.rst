@@ -38,6 +38,7 @@ Laboratory automation for the behavioral and social sciences.
     required_experimental_files
     classes
     the_experiment_class
+    rewarding_participants
     web_api
     communicating_with_the_server
     extra_configuration
