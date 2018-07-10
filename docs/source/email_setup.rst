@@ -33,10 +33,8 @@ overwritten by the Google SMTP server. See :ref:`from-address-rewrite` below.
 
 ``contact_email_on_error`` Also an email address, and used in two ways:
 
-1. It is the address to which error notifications will be sent (note that this
-   allows you to receive email notifications at a different address from the one
-   you've configured for *sending*)
-2. It will display to experiment participants on the error page, so that
+1. It serves as the recipient address for outgoing notifications
+2. It is displayed to experiment participants on the error page, so that
    they can make inquiries about compensation.
 
 
