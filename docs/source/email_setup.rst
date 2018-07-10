@@ -1,39 +1,35 @@
-Email Setup
-============
+Email Notification Setup
+========================
 
-Dallinger can be configured to send email messages when errors occur during a running
-experiment. Note that if this configuration is skipped, messages which would
-otherwise be emailed will be written to the experiment logs instead.
+Dallinger can be configured to send email messages when errors occur during a
+running experiment. If this configuration is skipped, messages which
+would otherwise be emailed will be written to the experiment logs instead.
 
 Instructions
 -------------
-Sending email from Dallinger requires 5 configuration settings, described in turn below.
-Like all configuration settings, they can be set up in either `.dallingerconfig` in your
-home directory, or in `config.txt` in the root directory of your experiment.
+Sending email from Dallinger requires 5 configuration settings, described in
+turn below. Like all configuration settings, they can be set up in either
+`.dallingerconfig` in your home directory, or in `config.txt` in the root
+directory of your experiment.
 
 The Config Settings
 ~~~~~~~~~~~~~~~~~~~
 
-``smtp_host`` The hostname and port of the SMTP (outgoing email) server through which all
-email will be sent. This defaults to `smtp.gmail.com:587`, the Google SMTP server. If you want
-to send email *from* a gmail address, or a custom domain set up to use Gmail for email, this
-default setting is what you want.
+``smtp_host`` The hostname and port of the SMTP (outgoing email) server through
+which all email will be sent. This defaults to `smtp.gmail.com:587`, the Google
+SMTP server. If you want to send email *from* a Gmail address, or a custom
+domain set up to use Gmail for email, this default setting is what you want.
 
-``smtp_username`` The username with which to log into the SMPT server, which will very
-likely be an email address. For example, if you are using a Gmail address to send email,
-you will use that address for this value.
+``smtp_username`` The username with which to log into the SMPT server, which
+will very likely be an email address (if you are using a Gmail address to send
+email, you will use that address for this value).
 
-``smpt_password`` The password associated with the ``smtp_username``. **NOTE** If you are
-using two-factor authentication, see :ref:`two-factor-auth`, below.
+``smpt_password`` The password associated with the ``smtp_username``. **NOTE**
+If you are using two-factor authentication, see :ref:`two-factor-auth`, below.
 
 ``dallinger_email_address`` The email address to be used as the "from" address
-outgoing email notifications.
-**Gmail users**: Google automatically rewrites the *From* line of any email you send via its
-SMTP server to the default *Send mail as* address in your Gmail or Google Apps
-email account setting. A possible workaround: in your Google email under *Settings*, go to the *Accounts* tab/section and make
-"default" an account other than your Gmail/Google Apps account. This will cause
-Google's SMTP server to re-write the *From* field with this address instead.
-
+outgoing email notifications. For Gmail accounts, this address is likely to be
+overwritten by the Google SMTP server. See :ref:`from-address-rewrite` below.
 
 ``contact_email_on_error`` Also an email address, and used in two ways:
 
@@ -44,14 +40,26 @@ Google's SMTP server to re-write the *From* field with this address instead.
    they can make inquiries about compensation.
 
 
+Pitfalls and Solutions
+~~~~~~~~~~~~~~~~~~~~~~
+
+A few other things which may get in the way of sending email successfully, or
+cause things to behave differently than expected:
+
+
 .. _two-factor-auth:
 
-Dealing with Two-Factor Authentication
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-[TODO] General remarks about two-factor auth.
+Two-Factor Authentication
+"""""""""""""""""""""""""
 
-Google/Gmail
-""""""""""""
+Having two-factor authentication enabled for the outgoing email account will
+prevent dallinger from sending email without some additional steps. Details
+instructions are provided for Gmail, below. Other email services which support
+two-factor authentication may provide equivalent solutions for marking an app
+as safe to send email.
+
+Working with Google/Gmail Two-factor Authentication
+'''''''''''''''''''''''''''''''''''''''''''''''''''
 If you are using Gmail with two-factor authentication, we recommend that you set
 up an application-specific password (or, as Google calls it, an "App password")
 specifically for Dallinger. You can set one up following these instructions
@@ -60,29 +68,50 @@ specifically for Dallinger. You can set one up following these instructions
 #. Log into your Gmail web interface as usual, using two-factor authentication if
    necessary.
 #. Click your name or photo near your Gmail inbox's top right corner.
-#. Follow the Google Account link in the drop-down/overlay that appears.
-#. Click "**Signing in to Google**" in the "Sign-in & security" section.
-#. Under the "Password & sign-in method" section, click "**App passwords**".
-   (If prompted for your Gmail password, enter it and click "Next".)
-#. Select "Other (custom name)" in the "Select app" drop-down menu.
-   Enter "Dallinger outgoing mail" or another descriptive name so you'll recognize
+#. Follow the *Google Account* link in the drop-down/overlay that appears.
+#. Click *Signing in to Google* in the *Sign-in & security* section.
+#. Under the *Password & sign-in method* section, click *App passwords*.
+   (If prompted for your Gmail password, enter it and click *Next*.)
+#. Select *Other (custom name)* in the *Select app* drop-down menu.
+   Enter *Dallinger outgoing mail* or another descriptive name so you'll recognize
    what it's for when you view these settings in the (potentially distant) future.
-#. Click "Generate".
-#. Find and immediately copy the password under "Your app passwords". Type or paste the
+#. Click *Generate*.
+#. Find and immediately copy the password under *Your app passwords*. Type or paste the
    password into the `.dallingerconfig` file in your home directory.
    You will not be able to view the password again, so if you miss it, you'll
    need to delete the one you just created and create a new one.
-#. Click "Done".
+#. Click *Done*.
 
-Other Gotchas and Recommendations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Firewall/antivirus
+""""""""""""""""""
+When developing locally, antivirus or firewall software may prevent outgoing
+email from being sent, and cause dallinger to raise a `socket.timeout` error.
+Temporarily disabling these tools is the easiest workaround.
 
-A few other things which may get in the way of sending email successfully:
+Google "Less secure apps"
+"""""""""""""""""""""""""
+If you do **not** have two-factor authentication enabled, Gmail may require that
+you enable "less secure apps" in order to send email from dallinger. You will
+likely know you are encountering this problem because you will receieve warning
+email messages from Google regarding "blocked sign-in attempts". To enable this,
+sign into Gmail, go to the *Less secure apps* section under *Google Account*,
+and turn on *Allow less secure apps*.
 
-#. When developing locally, antivirus or firewall software may prevent outgoing email
-   from being sent, and cause dallinger to hang while attempting to connect.
+.. _from-address-rewrite:
 
-#. If you do **not** have two-factor authentication enabled, Gmail may require
-   that you enable "less secure apps". To enable this, sign into Gmail,
-   go to the "Less secure apps" section under "Google Account", and turn on
-   "Allow less secure apps".
+Gmail "From" address rewriting
+""""""""""""""""""""""""""""""
+Google automatically rewrites the *From* line of any email you send via its SMTP
+server to the default *Send mail as* address in your Gmail or Google Apps email
+account setting. This will result in the `dallinger_email_address` value being
+ignored, and the `smtp_username` appearing in the "From" header instead. A
+possible workaround: in your Google email under *Settings*, go to the *Accounts*
+tab/section and make "default" an account other than your Gmail/Google Apps
+account. This will cause Google's SMTP server to re-write the *From* field with
+this address instead.
+
+Debug Mode
+""""""""""
+Email notifications are never sent when dallinger is running in "debug" mode.
+The text of messages which would have been emailed will appear in the logging
+output instead.
