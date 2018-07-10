@@ -26,7 +26,13 @@ you will use that address for this value.
 ``smpt_password`` The password associated with the ``smtp_username``. **NOTE** If you are
 using two-factor authentication, see :ref:`two-factor-auth`, below.
 
-``dallinger_email_address`` The email address THAT DOES NOTHING.
+``dallinger_email_address`` The email address to be used as the "from" address
+outgoing email notifications.
+**Gmail users**: Google automatically rewrites the *From* line of any email you send via its
+SMTP server to the default *Send mail as* address in your Gmail or Google Apps
+email account setting. A possible workaround: in your Google email under *Settings*, go to the *Accounts* tab/section and make
+"default" an account other than your Gmail/Google Apps account. This will cause
+Google's SMTP server to re-write the *From* field with this address instead.
 
 
 ``contact_email_on_error`` Also an email address, and used in two ways:
