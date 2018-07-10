@@ -1,0 +1,23 @@
+version: '2'
+
+services:
+
+  dallinger:
+    build:
+      context: .
+      dockerfile: Dockerfile    
+    environment:
+      - DISPLAY
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./tests:/usr/src/app/tests
+    restart: always
+    command: ./run.sh
+    ports:
+      - "5000:5000"
+      - "5432:5432"
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"

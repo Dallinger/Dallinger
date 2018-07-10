@@ -1,0 +1,65 @@
+FROM ubuntu:16.04
+MAINTAINER Vishal Lall <lall@berkeley.edu>
+LABEL Description="Docker for Dallinger" Version="1.1"
+ARG DALLINGER_VERSION=3.4.1
+# Expose web server
+EXPOSE 5000
+# Expose psql
+EXPOSE 5432
+# Expose redis
+EXPOSE 6379
+# Install some dependencies
+RUN apt-get update && apt-get install -y \
+        build-essential \
+        cmake \
+        curl \
+        enchant \
+        g++ \
+        gfortran \
+        git \
+        libffi-dev \
+        libssl-dev \
+        pandoc \
+        postgresql \ 
+        postgresql-contrib \
+        python2.7 \
+        python-dev \
+        python-pip \
+        redis-server \
+        software-properties-common \
+        supervisor \
+        tox \
+        unzip \
+        vim \
+        virtualenv \
+        virtualenvwrapper \
+        wget \
+        default-jdk \
+        zip \
+        && \
+    apt-get clean && \
+    apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
+# Install Dallinger
+WORKDIR /home
+RUN pip install --upgrade pip
+RUN pip install pyenchant
+RUN pip --no-cache-dir install git+git://github.com/Dallinger/Dallinger.git@v${DALLINGER_VERSION}
+RUN git clone https://github.com/Dallinger/Dallinger
+# Heroku
+RUN wget -qO- https://cli-assets.heroku.com/install-ubuntu.sh | sh
+# Install Dallinger
+RUN dallinger setup
+WORKDIR /home/Dallinger
+# dev-requirements break with `pip install coverage_pth`
+RUN pip install -r requirements.txt
+RUN python setup.py develop
+# Run Redis
+RUN service redis-server start &
+RUN apt-get update && apt-get install -y firefox
+
+# Grab supervisord script
+RUN wget -O run.sh https://raw.githubusercontent.com/vlall/Docker-Dallinger/master/run.sh
+RUN chmod +x run.sh
+CMD /usr/bin/firefox
+RUN echo "Docker-Dallinger is running... attach to container by running: docker run -p 5000:5000 -p 5432:5432 -p 6379:6379 --name dallinger-test1 <YOUR_IMAGE_NAME>"
