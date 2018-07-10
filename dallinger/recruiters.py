@@ -707,7 +707,12 @@ class PulseRecruiter(Recruiter):
 
     def reward_bonus(self, assignment_id, amount, reason):
         """ Reward the participant """
-        self.pulse_service.reward(assignment_id)
+
+        participant = session.query(Participant).filter_by(
+            assignment_id=assignment_id
+        ).first()
+
+        self.pulse_service.reward(participant.hit_id, assignment_id)
 
 
 def for_experiment(experiment):

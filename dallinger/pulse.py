@@ -120,17 +120,18 @@ class PulseService:
 
         return True
 
-    def reward(self, agentId):
+    def reward(self, hitId, agentId):
         """ Reward participants with airtime"""
 
         payload = {
-            "flow": "SolicitReferralAndPay",
+            "type": "SolicitReferralAndPay",
             "agents": [agentId],
-            "restart_participants": True,
             "message": "Thank you for participating, you will be receiving your reward shortly. Would you like to refer anybody else? You will receive a .5 airtime bonus if they participate! If yes, please provide their contact info.",
-            "netAmount": 34.565,
+            "netAmount": "1.0",
             "paymentProcessor": "TransferTo",
-            "currency": "AirTime"
+            "currency": "AirTime",
+            'activityId': hitId,
+            "agent_properties": {"participatedIn": hitId}
         }
 
         logger.info("Rewarding {}".format(agentId))
