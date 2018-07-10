@@ -2,13 +2,13 @@
   "name": "dallinger",
   "version": "0.1.0",
   "description": "Dallinger experiment server",
-  "dependencies": {
-  },
+  "dependencies": {},
   "devDependencies": {
     "browser-sync": "^2.18.8",
     "browser-sync-webpack-plugin": "^1.1.4",
-    "webpack": "^2.4.1",
-    "uglify-es": "^3.0.28"
+    "jsdoc": "^3.5.5",
+    "uglify-es": "^3.0.28",
+    "webpack": "^2.4.1"
   },
   "scripts": {
     "build": "webpack",

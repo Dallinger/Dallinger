@@ -21,7 +21,13 @@ import os
 import sys
 here = os.path.dirname(os.path.abspath(__file__))
 src = os.path.abspath(os.path.join(here, '..', '..'))
+js_source_path = os.path.join(src, 'dallinger', 'frontend', 'static', 'scripts')
 sys.path.insert(0, src)
+
+# Add path for node binaries
+os.environ['PATH'] = (
+    os.environ.get('PATH', '') + ':' + os.path.join(src, 'node_modules', '.bin')
+)
 
 # -- General configuration ------------------------------------------------
 
@@ -36,7 +42,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+    'sphinx_js'
 ]
 
 try:
