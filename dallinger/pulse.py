@@ -86,8 +86,6 @@ class PulseService:
 
         resp = self.api_post('campaign', payload)
 
-        logger.debug("return {}".format(resp))
-
         if resp.get('response') is None or type(resp.get('response')) is not dict:
             raise Exception("Invalid response on create campaign: {}".format(resp))
         else:
@@ -97,6 +95,8 @@ class PulseService:
             raise Exception("Invalid response on create campaign: {}".format(resp))
 
         self.project_id = resp.get('projects')[0].get('id')
+
+        logger.info("Project created {}".format(self.project_id))
 
         return True
 

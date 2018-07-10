@@ -655,6 +655,8 @@ class PulseRecruiter(Recruiter):
         """Start recruiting right away."""
 
         if self.pulse_service.get_existing_activity() is None:
+            logger.info("No project found, creating a new campaign")
+
             self.pulse_service.create_campaign(
                 self.config.get('title'),
                 self.config.get('description'),
@@ -663,6 +665,8 @@ class PulseRecruiter(Recruiter):
                 self.config.get('pulse_image_url'),
                 self.config.get('pulse_page_id')
             )
+        else:
+            logger.info("Using existing project")
 
         logger.info("Open recruitment: {}".format(self.pulse_service.project_id))
 
