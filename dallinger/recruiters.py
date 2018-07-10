@@ -676,16 +676,22 @@ class PulseRecruiter(Recruiter):
     def recruit(self, n=1):
         """Recruit n new participants to the queue"""
 
-        ad_url = '{}/ad?recruiter={}'.format(
-            get_base_url(),
-            self.nickname,
-        )
+        agents = self.pulse_service.get_agents()
 
-        try:
-            self.pulse_service.recruit(ad_url)
-        except Exception as ex:
-            logger.error("Exception while running Pulse recruitment")
-            logger.exception(ex)
+        for agent in agents:
+            experiment_url = '{}/ad?recruiter={}&hitId={}&assignmentId={}&workerId={}'.format(
+                get_base_url(),
+                self.nickname,
+                self.pulse_service.project_id,
+                agent,
+                agent
+            )
+
+            try:
+                self.pulse_service.recruit(agent, experiment_url)
+            except Exception as ex:
+                logger.error("Exception while running Pulse recruitment")
+                logger.exception(ex)
 
         return []
 

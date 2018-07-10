@@ -100,11 +100,14 @@ class PulseService:
 
         return True
 
-    def recruit(self, url):
+    def get_agents(self):
+        return ['ecbd08d2-6fdc-430b-abac-7b1827ae4433']
+
+    def recruit(self, agent, url):
         """ Send notification to contacts that the experiment is live """
         payload = {
             "type": "ShareURL",
-            "agents": ["ecbd08d2-6fdc-430b-abac-7b1827ae4433"],
+            "agents": [agent],
             "activityId": self.project_id,
             "url": url,
             "message": "The experiment is ready, please click on the URL."
@@ -122,7 +125,7 @@ class PulseService:
 
         payload = {
             "flow": "SolicitReferralAndPay",
-            "agents": ["ecbd08d2-6fdc-430b-abac-7b1827ae4433"],
+            "agents": [agentId],
             "restart_participants": True,
             "message": "Thank you for participating, you will be receiving your reward shortly. Would you like to refer anybody else? You will receive a .5 airtime bonus if they participate! If yes, please provide their contact info.",
             "netAmount": 34.565,
@@ -134,7 +137,7 @@ class PulseService:
 
         resp = self.api_post('engage', payload)
 
-        if resp.get('response') is None or resp.get('response', {}).get('flow', {}).get('uuid') != flow:
+        if resp.get('response') is None or resp.get('response', {}).get('flow', {}).get('uuid') is None:
             raise Exception("Could not trigger flow")
 
         return True
