@@ -35,7 +35,7 @@ overwritten by the Google SMTP server. See :ref:`from-address-rewrite` below.
 
 1. It serves as the recipient address for outgoing notifications
 2. It is displayed to experiment participants on the error page, so that
-   they can make inquiries about compensation.
+   they can make inquiries about compensation
 
 
 Pitfalls and Solutions
