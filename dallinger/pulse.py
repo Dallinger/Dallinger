@@ -9,7 +9,6 @@ class PulseService:
     api_url = None
     api_key = None
     app_id = None
-    campaign_id = None
     project_id = None
 
     def __init__(self, api_url, api_key, app_id):
@@ -27,14 +26,31 @@ class PulseService:
 
         return resp
 
-    def api_get(self, endpoint, query):
+    def api_get(self, endpoint, query={}):
         """ Get from the Pulse API """
         r = requests.get(self.api_url + "/{}".format(endpoint), params=query,
-                         headers={'applicationId': self.app_id})
+                         headers={'applicationId': self.app_id, 'x-api-key': self.api_key})
 
         resp = json.loads(r.text)
 
         return resp
+
+    def get_existing_activity(self):
+        """ Check activity endpoint to see if this application has an existing project associated with it"""
+        resp = self.api_get('activity')
+
+        if resp.get('response') is None or type(resp.get('response')) is not dict:
+            raise Exception("Invalid response on get activity: {}".format(resp))
+        else:
+            resp = resp.get('response')
+
+        for activity in resp.get('activities', {}):
+            if activity.get('type') == 'Project' and activity.get('id'):
+                self.project_id = activity.get('id')
+                return activity.get('id')
+
+        return None
+
 
     def create_campaign(self, title, description, location, link, image_url, page_id):
         """ Create a facebook campaign and save the campaign and project IDs """
@@ -77,19 +93,14 @@ class PulseService:
         else:
             resp = resp.get('response')
 
-        if resp.get('id') is not None:
-            campaign_id = resp.get('id')
-
         if len(resp.get('projects', [])) < 1:
             raise Exception("Invalid response on create campaign: {}".format(resp))
 
         self.project_id = resp.get('projects')[0].get('id')
 
-        self.campaign_id = campaign_id
-
         return True
 
-    def recruit(self, flow, url):
+    def recruit(self, url):
         """ Send notification to contacts that the experiment is live """
         payload = {
             "type": "ShareURL",
@@ -101,24 +112,22 @@ class PulseService:
 
         resp = self.api_post('engage', payload)
 
-        if resp.get('response') is None or resp.get('response', {}).get('flow', {}).get('uuid') != flow:
+        if resp.get('response') is None or resp.get('response', {}).get('flow', {}).get('uuid') is None:
             raise Exception("Could not trigger flow")
 
         return True
 
-    def reward(self, flow, agentId):
+    def reward(self, agentId):
         """ Reward participants with airtime"""
+
         payload = {
-            "flow": flow,
-            "contacts": [agentId],
+            "flow": "SolicitReferralAndPay",
+            "agents": ["ecbd08d2-6fdc-430b-abac-7b1827ae4433"],
             "restart_participants": True,
-            "extra": {
-                "applicationId": self.app_id,
-                "message": "Thank you for participating, you will be receiving your reward shortly. Would you like to refer anybody else? You will receive a .5 airtime bonus if they participate! If yes, please provide their contact info.",
-                "netAmount": 34.565,
-                "paymentProcessor": "TransferTo",
-                "currency": "AirTime"
-            }
+            "message": "Thank you for participating, you will be receiving your reward shortly. Would you like to refer anybody else? You will receive a .5 airtime bonus if they participate! If yes, please provide their contact info.",
+            "netAmount": 34.565,
+            "paymentProcessor": "TransferTo",
+            "currency": "AirTime"
         }
 
         logger.info("Rewarding {}".format(agentId))

@@ -654,21 +654,22 @@ class PulseRecruiter(Recruiter):
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
 
-        self.pulse_service.create_campaign(
-            self.config.get('title'),
-            self.config.get('description'),
-            self.config.get('pulse_location'),
-            self.config.get('pulse_link'),
-            self.config.get('pulse_image_url'),
-            self.config.get('pulse_page_id')
-        )
+        if self.pulse_service.get_existing_activity() is None:
+            self.pulse_service.create_campaign(
+                self.config.get('title'),
+                self.config.get('description'),
+                self.config.get('pulse_location'),
+                self.config.get('pulse_link'),
+                self.config.get('pulse_image_url'),
+                self.config.get('pulse_page_id')
+            )
 
-        logger.info("Open recruitment: {}".format(self.pulse_service.campaign_id))
+        logger.info("Open recruitment: {}".format(self.pulse_service.project_id))
 
         self.recruit()
 
         return {
-            'items': [self.pulse_service.campaign_id],
+            'items': [self.pulse_service.project_id],
             'message': 'Pulse Campaign Created'
         }
 
@@ -681,10 +682,7 @@ class PulseRecruiter(Recruiter):
         )
 
         try:
-            self.pulse_service.recruit(
-                self.config.get('pulse_recruit_flow'),
-                ad_url
-            )
+            self.pulse_service.recruit(ad_url)
         except Exception as ex:
             logger.error("Exception while running Pulse recruitment")
             logger.exception(ex)
@@ -703,7 +701,7 @@ class PulseRecruiter(Recruiter):
 
     def reward_bonus(self, assignment_id, amount, reason):
         """ Reward the participant """
-        self.pulse_service.reward(self.config.get('pulse_reward_flow'), assignment_id)
+        self.pulse_service.reward(assignment_id)
 
 
 def for_experiment(experiment):

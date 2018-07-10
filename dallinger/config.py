@@ -64,8 +64,6 @@ default_keys = (
     ('pulse_link', six.text_type, []),
     ('pulse_location', six.text_type, []),
     ('pulse_page_id', six.text_type, []),
-    ('pulse_recruit_flow', six.text_type, []),
-    ('pulse_reward_flow', six.text_type, []),
     ('qualification_blacklist', six.text_type, []),
     ('recruiter', six.text_type, []),
     ('recruiters', six.text_type, []),
