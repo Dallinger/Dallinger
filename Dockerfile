@@ -44,18 +44,20 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /home
 RUN pip install --upgrade pip
 RUN pip install pyenchant
-RUN pip --no-cache-dir install git+git://github.com/Dallinger/Dallinger.git@v${DALLINGER_VERSION}
-RUN git clone https://github.com/Dallinger/Dallinger
+
+RUN mkdir Dallinger
+COPY . /home/Dallinger
+
 # Heroku
 RUN wget -qO- https://cli-assets.heroku.com/install-ubuntu.sh | sh
+
 # Install Dallinger
-RUN dallinger setup
+#RUN dallinger setup
 WORKDIR /home/Dallinger
 # dev-requirements break with `pip install coverage_pth`
 RUN pip install -r requirements.txt
 RUN python setup.py develop
-# Run Redis
-RUN service redis-server start &
+
 RUN apt-get update && apt-get install -y firefox
 
 # Grab supervisord script
