@@ -14,6 +14,7 @@ Laboratory automation for the behavioral and social sciences.
     running_bots
     learning_to_use_dallinger
     monitoring_a_live_experiment
+    email_setup
     postico_and_postgres
     command_line_utility
     configuration
@@ -43,7 +44,6 @@ Laboratory automation for the behavioral and social sciences.
     communicating_with_the_server
     extra_configuration
     writing_bots
-    setting_up_notifications
     contributing_to_dallinger
 
 .. toctree::
