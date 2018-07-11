@@ -287,7 +287,9 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
 
     # Verify that the Postgres server is running.
     try:
-        psycopg2.connect(database="x", user="postgres", password="nada")
+        db_url_default = "postgresql://dallinger:dallinger@localhost/dallinger"
+        db_url = os.environ.get("DATABASE_URL", db_url_default)
+        psycopg2.connect(dsn=db_url)
     except psycopg2.OperationalError as e:
         if "could not connect to server" in str(e):
             raise RuntimeError("The Postgres server isn't running.")
