@@ -65,7 +65,7 @@ two-factor authentication may provide equivalent solutions.
 Working with Google/Gmail Two-factor Authentication
 '''''''''''''''''''''''''''''''''''''''''''''''''''
 If you are using Gmail with two-factor authentication, we recommend that you set
-up an application-specific password (or, as Google calls it, an "App password")
+up an application-specific password (what Google short-hands as "App password")
 specifically for Dallinger. You can set one up following these instructions
 (adapted from `here <https://www.lifewire.com/get-a-password-to-access-gmail-by-pop-imap-2-1171882>`_):
 
@@ -78,7 +78,7 @@ specifically for Dallinger. You can set one up following these instructions
    (If prompted for your Gmail password, enter it and click *Next*.)
 #. Select *Other (custom name)* in the *Select app* drop-down menu.
    Enter *Dallinger outgoing mail* or another descriptive name so you'll recognize
-   what it's for when you view these settings in the (potentially distant) future.
+   what it's for when you view these settings in the future.
 #. Click *Generate*.
 #. Find and immediately copy the password under *Your app passwords*. Type or paste the
    password into the `.dallingerconfig` file in your home directory.
