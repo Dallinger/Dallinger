@@ -1,13 +1,8 @@
 FROM ubuntu:16.04
 MAINTAINER Vishal Lall <lall@berkeley.edu>
 LABEL Description="Docker for Dallinger" Version="1.1"
-ARG DALLINGER_VERSION=3.4.1
 # Expose web server
 EXPOSE 5000
-# Expose psql
-EXPOSE 5432
-# Expose redis
-EXPOSE 6379
 # Install some dependencies
 RUN apt-get update && apt-get install -y \
         build-essential \
