@@ -9,15 +9,32 @@ services:
     environment:
       - DISPLAY
       - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://dallinger:dallinger@postgresql/dallinger
     volumes:
       - ./tests:/usr/src/app/tests
     restart: always
-    command: ./run.sh
+    command: /bin/bash -c "cd /home/Dallinger/demos/dlgr/demos/snake && dallinger debug --verbose"
+    depends_on:
+      - redis
+      - postgresql
     ports:
       - "5000:5000"
-      - "5432:5432"
 
+  postgresql:
+    image: postgres:9.4
+    environment:
+      - POSTGRES_DB=dallinger
+      - POSTGRES_PASSWORD=dallinger
+      - POSTGRES_USER=dallinger
+    volumes:
+      - dallinger:/var/lib/postgresql/data
+      - /var/run/postgresql:/var/run/postgresql
+    ports:
+      - "5432:5432"
   redis:
-    image: redis:latest
+    image: redis:alpine
     ports:
       - "6379:6379"
+
+volumes:
+  dallinger:

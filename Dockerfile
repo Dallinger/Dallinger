@@ -20,8 +20,6 @@ RUN apt-get update && apt-get install -y \
         libffi-dev \
         libssl-dev \
         pandoc \
-        postgresql \ 
-        postgresql-contrib \
         python2.7 \
         python-dev \
         python-pip \
@@ -61,7 +59,5 @@ RUN python setup.py develop
 RUN apt-get update && apt-get install -y firefox
 
 # Grab supervisord script
-RUN wget -O run.sh https://raw.githubusercontent.com/vlall/Docker-Dallinger/master/run.sh
-RUN chmod +x run.sh
 CMD /usr/bin/firefox
 RUN echo "Docker-Dallinger is running... attach to container by running: docker run -p 5000:5000 -p 5432:5432 -p 6379:6379 --name dallinger-test1 <YOUR_IMAGE_NAME>"
