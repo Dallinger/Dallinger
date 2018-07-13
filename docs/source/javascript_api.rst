@@ -2,7 +2,7 @@ Javascript API
 ==============
 
 Dallinger provides a javascript API to facilitate creating web-based
-experiments. ll of the dallinger demos use this API to communicate
+experiments. All of the dallinger demos use this API to communicate
 with the experiment server. The API is defined in the `dallinger2.js`
 script, which is included in the default experiment templates.
 
@@ -25,7 +25,7 @@ interact with any of the experiment routes described in
 .. js:autofunction:: dallinger.post
 
 
-Additionally, the `dallinger` object provides functions that make requests
+The `dallinger` object also provides functions that make requests
 to specific experiment routes:
 
 .. js:autofunction:: dallinger.createAgent
@@ -41,6 +41,12 @@ to specific experiment routes:
 .. js:autofunction:: dallinger.getTransmissions
 
 
+Additionally, there is a helper method to handle error responses
+from experiment API calls (see :ref:`deferreds-label` below):
+
+.. js:autofunction:: dallinger.error
+
+
 .. _deferreds-label:
 
 `Deferred` objects
@@ -50,9 +56,15 @@ All of the above functions make use of `jQuery.Deferred <https://api.jquery.com/
 and return `Deferred` objects. These `Deferred` objects provide the following
 methods to facilitate handling asynchronous responses once they've completed:
 
-    * ``.done(callback)``: Provide a callback to handle data from a successful response
-    * ``.fail(callback)``: Provide a callback to handle error responses
-    * ``.then(doneFilter[, failFilter, progressFilter])``: Provide callbacks to handle successes, failures, and progress updates.
+    * ``.done(callback)``: Provide a callback to handle data from a successful
+      response
+    * ``.fail(fail_callback)``: Provide a callback to handle error responses
+    * ``.then(callback[, fail_callback, progress_callback])``: Provide
+      callbacks to handle successes, failures, and progress updates.
+
+The fail_callback function will be passed a `dallinger.AjaxRejection` object which
+includes detailted information about the error. Unexpected errors should be handled
+by calling the :func:`dallinger.error` method with the `AjaxRejection` object.
 
 
 Experiment Initialization and Completion
@@ -61,7 +73,7 @@ Experiment Initialization and Completion
 In addition to the request functions above, there are a few functions that are
 used by the default experiment templates to setup and complete an experiment.
 If you are writing a highly customized experiment, you may need to use
-these excplicitly:
+these explicitly:
 
 .. js:autofunction:: dallinger.createParticipant
 

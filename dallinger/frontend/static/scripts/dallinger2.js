@@ -180,7 +180,8 @@ var dallinger = (function () {
    * Advance the participant to a given html page;
    * the ``participant_id`` will be included in the url query string.
    *
-   * @param {string} page - Name of page to load.
+   * @param {string} page - Name of page to load, the .html extension
+   * should not be included.
    */
   dlgr.goToPage = function(page) {
     window.location = "/" + page + "?participant_id=" + dlgr.identity.participantId;
@@ -236,9 +237,12 @@ var dallinger = (function () {
   };
 
   /**
-   * Convenience method for making an AJAX ``GET`` requst to a specified route.
-   * Includes error handling to help ensure workers are compensated
-   * even if an error occurs.
+   * Convenience method for making an AJAX ``GET`` request to a specified
+   * route. Any callbacks provided to the `done()` method of the returned
+   * `Deferred` object will be passed the JSON object returned by the the
+   * API route (referred to as `data` below). Any callbacks provided to the
+   * `fail()` method of the returned `Deferred` object will be passed an
+   * instance of `AjaxRejection`, see :ref:`deferreds-label`.
    *
    * @example
    * var response = dallinger.get('/participant/1');
@@ -254,14 +258,17 @@ var dallinger = (function () {
   };
 
   /**
-   * Convenience method for making an AJAX ``POST`` requst to a specified route.
-   * Includes error handling to help ensure workers are compensated
-   * even if an error occurs.
+   * Convenience method for making an AJAX ``POST`` request to a specified
+   * route.  Any callbacks provided to the `done()` method of the returned
+   * `Deferred` object will be passed the JSON object returned by the the
+   * API route (referred to as `data` below). Any callbacks provided to the
+   * `fail()` method of the returned `Deferred` object will be passed an
+   * instance of `AjaxRejection`, see :ref:`deferreds-label`.
    *
    * @example
    * var response = dallinger.post('/info/1', {details: {a: 1}});
    * // Wait for response and handle data or failure
-   * response.done(function (data) {...}).fail(function (error) {...});
+   * response.done(function (data) {...}).fail(function (rejection) {...});
    *
    * @param {string} route - Experiment route, e.g. ``/info/$nodeId``
    * @param {object} [data] - Optional data to include in request
@@ -271,6 +278,22 @@ var dallinger = (function () {
     return ajax('post', route, data);
   };
 
+  /**
+   * Handles experiment errors by requesting feedback from the participant and
+   * attempts to complete the experiment (and compensate participants).
+   *
+   * @example
+   * // Let dallinger handle the error
+   * dallinger.createAgent().fail(dallinger.error);
+   *
+   * // Custom handling, then request feedback and complete if possible
+   * dallinger.getInfo(info).fail(function (rejection) {
+   *  ... handle rejection data ...
+   *  dallinger.error(rejection);
+   * });
+   *
+   * @param {dallinger.AjaxRejection} rejection - information about the AJAX error.
+   */
   dlgr.error = function (rejection) {
     // Render an error form for a rejected deferred returned by an ajax() call.
     var $form, hit_params;
@@ -303,7 +326,9 @@ var dallinger = (function () {
    * @example
    * // Mark the assignment complete and perform a custom function when successful
    * result = dallinger.submitAssignment();
-   * result.done(function (data) {... handle ``data.status`` ...});
+   * result.done(function (data) {... handle ``data.status`` ...}).fail(
+   *     dallinger.error
+   * );
    *
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
@@ -330,10 +355,12 @@ var dallinger = (function () {
   };
 
   /**
-   * Create a new experiment participant by making a ``POST`` request to the experiment
-   * participant route. If the experiment requires a quorum, the response will not resolve until
-   * the quorum is met. If the participant is requested after the quorum has already been reached,
-   * the ``dallinger.skip_experiment`` flag will be set and the experiment will be skipped.
+   * Create a new experiment `Participant` by making a ``POST`` request to
+   * the experiment `/participant/` route. If the experiment requires a
+   * quorum, the response will not resolve until the quorum is met. If the
+   * participant is requested after the quorum has already been reached, the
+   * ``dallinger.skip_experiment`` flag will be set and the experiment will
+   * be skipped.
    *
    * This method is called automatically by the default waiting room page.
    *
@@ -393,7 +420,7 @@ var dallinger = (function () {
   };
 
   /**
-   * Creates a new experiment node for the current partcipant.
+   * Creates a new experiment `Node` for the current partcipant.
    *
    * @example
    * var response = dallinger.createAgent();
@@ -407,7 +434,7 @@ var dallinger = (function () {
   };
 
   /**
-   * Creates a new info object in the experiment database.
+   * Creates a new `Info` object in the experiment database.
    *
    * @example
    * var response = dallinger.createInfo(1, {details: {a: 1}});
@@ -438,7 +465,7 @@ var dallinger = (function () {
   };
 
   /**
-   * Get a specific info object.
+   * Get a specific `Info` object from the experiment database.
    *
    * @example
    * var response = dallinger.getInfo(1, 1);
@@ -454,7 +481,7 @@ var dallinger = (function () {
   };
 
   /**
-   * Get all infos for the specified node.
+   * Get all `Info` objects for the specified node.
    *
    * @example
    * var response = dallinger.getInfos(1, 1);
@@ -469,7 +496,7 @@ var dallinger = (function () {
   };
 
   /**
-   * Get all the infos a node has been sent and has received.
+   * Get all the `Info` objects a node has been sent and has received.
    *
    * @example
    * var response = dallinger.getReceivedInfostInfos(1);
@@ -484,7 +511,7 @@ var dallinger = (function () {
   };
 
   /**
-   * Get all the transmissions of a node.
+   * Get all `Transmission` objects connected to a node.
    *
    * @example
    * var response = dallinger.getTransmissions(1, {direction: "to", status: "all"});
@@ -500,7 +527,7 @@ var dallinger = (function () {
   };
 
   /**
-   * Submits a question response to the experiment server.
+   * Submits a `Question` object to the experiment server.
    * This method is called automatically from the default questionnaire page.
    *
    * @param {string} [name=questionnaire] - optional questionnaire name
@@ -528,7 +555,8 @@ var dallinger = (function () {
   /**
    * Waits for a WebSocket message indicating that quorum has been reached.
    *
-   * This method is called automatically within createParticipant and the default waiting room page.
+   * This method is called automatically within `createParticipant()` and the
+   * default waiting room page.
    *
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
