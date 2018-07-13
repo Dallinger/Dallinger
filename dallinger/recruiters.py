@@ -82,8 +82,14 @@ class Recruiter(object):
         pass
 
     def notify_using(self, participant):
-        """Allow the Recruiter to be notified when an recruited Participant
+        """Allow the Recruiter to be notified when a recruited Participant
         has been chosen to participate in an experiment they joined.
+        """
+        pass
+
+    def notify_completed(self, participant):
+        """Allow the Recruiter to be notified when a recruited Participant
+        has completed an experiment they joined.
         """
         pass
 
@@ -344,7 +350,7 @@ class MTurkRecruiter(Recruiter):
         except MTurkServiceException as ex:
             logger.exception(str(ex))
 
-    def notify_using(self, participant):
+    def notify_completed(self, participant):
         """Assign a Qualification to the Participant for the experiment ID,
         and for the configured group_name, if it's been set.
         """
