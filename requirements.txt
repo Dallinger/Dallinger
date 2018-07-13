@@ -18,7 +18,7 @@ requests==2.19.1
 rq==0.11.0
 selenium==3.13.0
 six==1.11.0
-SQLAlchemy==1.2.9
+SQLAlchemy==1.2.10
 sqlalchemy-postgres-copy==0.5.0
 ua-parser==0.8.0
 user-agents==1.1.0
