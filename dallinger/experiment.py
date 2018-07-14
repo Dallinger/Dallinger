@@ -524,7 +524,7 @@ class Experiment(object):
         be returned, otherwise - if the UUID is not already registered -
         the experiment will be run and data collected.
 
-        See ``run`` method above for other parameters
+        See :meth:`~Experiment.run` method for other parameters.
         """
         try:
             results = data_load(app_id)
@@ -555,17 +555,23 @@ class Experiment(object):
 
     @classmethod
     def make_uuid(cls, app_id=None):
-        """Generate a new uuid."""
+        """Generates a new UUID.
+        This is a class method and can be called as `Experiment.make_uuid()`.
+        Takes an optional `app_id` which is converted to a string and, if it
+        is a valid UUID, returned.
+        """
         try:
             if app_id and isinstance(uuid.UUID(str(app_id), version=4), uuid.UUID):
-                return app_id
+                return str(app_id)
         except (ValueError, AssertionError):
             pass
         return str(uuid.UUID(int=random.getrandbits(128)))
 
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
-        completed"""
+        completed. This makes use of the experiment server `/summary` route,
+        which in turn uses :meth:`~Experiment.is_complete`.
+        """
         heroku_app = HerokuApp(self.app_id)
         status_url = '{}/summary'.format(heroku_app.url)
         data = {}
@@ -602,27 +608,46 @@ class Experiment(object):
         return True
 
     def events_for_replay(self, session=None, target=None):
-        """Be default we return all infos in order for replay"""
+        """Returns an ordered list of "events" for replaying.
+        Experiments may override this method to provide custom
+        replay logic. The "events" returned by this method will be passed
+        to :meth:`~Experiment.replay_event`. The default implementation
+        simply returns all :class:`~dallinger.models.Info` objects in the
+        order they were created.
+        """
         if session is None:
             session = self.session
         return session.query(Info).order_by(Info.creation_time)
 
     def replay_event(self, event):
+        """Stub method to replay an event returned by
+        :meth:`~Experiment.events_for_replay`.
+        Experiments must override this method to provide replay support.
+        """
         pass
 
     def replay_start(self):
+        """Stub method for starting an experiment replay.
+        Experiments must override this method to provide replay support.
+        """
         pass
 
     def replay_finish(self):
+        """Stub method for ending an experiment replay.
+        Experiments must override this method to provide replay support.
+        """
         pass
 
     def replay_started(self):
+        """Returns `True` if an experiment replay has started."""
         return True
 
     def is_complete(self):
         """Method for custom determination of experiment completion.
-        Return None to use the experiment server default, otherwise
-        `True` or `False`"""
+        Experiments should override this to provide custom experiment
+        completion logic. Returns `None` to use the experiment server
+        default logic, otherwise should return `True` or `False`.
+        """
         return None
 
     @property

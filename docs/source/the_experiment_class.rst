@@ -8,7 +8,7 @@ single Experiment object and it is not stored as an entry in a corresponding
 table, rather each Experiment is a set of instructions that tell the server
 what to do with the database when the server receives requests from outside.
 
-.. currentmodule:: dallinger.experiments
+.. module:: dallinger.experiment
 
 .. autoclass:: Experiment
 
@@ -45,6 +45,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: assignment_abandoned
 
+  .. automethod:: assignment_reassigned
+
   .. automethod:: assignment_returned
 
   .. automethod:: attention_check
@@ -55,6 +57,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: bonus_reason
 
+  .. automethod:: collect
+
   .. automethod:: create_network
 
   .. automethod:: create_node
@@ -62,6 +66,8 @@ what to do with the database when the server receives requests from outside.
   .. automethod:: data_check
 
   .. automethod:: data_check_failed
+
+  .. automethod:: events_for_replay
 
   .. automethod:: fail_participant
 
@@ -71,9 +77,13 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: info_post_request
 
+  .. automethod:: is_complete
+
   .. automethod:: log
 
   .. automethod:: log_summary
+
+  .. automethod:: make_uuid
 
   .. automethod:: networks
 
@@ -82,6 +92,14 @@ what to do with the database when the server receives requests from outside.
   .. automethod:: node_post_request
 
   .. automethod:: recruit
+
+  .. automethod:: replay_event
+
+  .. automethod:: replay_start
+
+  .. automethod:: replay_finish
+
+  .. automethod:: replay_started
 
   .. automethod:: run
 
