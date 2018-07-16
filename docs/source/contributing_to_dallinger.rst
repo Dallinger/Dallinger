@@ -1,5 +1,6 @@
 Releasing a new version of Dallinger.
-=============================
+=====================================
+
 The Dallinger branch `master` features the latest official release for 3.X.X, and `2.x-maintenance` features the latest official 2.X.X release.
 
 1. After you've merged the changes you want into both `master` and `2.x-maintenance`, the branches are ready for the version upgrade. We’re using semantic versioning, so there are three parts to the version number. when making a release you need to decide which parts should get bumped, which determines what command you give to `bumpversion`. `major` is for breaking changes, `minor` for features, `patch` for bug fixes.

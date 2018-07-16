@@ -12,4 +12,5 @@ recommonmark==0.4.0
 sphinxcontrib-spelling==4.2.0
 Sphinx==1.7.5
 tox==3.1.2
+sphinx-js==2.5
 -r requirements.txt

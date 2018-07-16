@@ -1,4 +1,7 @@
 /*globals Spinner, Fingerprint2, ReconnectingWebSocket, reqwest, store */
+/**
+ * @file Defines a global ``dallinger`` object which provides various methods for interacting with dallinger experiments.
+ */
 
 if (window.Dallinger !== undefined) {
   alert(
@@ -8,12 +11,29 @@ if (window.Dallinger !== undefined) {
     'for backwards compatibility of existing experiments.'
   );
 }
-
 var dallinger = (function () {
+  /**
+   * @namespace
+   * @alias dallinger
+   */
   var dlgr = {};
 
   dlgr.skip_experiment = false;
 
+  /**
+   * Returns a url query string value given the parameter name.
+   *
+   * @example
+   * // Given a url with ``?param1=aaa&param2``, the following returns "aaa"
+   * dallinger.getUrlParameter("param1");
+   * // this returns true
+   * dallinger.getUrlParameter("param2");
+   * // and this returns null
+   * dallinger.getUrlParameter("param3");
+   *
+   * @param {string} sParam - name of url parameter
+   * @returns {string|boolean} the parameter value if available; ``true`` if parameter is in the url but has no value;
+   */
   dlgr.getUrlParameter = function getUrlParameter(sParam) {
     var sPageURL = decodeURIComponent(window.location.search.substring(1)),
       sURLVariables = sPageURL.split('&'),
@@ -28,6 +48,24 @@ var dallinger = (function () {
     }
   };
 
+  /**
+   * ``dallinger.identity`` provides information about the participant.
+   * It has the following string properties:
+   *
+   * ``recruiter``     - Type of recruiter
+   *
+   * ``hitId``         - MTurk HIT Id
+   *
+   * ``workerId``      - MTurk Worker Id
+   *
+   * ``assignmentId``  - MTurk Assignment Id
+   *
+   * ``mode``          - Dallinger experiment mode
+   *
+   * ``participantId`` - Dallinger participant Id
+   *
+   * @namespace
+   */
   dlgr.identity = {
     recruiter: dlgr.getUrlParameter('recruiter'),
     hitId: dlgr.getUrlParameter('hit_id'),
@@ -38,10 +76,8 @@ var dallinger = (function () {
   };
 
   dlgr.BusyForm = (function () {
-    /**
-    Loads a spinner as a visual cue that something is happening
-    and disables any jQuery objects passed to freeze().
-    **/
+    /* Loads a spinner as a visual cue that something is happening
+       and disables any jQuery objects passed to freeze(). */
 
     var defaults = {
       spinnerSettings: {scale: 1.5}, // See http://spin.js.org/ for all settings
@@ -83,9 +119,7 @@ var dallinger = (function () {
   }());
 
   dlgr.AjaxRejection = (function () {
-    /**
-    Capture information related to a rejected dallinger.ajax() call.
-    **/
+    // Capture information related to a rejected dallinger.ajax() call.
 
     var _responseHTML = function (response) {
       var parsed;
@@ -98,7 +132,7 @@ var dallinger = (function () {
       if (parsed.hasOwnProperty('html')) {
         return parsed.html;
       }
-      return ''
+      return '';
     };
 
     var AjaxRejection = function (options) {
@@ -116,7 +150,7 @@ var dallinger = (function () {
         'route': this.route,
         'data': JSON.stringify(this.data),
         'method': this.method
-      })
+      });
     };
 
     return AjaxRejection;
@@ -142,7 +176,13 @@ var dallinger = (function () {
     dlgr.allowExitOnce = true;
   };
 
-  // advance the participant to a given html page
+  /**
+   * Advance the participant to a given html page;
+   * the ``participant_id`` will be included in the url query string.
+   *
+   * @param {string} page - Name of page to load, the .html extension
+   * should not be included.
+   */
   dlgr.goToPage = function(page) {
     window.location = "/" + page + "?participant_id=" + dlgr.identity.participantId;
   };
@@ -174,7 +214,6 @@ var dallinger = (function () {
   };
 
   // AJAX helpers
-
   var ajax = function (method, route, data) {
     var deferred = $.Deferred();
     var options = {
@@ -197,14 +236,64 @@ var dallinger = (function () {
     return deferred;
   };
 
+  /**
+   * Convenience method for making an AJAX ``GET`` request to a specified
+   * route. Any callbacks provided to the `done()` method of the returned
+   * `Deferred` object will be passed the JSON object returned by the the
+   * API route (referred to as `data` below). Any callbacks provided to the
+   * `fail()` method of the returned `Deferred` object will be passed an
+   * instance of `AjaxRejection`, see :ref:`deferreds-label`.
+   *
+   * @example
+   * var response = dallinger.get('/participant/1');
+   * // Wait for response and handle data
+   * response.done(function (data) {...});
+   *
+   * @param {string} route - Experiment route, e.g. ``/info/$nodeId``
+   * @param {object} [data] - Optional data to include in request
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.get = function (route, data) {
     return ajax('get', route, data);
   };
 
+  /**
+   * Convenience method for making an AJAX ``POST`` request to a specified
+   * route.  Any callbacks provided to the `done()` method of the returned
+   * `Deferred` object will be passed the JSON object returned by the the
+   * API route (referred to as `data` below). Any callbacks provided to the
+   * `fail()` method of the returned `Deferred` object will be passed an
+   * instance of `AjaxRejection`, see :ref:`deferreds-label`.
+   *
+   * @example
+   * var response = dallinger.post('/info/1', {details: {a: 1}});
+   * // Wait for response and handle data or failure
+   * response.done(function (data) {...}).fail(function (rejection) {...});
+   *
+   * @param {string} route - Experiment route, e.g. ``/info/$nodeId``
+   * @param {object} [data] - Optional data to include in request
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.post = function (route, data) {
     return ajax('post', route, data);
   };
 
+  /**
+   * Handles experiment errors by requesting feedback from the participant and
+   * attempts to complete the experiment (and compensate participants).
+   *
+   * @example
+   * // Let dallinger handle the error
+   * dallinger.createAgent().fail(dallinger.error);
+   *
+   * // Custom handling, then request feedback and complete if possible
+   * dallinger.getInfo(info).fail(function (rejection) {
+   *  ... handle rejection data ...
+   *  dallinger.error(rejection);
+   * });
+   *
+   * @param {dallinger.AjaxRejection} rejection - information about the AJAX error.
+   */
   dlgr.error = function (rejection) {
     // Render an error form for a rejected deferred returned by an ajax() call.
     var $form, hit_params;
@@ -228,9 +317,21 @@ var dallinger = (function () {
     if (!rejection.html) {
       $form.submit();
     }
-  }
+  };
 
-  // report assignment complete
+  /**
+   * Notify the experiment that the participant's assignment is complete.
+   * Performs a ``GET`` request to the experiment's ``/worker_complete`` route.
+   *
+   * @example
+   * // Mark the assignment complete and perform a custom function when successful
+   * result = dallinger.submitAssignment();
+   * result.done(function (data) {... handle ``data.status`` ...}).fail(
+   *     dallinger.error
+   * );
+   *
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.submitAssignment = function() {
     var deferred = $.Deferred();
     dlgr.get('/participant/' + dlgr.identity.participantId).done(function (resp) {
@@ -253,7 +354,18 @@ var dallinger = (function () {
     return deferred;
   };
 
-  // make a new participant
+  /**
+   * Create a new experiment `Participant` by making a ``POST`` request to
+   * the experiment `/participant/` route. If the experiment requires a
+   * quorum, the response will not resolve until the quorum is met. If the
+   * participant is requested after the quorum has already been reached, the
+   * ``dallinger.skip_experiment`` flag will be set and the experiment will
+   * be skipped.
+   *
+   * This method is called automatically by the default waiting room page.
+   *
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.createParticipant = function() {
     var deferred = $.Deferred(),
       fingerprint_hash,
@@ -263,7 +375,7 @@ var dallinger = (function () {
       window.alert(
         'An ad blocker is preventing this experiment from ' +
         'loading. Please disable it and reload the page.'
-      )
+      );
       return;
     }
     new Fingerprint2().get(function(result){
@@ -307,34 +419,119 @@ var dallinger = (function () {
     return deferred;
   };
 
+  /**
+   * Creates a new experiment `Node` for the current partcipant.
+   *
+   * @example
+   * var response = dallinger.createAgent();
+   * // Wait for response
+   * response.done(function (data) {... handle data.node ...});
+   *
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.createAgent = function () {
     return dlgr.post('/node/' + dallinger.identity.participantId);
   };
 
+  /**
+   * Creates a new `Info` object in the experiment database.
+   *
+   * @example
+   * var response = dallinger.createInfo(1, {details: {a: 1}});
+   * // Wait for response
+   * response.done(function (data) {... handle data.info ...});
+   *
+   * @param {number} nodeId - The id of the participant's experiment node
+   * @param {Object} data - Experimental data (see :class:`~dallinger.models.Info`)
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.createInfo = function (nodeId, data) {
     return dlgr.post('/info/' + nodeId, data);
   };
 
+  /**
+   * Returns a public property value for the experiment.
+   *
+   * @example
+   * var response = dallinger.getExperimentProperty("propname");
+   * // Wait for response
+   * response.done(function (data) {... handle e.g. data.propname ...});
+   *
+   * @param {string} prop - The experiment property to lookup
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.getExperimentProperty = function (prop) {
     return dlgr.get('/experiment/' + prop);
   };
 
+  /**
+   * Get a specific `Info` object from the experiment database.
+   *
+   * @example
+   * var response = dallinger.getInfo(1, 1);
+   * // Wait for response
+   * response.done(function (data) {... handle data.info ...});
+   *
+   * @param {number} nodeId - The id of an experiment node
+   * @param {number} infoId - The id of the Info object to be retrieved
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.getInfo = function (nodeId, infoId) {
     return dlgr.get('/info/' + nodeId + '/' + infoId);
   };
 
+  /**
+   * Get all `Info` objects for the specified node.
+   *
+   * @example
+   * var response = dallinger.getInfos(1, 1);
+   * // Wait for response
+   * response.done(function (data) {... handle data.infos ...});
+   *
+   * @param {number} nodeId - The id of an experiment node.
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.getInfos = function (nodeId) {
     return dlgr.get('/node/' + nodeId + '/infos');
   };
 
+  /**
+   * Get all the `Info` objects a node has been sent and has received.
+   *
+   * @example
+   * var response = dallinger.getReceivedInfostInfos(1);
+   * // Wait for response
+   * response.done(function (data) {... handle data.infos ...});
+   *
+   * @param {number} nodeId - The id of an experiment node.
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.getReceivedInfos = function (nodeId) {
     return dlgr.get('/node/' + nodeId + '/received_infos');
   };
 
+  /**
+   * Get all `Transmission` objects connected to a node.
+   *
+   * @example
+   * var response = dallinger.getTransmissions(1, {direction: "to", status: "all"});
+   * // Wait for response
+   * response.done(function (data) {... handle data.transmissions ...});
+   *
+   * @param {number} nodeId - The id of an experiment node.
+   * @param {Object} data - Additional parameters, specifically ``direction`` (to/from/all) and ``status`` (all/pending/received).
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.getTransmissions = function (nodeId, data) {
     return dlgr.get('/node/' + nodeId + '/transmissions', data);
   };
 
+  /**
+   * Submits a `Question` object to the experiment server.
+   * This method is called automatically from the default questionnaire page.
+   *
+   * @param {string} [name=questionnaire] - optional questionnaire name
+   */
   dlgr.submitQuestionnaire = function (name) {
     var formSerialized = $("form").serializeArray(),
       spinner = dlgr.BusyForm(),
@@ -355,6 +552,14 @@ var dallinger = (function () {
     xhr.always(function () { spinner.unfreeze(); });
   };
 
+  /**
+   * Waits for a WebSocket message indicating that quorum has been reached.
+   *
+   * This method is called automatically within `createParticipant()` and the
+   * default waiting room page.
+   *
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
   dlgr.waitForQuorum = function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
     var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum");
@@ -383,8 +588,16 @@ var dallinger = (function () {
       return true;
     }
     return false;
-  }
+  };
 
+  /**
+   * Determine if the user has an ad blocker installed. If an ad blocker is detected
+   * the callback will be executed asynchronously after a small delay.
+   *
+   * This method is called automatically from the experiment default template.
+   *
+   * @param {function} callback - a function, with no arguments, to call if an ad blocker is running.
+   */
   dlgr.hasAdBlocker = function (callback) {
     var test = document.createElement('div');
     test.innerHTML = '&nbsp;';
@@ -396,7 +609,7 @@ var dallinger = (function () {
       }
       test.remove();
     }, 100);
-  }
+  };
 
   return dlgr;
 }());

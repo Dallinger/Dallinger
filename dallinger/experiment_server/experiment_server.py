@@ -1366,15 +1366,11 @@ def node_transmit(node_id):
     transmissions created with the values you specified.
 
     For example, to transmit all infos of type Meme to the node with id 10:
-    reqwest({
-        url: "/node/" + my_node_id + "/transmit",
-        method: 'post',
-        type: 'json',
-        data: {
-            what: "Meme",
-            to_whom: 10,
-        },
-    });
+    dallinger.post(
+        "/node/" + my_node_id + "/transmit",
+        {what: "Meme",
+         to_whom: 10}
+    );
     """
     exp = Experiment(session)
     what = request_parameter(parameter="what", optional=True)

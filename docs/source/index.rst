@@ -42,6 +42,7 @@ Laboratory automation for the behavioral and social sciences.
     rewarding_participants
     web_api
     communicating_with_the_server
+    javascript_api
     extra_configuration
     writing_bots
     contributing_to_dallinger
