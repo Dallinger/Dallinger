@@ -1,15 +1,13 @@
 Database API
 ============
 
+.. module:: dallinger.models
 .. _classes:
 
 The classes involved in a Dallinger experiment are:
-:class:`~dallinger.models.Network`, :class:`~dallinger.models.Node`,
-:class:`~dallinger.models.Vector`, :class:`~dallinger.models.Info`,
-:class:`~dallinger.models.Transmission`,
-:class:`~dallinger.models.Transformation`,
-:class:`~dallinger.models.Participant`, and
-:class:`~dallinger.models.Question`. The code for all these classes can
+:class:`Network`, :class:`~Node`, :class:`~Vector`, :class:`~Info`,
+:class:`~Transmission`, :class:`~Transformation`, :class:`~Participant`, and
+:class:`~Question`. The code for all these classes can
 be seen in ``models.py``. Each class has a corresponding table in the
 database, with each instance stored as a row in the table. Accordingly,
 each class is defined, in part, by the columns that constitute the table
@@ -17,14 +15,14 @@ it is stored in. In addition, the classes have relationships to other
 objects and a number of functions.
 
 The classes have relationships to each other as shown in the diagram
-below. Be careful to note which way the arrows point. A :class:`~dallinger.models.Node` is a
-point in a :class:`~dallinger.models.Network` that might be associated with a :class:`~dallinger.models.Participant`.
-A :class:`~dallinger.models.Vector` is a directional connection between a :class:`~dallinger.models.Node` and another
-:class:`~dallinger.models.Node`. An :class:`~dallinger.models.Info` is information created by a :class:`~dallinger.models.Node`. A
-:class:`~dallinger.models.Transmission` is an instance of an :class:`~dallinger.models.Info` being sent along a
-:class:`~dallinger.models.Vector`. A :class:`~dallinger.models.Transformation` is a relationship between an :class:`~dallinger.models.Info`
-and another :class:`~dallinger.models.Info`. A :class:`~dallinger.models.Question` is a survey response created by a
-:class:`~dallinger.models.Participant`.
+below. Be careful to note which way the arrows point. A :class:`~Node` is a
+point in a :class:`~Network` that might be associated with a :class:`Participant`.
+A :class:`Vector` is a directional connection between a :class:`Node` and another
+:class:`Node`. An :class:`Info` is information created by a :class:`Node`. A
+:class:`Transmission` is an instance of an :class:`Info` being sent along a
+:class:`Vector`. A :class:`Transformation` is a relationship between an :class:`Info`
+and another :class:`Info`. A :class:`Question` is a survey response created by a
+:class:`Participant`.
 
 .. figure:: _static/class_chart.jpg
    :alt: 
@@ -65,10 +63,10 @@ columns that are common across tables:
 Network
 -------
 
-The :class:`~dallinger.models.Network` object can be imagined as a set of other objects with
+The :class:`Network` object can be imagined as a set of other objects with
 some functions that perform operations over those objects. The objects
-that :class:`~dallinger.models.Network`'s have direct access to are all the :class:`~dallinger.models.Node`'s in the
-network, the :class:`~dallinger.models.Vector`'s between those Nodes, Infos created by those
+that :class:`Network`'s have direct access to are all the :class:`Node`'s in the
+network, the :class:`Vector`'s between those Nodes, Infos created by those
 Nodes, Transmissions sent along the Vectors by those Nodes and
 Transformations of those Infos. Participants and Questions do not exist
 within Networks. An experiment may involve multiple Networks,
@@ -140,6 +138,7 @@ Methods
 .. automethod:: dallinger.models.Network.transmissions
 
 .. automethod:: dallinger.models.Network.vectors
+
 
 Node
 ----
