@@ -36,7 +36,7 @@ RUN apt-get update && apt-get install -y \
 # Install Dallinger
 WORKDIR /home
 RUN pip install --upgrade pip
-RUN pip install pyenchant
+RUN pip install pyenchant pytest mock
 
 RUN mkdir Dallinger
 COPY . /home/Dallinger
