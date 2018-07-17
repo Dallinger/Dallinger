@@ -262,6 +262,10 @@ class HerokuTimeoutError(HerokuStartupError):
     """
 
 
+class RedisConnectionError(HerokuStartupError):
+    """Could not connect to Redis instance."""
+
+
 class HerokuLocalWrapper(object):
     """Wrapper around a heroku local subprocess.
 
@@ -284,10 +288,9 @@ class HerokuLocalWrapper(object):
     MONITOR_STOP = object()
     STREAM_SENTINEL = ''
 
-    def __init__(self, config, output, verbose=True, env=None):
+    def __init__(self, config, output, env=None):
         self.config = config
         self.out = output
-        self.verbose = verbose
         self.env = env if env is not None else os.environ.copy()
         self._record = []
         self._process = None
@@ -302,8 +305,8 @@ class HerokuLocalWrapper(object):
         """
         def _handle_timeout(signum, frame):
             raise HerokuTimeoutError(
-                "Failed to start after {} seconds.".format(
-                    timeout_secs, self._record)
+                "Failed to start after {} seconds.\n{}".format(
+                    timeout_secs, ''.join(self._record))
             )
 
         if self.is_running:
@@ -312,17 +315,16 @@ class HerokuLocalWrapper(object):
 
         signal.signal(signal.SIGALRM, _handle_timeout)
         signal.alarm(timeout_secs)
-        self._boot()
         try:
-            success = self._verify_startup()
+            self._boot()
+            self._verify_startup()
+        except HerokuStartupError as ex:
+            self.out.heading("Startup failed.")
+            self.stop(signal.SIGKILL)
+            raise
         finally:
             signal.alarm(0)
 
-        if not success:
-            self.stop(signal.SIGKILL)
-            raise HerokuStartupError(
-                "Failed to start for unknown reason: {}".format(self._record)
-            )
         return True
 
     @property
@@ -333,7 +335,7 @@ class HerokuLocalWrapper(object):
         """Stop the heroku local subprocess and all of its children.
         """
         signal = signal or self.int_signal
-        self.out.log("Cleaning up local Heroku process...")
+        self.out.heading("Cleaning up local Heroku process...")
         if self._process is None:
             self.out.log("No local Heroku process was running.")
             return
@@ -352,36 +354,27 @@ class HerokuLocalWrapper(object):
         """
         for line in self._stream():
             self._record.append(line)
-            if self.verbose:
-                self.out.blather(line)
+            self.out.blather(line)
             if listener(line) is self.MONITOR_STOP:
                 return
 
     def _verify_startup(self):
         for line in self._stream():
             self._record.append(line)
-            if self.verbose:
-                self.out.blather(line)
+            self.out.blather(line)
             line = line.strip()
             if self._up_and_running(line):
-                return True
+                return
 
             if self._redis_not_running(line):
-                self.out.error(
-                    'Could not connect to redis instance, '
-                    'experiment may not behave correctly.'
-                )
+                raise RedisConnectionError(line)
 
             if self._worker_error(line) or self._startup_error(line):
-                if not self.verbose:
-                    self.out.error(
-                        'There was an error while starting the server. '
-                        'Run with --verbose for details.'
-                    )
-                    self.out.error("Sign of error found in line: ".format(line))
-                return False
+                raise HerokuStartupError(line)
 
-        return False
+        raise HerokuStartupError(
+            "Failed to start for unknown reason: {}".format(self._record)
+        )
 
     def _boot(self):
         # Child processes don't start without a HOME dir
@@ -395,19 +388,21 @@ class HerokuLocalWrapper(object):
             self.shell_command, 'local', '-p', str(port),
             "web={},worker={}".format(web_dynos, worker_dynos)
         ]
+        options = {
+            'stdout': subprocess.PIPE,
+            'stderr': subprocess.STDOUT,
+            'env': self.env,
+            'preexec_fn': os.setsid,
+        }
+        if six.PY3:
+            options['encoding'] = 'utf-8'
         try:
-            options = {
-                'stdout': subprocess.PIPE,
-                'stderr': subprocess.STDOUT,
-                'env': self.env,
-                'preexec_fn': os.setsid,
-            }
-            if six.PY3:
-                options['encoding'] = 'utf-8'
             self._process = subprocess.Popen(commands, **options)
-        except OSError:
-            self.out.error("Couldn't start Heroku for local debugging.")
-            raise
+        except OSError as ex:
+            six.raise_from(
+                HerokuStartupError("Couldn't start Heroku for local debugging."),
+                ex
+            )
 
     def _stream(self):
         return iter(self._process.stdout.readline, self.STREAM_SENTINEL)

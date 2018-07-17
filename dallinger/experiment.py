@@ -490,19 +490,19 @@ class Experiment(object):
 
         self.app_id = app_id
         self.exp_config = exp_config or kwargs
+        cli = dlgr.command_line.get_cli_printer(self.verbose)
         self.update_status('Starting')
         try:
             if self.exp_config.get("mode") == "debug":
-                dlgr.command_line.debug.callback(
-                    verbose=True,
-                    bot=bot,
-                    proxy=None,
-                    exp_config=self.exp_config
+                debugger = dlgr.deployment.DebugDeployment(
+                    output=cli, bot=bot, proxy_port=None, exp_config=self.exp_config
                 )
+                cli.banner()
+                debugger.run()
             else:
-                dlgr.command_line.deploy_sandbox_shared_setup(
+                dlgr.deployment.deploy_sandbox_shared_setup(
+                    cli,
                     app=app_id,
-                    verbose=self.verbose,
                     exp_config=self.exp_config
                 )
         except Exception:
