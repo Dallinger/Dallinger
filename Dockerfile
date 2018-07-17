@@ -37,6 +37,8 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /home
 RUN pip install --upgrade pip
 RUN pip install pyenchant
+RUN pip install pytest
+RUN pip install mock
 
 RUN mkdir Dallinger
 COPY . /home/Dallinger
