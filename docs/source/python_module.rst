@@ -53,7 +53,7 @@ Parameterized Experiment Runs
 -----------------------------
 
 This high-level API is particularly useful for running an experiment in a
-loop with modifed configuration for each run. For example an experimenter
+loop with modifed configuration for each run. For example, an experimenter
 could run repeated ConcentrationGame experiments with varying numbers of
 participants::
 
@@ -86,7 +86,7 @@ saved under the provided `app_id` so that subsequent calls to
 :meth:`~Experiment.collect` with that `app_id` will retrieve the data instead
 of re-running the experiment.
 
-For example an experimenter could pre-generate a UUID using `dallinger uuid`,
+For example, an experimenter could pre-generate a UUID using `dallinger uuid`,
 then collect data using that UUID::
 
     import dallinger
