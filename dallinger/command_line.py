@@ -385,6 +385,7 @@ def setup_experiment(debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("static", "scripts", "reconnecting-websocket.js"),
         os.path.join("static", "scripts", "spin.min.js"),
         os.path.join("static", "scripts", "tracker.js"),
+        os.path.join("static", "scripts", "store+json2.min.js"),
         os.path.join("templates", "error.html"),
         os.path.join("templates", "error-complete.html"),
         os.path.join("templates", "launch.html"),
