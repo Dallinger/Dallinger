@@ -49,7 +49,7 @@ psycopg2==2.7.5
 psycopg2-binary==2.7.5
 ptyprocess==0.6.0
 py==1.5.4
-pycodestyle==2.4.0
+pycodestyle==2.3.1 # pyup: ignore
 pyenchant==2.0.0
 pyflakes==1.6.0
 Pygments==2.2.0
