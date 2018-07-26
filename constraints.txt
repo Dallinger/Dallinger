@@ -1,3 +1,4 @@
+Dallinger>=4.0.0
 alabaster==0.7.11
 APScheduler==3.5.1
 atomicwrites==1.1.5
@@ -15,7 +16,6 @@ CommonMark==0.5.4
 configparser==3.5.0
 coverage==4.5.1
 coverage-pth==0.0.2
-dallinger==4.0.0
 docutils==0.14
 enum34==1.1.6
 flake8==3.5.0
