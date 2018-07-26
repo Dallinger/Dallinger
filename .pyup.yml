@@ -1,2 +1,5 @@
 label_prs: "enhancement"
-
+requirements:
+  - constraints.txt
+    update: all
+    pin: True
