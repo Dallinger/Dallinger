@@ -108,3 +108,55 @@ Common Sandbox Error
         raise ValueError("No JSON object could be decoded")
 
 If you get this from the sandbox, this usually means there's a deeper issue that requires `dallinger logs --app XXXXXX.` Usually this could be a requirements.txt file error (missing dependency or reference to an incorrect branch).
+
+
+Changes to Some Dallinger Files not Taking Effect on Experiments
+----------------------------------------------------------------
+
+A common pitfall while doing development on the dallinger codebase while also
+working on external experiments which include dallinger as a dependency: you
+pip install a demo experiment in your active virtualenvironment, and it
+overwrites the dallinger.egg-link file in that environment's site-packages
+directory with an actual copy of the dallinger package.
+
+When installing dallinger with the intent to work on dallinger, the recommended
+way to install dallinger itself is with pip's "editable mode", but passing the
+-e or --editable flag to pip install:
+
+::
+
+    pip install -e .[data]
+
+ 
+This creates a form of symbolic link in the active python's site-packages
+directory to the working copy of dallinger you're sitting in. This allows you to
+make changes to python files in the dallinger working copy and have them
+immediately active when using dallinger commands or any other actions that
+invoke the active python interpreter.
+
+Running pip install without the -e flag, either while installing dallinger
+directly, or while installing a separate experiment which includes dallinger as
+a dependency, will instead place a copy of the dallinger package in the
+site-packages directory. These files will then be executed when the active
+python is running, and any changes to the files you're working on will be
+ignored.
+
+You can check to see if you are working in "editable mode" by inspecting the
+contents of your active virtual environment's site-packages folder. In
+"editable mode", you will see a dallinger.egg-link file listed in the directory:
+
+::
+
+    ...
+    drwxr-xr-x    9 jesses  staff   306B May 29 12:30 coverage_pth-0.0.2.dist-info
+    -rw-r--r--    1 jesses  staff    44B May 29 12:30 coverage_pth.pth
+    -rw-r--r--    1 jesses  staff    33B Jun 14 16:08 dallinger.egg-link
+    drwxr-xr-x   21 jesses  staff   714B Mar 19 17:24 datashape
+    drwxr-xr-x   10 jesses  staff   340B Mar 19 17:24 datashape-0.5.2.dist-info
+    ...
+
+
+The contents of this file will include the path to the working copy that's
+active. If you instead see a directory tree with actual dallinger files, you can
+restore "editable mode" by re-running the installation steps for dallinger from
+the "Developer Installation" documentation.

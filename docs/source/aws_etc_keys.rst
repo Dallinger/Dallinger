@@ -36,17 +36,14 @@ Note: The ``.dallingerconfig`` can be configured with many different parameters,
 Amazon Web Services API Keys
 ----------------------------
 
-You can get API keys for Amazon Web Services by `following these
-instructions <http://docs.aws.amazon.com/general/latest/gr/managing-aws-access-keys.html>`__.
-
-Then fill in the following lines of ``.dallingerconfig``, replacing
-``???`` with your keys:
-
-::
-
-    [AWS Access]
-    aws_access_key_id = ???
-    aws_secret_access_key = ???
+There are two ways to get API keys for Amazon Web Services. If you are the only
+user in your AWS account, the simplest thing to do is generate root user access
+keys, by `following these instructions
+<http://docs.aws.amazon.com/general/latest/gr/managing-aws-access-keys.html>`__.
+You might be presented a dialog box with options to continue to security
+credentials, or get started with AIM users. If you are the only user, or you
+are otherwise certain that this is what you want to do (see the following note),
+choose "Continue to Security Credentials".
 
 **N.B.** One feature of AWS API keys is that they are only displayed
 once, and though they can be regenerated, doing so will render invalid
@@ -58,6 +55,22 @@ you will not be interrupting others' workflows, it is advised that you
 do **not** generate new API keys. If you are not the primary user of the
 account, see if you can obtain these keys from others who have
 successfully used AWS.
+
+If you are not the primary user of your AWS account, or are part of a working
+group that shares the account, the recommended way to create the access keys is
+by creating AIM users and generating keys for them. If someone else manages
+the AWS account, ask them to generate the user and keys for you. If you need
+to manage the users and keys by yourself, `follow these instructions
+<https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html>`__.
+
+After you have generated and saved your AWS access keys, fill in the following
+lines of ``.dallingerconfig``, replacing ``???`` with your keys:
+
+::
+
+    [AWS Access]
+    aws_access_key_id = ???
+    aws_secret_access_key = ???
 
 Amazon Mechanical Turk
 ----------------------
@@ -97,7 +110,9 @@ Open Science Framework (optional)
 There is an optional integration that uses the `Open Science Framework
 <https://osf.io/>`__ (OSF) to register experiments. First, create an account
 on the OSF. Next create a new OSF personal access token on the `OSF settings
-page <https://osf.io/settings/tokens/>`__.
+page <https://osf.io/settings/tokens/>`__. Since experiment regsitration
+requires writing to the OSF account, be sure to grant the full write scope
+when creating the token, by checking the osf.full_write box before creation.
 
 Finally, fill in the appropriate section of ``.dallingerconfig``:
 
