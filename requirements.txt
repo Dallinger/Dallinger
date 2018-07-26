@@ -1,3 +1,4 @@
+-c constraints.txt
 APScheduler
 cached-property
 boto3
