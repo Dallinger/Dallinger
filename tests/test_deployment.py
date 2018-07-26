@@ -311,7 +311,6 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         ])
 
 
-
 @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
                     reason="--heroku was not specified")
 @pytest.mark.usefixtures('bartlett_dir', 'active_config', 'launch', 'herokuapp')

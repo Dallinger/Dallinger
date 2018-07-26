@@ -361,7 +361,7 @@ class HerokuLocalDeployment(object):
 
     def configure(self):
         self.exp_config.update({
-            "mode": "debug",
+            "mode": u"debug",
             "loglevel": 0,
         })
 
@@ -530,7 +530,7 @@ class ReplayDeployment(HerokuLocalDeployment):
 
     def configure(self):
         self.exp_config.update({
-            "mode": "debug",
+            "mode": u"debug",
             "loglevel": 0,
         })
 

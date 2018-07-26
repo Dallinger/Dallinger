@@ -24,7 +24,6 @@ from rq import (
     Connection,
 )
 
-from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.config import initialize_experiment_package
 from dallinger import data
@@ -84,27 +83,6 @@ class Output(object):
         self.log = log
         self.error = error
         self.blather = sys.stdout.write
-
-
-def new_webbrowser_profile():
-    if is_command('google-chrome'):
-        new_chrome = webbrowser.Chrome()
-        new_chrome.name = 'google-chrome'
-        profile_directory = tempfile.mkdtemp()
-        new_chrome.remote_args = webbrowser.Chrome.remote_args + [
-            '--user-data-dir="{}"'.format(profile_directory)
-        ]
-        return new_chrome
-    elif is_command('firefox'):
-        new_firefox = webbrowser.Mozilla()
-        new_firefox.name = 'firefox'
-        profile_directory = tempfile.mkdtemp()
-        new_firefox.remote_args = [
-            '-profile', profile_directory, '-new-instance', '-no-remote', '-url', '%s',
-        ]
-        return new_firefox
-    else:
-        return webbrowser
 
 
 def report_idle_after(seconds):
@@ -303,37 +281,6 @@ def get_summary(app):
         the_yield = 1.0 * num_approved / num_not_working
         out.append("\nYield: {:.2%}".format(the_yield))
     return "\n".join(out)
-
-
-INITIAL_DELAY = 5
-RETRIES = 4
-
-
-def _handle_launch_data(url, error=error,
-                        delay=INITIAL_DELAY, remaining=RETRIES):
-    time.sleep(delay)
-    remaining = remaining - 1
-    launch_request = requests.post(url)
-    try:
-        launch_data = launch_request.json()
-    except ValueError:
-        error(
-            "Error parsing response from /launch, check web dyno logs for details: "
-            + launch_request.text
-        )
-        raise
-
-    if not launch_request.ok:
-        if remaining < 1:
-            error('Experiment launch failed, check web dyno logs for details.')
-            if launch_data.get('message'):
-                error(launch_data['message'])
-            launch_request.raise_for_status()
-        delay = 2 * delay
-        error('Experiment launch failed, retrying in {} seconds ...'.format(delay))
-        return _handle_launch_data(url, error, delay, remaining)
-
-    return launch_data
 
 
 @dallinger.command()
