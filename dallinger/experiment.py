@@ -802,7 +802,7 @@ class Scrubber(object):
         which is a datetime object."""
         if self.experiment._replay_time_index > time:
             self.experiment.revert_to_time(session=self.session, target=time)
-        events = self.experiment.events_for_replay(session=self.session, target=time)
+        events = self.experiment.events_for_replay(session=self.session, target=time).all()
         for event in events:
             if event.creation_time <= self.experiment._replay_time_index:
                 # Skip events we've already handled
