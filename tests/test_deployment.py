@@ -37,8 +37,9 @@ def output():
 @pytest.fixture
 def browser():
     import webbrowser
-    with mock.patch('dallinger.deployment.webbrowser') as mock_browser:
-        mock_browser.mock_add_spec(webbrowser)
+    mock_browser = mock.Mock(spec=webbrowser)
+    with mock.patch('dallinger.deployment.new_webbrowser_profile') as get_browser:
+        get_browser.return_value = mock_browser
         yield mock_browser
 
 
