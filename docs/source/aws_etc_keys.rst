@@ -41,7 +41,7 @@ user in your AWS account, the simplest thing to do is generate root user access
 keys, by `following these instructions
 <http://docs.aws.amazon.com/general/latest/gr/managing-aws-access-keys.html>`__.
 You might be presented a dialog box with options to continue to security
-credentials, or get started with AIM users. If you are the only user, or you
+credentials, or get started with IAM users. If you are the only user, or you
 are otherwise certain that this is what you want to do (see the following note),
 choose "Continue to Security Credentials".
 
