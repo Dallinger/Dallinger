@@ -110,7 +110,7 @@ Open Science Framework (optional)
 There is an optional integration that uses the `Open Science Framework
 <https://osf.io/>`__ (OSF) to register experiments. First, create an account
 on the OSF. Next create a new OSF personal access token on the `OSF settings
-page <https://osf.io/settings/tokens/>`__. Since experiment regsitration
+page <https://osf.io/settings/tokens/>`__. Since experiment registration
 requires writing to the OSF account, be sure to grant the full write scope
 when creating the token, by checking the osf.full_write box before creation.
 

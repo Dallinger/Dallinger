@@ -115,19 +115,19 @@ Changes to Some Dallinger Files not Taking Effect on Experiments
 
 A common pitfall while doing development on the dallinger codebase while also
 working on external experiments which include dallinger as a dependency: you
-pip install a demo experiment in your active virtualenvironment, and it
+pip install a demo experiment in your active virtual environment, and it
 overwrites the dallinger.egg-link file in that environment's site-packages
 directory with an actual copy of the dallinger package.
 
 When installing dallinger with the intent to work on dallinger, the recommended
-way to install dallinger itself is with pip's "editable mode", but passing the
+way to install dallinger itself is with pip's "editable mode", by passing the
 -e or --editable flag to pip install:
 
 ::
 
     pip install -e .[data]
 
- 
+
 This creates a form of symbolic link in the active python's site-packages
 directory to the working copy of dallinger you're sitting in. This allows you to
 make changes to python files in the dallinger working copy and have them
