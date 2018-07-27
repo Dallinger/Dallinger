@@ -29,10 +29,8 @@ def sleepless():
 
 @pytest.fixture
 def browser():
-    with mock.patch('dallinger.command_line.is_command') as mock_is_command:
-        mock_is_command.return_value = False
-        with mock.patch('dallinger.command_line.webbrowser') as mock_browser:
-            yield mock_browser
+    with mock.patch('dallinger.command_line.webbrowser') as mock_browser:
+        yield mock_browser
 
 
 @pytest.fixture

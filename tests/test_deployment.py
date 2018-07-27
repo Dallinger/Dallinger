@@ -36,10 +36,10 @@ def output():
 
 @pytest.fixture
 def browser():
-    with mock.patch('dallinger.deployment.is_command') as mock_is_command:
-        mock_is_command.return_value = False
-        with mock.patch('dallinger.deployment.webbrowser') as mock_browser:
-            yield mock_browser
+    import webbrowser
+    with mock.patch('dallinger.deployment.webbrowser') as mock_browser:
+        mock_browser.mock_add_spec(webbrowser)
+        yield mock_browser
 
 
 @pytest.fixture
