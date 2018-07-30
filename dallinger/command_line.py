@@ -29,7 +29,7 @@ from dallinger.config import initialize_experiment_package
 from dallinger import data
 from dallinger.deployment import _deploy_in_mode
 from dallinger.deployment import DebugDeployment
-from dallinger.deployment import ReplayDeployment
+from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.heroku.messages import get_messenger
 from dallinger.heroku.messages import HITSummary
@@ -579,7 +579,7 @@ def load(app, verbose, replay, exp_config=None):
         exp_config = exp_config or {}
         exp_config['replay'] = True
     log(header, chevrons=False)
-    loader = ReplayDeployment(app, Output(), verbose, exp_config)
+    loader = LoaderDeployment(app, Output(), verbose, exp_config)
     loader.run()
 
 

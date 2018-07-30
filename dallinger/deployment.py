@@ -515,7 +515,7 @@ class DebugDeployment(HerokuLocalDeployment):
         return super(DebugDeployment, self).notify(message)
 
 
-class ReplayDeployment(HerokuLocalDeployment):
+class LoaderDeployment(HerokuLocalDeployment):
     dispatch = {
         'Replay ready: (.*)$': 'start_replay',
     }

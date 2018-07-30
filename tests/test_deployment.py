@@ -453,6 +453,17 @@ class TestDebugServer(object):
             'some-fake-url', autoraise=True, new=1
         )
 
+    def test_new_recruit_opens_browser_on_proxy_port(
+            self, active_config, debugger_unpatched, browser
+    ):
+        debugger_unpatched.proxy_port = '2222'
+        debugger_unpatched.notify(
+            " {} some-fake-url:5000".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+        )
+        browser.open.assert_called_once_with(
+            'some-fake-url:2222', autoraise=True, new=1
+        )
+
     def test_new_recruit_not_triggered_if_quoted(self, debugger_unpatched, browser):
         debugger_unpatched.notify(
             ' "{}" some-fake-url'.format(recruiters.NEW_RECRUIT_LOG_PREFIX)
@@ -499,9 +510,9 @@ class TestLoad(object):
 
     @pytest.fixture
     def loader(self, db_session, output, clear_workers):
-        from dallinger.deployment import ReplayDeployment
+        from dallinger.deployment import LoaderDeployment
         from dallinger.heroku.tools import HerokuLocalWrapper
-        loader = ReplayDeployment(
+        loader = LoaderDeployment(
             self.exp_id, output, verbose=True, exp_config={}
         )
         loader.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
@@ -510,8 +521,8 @@ class TestLoad(object):
 
     @pytest.fixture
     def replay_loader(self, db_session, env, output, clear_workers):
-        from dallinger.deployment import ReplayDeployment
-        loader = ReplayDeployment(
+        from dallinger.deployment import LoaderDeployment
+        loader = LoaderDeployment(
             self.exp_id, output, verbose=True, exp_config={'replay': True}
         )
         loader.keep_running = mock.Mock(return_value=False)

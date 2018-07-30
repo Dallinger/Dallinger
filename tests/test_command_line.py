@@ -211,6 +211,32 @@ class TestSandboxAndDeploy(object):
         )
 
 
+class TestLoad(object):
+
+    @pytest.fixture
+    def load(self):
+        from dallinger.command_line import load
+        return load
+
+    @pytest.fixture
+    def deployment(self):
+        with mock.patch('dallinger.command_line.LoaderDeployment') as dep:
+            yield dep
+
+    def test_load_with_app_id(self, load, deployment):
+        CliRunner().invoke(
+            load,
+            [
+                '--app', 'some app id',
+                '--replay',
+                '--verbose',
+            ]
+        )
+        deployment.assert_called_once_with(
+            'some app id', mock.ANY, True, {'replay': True}
+        )
+
+
 class TestSummary(object):
 
     @pytest.fixture
