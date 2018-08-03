@@ -67,7 +67,7 @@ selenium==3.13.0
 six==1.11.0
 snowballstemmer==1.2.1
 Sphinx==1.7.6
-sphinx-js==2.5
+sphinx-js==2.7
 sphinxcontrib-spelling==4.2.0
 sphinxcontrib-websupport==1.1.0
 SQLAlchemy==1.2.10
