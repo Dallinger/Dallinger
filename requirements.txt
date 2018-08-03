@@ -17,7 +17,7 @@ psutil
 redis
 requests
 rq
-selenium
+selenium==3.14.0
 six
 SQLAlchemy
 sqlalchemy-postgres-copy
