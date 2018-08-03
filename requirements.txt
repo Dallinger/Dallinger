@@ -9,7 +9,7 @@ flask-crossdomain
 future
 gevent
 greenlet
-gunicorn
+gunicorn==19.8.1
 localconfig
 pexpect
 psycopg2-binary
