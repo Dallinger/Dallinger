@@ -21,5 +21,5 @@ selenium
 six
 SQLAlchemy
 sqlalchemy-postgres-copy
-ua-parser
+ua-parser==0.8.0
 user-agents
