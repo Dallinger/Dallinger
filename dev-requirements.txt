@@ -2,7 +2,7 @@
 alabaster
 bumpversion
 coverage
-coverage_pth
+coverage_pth==0.0.2
 codecov
 flake8
 mock
