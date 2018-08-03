@@ -108,8 +108,8 @@ class Environment(Node):
                 s for s in self.infos(type=State) if s.creation_time < time]
             return max(states, key=attrgetter('creation_time'))
 
-    def update(self, contents):
-        state = State(origin=self, contents=contents)
+    def update(self, contents, **kwargs):
+        state = State(origin=self, contents=contents, **kwargs)
         return state
 
     def _what(self):
