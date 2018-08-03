@@ -5,7 +5,7 @@ coverage
 coverage_pth
 codecov
 flake8
-mock
+mock==2.0.0
 pycodestyle
 pypandoc
 pytest
