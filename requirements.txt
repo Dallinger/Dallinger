@@ -1,7 +1,7 @@
 -c constraints.txt
 APScheduler
 cached-property
-boto3
+boto3==1.7.70
 click
 Flask-Sockets
 Flask
