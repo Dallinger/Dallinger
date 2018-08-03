@@ -14,7 +14,7 @@ localconfig
 pexpect
 psycopg2-binary
 psutil
-redis
+redis==2.10.6
 requests
 rq
 selenium
