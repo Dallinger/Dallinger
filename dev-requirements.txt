@@ -11,6 +11,6 @@ pypandoc
 pytest
 recommonmark
 sphinxcontrib-spelling
-Sphinx
+Sphinx==1.7.6
 tox
 sphinx-js
