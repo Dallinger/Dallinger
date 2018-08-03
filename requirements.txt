@@ -19,7 +19,7 @@ requests
 rq
 selenium
 six
-SQLAlchemy
+SQLAlchemy==1.2.10
 sqlalchemy-postgres-copy
 ua-parser
 user-agents
