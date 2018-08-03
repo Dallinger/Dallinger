@@ -11,7 +11,7 @@ gevent
 greenlet
 gunicorn
 localconfig
-pexpect
+pexpect==4.6.0
 psycopg2-binary
 psutil
 redis
