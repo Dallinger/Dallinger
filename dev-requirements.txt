@@ -3,7 +3,7 @@ alabaster
 bumpversion
 coverage
 coverage_pth
-codecov
+codecov==2.0.15
 flake8
 mock
 pycodestyle
