@@ -13,7 +13,7 @@ gunicorn
 localconfig
 pexpect
 psycopg2-binary
-psutil
+psutil==5.4.6
 redis
 requests
 rq
