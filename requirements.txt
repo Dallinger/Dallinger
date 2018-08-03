@@ -8,7 +8,7 @@ Flask
 flask-crossdomain
 future
 gevent
-greenlet
+greenlet==0.4.14
 gunicorn
 localconfig
 pexpect
