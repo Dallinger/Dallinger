@@ -9,7 +9,7 @@ mock
 pycodestyle
 pypandoc
 pytest
-recommonmark
+recommonmark==0.4.0
 sphinxcontrib-spelling
 Sphinx
 tox
