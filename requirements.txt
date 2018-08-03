@@ -20,6 +20,6 @@ rq
 selenium
 six
 SQLAlchemy
-sqlalchemy-postgres-copy
+sqlalchemy-postgres-copy==0.5.0
 ua-parser
 user-agents
