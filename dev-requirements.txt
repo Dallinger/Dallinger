@@ -7,7 +7,7 @@ codecov
 flake8
 mock
 pycodestyle
-pypandoc
+pypandoc==1.4
 pytest
 recommonmark
 sphinxcontrib-spelling
