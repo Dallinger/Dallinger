@@ -5,7 +5,7 @@ boto3
 click
 Flask-Sockets
 Flask
-flask-crossdomain
+flask-crossdomain==0.1
 future
 gevent
 greenlet
