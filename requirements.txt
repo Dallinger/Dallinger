@@ -3,7 +3,7 @@ APScheduler
 cached-property
 boto3
 click
-Flask-Sockets
+Flask-Sockets==0.2.1
 Flask
 flask-crossdomain
 future
