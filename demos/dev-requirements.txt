@@ -5,7 +5,7 @@ coverage_pth
 codecov
 flake8
 pypandoc
-pytest
+pytest==3.7.1
 recommonmark
 sphinxcontrib-spelling
 Sphinx
