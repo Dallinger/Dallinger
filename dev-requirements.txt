@@ -13,4 +13,4 @@ recommonmark
 sphinxcontrib-spelling
 Sphinx
 tox
-sphinx-js
+sphinx-js==2.7
