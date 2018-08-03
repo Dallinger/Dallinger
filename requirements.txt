@@ -6,7 +6,7 @@ click
 Flask-Sockets
 Flask
 flask-crossdomain
-future
+future==0.16.0
 gevent
 greenlet
 gunicorn
