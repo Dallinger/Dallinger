@@ -43,7 +43,7 @@ packaging==17.1
 parsimonious==0.7.0
 pbr==4.2.0
 pexpect==4.6.0
-pluggy==0.6.0
+pluggy==0.7.1
 psutil==5.4.6
 psycopg2==2.7.5
 psycopg2-binary==2.7.5
