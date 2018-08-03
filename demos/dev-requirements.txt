@@ -1,6 +1,6 @@
 -r requirements.txt
 alabaster
-coverage
+coverage==4.5.1
 coverage_pth
 codecov
 flake8
