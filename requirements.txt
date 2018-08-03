@@ -18,7 +18,7 @@ redis
 requests
 rq
 selenium
-six
+six==1.11.0
 SQLAlchemy
 sqlalchemy-postgres-copy
 ua-parser
