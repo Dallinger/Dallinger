@@ -22,4 +22,4 @@ six
 SQLAlchemy
 sqlalchemy-postgres-copy
 ua-parser
-user-agents
+user-agents==1.1.0
