@@ -1,5 +1,5 @@
 -r requirements.txt
-alabaster
+alabaster==0.7.11
 coverage
 coverage_pth
 codecov
