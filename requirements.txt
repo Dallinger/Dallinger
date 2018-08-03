@@ -10,7 +10,7 @@ future
 gevent
 greenlet
 gunicorn
-localconfig
+localconfig==1.1.2
 pexpect
 psycopg2-binary
 psutil
