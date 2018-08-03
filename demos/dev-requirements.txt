@@ -7,6 +7,6 @@ flake8
 pypandoc
 pytest
 recommonmark
-sphinxcontrib-spelling
+sphinxcontrib-spelling==4.2.0
 Sphinx
 tox
