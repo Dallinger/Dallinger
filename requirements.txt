@@ -2,7 +2,7 @@
 APScheduler
 cached-property
 boto3
-click
+click==6.7
 Flask-Sockets
 Flask
 flask-crossdomain
