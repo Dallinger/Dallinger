@@ -1,5 +1,5 @@
 -c constraints.txt
-APScheduler
+APScheduler==3.5.1
 cached-property
 boto3
 click
