@@ -7,7 +7,7 @@ Flask-Sockets
 Flask
 flask-crossdomain
 future
-gevent
+gevent==1.3.5
 greenlet
 gunicorn
 localconfig
