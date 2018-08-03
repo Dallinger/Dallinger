@@ -1,6 +1,6 @@
 -c constraints.txt
 APScheduler
-cached-property
+cached-property==1.4.3
 boto3
 click
 Flask-Sockets
