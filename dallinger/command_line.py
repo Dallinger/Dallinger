@@ -82,7 +82,7 @@ class Output(object):
     def __init__(self, log=log, error=error, blather=sys.stdout.write):
         self.log = log
         self.error = error
-        self.blather = sys.stdout.write
+        self.blather = blather
 
 
 def report_idle_after(seconds):

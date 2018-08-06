@@ -23,15 +23,8 @@ def found_in(name, path):
 
 @pytest.fixture
 def output():
-
-    class Output(object):
-
-        def __init__(self):
-            self.log = mock.Mock()
-            self.error = mock.Mock()
-            self.blather = mock.Mock()
-
-    return Output()
+    from dallinger.command_line import Output
+    return Output(log=mock.Mock(), error=mock.Mock(), blather=mock.Mock())
 
 
 @pytest.fixture
