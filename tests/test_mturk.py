@@ -321,6 +321,25 @@ def qtype(mturk):
     mturk.dispose_qualification_type(qtype['id'])
 
 
+@pytest.fixture
+def dozen_qtypes(mturk):
+    qtypes = []
+    for _ in range(12):
+        name = name_with_hostname_prefix()
+        qtype = mturk.create_qualification_type(
+            name=name,
+            description=TEST_QUALIFICATION_DESCRIPTION,
+            status='Active',
+        )
+        qtypes.append(qtype)
+
+    yield qtypes
+
+    # clean up
+    for qtype in qtypes:
+        mturk.dispose_qualification_type(qtype['id'])
+
+
 @pytest.mark.mturk
 @pytest.mark.mturkworker
 class TestMTurkServiceIntegrationSmokeTest(object):
@@ -450,6 +469,13 @@ class TestMTurkService(object):
     def test_create_hit_with_valid_blacklist(self, with_cleanup, qtype):
         hit = with_cleanup.create_hit(**standard_hit_config(blacklist=[qtype['name']]))
         assert hit['status'] == 'Assignable'
+
+    def test_create_hit_with_large_blacklist(self, with_cleanup, dozen_qtypes):
+        # Older boto version had a limit of 10 qualifications
+        names = [q['name'] for q in dozen_qtypes]
+        ids = set([q['id'] for q in dozen_qtypes])
+        hit = with_cleanup.create_hit(**standard_hit_config(blacklist=names))
+        assert ids.issubset(hit['qualification_type_ids'])
 
     def test_extend_hit_with_valid_hit_id(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
