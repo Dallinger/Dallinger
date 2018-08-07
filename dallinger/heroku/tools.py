@@ -48,7 +48,10 @@ class HerokuCommandRunner(object):
         return subprocess.check_call(cmd, stdout=self.out_muted)
 
     def _result(self, cmd):
-        return check_output(cmd).decode(self.sys_encoding)
+        output = check_output(cmd)
+        if six.PY3:
+            return output
+        return output.decode(self.sys_encoding)
 
 
 class HerokuInfo(HerokuCommandRunner):
