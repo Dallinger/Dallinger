@@ -2,6 +2,7 @@
 
 from __future__ import unicode_literals
 
+import json
 from six.moves import shlex_quote as quote
 import signal
 import os
@@ -17,11 +18,10 @@ from dallinger.config import SENSITIVE_KEY_NAMES
 from dallinger.utils import check_call, check_output
 
 
-class HerokuApp(object):
-    """Representation of a Heroku app"""
+class HerokuCommandRunner(object):
+    """Heroku command runner base class"""
 
-    def __init__(self, dallinger_uid, output=None, team=None):
-        self.dallinger_uid = dallinger_uid
+    def __init__(self, output=None, team=None):
         self.out = output
         self.team = team
         self.out_muted = open(os.devnull, 'w')
@@ -33,6 +33,57 @@ class HerokuApp(object):
         # so we need a fallback, which could possibly just be 'utf-8' instead
         # of getdefaultencoding().
         return getattr(sys.stdout, 'encoding', sys.getdefaultencoding())
+
+    def login_name(self):
+        """Capture a backup of the app."""
+        return self._result(["heroku", "auth:whoami"]).strip()
+
+    def _run(self, cmd, pass_stderr=False):
+        if pass_stderr:
+            return check_call(cmd, stdout=self.out, stderr=self.out)
+        return check_call(cmd, stdout=self.out)
+
+    def _run_quiet(self, cmd):
+        # make sure subprocess output doesn't echo secrets to the terminal
+        return subprocess.check_call(cmd, stdout=self.out_muted)
+
+    def _result(self, cmd):
+        return check_output(cmd).decode(self.sys_encoding)
+
+
+class HerokuInfo(HerokuCommandRunner):
+    """Methods for getting information about current heroku status"""
+
+    def all_apps(self):
+        """Capture a backup of the app."""
+        cmd = ["heroku", "apps", "--json"]
+        if self.team:
+            cmd.extend(["--org", self.team])
+        return json.loads(self._result(cmd))
+
+    def my_apps(self):
+        my_login = self.login_name()
+        my_apps = []
+        for app in self.all_apps():
+            name = app.get('name')
+            creator = self._result(
+                ['heroku', 'config:get', 'CREATOR', '--app', name]
+            ).strip()
+            if creator == my_login:
+                uid = self._result(
+                    ['heroku', 'config:get', 'DALLINGER_UID', '--app', name]
+                ).strip()
+                app['dallinger_uid'] = uid
+                my_apps.append(app)
+        return my_apps
+
+
+class HerokuApp(HerokuCommandRunner):
+    """Representation of a Heroku app"""
+
+    def __init__(self, dallinger_uid, output=None, team=None):
+        self.dallinger_uid = dallinger_uid
+        super(HerokuApp, self).__init__(output, team)
 
     def bootstrap(self):
         """Creates the heroku app and local git remote. Call this once you're
@@ -52,7 +103,11 @@ class HerokuApp(object):
 
         self._run(cmd)
         # Set HOST value
-        self.set("HOST", self.url)
+        self.set_multiple(
+            HOST=self.url,
+            CREATOR=self.login_name(),
+            DALLINGER_UID=self.dallinger_uid
+        )
 
     @property
     def name(self):
@@ -218,20 +273,27 @@ class HerokuApp(object):
         else:
             self._run(cmd)
 
+    def set_multiple(self, **kwargs):
+        """Configure an app key/value pair"""
+        quiet = False
+        if not kwargs:
+            return
+        cmd = [
+            "heroku",
+            "config:set"
+        ]
+        for k in sorted(kwargs):
+            cmd.append("{}={}".format(k, quote(str(kwargs[k]))))
+            if self._is_sensitive_key(k):
+                quiet = True
+        cmd.extend(["--app", self.name])
+        if quiet:
+            self._run_quiet(cmd)
+        else:
+            self._run(cmd)
+
     def _is_sensitive_key(self, key):
         return any([s in key for s in SENSITIVE_KEY_NAMES])
-
-    def _run(self, cmd, pass_stderr=False):
-        if pass_stderr:
-            return check_call(cmd, stdout=self.out, stderr=self.out)
-        return check_call(cmd, stdout=self.out)
-
-    def _run_quiet(self, cmd):
-        # make sure subprocess output doesn't echo secrets to the terminal
-        return subprocess.check_call(cmd, stdout=self.out_muted)
-
-    def _result(self, cmd):
-        return check_output(cmd).decode(self.sys_encoding)
 
 
 def app_name(id):

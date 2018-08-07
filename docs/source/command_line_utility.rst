@@ -99,5 +99,29 @@ experiment by its id.
 destroy
 ^^^^^^^
 
-Tear down an experiment server. A required ``--app <app>`` flag specifies
-the experiment by its id.
+Tear down an experiment server. A required ``--app <app>`` parameter
+specifies the experiment by its id. Optional ``--expire-hit`` flag
+can be provided to force expiration of MTurk hits associated with the
+app. If app is sandboxed, you will need to use the ``--sandbox`` flag
+to expire HITs from the MTurk sandbox.
+
+hits
+^^^^
+
+List all MTurk HITs for a dallinger app. A required ``--app <app>``
+parameter specifies the experiment by its id. An optional ``--sandbox``
+flag indicates to look for HITs in the MTurk sandbox.
+
+expire
+^^^^^^
+
+Expire all MTurk HITs for a dallinger app. A required ``--app <app>``
+parameter specifies the experiment by its id. An optional ``--sandbox``
+flag indicates to look for HITs in the MTurk sandbox.
+
+apps
+^^^^
+
+List all running heroku apps associated with the currently logged in
+heroku account. Returns the Dallinger app UID, app launch timestamp,
+and heroku app url for each running app.

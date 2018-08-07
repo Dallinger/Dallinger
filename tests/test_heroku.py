@@ -421,14 +421,17 @@ class TestHerokuApp(object):
                        '--org', 'some-team'], stdout=None),
         ])
 
-    def test_bootstrap_sets_hostname(self, app, check_call):
+    def test_bootstrap_sets_hostname(self, app, check_call, check_output):
+        check_output.side_effect = lambda *args, **kw: 'test@example.com'
         app.team = 'some-team'
         app.bootstrap()
-        check_call.assert_has_calls([
-            mock.call(['heroku', 'config:set',
-                       'HOST=https://dlgr-fake-uid.herokuapp.com',
-                       '--app', 'dlgr-fake-uid'], stdout=None)
-        ])
+        check_call.assert_called_with(
+            ['heroku', 'config:set',
+             'CREATOR=test@example.com',
+             'DALLINGER_UID=fake-uid',
+             'HOST=https://dlgr-fake-uid.herokuapp.com',
+             '--app', 'dlgr-fake-uid'], stdout=None
+        )
 
     def test_addon(self, app, check_call):
         app.addon('some-fake-addon')
@@ -620,6 +623,20 @@ class TestHerokuApp(object):
             stdout=None
         )
 
+    def test_set_multiple(self, app, check_call):
+        app.set_multiple(key1='some value', key2='another value')
+        check_call.assert_called_once_with(
+            [
+                "heroku",
+                "config:set",
+                "key1='some value'",
+                "key2='another value'",
+                "--app",
+                app.name,
+            ],
+            stdout=None
+        )
+
     def test_set_called_with_nonsensitive_key_uses_stdoutput(self, app, check_call):
         app.set('some_nonsensitive_key', 'some value')
         assert check_call.call_args_list[0][-1]['stdout'] is app.out
@@ -766,3 +783,62 @@ class TestHerokuLocalWrapper(object):
         with HerokuLocalWrapper(config, output, env=env) as heroku:
             assert heroku.is_running
         assert not heroku.is_running
+
+
+class TestHerokuInfo(object):
+
+    @pytest.fixture
+    def info(self):
+
+        from dallinger.heroku.tools import HerokuInfo
+        yield HerokuInfo(team="fake team")
+
+    @pytest.fixture
+    def custom_output(self, check_output):
+        def my_check_output(cmd):
+            if 'auth:whoami' in cmd:
+                return 'test@example.com'
+            elif 'config:get' in cmd:
+                if 'CREATOR' in cmd and 'dlgr-my-uid' in cmd:
+                    return 'test@example.com'
+                elif 'DALLINGER_UID' in cmd:
+                    return cmd[-1].replace('dlgr-', '')
+                return ''
+            elif 'apps' in cmd:
+                return '''[
+    {"name": "dlgr-my-uid",
+     "created_at": "2018-01-01T12:00Z",
+     "web_url": "https://dlgr-my-uid.herokuapp.com"},
+    {"name": "dlgr-another-uid",
+     "created_at": "2018-01-02T00:00Z",
+     "web_url": "https://dlgr-another-uid.herokuapp.com"}
+]'''
+
+        check_output.side_effect = my_check_output
+        yield check_output
+
+    def test_login_name(self, info, custom_output):
+        login_name = info.login_name()
+        custom_output.assert_has_calls([
+            mock.call(['heroku', 'auth:whoami'])
+        ])
+        assert login_name == 'test@example.com'
+
+    def test_all_apps(self, info, custom_output):
+        app_info = info.all_apps()
+        custom_output.assert_has_calls([
+            mock.call(['heroku', 'apps', '--json', '--org', 'fake team'])
+        ])
+        assert len(app_info) == 2
+
+    def test_my_apps(self, info, custom_output):
+        app_info = info.my_apps()
+        custom_output.assert_has_calls([
+            mock.call(['heroku', 'auth:whoami']),
+            mock.call(['heroku', 'apps', '--json', '--org', 'fake team']),
+            mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-my-uid']),
+            mock.call(['heroku', 'config:get', 'DALLINGER_UID', '--app', 'dlgr-my-uid']),
+            mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-another-uid'])
+        ])
+        assert len(app_info) == 1
+        assert app_info[0]['dallinger_uid'] == 'my-uid'
