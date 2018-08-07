@@ -1,7 +1,7 @@
 Rewarding participants
 ======================
 
-It is common for experiments to remunerate participants in two ways, a base payment for participation and a bonus for their particular performance. Payments are managed through the recruiter being used, so it is important to consider any differences if changing the recruiter to ensure that there isn't an inadvertant change to the mechanics of the experiment.
+It is common for experiments to remunerate participants in two ways, a base payment for participation and a bonus for their particular performance. Payments are managed through the recruiter being used, so it is important to consider any differences if changing the recruiter to ensure that there isn't an inadvertent change to the mechanics of the experiment.
 
 Base payment
 ^^^^^^^^^^^^

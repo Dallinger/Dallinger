@@ -1,5 +1,5 @@
-Running Experiments Programatically
-===================================
+Running Experiments Programmatically
+====================================
 
 .. currentmodule:: dallinger.experiment
 
@@ -53,7 +53,7 @@ Parameterized Experiment Runs
 -----------------------------
 
 This high-level API is particularly useful for running an experiment in a
-loop with modifed configuration for each run. For example, an experimenter
+loop with modified configuration for each run. For example, an experimenter
 could run repeated ConcentrationGame experiments with varying numbers of
 participants::
 
