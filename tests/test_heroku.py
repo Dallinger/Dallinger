@@ -412,7 +412,8 @@ class TestHerokuApp(object):
     def test_dashboard_url(self, app):
         assert app.dashboard_url == u'https://dashboard.heroku.com/apps/dlgr-fake-uid'
 
-    def test_bootstrap_creates_app_with_team(self, app, check_call):
+    def test_bootstrap_creates_app_with_team(self, app, check_call, check_output):
+        check_output.side_effect = lambda cmd, **kw: 'test@example.com'
         app.team = 'some-team'
         app.bootstrap()
         check_call.assert_has_calls([
@@ -422,7 +423,7 @@ class TestHerokuApp(object):
         ])
 
     def test_bootstrap_sets_hostname(self, app, check_call, check_output):
-        check_output.side_effect = lambda *args, **kw: 'test@example.com'
+        check_output.side_effect = lambda cmd, **kw: 'test@example.com'
         app.team = 'some-team'
         app.bootstrap()
         check_call.assert_called_with(
