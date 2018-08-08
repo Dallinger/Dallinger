@@ -13,7 +13,8 @@ def update_pins(setup_args):
             if r.lower().strip() == 'dallinger':
                 continue
             if not r.startswith('-') or r.startswith('#'):
-                packages.add(r.strip().lower())
+                package = r.strip().lower()
+                packages.add(package)
 
     requirements = []
     with open(os.path.join(install_dir, 'constraints.txt')) as constraints:
@@ -30,7 +31,11 @@ def update_pins(setup_args):
             for extra in setup_args['extras_require']:
                 extra_packages = setup_args['extras_require'][extra]
                 for i, package in enumerate(extra_packages[:]):
-                    if package.lower() == match:
+                    package = package.strip().lower()
+                    matches = REQUIREMENT_RE.match(package)
+                    if matches:
+                        package = matches.group(2)
+                    if package == match:
                         extra_packages[i] = req
 
     if requirements:

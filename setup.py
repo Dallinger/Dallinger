@@ -32,11 +32,11 @@ setup_args = dict(
     },
     extras_require={
         'data': [
-            "networkx",
+            "networkx<2.0",  # 2.0 is incompatible with odo
             "odo",
-            "openpyxl",  # 2.5 is incompatible with tablib
-            "pandas",
-            "tablib",
+            "openpyxl<2.5",  # 2.5 is incompatible with tablib
+            "pandas<0.23",    # 0.23 is incompatible
+            "tablib<0.12",    # 0.12 is incompatible
         ],
         'jupyter': [
             "jupyter",
@@ -50,7 +50,7 @@ setup_args = dict(
             "codecov",
             "flake8",
             "mock",
-            "pycodestyle",  # 2.4 is incompatible with flake8
+            "pycodestyle<2.4",  # 2.4 is incompatible with flake8
             "pypandoc",
             "pytest",
             "recommonmark",
