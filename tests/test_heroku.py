@@ -798,15 +798,15 @@ class TestHerokuInfo(object):
     def custom_output(self, check_output):
         def my_check_output(cmd):
             if 'auth:whoami' in cmd:
-                return 'test@example.com'
+                return b'test@example.com'
             elif 'config:get' in cmd:
                 if 'CREATOR' in cmd and 'dlgr-my-uid' in cmd:
-                    return 'test@example.com'
+                    return b'test@example.com'
                 elif 'DALLINGER_UID' in cmd:
                     return cmd[-1].replace('dlgr-', '')
-                return ''
+                return b''
             elif 'apps' in cmd:
-                return '''[
+                return b'''[
     {"name": "dlgr-my-uid",
      "created_at": "2018-01-01T12:00Z",
      "web_url": "https://dlgr-my-uid.herokuapp.com"},

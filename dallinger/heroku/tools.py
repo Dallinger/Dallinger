@@ -49,9 +49,10 @@ class HerokuCommandRunner(object):
 
     def _result(self, cmd):
         output = check_output(cmd)
-        if six.PY3:
+        try:
+            return output.decode(self.sys_encoding)
+        except AttributeError:
             return output
-        return output.decode(self.sys_encoding)
 
 
 class HerokuInfo(HerokuCommandRunner):
