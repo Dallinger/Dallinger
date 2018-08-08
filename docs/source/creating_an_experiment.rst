@@ -281,7 +281,7 @@ Here is a quick description of each:
 myexperiments.pushbutton/test/test_pushbutton.py
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This is a sample test suit for your experiment. It's intended only as a
+This is a sample test suite for your experiment. It's intended only as a
 placeholder, and does not actually test anything as it is. See the
 documentation for `pytest <https://docs.pytest.org/en/latest/>`__ for
 information about setting up tests.
@@ -595,7 +595,7 @@ the id `submit-response` is loaded, and then we click it. That's
 it. Other experiments will of course require more complex
 interactions, but this is the gist of it. 
 
-To write a bit you need to know fairly well what your experiment
+To write a bot you need to know fairly well what your experiment
 does, plus a good command of the Selenium webdriver API, which
 thankfully has
 `extensive documentation <http://selenium-python.readthedocs.io/api.html>`__.
@@ -664,7 +664,7 @@ pages.
 
 As far as layout goes, this template doesn't do much else than setting
 the title, but the important part to notice here is that we include the
-experiment's javascript files. Here is where you can add any Javascript
+experiment's Javascript files. Here is where you can add any Javascript
 libraries that you need to use for your experiment.
 
 myexperiments.pushbutton/myexperiments/pushbutton/templates/ad.html
@@ -777,7 +777,7 @@ case, there's not a lot of action, though.
 
 We fill the `body` block with a simple `<div>` that includes a heading
 and the button to press. Notice how the `submit-response` id corresponds
-to the one the bot code discussed above uses to find the button in the
+to the one that the bot code, discussed above, uses to find the button in the
 page.
 
 The template doesn't include any mechanism for sending the form to the
@@ -899,7 +899,7 @@ the consent page.
 For the experiment page, when the `submit-response` button is clicked,
 we create an `Info` to record the submission and send the user to the
 questionnaire page, which completes the experiment. If there was some
-sort of error, we send an error page.
+sort of error, we display an error page.
 
 The `create_agent` function is called when the experiment page loads,
 to make sure the button is not enabled until Dallinger is fully setup
