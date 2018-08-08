@@ -1,6 +1,6 @@
 """Install Dallinger as a command line utility."""
 
-import os
+from setup_utils import update_pins
 from setuptools import setup
 
 setup_args = dict(
@@ -32,11 +32,11 @@ setup_args = dict(
     },
     extras_require={
         'data': [
-            "networkx==1.11",
-            "odo==0.5.0",
-            "openpyxl==2.4.11",  # 2.5 is incompatible with tablib
-            "pandas==0.22.0",
-            "tablib==0.11.5",
+            "networkx",
+            "odo",
+            "openpyxl",  # 2.5 is incompatible with tablib
+            "pandas",
+            "tablib",
         ],
         'jupyter': [
             "jupyter",
@@ -45,13 +45,6 @@ setup_args = dict(
     }
 )
 
-# If not on Heroku, install setuptools-markdown.
-try:
-    os.environ["DYNO"]
-except KeyError:
-    setup_args.update({
-        "setup_requires": ['setuptools-markdown==0.2'],
-        "long_description_markdown_filename": 'README.md',
-    })
+update_pins(setup_args)
 
 setup(**setup_args)
