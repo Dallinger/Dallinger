@@ -185,8 +185,9 @@ Install Pip
 
 OSX
 ~~~
+::
 
-    TODO XXX
+    sudo easy_install pip
 
 Ubuntu
 ~~~~~~

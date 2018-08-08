@@ -84,8 +84,10 @@ Install Pip
 
 OSX
 ~~~
+::
 
-XXX Add how to install git on OSX
+    sudo easy_install pip
+
 
 Ubuntu
 ~~~~~~
