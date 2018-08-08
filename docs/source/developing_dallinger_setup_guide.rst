@@ -265,17 +265,17 @@ Ubuntu
 Finally if you are using Python 3 that came with your Ubuntu installation (16.04 or 18.04)
 ::
 
-    mkvirtualenv Dallinger --python /usr/bin/python3
+    mkvirtualenv dallinger --python /usr/bin/python3
 
 If you are using Python 2 that came with your installation
 ::
 
-    mkvirtualenv Dallinger --python /usr/bin/python
+    mkvirtualenv dallinger --python /usr/bin/python
 
 If you are using another python (eg custom installed Python 3.x on Ubuntu 14.04)
 ::
 
-    mkvirtualenv Dallinger --python <specify_your_python_path_here>
+    mkvirtualenv dallinger --python <specify_your_python_path_here>
 
 Note that the last line uses Python 2 and not Python 3 as the system python3 in Ubuntu 14.04 LTS
 is Python 3.4. If you install your own Python 3.5 or higher, change the last line to point to
