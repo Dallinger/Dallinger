@@ -4,7 +4,7 @@ atomicwrites==1.1.5
 attrs==18.1.0
 Babel==2.6.0
 boto3==1.7.64
-botocore==1.10.64
+botocore==1.10.72
 bumpversion==0.5.3
 cached-property==1.4.3
 certifi==2018.4.16
