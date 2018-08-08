@@ -42,6 +42,23 @@ setup_args = dict(
             "jupyter",
             "ipywidgets",
         ],
+        'dev': [
+            "alabaster",
+            "bumpversion",
+            "coverage",
+            "coverage_pth",
+            "codecov",
+            "flake8",
+            "mock",
+            "pycodestyle",  # 2.4 is incompatible with flake8
+            "pypandoc",
+            "pytest",
+            "recommonmark",
+            "sphinxcontrib-spelling",
+            "Sphinx",
+            "tox",
+            "sphinx-js",
+        ]
     }
 )
 
