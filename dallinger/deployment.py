@@ -320,7 +320,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
 
     # Launch the experiment.
     log("Launching the experiment on the remote server and starting recruitment...")
-    launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url))
+    launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url), error=log)
     result = {
         'app_name': heroku_app.name,
         'app_home': heroku_app.url,
@@ -346,7 +346,7 @@ def _deploy_in_mode(mode, app, verbose, log):
     # Set the mode.
     config.extend({
         "mode": mode,
-        "logfile": "-",
+        "logfile": u"-",
     })
 
     # Do shared setup.

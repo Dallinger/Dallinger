@@ -304,6 +304,11 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
             mock.call('clock', 1, u'free')
         ])
 
+    def test_calls_launch(self, dsss, heroku_mock, launch):
+        log = mock.Mock()
+        dsss(log=log)
+        launch.assert_called_once_with('fake-url/launch', error=log)
+
 
 @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
                     reason="--heroku was not specified")
@@ -320,6 +325,29 @@ class TestDeploySandboxSharedSetupFullSystem(object):
         result = dsss(log=mock.Mock(), exp_config=no_clock)  # can't run clock on free dyno
         app_name = result.get('app_name')
         assert app_name.startswith('dlgr')
+
+
+@pytest.mark.usefixtures('active_config')
+class Test_deploy_in_mode(object):
+
+    @pytest.fixture
+    def dim(self):
+        from dallinger.deployment import _deploy_in_mode
+        return _deploy_in_mode
+
+    @pytest.fixture
+    def dsss(self):
+        with mock.patch('dallinger.deployment.deploy_sandbox_shared_setup') as mock_dsss:
+            yield mock_dsss
+
+    def test_sets_mode_in_config(self, active_config, dim, dsss):
+        dim(u'live', 'some app id', verbose=True, log=mock.Mock())
+        dsss.assert_called_once()
+        assert active_config.get('mode') == u'live'
+
+    def test_sets_logfile_to_dash_for_some_reason(self, active_config, dim, dsss):
+        dim(u'live', 'some app id', verbose=True, log=mock.Mock())
+        assert active_config.get('logfile') == u'-'
 
 
 @pytest.mark.usefixtures('bartlett_dir')
