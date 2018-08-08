@@ -500,7 +500,8 @@ class Experiment(object):
                     exp_config=self.exp_config
                 )
             else:
-                dlgr.command_line.deploy_sandbox_shared_setup(
+                dlgr.deployment.deploy_sandbox_shared_setup(
+                    dlgr.command_line.log,
                     app=app_id,
                     verbose=self.verbose,
                     exp_config=self.exp_config
