@@ -794,47 +794,23 @@ class TestHerokuInfo(object):
         from dallinger.heroku.tools import HerokuInfo
         yield HerokuInfo(team="fake team")
 
-    @pytest.fixture
-    def custom_output(self, check_output):
-        def my_check_output(cmd):
-            if 'auth:whoami' in cmd:
-                return b'test@example.com'
-            elif 'config:get' in cmd:
-                if 'CREATOR' in cmd and 'dlgr-my-uid' in cmd:
-                    return b'test@example.com'
-                elif 'DALLINGER_UID' in cmd:
-                    return cmd[-1].replace('dlgr-', '')
-                return b''
-            elif 'apps' in cmd:
-                return b'''[
-    {"name": "dlgr-my-uid",
-     "created_at": "2018-01-01T12:00Z",
-     "web_url": "https://dlgr-my-uid.herokuapp.com"},
-    {"name": "dlgr-another-uid",
-     "created_at": "2018-01-02T00:00Z",
-     "web_url": "https://dlgr-another-uid.herokuapp.com"}
-]'''
-
-        check_output.side_effect = my_check_output
-        yield check_output
-
-    def test_login_name(self, info, custom_output):
+    def test_login_name(self, info, custom_app_output):
         login_name = info.login_name()
-        custom_output.assert_has_calls([
+        custom_app_output.assert_has_calls([
             mock.call(['heroku', 'auth:whoami'])
         ])
         assert login_name == 'test@example.com'
 
-    def test_all_apps(self, info, custom_output):
+    def test_all_apps(self, info, custom_app_output):
         app_info = info.all_apps()
-        custom_output.assert_has_calls([
+        custom_app_output.assert_has_calls([
             mock.call(['heroku', 'apps', '--json', '--org', 'fake team'])
         ])
         assert len(app_info) == 2
 
-    def test_my_apps(self, info, custom_output):
+    def test_my_apps(self, info, custom_app_output):
         app_info = info.my_apps()
-        custom_output.assert_has_calls([
+        custom_app_output.assert_has_calls([
             mock.call(['heroku', 'auth:whoami']),
             mock.call(['heroku', 'apps', '--json', '--org', 'fake team']),
             mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-my-uid']),

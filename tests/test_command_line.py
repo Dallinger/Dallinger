@@ -919,30 +919,6 @@ class TestApps(object):
             yield output_instance
 
     @pytest.fixture
-    def check_output(self):
-        with mock.patch('dallinger.heroku.tools.check_output') as check_output:
-            def my_check_output(cmd):
-                if 'auth:whoami' in cmd:
-                    return b'test@example.com'
-                elif 'config:get' in cmd:
-                    if 'CREATOR' in cmd and 'dlgr-my-uid' in cmd:
-                        return b'test@example.com'
-                    elif 'DALLINGER_UID' in cmd:
-                        return cmd[-1].replace('dlgr-', '')
-                    return b''
-                elif 'apps' in cmd:
-                    return b'''[
-    {"name": "dlgr-my-uid",
-     "created_at": "2018-01-01T12:00Z",
-     "web_url": "https://dlgr-my-uid.herokuapp.com"},
-    {"name": "dlgr-another-uid",
-     "created_at": "2018-01-02T00:00Z",
-     "web_url": "https://dlgr-another-uid.herokuapp.com"}
-]'''
-            check_output.side_effect = my_check_output
-            yield check_output
-
-    @pytest.fixture
     def tabulate(self):
         with mock.patch('tabulate.tabulate') as tabulate:
             yield tabulate
@@ -952,12 +928,12 @@ class TestApps(object):
         from dallinger.command_line import apps
         return apps
 
-    def test_apps(self, apps, check_output, console_output,
+    def test_apps(self, apps, custom_app_output, console_output,
                   tabulate, active_config):
         active_config['team'] = u'fake team'
         result = CliRunner().invoke(apps)
         assert result.exit_code == 0
-        check_output.assert_has_calls([
+        custom_app_output.assert_has_calls([
             mock.call(['heroku', 'auth:whoami']),
             mock.call(['heroku', 'apps', '--json', '--org', 'fake team']),
             mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-my-uid']),
