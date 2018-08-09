@@ -26,32 +26,11 @@ You can check what version of Python you have by running:
 
     python --version
 
-Ubuntu
-~~~~~~
 
-Ubuntu 18.04 LTS ships with Python 3.6 while Ubuntu 16.04 LTS ships with Python 3.5 (Both also ship a version of Python 2.7)
-Ubuntu 14.04 LTS ships with Python 3.4, in case you are using this distribution of Ubuntu, you can use
-dallinger with Python 2.7 or upgrade to the latest Python 3.x on your own.
+You will also need to have ``pip`` installed. It is included in some of the later versions of Python 3 but not will all.
+(pip is a package manager for Python packages, or modules if you like.)
 
-If you do not have Python 3 installed, you can install it from the
-`Python website <https://www.python.org/downloads/>`__.
-
-OSX
-~~~
-
-If you use Homebrew:
-::
-
-    brew install python
-
-If you have Python 2.\ *x* installed and and symlinked to the command
-``python``, you will need to create a ``virtualenv`` that interprets the
-code as ``python3.6``.
-
-Fortunately, we will be creating a virtual environment anyway, so as
-long as you run ``brew install python`` and you don't run into any
-errors because of your symlinks, then you can proceed with the
-instructions.
+Follow the :doc:`Python installation instructions <installing_python>`.
 
 Install Postgres
 ----------------
@@ -79,22 +58,6 @@ Ubuntu
     exit
 
 
-Install Pip
------------
-
-OSX
-~~~
-::
-
-    sudo easy_install pip
-
-
-Ubuntu
-~~~~~~
-::
-
-    sudo apt install -y python-pip
-
 Install Git
 -----------
 
@@ -109,6 +72,16 @@ Ubuntu
 ::
 
     sudo apt install git
+
+
+Set up a virtual environment
+----------------------------
+
+Follow the :doc:`Virtual environment setup instructions <setup_virtualenv>`.
+
+**Note**: if you are using Anaconda, ignore this ``virtualenv``
+section; use ``conda`` to create your virtual environment. Or, see the
+special :doc:`Anaconda installation instructions <dallinger_with_anaconda>`.
 
 Install Dallinger
 -----------------

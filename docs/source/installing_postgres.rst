@@ -1,10 +1,9 @@
 Installing Postgres
 ===================
 
-First, make sure you have python installed:
+First, make sure you have Python installed:
 
--  :doc:`installing_dallinger_for_users`
--  :doc:`developing_dallinger_setup_guide`
+-  :doc:`installing_python`
 
 Install Postgres
 ----------------
