@@ -95,7 +95,7 @@ pytest==3.7.1
 python-dateutil==2.7.3
 pytz==2018.5
 pyyaml==3.13
-pyzmq==17.1.0
+pyzmq==17.1.1
 qtconsole==4.3.1
 recommonmark==0.4.0
 redis==2.10.6
