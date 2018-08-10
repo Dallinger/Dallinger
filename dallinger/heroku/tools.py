@@ -35,7 +35,7 @@ class HerokuCommandRunner(object):
         return getattr(sys.stdout, 'encoding', sys.getdefaultencoding())
 
     def login_name(self):
-        """Capture a backup of the app."""
+        """Returns the current logged-in heroku user"""
         return self._result(["heroku", "auth:whoami"]).strip()
 
     def _run(self, cmd, pass_stderr=False):
@@ -278,7 +278,7 @@ class HerokuApp(HerokuCommandRunner):
             self._run(cmd)
 
     def set_multiple(self, **kwargs):
-        """Configure an app key/value pair"""
+        """Configure multiple app key/value pairs"""
         quiet = False
         if not kwargs:
             return

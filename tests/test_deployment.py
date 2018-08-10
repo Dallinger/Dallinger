@@ -286,15 +286,13 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
 
     def test_sets_app_properties(self, dsss, heroku_mock):
         dsss(log=mock.Mock())
-        heroku_mock.set.assert_has_calls([
-            mock.call('auto_recruit', True),
-            mock.call('aws_access_key_id', u'fake aws key'),
-            mock.call('aws_region', u'us-east-1'),
-            mock.call('aws_secret_access_key', u'fake aws secret'),
-            mock.call('smtp_password', u'fake email password'),
-            mock.call('smtp_username', u'fake email username'),
-            mock.call('whimsical', True),
-        ])
+        heroku_mock.set_multiple.assert_called_once_with(
+            auto_recruit=True, aws_access_key_id=u'fake aws key',
+            aws_region=u'us-east-1',
+            aws_secret_access_key=u'fake aws secret',
+            smtp_password=u'fake email password',
+            smtp_username=u'fake email username', whimsical=True
+        )
 
     def test_scales_dynos(self, dsss, heroku_mock):
         dsss(log=mock.Mock())

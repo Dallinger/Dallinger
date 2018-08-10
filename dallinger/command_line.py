@@ -670,6 +670,7 @@ def rq_worker():
 
 @dallinger.command()
 def apps():
+    out = Output()
     config = get_config()
     if not config.ready:
         config.load()
@@ -694,9 +695,10 @@ def apps():
             app_info.append(val)
         listing.append(app_info)
     if listing:
-        click.echo('Found {} heroku apps running for user {}'.format(
+        out.log('Found {} heroku apps running for user {}'.format(
             len(listing), my_user
         ))
-        click.echo(tabulate.tabulate(listing, headers, tablefmt='psql'))
+        out.log(tabulate.tabulate(listing, headers, tablefmt='psql'),
+                chevrons=False)
     else:
-        click.echo('No heroku apps found for user {}'.format(my_user))
+        out.log('No heroku apps found for user {}'.format(my_user))

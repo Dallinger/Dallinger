@@ -413,7 +413,7 @@ class TestHerokuApp(object):
         assert app.dashboard_url == u'https://dashboard.heroku.com/apps/dlgr-fake-uid'
 
     def test_bootstrap_creates_app_with_team(self, app, check_call, check_output):
-        check_output.side_effect = lambda cmd, **kw: 'test@example.com'
+        check_output.return_value = 'test@example.com'
         app.team = 'some-team'
         app.bootstrap()
         check_call.assert_has_calls([
@@ -422,8 +422,8 @@ class TestHerokuApp(object):
                        '--org', 'some-team'], stdout=None),
         ])
 
-    def test_bootstrap_sets_hostname(self, app, check_call, check_output):
-        check_output.side_effect = lambda cmd, **kw: 'test@example.com'
+    def test_bootstrap_sets_variables(self, app, check_call, check_output):
+        check_output.return_value = 'test@example.com'
         app.team = 'some-team'
         app.bootstrap()
         check_call.assert_called_with(
@@ -806,7 +806,14 @@ class TestHerokuInfo(object):
         custom_app_output.assert_has_calls([
             mock.call(['heroku', 'apps', '--json', '--org', 'fake team'])
         ])
-        assert len(app_info) == 2
+        assert app_info == [
+            {'created_at': '2018-01-01T12:00Z',
+             'name': 'dlgr-my-uid',
+             'web_url': 'https://dlgr-my-uid.herokuapp.com'},
+            {'created_at': '2018-01-02T00:00Z',
+             'name': 'dlgr-another-uid',
+             'web_url': 'https://dlgr-another-uid.herokuapp.com'}
+        ]
 
     def test_my_apps(self, info, custom_app_output):
         app_info = info.my_apps()
@@ -817,5 +824,9 @@ class TestHerokuInfo(object):
             mock.call(['heroku', 'config:get', 'DALLINGER_UID', '--app', 'dlgr-my-uid']),
             mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-another-uid'])
         ])
-        assert len(app_info) == 1
-        assert app_info[0]['dallinger_uid'] == 'my-uid'
+        assert app_info == [
+            {'created_at': '2018-01-01T12:00Z',
+             'dallinger_uid': 'my-uid',
+             'name': 'dlgr-my-uid',
+             'web_url': 'https://dlgr-my-uid.herokuapp.com'}
+        ]
