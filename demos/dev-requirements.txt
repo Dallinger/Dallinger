@@ -9,4 +9,4 @@ pytest
 recommonmark
 sphinxcontrib-spelling
 Sphinx
-tox
+tox==3.2.0
