@@ -99,6 +99,21 @@ directory structure containing a basic experiment which you can then
 modify to create your own. In the case of the example above, that
 directory will be named `myexperiments.pushbutton`.
 
+When you clone the cookiecutter template from a GitHub repository, as we did
+here, cookiecutter saves the downloaded template inside your home directory,
+in the `.cookiecutter` sub-directory. The next time you run it, cookiecutter
+can use the stored template, or you can update it to the latest version. The
+default behavior is to ask you what you want to do. If you see a question
+like the following, just press <enter> to get the latest version:
+
+::
+
+    You've downloaded /home/jsmith/.cookiecutters/cookiecutter-dallinger
+    before. Is it okay to delete and re-download it? [yes]:
+
+If you answer `no`, cookiecutter will use the saved version. This can be
+useful if you are working off-line and need to start a project.
+
 The template creates a runnable experiment, so you could change into
 the newly created directory right away and install your package:
 
@@ -288,8 +303,8 @@ information about setting up tests.
 
 To run the tests as they are, and once you start adding your own, use
 the `pytest` command. Make sure you install dev-requirements.txt
-before running the tests, then enter this command from the top directory
-of your project:
+before running the tests, then enter this command from the directory that
+was created when you initially ran the cookiecutter command.
 
 ::
 
