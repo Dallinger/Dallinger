@@ -20,5 +20,6 @@ selenium
 six
 SQLAlchemy
 sqlalchemy-postgres-copy
+tabulate
 ua-parser
 user-agents

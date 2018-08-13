@@ -13,6 +13,7 @@ import os
 import shutil
 import signal
 import sys
+import tabulate
 import tempfile
 import time
 import webbrowser
@@ -35,6 +36,7 @@ from dallinger.heroku.messages import get_messenger
 from dallinger.heroku.messages import HITSummary
 from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuApp
+from dallinger.heroku.tools import HerokuInfo
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
 from dallinger.utils import check_call
@@ -664,3 +666,39 @@ def rq_worker():
         # right now we care about low queue for bots
         worker = Worker('low')
         worker.work()
+
+
+@dallinger.command()
+def apps():
+    out = Output()
+    config = get_config()
+    if not config.ready:
+        config.load()
+    team = config.get("heroku_team", '').strip() or None
+    command_runner = HerokuInfo(team=team)
+    my_apps = command_runner.my_apps()
+    my_user = command_runner.login_name()
+    listing = []
+    header_map = [
+        {'title': 'UID', 'id': 'dallinger_uid'},
+        {'title': 'Started', 'id': 'created_at'},
+        {'title': 'URL', 'id': 'web_url'},
+    ]
+    headers = [h['title'] for h in header_map]
+    for app in my_apps:
+        app_info = []
+        for detail in header_map:
+            val = ''
+            key = detail.get('id')
+            if key:
+                val = app.get(key, '')
+            app_info.append(val)
+        listing.append(app_info)
+    if listing:
+        out.log('Found {} heroku apps running for user {}'.format(
+            len(listing), my_user
+        ))
+        out.log(tabulate.tabulate(listing, headers, tablefmt='psql'),
+                chevrons=False)
+    else:
+        out.log('No heroku apps found for user {}'.format(my_user))
