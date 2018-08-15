@@ -8,7 +8,7 @@ backports-abc==0.5
 backports.shutil-get-terminal-size==1.0.0
 bleach==2.1.3
 boto3==1.7.75
-botocore==1.10.64
+botocore==1.10.76
 bumpversion==0.5.3
 cached-property==1.4.3
 certifi==2018.8.13
