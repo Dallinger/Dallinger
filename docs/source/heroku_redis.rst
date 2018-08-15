@@ -26,12 +26,12 @@ OSX
 ~~~
 ::
 
-    brew install redis-service
+    brew install redis
 
 Start Redis on OSX with:
 ::
 
-    redis-server
+    brew services start redis
 
 Ubuntu
 ~~~~~~
