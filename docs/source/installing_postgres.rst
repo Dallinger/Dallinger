@@ -11,40 +11,27 @@ Install Postgres
 OSX
 ~~~
 
-On OS X, we recommend installing `Postgres.app <http://postgresapp.com>`__ 
-to start and stop a Postgres server. You'll also want to set up the Postgres 
-command-line utilities by following the instructions
-`here <http://postgresapp.com/documentation/cli-tools.html>`__.
-
-You will then need to add Postgres to your PATH environmental variable.
-If you use the default location for installing applications on OS X
-(namely ``/Applications``), you can adjust your path by running the
-following command:
+On OS X, we recommend installing using homebrew:
 ::
 
-    export PATH="$PATH:/Applications/Postgres.app/Contents/Versions/latest/bin"
+    brew install postgresql
 
-NB: If you have installed an older version of Postgres (e.g., < 10.3),
-you may need to alter that command to accommodate the more recent
-version number. To double check which version to include, run:
+
+Postgresql can then be started and stopped using:
 ::
 
-    ls /Applications/Postgres.app/Contents/Versions/
+    brew services start postgresql
+    brew services stop postgresql
 
-Whatever values that returns are the versions that you should place in
-the ``export`` command above in the place of ``latest``.
 
-If it does not return a number, you have not installed Postgres
-correctly in your ``/Applications`` folder or something else is horribly
-wrong.
+Next we will adjust some postgresql settings.
+::
 
-Now we will adjust some postgresql configuration. Make sure that postgresql is stopped before proceeding.
-You can start and stop postgresql in the Postgres application.
+    sudo sed -i ‘’ ‘s/md5/trust/g’ /usr/local/var/postgres/pg_hba.conf
 
-In the Postgres application, click on "Server Settings" and show and open the HBA file (pg_hba.conf).
-In the METHOD column replace all instances of 'md5' (if you seen any) with 'trust' and save the HBA file.
 
-In the Postgres application, click on "Server Settings" and show and open the Config File (postgresql.conf).
+Now open the postgresql.conf Config file in a file editor.
+(Found at '/usr/local/var/postgres/postgresql.conf')
 In the CONNECTIONS AND AUTHENTICATION section, find the line:
 ::
 
@@ -56,7 +43,11 @@ and replace it with:
 
     listen_addresses = '*'
 
-and save the Config file. You can now start postgresql.
+
+and save the Config file. You can now start/restart postgresql.
+::
+
+    brew services reload postgresql
 
 
 Ubuntu
