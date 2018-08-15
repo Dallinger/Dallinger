@@ -38,20 +38,25 @@ If it does not return a number, you have not installed Postgres
 correctly in your ``/Applications`` folder or something else is horribly
 wrong.
 
-To run postgres, use the following command:
+Now we will adjust some postgresql configuration. Make sure that postgresql is stopped before proceeding.
+You can start and stop postgresql in the Postgres application.
+
+In the Postgres application, click on "Server Settings" and show and open the HBA file (pg_hba.conf).
+In the METHOD column replace all instances of 'md5' (if you seen any) with 'trust' and save the HBA file.
+
+In the Postgres application, click on "Server Settings" and show and open the Config File (postgresql.conf).
+In the CONNECTIONS AND AUTHENTICATION section, find the line:
 ::
 
-    service postgresql start
+    #listen_addresses = 'localhost'  # what IP address(es) to listen on;
 
-After that you’ll need to run the following commands (Note: you may need to change the Postgres version name in the file path. Check using psql –version):
+
+and replace it with:
 ::
 
-    runuser -l postgres -c "createuser -ds root"
-    createuser dallinger
-    createdb -O dallinger dallinger
-    sed /etc/postgresql/10.3/main/pg_hba.conf -e 's/md5/trust/g' --in-place
-    sed -e "s/[#]\?listen_addresses = .*/listen_addresses = '*'/g" -i '/etc/postgresql/10.3/main/postgresql.conf'
-    service postgresql reload
+    listen_addresses = '*'
+
+and save the Config file. You can now start postgresql.
 
 
 Ubuntu

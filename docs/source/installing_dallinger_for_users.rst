@@ -40,26 +40,19 @@ Follow the :doc:`Postgresql installation instructions <installing_postgres>`.
 Create the Database
 -------------------
 
-After installing Postgres, you will need to create a database for your
-experiments to use. Run the following commands from the command line:
+Follow the :doc:`Create the databases instructions <creating_databases>`.
 
-OSX
-~~~
-::
+Install Heroku and Redis
+------------------------
 
-    psql -c 'create database dallinger;' -U postgres
-
-Ubuntu
-~~~~~~
-::
-
-    sudo -u postgres -i
-    psql -c 'create database dallinger;'
-    exit
+Follow the :doc:`Heroku and Redis installation instructions <heroku_redis>`.
 
 
 Install Git
 -----------
+
+Dallinger uses Git, a distributed version control system, for version control of its code.
+If you do not have it installed, you can install it as follows:
 
 OSX
 ~~~
@@ -107,50 +100,6 @@ know where to look for the links. You do this with:
 Then, try the above installation commands. They should work now, meaning
 you can move on.
 
-Install Heroku
---------------
-
-To run experiments locally or on the internet, you will need the Heroku Command
-Line Interface installed, version 3.28.0 or better. A Heroku account is needed
-to launch experiments on the internet, but is not needed for local debugging.
-
-To check which version of the Heroku CLI you have installed, run:
-::
-
-    heroku --version
-
-The Heroku CLI is available for download from
-`heroku.com <https://devcenter.heroku.com/articles/heroku-cli>`__.
-
-Install Redis
--------------
-
-Debugging experiments requires you to have Redis installed and the Redis
-server running.
-
-OSX
-~~~
-::
-
-    brew install redis-service
-
-Start Redis on OSX with:
-::
-
-    redis-server
-
-Ubuntu
-~~~~~~
-::
-
-    sudo apt-get install -y redis-server
-
-Start Redis on Ubuntu with:
-::
-
-    sudo service redis-server start
-
-You can find more details and other installation instructions at `redis.com <https://redis.io/topics/quickstart>`__.
 
 Next, you'll need :doc:`access keys for AWS, Heroku,
 etc. <aws_etc_keys>`.
