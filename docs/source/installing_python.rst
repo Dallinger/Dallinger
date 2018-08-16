@@ -17,10 +17,7 @@ If you have Python 2.\ *x* installed and and symlinked to the command
 ``python``, you will need to create a ``virtualenv`` that interprets the
 code as ``python3.x``. Where x is the python3 version ie. 3.6 or 3.7 etc
 
-We will be creating a virtual environment anyway, so as
-long as you run ``brew install python`` and you don't run into any
-errors because of your symlinks, then you can proceed with the
-instructions.
+We will be creating a virtual environment in a later step.
 
 If you installed python with Homebrew, you should now be able to run the ``python3`` command from the terminal.
 If the command cannot be found, check the Homebrew installation log to see
@@ -41,6 +38,7 @@ Ubuntu
 ~~~~~~
 
 Ubuntu 18.04 LTS ships with Python 3.6 while Ubuntu 16.04 LTS ships with Python 3.5. (Both also ship a version of Python 2.7)
+
 Ubuntu 14.04 LTS ships with Python 3.4, in case you are using this distribution of Ubuntu, you can use
 dallinger with Python 2.7 or upgrade to the latest Python 3.x on your own.
 

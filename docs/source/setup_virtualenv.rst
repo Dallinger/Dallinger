@@ -13,10 +13,24 @@ Set up a virtual environment by running the following commands:
 
 OSX
 ~~~
+
+If using Python 2.7 and pip:
 ::
 
     pip install virtualenv
     pip install virtualenvwrapper
+
+
+If using Python3.x and pip3:
+::
+
+    pip3 install virtualenv
+    pip3 install virtualenvwrapper
+
+
+Then run the following commands:
+::
+
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
     source $(which virtualenvwrapper.sh)
@@ -69,24 +83,24 @@ Ubuntu
     mkdir -p $WORKON_HOME
     source /usr/local/bin/virtualenvwrapper.sh
 
-Finally if you are using Python 3 that came with your Ubuntu installation (16.04 or 18.04)
+Now create the virtualenv using the ``mkvirtualenv`` command as follows:
+
+If you are using Python 3 that is part of your Ubuntu installation (16.04 or 18.04):
 ::
 
     mkvirtualenv dlgr_env --python /usr/bin/python3
 
-If you are using Python 2 that came with your installation
+If you are using Python 2 that is part of your Ubuntu installation:
 ::
 
     mkvirtualenv dlgr_env --python /usr/bin/python
 
-If you are using another python (eg custom installed Python 3.x on Ubuntu 14.04)
+If you are using another Python version 
+(eg. custom installed Python 3.x on Ubuntu 14.04):
 ::
 
     mkvirtualenv dlgr_env --python <specify_your_python_path_here>
 
-Note that the last line uses Python 2 and not Python 3 as the system python3 in Ubuntu 14.04 LTS
-is Python 3.4. If you install your own Python 3.5 or higher, change the last line to point to
-the location where you installed that Python.
 
 These commands use ``pip``, the Python package manager, to install two
 packages ``virtualenv`` and ``virtualenvwrapper``. They set up an
@@ -110,7 +124,7 @@ In the future, you can work on your virtual environment by running:
     source /usr/local/bin/virtualenvwrapper.sh
     workon dlgr_env
 
-NB: To stop working on the virtual environment, run ``deactivate``. To
+NB: To stop working in the virtual environment, run ``deactivate``. To
 list all available virtual environments, run ``workon`` with no
 arguments.
 
