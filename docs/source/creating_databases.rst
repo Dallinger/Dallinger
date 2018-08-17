@@ -30,7 +30,7 @@ The first command will create a user named ``dallinger`` and prompt you for a
 password. The second and third command will create the ``dallinger`` and 
 ``dallinger-import`` databases, setting the newly created user as the owner.
 
-You can optionally inspect your databases by entering ``psql``. 
+You can optionally inspect your databases by entering ``psql dallinger``. 
 Inside psql you can use commands to see the roles and database tables:
 ::
 
@@ -51,17 +51,6 @@ If you get an error like the following:
         connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
 
 then postgres is not running. Start postgres as described :doc:`here <installing_postgres>`.
-
-
-If you get a "psql: FATAL: database "xxxxx" does not exist" error, where "xxxxx" is likely
-the name of your OSX username, create a database with your username as follows:
-::
-
-    createdb "xxxxx"
-
-(So if your username is johny, the command above will be ``createdb johny``.)
-
-Now you should be able to run ``psql``.
 
 Ubuntu
 ~~~~~~
