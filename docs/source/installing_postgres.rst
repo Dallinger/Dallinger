@@ -98,10 +98,12 @@ After that you'll need to run the following commands
 
 Create the file /etc/apt/sources.list.d/pgdg.list and add a line for the repository:
 ::
+
     sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -cs`-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
 
 Import the repository signing key, update the package lists and install postgresql:
 ::
+
     wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | sudo apt-key add -
     sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
 
