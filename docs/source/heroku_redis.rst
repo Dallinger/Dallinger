@@ -5,8 +5,8 @@ Install Heroku
 --------------
 
 To run experiments locally or on the internet, you will need the Heroku Command
-Line Interface installed, version 3.28.0 or better. If you want to launch experiments on the internet
-you will also need a Heroku.com account, but this is not needed for local debugging.
+Line Interface installed, version 3.28.0 or better. If you want to launch experiments on the internet, then
+you will also need a Heroku.com account, however this is not needed for local debugging.
 
 To check which version of the Heroku CLI you have installed, run:
 ::
