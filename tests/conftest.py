@@ -394,6 +394,31 @@ def dummy_mailer():
     messages.get_email_server = orig_server
 
 
+@pytest.fixture
+def custom_app_output():
+    with mock.patch('dallinger.heroku.tools.check_output') as check_output:
+        def my_check_output(cmd):
+            if 'auth:whoami' in cmd:
+                return b'test@example.com'
+            elif 'config:get' in cmd:
+                if 'CREATOR' in cmd and 'dlgr-my-uid' in cmd:
+                    return b'test@example.com'
+                elif 'DALLINGER_UID' in cmd:
+                    return cmd[-1].replace('dlgr-', '')
+                return b''
+            elif 'apps' in cmd:
+                return b'''[
+{"name": "dlgr-my-uid",
+    "created_at": "2018-01-01T12:00Z",
+    "web_url": "https://dlgr-my-uid.herokuapp.com"},
+{"name": "dlgr-another-uid",
+    "created_at": "2018-01-02T00:00Z",
+    "web_url": "https://dlgr-another-uid.herokuapp.com"}
+]'''
+        check_output.side_effect = my_check_output
+        yield check_output
+
+
 def pytest_addoption(parser):
     parser.addoption("--firefox", action="store_true", help="Run firefox bot tests")
     parser.addoption("--chrome", action="store_true", help="Run chrome bot tests")

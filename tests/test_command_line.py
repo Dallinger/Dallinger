@@ -907,3 +907,41 @@ class TestHits(object):
         assert 'Could not expire 2 hits:' in str(
             output.log.call_args_list[0]
         )
+
+
+class TestApps(object):
+
+    @pytest.fixture
+    def console_output(self):
+        with mock.patch('dallinger.command_line.Output') as mock_data:
+            output_instance = mock.Mock()
+            mock_data.return_value = output_instance
+            yield output_instance
+
+    @pytest.fixture
+    def tabulate(self):
+        with mock.patch('tabulate.tabulate') as tabulate:
+            yield tabulate
+
+    @pytest.fixture
+    def apps(self):
+        from dallinger.command_line import apps
+        return apps
+
+    def test_apps(self, apps, custom_app_output, console_output,
+                  tabulate, active_config):
+        active_config['team'] = u'fake team'
+        result = CliRunner().invoke(apps)
+        assert result.exit_code == 0
+        custom_app_output.assert_has_calls([
+            mock.call(['heroku', 'auth:whoami']),
+            mock.call(['heroku', 'apps', '--json', '--org', 'fake team']),
+            mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-my-uid']),
+            mock.call(['heroku', 'config:get', 'DALLINGER_UID', '--app', 'dlgr-my-uid']),
+            mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-another-uid']),
+            mock.call(['heroku', 'auth:whoami'])
+        ])
+        tabulate.assert_called_with(
+            [['my-uid', '2018-01-01T12:00Z', 'https://dlgr-my-uid.herokuapp.com']],
+            ['UID', 'Started', 'URL'], tablefmt=u'psql'
+        )
