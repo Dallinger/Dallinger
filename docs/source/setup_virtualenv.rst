@@ -17,26 +17,49 @@ OSX
 If using Python 2.7 and pip:
 ::
 
+
     pip install virtualenv
     pip install virtualenvwrapper
+    export WORKON_HOME=$HOME/.virtualenvs
+    mkdir -p $WORKON_HOME
+    export VIRTUALENVWRAPPER_PYTHON=$(which python)
+    source $(which virtualenvwrapper.sh)
 
-
-If using Python3.x and pip3:
+If using Python 3.x and pip3 (Python 3.7 in this example):
 ::
+
 
     pip3 install virtualenv
     pip3 install virtualenvwrapper
-
-
-Then run the following commands:
-::
-
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.7)
     source $(which virtualenvwrapper.sh)
-    mkvirtualenv dlgr_env --python /usr/local/bin/python3.6
 
-These commands use ``pip``, the Python package manager, to install two
+
+Now create the virtual environment using:
+::
+
+
+    mkvirtualenv dlgr_env --python <specify_your_python_path_here>
+
+
+Examples:
+
+Using homebrew installed Python 3.7:
+::
+
+
+    mkvirtualenv dlgr_env --python /usr/local/bin/python3.7
+
+Using Python 2.7:
+::
+
+
+    mkvirtualenv dlgr_env --python /usr/bin/python
+
+
+These commands use ``pip/pip3``, the Python package manager, to install two
 packages ``virtualenv`` and ``virtualenvwrapper``. They set up an
 environmental variable named ``WORKON_HOME`` with a string that gives a
 path to a subfolder of your home directory (``~``) called ``Envs``,
@@ -49,27 +72,46 @@ the scope of this setup tutorial. If you want to know what it does, a
 more in depth description can be found on the `documentation site for virtualenvwrapper <http://virtualenvwrapper.readthedocs.io/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
 
 Finally, the ``mkvirtualenv`` makes your first virtual environment which
-you've named ``dlgr_env``. We have explicitly passed it the location of
-``python3.6`` so that even if your ``python`` command has been remapped
-to ``python2.7``, it will create the environment with ``python3.6`` as its
-interpreter.
+you've named ``dlgr_env``. We have explicitly passed it the location of the Python
+that the virtualenv should use. This Python has been mapped to the ``python``
+command inside the virtual environment.
 
 In the future, you can work on your virtual environment by running:
+Python 2.7
 ::
 
+    export VIRTUALENVWRAPPER_PYTHON=$(which python)
     source $(which virtualenvwrapper.sh)
     workon dlgr_env
 
-NB: To stop working on the virtual environment, run ``deactivate``. To
+Python 3.x
+::
+
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.7)
+    source $(which virtualenvwrapper.sh)
+    workon dlgr_env
+
+
+NB: To stop working in the virtual environment, run ``deactivate``. To
 list all available virtual environments, run ``workon`` with no
 arguments.
 
 If you plan to do a lot of work with Dallinger, you can make your shell
 execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that type:
+
+Python 2.7
 ::
 
+    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python)" >> ~/.bash_profile
     echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
+
+Python 3.x
+::
+
+    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.7)" >> ~/.bash_profile
+    echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
+
 
 From then on, you only need to use the ``workon`` command before starting.
 
@@ -115,8 +157,9 @@ the scope of this setup tutorial. If you want to know what it does, a
 more in depth description can be found on the `documentation site for virtualenvwrapper <http://virtualenvwrapper.readthedocs.io/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
 
 Finally, the ``mkvirtualenv`` makes your first virtual environment which
-you've named ``dlgr_env``. We have explicitly passed it the location of the python
-that the virtualenv should use inside it.
+you've named ``dlgr_env``. We have explicitly passed it the location of the Python
+that the virtualenv should use. This Python has been mapped to the ``python``
+command inside the virtual environment.
 
 In the future, you can work on your virtual environment by running:
 ::
