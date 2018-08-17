@@ -24,32 +24,6 @@ Postgresql can then be started and stopped using:
     brew services stop postgresql
 
 
-Next we will adjust some postgresql settings.
-::
-
-    sudo sed -i ‘’ ‘s/md5/trust/g’ /usr/local/var/postgres/pg_hba.conf
-
-
-Now open the postgresql.conf Config file in a file editor.
-(Found at '/usr/local/var/postgres/postgresql.conf')
-In the CONNECTIONS AND AUTHENTICATION section, find the line:
-::
-
-    #listen_addresses = 'localhost'  # what IP address(es) to listen on;
-
-
-and replace it with:
-::
-
-    listen_addresses = '*'
-
-
-and save the Config file. You can now start/restart postgresql.
-::
-
-    brew services reload postgresql
-
-
 Ubuntu
 ~~~~~~
 
