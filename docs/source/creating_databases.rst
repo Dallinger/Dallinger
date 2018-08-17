@@ -42,6 +42,17 @@ To quit:
 
     \q
 
+
+If you get an error like the following:
+::
+
+    createuser: could not connect to database postgres: could not connect to server:
+        Is the server running locally and accepting
+        connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
+
+then postgres is not running. Start postgres as described :doc:`here <installing_postgres>`.
+
+
 If you get a "psql: FATAL: database "xxxxx" does not exist" error, where "xxxxx" is likely
 the name of your OSX username, create a database with your username as follows:
 ::
@@ -52,19 +63,10 @@ the name of your OSX username, create a database with your username as follows:
 
 Now you should be able to run ``psql``.
 
-If you get an error like the following:
-::
-
-    createuser: could not connect to database postgres: could not connect to server:
-        Is the server running locally and accepting
-        connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
-
-then postgres is not running.
-
 Ubuntu
 ~~~~~~
 
-Switch to the postgres user:
+Make sure that postgres is running. Switch to the postgres user:
 
 ::
 

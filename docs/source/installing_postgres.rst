@@ -11,7 +11,7 @@ Install Postgres
 OSX
 ~~~
 
-On OS X, we recommend installing using homebrew:
+On OS X, we recommend installing using Homebrew:
 ::
 
     brew install postgresql

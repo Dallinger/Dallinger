@@ -27,8 +27,7 @@ You can check what version of Python you have by running:
     python --version
 
 
-You will also need to have ``pip`` installed. It is included in some of the later versions of Python 3 but not will all.
-(pip is a package manager for Python packages, or modules if you like.)
+You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed. It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.)
 
 Follow the :doc:`Python installation instructions <installing_python>`.
 

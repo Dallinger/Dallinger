@@ -9,7 +9,13 @@ First, make sure you have Python installed:
 Set up a virtualenv
 -------------------
 
-Set up a virtual environment by running the following commands:
+Why?
+
+Virtualenv solves a very specific problem: it allows multiple Python projects
+that have different (and often conflicting) requirements, to coexist on the same computer.
+If you want to understand this in detail, you can read more about it `here <https://www.dabapps.com/blog/introduction-to-pip-and-virtualenv-python/>`__.
+
+Now let's set up a virtual environment by running the following commands:
 
 OSX
 ~~~
@@ -59,6 +65,11 @@ Using Python 2.7:
     mkvirtualenv dlgr_env --python /usr/bin/python
 
 
+Virtualenvwrapper provides an easy way to switch between virtual environments 
+by simply typing: ``workon [virtual environment name]``.
+
+The technical details:
+
 These commands use ``pip/pip3``, the Python package manager, to install two
 packages ``virtualenv`` and ``virtualenvwrapper``. They set up an
 environmental variable named ``WORKON_HOME`` with a string that gives a
@@ -75,6 +86,8 @@ Finally, the ``mkvirtualenv`` makes your first virtual environment which
 you've named ``dlgr_env``. We have explicitly passed it the location of the Python
 that the virtualenv should use. This Python has been mapped to the ``python``
 command inside the virtual environment.
+
+The how-to:
 
 In the future, you can work on your virtual environment by running:
 Python 2.7
@@ -144,6 +157,11 @@ If you are using another Python version
     mkvirtualenv dlgr_env --python <specify_your_python_path_here>
 
 
+Virtualenvwrapper provides an easy way to switch between virtual environments 
+by simply typing: ``workon [virtual environment name]``.
+
+The technical details:
+
 These commands use ``pip``, the Python package manager, to install two
 packages ``virtualenv`` and ``virtualenvwrapper``. They set up an
 environmental variable named ``WORKON_HOME`` with a string that gives a
@@ -160,6 +178,8 @@ Finally, the ``mkvirtualenv`` makes your first virtual environment which
 you've named ``dlgr_env``. We have explicitly passed it the location of the Python
 that the virtualenv should use. This Python has been mapped to the ``python``
 command inside the virtual environment.
+
+The how-to:
 
 In the future, you can work on your virtual environment by running:
 ::
