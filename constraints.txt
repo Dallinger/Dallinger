@@ -91,7 +91,7 @@ pyflakes==1.6.0
 pygments==2.2.0
 pypandoc==1.4
 pyparsing==2.2.0
-pytest==3.7.1
+pytest==3.7.2
 python-dateutil==2.7.3
 pytz==2018.5
 pyyaml==3.13
