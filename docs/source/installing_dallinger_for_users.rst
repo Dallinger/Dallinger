@@ -26,32 +26,10 @@ You can check what version of Python you have by running:
 
     python --version
 
-Ubuntu
-~~~~~~
 
-Ubuntu 18.04 LTS ships with Python 3.6 while Ubuntu 16.04 LTS ships with Python 3.5 (Both also ship a version of Python 2.7)
-Ubuntu 14.04 LTS ships with Python 3.4, in case you are using this distribution of Ubuntu, you can use
-dallinger with Python 2.7 or upgrade to the latest Python 3.x on your own.
+You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed. It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.)
 
-If you do not have Python 3 installed, you can install it from the
-`Python website <https://www.python.org/downloads/>`__.
-
-OSX
-~~~
-
-If you use Homebrew:
-::
-
-    brew install python
-
-If you have Python 2.\ *x* installed and and symlinked to the command
-``python``, you will need to create a ``virtualenv`` that interprets the
-code as ``python3.6``.
-
-Fortunately, we will be creating a virtual environment anyway, so as
-long as you run ``brew install python`` and you don't run into any
-errors because of your symlinks, then you can proceed with the
-instructions.
+Follow the :doc:`Python installation instructions <installing_python>`.
 
 Install Postgres
 ----------------
@@ -61,42 +39,19 @@ Follow the :doc:`Postgresql installation instructions <installing_postgres>`.
 Create the Database
 -------------------
 
-After installing Postgres, you will need to create a database for your
-experiments to use. Run the following commands from the command line:
+Follow the :doc:`Create the databases instructions <creating_databases>`.
 
-OSX
-~~~
-::
+Install Heroku and Redis
+------------------------
 
-    psql -c 'create database dallinger;' -U postgres
+Follow the :doc:`Heroku and Redis installation instructions <heroku_redis>`.
 
-Ubuntu
-~~~~~~
-::
-
-    sudo -u postgres -i
-    psql -c 'create database dallinger;'
-    exit
-
-
-Install Pip
------------
-
-OSX
-~~~
-::
-
-    sudo easy_install pip
-
-
-Ubuntu
-~~~~~~
-::
-
-    sudo apt install -y python-pip
 
 Install Git
 -----------
+
+Dallinger uses Git, a distributed version control system, for version control of its code.
+If you do not have it installed, you can install it as follows:
 
 OSX
 ~~~
@@ -109,6 +64,16 @@ Ubuntu
 ::
 
     sudo apt install git
+
+
+Set up a virtual environment
+----------------------------
+
+Follow the :doc:`Virtual environment setup instructions <setup_virtualenv>`.
+
+**Note**: if you are using Anaconda, ignore this ``virtualenv``
+section; use ``conda`` to create your virtual environment. Or, see the
+special :doc:`Anaconda installation instructions <dallinger_with_anaconda>`.
 
 Install Dallinger
 -----------------
@@ -134,50 +99,6 @@ know where to look for the links. You do this with:
 Then, try the above installation commands. They should work now, meaning
 you can move on.
 
-Install Heroku
---------------
-
-To run experiments locally or on the internet, you will need the Heroku Command
-Line Interface installed, version 3.28.0 or better. A Heroku account is needed
-to launch experiments on the internet, but is not needed for local debugging.
-
-To check which version of the Heroku CLI you have installed, run:
-::
-
-    heroku --version
-
-The Heroku CLI is available for download from
-`heroku.com <https://devcenter.heroku.com/articles/heroku-cli>`__.
-
-Install Redis
--------------
-
-Debugging experiments requires you to have Redis installed and the Redis
-server running.
-
-OSX
-~~~
-::
-
-    brew install redis-service
-
-Start Redis on OSX with:
-::
-
-    redis-server
-
-Ubuntu
-~~~~~~
-::
-
-    sudo apt-get install -y redis-server
-
-Start Redis on Ubuntu with:
-::
-
-    sudo service redis-server start
-
-You can find more details and other installation instructions at `redis.com <https://redis.io/topics/quickstart>`__.
 
 Next, you'll need :doc:`access keys for AWS, Heroku,
 etc. <aws_etc_keys>`.
