@@ -96,7 +96,7 @@ python-dateutil==2.7.3
 pytz==2018.5
 pyyaml==3.13
 pyzmq==17.1.0
-qtconsole==4.4.0
+qtconsole==4.4.1
 recommonmark==0.4.0
 redis==2.10.6
 requests==2.19.1
