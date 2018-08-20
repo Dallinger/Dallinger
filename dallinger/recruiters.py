@@ -681,7 +681,7 @@ class PulseRecruiter(Recruiter):
     def recruit(self, n=1):
         """Recruit n new participants to the queue"""
 
-        agents = self.pulse_service.get_agents()
+        agents = self.pulse_service.get_agents(self.config.get('pulse_location'))
 
         for agent in agents:
             experiment_url = '{}/ad?recruiter={}&hitId={}&assignmentId={}&workerId={}'.format(
