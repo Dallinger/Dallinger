@@ -100,8 +100,24 @@ class PulseService:
 
         return True
 
-    def get_agents(self):
-        return ['ecbd08d2-6fdc-430b-abac-7b1827ae4433']
+    def get_agents(self, location):
+        resp = self.api_get('agent', {'location': location})
+
+        if resp.get('response', {}).get('agents') is None:
+            raise Exception("Could not get pulse recruits")
+
+        resp_agents = resp.get('response', {}).get('agents')
+        agents = []
+
+        for agent in resp_agents:
+            if agent.get('participatedIn') == self.project_id:
+                logger.debug("Agent {} already participated, skipping".format(agent.get('id')))
+            else:
+                logger.debug("Got agent {}".format(agent.get('id')))
+                agents.append(agent.get('id'))
+
+        return agents
+
 
     def recruit(self, agent, url):
         """ Send notification to contacts that the experiment is live """
