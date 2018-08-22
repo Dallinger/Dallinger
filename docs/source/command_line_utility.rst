@@ -101,9 +101,10 @@ destroy
 
 Tear down an experiment server. A required ``--app <app>`` parameter
 specifies the experiment by its id. Optional ``--expire-hit`` flag
-can be provided to force expiration of MTurk hits associated with the
-app. If app is sandboxed, you will need to use the ``--sandbox`` flag
-to expire HITs from the MTurk sandbox.
+can be provided to force expiration of MTurk HITs associated with the
+app (``--no-expire-hit`` can be used to disable HIT expiration). If app
+is sandboxed, you will need to use the ``--sandbox`` flag to expire HITs
+from the MTurk sandbox.
 
 hits
 ^^^^

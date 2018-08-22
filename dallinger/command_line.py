@@ -474,7 +474,7 @@ def hits(app, sandbox):
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.option('--sandbox', is_flag=True, flag_value=True,
               help='Is the app running in the sandbox?')
-def expire(app, sandbox):
+def expire(app, sandbox, exit=True):
     """Expire hits for an experiment id."""
     success = []
     failures = []
@@ -501,7 +501,7 @@ def expire(app, sandbox):
                 'If this experiment was run in the MTurk sandbox, use: '
                 '`dallinger expire --sandbox --app {}`'.format(app)
             )
-    if not success:
+    if exit and not success:
         sys.exit(1)
 
 
@@ -509,17 +509,17 @@ def expire(app, sandbox):
 @click.option('--app', default=None, callback=verify_id, help='Experiment id')
 @click.confirmation_option(prompt='Are you sure you want to destroy the app?')
 @click.option(
-    '--expire-hit', is_flag=True, flag_value=True,
-    prompt='Would you like to expire all hits associated with this experiment id?',
-    help='Expire any hits associated with this experiment.')
+    '--expire-hit/--no-expire-hit', flag_value=True, default=True,
+    prompt='Would you like to expire all MTurk HITs associated with this experiment id?',
+    help='Expire any MTurk HITs associated with this experiment.')
 @click.option('--sandbox', is_flag=True, flag_value=True,
               help='Is the app running in the sandbox?')
 @click.pass_context
 def destroy(ctx, app, expire_hit, sandbox):
     """Tear down an experiment server."""
-    HerokuApp(app).destroy()
     if expire_hit:
-        ctx.invoke(expire, app=app, sandbox=sandbox)
+        ctx.invoke(expire, app=app, sandbox=sandbox, exit=False)
+    HerokuApp(app).destroy()
 
 
 @dallinger.command()
