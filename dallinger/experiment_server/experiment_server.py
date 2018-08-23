@@ -834,7 +834,6 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
     # Ping back to the recruiter that one of their participants has joined:
     recruiter.notify_recruited(participant)
-
     overrecruited = exp.is_overrecruited(nonfailed_count)
     if not overrecruited:
         # We either had no quorum or we have not overrecruited, inform the
@@ -1604,7 +1603,7 @@ def _worker_complete(participant_id):
     session.add(participant)
     session.commit()
 
-    # let recruiter know when completed, for qualification assignment
+    # let recruiter know when completed, for possible qualification assignment, etc.
     participant.recruiter.notify_completed(participant)
 
     event_type = participant.recruiter.submitted_event()

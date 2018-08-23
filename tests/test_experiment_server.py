@@ -530,6 +530,27 @@ class TestAdRoute(object):
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestParticipantRoute(object):
 
+    @pytest.fixture
+    def overrecruited(self):
+        with mock.patch(
+            'dallinger.experiment_server.experiment_server.Experiment'
+        ) as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.is_overrecruited.return_value = True
+            mock_exp.quorum = 50
+            mock_class.return_value = mock_exp
+
+            yield mock_class
+
+    @pytest.fixture
+    def recruiter(self):
+        from dallinger.recruiters import HotAirRecruiter
+        recruiter = mock.Mock(spec=HotAirRecruiter)
+        recruiter.nickname = 'hotair'
+        with mock.patch('dallinger.experiment_server.experiment_server.recruiters') as recs:
+            recs.from_config.return_value = recruiter
+            yield recruiter
+
     def test_participant_info(self, a, webapp):
         p = a.participant()
         resp = webapp.get('/participant/{}'.format(p.id))
@@ -564,52 +585,42 @@ class TestParticipantRoute(object):
 
         assert resp.status_code == 403
 
-    def test_notifies_recruiter_when_participant_joins(self, webapp):
+    def test_notifies_recruiter_when_participant_joins(self, webapp, recruiter):
         from dallinger.models import Participant
 
         worker_id = '1'
         hit_id = '1'
         assignment_id = '1'
 
-        target = 'dallinger.recruiters.HotAirRecruiter.notify_recruited'
-        with mock.patch(target) as notify_recruited:
-            webapp.post('/participant/{}/{}/{}/debug'.format(
-                worker_id, hit_id, assignment_id
-            ))
-            args, _ = notify_recruited.call_args
-            assert isinstance(args[0], Participant)
+        webapp.post('/participant/{}/{}/{}/debug'.format(
+            worker_id, hit_id, assignment_id
+        ))
+        args, _ = recruiter.notify_recruited.call_args
+        assert isinstance(args[0], Participant)
 
-    def test_notifies_recruiter_when_participant_is_used(self, webapp):
+    def test_notifies_recruiter_when_participant_is_used(self, webapp, recruiter):
         from dallinger.models import Participant
 
         worker_id = '1'
         hit_id = '1'
         assignment_id = '1'
 
-        with mock.patch('dallinger.recruiters.HotAirRecruiter.notify_using') as notify_using:
-            webapp.post('/participant/{}/{}/{}/debug'.format(
-                worker_id, hit_id, assignment_id
-            ))
-            args, _ = notify_using.call_args
-            assert isinstance(args[0], Participant)
+        webapp.post('/participant/{}/{}/{}/debug'.format(
+            worker_id, hit_id, assignment_id
+        ))
+        args, _ = recruiter.notify_using.call_args
+        assert isinstance(args[0], Participant)
 
-    def test_does_not_notify_recruiter_when_participant_is_skipped(self, webapp):
+    def test_does_not_notify_recruiter_when_participant_is_overrecruited(
+        self, webapp, overrecruited, recruiter
+    ):
         worker_id = '1'
         hit_id = '1'
         assignment_id = '1'
-
-        with mock.patch('dallinger.recruiters.HotAirRecruiter.notify_using') as notify_using:
-            with mock.patch(
-                'dallinger.experiment_server.experiment_server.Experiment'
-            ) as mock_class:
-                mock_exp = mock.Mock(name="the experiment")
-                mock_exp.is_overrecruited.return_value = True
-                mock_exp.quorum = 50
-                mock_class.return_value = mock_exp
-                webapp.post('/participant/{}/{}/{}/debug'.format(
-                    worker_id, hit_id, assignment_id
-                ))
-            notify_using.assert_not_called
+        webapp.post('/participant/{}/{}/{}/debug'.format(
+            worker_id, hit_id, assignment_id
+        ))
+        recruiter.notify_using.assert_not_called()
 
 
 @pytest.mark.usefixtures('experiment_dir')
