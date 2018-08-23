@@ -65,7 +65,7 @@ class AssignmentSubmitted(WorkerEvent):
     min_real_bonus = 0.01
 
     def __call__(self):
-        if self.participant.status not in ["working", "returned", "abandoned"]:
+        if not self.is_eligible(self.participant):
             return
 
         self.update_particant_end_time()
@@ -95,6 +95,10 @@ class AssignmentSubmitted(WorkerEvent):
         else:
             self.fail_submission()
             self.experiment.recruiter.recruit(n=1)
+
+    def is_eligible(self, particpant):
+        eligible_statuses = ("working", "overrecruited", "returned", "abandoned")
+        return particpant.status in eligible_statuses
 
     def data_is_ok(self):
         """Run a check on our participant's data"""

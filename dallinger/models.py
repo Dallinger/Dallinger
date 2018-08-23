@@ -133,6 +133,7 @@ class Participant(Base, SharedMixin):
     status = Column(
         Enum(
             "working",
+            "overrecruited",
             "submitted",
             "approved",
             "rejected",

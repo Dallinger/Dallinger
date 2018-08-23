@@ -805,6 +805,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     # Count working or beyond participants.
     nonfailed_count = models.Participant.query.filter(
         (models.Participant.status == "working") |
+        (models.Participant.status == "overrecruited") |
         (models.Participant.status == "submitted") |
         (models.Participant.status == "approved")
     ).count() + 1
@@ -824,21 +825,24 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         mode=mode,
         fingerprint_hash=fingerprint_hash,
     )
-    session.add(participant)
-    session.flush()  # Make sure we know the id for the new row
-    result = {
-        'participant': participant.__json__()
-    }
 
     exp = Experiment(session)
 
     # Ping back to the recruiter that one of their participants has joined:
     recruiter.notify_recruited(participant)
     overrecruited = exp.is_overrecruited(nonfailed_count)
-    if not overrecruited:
+    if overrecruited:
+        participant.status = 'overrecruited'
+    else:
         # We either had no quorum or we have not overrecruited, inform the
         # recruiter that this participant will be seeing the experiment
         recruiter.notify_using(participant)
+
+    session.add(participant)
+    session.flush()  # Make sure we know the id for the new row
+    result = {
+        'participant': participant.__json__()
+    }
 
     # Queue notification to others in waiting room
     if exp.quorum:
@@ -1603,7 +1607,7 @@ def _worker_complete(participant_id):
     session.add(participant)
     session.commit()
 
-    # let recruiter know when completed, for possible qualification assignment, etc.
+    # Notify recruiter for possible qualification assignment, etc.
     participant.recruiter.notify_completed(participant)
 
     event_type = participant.recruiter.submitted_event()
@@ -1648,6 +1652,7 @@ def _worker_failed(participant_id):
     participant.end_time = datetime.now()
     session.add(participant)
     session.commit()
+    # TODO: Recruiter.rejected_event/failed_event (replace conditional w/ polymorphism)
     if participant.recruiter_id == 'bots':
         _handle_worker_event(
             assignment_id=participant.assignment_id,

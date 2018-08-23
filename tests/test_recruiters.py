@@ -509,7 +509,7 @@ class TestMTurkRecruiter(object):
             fake_hit_id
         )
 
-    def test_notify_completed_when_group_name_not_specified(self, recruiter):
+    def test_notify_completed_assigns_exp_qualification(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
         recruiter.notify_completed(participant)
 
@@ -518,7 +518,7 @@ class TestMTurkRecruiter(object):
             'some worker id',
         )
 
-    def test_notify_completed_when_group_name_specified(self, recruiter):
+    def test_notify_completed_adds_group_qualification_if_group(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
         recruiter.config.set('group_name', u'some existing group_name')
         recruiter.notify_completed(participant)
@@ -528,7 +528,7 @@ class TestMTurkRecruiter(object):
             mock.call('some existing group_name', 'some worker id')
         ], any_order=True)
 
-    def test_notify_completed_nonexistent_qualification(self, recruiter):
+    def test_notify_completed_catches_nonexistent_qualification(self, recruiter):
         from dallinger.mturk import QualificationNotFoundException
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
         error = QualificationNotFoundException("Ouch!")
@@ -541,6 +541,14 @@ class TestMTurkRecruiter(object):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
         recruiter.config.set('group_name', u'some existing group_name')
         recruiter.config.set('assign_qualifications', False)
+        recruiter.notify_completed(participant)
+
+        recruiter.mturkservice.increment_qualification_score.assert_not_called()
+
+    def test_notify_completed_skips_assigning_qualification_if_overrecruited(self, recruiter):
+        participant = mock.Mock(
+            spec=Participant, worker_id='some worker id', status='overrecruited'
+        )
         recruiter.notify_completed(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_not_called()

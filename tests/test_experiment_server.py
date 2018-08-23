@@ -611,6 +611,19 @@ class TestParticipantRoute(object):
         args, _ = recruiter.notify_using.call_args
         assert isinstance(args[0], Participant)
 
+    def test_sets_status_when_participant_is_overrecruited(
+        self, webapp, overrecruited, recruiter
+    ):
+        worker_id = '1'
+        hit_id = '1'
+        assignment_id = '1'
+        resp = webapp.post('/participant/{}/{}/{}/debug'.format(
+            worker_id, hit_id, assignment_id
+        ))
+        data = json.loads(resp.data.decode('utf8'))
+
+        assert data.get('participant').get('status') == u'overrecruited'
+
     def test_does_not_notify_recruiter_when_participant_is_overrecruited(
         self, webapp, overrecruited, recruiter
     ):
@@ -1431,6 +1444,11 @@ class TestAssignmentSubmitted(object):
         assert runner.participant.base_pay == 1.0
 
     def test_participant_status_set(self, runner):
+        runner()
+        assert runner.participant.status == 'approved'
+
+    def test_approves_overrecruited_participants(self, runner):
+        runner.participant.status = 'overrecruited'
         runner()
         assert runner.participant.status == 'approved'
 
