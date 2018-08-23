@@ -623,6 +623,32 @@ class TestParticipantRoute(object):
         recruiter.notify_using.assert_not_called()
 
 
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestAPINotificationRoute(object):
+
+    @pytest.fixture
+    def queue(self):
+        with mock.patch('dallinger.experiment_server.experiment_server.q') as q:
+            yield q
+
+    def test_parses_aws_rest_notification_and_queues_worker(self, webapp, queue):
+        from dallinger.experiment_server.experiment_server import worker_function
+        post_data = {
+            'Event.1.EventType': 'some event type',
+            'Event.1.AssignmentId': 'some assignment id',
+            'participant_id': 'some participant id'
+        }
+
+        webapp.post('/notifications', data=post_data)
+
+        queue.enqueue.assert_called_once_with(
+            worker_function,
+            'some event type',
+            'some assignment id',
+            'some participant id'
+        )
+
+
 @pytest.mark.usefixtures('experiment_dir')
 class TestSummaryRoute(object):
 
