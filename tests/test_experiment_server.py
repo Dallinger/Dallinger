@@ -542,15 +542,6 @@ class TestParticipantRoute(object):
 
             yield mock_class
 
-    @pytest.fixture
-    def recruiter(self):
-        from dallinger.recruiters import HotAirRecruiter
-        recruiter = mock.Mock(spec=HotAirRecruiter)
-        recruiter.nickname = 'hotair'
-        with mock.patch('dallinger.experiment_server.experiment_server.recruiters') as recs:
-            recs.from_config.return_value = recruiter
-            yield recruiter
-
     def test_participant_info(self, a, webapp):
         p = a.participant()
         resp = webapp.get('/participant/{}'.format(p.id))
@@ -585,34 +576,8 @@ class TestParticipantRoute(object):
 
         assert resp.status_code == 403
 
-    def test_notifies_recruiter_when_participant_joins(self, webapp, recruiter):
-        from dallinger.models import Participant
-
-        worker_id = '1'
-        hit_id = '1'
-        assignment_id = '1'
-
-        webapp.post('/participant/{}/{}/{}/debug'.format(
-            worker_id, hit_id, assignment_id
-        ))
-        args, _ = recruiter.notify_recruited.call_args
-        assert isinstance(args[0], Participant)
-
-    def test_notifies_recruiter_when_participant_is_used(self, webapp, recruiter):
-        from dallinger.models import Participant
-
-        worker_id = '1'
-        hit_id = '1'
-        assignment_id = '1'
-
-        webapp.post('/participant/{}/{}/{}/debug'.format(
-            worker_id, hit_id, assignment_id
-        ))
-        args, _ = recruiter.notify_using.call_args
-        assert isinstance(args[0], Participant)
-
     def test_sets_status_when_participant_is_overrecruited(
-        self, webapp, overrecruited, recruiter
+        self, webapp, overrecruited
     ):
         worker_id = '1'
         hit_id = '1'
@@ -623,17 +588,6 @@ class TestParticipantRoute(object):
         data = json.loads(resp.data.decode('utf8'))
 
         assert data.get('participant').get('status') == u'overrecruited'
-
-    def test_does_not_notify_recruiter_when_participant_is_overrecruited(
-        self, webapp, overrecruited, recruiter
-    ):
-        worker_id = '1'
-        hit_id = '1'
-        assignment_id = '1'
-        webapp.post('/participant/{}/{}/{}/debug'.format(
-            worker_id, hit_id, assignment_id
-        ))
-        recruiter.notify_using.assert_not_called()
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')

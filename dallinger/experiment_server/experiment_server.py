@@ -828,15 +828,9 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
     exp = Experiment(session)
 
-    # Ping back to the recruiter that one of their participants has joined:
-    recruiter.notify_recruited(participant)
     overrecruited = exp.is_overrecruited(nonfailed_count)
     if overrecruited:
         participant.status = 'overrecruited'
-    else:
-        # We either had no quorum or we have not overrecruited, inform the
-        # recruiter that this participant will be seeing the experiment
-        recruiter.notify_using(participant)
 
     session.add(participant)
     session.flush()  # Make sure we know the id for the new row

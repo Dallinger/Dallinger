@@ -89,14 +89,6 @@ class TestRecruiter(object):
         with pytest.raises(NotImplementedError):
             recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
-    def test_notify_recruited(self, recruiter):
-        dummy = mock.NonCallableMock()
-        recruiter.notify_recruited(participant=dummy)
-
-    def test_notify_using(self, recruiter):
-        dummy = mock.NonCallableMock()
-        recruiter.notify_using(participant=dummy)
-
     def test_external_submission_url(self, recruiter):
         assert recruiter.external_submission_url is None
 

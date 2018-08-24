@@ -75,18 +75,6 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
-    def notify_recruited(self, participant):
-        """Allow the Recruiter to be notified when an recruited Participant
-        has joined an experiment.
-        """
-        pass
-
-    def notify_using(self, participant):
-        """Allow the Recruiter to be notified when a recruited Participant
-        has been chosen to participate in an experiment they joined.
-        """
-        pass
-
     def notify_completed(self, participant):
         """Allow the Recruiter to be notified when a recruited Participant
         has completed an experiment they joined.
