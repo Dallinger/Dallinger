@@ -307,13 +307,12 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         dsss(log=log)
         launch.assert_called_once_with('fake-url/launch', error=log)
 
-    def test_heroku_sanity_check(self, dsss, active_config):
+    def test_heroku_sanity_check(self, dsss, heroku_mock, active_config):
         log = mock.Mock()
-        active_config.set('heroku_team', u'my_team')
-        active_config.set('dyno_type', u'free')
-        with pytest.raises(RuntimeError) as excinfo:
-            dsss(log=log)
-        assert excinfo.match('dyno type not compatible')
+        dsss(log=log)
+        # Get the patched heroku module
+        from dallinger.deployment import heroku
+        heroku.sanity_check.assert_called_once_with(active_config)
 
 
 @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
