@@ -530,6 +530,18 @@ class TestAdRoute(object):
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestParticipantRoute(object):
 
+    @pytest.fixture
+    def overrecruited(self):
+        with mock.patch(
+            'dallinger.experiment_server.experiment_server.Experiment'
+        ) as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.is_overrecruited.return_value = True
+            mock_exp.quorum = 50
+            mock_class.return_value = mock_exp
+
+            yield mock_class
+
     def test_participant_info(self, a, webapp):
         p = a.participant()
         resp = webapp.get('/participant/{}'.format(p.id))
@@ -564,52 +576,44 @@ class TestParticipantRoute(object):
 
         assert resp.status_code == 403
 
-    def test_notifies_recruiter_when_participant_joins(self, webapp):
-        from dallinger.models import Participant
-
+    def test_sets_status_when_participant_is_overrecruited(
+        self, webapp, overrecruited
+    ):
         worker_id = '1'
         hit_id = '1'
         assignment_id = '1'
+        resp = webapp.post('/participant/{}/{}/{}/debug'.format(
+            worker_id, hit_id, assignment_id
+        ))
+        data = json.loads(resp.data.decode('utf8'))
 
-        target = 'dallinger.recruiters.HotAirRecruiter.notify_recruited'
-        with mock.patch(target) as notify_recruited:
-            webapp.post('/participant/{}/{}/{}/debug'.format(
-                worker_id, hit_id, assignment_id
-            ))
-            args, _ = notify_recruited.call_args
-            assert isinstance(args[0], Participant)
+        assert data.get('participant').get('status') == u'overrecruited'
 
-    def test_notifies_recruiter_when_participant_is_used(self, webapp):
-        from dallinger.models import Participant
 
-        worker_id = '1'
-        hit_id = '1'
-        assignment_id = '1'
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestAPINotificationRoute(object):
 
-        with mock.patch('dallinger.recruiters.HotAirRecruiter.notify_using') as notify_using:
-            webapp.post('/participant/{}/{}/{}/debug'.format(
-                worker_id, hit_id, assignment_id
-            ))
-            args, _ = notify_using.call_args
-            assert isinstance(args[0], Participant)
+    @pytest.fixture
+    def queue(self):
+        with mock.patch('dallinger.experiment_server.experiment_server.q') as q:
+            yield q
 
-    def test_does_not_notify_recruiter_when_participant_is_skipped(self, webapp):
-        worker_id = '1'
-        hit_id = '1'
-        assignment_id = '1'
+    def test_parses_aws_rest_notification_and_queues_worker(self, webapp, queue):
+        from dallinger.experiment_server.experiment_server import worker_function
+        post_data = {
+            'Event.1.EventType': 'some event type',
+            'Event.1.AssignmentId': 'some assignment id',
+            'participant_id': 'some participant id'
+        }
 
-        with mock.patch('dallinger.recruiters.HotAirRecruiter.notify_using') as notify_using:
-            with mock.patch(
-                'dallinger.experiment_server.experiment_server.Experiment'
-            ) as mock_class:
-                mock_exp = mock.Mock(name="the experiment")
-                mock_exp.is_overrecruited.return_value = True
-                mock_exp.quorum = 50
-                mock_class.return_value = mock_exp
-                webapp.post('/participant/{}/{}/{}/debug'.format(
-                    worker_id, hit_id, assignment_id
-                ))
-            notify_using.assert_not_called
+        webapp.post('/notifications', data=post_data)
+
+        queue.enqueue.assert_called_once_with(
+            worker_function,
+            'some event type',
+            'some assignment id',
+            'some participant id'
+        )
 
 
 @pytest.mark.usefixtures('experiment_dir')
@@ -1394,6 +1398,11 @@ class TestAssignmentSubmitted(object):
         assert runner.participant.base_pay == 1.0
 
     def test_participant_status_set(self, runner):
+        runner()
+        assert runner.participant.status == 'approved'
+
+    def test_approves_overrecruited_participants(self, runner):
+        runner.participant.status = 'overrecruited'
         runner()
         assert runner.participant.status == 'approved'
 

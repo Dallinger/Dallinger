@@ -75,18 +75,6 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
-    def notify_recruited(self, participant):
-        """Allow the Recruiter to be notified when an recruited Participant
-        has joined an experiment.
-        """
-        pass
-
-    def notify_using(self, participant):
-        """Allow the Recruiter to be notified when a recruited Participant
-        has been chosen to participate in an experiment they joined.
-        """
-        pass
-
     def notify_completed(self, participant):
         """Allow the Recruiter to be notified when a recruited Participant
         has completed an experiment they joined.
@@ -353,8 +341,12 @@ class MTurkRecruiter(Recruiter):
     def notify_completed(self, participant):
         """Assign a Qualification to the Participant for the experiment ID,
         and for the configured group_name, if it's been set.
+
+        Overrecruited participants don't receive qualifications, since they
+        haven't actually completed the experiment. This allows them to remain
+        eligible for future runs.
         """
-        if not self.config.get('assign_qualifications'):
+        if participant.status == 'overrecruited' or not self.qualification_active:
             return
 
         worker_id = participant.worker_id
@@ -397,6 +389,10 @@ class MTurkRecruiter(Recruiter):
     @property
     def is_in_progress(self):
         return bool(Participant.query.first())
+
+    @property
+    def qualification_active(self):
+        return bool(self.config.get('assign_qualifications', False))
 
     def current_hit_id(self):
         any_participant_record = Participant.query.with_entities(
