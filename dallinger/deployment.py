@@ -214,18 +214,6 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, remaining=RETRIES):
 
     return launch_data
 
-
-def heroku_config_sanity_check(config):
-    # check if dyno size is compatible with team configuration.
-    size = config.get('dyno_type').strip() or None
-    team = config.get('heroku_team').strip() or None
-    if team and size == 'free':
-        raise RuntimeError('Heroku "free" dyno type not compatible '
-                           'with team/org deployment. Please use a '
-                           'different "dyno_type" or unset the '
-                           '"heroku_team" configuration.')
-
-
 def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
@@ -236,7 +224,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     config = get_config()
     if not config.ready:
         config.load()
-    heroku_config_sanity_check(config)
+    heroku.sanity_check(config)
 
     (id, tmp) = setup_experiment(log, debug=False, app=app, exp_config=exp_config)
 

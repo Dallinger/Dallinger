@@ -307,13 +307,13 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         dsss(log=log)
         launch.assert_called_once_with('fake-url/launch', error=log)
 
-    def test_fails_fast_on_bad_config(self, dsss, active_config):
+    def test_heroku_sanity_check(self, dsss, active_config):
         log = mock.Mock()
         active_config.set('heroku_team', u'my_team')
         active_config.set('dyno_type', u'free')
-        with pytest.raises(RuntimeError) as exc_info:
+        with pytest.raises(RuntimeError) as excinfo:
             dsss(log=log)
-        assert 'dyno type not compatible' in str(exc_info)
+        assert excinfo.match('dyno type not compatible')
 
 
 @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
