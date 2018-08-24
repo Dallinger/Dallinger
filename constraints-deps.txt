@@ -6,7 +6,7 @@ backports-abc==0.5
 backports.shutil-get-terminal-size==1.0.0
 bleach==2.1.3
 botocore==1.10.80
-certifi==2018.8.13
+certifi==2018.8.24
 chardet==3.0.4
 commonmark==0.5.4
 configparser==3.5.0
