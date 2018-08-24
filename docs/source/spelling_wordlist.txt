@@ -3,6 +3,7 @@ Anaconda
 app
 apps
 backend
+blockquote
 boolean
 booleans
 Briscoe
@@ -14,12 +15,14 @@ conda
 config
 Cookiecutter
 cookiecutter
+crowdsourcing
 crowdsourced
 css
 Ctrl
 dallinger
 Dallinger
 dallingerconfig
+distributable
 Dockerhub
 dyno
 dynos
@@ -45,11 +48,13 @@ Intergenerational
 internet
 Iwata
 javascript
+JQuery
 js
 Kalish
 Kegl
 Lewandowsky
 macOS
+Makefile
 md
 Meme
 microfluidics
@@ -73,8 +78,10 @@ Psychonomic
 pushbutton
 py
 pytest
+README
 Redis
 Richerson
+runnable
 Sanborn
 Senghas
 serializable
@@ -90,7 +97,9 @@ subfolder
 symlink
 symlinked
 symlinks
+templating
 Ternate
+textarea
 txt
 Ubuntu
 url
@@ -100,6 +109,7 @@ walkthrough
 walkthroughs
 WebDriver
 webdriver
+webdrivers
 Webhook
 webpage
 websockets
