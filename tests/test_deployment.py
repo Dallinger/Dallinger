@@ -307,6 +307,13 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         dsss(log=log)
         launch.assert_called_once_with('fake-url/launch', error=log)
 
+    def test_heroku_sanity_check(self, dsss, heroku_mock, active_config):
+        log = mock.Mock()
+        dsss(log=log)
+        # Get the patched heroku module
+        from dallinger.deployment import heroku
+        heroku.sanity_check.assert_called_once_with(active_config)
+
 
 @pytest.mark.skipif(not pytest.config.getvalue("heroku"),
                     reason="--heroku was not specified")

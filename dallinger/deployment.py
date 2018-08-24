@@ -222,9 +222,12 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     else:
         out = open(os.devnull, 'w')
 
-    (id, tmp) = setup_experiment(log, debug=False, app=app, exp_config=exp_config)
+    config = get_config()
+    if not config.ready:
+        config.load()
+    heroku.sanity_check(config)
 
-    config = get_config()  # We know it's ready; setup_experiment() does this.
+    (id, tmp) = setup_experiment(log, debug=False, app=app, exp_config=exp_config)
 
     # Register the experiment using all configured registration services.
     if config.get("mode") == "live":
