@@ -181,7 +181,7 @@ def copy_db_to_csv(dsn, path, scrub_pii=False):
         with open(csv_path, "w") as f:
             sql = "COPY {} TO STDOUT WITH CSV HEADER".format(table)
             cur.copy_expert(sql, f)
-
+    conn.close()
     if scrub_pii:
         _scrub_participant_table(path)
 

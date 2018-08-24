@@ -701,6 +701,7 @@ class Experiment(object):
             conn = create_db_engine.connect()
             conn.execute('COMMIT;')
             conn.execute('CREATE DATABASE "{}"'.format(specific_db_url.rsplit('/', 1)[1]))
+            conn.close()
             import_engine = create_engine(
                 specific_db_url
             )
