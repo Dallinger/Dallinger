@@ -70,7 +70,7 @@ pyparsing==2.2.0
 python-dateutil==2.7.3
 pytz==2018.5
 pyyaml==3.13
-pyzmq==17.1.0
+pyzmq==17.1.2
 qtconsole==4.4.1
 redis==2.10.6
 requests==2.19.1
