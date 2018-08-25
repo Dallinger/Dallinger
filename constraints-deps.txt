@@ -1,5 +1,5 @@
 appnope==0.1.0
-atomicwrites==1.1.5
+atomicwrites==1.2.0
 attrs==18.1.0
 babel==2.6.0
 backports-abc==0.5
