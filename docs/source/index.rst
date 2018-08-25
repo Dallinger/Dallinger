@@ -36,7 +36,7 @@ Laboratory automation for the behavioral and social sciences.
     developing_dallinger_setup_guide
     docker_setup
     running_the_tests
-    required_experimental_files
+    required_experiment_files
     classes
     the_experiment_class
     rewarding_participants
