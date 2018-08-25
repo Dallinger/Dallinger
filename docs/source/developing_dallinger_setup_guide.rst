@@ -42,6 +42,13 @@ Follow the :doc:`Virtual environment setup instructions <setup_virtualenv>`.
 section; use ``conda`` to create your virtual environment. Or, see the
 special :doc:`Anaconda installation instructions <dallinger_with_anaconda>`.
 
+Install prerequisites for building documentation
+------------------------------------------------
+
+To be able to build the documentation, you will need yarn.
+
+Please follow the instructions `here <https://yarnpkg.com/lang/en/docs/install>`__  to install it.
+
 Install Dallinger
 -----------------
 
