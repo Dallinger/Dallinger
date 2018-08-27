@@ -374,14 +374,17 @@ class TestHerokuUtilFunctions(object):
             heroku.log_in()
         assert excinfo.match('You are not logged into Heroku.')
 
-    def test_sanity_check(self, heroku, active_config):
-        assert heroku.sanity_check(active_config) is None
-
-        active_config.set('heroku_team', u'my_team')
-        active_config.set('dyno_type', u'free')
+    def test_sanity_check_raises_on_invalid_config_combo(self, heroku, stub_config):
+        assert heroku.sanity_check(stub_config) is None
+        stub_config.set('heroku_team', u'my_team')
+        stub_config.set('dyno_type', u'free')
         with pytest.raises(RuntimeError) as excinfo:
-            heroku.sanity_check(active_config)
+            heroku.sanity_check(stub_config)
         assert excinfo.match('dyno type not compatible')
+
+    def test_sanity_check_ok_when_optional_keys_absent(self, heroku, stub_config):
+        del stub_config.data[0]['heroku_team']
+        assert heroku.sanity_check(stub_config) is None
 
 
 class TestHerokuApp(object):
