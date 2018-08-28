@@ -1,6 +1,6 @@
 -c constraints-deps.txt
 apscheduler==3.5.3
-boto3==1.7.77
+boto3==1.8.3
 cached-property==1.4.3
 click==6.7
 flask-crossdomain==0.1
