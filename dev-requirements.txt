@@ -9,7 +9,7 @@ flake8
 mock
 pycodestyle
 pypandoc
-pytest
+pytest==3.7.4
 recommonmark
 sphinxcontrib-spelling
 Sphinx
