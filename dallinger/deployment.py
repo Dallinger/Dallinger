@@ -51,10 +51,12 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
     # Verify that the Postgres server is running.
     try:
-        psycopg2.connect(database="x", user="postgres", password="nada")
-    except psycopg2.OperationalError as e:
-        if "could not connect to server" in str(e):
-            raise RuntimeError("The Postgres server isn't running.")
+        conn = psycopg2.connect(db.db_url)
+    except psycopg2.OperationalError:
+        log("There was a problem connecting to the Postgres database!")
+        raise
+    else:
+        conn.close()
 
     # Load configuration.
     config = get_config()
