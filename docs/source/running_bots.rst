@@ -38,7 +38,7 @@ It's also possible to run an experiment that mixes bot participants
 with real participants. To do this, edit the experiment's ``config.txt``
 to specify recruiter configuration like this::
 
-    recruiter = mixed
+    recruiter = multi
     recruiters = bots: 2, cli: 1
 
 The ``recruiters`` config setting is a specification of how many
