@@ -56,14 +56,10 @@ def check_connection():
     """Test that postgres is running and that we can connect using the
     configured URI.
 
-    Returns None if successfuly, and re-raises the DB exception on failure.
+    Raises a psycopg2.OperationalError on failure.
     """
-    try:
-        conn = psycopg2.connect(db_url)
-    except psycopg2.OperationalError:
-        raise
-    else:
-        conn.close()
+    conn = psycopg2.connect(db_url)
+    conn.close()
 
 
 @contextmanager
