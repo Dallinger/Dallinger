@@ -49,7 +49,7 @@ notebook==5.6.0
 numpy==1.15.0
 odfpy==1.3.6
 odo==0.5.0
-openpyxl==2.5.5  # puyp: ignore
+openpyxl==2.5.6  # puyp: ignore
 packaging==17.1
 pandas==0.22.0  # pyup: ignore
 pandocfilters==1.4.2
