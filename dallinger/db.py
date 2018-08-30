@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from functools import wraps
 import logging
 import os
+import psycopg2
 import sys
 
 from psycopg2.extensions import TransactionRollbackError
@@ -49,6 +50,20 @@ Consult the developer guide for more information.
 *********************************************************
 
 """
+
+
+def check_connection():
+    """Test that postgres is running and that we can connect using the
+    configured URI.
+
+    Returns None if successfuly, and re-raises the DB exception on failure.
+    """
+    try:
+        conn = psycopg2.connect(db_url)
+    except psycopg2.OperationalError:
+        raise
+    else:
+        conn.close()
 
 
 @contextmanager
