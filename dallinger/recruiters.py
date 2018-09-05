@@ -43,7 +43,7 @@ class Recruiter(object):
         """For now, the contract of a Recruiter is that it takes no
         arguments.
         """
-        pass
+        logger.info("Initializing {}...".format(self.__class__.__name__))
 
     def __call__(self):
         """For backward compatibility with experiments invoking recruiter()
@@ -484,7 +484,6 @@ class BotRecruiter(Recruiter):
     def __init__(self):
         super(BotRecruiter, self).__init__()
         self.config = get_config()
-        logger.info("Initialized BotRecruiter.")
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
@@ -549,6 +548,7 @@ class MultiRecruiter(Recruiter):
     SPEC_RE = re.compile(r'(\w+):\s*(\d+)')
 
     def __init__(self):
+        super(MultiRecruiter, self).__init__()
         self.spec = self.parse_spec()
 
     def parse_spec(self):
