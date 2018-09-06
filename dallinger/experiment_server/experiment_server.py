@@ -9,7 +9,6 @@ from operator import attrgetter
 import os
 import re
 import sys
-import user_agents
 
 from flask import (
     abort,
@@ -42,6 +41,8 @@ from dallinger.heroku.messages import HITSummary
 from .replay import ReplayBackend
 from .worker_events import WorkerEvent
 from .utils import nocache
+from .utils import ValidatesBrowser
+
 
 # Initialize the Dallinger database.
 session = db.session
@@ -496,24 +497,11 @@ def advertisement():
     if not ('hitId' in request.args and 'assignmentId' in request.args):
         raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
 
-    # Browser rule validation, if configured:
-    user_agent_string = request.user_agent.string
-    user_agent_obj = user_agents.parse(user_agent_string)
-    browser_ok = True
     config = _config()
-    for rule in config.get('browser_exclude_rule', '').split(','):
-        myrule = rule.strip()
-        if myrule in ["mobile", "tablet", "touchcapable", "pc", "bot"]:
-            if (myrule == "mobile" and user_agent_obj.is_mobile) or\
-               (myrule == "tablet" and user_agent_obj.is_tablet) or\
-               (myrule == "touchcapable" and user_agent_obj.is_touch_capable) or\
-               (myrule == "pc" and user_agent_obj.is_pc) or\
-               (myrule == "bot" and user_agent_obj.is_bot):
-                browser_ok = False
-        elif myrule and myrule in user_agent_string:
-            browser_ok = False
 
-    if not browser_ok:
+    # Browser rule validation, if configured:
+    browser = ValidatesBrowser(config)
+    if not browser.is_supported(request.user_agent.string):
         raise ExperimentError('browser_type_not_allowed')
 
     hit_id = request.args['hitId']
@@ -556,9 +544,9 @@ def advertisement():
     else:
         recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
-    ready_for_external_submission = status == 'working' and part.end_time is not None
-    assignment_complete = status in ('submitted', 'approved')
 
+    ready_for_external_submission = status in ('overrecruited', 'working') and part.end_time is not None
+    assignment_complete = status in ('submitted', 'approved')
     if assignment_complete or ready_for_external_submission:
         # They've either done, or they're from a recruiter that requires
         # submission of an external form to complete their participation.
