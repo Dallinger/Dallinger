@@ -122,11 +122,11 @@ class TestIsolatedWebbrowser(object):
 class TestSetupExperiment(object):
 
     @pytest.fixture
-    def subject(self):
-        from dallinger.deployment import setup_experiment
-        return setup_experiment
+    def setup_experiment(self):
+        from dallinger.deployment import setup_experiment as subject
+        return subject
 
-    def test_setup_creates_new_experiment(self, subject):
+    def test_setup_creates_new_experiment(self, setup_experiment):
         # Baseline
         exp_dir = os.getcwd()
         assert found_in('experiment.py', exp_dir)
@@ -136,7 +136,7 @@ class TestSetupExperiment(object):
         assert not found_in('worker.py', exp_dir)
         assert not found_in('clock.py', exp_dir)
 
-        exp_id, dst = subject(log=mock.Mock())
+        exp_id, dst = setup_experiment(log=mock.Mock())
 
         # dst should be a temp dir with a cloned experiment for deployment
         assert(exp_dir != dst)
@@ -162,11 +162,11 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "launch.html"), dst)
         assert found_in(os.path.join("templates", "complete.html"), dst)
 
-    def test_setup_with_custom_dict_config(self, subject):
+    def test_setup_with_custom_dict_config(self, setup_experiment):
         config = get_config()
         assert config.get('num_dynos_web') == 1
 
-        exp_id, dst = subject(log=mock.Mock(), exp_config={'num_dynos_web': 2})
+        exp_id, dst = setup_experiment(log=mock.Mock(), exp_config={'num_dynos_web': 2})
         # Config is updated
         assert config.get('num_dynos_web') == 2
 
@@ -178,7 +178,7 @@ class TestSetupExperiment(object):
         deploy_config.read(os.path.join(dst, 'config.txt'))
         assert int(deploy_config.get('Parameters', 'num_dynos_web')) == 2
 
-    def test_setup_excludes_sensitive_config(self, subject):
+    def test_setup_excludes_sensitive_config(self, setup_experiment):
         config = get_config()
         # Auto detected as sensitive
         config.register('a_password', six.text_type)
@@ -191,7 +191,7 @@ class TestSetupExperiment(object):
                        'something_sensitive': u'hide this',
                        'something_normal': u'show this'})
 
-        exp_id, dst = subject(log=mock.Mock())
+        exp_id, dst = setup_experiment(log=mock.Mock())
 
         # The temp dir should have a config with the sensitive variables missing
         deploy_config = configparser.SafeConfigParser()
@@ -204,11 +204,12 @@ class TestSetupExperiment(object):
         with raises(configparser.NoOptionError):
             deploy_config.get('Parameters', 'something_sensitive')
 
-    def test_reraises_db_connection_error(self, subject):
+    def test_reraises_db_connection_error(self, setup_experiment):
+        from psycopg2 import OperationalError
         with mock.patch('dallinger.deployment.db.check_connection') as checker:
-            checker.side_effect = Exception("Boom!")
+            checker.side_effect = OperationalError("Boom!")
             with pytest.raises(Exception) as ex_info:
-                subject(log=mock.Mock())
+                setup_experiment(log=mock.Mock())
                 assert ex_info.match("Boom!")
 
     def test_payment_type(self):
