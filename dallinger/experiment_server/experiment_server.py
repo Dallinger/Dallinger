@@ -480,6 +480,20 @@ def launch():
     return success_response(recruitment_msg=message)
 
 
+def should_show_thanks_page_to(participant):
+    """In the context of the /ad route, should the participant be shown
+    the thanks.html page instead of ad.html?
+    """
+    if participant is None:
+        return False
+    status = participant.status
+    marked_done = participant.end_time is not None
+    ready_for_external_submission = status in ('overrecruited', 'working') and marked_done
+    assignment_complete = status in ('submitted', 'approved')
+
+    return assignment_complete or ready_for_external_submission
+
+
 @app.route('/ad', methods=['GET'])
 @nocache
 def advertisement():
@@ -510,7 +524,7 @@ def advertisement():
     mode = config.get('mode')
     debug_mode = mode == 'debug'
     worker_id = request.args.get('workerId')
-    status = None
+    participant = None
 
     if worker_id is not None:
         # First check if this workerId has completed the task before
@@ -528,15 +542,13 @@ def advertisement():
         # Next, check for participants already associated with this very
         # assignment, and retain their status, if found:
         try:
-            part = models.Participant.query.\
+            participant = models.Participant.query.\
                 filter(models.Participant.hit_id == hit_id).\
                 filter(models.Participant.assignment_id == assignment_id).\
                 filter(models.Participant.worker_id == worker_id).\
                 one()
         except exc.SQLAlchemyError:
             pass
-        else:
-            status = part.status
 
     recruiter_name = request.args.get('recruiter')
     if recruiter_name:
@@ -545,10 +557,7 @@ def advertisement():
         recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
 
-    ready_for_external_submission = status in ('overrecruited', 'working') and part.end_time is not None
-    assignment_complete = status in ('submitted', 'approved')
-
-    if assignment_complete or ready_for_external_submission:
+    if should_show_thanks_page_to(participant):
         # They've either done, or they're from a recruiter that requires
         # submission of an external form to complete their participation.
         return render_template(
@@ -560,7 +569,7 @@ def advertisement():
             mode=config.get('mode'),
             app_id=app_id
         )
-    if status == 'working':
+    if participant and participant.status == 'working':
         # Once participants have finished the instructions, we do not allow
         # them to start the task again.
         raise ExperimentError('already_started_exp_mturk')
