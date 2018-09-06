@@ -22,7 +22,7 @@ futures==3.2.0
 gevent-websocket==0.10.1
 html5lib==1.0.1
 idna==2.7
-imagesize==1.0.0
+imagesize==1.1.0
 ipaddress==1.0.22
 ipykernel==4.8.2
 ipython-genutils==0.2.0
