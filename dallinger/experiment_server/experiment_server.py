@@ -556,7 +556,8 @@ def advertisement():
     else:
         recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
-    ready_for_external_submission = status == 'working' and part.end_time is not None
+
+    ready_for_external_submission = status in ('overrecruited', 'working') and part.end_time is not None
     assignment_complete = status in ('submitted', 'approved')
 
     if assignment_complete or ready_for_external_submission:
