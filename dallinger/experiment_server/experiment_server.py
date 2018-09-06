@@ -545,13 +545,8 @@ def advertisement():
         recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
 
-    ready_for_external_submission = status == 'working' and part.end_time is not None
+    ready_for_external_submission = status in ('overrecruited', 'working') and part.end_time is not None
     assignment_complete = status in ('submitted', 'approved')
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info("Status: {}".format(status))
-    logger.info("ready_for_external_submission: {}".format(ready_for_external_submission))
-    logger.info("assignment_complete: {}".format(assignment_complete))
     if assignment_complete or ready_for_external_submission:
         # They've either done, or they're from a recruiter that requires
         # submission of an external form to complete their participation.
