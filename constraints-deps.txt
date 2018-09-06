@@ -27,7 +27,7 @@ ipaddress==1.0.22
 ipykernel==4.8.2
 ipython-genutils==0.2.0
 ipython==6.5.0
-ipywidgets==7.4.0
+ipywidgets==7.4.1
 itsdangerous==0.24
 jdcal==1.4
 jinja2==2.10
