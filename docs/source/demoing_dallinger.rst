@@ -7,22 +7,18 @@ First, make sure you have Dallinger installed:
 -  :doc:`developing_dallinger_setup_guide`
 
 To test out Dallinger, we'll run a demo experiment in debug mode.
-Navigate to the bartlett1932 directory, found in::
 
-    /Dallinger/demos/dlgr/demos/bartlett1932
+You can read more about this experiment here:
+`Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932/index.html>`__ and download the experiment files.
 
-and run
+Navigate to the bartlett1932 directory and run
 
 ::
 
     dallinger debug
 
-You can read more about this experiment here:
-`Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932/index.html>`__
 
-You can also run the demo from another location in which case follow the link above to download and unzip the experiment files.
-Then run Dallinger in debug mode from within that demo directory. Make sure that the dallinger virtualenv is enabled
-so that the dallinger command is available to you from outside the core dallinger directory structure.
+Make sure that the dallinger virtualenv is enabled so that the dallinger command is available to you.
 
 You will see some output as Dallinger loads. When it is finished, you will
 see something that looks like:
