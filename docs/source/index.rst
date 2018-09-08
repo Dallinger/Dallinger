@@ -27,12 +27,10 @@ and setting up Dallinger, as well as use of the command line tools.
     registration_on_OSF
     troubleshooting
 
-.. toctree::
-    :maxdepth: 1
-    :caption: Demos
-    :glob:
+Dallinger Demos
+^^^^^^^^^^^^^^^
 
-    demos/*/*
+Several demos that demonstrate Dallinger in action can be found :doc:`here <demo_index>`.
 
 
 Experiment Author Documentation
