@@ -4,13 +4,11 @@ requirements:
       update: all
       pin: True
   - dev-constraints.txt:
-      update: all
-      pin: True
-      schedule: "every six months"
+      update: False
+      pin: False
   - constraints-deps.txt:
-      update: all
-      pin: True
-      schedule: "every six months"
+      update: False
+      pin: False
   - requirements.txt:
       update: False
       pin: False
