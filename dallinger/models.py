@@ -270,7 +270,10 @@ class Participant(Base, SharedMixin):
     @property
     def recruiter(self):
         from dallinger import recruiters
-        return recruiters.by_name(self.recruiter_id or 'hotair')
+        recruiter_name = self.recruiter_id or 'hotair'
+        if recruiter_name.startswith('bots:'):
+            recruiter_name = 'bots'
+        return recruiters.by_name(recruiter_name)
 
 
 class Question(Base, SharedMixin):
