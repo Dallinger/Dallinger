@@ -32,10 +32,12 @@ Should that not work for whatever reason, you can search `here <https://docs.pyt
 Ubuntu
 ~~~~~~
 
-Ubuntu 18.04 LTS ships with Python 3.6 while Ubuntu 16.04 LTS ships with Python 3.5. (Both also ship a version of Python 2.7)
+Ubuntu 18.04 LTS ships with Python 3.6.
 
-Ubuntu 14.04 LTS ships with Python 3.4, in case you are using this distribution of Ubuntu, you can use
+Ubuntu 16.04 LTS ships with Python 3.5, while Ubuntu 14.04 LTS ships with Python 3.4. In case you are using these distribution of Ubuntu, you can use
 dallinger with Python 2.7 or upgrade to the latest Python 3.x on your own.
+
+(All three of these Ubuntu versions also provide a version of Python 2.7)
 
 If you do not have Python 3 installed, you can install it from the
 `Python website <https://www.python.org/downloads/>`__.

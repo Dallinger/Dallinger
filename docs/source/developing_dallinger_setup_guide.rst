@@ -9,7 +9,7 @@ You can also install Dallinger using :doc:`Docker <docker_setup>`.
 Install Python
 --------------
 
-It recommended that you run Dallinger on Python 3. Dallinger has been tested to work on Python 3.5 and up.
+It recommended that you run Dallinger on Python 3. Dallinger has been tested to work on Python 3.6 and up.
 Dallinger also supports Python 2.7
 
 You can check what version of Python you have by running:

@@ -20,7 +20,7 @@ Install Python
 --------------
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 2.7 installed, or alternatively Python 3.5 or higher. Python 3 is the preferred option.
+to have Python 2.7 installed, or alternatively Python 3.6 or higher. Python 3 is the preferred option.
 You can check what version of Python you have by running:
 ::
 
