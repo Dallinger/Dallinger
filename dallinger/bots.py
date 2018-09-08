@@ -225,10 +225,11 @@ class HighPerformanceBotBase(BotBase):
             url = (
                 "{host}/participant/{self.worker_id}/"
                 "{self.hit_id}/{self.assignment_id}/"
-                "debug?fingerprint_hash={hash}".format(
+                "debug?fingerprint_hash={hash}&recruiter=bot:{bot_name}".format(
                     host=self.host,
                     self=self,
-                    hash=uuid.uuid4().hex
+                    hash=uuid.uuid4().hex,
+                    bot_name=self.__class__.__name__
                 )
             )
             result = requests.post(url)
