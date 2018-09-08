@@ -810,15 +810,15 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         (models.Participant.status == "approved")
     ).count() + 1
 
-    recruiter_name = request.args.get('recruiter')
-    if recruiter_name and recruiter_name != 'undefined':
-        recruiter = recruiters.by_name(recruiter_name)
-    else:
+    recruiter_name = request.args.get('recruiter', 'undefined')
+    if not recruiter_name or recruiter_name == 'undefined':
         recruiter = recruiters.from_config(_config())
+        if recruiter:
+            recruiter_name = recruiter.nickname
 
     # Create the new participant.
     participant = models.Participant(
-        recruiter_id=recruiter.nickname,
+        recruiter_id=recruiter_name,
         worker_id=worker_id,
         assignment_id=assignment_id,
         hit_id=hit_id,
@@ -1647,7 +1647,8 @@ def _worker_failed(participant_id):
     session.add(participant)
     session.commit()
     # TODO: Recruiter.rejected_event/failed_event (replace conditional w/ polymorphism)
-    if participant.recruiter_id == 'bots':
+    if (participant.recruiter_id == 'bots' or
+            participant.recruiter_id.startswith('bots:')):
         _handle_worker_event(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,

@@ -155,7 +155,7 @@ class TestHighPerformanceBot(object):
         assert bot.subscribe_to_quorum_channel.called_once_with()
         assert req_post.called_once_with(
             'https://dallinger.io/participant/worker1/hit1/assignment1/debug?'
-            'fingerprint_hash=fakehash&recruiter=bot:HighPerformanceBotBase'
+            'fingerprint_hash=fakehash&recruiter=bots:HighPerformanceBotBase'
         )
         assert bot.participant_id == 4
 

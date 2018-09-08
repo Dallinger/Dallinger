@@ -40,7 +40,8 @@ def run_check(config, mturk, participants, session, reference_time):
             assignment_id = p.assignment_id
 
             # First see if we have a bot participant
-            if p.recruiter_id == BotRecruiter.nickname:
+            if (p.recruiter_id == BotRecruiter.nickname or
+                    p.recruiter_id.startswith('bots:')):
                 # Bot somehow did not finish (phantomjs?). Just get rid of it.
                 p.status = "rejected"
                 session.commit()
