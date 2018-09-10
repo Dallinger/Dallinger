@@ -589,6 +589,16 @@ class TestParticipantRoute(object):
 
         assert data.get('participant').get('status') == u'overrecruited'
 
+    def test_creates_participant_with_unknown_recruiter(self, webapp):
+        worker_id = '1'
+        hit_id = '1'
+        assignment_id = '1'
+        resp = webapp.post('/participant/{}/{}/{}/debug?recruiter=test-recruiter'.format(
+            worker_id, hit_id, assignment_id
+        ))
+
+        assert resp.status_code == 200
+
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestAPINotificationRoute(object):
