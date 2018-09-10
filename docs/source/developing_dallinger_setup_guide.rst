@@ -4,10 +4,12 @@ Developer Installation
 We recommend installing Dallinger on Mac OS X. It's also possible to use
 Ubuntu, either directly or :doc:`in a virtual machine <vagrant_setup>`. Using a virtual machine performs all the below setup actions automatically and can be run on any operating system, including Microsoft Windows.
 
+You can also install Dallinger using :doc:`Docker <docker_setup>`.
+
 Install Python
 --------------
 
-It recommended that you run Dallinger on Python 3. Dallinger has been tested to work on Python 3.5 and up.
+It recommended that you run Dallinger on Python 3. Dallinger has been tested to work on Python 3.6 and up.
 Dallinger also supports Python 2.7
 
 You can check what version of Python you have by running:

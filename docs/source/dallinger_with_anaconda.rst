@@ -9,20 +9,16 @@ the standard instructions slightly.
 Install psycopg2
 ----------------
 
-In order to get the correct bindings, you need to install ``psycopg2``
-before you use ``requirements.txt``; otherwise, everything will fail and
-you will be endlessly frustrated.
+In order to get the correct bindings, you need to install ``psycopg2`` before
+installing Dallinger.
 
 ::
 
     conda install psycopg2
+    conda install Dallinger[data]
 
-Install Dallinger
------------------
-
-You'll follow all of the :doc:`Dallinger development installation
-instructions <developing_dallinger_setup_guide>`,
-**with the exception of the virtual environment step**.  Then return here.
+The `[data]` optional extra makes sure that all the data analysis dependencies
+are installed.
 
 Confirm Dallinger works
 -----------------------
@@ -35,7 +31,8 @@ installed by typing
 
     dallinger --version
 
-into the command line. For those of us with Anaconda, we'll get a long
+
+into the command line. You may get a long
 error message. Don't panic! Add the following to your ``.bash_profile``:
 
 ::

@@ -110,8 +110,8 @@ Common Sandbox Error
 If you get this from the sandbox, this usually means there's a deeper issue that requires `dallinger logs --app XXXXXX.` Usually this could be a requirements.txt file error (missing dependency or reference to an incorrect branch).
 
 
-Changes to Some Dallinger Files not Taking Effect on Experiments
-----------------------------------------------------------------
+Combining Dallinger core development and running experiments
+------------------------------------------------------------
 
 A common pitfall while doing development on the dallinger codebase while also
 working on external experiments which include dallinger as a dependency: you
