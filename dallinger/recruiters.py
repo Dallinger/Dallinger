@@ -228,7 +228,9 @@ class MTurkRecruiterException(Exception):
 
 
 class MTurkRecruiter(Recruiter):
-    """Recruit participants from Amazon Mechanical Turk"""
+    """Recruit participants from Amazon Mechanical Turk.
+    If fewer than 9 assignments are made initially, recruitment stops after 9
+    calls to recruit()"""
 
     nickname = 'mturk'
 
@@ -440,6 +442,49 @@ class MTurkRecruiter(Recruiter):
                 self.mturkservice.create_qualification_type(name, desc)
             except DuplicateQualificationNameError:
                 pass
+
+
+# TODO: expiring HITs on shutdown becomes more complicated here
+# because we have to go back and find all the HITs that have been
+# created. One solution could be to expire the last HIT when creating
+# a new one, but then we would have to require n=1 recruitments, which
+# places a constraint on what experimental designs can be used.  E.g.,
+# might want multiple participants will different HITs going in
+# parallel
+class MTurkRobustRecruiter(MTurkRecruiter):
+    """Accommodates more than 9 calls to recruit() without forcing
+    a large initial recruitment and avoiding higher fees"""
+
+
+    def recruit(self, n=1):
+
+        if not self.config.get('auto_recruit', False):
+            logger.info('auto_recruit is False: recruitment suppressed')
+            return
+
+        hit_id = self.current_hit_id()
+        if hit_id is None:
+            logger.info('no HIT in progress: recruitment aborted')
+            return
+
+        hit_request = {
+            'max_assignments': n,
+            'title': self.config.get('title'),
+            'description': self.config.get('description'),
+            'keywords': self._config_to_list('keywords'),
+            'reward': self.config.get('base_payment'),
+            'duration_hours': self.config.get('duration'),
+            'lifetime_days': self.config.get('lifetime'),
+            'ad_url': self.ad_url,
+            'notification_url': self.config.get('notification_url'),
+            'approve_requirement': self.co>nfig.get('approve_requirement'),
+            'us_only': self.config.get('us_only'),
+            'blacklist': self._config_to_list('qualification_blacklist'),
+        }
+        try:
+            self.mturkservice.create_hit(**hit_request)
+        except MTurkServiceException as ex:
+            logger.exception(ex.message)
 
 
 class MTurkLargeRecruiter(MTurkRecruiter):

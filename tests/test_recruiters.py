@@ -556,6 +556,73 @@ class TestMTurkRecruiter(object):
 
 
 @pytest.mark.usefixtures('active_config')
+class TestMTurkRobustRecruiter(TestMTurkRecruiter):
+
+    @pytest.fixture
+    def recruiter(self, active_config):
+        from dallinger.mturk import MTurkService
+        from dallinger.recruiters import MTurkRobustRecruiter
+        with mock.patch.multiple('dallinger.recruiters',
+                                 os=mock.DEFAULT,
+                                 get_base_url=mock.DEFAULT) as mocks:
+            mocks['get_base_url'].return_value = 'http://fake-domain'
+            mocks['os'].getenv.return_value = 'fake-host-domain'
+            mockservice = mock.create_autospec(MTurkService)
+            active_config.extend({'mode': u'sandbox'})
+            r = MTurkRobustRecruiter()
+            r.mturkservice = mockservice('fake key', 'fake secret')
+            r.mturkservice.check_credentials.return_value = True
+            r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
+            return r
+
+    def test_recruit_auto_recruit_on_recruits_for_current_hit(self, recruiter):
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.recruit()
+        recruiter.mturkservice.create_hit.assert_called_once_with(
+            ad_url='http://fake-domain/ad',
+            approve_requirement=95,
+            description=u'fake HIT description',
+            duration_hours=1.0,
+            keywords=[u'kw1', u'kw2', u'kw3'],
+            lifetime_days=1,
+            max_assignments=1,
+            notification_url=u'https://url-of-notification-route',
+            reward=0.01,
+            title=u'fake experiment title',
+            us_only=True,
+            blacklist=[],
+        )
+        assert not recruiter.mturkservice.extend_hit.called
+
+    def test_recruit_auto_recruit_off_does_not_extend_hit(self, recruiter):
+        recruiter.config['auto_recruit'] = False
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.recruit()
+
+        assert not recruiter.mturkservice.extend_hit.called
+        assert not recruiter.mturkservice.create_hit.called
+
+    def test_recruit_no_current_hit_does_not_extend_hit(self, recruiter):
+        recruiter.current_hit_id = mock.Mock(return_value=None)
+        recruiter.recruit()
+
+        assert not recruiter.mturkservice.extend_hit.called
+        assert not recruiter.mturkservice.create_hit.called
+
+    def test_recruit_extend_hit_error_is_logged_politely(self, recruiter):
+        from dallinger.mturk import MTurkServiceException
+        fake_hit_id = 'fake HIT id'
+        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.mturkservice.create_hit.side_effect = MTurkServiceException("Boom!")
+        with mock.patch('dallinger.recruiters.logger') as mock_logger:
+            recruiter.recruit()
+
+        mock_logger.exception.assert_called_once_with("Boom!")
+
+
+@pytest.mark.usefixtures('active_config')
 class TestMTurkLargeRecruiter(object):
 
     @pytest.fixture
