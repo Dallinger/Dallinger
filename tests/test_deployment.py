@@ -121,8 +121,12 @@ class TestIsolatedWebbrowser(object):
 @pytest.mark.usefixtures('bartlett_dir', 'active_config')
 class TestSetupExperiment(object):
 
-    def test_setup_creates_new_experiment(self):
-        from dallinger.deployment import setup_experiment
+    @pytest.fixture
+    def setup_experiment(self):
+        from dallinger.deployment import setup_experiment as subject
+        return subject
+
+    def test_setup_creates_new_experiment(self, setup_experiment):
         # Baseline
         exp_dir = os.getcwd()
         assert found_in('experiment.py', exp_dir)
@@ -158,8 +162,7 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "launch.html"), dst)
         assert found_in(os.path.join("templates", "complete.html"), dst)
 
-    def test_setup_with_custom_dict_config(self):
-        from dallinger.deployment import setup_experiment
+    def test_setup_with_custom_dict_config(self, setup_experiment):
         config = get_config()
         assert config.get('num_dynos_web') == 1
 
@@ -175,8 +178,7 @@ class TestSetupExperiment(object):
         deploy_config.read(os.path.join(dst, 'config.txt'))
         assert int(deploy_config.get('Parameters', 'num_dynos_web')) == 2
 
-    def test_setup_excludes_sensitive_config(self):
-        from dallinger.deployment import setup_experiment
+    def test_setup_excludes_sensitive_config(self, setup_experiment):
         config = get_config()
         # Auto detected as sensitive
         config.register('a_password', six.text_type)
@@ -201,6 +203,14 @@ class TestSetupExperiment(object):
             deploy_config.get('Parameters', 'a_password')
         with raises(configparser.NoOptionError):
             deploy_config.get('Parameters', 'something_sensitive')
+
+    def test_reraises_db_connection_error(self, setup_experiment):
+        from psycopg2 import OperationalError
+        with mock.patch('dallinger.deployment.db.check_connection') as checker:
+            checker.side_effect = OperationalError("Boom!")
+            with pytest.raises(Exception) as ex_info:
+                setup_experiment(log=mock.Mock())
+                assert ex_info.match("Boom!")
 
     def test_payment_type(self):
         config = get_config()
