@@ -9,7 +9,6 @@ from operator import attrgetter
 import os
 import re
 import sys
-import user_agents
 
 from flask import (
     abort,
@@ -42,6 +41,8 @@ from dallinger.heroku.messages import HITSummary
 from .replay import ReplayBackend
 from .worker_events import WorkerEvent
 from .utils import nocache
+from .utils import ValidatesBrowser
+
 
 # Initialize the Dallinger database.
 session = db.session
@@ -479,6 +480,20 @@ def launch():
     return success_response(recruitment_msg=message)
 
 
+def should_show_thanks_page_to(participant):
+    """In the context of the /ad route, should the participant be shown
+    the thanks.html page instead of ad.html?
+    """
+    if participant is None:
+        return False
+    status = participant.status
+    marked_done = participant.end_time is not None
+    ready_for_external_submission = status in ('overrecruited', 'working') and marked_done
+    assignment_complete = status in ('submitted', 'approved')
+
+    return assignment_complete or ready_for_external_submission
+
+
 @app.route('/ad', methods=['GET'])
 @nocache
 def advertisement():
@@ -496,24 +511,11 @@ def advertisement():
     if not ('hitId' in request.args and 'assignmentId' in request.args):
         raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
 
-    # Browser rule validation, if configured:
-    user_agent_string = request.user_agent.string
-    user_agent_obj = user_agents.parse(user_agent_string)
-    browser_ok = True
     config = _config()
-    for rule in config.get('browser_exclude_rule', '').split(','):
-        myrule = rule.strip()
-        if myrule in ["mobile", "tablet", "touchcapable", "pc", "bot"]:
-            if (myrule == "mobile" and user_agent_obj.is_mobile) or\
-               (myrule == "tablet" and user_agent_obj.is_tablet) or\
-               (myrule == "touchcapable" and user_agent_obj.is_touch_capable) or\
-               (myrule == "pc" and user_agent_obj.is_pc) or\
-               (myrule == "bot" and user_agent_obj.is_bot):
-                browser_ok = False
-        elif myrule and myrule in user_agent_string:
-            browser_ok = False
 
-    if not browser_ok:
+    # Browser rule validation, if configured:
+    browser = ValidatesBrowser(config)
+    if not browser.is_supported(request.user_agent.string):
         raise ExperimentError('browser_type_not_allowed')
 
     hit_id = request.args['hitId']
@@ -522,7 +524,7 @@ def advertisement():
     mode = config.get('mode')
     debug_mode = mode == 'debug'
     worker_id = request.args.get('workerId')
-    status = None
+    participant = None
 
     if worker_id is not None:
         # First check if this workerId has completed the task before
@@ -540,15 +542,13 @@ def advertisement():
         # Next, check for participants already associated with this very
         # assignment, and retain their status, if found:
         try:
-            part = models.Participant.query.\
+            participant = models.Participant.query.\
                 filter(models.Participant.hit_id == hit_id).\
                 filter(models.Participant.assignment_id == assignment_id).\
                 filter(models.Participant.worker_id == worker_id).\
                 one()
         except exc.SQLAlchemyError:
             pass
-        else:
-            status = part.status
 
     recruiter_name = request.args.get('recruiter')
     if recruiter_name:
@@ -556,10 +556,8 @@ def advertisement():
     else:
         recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
-    ready_for_external_submission = status == 'working' and part.end_time is not None
-    assignment_complete = status in ('submitted', 'approved')
 
-    if assignment_complete or ready_for_external_submission:
+    if should_show_thanks_page_to(participant):
         # They've either done, or they're from a recruiter that requires
         # submission of an external form to complete their participation.
         return render_template(
@@ -571,7 +569,7 @@ def advertisement():
             mode=config.get('mode'),
             app_id=app_id
         )
-    if status == 'working':
+    if participant and participant.status == 'working':
         # Once participants have finished the instructions, we do not allow
         # them to start the task again.
         raise ExperimentError('already_started_exp_mturk')

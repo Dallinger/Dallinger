@@ -154,6 +154,30 @@ class TestAdvertisement(object):
         )
         assert b'action="https://www.mturk.com/mturk/externalSubmit"' in resp.data
 
+    def test_overrecruit_sees_thanks_page_in_sandbox(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox'})
+        p = a.participant()
+        p.end_time = datetime.now()
+        p.status = u'overrecruited'
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert b'action="https://workersandbox.mturk.com/mturk/externalSubmit"' in resp.data
+
+    def test_overrecruit_sees_thanks_page_in_live_mode(self, a, webapp, active_config):
+        active_config.extend({'mode': u'live'})
+        p = a.participant()
+        p.end_time = datetime.now()
+        p.status = u'overrecruited'
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert b'action="https://www.mturk.com/mturk/externalSubmit"' in resp.data
+
     @pytest.mark.skip(reason="fails pending support for different recruiters")
     def test_submitted_hit_shows_thanks_page_in_sandbox(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox'})
