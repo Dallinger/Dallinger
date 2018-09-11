@@ -1,4 +1,5 @@
 label_prs: "enhancement"
+search: False
 requirements:
   - constraints.txt:
       update: all
