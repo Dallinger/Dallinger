@@ -6,6 +6,8 @@ import logging
 import os
 import psycopg2
 import sys
+import time
+import random
 
 from psycopg2.extensions import TransactionRollbackError
 from sqlalchemy import create_engine
@@ -147,6 +149,7 @@ def serialized(func):
                     raise
             finally:
                 session.remove()
+            time.sleep(random.expovariate(0.5))
     return wrapper
 
 
