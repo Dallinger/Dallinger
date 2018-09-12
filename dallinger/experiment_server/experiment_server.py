@@ -757,7 +757,7 @@ def assign_properties(thing):
 @app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
            methods=["POST"])
 @db.serialized
-def create_participant(worker_id, hit_id, assignment_id, mode, session=None):
+def create_participant(worker_id, hit_id, assignment_id, mode):
     """Create a participant.
 
     This route is hit early on. Any nodes the participant creates will be
