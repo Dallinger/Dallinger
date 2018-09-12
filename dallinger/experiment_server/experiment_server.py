@@ -26,6 +26,8 @@ from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import exc
 from sqlalchemy import func
 from sqlalchemy.sql.expression import true
+from psycopg2.extensions import TransactionRollbackError
+
 
 from dallinger import db
 from dallinger import experiment
@@ -755,13 +757,20 @@ def assign_properties(thing):
 @app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>",
            methods=["POST"])
 @db.serialized
-def create_participant(worker_id, hit_id, assignment_id, mode):
+def create_participant(worker_id, hit_id, assignment_id, mode, session=None):
     """Create a participant.
 
     This route is hit early on. Any nodes the participant creates will be
     defined in reference to the participant object. You must specify the
     worker_id, hit_id, assignment_id, and mode in the url.
     """
+    # Lock the table, triggering multiple simultaneous accesses to fail
+    try:
+        session.connection().execute("LOCK TABLE participant IN ACCESS EXCLUSIVE MODE NOWAIT")
+    except exc.OperationalError as e:
+        e.orig = TransactionRollbackError()
+        raise e
+
     fingerprint_hash = request.args.get('fingerprint_hash')
     try:
         fingerprint_found = models.Participant.query.\
