@@ -14,6 +14,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from six.moves import urllib
 import gevent
 import requests
+from requests.exceptions import RequestException
 
 logger = logging.getLogger(__file__)
 
@@ -232,8 +233,14 @@ class HighPerformanceBotBase(BotBase):
                     bot_name=self.__class__.__name__
                 )
             )
-            result = requests.post(url)
-            if result.status_code == 500 or result.json()['status'] == 'error':
+            try:
+                result = requests.post(url)
+                result.raise_for_status()
+            except RequestException:
+                self.stochastic_sleep()
+                continue
+
+            if result.json()['status'] == 'error':
                 self.stochastic_sleep()
                 continue
 
@@ -263,8 +270,10 @@ class HighPerformanceBotBase(BotBase):
                     status=status
                 )
             )
-            result = requests.get(url)
-            if result.status_code == 500:
+            try:
+                result = requests.get(url)
+                result.raise_for_status()
+            except RequestException:
                 self.stochastic_sleep()
                 continue
             return result
@@ -306,8 +315,10 @@ class HighPerformanceBotBase(BotBase):
                     self=self,
                 )
             )
-            result = requests.post(url, data=data)
-            if result.status_code == 500:
+            try:
+                result = requests.post(url, data=data)
+                result.raise_for_status()
+            except RequestException:
                 self.stochastic_sleep()
                 continue
             return True
