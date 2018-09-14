@@ -624,6 +624,25 @@ def summary():
     if state['completed'] is None:
         state['completed'] = False
 
+    # Regenerate a waiting room message when checking status
+    # to counter missed messages at the end of the waiting room
+    nonfailed_count = models.Participant.query.filter(
+        (models.Participant.status == "working") |
+        (models.Participant.status == "overrecruited") |
+        (models.Participant.status == "submitted") |
+        (models.Participant.status == "approved")
+    ).count()
+    exp = Experiment(session)
+    overrecruited = exp.is_overrecruited(nonfailed_count)
+    if exp.quorum:
+        quorum = {
+            'q': exp.quorum,
+            'n': nonfailed_count,
+            'overrecruited': overrecruited,
+        }
+        db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
+
+
     return Response(
         dumps(state),
         status=200,
