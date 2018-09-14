@@ -29,7 +29,7 @@ if __name__ == '__main__':  # pragma: nocover
     initialize_experiment_package(os.getcwd())
 
     import logging
-    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
 
     with Connection(conn):
         worker = Worker(list(map(Queue, listen)))
