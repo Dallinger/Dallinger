@@ -856,9 +856,12 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
     recruiter_name = request.args.get('recruiter', 'undefined')
     if not recruiter_name or recruiter_name == 'undefined':
+        db.logger.warning("FALLING BACK TO CONFIG RECRUITER VALUE")
         recruiter = recruiters.from_config(_config())
         if recruiter:
             recruiter_name = recruiter.nickname
+    else:
+        db.logger.warning("Using recruiter request param")
 
     # Create the new participant.
     participant = models.Participant(
