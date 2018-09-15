@@ -836,7 +836,6 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         (models.Participant.status == "approved")
     ).count() + 1
 
-
     recruiter_name = request.args.get('recruiter', 'undefined')
     if not recruiter_name or recruiter_name == 'undefined':
         db.logger.warning("FALLING BACK TO CONFIG RECRUITER VALUE")
