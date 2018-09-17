@@ -785,7 +785,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     """
     # Lock the table, triggering multiple simultaneous accesses to fail
     try:
-        session.connection().execute("LOCK TABLE participant IN ACCESS EXCLUSIVE MODE NOWAIT")
+        session.connection().execute("LOCK TABLE participant IN EXCLUSIVE MODE NOWAIT")
     except exc.OperationalError as e:
         e.orig = TransactionRollbackError()
         raise e
