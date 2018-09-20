@@ -684,16 +684,15 @@ class TestMultiRecruiter(object):
         ]
 
     def test_pick_recruiter(self, recruiter):
-        subrecruiter = recruiter.pick_recruiter()
+        subrecruiter, count = recruiter.pick_recruiter(3)
         assert subrecruiter.nickname == 'cli'
+        assert count == 2
 
-        subrecruiter = recruiter.pick_recruiter()
-        assert subrecruiter.nickname == 'cli'
-
-        subrecruiter = recruiter.pick_recruiter()
+        subrecruiter, count = recruiter.pick_recruiter(1)
         assert subrecruiter.nickname == 'hotair'
+        assert count == 1
 
-        assert recruiter.pick_recruiter() is None
+        assert recruiter.pick_recruiter() == (None, 0)
 
     def test_open_recruitment(self, recruiter):
         result = recruiter.open_recruitment(n=3)
