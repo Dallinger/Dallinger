@@ -33,10 +33,6 @@ NEW_RECRUIT_LOG_PREFIX = 'New participant requested:'
 CLOSE_RECRUITMENT_LOG_PREFIX = 'Close recruitment.'
 
 
-class RecruitmentAlreadyOpen(RuntimeError):
-    pass
-
-
 class Recruiter(object):
     """The base recruiter."""
 
@@ -301,7 +297,7 @@ class MTurkRecruiter(Recruiter):
             n
         ))
         if self.is_in_progress:
-            raise RecruitmentAlreadyOpen(
+            raise MTurkRecruiterException(
                 "Tried to open_recruitment on already open recruiter."
             )
 
@@ -482,7 +478,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
             n
         ))
         if self.is_in_progress:
-            raise RecruitmentAlreadyOpen(
+            raise MTurkRecruiterException(
                 "Tried to open_recruitment on already open recruiter."
             )
         conn.incr('num_recruited', n)
