@@ -157,7 +157,7 @@ class CLIRecruiter(Recruiter):
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + ' cli')
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
@@ -441,7 +441,7 @@ class MTurkRecruiter(Recruiter):
         expire_hit rather than the disable_hit API call. This allows people
         who have already picked up the hit to complete it as normal.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + ' mturk')
         # We are not expiring the hit currently as notifications are failing
         # TODO: Reinstate this
         # try:
@@ -562,7 +562,7 @@ class BotRecruiter(Recruiter):
 
         This does nothing at this time.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + ' bot')
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Logging only. These are bots."""
