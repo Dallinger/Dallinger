@@ -701,12 +701,41 @@ class TestMultiRecruiter(object):
         assert result['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result['items'][2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
 
+    def test_open_recruitment_over_recruit(self, recruiter):
+        result = recruiter.open_recruitment(n=5)
+        assert len(result['items']) == 3
+        assert result['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result['items'][2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
     def test_recruit(self, recruiter):
         result = recruiter.recruit(n=3)
         assert len(result) == 3
         assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_over_recruit(self, recruiter):
+        result = recruiter.recruit(n=5)
+        assert len(result) == 3
+        assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_recruit_batches(self, active_config):
+        from dallinger.recruiters import MultiRecruiter
+        active_config.extend({'recruiters': u'cli: 2, hotair: 1, cli: 3, hotair: 2'})
+        recruiter = MultiRecruiter()
+        result = recruiter.recruit(n=10)
+        assert len(result) == 8
+        assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+        assert result[3].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[4].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[5].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[6].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+        assert result[7].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
 
     def test_close_recruitment(self, recruiter):
         patch1 = mock.patch('dallinger.recruiters.CLIRecruiter.close_recruitment')
