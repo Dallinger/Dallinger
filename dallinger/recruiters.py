@@ -280,9 +280,11 @@ class MTurkRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
+        logger.info("Opening MTurk recruitment.")
         if self.is_in_progress:
-            # Already started... do nothing.
-            return None
+            raise RuntimeError(
+                "Tried to open_recruitment on already open recruiter."
+            )
 
         if self.hit_domain is None:
             raise MTurkRecruiterException("Can't run a HIT from localhost")
@@ -388,7 +390,10 @@ class MTurkRecruiter(Recruiter):
 
     @property
     def is_in_progress(self):
-        return bool(Participant.query.first())
+        # Has this recruiter resulted in any participants?
+        return bool(Participant.query.filter_by(
+            recruiter_id=self.nickname
+        ).count())
 
     @property
     def qualification_active(self):
@@ -451,9 +456,11 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
 
     def open_recruitment(self, n=1):
+        logger.info("Opening MTurkLarge recruitment.")
         if self.is_in_progress:
-            # Already started... do nothing.
-            return None
+            raise RuntimeError(
+                "Tried to open_recruitment on already open recruiter."
+            )
         conn.incr('num_recruited', n)
         to_recruit = max(n, 10)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
@@ -620,6 +627,7 @@ class MultiRecruiter(Recruiter):
                 result = recruiter.open_recruitment(1)
                 recruitments.extend(result['items'])
                 messages[recruiter.nickname] = result['message']
+
         return {
             'items': recruitments,
             'message': '\n'.join(messages.values())
