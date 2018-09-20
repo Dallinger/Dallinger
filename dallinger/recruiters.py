@@ -33,6 +33,10 @@ NEW_RECRUIT_LOG_PREFIX = 'New participant requested:'
 CLOSE_RECRUITMENT_LOG_PREFIX = 'Close recruitment.'
 
 
+class RecruitmentAlreadyOpen(RuntimeError):
+    pass
+
+
 class Recruiter(object):
     """The base recruiter."""
 
@@ -283,7 +287,7 @@ class MTurkRecruiter(Recruiter):
         """Open a connection to AWS MTurk and create a HIT."""
         logger.info("Opening MTurk recruitment.")
         if self.is_in_progress:
-            raise RuntimeError(
+            raise RecruitmentAlreadyOpen(
                 "Tried to open_recruitment on already open recruiter."
             )
 
@@ -459,7 +463,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
     def open_recruitment(self, n=1):
         logger.info("Opening MTurkLarge recruitment.")
         if self.is_in_progress:
-            raise RuntimeError(
+            raise RecruitmentAlreadyOpen(
                 "Tried to open_recruitment on already open recruiter."
             )
         conn.incr('num_recruited', n)

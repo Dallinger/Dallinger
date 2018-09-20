@@ -406,8 +406,9 @@ class TestMTurkRecruiter(object):
         )
 
     def test_open_recruitment_raises_error_if_recruitment_in_progress(self, a, recruiter):
+        from dallinger.recruiters import RecruitmentAlreadyOpen
         a.participant(recruiter_id='mturk')
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RecruitmentAlreadyOpen):
             recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
@@ -422,9 +423,11 @@ class TestMTurkRecruiter(object):
         assert recruiter.submitted_event() is None
 
     def test_current_hit_id_with_active_experiment(self, a, recruiter):
-        a.participant(hit_id=u'not the hit!', recruiter_id='hotair')
+        # Does not find hits associated with other recruiters
+        a.participant(hit_id=u'the hit!', recruiter_id='hotair')
         assert recruiter.current_hit_id() is None
 
+        # Finds its own hits
         a.participant(hit_id=u'the hit!', recruiter_id='mturk')
         assert recruiter.current_hit_id() == 'the hit!'
 
@@ -585,8 +588,9 @@ class TestMTurkLargeRecruiter(object):
             return r
 
     def test_open_recruitment_raises_error_if_experiment_in_progress(self, a, recruiter):
+        from dallinger.recruiters import RecruitmentAlreadyOpen
         a.participant(recruiter_id='mturklarge')
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RecruitmentAlreadyOpen):
             recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
