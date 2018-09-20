@@ -572,44 +572,46 @@ class MultiRecruiter(Recruiter):
             recruiters.append((name, count))
         return recruiters
 
-    def pick_recruiter(self, n=1):
-        """Pick the next recruiter to use.
+    def recruiters(self, n=1):
+        """Iterator that provides recruiters along with the participant
+        count to be recruited for up to `n` participants.
 
         We use the `Recruitment` table in the db to keep track of
         how many recruitments have been requested using each recruiter.
         We'll use the first one from the specification that
         hasn't already reached its quota.
         """
-        counts = dict(
-            session.query(
-                Recruitment.recruiter_id,
-                func.count(Recruitment.id)
-            ).group_by(Recruitment.recruiter_id).all()
-        )
-
         recruit_count = 0
-        for recruiter_id, target_count in self.spec:
-            count = counts.get(recruiter_id, 0)
-            if count >= target_count:
-                # This recruiter quota was reached;
-                # move on to the next one.
-                counts[recruiter_id] = count - target_count
-                continue
+        while recruit_count <= n:
+            counts = dict(
+                session.query(
+                    Recruitment.recruiter_id,
+                    func.count(Recruitment.id)
+                ).group_by(Recruitment.recruiter_id).all()
+            )
+            for recruiter_id, target_count in self.spec:
+                count = counts.get(recruiter_id, 0)
+                if count >= target_count:
+                    # This recruiter quota was reached;
+                    # move on to the next one.
+                    counts[recruiter_id] = count - target_count
+                    continue
+                else:
+                    # Quota is still available; let's use it.
+                    recruit_count = target_count - count
+                    break
             else:
-                # Quota is still available; let's use it.
-                recruit_count = target_count - count
-                break
-        else:
-            return None, 0
+                raise StopIteration
 
-        # record the recruitments and commit
-        num_recruits = min(n, recruit_count)
-        for i in range(num_recruits):
-            session.add(Recruitment(recruiter_id=recruiter_id))
-        session.commit()
+            num_recruits = min(n, recruit_count)
+            # record the recruitments and commit
+            for i in range(num_recruits):
+                session.add(Recruitment(recruiter_id=recruiter_id))
+            session.commit()
 
-        # return an instance of the recruiter
-        return by_name(recruiter_id), num_recruits
+            yield by_name(recruiter_id), num_recruits
+
+            recruit_count -= num_recruits
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list.
@@ -619,9 +621,8 @@ class MultiRecruiter(Recruiter):
         ))
         recruitments = []
         messages = {}
-        while n > 0:
-            recruiter, count = self.pick_recruiter(n)
-            if not recruiter or not count:
+        for recruiter, count in self.recruiters(n):
+            if not count:
                 break
             if recruiter.nickname in messages:
                 result = recruiter.recruit(count)
@@ -630,7 +631,10 @@ class MultiRecruiter(Recruiter):
                 result = recruiter.open_recruitment(count)
                 recruitments.extend(result['items'])
                 messages[recruiter.nickname] = result['message']
+
             n -= count
+            if n <= 0:
+                break
 
         return {
             'items': recruitments,
@@ -638,9 +642,10 @@ class MultiRecruiter(Recruiter):
         }
 
     def recruit(self, n=1):
-        # For multi recruitment recruit and open_recruitment
-        # have the same logic, because we may need to open recruitment
-        # on any of our sub-recruiters.
+        """For multi recruitment recruit and open_recruitment
+        have the same logic. We may need to open recruitment on any of our
+        sub-recruiters at any point in recruitment.
+        """
         return self.open_recruitment(n)['items']
 
     def close_recruitment(self):

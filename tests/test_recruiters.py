@@ -684,15 +684,16 @@ class TestMultiRecruiter(object):
         ]
 
     def test_pick_recruiter(self, recruiter):
-        subrecruiter, count = recruiter.pick_recruiter(3)
+        recruiters = list(recruiter.recruiters(3))
+        assert len(recruiters) == 2
+
+        subrecruiter, count = recruiters[0]
         assert subrecruiter.nickname == 'cli'
         assert count == 2
 
-        subrecruiter, count = recruiter.pick_recruiter(1)
+        subrecruiter, count = recruiters[1]
         assert subrecruiter.nickname == 'hotair'
         assert count == 1
-
-        assert recruiter.pick_recruiter() == (None, 0)
 
     def test_open_recruitment(self, recruiter):
         result = recruiter.open_recruitment(n=3)
@@ -721,6 +722,19 @@ class TestMultiRecruiter(object):
         assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_recruit_partial(self, recruiter):
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        assert result['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+
+        result2 = recruiter.recruit(n=3)
+        assert len(result2) == 2
+        assert result2[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result2[1].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+        result3 = recruiter.recruit(n=2)
+        assert len(result3) == 0
 
     def test_recruit_batches(self, active_config):
         from dallinger.recruiters import MultiRecruiter
