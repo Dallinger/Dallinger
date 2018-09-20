@@ -118,7 +118,9 @@ class CLIRecruiter(Recruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening CLI recruitment.")
+        logger.info("Opening CLI recruitment for {} participants".format(
+            n
+        ))
         recruitments = self.recruit(n)
         message = (
             'Search for "{}" in the logs for subsequent recruitment URLs.\n'
@@ -134,6 +136,9 @@ class CLIRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Generate experiemnt URLs and print them to the console."""
+        logger.info("Recruiting {} CLI participants".format(
+            n
+        ))
         urls = []
         template = "{}/ad?recruiter={}&assignmentId={}&hitId={}&workerId={}&mode={}"
         for i in range(n):
@@ -185,7 +190,9 @@ class HotAirRecruiter(CLIRecruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening HotAir recruitment.")
+        logger.info("Opening HotAir recruitment for {} participants".format(
+            n
+        ))
         recruitments = self.recruit(n)
         message = "Recruitment requests will open browser windows automatically."
 
@@ -213,7 +220,9 @@ class SimulatedRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
-        logger.info("Opening Sim recruitment.")
+        logger.info("Opening Sim recruitment for {} participants".format(
+            n
+        ))
         return {
             'items': self.recruit(n),
             'message': 'Simulated recruitment only'
@@ -221,6 +230,9 @@ class SimulatedRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Recruit n participants."""
+        logger.info("Recruiting {} Sim participants".format(
+            n
+        ))
         return []
 
     def close_recruitment(self):
@@ -285,7 +297,9 @@ class MTurkRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
-        logger.info("Opening MTurk recruitment.")
+        logger.info("Opening MTurk recruitment for {} participants".format(
+            n
+        ))
         if self.is_in_progress:
             raise RecruitmentAlreadyOpen(
                 "Tried to open_recruitment on already open recruiter."
@@ -327,6 +341,9 @@ class MTurkRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
+        logger.info("Recruiting {} MTurk participants".format(
+            n
+        ))
         if not self.config.get('auto_recruit', False):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
@@ -461,7 +478,9 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
 
     def open_recruitment(self, n=1):
-        logger.info("Opening MTurkLarge recruitment.")
+        logger.info("Opening MTurkLarge recruitment for {} participants".format(
+            n
+        ))
         if self.is_in_progress:
             raise RecruitmentAlreadyOpen(
                 "Tried to open_recruitment on already open recruiter."
@@ -471,6 +490,9 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
     def recruit(self, n=1):
+        logger.info("Recruiting {} MTurkLarge participants".format(
+            n
+        ))
         if not self.config.get('auto_recruit', False):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
@@ -499,7 +521,9 @@ class BotRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
-        logger.info("Opening Bot recruitment.")
+        logger.info("Opening Bot recruitment for {} participants".format(
+            n
+        ))
         factory = self._get_bot_factory()
         bot_class_name = factory('', '', '').__class__.__name__
         return {
@@ -509,6 +533,9 @@ class BotRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Recruit n new participant bots to the queue"""
+        logger.info("Recruiting {} Bot participants".format(
+            n
+        ))
         factory = self._get_bot_factory()
         urls = []
         q = _get_queue()
