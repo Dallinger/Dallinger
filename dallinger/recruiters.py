@@ -114,7 +114,7 @@ class CLIRecruiter(Recruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening recruitment.")
+        logger.info("Opening CLI recruitment.")
         recruitments = self.recruit(n)
         message = (
             'Search for "{}" in the logs for subsequent recruitment URLs.\n'
@@ -181,7 +181,7 @@ class HotAirRecruiter(CLIRecruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening recruitment.")
+        logger.info("Opening HotAir recruitment.")
         recruitments = self.recruit(n)
         message = "Recruitment requests will open browser windows automatically."
 
@@ -209,6 +209,7 @@ class SimulatedRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
+        logger.info("Opening Sim recruitment.")
         return {
             'items': self.recruit(n),
             'message': 'Simulated recruitment only'
@@ -280,9 +281,11 @@ class MTurkRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
+        logger.info("Opening MTurk recruitment.")
         if self.is_in_progress:
-            # Already started... do nothing.
-            return None
+            raise RuntimeError(
+                "Tried to open_recruitment on already open recruiter."
+            )
 
         if self.hit_domain is None:
             raise MTurkRecruiterException("Can't run a HIT from localhost")
@@ -388,7 +391,10 @@ class MTurkRecruiter(Recruiter):
 
     @property
     def is_in_progress(self):
-        return bool(Participant.query.first())
+        # Has this recruiter resulted in any participants?
+        return bool(Participant.query.filter_by(
+            recruiter_id=self.nickname
+        ).first())
 
     @property
     def qualification_active(self):
@@ -396,7 +402,7 @@ class MTurkRecruiter(Recruiter):
 
     def current_hit_id(self):
         any_participant_record = Participant.query.with_entities(
-            Participant.hit_id).first()
+            Participant.hit_id).filter_by(recruiter_id=self.nickname).first()
 
         if any_participant_record is not None:
             return str(any_participant_record.hit_id)
@@ -451,9 +457,11 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
 
     def open_recruitment(self, n=1):
+        logger.info("Opening MTurkLarge recruitment.")
         if self.is_in_progress:
-            # Already started... do nothing.
-            return None
+            raise RuntimeError(
+                "Tried to open_recruitment on already open recruiter."
+            )
         conn.incr('num_recruited', n)
         to_recruit = max(n, 10)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
@@ -487,7 +495,7 @@ class BotRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
-        logger.info("Open recruitment.")
+        logger.info("Opening Bot recruitment.")
         factory = self._get_bot_factory()
         bot_class_name = factory('', '', '').__class__.__name__
         return {
@@ -590,13 +598,11 @@ class MultiRecruiter(Recruiter):
                 # Quota is still available; let's use it.
                 break
         else:
-            raise Exception(
-                'Reached quota for all recruiters. '
-                'Not sure which one to use now.'
-            )
+            return None
 
         # record the recruitment
         session.add(Recruitment(recruiter_id=recruiter_id))
+        session.commit()
 
         # return an instance of the recruiter
         return by_name(recruiter_id)
@@ -604,11 +610,12 @@ class MultiRecruiter(Recruiter):
     def open_recruitment(self, n=1):
         """Return initial experiment URL list.
         """
-        logger.info("Opening recruitment.")
+        logger.info("Opening Multi recruitment.")
         recruitments = []
         messages = {}
-        for i in range(n):
-            recruiter = self.pick_recruiter()
+        count = 0
+        recruiter = self.pick_recruiter()
+        while recruiter is not None:
             if recruiter.nickname in messages:
                 result = recruiter.recruit(1)
                 recruitments.extend(result)
@@ -616,6 +623,11 @@ class MultiRecruiter(Recruiter):
                 result = recruiter.open_recruitment(1)
                 recruitments.extend(result['items'])
                 messages[recruiter.nickname] = result['message']
+            count += 1
+            if count >= n:
+                break
+            recruiter = self.pick_recruiter()
+
         return {
             'items': recruitments,
             'message': '\n'.join(messages.values())

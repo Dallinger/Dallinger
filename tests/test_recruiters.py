@@ -405,18 +405,27 @@ class TestMTurkRecruiter(object):
             annotation='some experiment uid',
         )
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
-        a.participant()
-        recruiter.open_recruitment()
+    def test_open_recruitment_raises_error_if_recruitment_in_progress(self, a, recruiter):
+        a.participant(recruiter_id='mturk')
+        with pytest.raises(RuntimeError):
+            recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
+
+    def test_open_recruitment_ignores_participants_from_other_recruiters(self, a, recruiter):
+        a.participant(recruiter_id='bot')
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        recruiter.mturkservice.check_credentials.assert_called_once()
 
     def test_supresses_assignment_submitted(self, recruiter):
         assert recruiter.submitted_event() is None
 
     def test_current_hit_id_with_active_experiment(self, a, recruiter):
-        a.participant(hit_id=u'the hit!')
+        a.participant(hit_id=u'not the hit!', recruiter_id='hotair')
+        assert recruiter.current_hit_id() is None
 
+        a.participant(hit_id=u'the hit!', recruiter_id='mturk')
         assert recruiter.current_hit_id() == 'the hit!'
 
     def test_current_hit_id_with_no_active_experiment(self, recruiter):
@@ -575,10 +584,18 @@ class TestMTurkLargeRecruiter(object):
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
             return r
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
-        a.participant()
-        recruiter.open_recruitment()
+    def test_open_recruitment_raises_error_if_experiment_in_progress(self, a, recruiter):
+        a.participant(recruiter_id='mturklarge')
+        with pytest.raises(RuntimeError):
+            recruiter.open_recruitment()
+
         recruiter.mturkservice.check_credentials.assert_not_called()
+
+    def test_open_recruitment_ignores_participants_from_other_recruiters(self, a, recruiter):
+        a.participant(recruiter_id='bot')
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        recruiter.mturkservice.check_credentials.assert_called_once()
 
     def test_open_recruitment_single_recruitee(self, recruiter):
         recruiter.open_recruitment(n=1)
@@ -676,8 +693,7 @@ class TestMultiRecruiter(object):
         subrecruiter = recruiter.pick_recruiter()
         assert subrecruiter.nickname == 'hotair'
 
-        with pytest.raises(Exception):
-            recruiter.pick_recruiter()
+        assert recruiter.pick_recruiter() is None
 
     def test_open_recruitment(self, recruiter):
         result = recruiter.open_recruitment(n=3)
