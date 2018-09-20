@@ -406,9 +406,9 @@ class TestMTurkRecruiter(object):
         )
 
     def test_open_recruitment_raises_error_if_recruitment_in_progress(self, a, recruiter):
-        from dallinger.recruiters import RecruitmentAlreadyOpen
+        from dallinger.recruiters import MTurkRecruiterException
         a.participant(recruiter_id='mturk')
-        with pytest.raises(RecruitmentAlreadyOpen):
+        with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
@@ -588,9 +588,9 @@ class TestMTurkLargeRecruiter(object):
             return r
 
     def test_open_recruitment_raises_error_if_experiment_in_progress(self, a, recruiter):
-        from dallinger.recruiters import RecruitmentAlreadyOpen
+        from dallinger.recruiters import MTurkRecruiterException
         a.participant(recruiter_id='mturklarge')
-        with pytest.raises(RecruitmentAlreadyOpen):
+        with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
