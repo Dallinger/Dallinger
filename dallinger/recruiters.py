@@ -598,6 +598,7 @@ class MultiRecruiter(Recruiter):
                 ).group_by(Recruitment.recruiter_id).all()
             )
             for recruiter_id, target_count in self.spec:
+                remaining = 0
                 count = counts.get(recruiter_id, 0)
                 if count >= target_count:
                     # This recruiter quota was reached;
@@ -606,20 +607,19 @@ class MultiRecruiter(Recruiter):
                     continue
                 else:
                     # Quota is still available; let's use it.
-                    recruit_count = target_count - count
+                    remaining = target_count - count
                     break
             else:
                 raise StopIteration
 
-            num_recruits = min(n, recruit_count)
+            num_recruits = min(n - recruit_count, remaining)
             # record the recruitments and commit
             for i in range(num_recruits):
                 session.add(Recruitment(recruiter_id=recruiter_id))
             session.commit()
 
+            recruit_count += num_recruits
             yield by_name(recruiter_id), num_recruits
-
-            recruit_count -= num_recruits
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list.
@@ -629,6 +629,7 @@ class MultiRecruiter(Recruiter):
         ))
         recruitments = []
         messages = {}
+        remaining = n
         for recruiter, count in self.recruiters(n):
             if not count:
                 break
@@ -640,15 +641,14 @@ class MultiRecruiter(Recruiter):
                 recruitments.extend(result['items'])
                 messages[recruiter.nickname] = result['message']
 
-            n -= count
-            if n <= 0:
+            remaining -= count
+            if remaining <= 0:
                 break
 
         logger.info((
             'Multi-recruited {} out of {} participants, '
             'using {} recruiters.').format(
-                len(recruitments), n + len(recruitments),
-                len(messages)
+                n - remaining, n, len(messages)
             )
         )
 

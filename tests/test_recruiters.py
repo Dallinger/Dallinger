@@ -713,6 +713,16 @@ class TestMultiRecruiter(object):
         assert result['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result['items'][2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
 
+    def test_open_recruitment_twice(self, recruiter):
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        assert result['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+
+        result2 = recruiter.open_recruitment(n=3)
+        assert len(result2['items']) == 2
+        assert result2['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result2['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
     def test_recruit(self, recruiter):
         result = recruiter.recruit(n=3)
         assert len(result) == 3
