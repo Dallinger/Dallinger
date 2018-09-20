@@ -114,7 +114,9 @@ class CLIRecruiter(Recruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening CLI recruitment.")
+        logger.info("Opening CLI recruitment for {} participants".format(
+            n
+        ))
         recruitments = self.recruit(n)
         message = (
             'Search for "{}" in the logs for subsequent recruitment URLs.\n'
@@ -130,6 +132,9 @@ class CLIRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Generate experiemnt URLs and print them to the console."""
+        logger.info("Recruiting {} CLI participants".format(
+            n
+        ))
         urls = []
         template = "{}/ad?recruiter={}&assignmentId={}&hitId={}&workerId={}&mode={}"
         for i in range(n):
@@ -148,7 +153,7 @@ class CLIRecruiter(Recruiter):
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + ' cli')
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
@@ -181,7 +186,9 @@ class HotAirRecruiter(CLIRecruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening HotAir recruitment.")
+        logger.info("Opening HotAir recruitment for {} participants".format(
+            n
+        ))
         recruitments = self.recruit(n)
         message = "Recruitment requests will open browser windows automatically."
 
@@ -209,7 +216,9 @@ class SimulatedRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
-        logger.info("Opening Sim recruitment.")
+        logger.info("Opening Sim recruitment for {} participants".format(
+            n
+        ))
         return {
             'items': self.recruit(n),
             'message': 'Simulated recruitment only'
@@ -217,6 +226,9 @@ class SimulatedRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Recruit n participants."""
+        logger.info("Recruiting {} Sim participants".format(
+            n
+        ))
         return []
 
     def close_recruitment(self):
@@ -281,9 +293,11 @@ class MTurkRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
-        logger.info("Opening MTurk recruitment.")
+        logger.info("Opening MTurk recruitment for {} participants".format(
+            n
+        ))
         if self.is_in_progress:
-            raise RuntimeError(
+            raise MTurkRecruiterException(
                 "Tried to open_recruitment on already open recruiter."
             )
 
@@ -323,6 +337,9 @@ class MTurkRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
+        logger.info("Recruiting {} MTurk participants".format(
+            n
+        ))
         if not self.config.get('auto_recruit', False):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
@@ -420,7 +437,7 @@ class MTurkRecruiter(Recruiter):
         expire_hit rather than the disable_hit API call. This allows people
         who have already picked up the hit to complete it as normal.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + ' mturk')
         # We are not expiring the hit currently as notifications are failing
         # TODO: Reinstate this
         # try:
@@ -457,9 +474,11 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
 
     def open_recruitment(self, n=1):
-        logger.info("Opening MTurkLarge recruitment.")
+        logger.info("Opening MTurkLarge recruitment for {} participants".format(
+            n
+        ))
         if self.is_in_progress:
-            raise RuntimeError(
+            raise MTurkRecruiterException(
                 "Tried to open_recruitment on already open recruiter."
             )
         conn.incr('num_recruited', n)
@@ -467,6 +486,9 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
     def recruit(self, n=1):
+        logger.info("Recruiting {} MTurkLarge participants".format(
+            n
+        ))
         if not self.config.get('auto_recruit', False):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
@@ -495,7 +517,9 @@ class BotRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
-        logger.info("Opening Bot recruitment.")
+        logger.info("Opening Bot recruitment for {} participants".format(
+            n
+        ))
         factory = self._get_bot_factory()
         bot_class_name = factory('', '', '').__class__.__name__
         return {
@@ -505,6 +529,9 @@ class BotRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Recruit n new participant bots to the queue"""
+        logger.info("Recruiting {} Bot participants".format(
+            n
+        ))
         factory = self._get_bot_factory()
         urls = []
         q = _get_queue()
@@ -531,7 +558,7 @@ class BotRecruiter(Recruiter):
 
         This does nothing at this time.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + ' bot')
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Logging only. These are bots."""
@@ -572,61 +599,77 @@ class MultiRecruiter(Recruiter):
             recruiters.append((name, count))
         return recruiters
 
-    def pick_recruiter(self):
-        """Pick the next recruiter to use.
+    def recruiters(self, n=1):
+        """Iterator that provides recruiters along with the participant
+        count to be recruited for up to `n` participants.
 
         We use the `Recruitment` table in the db to keep track of
         how many recruitments have been requested using each recruiter.
         We'll use the first one from the specification that
         hasn't already reached its quota.
         """
-        counts = dict(
-            session.query(
-                Recruitment.recruiter_id,
-                func.count(Recruitment.id)
-            ).group_by(Recruitment.recruiter_id).all()
-        )
-
-        for recruiter_id, target_count in self.spec:
-            count = counts.get(recruiter_id, 0)
-            if count >= target_count:
-                # This recruiter quota was reached;
-                # move on to the next one.
-                counts[recruiter_id] = count - target_count
-                continue
+        recruit_count = 0
+        while recruit_count <= n:
+            counts = dict(
+                session.query(
+                    Recruitment.recruiter_id,
+                    func.count(Recruitment.id)
+                ).group_by(Recruitment.recruiter_id).all()
+            )
+            for recruiter_id, target_count in self.spec:
+                remaining = 0
+                count = counts.get(recruiter_id, 0)
+                if count >= target_count:
+                    # This recruiter quota was reached;
+                    # move on to the next one.
+                    counts[recruiter_id] = count - target_count
+                    continue
+                else:
+                    # Quota is still available; let's use it.
+                    remaining = target_count - count
+                    break
             else:
-                # Quota is still available; let's use it.
-                break
-        else:
-            return None
+                raise StopIteration
 
-        # record the recruitment
-        session.add(Recruitment(recruiter_id=recruiter_id))
-        session.commit()
+            num_recruits = min(n - recruit_count, remaining)
+            # record the recruitments and commit
+            for i in range(num_recruits):
+                session.add(Recruitment(recruiter_id=recruiter_id))
+            session.commit()
 
-        # return an instance of the recruiter
-        return by_name(recruiter_id)
+            recruit_count += num_recruits
+            yield by_name(recruiter_id), num_recruits
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list.
         """
-        logger.info("Opening Multi recruitment.")
+        logger.info("Multi recruitment running for {} participants".format(
+            n
+        ))
         recruitments = []
         messages = {}
-        count = 0
-        recruiter = self.pick_recruiter()
-        while recruiter is not None:
+        remaining = n
+        for recruiter, count in self.recruiters(n):
+            if not count:
+                break
             if recruiter.nickname in messages:
-                result = recruiter.recruit(1)
+                result = recruiter.recruit(count)
                 recruitments.extend(result)
             else:
-                result = recruiter.open_recruitment(1)
+                result = recruiter.open_recruitment(count)
                 recruitments.extend(result['items'])
                 messages[recruiter.nickname] = result['message']
-            count += 1
-            if count >= n:
+
+            remaining -= count
+            if remaining <= 0:
                 break
-            recruiter = self.pick_recruiter()
+
+        logger.info((
+            'Multi-recruited {} out of {} participants, '
+            'using {} recruiters.').format(
+                n - remaining, n, len(messages)
+            )
+        )
 
         return {
             'items': recruitments,
@@ -634,11 +677,11 @@ class MultiRecruiter(Recruiter):
         }
 
     def recruit(self, n=1):
-        urls = []
-        for i in range(n):
-            recruiter = self.pick_recruiter()
-            urls.extend(recruiter.recruit(1))
-        return urls
+        """For multi recruitment recruit and open_recruitment
+        have the same logic. We may need to open recruitment on any of our
+        sub-recruiters at any point in recruitment.
+        """
+        return self.open_recruitment(n)['items']
 
     def close_recruitment(self):
         for name in set(name for name, count in self.spec):
