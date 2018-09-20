@@ -405,11 +405,18 @@ class TestMTurkRecruiter(object):
             annotation='some experiment uid',
         )
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
-        a.participant()
-        recruiter.open_recruitment()
+    def test_open_recruitment_raises_error_if_recruitment_in_progress(self, a, recruiter):
+        a.participant(recruiter_id='mturk')
+        with pytest.raises(RuntimeError):
+            recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
+
+    def test_open_recruitment_ignores_participants_from_other_recruiters(self, a, recruiter):
+        a.participant(recruiter_id='bot')
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        recruiter.mturkservice.check_credentials.assert_called_once()
 
     def test_supresses_assignment_submitted(self, recruiter):
         assert recruiter.submitted_event() is None
@@ -575,10 +582,18 @@ class TestMTurkLargeRecruiter(object):
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
             return r
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
-        a.participant()
-        recruiter.open_recruitment()
+    def test_open_recruitment_raises_error_if_experiment_in_progress(self, a, recruiter):
+        a.participant(recruiter_id='mturklarge')
+        with pytest.raises(RuntimeError):
+            recruiter.open_recruitment()
+
         recruiter.mturkservice.check_credentials.assert_not_called()
+
+    def test_open_recruitment_ignores_participants_from_other_recruiters(self, a, recruiter):
+        a.participant(recruiter_id='bot')
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        recruiter.mturkservice.check_credentials.assert_called_once()
 
     def test_open_recruitment_single_recruitee(self, recruiter):
         recruiter.open_recruitment(n=1)
