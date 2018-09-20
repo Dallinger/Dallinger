@@ -693,8 +693,7 @@ class TestMultiRecruiter(object):
         subrecruiter = recruiter.pick_recruiter()
         assert subrecruiter.nickname == 'hotair'
 
-        with pytest.raises(Exception):
-            recruiter.pick_recruiter()
+        assert recruiter.pick_recruiter() is None
 
     def test_open_recruitment(self, recruiter):
         result = recruiter.open_recruitment(n=3)

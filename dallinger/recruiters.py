@@ -114,7 +114,7 @@ class CLIRecruiter(Recruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening recruitment.")
+        logger.info("Opening CLI recruitment.")
         recruitments = self.recruit(n)
         message = (
             'Search for "{}" in the logs for subsequent recruitment URLs.\n'
@@ -181,7 +181,7 @@ class HotAirRecruiter(CLIRecruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening recruitment.")
+        logger.info("Opening HotAir recruitment.")
         recruitments = self.recruit(n)
         message = "Recruitment requests will open browser windows automatically."
 
@@ -209,6 +209,7 @@ class SimulatedRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
+        logger.info("Opening Sim recruitment.")
         return {
             'items': self.recruit(n),
             'message': 'Simulated recruitment only'
@@ -494,7 +495,7 @@ class BotRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
-        logger.info("Open recruitment.")
+        logger.info("Opening Bot recruitment.")
         factory = self._get_bot_factory()
         bot_class_name = factory('', '', '').__class__.__name__
         return {
@@ -597,13 +598,11 @@ class MultiRecruiter(Recruiter):
                 # Quota is still available; let's use it.
                 break
         else:
-            raise Exception(
-                'Reached quota for all recruiters. '
-                'Not sure which one to use now.'
-            )
+            return None
 
         # record the recruitment
         session.add(Recruitment(recruiter_id=recruiter_id))
+        session.commit()
 
         # return an instance of the recruiter
         return by_name(recruiter_id)
@@ -611,11 +610,12 @@ class MultiRecruiter(Recruiter):
     def open_recruitment(self, n=1):
         """Return initial experiment URL list.
         """
-        logger.info("Opening recruitment.")
+        logger.info("Opening Multi recruitment.")
         recruitments = []
         messages = {}
-        for i in range(n):
-            recruiter = self.pick_recruiter()
+        count = 0
+        recruiter = self.pick_recruiter()
+        while recruiter is not None:
             if recruiter.nickname in messages:
                 result = recruiter.recruit(1)
                 recruitments.extend(result)
@@ -623,6 +623,10 @@ class MultiRecruiter(Recruiter):
                 result = recruiter.open_recruitment(1)
                 recruitments.extend(result['items'])
                 messages[recruiter.nickname] = result['message']
+            count += 1
+            if count >= n:
+                break
+            recruiter = self.pick_recruiter()
 
         return {
             'items': recruitments,
