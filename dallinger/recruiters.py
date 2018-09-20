@@ -640,6 +640,14 @@ class MultiRecruiter(Recruiter):
             if n <= 0:
                 break
 
+        logger.info((
+            'Multi-recruited {} out of {} participants, '
+            'using {} recruiters.').format(
+                len(recruitments), n + len(recruitments),
+                len(messages)
+            )
+        )
+
         return {
             'items': recruitments,
             'message': '\n'.join(messages.values())
