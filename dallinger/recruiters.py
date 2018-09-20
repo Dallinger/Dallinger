@@ -614,7 +614,9 @@ class MultiRecruiter(Recruiter):
     def open_recruitment(self, n=1):
         """Return initial experiment URL list.
         """
-        logger.info("Opening Multi recruitment.")
+        logger.info("Multi recruitment running for {} participants".format(
+            n
+        ))
         recruitments = []
         messages = {}
         while n > 0:
@@ -636,14 +638,10 @@ class MultiRecruiter(Recruiter):
         }
 
     def recruit(self, n=1):
-        urls = []
-        while n > 0:
-            recruiter, count = self.pick_recruiter(n)
-            if not recruiter or not count:
-                break
-            urls.extend(recruiter.recruit(count))
-            n -= count
-        return urls
+        # For multi recruitment recruit and open_recruitment
+        # have the same logic, because we may need to open recruitment
+        # on any of our sub-recruiters.
+        return self.open_recruitment(n)['items']
 
     def close_recruitment(self):
         for name in set(name for name, count in self.spec):
