@@ -572,7 +572,7 @@ class MultiRecruiter(Recruiter):
             recruiters.append((name, count))
         return recruiters
 
-    def pick_recruiter(self):
+    def pick_recruiter(self, n=1):
         """Pick the next recruiter to use.
 
         We use the `Recruitment` table in the db to keep track of
@@ -587,6 +587,7 @@ class MultiRecruiter(Recruiter):
             ).group_by(Recruitment.recruiter_id).all()
         )
 
+        recruit_count = 0
         for recruiter_id, target_count in self.spec:
             count = counts.get(recruiter_id, 0)
             if count >= target_count:
@@ -596,16 +597,19 @@ class MultiRecruiter(Recruiter):
                 continue
             else:
                 # Quota is still available; let's use it.
+                recruit_count = target_count - count
                 break
         else:
-            return None
+            return None, 0
 
-        # record the recruitment
-        session.add(Recruitment(recruiter_id=recruiter_id))
+        # record the recruitments and commit
+        num_recruits = min(n, recruit_count)
+        for i in range(num_recruits):
+            session.add(Recruitment(recruiter_id=recruiter_id))
         session.commit()
 
         # return an instance of the recruiter
-        return by_name(recruiter_id)
+        return by_name(recruiter_id), num_recruits
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list.
@@ -613,20 +617,18 @@ class MultiRecruiter(Recruiter):
         logger.info("Opening Multi recruitment.")
         recruitments = []
         messages = {}
-        count = 0
-        recruiter = self.pick_recruiter()
-        while recruiter is not None:
+        while n > 0:
+            recruiter, count = self.pick_recruiter(n)
+            if not recruiter or not count:
+                break
             if recruiter.nickname in messages:
-                result = recruiter.recruit(1)
+                result = recruiter.recruit(count)
                 recruitments.extend(result)
             else:
-                result = recruiter.open_recruitment(1)
+                result = recruiter.open_recruitment(count)
                 recruitments.extend(result['items'])
                 messages[recruiter.nickname] = result['message']
-            count += 1
-            if count >= n:
-                break
-            recruiter = self.pick_recruiter()
+            n -= count
 
         return {
             'items': recruitments,
@@ -635,9 +637,12 @@ class MultiRecruiter(Recruiter):
 
     def recruit(self, n=1):
         urls = []
-        for i in range(n):
-            recruiter = self.pick_recruiter()
-            urls.extend(recruiter.recruit(1))
+        while n > 0:
+            recruiter, count = self.pick_recruiter(n)
+            if not recruiter or not count:
+                break
+            urls.extend(recruiter.recruit(count))
+            n -= count
         return urls
 
     def close_recruitment(self):
