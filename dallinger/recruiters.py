@@ -393,7 +393,7 @@ class MTurkRecruiter(Recruiter):
         # Has this recruiter resulted in any participants?
         return bool(Participant.query.filter_by(
             recruiter_id=self.nickname
-        ).count())
+        ).first())
 
     @property
     def qualification_active(self):
@@ -401,7 +401,7 @@ class MTurkRecruiter(Recruiter):
 
     def current_hit_id(self):
         any_participant_record = Participant.query.with_entities(
-            Participant.hit_id).first()
+            Participant.hit_id).filter_by(recruiter_id=self.nickname).first()
 
         if any_participant_record is not None:
             return str(any_participant_record.hit_id)

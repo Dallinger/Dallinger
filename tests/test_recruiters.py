@@ -422,8 +422,10 @@ class TestMTurkRecruiter(object):
         assert recruiter.submitted_event() is None
 
     def test_current_hit_id_with_active_experiment(self, a, recruiter):
-        a.participant(hit_id=u'the hit!')
+        a.participant(hit_id=u'not the hit!', recruiter_id='hotair')
+        assert recruiter.current_hit_id() is None
 
+        a.participant(hit_id=u'the hit!', recruiter_id='mturk')
         assert recruiter.current_hit_id() == 'the hit!'
 
     def test_current_hit_id_with_no_active_experiment(self, recruiter):
