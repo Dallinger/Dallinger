@@ -26,6 +26,8 @@ from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import exc
 from sqlalchemy import func
 from sqlalchemy.sql.expression import true
+from psycopg2.extensions import TransactionRollbackError
+
 
 from dallinger import db
 from dallinger import experiment
@@ -622,6 +624,25 @@ def summary():
     if state['completed'] is None:
         state['completed'] = False
 
+    # Regenerate a waiting room message when checking status
+    # to counter missed messages at the end of the waiting room
+    nonfailed_count = models.Participant.query.filter(
+        (models.Participant.status == "working") |
+        (models.Participant.status == "overrecruited") |
+        (models.Participant.status == "submitted") |
+        (models.Participant.status == "approved")
+    ).count()
+    exp = Experiment(session)
+    overrecruited = exp.is_overrecruited(nonfailed_count)
+    if exp.quorum:
+        quorum = {
+            'q': exp.quorum,
+            'n': nonfailed_count,
+            'overrecruited': overrecruited,
+        }
+        db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
+
+
     return Response(
         dumps(state),
         status=200,
@@ -762,6 +783,13 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     defined in reference to the participant object. You must specify the
     worker_id, hit_id, assignment_id, and mode in the url.
     """
+    # Lock the table, triggering multiple simultaneous accesses to fail
+    try:
+        session.connection().execute("LOCK TABLE participant IN EXCLUSIVE MODE NOWAIT")
+    except exc.OperationalError as e:
+        e.orig = TransactionRollbackError()
+        raise e
+
     fingerprint_hash = request.args.get('fingerprint_hash')
     try:
         fingerprint_found = models.Participant.query.\
@@ -810,9 +838,12 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
     recruiter_name = request.args.get('recruiter', 'undefined')
     if not recruiter_name or recruiter_name == 'undefined':
+        db.logger.warning("FALLING BACK TO CONFIG RECRUITER VALUE")
         recruiter = recruiters.from_config(_config())
         if recruiter:
             recruiter_name = recruiter.nickname
+    else:
+        db.logger.warning("Using recruiter request param")
 
     # Create the new participant.
     participant = models.Participant(

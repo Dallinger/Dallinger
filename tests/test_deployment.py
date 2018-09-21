@@ -248,7 +248,7 @@ class TestGitClient(object):
     def test_includes_details_in_exceptions(self, git):
         with pytest.raises(Exception) as ex_info:
             git.push('foo', 'bar')
-        assert ex_info.match('Not a git repository')
+        assert ex_info.match('[nN]ot a git repository')
 
     def test_can_use_alternate_output(self, git):
         import tempfile
