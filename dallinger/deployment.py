@@ -419,7 +419,7 @@ class DebugDeployment(HerokuLocalDeployment):
 
     dispatch = {
         r'[^\"]{} (.*)$'.format(recruiters.NEW_RECRUIT_LOG_PREFIX): 'new_recruit',
-        r'{}$'.format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): 'recruitment_closed',
+        r'{}'.format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): 'recruitment_closed',
     }
 
     def __init__(self, output, verbose, bot, proxy_port, exp_config):
