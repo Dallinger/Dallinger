@@ -630,7 +630,7 @@ class MultiRecruiter(Recruiter):
                     remaining = target_count - count
                     break
             else:
-                raise StopIteration
+                return
 
             num_recruits = min(n - recruit_count, remaining)
             # record the recruitments and commit
