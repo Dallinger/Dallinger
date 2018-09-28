@@ -22,6 +22,7 @@ and setting up Dallinger, as well as use of the command line tools.
     email_setup
     python_module
     monitoring_a_live_experiment
+    experiment_data
     postico_and_postgres
     running_bots
     registration_on_OSF
