@@ -405,18 +405,30 @@ class TestMTurkRecruiter(object):
             annotation='some experiment uid',
         )
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
-        a.participant()
-        recruiter.open_recruitment()
+    def test_open_recruitment_raises_error_if_recruitment_in_progress(self, a, recruiter):
+        from dallinger.recruiters import MTurkRecruiterException
+        a.participant(recruiter_id='mturk')
+        with pytest.raises(MTurkRecruiterException):
+            recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
+
+    def test_open_recruitment_ignores_participants_from_other_recruiters(self, a, recruiter):
+        a.participant(recruiter_id='bot')
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        recruiter.mturkservice.check_credentials.assert_called_once()
 
     def test_supresses_assignment_submitted(self, recruiter):
         assert recruiter.submitted_event() is None
 
     def test_current_hit_id_with_active_experiment(self, a, recruiter):
-        a.participant(hit_id=u'the hit!')
+        # Does not find hits associated with other recruiters
+        a.participant(hit_id=u'the hit!', recruiter_id='hotair')
+        assert recruiter.current_hit_id() is None
 
+        # Finds its own hits
+        a.participant(hit_id=u'the hit!', recruiter_id='mturk')
         assert recruiter.current_hit_id() == 'the hit!'
 
     def test_current_hit_id_with_no_active_experiment(self, recruiter):
@@ -575,10 +587,19 @@ class TestMTurkLargeRecruiter(object):
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
             return r
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
-        a.participant()
-        recruiter.open_recruitment()
+    def test_open_recruitment_raises_error_if_experiment_in_progress(self, a, recruiter):
+        from dallinger.recruiters import MTurkRecruiterException
+        a.participant(recruiter_id='mturklarge')
+        with pytest.raises(MTurkRecruiterException):
+            recruiter.open_recruitment()
+
         recruiter.mturkservice.check_credentials.assert_not_called()
+
+    def test_open_recruitment_ignores_participants_from_other_recruiters(self, a, recruiter):
+        a.participant(recruiter_id='bot')
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        recruiter.mturkservice.check_credentials.assert_called_once()
 
     def test_open_recruitment_single_recruitee(self, recruiter):
         recruiter.open_recruitment(n=1)
@@ -667,17 +688,16 @@ class TestMultiRecruiter(object):
         ]
 
     def test_pick_recruiter(self, recruiter):
-        subrecruiter = recruiter.pick_recruiter()
-        assert subrecruiter.nickname == 'cli'
+        recruiters = list(recruiter.recruiters(3))
+        assert len(recruiters) == 2
 
-        subrecruiter = recruiter.pick_recruiter()
+        subrecruiter, count = recruiters[0]
         assert subrecruiter.nickname == 'cli'
+        assert count == 2
 
-        subrecruiter = recruiter.pick_recruiter()
+        subrecruiter, count = recruiters[1]
         assert subrecruiter.nickname == 'hotair'
-
-        with pytest.raises(Exception):
-            recruiter.pick_recruiter()
+        assert count == 1
 
     def test_open_recruitment(self, recruiter):
         result = recruiter.open_recruitment(n=3)
@@ -686,12 +706,64 @@ class TestMultiRecruiter(object):
         assert result['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result['items'][2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
 
+    def test_open_recruitment_over_recruit(self, recruiter):
+        result = recruiter.open_recruitment(n=5)
+        assert len(result['items']) == 3
+        assert result['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result['items'][2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_open_recruitment_twice(self, recruiter):
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        assert result['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+
+        result2 = recruiter.open_recruitment(n=3)
+        assert len(result2['items']) == 2
+        assert result2['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result2['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
     def test_recruit(self, recruiter):
         result = recruiter.recruit(n=3)
         assert len(result) == 3
         assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_over_recruit(self, recruiter):
+        result = recruiter.recruit(n=5)
+        assert len(result) == 3
+        assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_recruit_partial(self, recruiter):
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        assert result['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+
+        result2 = recruiter.recruit(n=3)
+        assert len(result2) == 2
+        assert result2[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result2[1].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+        result3 = recruiter.recruit(n=2)
+        assert len(result3) == 0
+
+    def test_recruit_batches(self, active_config):
+        from dallinger.recruiters import MultiRecruiter
+        active_config.extend({'recruiters': u'cli: 2, hotair: 1, cli: 3, hotair: 2'})
+        recruiter = MultiRecruiter()
+        result = recruiter.recruit(n=10)
+        assert len(result) == 8
+        assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+        assert result[3].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[4].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[5].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[6].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+        assert result[7].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
 
     def test_close_recruitment(self, recruiter):
         patch1 = mock.patch('dallinger.recruiters.CLIRecruiter.close_recruitment')
