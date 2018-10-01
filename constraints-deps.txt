@@ -8,7 +8,7 @@ bleach==2.1.4
 botocore==1.10.80
 certifi==2018.8.24
 chardet==3.0.4
-commonmark==0.5.4
+commonmark==0.8.0
 configparser==3.5.0
 datashape==0.5.2
 decorator==4.3.0
