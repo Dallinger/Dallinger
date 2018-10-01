@@ -10,6 +10,7 @@ import dallinger
 from dallinger import db
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
+from dallinger.mturk import MTurkServiceException
 from dallinger.heroku.messages import HITSummary
 from dallinger.heroku.messages import get_messenger
 from dallinger.recruiters import BotRecruiter
@@ -111,8 +112,13 @@ def run_check(config, mturk, participants, session, reference_time):
                     headers=headers,
                 )
 
-                # then force expire the hit via boto
-                mturk.expire_hit(hit_id)
+                # then attempt to force-expire the hit via boto:
+                try:
+                    mturk.expire_hit(hit_id)
+                except MTurkServiceException as ex:
+                    print(
+                        "Could not expire MTurk HIT w/ ID '{}': {}".format(hit_id, ex)
+                    )
 
                 # message the researcher
                 messenger.send_hit_cancelled_msg()
