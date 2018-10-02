@@ -222,7 +222,9 @@ class TestHerokuClockTasks(object):
 
             mturk.expire_hit.assert_called_once_with(participants[0].hit_id)
 
-    def test_deals_politely_with_already_deleted_hit(self, a, stub_config, run_check):
+    def test_still_reports_notification_missing_for_nonexistent_hit(
+        self, a, stub_config, run_check
+    ):
         from dallinger.mturk import MTurkServiceException
         # Include whimsical set to True to avoid error in the False code branch:
         stub_config.extend({'host': u'fakehost.herokuapp.com'})
@@ -234,10 +236,18 @@ class TestHerokuClockTasks(object):
         session = None
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        with mock.patch('dallinger.heroku.clock.requests'):
+        with mock.patch('dallinger.heroku.clock.requests') as mock_requests:
             run_check(stub_config, mturk, participants, session, reference_time)
 
             mturk.expire_hit.assert_called_once_with(participants[0].hit_id)
+
+            mock_requests.post.assert_called_once_with(
+                'http://fakehost.herokuapp.com/notifications',
+                data={
+                    'Event.1.EventType': 'NotificationMissing',
+                    'Event.1.AssignmentId': participants[0].assignment_id
+                }
+            )
 
     def test_no_assignment_on_mturk_sends_hit_cancelled_message(self, a, stub_config, run_check):
         mturk = mock.Mock(**{'get_assignment.return_value': None})
