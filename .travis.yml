@@ -1,6 +1,6 @@
 language: python
 dist: trusty
-sudo: false
+sudo: required
 cache:
   - apt
   - bundler
@@ -19,13 +19,14 @@ matrix:
 addons:
   postgresql: "9.4"
   apt:
-    sources:
-    - heroku
     packages:
     - pandoc
     - enchant
     - heroku-toolbelt
     - redis-server
+install:
+  - sudo apt-get --yes install snapd
+  - sudo snap install --classic heroku
 services:
   - redis-server
 before_install:
