@@ -112,7 +112,9 @@ def run_check(config, mturk, participants, session, reference_time):
                     headers=headers,
                 )
 
-                # then attempt to force-expire the hit via boto:
+                # Attempt to force-expire the hit via boto. It's possible
+                # that the HIT won't exist, either because we didn't use the
+                # MTurkRecruiter, or because the HIT has been deleted manually.
                 try:
                     mturk.expire_hit(hit_id)
                 except MTurkServiceException as ex:
