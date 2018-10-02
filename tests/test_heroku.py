@@ -181,7 +181,6 @@ class TestHerokuClockTasks(object):
             mock_messenger.send_resubmitted_msg.assert_called()
 
     def test_no_assignment_on_mturk_shuts_down_recruitment(self, a, stub_config, run_check):
-        # Include whimsical set to True to avoid error in the False code branch:
         stub_config.extend({'host': u'fakehost.herokuapp.com'})
         mturk = mock.Mock(**{'get_assignment.return_value': None})
         participants = [a.participant()]
@@ -210,7 +209,6 @@ class TestHerokuClockTasks(object):
             )
 
     def test_no_assignment_on_mturk_expires_hit(self, a, stub_config, run_check):
-        # Include whimsical set to True to avoid error in the False code branch:
         stub_config.extend({'host': u'fakehost.herokuapp.com'})
         mturk = mock.Mock(**{'get_assignment.return_value': None})
         participants = [a.participant()]
@@ -226,7 +224,6 @@ class TestHerokuClockTasks(object):
         self, a, stub_config, run_check
     ):
         from dallinger.mturk import MTurkServiceException
-        # Include whimsical set to True to avoid error in the False code branch:
         stub_config.extend({'host': u'fakehost.herokuapp.com'})
         mturk = mock.Mock(**{
             'get_assignment.return_value': None,
