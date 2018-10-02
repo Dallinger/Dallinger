@@ -43,6 +43,10 @@ designing new experiments for others to use.
 .. toctree::
     :maxdepth: 1
 
+    developing_dallinger_setup_guide
+    creating_an_experiment
+    docker_setup
+    running_the_tests
     required_experiment_files
     the_experiment_class
     classes

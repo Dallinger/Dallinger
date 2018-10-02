@@ -1,10 +1,11 @@
 Docker Setup
 ============
 
-Docker support is newly added. Install Dallinger by pulling our image from Dockerhub. This installs Dallinger within an isolated Ubuntu 16.04 environment, running all the neccessary services bridged to your local machine's ports.
+Docker support is newly added. Install Dallinger by pulling our image from Dockerhub. This installs Dallinger within an isolated Ubuntu 16.04 environment, running all the necessary services bridged to your local machine's ports.
 
-Innstructions
--------------
+Instructions
+------------
+
 Install Dallinger by pulling our image from Dockerhub.
 
 ::
