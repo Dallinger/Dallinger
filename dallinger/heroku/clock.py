@@ -118,9 +118,7 @@ def run_check(config, mturk, participants, session, reference_time):
                 try:
                     mturk.expire_hit(hit_id)
                 except MTurkServiceException as ex:
-                    print(
-                        "Could not expire MTurk HIT w/ ID '{}': {}".format(hit_id, ex)
-                    )
+                    print(ex)
 
                 # message the researcher
                 messenger.send_hit_cancelled_msg()
