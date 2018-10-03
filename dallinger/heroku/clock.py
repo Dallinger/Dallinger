@@ -10,6 +10,7 @@ import dallinger
 from dallinger import db
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
+from dallinger.mturk import MTurkServiceException
 from dallinger.heroku.messages import HITSummary
 from dallinger.heroku.messages import get_messenger
 from dallinger.recruiters import BotRecruiter
@@ -111,8 +112,13 @@ def run_check(config, mturk, participants, session, reference_time):
                     headers=headers,
                 )
 
-                # then force expire the hit via boto
-                mturk.expire_hit(hit_id)
+                # Attempt to force-expire the hit via boto. It's possible
+                # that the HIT won't exist, either because we didn't use the
+                # MTurkRecruiter, or because the HIT has been deleted manually.
+                try:
+                    mturk.expire_hit(hit_id)
+                except MTurkServiceException as ex:
+                    print(ex)
 
                 # message the researcher
                 messenger.send_hit_cancelled_msg()

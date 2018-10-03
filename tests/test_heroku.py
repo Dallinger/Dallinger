@@ -180,8 +180,7 @@ class TestHerokuClockTasks(object):
             run_check(stub_config, mturk, participants, session, reference_time)
             mock_messenger.send_resubmitted_msg.assert_called()
 
-    def test_no_assignment_on_mturk_shuts_down_hit(self, a, stub_config, run_check):
-        # Include whimsical set to True to avoid error in the False code branch:
+    def test_no_assignment_on_mturk_shuts_down_recruitment(self, a, stub_config, run_check):
         stub_config.extend({'host': u'fakehost.herokuapp.com'})
         mturk = mock.Mock(**{'get_assignment.return_value': None})
         participants = [a.participant()]
@@ -200,6 +199,44 @@ class TestHerokuClockTasks(object):
                     "Authorization": "Bearer {}".format('heroku secret'),
                 }
             )
+
+            mock_requests.post.assert_called_once_with(
+                'http://fakehost.herokuapp.com/notifications',
+                data={
+                    'Event.1.EventType': 'NotificationMissing',
+                    'Event.1.AssignmentId': participants[0].assignment_id
+                }
+            )
+
+    def test_no_assignment_on_mturk_expires_hit(self, a, stub_config, run_check):
+        stub_config.extend({'host': u'fakehost.herokuapp.com'})
+        mturk = mock.Mock(**{'get_assignment.return_value': None})
+        participants = [a.participant()]
+        session = None
+        # Move the clock forward so assignment is overdue:
+        reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
+        with mock.patch('dallinger.heroku.clock.requests'):
+            run_check(stub_config, mturk, participants, session, reference_time)
+
+            mturk.expire_hit.assert_called_once_with(participants[0].hit_id)
+
+    def test_still_reports_notification_missing_for_nonexistent_hit(
+        self, a, stub_config, run_check
+    ):
+        from dallinger.mturk import MTurkServiceException
+        stub_config.extend({'host': u'fakehost.herokuapp.com'})
+        mturk = mock.Mock(**{
+            'get_assignment.return_value': None,
+            'expire_hit.side_effect': MTurkServiceException("Boom!")
+        })
+        participants = [a.participant()]
+        session = None
+        # Move the clock forward so assignment is overdue:
+        reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
+        with mock.patch('dallinger.heroku.clock.requests') as mock_requests:
+            run_check(stub_config, mturk, participants, session, reference_time)
+
+            mturk.expire_hit.assert_called_once_with(participants[0].hit_id)
 
             mock_requests.post.assert_called_once_with(
                 'http://fakehost.herokuapp.com/notifications',
