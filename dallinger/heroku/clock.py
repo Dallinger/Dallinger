@@ -128,7 +128,8 @@ def run_check(config, mturk, participants, session, reference_time):
                     'Event.1.EventType': 'NotificationMissing',
                     'Event.1.AssignmentId': assignment_id
                 }
-                url = "http://" + config.get('host') + '/notifications'
+                # url = "http://" + config.get('host') + '/notifications'
+                url = config.get('notification_url')
                 print("Sending notification to {}".format(url))
                 requests.post(url, data=args)
 
