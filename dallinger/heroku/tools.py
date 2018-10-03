@@ -141,6 +141,11 @@ class HerokuApp(HerokuCommandRunner):
         self._run(cmd)
 
     @property
+    def config_url(self):
+        """Endpoint for sending configuration on api.heroku.com"""
+        return "https://api.heroku.com/apps/{}/config-vars".format(self.name)
+
+    @property
     def clock_is_on(self):
         cmd = ["heroku", "ps:scale", "--app", self.name]
         output = self._result(cmd)
@@ -316,6 +321,17 @@ def log_in():
         check_output(["heroku", "auth:whoami"])
     except Exception:
         raise Exception("You are not logged into Heroku.")
+
+
+def request_headers(auth_token):
+    """Return request headers using the provided authorization token."""
+    headers = {
+        "Accept": "application/vnd.heroku+json; version=3",
+        "Content-Type": "application/json",
+        "Authorization": "Bearer {}".format(auth_token)
+    }
+
+    return headers
 
 
 class HerokuStartupError(RuntimeError):

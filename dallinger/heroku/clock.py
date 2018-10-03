@@ -13,7 +13,11 @@ from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
 from dallinger.heroku.messages import HITSummary
 from dallinger.heroku.messages import get_messenger
+from dallinger.heroku.messages import MessengerError
+from dallinger.heroku import tools as heroku_tools
 from dallinger.recruiters import BotRecruiter
+
+
 # Import the experiment.
 experiment = dallinger.experiment.load()
 
@@ -26,6 +30,8 @@ def run_check(config, mturk, participants, session, reference_time):
 
     # get experiment duration in seconds
     duration_seconds = config.get('duration') * 60.0 * 60.0
+    notification_url = config.get('notification_url')
+    dallinger_uid = config.get('id')
 
     # for each participant, if they've been active for longer than the
     # experiment duration + 5 minutes, we take action.
@@ -84,9 +90,7 @@ def run_check(config, mturk, participants, session, reference_time):
                     'Event.1.EventType': 'AssignmentSubmitted',
                     'Event.1.AssignmentId': assignment_id
                 }
-                requests.post(
-                    "http://" + config.get('host') + '/notifications',
-                    data=args)
+                requests.post(notification_url, data=args)
 
                 # message the researcher:
                 messenger.send_resubmitted_msg()
@@ -97,17 +101,11 @@ def run_check(config, mturk, participants, session, reference_time):
             else:
                 # if it has not been submitted shut everything down
                 # first turn off autorecruit
-                host = config.get('host')
-                host = host[:-len(".herokuapp.com")]
+                heroku_app = heroku_tools.HerokuApp(dallinger_uid)
                 args = json.dumps({"auto_recruit": "false"})
-                headers = {
-                    "Accept": "application/vnd.heroku+json; version=3",
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer {}".format(
-                        config.get("heroku_auth_token"))
-                }
+                headers = heroku_tools.request_headers(config.get("heroku_auth_token"))
                 requests.patch(
-                    "https://api.heroku.com/apps/{}/config-vars".format(host),
+                    heroku_app.config_url,
                     data=args,
                     headers=headers,
                 )
@@ -121,17 +119,19 @@ def run_check(config, mturk, participants, session, reference_time):
                     print(ex)
 
                 # message the researcher
-                messenger.send_hit_cancelled_msg()
+                try:
+                    messenger.send_hit_cancelled_msg()
+                except MessengerError as ex:
+                    print(ex)
 
                 # send a notificationmissing notification
                 args = {
                     'Event.1.EventType': 'NotificationMissing',
                     'Event.1.AssignmentId': assignment_id
                 }
-                # url = "http://" + config.get('host') + '/notifications'
-                url = config.get('notification_url')
-                print("Sending notification to {}".format(url))
-                requests.post(url, data=args)
+
+                print("Sending notification to {}".format(notification_url))
+                requests.post(notification_url, data=args)
 
                 print("Error - abandoned/returned notification for participant {} missed. "
                       "Experiment shut down. Please check database and then manually "

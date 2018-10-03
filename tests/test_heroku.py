@@ -146,8 +146,6 @@ class TestHerokuClockTasks(object):
         session.commit.assert_called()
 
     def test_resubmits_notification_if_mturk_reports_submitted(self, a, stub_config, run_check):
-        # Include whimsical set to True to avoid error in the False code branch:
-        stub_config.extend({'host': u'fakehost.herokuapp.com'})
         fake_assignment = {'status': 'Submitted'}
         mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
         participants = [a.participant()]
@@ -158,14 +156,14 @@ class TestHerokuClockTasks(object):
             run_check(stub_config, mturk, participants, session, reference_time)
 
             mock_requests.post.assert_called_once_with(
-                'http://fakehost.herokuapp.com/notifications',
+                stub_config.get('notification_url'),
                 data={
                     'Event.1.EventType': 'AssignmentSubmitted',
                     'Event.1.AssignmentId': participants[0].assignment_id
                 }
             )
 
-    def test_sends_notification_if_resubmitted(self, a, stub_config, run_check):
+    def test_messages_experimenter_if_resubmitted(self, a, stub_config, run_check):
         fake_assignment = {'status': 'Submitted'}
         mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
         participants = [a.participant()]
@@ -181,27 +179,24 @@ class TestHerokuClockTasks(object):
             mock_messenger.send_resubmitted_msg.assert_called()
 
     def test_no_assignment_on_mturk_shuts_down_recruitment(self, a, stub_config, run_check):
-        stub_config.extend({'host': u'fakehost.herokuapp.com'})
+        from dallinger.heroku.tools import HerokuApp, request_headers
         mturk = mock.Mock(**{'get_assignment.return_value': None})
         participants = [a.participant()]
         session = None
+        heroku_url = HerokuApp(stub_config.get('id')).config_url
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
         with mock.patch('dallinger.heroku.clock.requests') as mock_requests:
             run_check(stub_config, mturk, participants, session, reference_time)
 
             mock_requests.patch.assert_called_once_with(
-                'https://api.heroku.com/apps/fakehost/config-vars',
+                heroku_url,
                 data='{"auto_recruit": "false"}',
-                headers={
-                    "Accept": "application/vnd.heroku+json; version=3",
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer {}".format('heroku secret'),
-                }
+                headers=request_headers('heroku secret')
             )
 
             mock_requests.post.assert_called_once_with(
-                'http://fakehost.herokuapp.com/notifications',
+                stub_config.get('notification_url'),
                 data={
                     'Event.1.EventType': 'NotificationMissing',
                     'Event.1.AssignmentId': participants[0].assignment_id
@@ -209,7 +204,6 @@ class TestHerokuClockTasks(object):
             )
 
     def test_no_assignment_on_mturk_expires_hit(self, a, stub_config, run_check):
-        stub_config.extend({'host': u'fakehost.herokuapp.com'})
         mturk = mock.Mock(**{'get_assignment.return_value': None})
         participants = [a.participant()]
         session = None
@@ -224,7 +218,6 @@ class TestHerokuClockTasks(object):
         self, a, stub_config, run_check
     ):
         from dallinger.mturk import MTurkServiceException
-        stub_config.extend({'host': u'fakehost.herokuapp.com'})
         mturk = mock.Mock(**{
             'get_assignment.return_value': None,
             'expire_hit.side_effect': MTurkServiceException("Boom!")
@@ -239,7 +232,7 @@ class TestHerokuClockTasks(object):
             mturk.expire_hit.assert_called_once_with(participants[0].hit_id)
 
             mock_requests.post.assert_called_once_with(
-                'http://fakehost.herokuapp.com/notifications',
+                stub_config.get('notification_url'),
                 data={
                     'Event.1.EventType': 'NotificationMissing',
                     'Event.1.AssignmentId': participants[0].assignment_id
@@ -423,6 +416,10 @@ class TestHerokuUtilFunctions(object):
         del stub_config.data[0]['heroku_team']
         assert heroku.sanity_check(stub_config) is None
 
+    def test_request_headers(self, heroku):
+        headers = heroku.request_headers('fake-token')
+        assert headers['Authorization'] == "Bearer fake-token"
+
 
 class TestHerokuApp(object):
 
@@ -457,6 +454,9 @@ class TestHerokuApp(object):
 
     def test_url(self, app):
         assert app.url == u'https://dlgr-fake-uid.herokuapp.com'
+
+    def test_config_url(self, app):
+        assert app.config_url == u'https://api.heroku.com/apps/dlgr-fake-uid/config-vars'
 
     def test_dashboard_url(self, app):
         assert app.dashboard_url == u'https://dashboard.heroku.com/apps/dlgr-fake-uid'
