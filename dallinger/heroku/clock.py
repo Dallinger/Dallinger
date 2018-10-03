@@ -128,9 +128,9 @@ def run_check(config, mturk, participants, session, reference_time):
                     'Event.1.EventType': 'NotificationMissing',
                     'Event.1.AssignmentId': assignment_id
                 }
-                requests.post(
-                    "http://" + config.get('host') + '/notifications',
-                    data=args)
+                url = "http://" + config.get('host') + '/notifications'
+                print("Sending notification to {}".format(url))
+                requests.post(url, data=args)
 
                 print("Error - abandoned/returned notification for participant {} missed. "
                       "Experiment shut down. Please check database and then manually "
