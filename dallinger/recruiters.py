@@ -1,15 +1,20 @@
 """Recruiters manage the flow of participants to the experiment."""
 
+import json
 import logging
 import os
 import re
+import requests
 
 from rq import Queue
 from sqlalchemy import func
 
 from dallinger.config import get_config
 from dallinger.db import session
+from dallinger.heroku import tools as heroku_tools
 from dallinger.heroku.worker import conn
+from dallinger.heroku.messages import get_messenger
+from dallinger.heroku.messages import MessengerError
 from dallinger.models import Participant
 from dallinger.models import Recruitment
 from dallinger.mturk import MTurkService
@@ -80,6 +85,15 @@ class Recruiter(object):
         has completed an experiment they joined.
         """
         pass
+
+    def notify_duration_exceeded(self, participant, hit_summary):
+        """The participant has been working beyond the defined duration of
+        the experiment.
+        """
+        logger.warning(
+            "Received notification that participant {} has been active for too long. "
+            "No action taken."
+        )
 
     def rejects_questionnaire_from(self, participant):
         """Recruiters have different circumstances under which experiment
@@ -379,6 +393,61 @@ class MTurkRecruiter(Recruiter):
             except QualificationNotFoundException as ex:
                 logger.exception(ex)
 
+    def notify_duration_exceeded(self, participant, hit_summary):
+        """The participant has exceed the maximum time for the activity,
+        defined in the "duration" config value. We need find out the assignment
+        status on MTurk and act based on this.
+        """
+        messenger = get_messenger(hit_summary, self.config)
+        # ask amazon for the status of the assignment
+        try:
+            assignment = self.mturkservice.get_assignment(participant.assignment_id)
+            status = assignment['status']
+        except Exception:
+            status = None
+
+        if status == 'Approved':
+            participant.status = 'approved'
+            session.commit()
+        elif status == 'Rejected':
+            participant.status = 'rejected'
+            session.commit()
+        elif status == 'Submitted':
+            notification_url = self.config.get('notification_url')
+            # if it has been submitted then resend a submitted notification
+            args = {
+                'Event.1.EventType': 'AssignmentSubmitted',
+                'Event.1.AssignmentId': participant.assignment_id
+            }
+            requests.post(notification_url, data=args)
+            # message the researcher:
+            try:
+                messenger.send_resubmitted_msg()
+            except MessengerError as ex:
+                logger.exception(ex)
+            logger.warning(
+                "Error - submitted notification for participant {} missed. "
+                "A replacement notification was created and sent, "
+                "but proceed with caution.".format(participant.id)
+            )
+        else:
+            # Still working...
+            # 1. send a notificationmissing notification
+            args = {
+                'Event.1.EventType': 'NotificationMissing',
+                'Event.1.AssignmentId': participant.assignment_id
+            }
+            # 2. shut down auto_recruit
+            requests.post(notification_url, data=args)
+            heroku_app = heroku_tools.HerokuApp(self.config.get('id'))
+            args = json.dumps({'auto_recruit': 'false'})
+            headers = heroku_tools.request_headers(self.config.get('heroku_auth_token'))
+            requests.patch(
+                heroku_app.config_url,
+                data=args,
+                headers=headers,
+            )
+
     def rejects_questionnaire_from(self, participant):
         """Mechanical Turk participants submit their HITs on the MTurk site
         (see external_submission_url), and MTurk then sends a notification
@@ -560,6 +629,13 @@ class BotRecruiter(Recruiter):
         This does nothing at this time.
         """
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + ' bot')
+
+    def notify_duration_exceeded(self, participant, summary):
+        """The bot participant has been working longer than the time defined in
+        the "duration" config value.
+        """
+        participant.status = "rejected"
+        session.commit()
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Logging only. These are bots."""
