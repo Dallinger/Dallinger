@@ -101,6 +101,9 @@ class Environment(Node):
 
         If time is None then it returns the most recent state as of now.
         """
+        if not len(self.infos(type=State)):
+            return None
+
         if time is None:
             return max(self.infos(type=State), key=attrgetter('creation_time'))
         else:
