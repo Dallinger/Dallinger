@@ -642,7 +642,6 @@ def summary():
         }
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
 
-
     return Response(
         dumps(state),
         status=200,
