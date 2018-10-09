@@ -36,9 +36,8 @@ default_keys = (
     ('clock_on', bool, []),
     ('contact_email_on_error', six.text_type, []),
     ('dallinger_email_address', six.text_type, []),
-    ('dallinger_email_password', six.text_type, [], True),
     ('database_size', six.text_type, []),
-    ('database_url', six.text_type, []),
+    ('database_url', six.text_type, [], True),
     ('description', six.text_type, []),
     ('duration', float, []),
     ('dyno_type', six.text_type, []),
@@ -67,6 +66,10 @@ default_keys = (
     ('qualification_blacklist', six.text_type, []),
     ('recruiter', six.text_type, []),
     ('recruiters', six.text_type, []),
+    ('sentry', bool, []),
+    ('smtp_host', six.text_type, []),
+    ('smtp_username', six.text_type, []),
+    ('smtp_password', six.text_type, ['dallinger_email_password'], True),
     ('redis_size', six.text_type, []),
     ('replay', bool, []),
     ('threads', six.text_type, []),
@@ -75,7 +78,7 @@ default_keys = (
     ('webdriver_type', six.text_type, []),
     ('webdriver_url', six.text_type, []),
     ('whimsical', bool, []),
-    ('sentry', bool, []),
+    ('worker_multiplier', float, []),
 )
 
 
@@ -178,6 +181,12 @@ class Configuration(object):
                     pass
         return d
 
+    def is_sensitive(self, key):
+        if key in self.sensitive:
+            return True
+        # Also, does a sensitive string appear within the key?
+        return any(s for s in SENSITIVE_KEY_NAMES if s in key)
+
     def register(self, key, type_, synonyms=None, sensitive=False):
         if synonyms is None:
             synonyms = set()
@@ -209,8 +218,7 @@ class Configuration(object):
         parser.add_section('Parameters')
         for layer in reversed(self.data):
             for k, v in layer.items():
-                if (filter_sensitive and k in self.sensitive or
-                        [s for s in SENSITIVE_KEY_NAMES if s in k]):
+                if filter_sensitive and self.is_sensitive(k):
                     continue
                 parser.set('Parameters', k, str(v))
 

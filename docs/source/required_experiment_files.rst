@@ -1,5 +1,5 @@
-Required Experimental Files
-===========================
+Required Experiment Files
+=========================
 
 Dallinger is flexible with regards to the form the front end takes.
 However, there are a number of required or forbidden files. You can

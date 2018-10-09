@@ -8,9 +8,8 @@ import datetime
 import signal
 from dallinger.config import get_config
 from dallinger.heroku import app_name
-from dallinger.heroku.messages import EmailingHITMessager
-from dallinger.heroku.messages import NullHITMessager
-from dallinger.models import Participant
+from dallinger.heroku.messages import EmailingHITMessenger
+from dallinger.heroku.messages import EmailConfig
 
 
 @pytest.fixture
@@ -90,23 +89,6 @@ class TestClockScheduler(object):
 
 class TestHerokuClockTasks(object):
 
-    class a(object):
-
-        @staticmethod
-        def participant(**kwargs):
-            defaults = {
-                'recruiter_id': 'hotair',
-                'worker_id': '1',
-                'hit_id': '1',
-                'assignment_id': '1',
-                'mode': 'test',
-            }
-            defaults.update(kwargs)
-            part = Participant(**defaults)
-            part.creation_time = datetime.datetime.now()
-
-            return part
-
     def test_check_db_for_missing_notifications_assembles_resources(self, run_check):
         # Can't import until after config is loaded:
         from dallinger.heroku.clock import check_db_for_missing_notifications
@@ -118,57 +100,62 @@ class TestHerokuClockTasks(object):
 
             mocks['run_check'].assert_called()
 
-    def test_does_nothing_if_assignment_still_current(self, run_check):
-        config = {'duration': 1.0}
+    def test_does_nothing_if_assignment_still_current(self, a, stub_config, run_check):
         mturk = mock.Mock(**{'get_assignment.return_value': ['fake']})
-        participants = [self.a.participant()]
+        participants = [a.participant()]
         session = None
         reference_time = datetime.datetime.now()
-        run_check(config, mturk, participants, session, reference_time)
+        run_check(stub_config, mturk, participants, session, reference_time)
 
         mturk.get_assignment.assert_not_called()
 
-    def test_sets_participant_status_if_mturk_reports_approved(self, run_check):
-        config = {'duration': 1.0}
-        fake_assignment = {'status': 'Approved'}
-        mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
-        participants = [self.a.participant()]
+    def test_rejects_bot_participants(self, a, stub_config, run_check):
+        from dallinger.recruiters import BotRecruiter
+        mturk = mock.Mock(**{'get_assignment.return_value': ['fake']})
+        participants = [a.participant(recruiter_id=BotRecruiter.nickname)]
         session = mock.Mock()
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        run_check(config, mturk, participants, session, reference_time)
-
-        assert participants[0].status == 'approved'
-        session.commit.assert_called()
-
-    def test_sets_participant_status_if_mturk_reports_rejected(self, run_check):
-        config = {'duration': 1.0}
-        fake_assignment = {'status': 'Rejected'}
-        mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
-        participants = [self.a.participant()]
-        session = mock.Mock()
-        # Move the clock forward so assignment is overdue:
-        reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        run_check(config, mturk, participants, session, reference_time)
+        run_check(stub_config, mturk, participants, session, reference_time)
 
         assert participants[0].status == 'rejected'
         session.commit.assert_called()
 
-    def test_resubmits_notification_if_mturk_reports_submitted(self, run_check):
+    def test_sets_participant_status_if_mturk_reports_approved(self, a, stub_config, run_check):
+        fake_assignment = {'status': 'Approved'}
+        mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
+        participants = [a.participant()]
+        session = mock.Mock()
+        # Move the clock forward so assignment is overdue:
+        reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
+        run_check(stub_config, mturk, participants, session, reference_time)
+
+        assert participants[0].status == 'approved'
+        session.commit.assert_called()
+
+    def test_sets_participant_status_if_mturk_reports_rejected(self, a, stub_config, run_check):
+        fake_assignment = {'status': 'Rejected'}
+        mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
+        participants = [a.participant()]
+        session = mock.Mock()
+        # Move the clock forward so assignment is overdue:
+        reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
+        run_check(stub_config, mturk, participants, session, reference_time)
+
+        assert participants[0].status == 'rejected'
+        session.commit.assert_called()
+
+    def test_resubmits_notification_if_mturk_reports_submitted(self, a, stub_config, run_check):
         # Include whimsical set to True to avoid error in the False code branch:
-        config = {
-            'duration': 1.0,
-            'host': 'fakehost.herokuapp.com',
-            'whimsical': True
-        }
+        stub_config.extend({'host': u'fakehost.herokuapp.com'})
         fake_assignment = {'status': 'Submitted'}
         mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
-        participants = [self.a.participant()]
+        participants = [a.participant()]
         session = None
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
         with mock.patch('dallinger.heroku.clock.requests') as mock_requests:
-            run_check(config, mturk, participants, session, reference_time)
+            run_check(stub_config, mturk, participants, session, reference_time)
 
             mock_requests.post.assert_called_once_with(
                 'http://fakehost.herokuapp.com/notifications',
@@ -178,42 +165,30 @@ class TestHerokuClockTasks(object):
                 }
             )
 
-    def test_sends_notification_if_resubmitted(self, run_check):
-        # Include whimsical set to True to avoid error in the False code branch:
-        config = {
-            'duration': 1.0,
-            'host': 'fakehost.herokuapp.com',
-            'whimsical': False
-        }
+    def test_sends_notification_if_resubmitted(self, a, stub_config, run_check):
         fake_assignment = {'status': 'Submitted'}
         mturk = mock.Mock(**{'get_assignment.return_value': fake_assignment})
-        participants = [self.a.participant()]
+        participants = [a.participant()]
         session = None
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        mock_messager = mock.Mock(spec=NullHITMessager)
+        mock_messenger = mock.Mock(spec=EmailingHITMessenger)
         with mock.patch.multiple('dallinger.heroku.clock',
                                  requests=mock.DEFAULT,
-                                 NullHITMessager=mock.DEFAULT) as mocks:
-            mocks['NullHITMessager'].return_value = mock_messager
-            run_check(config, mturk, participants, session, reference_time)
-            mock_messager.send_resubmitted_msg.assert_called()
+                                 get_messenger=mock.DEFAULT) as mocks:
+            mocks['get_messenger'].return_value = mock_messenger
+            run_check(stub_config, mturk, participants, session, reference_time)
+            mock_messenger.send_resubmitted_msg.assert_called()
 
-    def test_no_assignment_on_mturk_shuts_down_hit(self, run_check):
-        # Include whimsical set to True to avoid error in the False code branch:
-        config = {
-            'duration': 1.0,
-            'host': 'fakehost.herokuapp.com',
-            'whimsical': True
-        }
+    def test_no_assignment_on_mturk_shuts_down_recruitment(self, a, stub_config, run_check):
+        stub_config.extend({'host': u'fakehost.herokuapp.com'})
         mturk = mock.Mock(**{'get_assignment.return_value': None})
-        participants = [self.a.participant()]
+        participants = [a.participant()]
         session = None
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        os_env_heroku_auth = None
         with mock.patch('dallinger.heroku.clock.requests') as mock_requests:
-            run_check(config, mturk, participants, session, reference_time)
+            run_check(stub_config, mturk, participants, session, reference_time)
 
             mock_requests.patch.assert_called_once_with(
                 'https://api.heroku.com/apps/fakehost/config-vars',
@@ -221,7 +196,7 @@ class TestHerokuClockTasks(object):
                 headers={
                     "Accept": "application/vnd.heroku+json; version=3",
                     "Content-Type": "application/json",
-                    "Authorization": "Bearer {}".format(os_env_heroku_auth),
+                    "Authorization": "Bearer {}".format('heroku secret'),
                 }
             )
 
@@ -233,110 +208,186 @@ class TestHerokuClockTasks(object):
                 }
             )
 
-    def test_no_assignement_on_mturk_sends_hit_cancelled_message(self, run_check):
-        # Include whimsical set to True to avoid error in the False code branch:
-        config = {
-            'duration': 1.0,
-            'host': 'fakehost.herokuapp.com',
-            'whimsical': False
-        }
+    def test_no_assignment_on_mturk_expires_hit(self, a, stub_config, run_check):
+        stub_config.extend({'host': u'fakehost.herokuapp.com'})
         mturk = mock.Mock(**{'get_assignment.return_value': None})
-        participants = [self.a.participant()]
+        participants = [a.participant()]
         session = None
         # Move the clock forward so assignment is overdue:
         reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
-        mock_messager = mock.Mock(spec=NullHITMessager)
+        with mock.patch('dallinger.heroku.clock.requests'):
+            run_check(stub_config, mturk, participants, session, reference_time)
+
+            mturk.expire_hit.assert_called_once_with(participants[0].hit_id)
+
+    def test_still_reports_notification_missing_for_nonexistent_hit(
+        self, a, stub_config, run_check
+    ):
+        from dallinger.mturk import MTurkServiceException
+        stub_config.extend({'host': u'fakehost.herokuapp.com'})
+        mturk = mock.Mock(**{
+            'get_assignment.return_value': None,
+            'expire_hit.side_effect': MTurkServiceException("Boom!")
+        })
+        participants = [a.participant()]
+        session = None
+        # Move the clock forward so assignment is overdue:
+        reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
+        with mock.patch('dallinger.heroku.clock.requests') as mock_requests:
+            run_check(stub_config, mturk, participants, session, reference_time)
+
+            mturk.expire_hit.assert_called_once_with(participants[0].hit_id)
+
+            mock_requests.post.assert_called_once_with(
+                'http://fakehost.herokuapp.com/notifications',
+                data={
+                    'Event.1.EventType': 'NotificationMissing',
+                    'Event.1.AssignmentId': participants[0].assignment_id
+                }
+            )
+
+    def test_no_assignment_on_mturk_sends_hit_cancelled_message(self, a, stub_config, run_check):
+        mturk = mock.Mock(**{'get_assignment.return_value': None})
+        participants = [a.participant()]
+        session = None
+        # Move the clock forward so assignment is overdue:
+        reference_time = datetime.datetime.now() + datetime.timedelta(hours=6)
+        mock_messenger = mock.Mock(spec=EmailingHITMessenger)
         with mock.patch.multiple('dallinger.heroku.clock',
                                  requests=mock.DEFAULT,
-                                 NullHITMessager=mock.DEFAULT) as mocks:
-            mocks['NullHITMessager'].return_value = mock_messager
-            run_check(config, mturk, participants, session, reference_time)
-            mock_messager.send_hit_cancelled_msg.assert_called()
+                                 get_messenger=mock.DEFAULT) as mocks:
+            mocks['get_messenger'].return_value = mock_messenger
+            run_check(stub_config, mturk, participants, session, reference_time)
+            mock_messenger.send_hit_cancelled_msg.assert_called()
 
 
-def emailing_messager(whimsical):
-    config = {
-        'whimsical': whimsical,
-        'dallinger_email_username': 'test',
-        'contact_email_on_error': 'contact@example.com',
-        'dallinger_email_key': 'email secret key'
-    }
-    messager = EmailingHITMessager(
-        when='the time',
+@pytest.fixture
+def hit_summary():
+    from dallinger.heroku.messages import HITSummary
+    return HITSummary(
         assignment_id='some assignment id',
-        hit_duration=60,
+        duration=60,
         time_active=120,
-        config=config
+        app_id='some app id',
+        when='the time',
     )
 
-    return messager
+
+class TestEmailConfig(object):
+
+    @pytest.fixture
+    def klass(self):
+        from dallinger.heroku.messages import EmailConfig
+        return EmailConfig
+
+    def test_catches_missing_config_values(self, klass, stub_config):
+        stub_config.extend({
+            'dallinger_email_address': u'',
+            'contact_email_on_error': u'',
+            'smtp_username': u'???',
+            'smtp_password': u'???',
+        })
+        econfig = klass(stub_config)
+        problems = econfig.validate()
+        assert problems == (
+            'Missing or invalid config values: contact_email_on_error, '
+            'dallinger_email_address, smtp_password, smtp_username'
+        )
+
+
+def emailing_messenger(summary, config):
+    messenger = EmailingHITMessenger(
+        hit_info=summary,
+        email_settings=EmailConfig(config)
+    )
+
+    return messenger
 
 
 @pytest.fixture
-def whimsical():
-    return emailing_messager(whimsical=True)
+def whimsical(hit_summary, stub_config):
+    stub_config.extend({'whimsical': True})
+    return emailing_messenger(hit_summary, stub_config)
 
 
 @pytest.fixture
-def nonwhimsical():
-    return emailing_messager(whimsical=False)
+def nonwhimsical(hit_summary, stub_config):
+    stub_config.extend({'whimsical': False})
+    return emailing_messenger(hit_summary, stub_config)
+
+
+class TestMessengerFactory(object):
+
+    @pytest.fixture
+    def factory(self):
+        from dallinger.heroku.messages import get_messenger
+        return get_messenger
+
+    def test_returns_debug_version_if_configured(self, factory, stub_config, hit_summary):
+        from dallinger.heroku.messages import DebugHITMessenger
+        assert isinstance(factory(hit_summary, stub_config), DebugHITMessenger)
+
+    def test_returns_emailing_version_if_configured(self, factory, stub_config, hit_summary):
+        from dallinger.heroku.messages import EmailingHITMessenger
+        stub_config.extend({'mode': u'sandbox'})
+        assert isinstance(factory(hit_summary, stub_config), EmailingHITMessenger)
+
+    def test_returns_debug_version_if_email_config_invalid(self, factory, stub_config, hit_summary):
+        from dallinger.heroku.messages import DebugHITMessenger
+        stub_config.extend({'mode': u'sandbox', 'dallinger_email_address': u''})
+        assert isinstance(factory(hit_summary, stub_config), DebugHITMessenger)
 
 
 @pytest.mark.usefixtures('dummy_mailer')
-class TestEmailingHITMessager(object):
+class TestEmailingHITMessenger(object):
+
+    def test_send_negotiates_email_server(self, whimsical, dummy_mailer):
+        whimsical.send_resubmitted_msg()
+
+        assert whimsical.server is dummy_mailer
+        whimsical.server.starttls.assert_called()
+        whimsical.server.login.assert_called_once_with(
+            'fake email username', 'fake email password'
+        )
+        whimsical.server.sendmail.assert_called()
+        whimsical.server.quit.assert_called()
+        assert whimsical.server.sendmail.call_args[0][0] == u'test@example.com'
+        assert whimsical.server.sendmail.call_args[0][1] == u'error_contact@test.com'
+
+    def test_wraps_mail_server_exceptions(self, whimsical, dummy_mailer):
+        import smtplib
+        from dallinger.heroku.messages import MessengerError
+        dummy_mailer.login.side_effect = smtplib.SMTPException("Boom!")
+        with pytest.raises(MessengerError):
+            whimsical.send_resubmitted_msg()
 
     def test_send_resubmitted_msg_whimsical(self, whimsical):
         data = whimsical.send_resubmitted_msg()
-
-        whimsical.server.starttls.assert_called()
-        whimsical.server.login.assert_called_once_with('test', 'email secret key')
-        whimsical.server.sendmail.assert_called()
-        whimsical.server.quit.assert_called()
         assert data['subject'] == 'A matter of minor concern.'
         assert 'a full 1 minutes over' in data['message']
 
     def test_send_resubmitted_msg_nonwhimsical(self, nonwhimsical):
         data = nonwhimsical.send_resubmitted_msg()
-
-        nonwhimsical.server.starttls.assert_called()
-        nonwhimsical.server.login.assert_called_once_with('test', 'email secret key')
-        nonwhimsical.server.sendmail.assert_called()
-        nonwhimsical.server.quit.assert_called()
         assert data['subject'] == 'Dallinger automated email - minor error.'
         assert 'Allowed time: 1' in data['message']
 
     def test_send_hit_cancelled_msg_whimsical(self, whimsical):
         data = whimsical.send_hit_cancelled_msg()
-
-        whimsical.server.starttls.assert_called()
-        whimsical.server.login.assert_called_once_with('test', 'email secret key')
-        whimsical.server.sendmail.assert_called()
-        whimsical.server.quit.assert_called()
         assert data['subject'] == 'Most troubling news.'
         assert 'a full 1 minutes over' in data['message']
 
     def test_send_hit_cancelled_msg_nonwhimsical(self, nonwhimsical):
         data = nonwhimsical.send_hit_cancelled_msg()
-
-        nonwhimsical.server.starttls.assert_called()
-        nonwhimsical.server.login.assert_called_once_with('test', 'email secret key')
-        nonwhimsical.server.sendmail.assert_called()
-        nonwhimsical.server.quit.assert_called()
         assert data['subject'] == 'Dallinger automated email - major error.'
         assert 'Allowed time: 1' in data['message']
 
-    def test_send_idle_experiment(self, nonwhimsical):
-        data = nonwhimsical.send_idle_experiment()
+    def test_send_idle_experiment_msg(self, nonwhimsical):
+        data = nonwhimsical.send_idle_experiment_msg()
         assert data['subject'] == 'Idle Experiment.'
 
-    def test_send_hit_error(self, nonwhimsical, dummy_mailer):
-        data = nonwhimsical.send_hit_error()
+    def test_send_hit_error_msg(self, nonwhimsical):
+        data = nonwhimsical.send_hit_error_msg()
         assert data['subject'] == 'Error during HIT.'
-
-        dummy_mailer.login.assert_called_once()
-        dummy_mailer.starttls.assert_called_once()
-        dummy_mailer.sendmail.assert_called_once()
-        assert dummy_mailer.sendmail.call_args[0][0] == u'test@gmail.com'
 
 
 class TestHerokuUtilFunctions(object):
@@ -359,6 +410,18 @@ class TestHerokuUtilFunctions(object):
         with pytest.raises(Exception) as excinfo:
             heroku.log_in()
         assert excinfo.match('You are not logged into Heroku.')
+
+    def test_sanity_check_raises_on_invalid_config_combo(self, heroku, stub_config):
+        assert heroku.sanity_check(stub_config) is None
+        stub_config.set('heroku_team', u'my_team')
+        stub_config.set('dyno_type', u'free')
+        with pytest.raises(RuntimeError) as excinfo:
+            heroku.sanity_check(stub_config)
+        assert excinfo.match('dyno type not compatible')
+
+    def test_sanity_check_ok_when_optional_keys_absent(self, heroku, stub_config):
+        del stub_config.data[0]['heroku_team']
+        assert heroku.sanity_check(stub_config) is None
 
 
 class TestHerokuApp(object):
@@ -398,7 +461,8 @@ class TestHerokuApp(object):
     def test_dashboard_url(self, app):
         assert app.dashboard_url == u'https://dashboard.heroku.com/apps/dlgr-fake-uid'
 
-    def test_bootstrap_creates_app_with_team(self, app, check_call):
+    def test_bootstrap_creates_app_with_team(self, app, check_call, check_output):
+        check_output.return_value = 'test@example.com'
         app.team = 'some-team'
         app.bootstrap()
         check_call.assert_has_calls([
@@ -407,14 +471,17 @@ class TestHerokuApp(object):
                        '--org', 'some-team'], stdout=None),
         ])
 
-    def test_bootstrap_sets_hostname(self, app, check_call):
+    def test_bootstrap_sets_variables(self, app, check_call, check_output):
+        check_output.return_value = 'test@example.com'
         app.team = 'some-team'
         app.bootstrap()
-        check_call.assert_has_calls([
-            mock.call(['heroku', 'config:set',
-                       'HOST=https://dlgr-fake-uid.herokuapp.com',
-                       '--app', 'dlgr-fake-uid'], stdout=None)
-        ])
+        check_call.assert_called_with(
+            ['heroku', 'config:set',
+             'CREATOR=test@example.com',
+             'DALLINGER_UID=fake-uid',
+             'HOST=https://dlgr-fake-uid.herokuapp.com',
+             '--app', 'dlgr-fake-uid'], stdout=None
+        )
 
     def test_addon(self, app, check_call):
         app.addon('some-fake-addon')
@@ -606,6 +673,20 @@ class TestHerokuApp(object):
             stdout=None
         )
 
+    def test_set_multiple(self, app, check_call):
+        app.set_multiple(key1='some value', key2='another value')
+        check_call.assert_called_once_with(
+            [
+                "heroku",
+                "config:set",
+                "key1='some value'",
+                "key2='another value'",
+                "--app",
+                app.name,
+            ],
+            stdout=None
+        )
+
     def test_set_called_with_nonsensitive_key_uses_stdoutput(self, app, check_call):
         app.set('some_nonsensitive_key', 'some value')
         assert check_call.call_args_list[0][-1]['stdout'] is app.out
@@ -631,13 +712,13 @@ class TestHerokuLocalWrapper(object):
 
     @pytest.fixture
     def config(self):
-        from dallinger.command_line import setup_experiment
+        from dallinger.deployment import setup_experiment
         cwd = os.getcwd()
         config = get_config()
         if not config.ready:
             config.load()
 
-        (id, tmp) = setup_experiment(verbose=True, exp_config={})
+        (id, tmp) = setup_experiment(log=mock.Mock(), verbose=True, exp_config={})
 
         os.chdir(tmp)
         yield config
@@ -752,3 +833,49 @@ class TestHerokuLocalWrapper(object):
         with HerokuLocalWrapper(config, output, env=env) as heroku:
             assert heroku.is_running
         assert not heroku.is_running
+
+
+class TestHerokuInfo(object):
+
+    @pytest.fixture
+    def info(self):
+
+        from dallinger.heroku.tools import HerokuInfo
+        yield HerokuInfo(team="fake team")
+
+    def test_login_name(self, info, custom_app_output):
+        login_name = info.login_name()
+        custom_app_output.assert_has_calls([
+            mock.call(['heroku', 'auth:whoami'])
+        ])
+        assert login_name == 'test@example.com'
+
+    def test_all_apps(self, info, custom_app_output):
+        app_info = info.all_apps()
+        custom_app_output.assert_has_calls([
+            mock.call(['heroku', 'apps', '--json', '--org', 'fake team'])
+        ])
+        assert app_info == [
+            {'created_at': '2018-01-01T12:00Z',
+             'name': 'dlgr-my-uid',
+             'web_url': 'https://dlgr-my-uid.herokuapp.com'},
+            {'created_at': '2018-01-02T00:00Z',
+             'name': 'dlgr-another-uid',
+             'web_url': 'https://dlgr-another-uid.herokuapp.com'}
+        ]
+
+    def test_my_apps(self, info, custom_app_output):
+        app_info = info.my_apps()
+        custom_app_output.assert_has_calls([
+            mock.call(['heroku', 'auth:whoami']),
+            mock.call(['heroku', 'apps', '--json', '--org', 'fake team']),
+            mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-my-uid']),
+            mock.call(['heroku', 'config:get', 'DALLINGER_UID', '--app', 'dlgr-my-uid']),
+            mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-another-uid'])
+        ])
+        assert app_info == [
+            {'created_at': '2018-01-01T12:00Z',
+             'dallinger_uid': 'my-uid',
+             'name': 'dlgr-my-uid',
+             'web_url': 'https://dlgr-my-uid.herokuapp.com'}
+        ]

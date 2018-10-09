@@ -4,5 +4,10 @@ aws_secret_access_key = YourSecretAccessKey
 aws_region = us-east-1
 
 [Email Access]
+smtp_host = smtp.gmail.com:587
+smtp_username = ???
+smtp_password = ???
+
+[Error Notifications]
+contact_email_on_error = ???
 dallinger_email_address = dallinger@mailinator.com
-dallinger_email_password = ???

@@ -10,8 +10,10 @@ import dallinger
 from dallinger import db
 from dallinger.models import Participant
 from dallinger.mturk import MTurkService
-from dallinger.heroku.messages import NullHITMessager
-
+from dallinger.mturk import MTurkServiceException
+from dallinger.heroku.messages import HITSummary
+from dallinger.heroku.messages import get_messenger
+from dallinger.recruiters import BotRecruiter
 # Import the experiment.
 experiment = dallinger.experiment.load()
 
@@ -39,7 +41,8 @@ def run_check(config, mturk, participants, session, reference_time):
             assignment_id = p.assignment_id
 
             # First see if we have a bot participant
-            if config.get('recruiter', 'mturk') == 'bots':
+            if (p.recruiter_id == BotRecruiter.nickname or
+                    p.recruiter_id.startswith('bots:')):
                 # Bot somehow did not finish (phantomjs?). Just get rid of it.
                 p.status = "rejected"
                 session.commit()
@@ -53,15 +56,17 @@ def run_check(config, mturk, participants, session, reference_time):
                 status = None
             print("assignment status from AWS is {}".format(status))
             hit_id = p.hit_id
-            # Use a null handler for now since Gmail is blocking outgoing email
-            # from random servers:
-            messager = NullHITMessager(
-                when=reference_time,
+            summary = HITSummary(
                 assignment_id=assignment_id,
-                hit_duration=duration_seconds,
+                duration=duration_seconds,
                 time_active=time_active,
-                config=config
+                app_id=config.get('id', 'unknown'),
+                when=reference_time,
             )
+            # Use a debug messenger for now since Gmail is blocking
+            # outgoing email from random servers:
+            with config.override({'mode': u'debug'}, strict=True):
+                messenger = get_messenger(summary, config)
 
             if status == "Approved":
                 # if its been approved, set the status accordingly
@@ -84,7 +89,7 @@ def run_check(config, mturk, participants, session, reference_time):
                     data=args)
 
                 # message the researcher:
-                messager.send_resubmitted_msg()
+                messenger.send_resubmitted_msg()
 
                 print("Error - submitted notification for participant {} missed. "
                       "Database automatically corrected, but proceed with caution."
@@ -107,11 +112,16 @@ def run_check(config, mturk, participants, session, reference_time):
                     headers=headers,
                 )
 
-                # then force expire the hit via boto
-                mturk.expire_hit(hit_id)
+                # Attempt to force-expire the hit via boto. It's possible
+                # that the HIT won't exist, either because we didn't use the
+                # MTurkRecruiter, or because the HIT has been deleted manually.
+                try:
+                    mturk.expire_hit(hit_id)
+                except MTurkServiceException as ex:
+                    print(ex)
 
                 # message the researcher
-                messager.send_hit_cancelled_msg()
+                messenger.send_hit_cancelled_msg()
 
                 # send a notificationmissing notification
                 args = {

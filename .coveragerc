@@ -2,6 +2,7 @@
 branch = True
 source = dallinger
 parallel = True
+concurrency = gevent
 omit =
     dallinger/heroku/rq_gevent_worker.py
 
@@ -9,6 +10,7 @@ omit =
 fail_under = 61
 show_missing = True
 skip_covered = True
+precision = 1
 
 [paths]
 source =

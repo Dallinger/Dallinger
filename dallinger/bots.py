@@ -131,9 +131,13 @@ class BotBase(object):
     def complete_questionnaire(self):
         """Complete the standard debriefing form.
 
-        This does nothing unless overridden by a subclass.
+        Answers the questions in the base questionnaire.
         """
-        pass
+        logger.info("Complete questionnaire.")
+        difficulty = self.driver.find_element_by_id('difficulty')
+        difficulty.value = '4'
+        engagement = self.driver.find_element_by_id('engagement')
+        engagement.value = '3'
 
     def sign_off(self):
         """Submit questionnaire and finish.
@@ -142,7 +146,8 @@ class BotBase(object):
         and return to the original window.
         """
         try:
-            feedback = WebDriverWait(self.driver, 10).until(
+            logger.info("Bot player signing off.")
+            feedback = WebDriverWait(self.driver, 20).until(
                 EC.presence_of_element_located((By.ID, 'submit-questionnaire')))
             self.complete_questionnaire()
             feedback.click()
@@ -215,26 +220,25 @@ class HighPerformanceBotBase(BotBase):
         This is done using a POST request to the /participant/ endpoint.
         """
         self.log('Bot player signing up.')
+        self.subscribe_to_quorum_channel()
         while True:
             url = (
                 "{host}/participant/{self.worker_id}/"
                 "{self.hit_id}/{self.assignment_id}/"
-                "debug?fingerprint_hash={hash}".format(
+                "debug?fingerprint_hash={hash}&recruiter=bots:{bot_name}".format(
                     host=self.host,
                     self=self,
-                    hash=uuid.uuid4().hex
+                    hash=uuid.uuid4().hex,
+                    bot_name=self.__class__.__name__
                 )
             )
             result = requests.post(url)
-            if result.status_code == 500:
+            if result.status_code == 500 or result.json()['status'] == 'error':
                 self.stochastic_sleep()
                 continue
-            elif result.json()['status'] == 'error':
-                self.stochastic_sleep()
-                continue
-            else:
-                self.participant_id = result.json()['participant']['id']
-                return self.participant_id
+
+            self.on_signup(result.json())
+            return True
 
     def sign_off(self):
         """Submit questionnaire and finish.
@@ -285,3 +289,15 @@ class HighPerformanceBotBase(BotBase):
     def stochastic_sleep(self):
         delay = max(1.0 / random.expovariate(0.5), 10.0)
         gevent.sleep(delay)
+
+    def subscribe_to_quorum_channel(self):
+        """In case the experiment enforces a quorum, listen for notifications
+        before creating Partipant objects.
+        """
+        from dallinger.experiment_server.sockets import chat_backend
+        self.log("Bot subscribing to quorum channel.")
+        chat_backend.subscribe(self, 'quorum')
+
+    def on_signup(self, data):
+        """Take any needed action on response from /participant call."""
+        self.participant_id = data['participant']['id']

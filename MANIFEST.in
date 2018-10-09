@@ -2,6 +2,11 @@ recursive-include dallinger *
 recursive-include docs *
 
 include requirements.txt
+include dev-constraints.txt
+include dev-requirements.txt
+include constraints.txt
+include constraints-deps.txt
+include setup_utils.py
 include README.md
 include LICENSE
 include incubator.jpg

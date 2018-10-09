@@ -500,7 +500,8 @@ class Experiment(object):
                     exp_config=self.exp_config
                 )
             else:
-                dlgr.command_line.deploy_sandbox_shared_setup(
+                dlgr.deployment.deploy_sandbox_shared_setup(
+                    dlgr.command_line.log,
                     app=app_id,
                     verbose=self.verbose,
                     exp_config=self.exp_config
@@ -524,14 +525,9 @@ class Experiment(object):
         be returned, otherwise - if the UUID is not already registered -
         the experiment will be run and data collected.
 
-        See ``run`` method above for other parameters
+        See :meth:`~Experiment.run` method for other parameters.
         """
         try:
-            orig_path = os.getcwd()
-            new_path = os.path.dirname(
-                sys.modules[self.__class__.__module__].__file__
-            )
-            os.chdir(new_path)
             results = data_load(app_id)
             self.log('Data found for experiment {}, retrieving.'.format(app_id),
                      key="Retrieve:")
@@ -541,8 +537,6 @@ class Experiment(object):
                 'Could not fetch data for id: {}, checking registry'.format(app_id),
                 key="Retrieve:"
             )
-        finally:
-            os.chdir(orig_path)
 
         exp_config = exp_config or {}
         if is_registered(app_id):
@@ -562,17 +556,23 @@ class Experiment(object):
 
     @classmethod
     def make_uuid(cls, app_id=None):
-        """Generate a new uuid."""
+        """Generates a new UUID.
+        This is a class method and can be called as `Experiment.make_uuid()`.
+        Takes an optional `app_id` which is converted to a string and, if it
+        is a valid UUID, returned.
+        """
         try:
             if app_id and isinstance(uuid.UUID(str(app_id), version=4), uuid.UUID):
-                return app_id
+                return str(app_id)
         except (ValueError, AssertionError):
             pass
         return str(uuid.UUID(int=random.getrandbits(128)))
 
     def experiment_completed(self):
         """Checks the current state of the experiment to see whether it has
-        completed"""
+        completed. This makes use of the experiment server `/summary` route,
+        which in turn uses :meth:`~Experiment.is_complete`.
+        """
         heroku_app = HerokuApp(self.app_id)
         status_url = '{}/summary'.format(heroku_app.url)
         data = {}
@@ -609,28 +609,52 @@ class Experiment(object):
         return True
 
     def events_for_replay(self, session=None, target=None):
-        """Be default we return all infos in order for replay"""
+        """Returns an ordered list of "events" for replaying.
+        Experiments may override this method to provide custom
+        replay logic. The "events" returned by this method will be passed
+        to :meth:`~Experiment.replay_event`. The default implementation
+        simply returns all :class:`~dallinger.models.Info` objects in the
+        order they were created.
+        """
         if session is None:
             session = self.session
         return session.query(Info).order_by(Info.creation_time)
 
     def replay_event(self, event):
+        """Stub method to replay an event returned by
+        :meth:`~Experiment.events_for_replay`.
+        Experiments must override this method to provide replay support.
+        """
         pass
 
     def replay_start(self):
+        """Stub method for starting an experiment replay.
+        Experiments must override this method to provide replay support.
+        """
         pass
 
     def replay_finish(self):
+        """Stub method for ending an experiment replay.
+        Experiments must override this method to provide replay support.
+        """
         pass
 
     def replay_started(self):
+        """Returns `True` if an experiment replay has started."""
         return True
 
     def is_complete(self):
         """Method for custom determination of experiment completion.
-        Return None to use the experiment server default, otherwise
-        `True` or `False`"""
+        Experiments should override this to provide custom experiment
+        completion logic. Returns `None` to use the experiment server
+        default logic, otherwise should return `True` or `False`.
+        """
         return None
+
+    @property
+    def usable_replay_range(self):
+        """The range of times that represent the active part of the experiment"""
+        return self._replay_range
 
     @contextmanager
     def restore_state_from_replay(self, app_id, session, zip_path=None, **configuration_options):
@@ -642,7 +666,17 @@ class Experiment(object):
 
         # Load the configuration system and globals
         config = get_config()
-        config.register_extra_parameters()
+        # Manually load extra parameters and ignore errors
+        try:
+            from dallinger_experiment.experiment import extra_parameters
+            try:
+                extra_parameters()
+                extra_parameters.loaded = True
+            except KeyError:
+                pass
+        except ImportError:
+            pass
+
         config.load()
         self.app_id = self.original_app_id = app_id
         self.session = session
@@ -667,12 +701,13 @@ class Experiment(object):
             conn = create_db_engine.connect()
             conn.execute('COMMIT;')
             conn.execute('CREATE DATABASE "{}"'.format(specific_db_url.rsplit('/', 1)[1]))
+            conn.close()
             import_engine = create_engine(
                 specific_db_url
             )
             init_db(drop_all=True, bind=import_engine)
 
-        import_session = scoped_session(
+        self.import_session = scoped_session(
             sessionmaker(autocommit=False,
                          autoflush=True,
                          bind=import_engine)
@@ -688,7 +723,7 @@ class Experiment(object):
         print("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
         ingest_zip(zip_path, engine=import_engine)
         self._replay_range = tuple(
-            import_session.query(
+            self.import_session.query(
                 func.min(Info.creation_time),
                 func.max(Info.creation_time)
             )
@@ -699,12 +734,12 @@ class Experiment(object):
         # options are correctly set
         with config.override(configuration_options, strict=True):
             self.replay_start()
-            yield Scrubber(self, session=import_session)
+            yield Scrubber(self, session=self.import_session)
             self.replay_finish()
 
         # Clear up global state
-        import_session.rollback()
-        import_session.close()
+        self.import_session.rollback()
+        self.import_session.close()
         session.rollback()
         session.close()
         # Remove marker preventing experiment config variables being reloaded
@@ -743,7 +778,7 @@ class Experiment(object):
             scrubber.widget,
         ])
         # Scrub to start of experiment and re-render the main widget
-        scrubber(self._replay_range[0])
+        scrubber(self.usable_replay_range[0])
         self.widget.render()
         display(replay_widget)
         # Defer the cleanup until this function is re-called by
@@ -762,13 +797,14 @@ class Scrubber(object):
     def __init__(self, experiment, session):
         self.experiment = experiment
         self.session = session
+        self.realtime = False
 
     def __call__(self, time):
         """Scrub to a point in the experiment replay, given by time
         which is a datetime object."""
         if self.experiment._replay_time_index > time:
             self.experiment.revert_to_time(session=self.session, target=time)
-        events = self.experiment.events_for_replay(session=self.session, target=time)
+        events = self.experiment.events_for_replay(session=self.session, target=time).all()
         for event in events:
             if event.creation_time <= self.experiment._replay_time_index:
                 # Skip events we've already handled
@@ -782,14 +818,43 @@ class Scrubber(object):
         # overwrite the original dataset
         self.experiment.app_id = "{}_{}".format(self.experiment.original_app_id, time.isoformat())
 
+    def in_realtime(self, callback=None):
+        exp_start, exp_end = self.experiment.usable_replay_range
+        replay_offset = time.time()
+        current = self.experiment._replay_time_index
+        if current < exp_start:
+            current = exp_start
+        self.realtime = True
+        # Disable the scrubbing slider
+        self.widget.children[0].disabled = True
+        try:
+            while current < exp_end:
+                now = time.time()
+                seconds = now - replay_offset
+                current = current + datetime.timedelta(seconds=seconds)
+                self(current)
+                if callable(callback):
+                    try:
+                        callback()
+                    except StopIteration:
+                        return
+                replay_offset = now
+        finally:
+            self.realtime = False
+            self.widget.children[0].disabled = False
+
     def build_widget(self):
         from ipywidgets import widgets
-        start, end = self.experiment._replay_range
+        start, end = self.experiment.usable_replay_range
         options = []
         current = start
         while current <= end:
+            # Never display microseconds
             options.append((current.replace(microsecond=0).time().isoformat(), current))
             current += datetime.timedelta(seconds=1)
+            # But we need to keep microseconds in the first value, so we don't go before
+            # the experiment start when scrubbing backwards
+            current = current.replace(microsecond=0)
         scrubber = widgets.SelectionSlider(
             description='Current time',
             options=options,
@@ -798,6 +863,10 @@ class Scrubber(object):
         )
 
         def advance(change):
+            if self.realtime:
+                # We're being driven in realtime, the advancement
+                # here is just to keep the UI in sync
+                return
             old_status = self.experiment.widget.status
             self.experiment.widget.status = 'Updating'
             self.experiment.widget.render()
@@ -805,8 +874,42 @@ class Scrubber(object):
             self.experiment.widget.status = old_status
             self.experiment.widget.render()
         scrubber.observe(advance, 'value')
-        self.widget = scrubber
-        return scrubber
+
+        def realtime_callback():
+            self.experiment.widget.render()
+            try:
+                scrubber.value = self.experiment._replay_time_index.replace(microsecond=0)
+            except Exception:
+                # The scrubber is an approximation of the current time, we shouldn't
+                # bail out if it can't be updated (for example at experiment bounds)
+                pass
+            if not self.realtime:
+                raise StopIteration()
+
+        play_button = widgets.ToggleButton(
+            value=False,
+            description='',
+            disabled=False,
+            tooltip='Play back in realtime',
+            icon='play'
+        )
+
+        def playback(change):
+            import threading
+            if change['new']:
+                thread = threading.Thread(
+                    target=self.in_realtime,
+                    kwargs={
+                        'callback': realtime_callback
+                    }
+                )
+                thread.start()
+            else:
+                self.realtime = False
+        play_button.observe(playback, 'value')
+
+        self.widget = widgets.HBox(children=[scrubber, play_button])
+        return self.widget
 
     def _ipython_display_(self):
         """Display Jupyter Notebook widget"""

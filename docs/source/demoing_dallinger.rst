@@ -6,11 +6,19 @@ First, make sure you have Dallinger installed:
 -  :doc:`installing_dallinger_for_users`
 -  :doc:`developing_dallinger_setup_guide`
 
-To test out Dallinger, we'll run a demo experiment in debug mode. First download the `Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932/index.html>`__ and unzip it. Then run Dallinger in debug mode from within that demo directory:
+To test out Dallinger, we'll run a demo experiment in debug mode.
+
+You can read more about this experiment here:
+`Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932/index.html>`__ and download the experiment files.
+
+Navigate to the bartlett1932 directory and run
 
 ::
 
     dallinger debug
+
+
+Make sure that the dallinger virtualenv is enabled so that the dallinger command is available to you.
 
 You will see some output as Dallinger loads. When it is finished, you will
 see something that looks like:
@@ -26,3 +34,7 @@ In the terminal, press Ctrl+C to exit the server.
 
 **Help, the experiment page is blank!** This may happen if you are using
 an ad-blocker. Try disabling your ad-blocker and refresh the page.
+
+It is worth noting here that occasionally if an experiment does not exit gracefully,
+one maybe required to manually cleanup some left over python processes, before running the same or another experiment with dallinger.
+See :doc:`Troubleshooting <troubleshooting>` for details.

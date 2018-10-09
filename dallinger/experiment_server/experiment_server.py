@@ -8,9 +8,7 @@ from json import loads
 from operator import attrgetter
 import os
 import re
-import smtplib
 import sys
-import user_agents
 
 from flask import (
     abort,
@@ -36,11 +34,15 @@ from dallinger import information
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger import recruiters
-from dallinger.heroku.messages import EmailingHITMessager
+from dallinger.heroku.messages import get_messenger
+from dallinger.heroku.messages import MessengerError
+from dallinger.heroku.messages import HITSummary
 
 from .replay import ReplayBackend
 from .worker_events import WorkerEvent
 from .utils import nocache
+from .utils import ValidatesBrowser
+
 
 # Initialize the Dallinger database.
 session = db.session
@@ -382,27 +384,19 @@ def handle_error():
     session.commit()
 
     config = _config()
-    if (config.get('dallinger_email_address', None) and
-            config.get('contact_email_on_error', None)):
-        heroku_config = {
-            "contact_email_on_error": config["contact_email_on_error"],
-            "dallinger_email_username": config["dallinger_email_address"],
-            "dallinger_email_key": config.get("dallinger_email_password"),
-            "whimsical": False
-        }
-
-        emailer = EmailingHITMessager(when=datetime.now(),
-                                      assignment_id=assignment_id or 'unknown',
-                                      hit_duration=0, time_active=0,
-                                      config=heroku_config,
-                                      app_id=config.get('id', 'unknown'))
-        db.logger.debug("Sending HIT error email...")
+    summary = HITSummary(
+        assignment_id=assignment_id or 'unknown',
+        duration=0,
+        time_active=0,
+        app_id=config.get('id', 'unknown'),
+    )
+    db.logger.debug("Reporting HIT error...")
+    with config.override({'whimsical': False}, strict=True):
+        messenger = get_messenger(summary, config)
         try:
-            emailer.send_hit_error()
-        except smtplib.SMTPException:
-            db.logger.exception("SMTP error sending HIT error email.")
-        except Exception:
-            db.logger.exception("Unknown error sending HIT error email.")
+            messenger.send_hit_error_msg()
+        except MessengerError as ex:
+            db.logger.exception(ex)
 
     return render_template(
         'error-complete.html',
@@ -486,6 +480,20 @@ def launch():
     return success_response(recruitment_msg=message)
 
 
+def should_show_thanks_page_to(participant):
+    """In the context of the /ad route, should the participant be shown
+    the thanks.html page instead of ad.html?
+    """
+    if participant is None:
+        return False
+    status = participant.status
+    marked_done = participant.end_time is not None
+    ready_for_external_submission = status in ('overrecruited', 'working') and marked_done
+    assignment_complete = status in ('submitted', 'approved')
+
+    return assignment_complete or ready_for_external_submission
+
+
 @app.route('/ad', methods=['GET'])
 @nocache
 def advertisement():
@@ -503,24 +511,11 @@ def advertisement():
     if not ('hitId' in request.args and 'assignmentId' in request.args):
         raise ExperimentError('hit_assign_worker_id_not_set_in_mturk')
 
-    # Browser rule validation, if configured:
-    user_agent_string = request.user_agent.string
-    user_agent_obj = user_agents.parse(user_agent_string)
-    browser_ok = True
     config = _config()
-    for rule in config.get('browser_exclude_rule', '').split(','):
-        myrule = rule.strip()
-        if myrule in ["mobile", "tablet", "touchcapable", "pc", "bot"]:
-            if (myrule == "mobile" and user_agent_obj.is_mobile) or\
-               (myrule == "tablet" and user_agent_obj.is_tablet) or\
-               (myrule == "touchcapable" and user_agent_obj.is_touch_capable) or\
-               (myrule == "pc" and user_agent_obj.is_pc) or\
-               (myrule == "bot" and user_agent_obj.is_bot):
-                browser_ok = False
-        elif myrule and myrule in user_agent_string:
-            browser_ok = False
 
-    if not browser_ok:
+    # Browser rule validation, if configured:
+    browser = ValidatesBrowser(config)
+    if not browser.is_supported(request.user_agent.string):
         raise ExperimentError('browser_type_not_allowed')
 
     hit_id = request.args['hitId']
@@ -529,7 +524,7 @@ def advertisement():
     mode = config.get('mode')
     debug_mode = mode == 'debug'
     worker_id = request.args.get('workerId')
-    status = None
+    participant = None
 
     if worker_id is not None:
         # First check if this workerId has completed the task before
@@ -547,15 +542,13 @@ def advertisement():
         # Next, check for participants already associated with this very
         # assignment, and retain their status, if found:
         try:
-            part = models.Participant.query.\
+            participant = models.Participant.query.\
                 filter(models.Participant.hit_id == hit_id).\
                 filter(models.Participant.assignment_id == assignment_id).\
                 filter(models.Participant.worker_id == worker_id).\
                 one()
         except exc.SQLAlchemyError:
             pass
-        else:
-            status = part.status
 
     recruiter_name = request.args.get('recruiter')
     if recruiter_name:
@@ -563,10 +556,8 @@ def advertisement():
     else:
         recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
-    ready_for_external_submission = status == 'working' and part.end_time is not None
-    assignment_complete = status in ('submitted', 'approved')
 
-    if assignment_complete or ready_for_external_submission:
+    if should_show_thanks_page_to(participant):
         # They've either done, or they're from a recruiter that requires
         # submission of an external form to complete their participation.
         return render_template(
@@ -578,7 +569,7 @@ def advertisement():
             mode=config.get('mode'),
             app_id=app_id
         )
-    if status == 'working':
+    if participant and participant.status == 'working':
         # Once participants have finished the instructions, we do not allow
         # them to start the task again.
         raise ExperimentError('already_started_exp_mturk')
@@ -812,41 +803,38 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     # Count working or beyond participants.
     nonfailed_count = models.Participant.query.filter(
         (models.Participant.status == "working") |
+        (models.Participant.status == "overrecruited") |
         (models.Participant.status == "submitted") |
         (models.Participant.status == "approved")
     ).count() + 1
 
-    recruiter_name = request.args.get('recruiter')
-    if recruiter_name and recruiter_name != 'undefined':
-        recruiter = recruiters.by_name(recruiter_name)
-    else:
+    recruiter_name = request.args.get('recruiter', 'undefined')
+    if not recruiter_name or recruiter_name == 'undefined':
         recruiter = recruiters.from_config(_config())
+        if recruiter:
+            recruiter_name = recruiter.nickname
 
     # Create the new participant.
     participant = models.Participant(
-        recruiter_id=recruiter.nickname,
+        recruiter_id=recruiter_name,
         worker_id=worker_id,
         assignment_id=assignment_id,
         hit_id=hit_id,
         mode=mode,
         fingerprint_hash=fingerprint_hash,
     )
+
+    exp = Experiment(session)
+
+    overrecruited = exp.is_overrecruited(nonfailed_count)
+    if overrecruited:
+        participant.status = 'overrecruited'
+
     session.add(participant)
     session.flush()  # Make sure we know the id for the new row
     result = {
         'participant': participant.__json__()
     }
-
-    exp = Experiment(session)
-
-    # Ping back to the recruiter that one of their participants has joined:
-    recruiter.notify_recruited(participant)
-
-    overrecruited = exp.is_overrecruited(nonfailed_count)
-    if not overrecruited:
-        # We either had no quorum or we have not overrecruited, inform the
-        # recruiter that this participant will be seeing the experiment
-        recruiter.notify_using(participant)
 
     # Queue notification to others in waiting room
     if exp.quorum:
@@ -1373,15 +1361,11 @@ def node_transmit(node_id):
     transmissions created with the values you specified.
 
     For example, to transmit all infos of type Meme to the node with id 10:
-    reqwest({
-        url: "/node/" + my_node_id + "/transmit",
-        method: 'post',
-        type: 'json',
-        data: {
-            what: "Meme",
-            to_whom: 10,
-        },
-    });
+    dallinger.post(
+        "/node/" + my_node_id + "/transmit",
+        {what: "Meme",
+         to_whom: 10}
+    );
     """
     exp = Experiment(session)
     what = request_parameter(parameter="what", optional=True)
@@ -1610,9 +1594,13 @@ def _worker_complete(participant_id):
         raise KeyError()
 
     participant = participants[0]
+
     participant.end_time = datetime.now()
     session.add(participant)
     session.commit()
+
+    # Notify recruiter for possible qualification assignment, etc.
+    participant.recruiter.notify_completed(participant)
 
     event_type = participant.recruiter.submitted_event()
 
@@ -1656,7 +1644,9 @@ def _worker_failed(participant_id):
     participant.end_time = datetime.now()
     session.add(participant)
     session.commit()
-    if participant.recruiter_id == 'bots':
+    # TODO: Recruiter.rejected_event/failed_event (replace conditional w/ polymorphism)
+    if (participant.recruiter_id == 'bots' or
+            participant.recruiter_id.startswith('bots:')):
         _handle_worker_event(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,

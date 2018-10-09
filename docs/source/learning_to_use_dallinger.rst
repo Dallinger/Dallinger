@@ -16,10 +16,10 @@ Dallinger as a web app
 -  :doc:`communicating_with_the_server`
 -  :doc:`web_api`
 
-Experimental design
-'''''''''''''''''''
+Experiment design
+'''''''''''''''''
 
--  :doc:`required_experimental_files`
+-  :doc:`required_experiment_files`
 -  config.txt
 -  dallinger2.js
 
@@ -31,8 +31,8 @@ Example walkthroughs
 Intermediate
 ~~~~~~~~~~~~
 
-Experimental design
-'''''''''''''''''''
+Experiment design
+'''''''''''''''''
 
 -  Networks
 -  Nodes
@@ -52,8 +52,8 @@ Running experiments
 Advanced
 ~~~~~~~~
 
-Experimental design
-'''''''''''''''''''
+Experiment design
+'''''''''''''''''
 
 -  Changing route behavior and making new routes
 -  Sending requests from within Dallinger

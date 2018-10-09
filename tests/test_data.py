@@ -137,16 +137,16 @@ class TestData(object):
     def test_export_of_nonexistent_database(self):
         nonexistent_local_db = str(uuid.uuid4())
         with pytest.raises(psycopg2.OperationalError):
-            dallinger.data.copy_local_to_csv(nonexistent_local_db, "")
+            dallinger.data.copy_db_to_csv(nonexistent_local_db, "")
 
     def test_export_of_dallinger_database(self):
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_local_to_csv("dallinger", export_dir)
+        dallinger.data.copy_db_to_csv("dallinger", export_dir)
         assert os.path.isfile(os.path.join(export_dir, "network.csv"))
 
     def test_exported_database_includes_headers(self):
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_local_to_csv("dallinger", export_dir)
+        dallinger.data.copy_db_to_csv("dallinger", export_dir)
         network_table_path = os.path.join(export_dir, "network.csv")
         assert os.path.isfile(network_table_path)
         with open_for_csv(network_table_path, 'r') as f:
@@ -198,10 +198,10 @@ class TestData(object):
         p_file = io.TextIOWrapper(p_file, encoding='utf8', newline='')
         assert len(p_file.readlines()) == 5  # 4 Participants + header row
 
-    def test_copy_local_to_csv_includes_participant_data(self, db_session):
+    def test_copy_db_to_csv_includes_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_local_to_csv("dallinger", export_dir, scrub_pii=False)
+        dallinger.data.copy_db_to_csv("dallinger", export_dir, scrub_pii=False)
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
         with open_for_csv(participant_table_path, 'r') as f:
@@ -210,10 +210,10 @@ class TestData(object):
             row1 = next(reader)
             assert row1[header.index("worker_id")] == "SM6DMD"
 
-    def test_copy_local_to_csv_includes_scrubbed_participant_data(self, db_session):
+    def test_copy_db_to_csv_includes_scrubbed_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_local_to_csv("dallinger", export_dir, scrub_pii=True)
+        dallinger.data.copy_db_to_csv("dallinger", export_dir, scrub_pii=True)
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
         with open_for_csv(participant_table_path, 'r') as f:

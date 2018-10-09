@@ -51,17 +51,4 @@ setup_args = dict(
     },
 )
 
-# Read in requirements.txt for dependencies.
-setup_args['install_requires'] = install_requires = []
-setup_args['dependency_links'] = dependency_links = []
-with open('requirements.txt') as f:
-    for line in f.readlines():
-        req = line.strip()
-        if not req or req.startswith('#'):
-            continue
-        if req.startswith('-e '):
-            dependency_links.append(req[3:])
-        else:
-            install_requires.append(req)
-
 setup(**setup_args)

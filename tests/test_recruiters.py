@@ -89,14 +89,6 @@ class TestRecruiter(object):
         with pytest.raises(NotImplementedError):
             recruiter.reward_bonus('any assignment id', 0.01, "You're great!")
 
-    def test_notify_recruited(self, recruiter):
-        dummy = mock.NonCallableMock()
-        recruiter.notify_recruited(participant=dummy)
-
-    def test_notify_using(self, recruiter):
-        dummy = mock.NonCallableMock()
-        recruiter.notify_using(participant=dummy)
-
     def test_external_submission_url(self, recruiter):
         assert recruiter.external_submission_url is None
 
@@ -413,18 +405,30 @@ class TestMTurkRecruiter(object):
             annotation='some experiment uid',
         )
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
-        a.participant()
-        recruiter.open_recruitment()
+    def test_open_recruitment_raises_error_if_recruitment_in_progress(self, a, recruiter):
+        from dallinger.recruiters import MTurkRecruiterException
+        a.participant(recruiter_id='mturk')
+        with pytest.raises(MTurkRecruiterException):
+            recruiter.open_recruitment()
 
         recruiter.mturkservice.check_credentials.assert_not_called()
+
+    def test_open_recruitment_ignores_participants_from_other_recruiters(self, a, recruiter):
+        a.participant(recruiter_id='bot')
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        recruiter.mturkservice.check_credentials.assert_called_once()
 
     def test_supresses_assignment_submitted(self, recruiter):
         assert recruiter.submitted_event() is None
 
     def test_current_hit_id_with_active_experiment(self, a, recruiter):
-        a.participant(hit_id=u'the hit!')
+        # Does not find hits associated with other recruiters
+        a.participant(hit_id=u'the hit!', recruiter_id='hotair')
+        assert recruiter.current_hit_id() is None
 
+        # Finds its own hits
+        a.participant(hit_id=u'the hit!', recruiter_id='mturk')
         assert recruiter.current_hit_id() == 'the hit!'
 
     def test_current_hit_id_with_no_active_experiment(self, recruiter):
@@ -509,39 +513,47 @@ class TestMTurkRecruiter(object):
             fake_hit_id
         )
 
-    def test_notify_using_when_group_name_not_specified(self, recruiter):
+    def test_notify_completed_assigns_exp_qualification(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
-        recruiter.notify_using(participant)
+        recruiter.notify_completed(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_called_once_with(
             'some experiment uid',
             'some worker id',
         )
 
-    def test_notify_using_when_group_name_specified(self, recruiter):
+    def test_notify_completed_adds_group_qualification_if_group(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
         recruiter.config.set('group_name', u'some existing group_name')
-        recruiter.notify_using(participant)
+        recruiter.notify_completed(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_has_calls([
             mock.call('some experiment uid', 'some worker id'),
             mock.call('some existing group_name', 'some worker id')
         ], any_order=True)
 
-    def test_notify_using_nonexistent_qualification(self, recruiter):
+    def test_notify_completed_catches_nonexistent_qualification(self, recruiter):
         from dallinger.mturk import QualificationNotFoundException
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
         error = QualificationNotFoundException("Ouch!")
         recruiter.mturkservice.increment_qualification_score.side_effect = error
 
         # logs, but does not raise:
-        recruiter.notify_using(participant)
+        recruiter.notify_completed(participant)
 
-    def test_notify_using_skips_assigning_qualification_if_so_configured(self, recruiter):
+    def test_notify_completed_skips_assigning_qualification_if_so_configured(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id='some worker id')
         recruiter.config.set('group_name', u'some existing group_name')
         recruiter.config.set('assign_qualifications', False)
-        recruiter.notify_using(participant)
+        recruiter.notify_completed(participant)
+
+        recruiter.mturkservice.increment_qualification_score.assert_not_called()
+
+    def test_notify_completed_skips_assigning_qualification_if_overrecruited(self, recruiter):
+        participant = mock.Mock(
+            spec=Participant, worker_id='some worker id', status='overrecruited'
+        )
+        recruiter.notify_completed(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_not_called()
 
@@ -575,10 +587,19 @@ class TestMTurkLargeRecruiter(object):
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
             return r
 
-    def test_open_recruitment_is_noop_if_experiment_in_progress(self, a, recruiter):
-        a.participant()
-        recruiter.open_recruitment()
+    def test_open_recruitment_raises_error_if_experiment_in_progress(self, a, recruiter):
+        from dallinger.recruiters import MTurkRecruiterException
+        a.participant(recruiter_id='mturklarge')
+        with pytest.raises(MTurkRecruiterException):
+            recruiter.open_recruitment()
+
         recruiter.mturkservice.check_credentials.assert_not_called()
+
+    def test_open_recruitment_ignores_participants_from_other_recruiters(self, a, recruiter):
+        a.participant(recruiter_id='bot')
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        recruiter.mturkservice.check_credentials.assert_called_once()
 
     def test_open_recruitment_single_recruitee(self, recruiter):
         recruiter.open_recruitment(n=1)
@@ -667,17 +688,16 @@ class TestMultiRecruiter(object):
         ]
 
     def test_pick_recruiter(self, recruiter):
-        subrecruiter = recruiter.pick_recruiter()
-        assert subrecruiter.nickname == 'cli'
+        recruiters = list(recruiter.recruiters(3))
+        assert len(recruiters) == 2
 
-        subrecruiter = recruiter.pick_recruiter()
+        subrecruiter, count = recruiters[0]
         assert subrecruiter.nickname == 'cli'
+        assert count == 2
 
-        subrecruiter = recruiter.pick_recruiter()
+        subrecruiter, count = recruiters[1]
         assert subrecruiter.nickname == 'hotair'
-
-        with pytest.raises(Exception):
-            recruiter.pick_recruiter()
+        assert count == 1
 
     def test_open_recruitment(self, recruiter):
         result = recruiter.open_recruitment(n=3)
@@ -686,12 +706,64 @@ class TestMultiRecruiter(object):
         assert result['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result['items'][2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
 
+    def test_open_recruitment_over_recruit(self, recruiter):
+        result = recruiter.open_recruitment(n=5)
+        assert len(result['items']) == 3
+        assert result['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result['items'][2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_open_recruitment_twice(self, recruiter):
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        assert result['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+
+        result2 = recruiter.open_recruitment(n=3)
+        assert len(result2['items']) == 2
+        assert result2['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result2['items'][1].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
     def test_recruit(self, recruiter):
         result = recruiter.recruit(n=3)
         assert len(result) == 3
         assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
         assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_over_recruit(self, recruiter):
+        result = recruiter.recruit(n=5)
+        assert len(result) == 3
+        assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+    def test_recruit_partial(self, recruiter):
+        result = recruiter.open_recruitment(n=1)
+        assert len(result['items']) == 1
+        assert result['items'][0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+
+        result2 = recruiter.recruit(n=3)
+        assert len(result2) == 2
+        assert result2[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result2[1].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+
+        result3 = recruiter.recruit(n=2)
+        assert len(result3) == 0
+
+    def test_recruit_batches(self, active_config):
+        from dallinger.recruiters import MultiRecruiter
+        active_config.extend({'recruiters': u'cli: 2, hotair: 1, cli: 3, hotair: 2'})
+        recruiter = MultiRecruiter()
+        result = recruiter.recruit(n=10)
+        assert len(result) == 8
+        assert result[0].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[1].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[2].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+        assert result[3].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[4].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[5].startswith('http://0.0.0.0:5000/ad?recruiter=cli')
+        assert result[6].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
+        assert result[7].startswith('http://0.0.0.0:5000/ad?recruiter=hotair')
 
     def test_close_recruitment(self, recruiter):
         patch1 = mock.patch('dallinger.recruiters.CLIRecruiter.close_recruitment')

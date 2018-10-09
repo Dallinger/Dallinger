@@ -35,7 +35,7 @@ class SharedMixin(object):
     id = Column(Integer, primary_key=True, index=True)
 
     #: the time at which the Network was created.
-    creation_time = Column(DateTime, nullable=False, default=timenow)
+    creation_time = Column(DateTime, nullable=False, default=timenow, index=True)
 
     #: a generic column that can be used to store experiment-specific details in
     #: String form.
@@ -133,6 +133,7 @@ class Participant(Base, SharedMixin):
     status = Column(
         Enum(
             "working",
+            "overrecruited",
             "submitted",
             "approved",
             "rejected",
@@ -269,7 +270,10 @@ class Participant(Base, SharedMixin):
     @property
     def recruiter(self):
         from dallinger import recruiters
-        return recruiters.by_name(self.recruiter_id or 'hotair')
+        recruiter_name = self.recruiter_id or 'hotair'
+        if recruiter_name.startswith('bots:'):
+            recruiter_name = 'bots'
+        return recruiters.by_name(recruiter_name)
 
 
 class Question(Base, SharedMixin):

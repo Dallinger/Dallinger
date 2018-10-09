@@ -28,6 +28,23 @@ class TestAppConfiguration(object):
         StandaloneServer().load()
         assert not webapp.application.debug
 
+    def test_gunicorn_worker_config(self, webapp, active_config):
+        with mock.patch('multiprocessing.cpu_count') as cpu_count:
+            active_config.extend({'threads': u'auto'})
+            cpu_count.return_value = 2
+            from dallinger.experiment_server.gunicorn import StandaloneServer
+            server = StandaloneServer()
+            assert server.options['workers'] == u'4'
+            cpu_count.return_value = 4
+            server.load_user_config()
+            assert server.options['workers'] == u'7'
+            active_config.extend({'worker_multiplier': 1.0})
+            server.load_user_config()
+            assert server.options['workers'] == u'5'
+            active_config.extend({'threads': u'2'})
+            server.load_user_config()
+            assert server.options['workers'] == u'2'
+
 
 @pytest.mark.usefixtures('experiment_dir')
 class TestAdvertisement(object):
@@ -130,6 +147,30 @@ class TestAdvertisement(object):
         active_config.extend({'mode': u'live'})
         p = a.participant()
         p.end_time = datetime.now()
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert b'action="https://www.mturk.com/mturk/externalSubmit"' in resp.data
+
+    def test_overrecruit_sees_thanks_page_in_sandbox(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox'})
+        p = a.participant()
+        p.end_time = datetime.now()
+        p.status = u'overrecruited'
+        resp = webapp.get(
+            '/ad?hitId={}&assignmentId={}&workerId={}'.format(
+                p.hit_id, p.assignment_id, p.worker_id
+            )
+        )
+        assert b'action="https://workersandbox.mturk.com/mturk/externalSubmit"' in resp.data
+
+    def test_overrecruit_sees_thanks_page_in_live_mode(self, a, webapp, active_config):
+        active_config.extend({'mode': u'live'})
+        p = a.participant()
+        p.end_time = datetime.now()
+        p.status = u'overrecruited'
         resp = webapp.get(
             '/ad?hitId={}&assignmentId={}&workerId={}'.format(
                 p.hit_id, p.assignment_id, p.worker_id
@@ -253,19 +294,39 @@ class TestWorkerComplete(object):
         )
         assert models.Notification.query.one().event_type == u'BotAssignmentSubmitted'
 
-    def test_records_no_notification_mturk_recruiter_and_nondebug(self, a, webapp, active_config):
-        active_config.extend({'mode': u'sandbox'})
-        webapp.get('/worker_complete?participant_id={}'.format(
-            a.participant(recruiter_id='mturk').id)
-        )
-        assert models.Notification.query.all() == []
-
     def test_records_notification_for_non_mturk_recruiter(self, a, webapp, active_config):
         active_config.extend({'mode': u'sandbox', 'recruiter': u'CLIRecruiter'})
         webapp.get('/worker_complete?participant_id={}'.format(
             a.participant(recruiter_id='cli').id)
         )
         assert models.Notification.query.one().event_type == u'AssignmentSubmitted'
+
+    def test_records_no_notification_mturk_recruiter_and_nondebug(self, a, webapp, active_config):
+        active_config.extend({'mode': u'sandbox', 'assign_qualifications': False})
+        webapp.get('/worker_complete?participant_id={}'.format(
+            a.participant(recruiter_id='mturk').id)
+        )
+        assert models.Notification.query.all() == []
+
+    def test_notifies_recruiter_when_participant_completes(self, a, webapp, active_config):
+        from dallinger.models import Participant
+
+        active_config.extend({'mode': u'sandbox'})
+        with mock.patch('dallinger.recruiters.MTurkRecruiter.notify_completed') as notify_completed:
+            webapp.get('/worker_complete?participant_id={}'.format(
+                a.participant(recruiter_id='mturk').id
+            ))
+            args, _ = notify_completed.call_args
+            assert isinstance(args[0], Participant)
+
+
+@pytest.fixture
+def mock_messenger():
+    from dallinger.heroku.messages import EmailingHITMessenger
+    messenger = mock.Mock(spec=EmailingHITMessenger)
+    with mock.patch('dallinger.experiment_server.experiment_server.get_messenger') as get:
+        get.return_value = messenger
+        yield messenger
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session', 'dummy_mailer')
@@ -362,29 +423,17 @@ class TestHandleError(object):
         assert notifications[1].details['request_data']['participant_id'] == participant_id
 
     def test_sends_email(self, a, webapp, active_config, dummy_mailer):
-        active_config.extend({'dallinger_email_address': u'test_error',
-                              'dallinger_email_password': u'secret'})
+        active_config.extend({'mode': u'sandbox'})
         webapp.post('/handle-error', data={})
 
         dummy_mailer.login.assert_called_once()
         dummy_mailer.starttls.assert_called_once()
         dummy_mailer.sendmail.assert_called_once()
-        assert dummy_mailer.sendmail.call_args[0][0] == u'test_error@gmail.com'
+        assert dummy_mailer.sendmail.call_args[0][0] == u'test@example.com'
 
-    def test_emailer_handles_missing_username(self, a, webapp, active_config, dummy_mailer):
-        active_config.extend({'dallinger_email_address': u'',
-                              'contact_email_on_error': u'test_error'})
+    def test_sends_message(self, webapp, mock_messenger):
         webapp.post('/handle-error', data={})
-
-        dummy_mailer.login.assert_not_called()
-
-    def test_emailer_handles_missing_destination_address(self, a, webapp, active_config,
-                                                         dummy_mailer):
-        active_config.extend({'dallinger_email_address': u'test_error',
-                              'contact_email_on_error': u''})
-        webapp.post('/handle-error', data={})
-
-        dummy_mailer.login.assert_not_called()
+        mock_messenger.send_hit_error_msg.assert_called_once()
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
@@ -505,6 +554,18 @@ class TestAdRoute(object):
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestParticipantRoute(object):
 
+    @pytest.fixture
+    def overrecruited(self):
+        with mock.patch(
+            'dallinger.experiment_server.experiment_server.Experiment'
+        ) as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.is_overrecruited.return_value = True
+            mock_exp.quorum = 50
+            mock_class.return_value = mock_exp
+
+            yield mock_class
+
     def test_participant_info(self, a, webapp):
         p = a.participant()
         resp = webapp.get('/participant/{}'.format(p.id))
@@ -539,52 +600,54 @@ class TestParticipantRoute(object):
 
         assert resp.status_code == 403
 
-    def test_notifies_recruiter_when_participant_joins(self, webapp):
-        from dallinger.models import Participant
-
+    def test_sets_status_when_participant_is_overrecruited(
+        self, webapp, overrecruited
+    ):
         worker_id = '1'
         hit_id = '1'
         assignment_id = '1'
+        resp = webapp.post('/participant/{}/{}/{}/debug'.format(
+            worker_id, hit_id, assignment_id
+        ))
+        data = json.loads(resp.data.decode('utf8'))
 
-        target = 'dallinger.recruiters.HotAirRecruiter.notify_recruited'
-        with mock.patch(target) as notify_recruited:
-            webapp.post('/participant/{}/{}/{}/debug'.format(
-                worker_id, hit_id, assignment_id
-            ))
-            args, _ = notify_recruited.call_args
-            assert isinstance(args[0], Participant)
+        assert data.get('participant').get('status') == u'overrecruited'
 
-    def test_notifies_recruiter_when_participant_is_used(self, webapp):
-        from dallinger.models import Participant
-
+    def test_creates_participant_with_unknown_recruiter(self, webapp):
         worker_id = '1'
         hit_id = '1'
         assignment_id = '1'
+        resp = webapp.post('/participant/{}/{}/{}/debug?recruiter=test-recruiter'.format(
+            worker_id, hit_id, assignment_id
+        ))
 
-        with mock.patch('dallinger.recruiters.HotAirRecruiter.notify_using') as notify_using:
-            webapp.post('/participant/{}/{}/{}/debug'.format(
-                worker_id, hit_id, assignment_id
-            ))
-            args, _ = notify_using.call_args
-            assert isinstance(args[0], Participant)
+        assert resp.status_code == 200
 
-    def test_does_not_notify_recruiter_when_participant_is_skipped(self, webapp):
-        worker_id = '1'
-        hit_id = '1'
-        assignment_id = '1'
 
-        with mock.patch('dallinger.recruiters.HotAirRecruiter.notify_using') as notify_using:
-            with mock.patch(
-                'dallinger.experiment_server.experiment_server.Experiment'
-            ) as mock_class:
-                mock_exp = mock.Mock(name="the experiment")
-                mock_exp.is_overrecruited.return_value = True
-                mock_exp.quorum = 50
-                mock_class.return_value = mock_exp
-                webapp.post('/participant/{}/{}/{}/debug'.format(
-                    worker_id, hit_id, assignment_id
-                ))
-            notify_using.assert_not_called
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestAPINotificationRoute(object):
+
+    @pytest.fixture
+    def queue(self):
+        with mock.patch('dallinger.experiment_server.experiment_server.q') as q:
+            yield q
+
+    def test_parses_aws_rest_notification_and_queues_worker(self, webapp, queue):
+        from dallinger.experiment_server.experiment_server import worker_function
+        post_data = {
+            'Event.1.EventType': 'some event type',
+            'Event.1.AssignmentId': 'some assignment id',
+            'participant_id': 'some participant id'
+        }
+
+        webapp.post('/notifications', data=post_data)
+
+        queue.enqueue.assert_called_once_with(
+            worker_function,
+            'some event type',
+            'some assignment id',
+            'some participant id'
+        )
 
 
 @pytest.mark.usefixtures('experiment_dir')
@@ -1369,6 +1432,11 @@ class TestAssignmentSubmitted(object):
         assert runner.participant.base_pay == 1.0
 
     def test_participant_status_set(self, runner):
+        runner()
+        assert runner.participant.status == 'approved'
+
+    def test_approves_overrecruited_participants(self, runner):
+        runner.participant.status = 'overrecruited'
         runner()
         assert runner.participant.status == 'approved'
 

@@ -169,21 +169,25 @@ def copy_heroku_to_local(id):
     heroku_app.pg_pull()
 
 
-def copy_local_to_csv(local_db, path, scrub_pii=False):
+def copy_db_to_csv(dsn, path, scrub_pii=False):
     """Copy a local database to a set of CSV files."""
-    if "postgresql://" in local_db:
-        conn = psycopg2.connect(dsn=local_db)
+    if "postgresql://" in dsn or "postgres://" in dsn:
+        conn = psycopg2.connect(dsn=dsn)
     else:
-        conn = psycopg2.connect(database=local_db, user="dallinger")
+        conn = psycopg2.connect(database=dsn, user="dallinger")
     cur = conn.cursor()
     for table in table_names:
         csv_path = os.path.join(path, "{}.csv".format(table))
         with open(csv_path, "w") as f:
             sql = "COPY {} TO STDOUT WITH CSV HEADER".format(table)
             cur.copy_expert(sql, f)
-
+    conn.close()
     if scrub_pii:
         _scrub_participant_table(path)
+
+
+# Backwards compatibility for imports
+copy_local_to_csv = copy_db_to_csv
 
 
 def _scrub_participant_table(path_to_data):
@@ -211,10 +215,9 @@ def export(id, local=False, scrub_pii=False):
     print("Preparing to export the data...")
 
     if local:
-        local_db = db.db_url
+        db_uri = db.db_url
     else:
-        local_db = HerokuApp(id).name
-        copy_heroku_to_local(id)
+        db_uri = HerokuApp(id).db_uri
 
     # Create the data package if it doesn't already exist.
     subdata_path = os.path.join("data", id, "data")
@@ -226,7 +229,7 @@ def export(id, local=False, scrub_pii=False):
             raise
 
     # Copy in the data.
-    copy_local_to_csv(local_db, subdata_path, scrub_pii=scrub_pii)
+    copy_db_to_csv(db_uri, subdata_path, scrub_pii=scrub_pii)
 
     # Copy the experiment code into a code/ subdirectory.
     try:
