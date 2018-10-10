@@ -1,5 +1,6 @@
 import mock
 import pytest
+from datetime import datetime
 from dallinger.models import Participant
 from dallinger.experiment import Experiment
 
@@ -279,12 +280,75 @@ class TestBotRecruiter(object):
     def test_returns_specific_submission_event_type(self, recruiter):
         assert recruiter.submitted_event() is 'BotAssignmentSubmitted'
 
+    def test_notify_duration_exceeded_rejects_participants(self, a, recruiter):
+        bot = a.participant(recruiter_id='bots')
+
+        recruiter.notify_duration_exceeded([bot], datetime.now())
+
+        assert bot.status == 'rejected'
+
+
+class TestMTurkRecruiterMessages(object):
+
+    @pytest.fixture
+    def summary(self, a, stub_config):
+        from datetime import timedelta
+        from dallinger.recruiters import ParticipationTime
+        p = a.participant()
+        one_min_over = 60 * stub_config.get('duration') + 1
+        return ParticipationTime(
+            participant=p,
+            reference_time=p.creation_time + timedelta(minutes=one_min_over),
+            config=stub_config
+        )
+
+    @pytest.fixture
+    def whimsical(self, summary, stub_config):
+        from dallinger.recruiters import WhimsicalMTurkHITMessages
+        return WhimsicalMTurkHITMessages(summary)
+
+    @pytest.fixture
+    def nonwhimsical(self, summary, stub_config):
+        from dallinger.recruiters import MTurkHITMessages
+        return MTurkHITMessages(summary)
+
+    def test_resubmitted_msg_whimsical(self, whimsical):
+        data = whimsical.resubmitted_msg()
+        assert data['subject'] == 'A matter of minor concern.'
+        assert 'a full 1 minutes over' in data['body'].replace('\n', ' ')
+
+    def test_resubmitted_msg_nonwhimsical(self, nonwhimsical):
+        data = nonwhimsical.resubmitted_msg()
+        assert data['subject'] == 'Dallinger automated email - minor error.'
+        assert 'Dallinger has auto-corrected the problem' in data['body'].replace('\n', ' ')
+
+    def test_hit_cancelled_msg_whimsical(self, whimsical):
+        data = whimsical.hit_cancelled_msg()
+        assert data['subject'] == 'Most troubling news.'
+        assert 'a full 1 minutes over' in data['body'].replace('\n', ' ')
+
+    def test_hit_cancelled_msg_nonwhimsical(self, nonwhimsical):
+        data = nonwhimsical.hit_cancelled_msg()
+        assert data['subject'] == 'Dallinger automated email - major error.'
+        assert 'Dallinger has paused the experiment' in data['body'].replace('\n', ' ')
+
 
 @pytest.mark.usefixtures('active_config')
 class TestMTurkRecruiter(object):
 
     @pytest.fixture
-    def recruiter(self, active_config):
+    def requests(self):
+        with mock.patch('dallinger.recruiters.requests', autospec=True) as mock_requests:
+            yield mock_requests
+
+    @pytest.fixture
+    def messenger(self):
+        from dallinger.notifications import DebugMessenger
+        mock_messenger = mock.create_autospec(DebugMessenger)
+        yield mock_messenger
+
+    @pytest.fixture
+    def recruiter(self, active_config, messenger):
         from dallinger.mturk import MTurkService
         from dallinger.recruiters import MTurkRecruiter
         with mock.patch.multiple('dallinger.recruiters',
@@ -295,6 +359,7 @@ class TestMTurkRecruiter(object):
             mockservice = mock.create_autospec(MTurkService)
             active_config.extend({'mode': u'sandbox'})
             r = MTurkRecruiter()
+            r.messenger = messenger
             r.mturkservice = mockservice('fake key', 'fake secret', 'fake_region')
             r.mturkservice.check_credentials.return_value = True
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
@@ -565,6 +630,89 @@ class TestMTurkRecruiter(object):
         participant = mock.Mock(spec=Participant, status="submitted")
         rejection = recruiter.rejects_questionnaire_from(participant)
         assert "already sumbitted their HIT" in rejection
+
+    #
+    # Begin notify_duration_exceeded tests
+    #
+
+    def test_sets_participant_status_if_approved(self, a, recruiter):
+        recruiter.mturkservice.get_assignment.return_value = {'status': 'Approved'}
+        participants = [a.participant()]
+
+        recruiter.notify_duration_exceeded(participants, datetime.now())
+
+        assert participants[0].status == 'approved'
+
+    def test_sets_participant_status_if_rejected(self, a, recruiter):
+        recruiter.mturkservice.get_assignment.return_value = {'status': 'Rejected'}
+        participants = [a.participant()]
+
+        recruiter.notify_duration_exceeded(participants, datetime.now())
+
+        assert participants[0].status == 'rejected'
+
+    def test_sends_replacement_mturk_notification_if_resubmitted(self, a, recruiter, requests):
+        recruiter.mturkservice.get_assignment.return_value = {'status': 'Submitted'}
+        participants = [a.participant()]
+
+        recruiter.notify_duration_exceeded(participants, datetime.now())
+
+        requests.post.assert_called_once_with(
+            'https://url-of-notification-route',
+            data={
+                'Event.1.EventType': 'AssignmentSubmitted',
+                'Event.1.AssignmentId': participants[0].assignment_id
+            }
+        )
+        recruiter.messenger.send.assert_called_once()
+
+    def test_notifies_researcher_if_resubmitted(self, a, recruiter, requests):
+        recruiter.mturkservice.get_assignment.return_value = {'status': 'Submitted'}
+        participants = [a.participant()]
+
+        recruiter.notify_duration_exceeded(participants, datetime.now())
+
+        recruiter.messenger.send.assert_called_once()
+
+    def test_shuts_down_recruitment_if_no_status_from_mturk(self, a, recruiter, requests):
+        recruiter.mturkservice.get_assignment.return_value = {'status': None}
+        participants = [a.participant()]
+
+        recruiter.notify_duration_exceeded(participants, datetime.now())
+
+        assert requests.patch.call_args[1]['data'] == '{"auto_recruit": "false"}'
+
+    def test_sends_notification_missing_if_no_status_from_mturk(self, a, recruiter, requests):
+        recruiter.mturkservice.get_assignment.return_value = {'status': None}
+        participants = [a.participant()]
+
+        recruiter.notify_duration_exceeded(participants, datetime.now())
+
+        requests.post.assert_called_once_with(
+            'https://url-of-notification-route',
+            data={
+                'Event.1.EventType': 'NotificationMissing',
+                'Event.1.AssignmentId': participants[0].assignment_id
+            }
+        )
+
+    def test_notifies_researcher_when_hit_cancelled(self, a, recruiter, requests):
+        recruiter.mturkservice.get_assignment.return_value = {'status': None}
+        participants = [a.participant()]
+
+        recruiter.notify_duration_exceeded(participants, datetime.now())
+
+        recruiter.messenger.send.assert_called_once()
+
+    def test_no_assignment_on_mturk_expires_hit(self, a, recruiter, requests):
+        recruiter.mturkservice.get_assignment.return_value = {'status': None}
+        participants = [a.participant()]
+
+        recruiter.notify_duration_exceeded(participants, datetime.now())
+
+        recruiter.mturkservice.expire_hit.assert_called_once_with(
+            participants[0].hit_id
+        )
 
 
 @pytest.mark.usefixtures('active_config')

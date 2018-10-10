@@ -5,7 +5,6 @@ import os
 import pexpect
 import pytest
 import six
-import subprocess
 import sys
 import tempfile
 from pytest import raises
@@ -226,37 +225,6 @@ class TestSetupExperiment(object):
         config = get_config()
         config['base_payment'] = -1.99
         assert verify_package() is False
-
-
-@pytest.mark.usefixtures('in_tempdir')
-class TestGitClient(object):
-
-    @pytest.fixture
-    def git(self):
-        from dallinger.utils import GitClient
-        git = GitClient()
-        return git
-
-    def test_client(self, git, stub_config):
-        stub_config.write()
-        config = {'user.name': 'Test User', 'user.email': 'test@example.com'}
-        git.init(config=config)
-        git.add("--all")
-        git.commit("Test Repo")
-        assert b"Test Repo" in subprocess.check_output(['git', 'log'])
-
-    def test_includes_details_in_exceptions(self, git):
-        with pytest.raises(Exception) as ex_info:
-            git.push('foo', 'bar')
-        assert ex_info.match('[nN]ot a git repository')
-
-    def test_can_use_alternate_output(self, git):
-        import tempfile
-        git.out = tempfile.NamedTemporaryFile()
-        git.encoding = 'utf8'
-        git.init()
-        git.out.seek(0)
-        assert b"git init" in git.out.read()
 
 
 @pytest.mark.usefixtures('active_config', 'launch', 'fake_git', 'faster')

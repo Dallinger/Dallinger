@@ -34,9 +34,8 @@ from dallinger import information
 from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger import recruiters
-from dallinger.heroku.messages import get_messenger
-from dallinger.heroku.messages import MessengerError
-from dallinger.heroku.messages import HITSummary
+from dallinger.notifications import get_messenger
+from dallinger.notifications import MessengerError
 
 from .replay import ReplayBackend
 from .worker_events import WorkerEvent
@@ -302,6 +301,25 @@ def render_error():
         request_data=request_data,
     )
 
+hit_error_template = """Dear experimenter,
+
+This is an automated email from Dallinger. You are receiving this email because
+a recruited participant has been unable to complete the experiment due to
+a bug.
+
+The application id is: {app_id}
+
+The information about the failed HIT is recorded in the database in the
+Notification table, with assignment_id {assignment_id}.
+
+To see the logs, use the command "dallinger logs --app {app_id}"
+To pause the app, use the command "dallinger hibernate --app {app_id}"
+To destroy the app, use the command "dallinger destroy --app {app_id}"
+
+
+The Dallinger dev. team.
+"""
+
 
 @app.route('/handle-error', methods=['POST'])
 def handle_error():
@@ -384,19 +402,19 @@ def handle_error():
     session.commit()
 
     config = _config()
-    summary = HITSummary(
-        assignment_id=assignment_id or 'unknown',
-        duration=0,
-        time_active=0,
-        app_id=config.get('id', 'unknown'),
-    )
+    message = {
+        'subject': 'Error during HIT.',
+        'body': hit_error_template.format(
+            app_id=config.get('id', 'unknown'),
+            assignment_id=assignment_id or 'unknown',
+        )
+    }
     db.logger.debug("Reporting HIT error...")
-    with config.override({'whimsical': False}, strict=True):
-        messenger = get_messenger(summary, config)
-        try:
-            messenger.send_hit_error_msg()
-        except MessengerError as ex:
-            db.logger.exception(ex)
+    messenger = get_messenger(config)
+    try:
+        messenger.send(message)
+    except MessengerError as ex:
+        db.logger.exception(ex)
 
     return render_template(
         'error-complete.html',

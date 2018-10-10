@@ -1,82 +1,48 @@
 """A clock process."""
 
+from collections import defaultdict
 from datetime import datetime
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 import dallinger
-from dallinger import db
-from dallinger.models import Participant
-from dallinger.mturk import MTurkService
-from dallinger.heroku.messages import HITSummary
-from dallinger.heroku.messages import get_messenger
-from dallinger.heroku.messages import MessengerError
 from dallinger import recruiters
+from dallinger.models import Participant
+from dallinger.utils import ParticipationTime
 
 
 # Import the experiment.
-experiment = dallinger.experiment.load()
-
-session = db.session
+exp = dallinger.experiment.load()
 
 scheduler = BlockingScheduler()
 
 
-def run_check(config, mturk, participants, session, reference_time):
-
-    # get experiment duration in seconds
-    duration_seconds = config.get('duration') * 60.0 * 60.0
-
-    # Track HITs somehow... TBD.
-    hits_to_be_cancelled = set()
-    # for each participant, if they've been active for longer than the
-    # experiment duration + 5 minutes, we take action.
+def run_check(participants, config, reference_time):
+    """For each participant, if they've been active for longer than the
+    experiment duration + 2 minutes, we take action.
+    """
+    recruiters_with_late_participants = defaultdict(list)
     for p in participants:
-        time_active = (reference_time - p.creation_time).total_seconds()
-
-        if time_active > (duration_seconds + 120):
+        timeline = ParticipationTime(p, reference_time, config)
+        if timeline.is_overdue:
             print(
                 "Error: participant {} with status {} has been playing for too "
-                "long - checking in with their recruiter.".format(p.id, p.status)
+                "long - their recruiter will be notified.".format(p.id, p.status)
             )
+            recruiters_with_late_participants[p.recruiter_id].append(p)
 
-            recruiter = recruiters.by_name(p.recruiter_id)
-            summary = HITSummary(
-                assignment_id=p.assignment_id,
-                duration=duration_seconds,
-                time_active=time_active,
-                app_id=config.get('id', 'unknown'),
-                when=reference_time,
-            )
-
-            recruiter.notify_duration_exceeded(p, summary)
-
-    for hit in hits_to_be_cancelled:
-        # Do something to cancel HITs
-        recruiter = recruiter.by_name(hit['recruiter_id'])
-        recruiter.close_recruitment(hit['id'])
-        recruiter.terminate_hit(hit['id'])
-        messenger = get_messenger(hit['summary'], config)
-        try:
-            messenger.send_hit_cancelled_msg()
-        except MessengerError as ex:
-            print(ex)
+    for recruiter_id, participants in recruiters_with_late_participants.items():
+        recruiter = recruiters.by_name(recruiter_id)
+        recruiter.notify_duration_exceeded(participants, reference_time)
 
 
 @scheduler.scheduled_job('interval', minutes=0.5)
 def check_db_for_missing_notifications():
     """Check the database for missing notifications."""
     config = dallinger.config.get_config()
-    mturk = MTurkService(
-        aws_access_key_id=config.get('aws_access_key_id'),
-        aws_secret_access_key=config.get('aws_secret_access_key'),
-        region_name=config.get('aws_region'),
-        sandbox=config.get('mode') in ('debug', 'sandbox')
-    )
-    # get all participants with status < 100
     participants = Participant.query.filter_by(status="working").all()
     reference_time = datetime.now()
 
-    run_check(config, mturk, participants, session, reference_time)
+    run_check(participants, config, reference_time)
 
 
 def launch():
