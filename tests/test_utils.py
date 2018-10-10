@@ -107,6 +107,15 @@ class TestGitClient(object):
         git.out.seek(0)
         assert b"git init" in git.out.read()
 
+    def test_clone(self, git):
+        with mock.patch('dallinger.utils.run_command') as runner:
+            tempdir = git.clone('https://some-fake-repo')
+
+        runner.assert_called_once_with(
+            ['git', 'clone', 'https://some-fake-repo', tempdir],
+            mock.ANY
+        )
+
 
 class TestParticipationTime(object):
 
