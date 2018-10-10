@@ -14,6 +14,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from six.moves import urllib
 import gevent
 import requests
+from requests.exceptions import RequestException
 
 logger = logging.getLogger(__file__)
 
@@ -232,8 +233,14 @@ class HighPerformanceBotBase(BotBase):
                     bot_name=self.__class__.__name__
                 )
             )
-            result = requests.post(url)
-            if result.status_code == 500 or result.json()['status'] == 'error':
+            try:
+                result = requests.post(url)
+                result.raise_for_status()
+            except RequestException:
+                self.stochastic_sleep()
+                continue
+
+            if result.json()['status'] == 'error':
                 self.stochastic_sleep()
                 continue
 
@@ -246,24 +253,7 @@ class HighPerformanceBotBase(BotBase):
         This is done using a POST request to the /question/ endpoint.
         """
         self.log('Bot player signing off.')
-        while True:
-            question_responses = {"engagement": 4, "difficulty": 3}
-            data = {
-                'question': 'questionnaire',
-                'number': 1,
-                'response': json.dumps(question_responses),
-            }
-            url = (
-                "{host}/question/{self.participant_id}".format(
-                    host=self.host,
-                    self=self,
-                )
-            )
-            result = requests.post(url, data=data)
-            if result.status_code == 500:
-                self.stochastic_sleep()
-                continue
-            return True
+        return self.complete_questionnaire()
 
     def complete_experiment(self, status):
         """Record worker completion status to the experiment server.
@@ -280,8 +270,10 @@ class HighPerformanceBotBase(BotBase):
                     status=status
                 )
             )
-            result = requests.get(url)
-            if result.status_code == 500:
+            try:
+                result = requests.get(url)
+                result.raise_for_status()
+            except RequestException:
                 self.stochastic_sleep()
                 continue
             return result
@@ -301,3 +293,32 @@ class HighPerformanceBotBase(BotBase):
     def on_signup(self, data):
         """Take any needed action on response from /participant call."""
         self.participant_id = data['participant']['id']
+
+    @property
+    def question_responses(self):
+        return {"engagement": 4, "difficulty": 3}
+
+    def complete_questionnaire(self):
+        """Complete the standard debriefing form.
+
+        Answers the questions in the base questionnaire.
+        """
+        while True:
+            data = {
+                'question': 'questionnaire',
+                'number': 1,
+                'response': json.dumps(self.question_responses),
+            }
+            url = (
+                "{host}/question/{self.participant_id}".format(
+                    host=self.host,
+                    self=self,
+                )
+            )
+            try:
+                result = requests.post(url, data=data)
+                result.raise_for_status()
+            except RequestException:
+                self.stochastic_sleep()
+                continue
+            return True
