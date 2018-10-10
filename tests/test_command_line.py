@@ -120,11 +120,13 @@ class TestReportAfterIdleDecorator(object):
 
         @report_idle_after(1)
         def will_time_out():
-            sleep(5)
+            sleep(2)
 
-        with mock.patch('dallinger.command_line.get_messenger') as messenger:
+        with mock.patch('dallinger.command_line.get_messenger') as getter:
+            mock_messenger = mock.Mock()
+            getter.return_value = mock_messenger
             will_time_out()
-            messenger.assert_called_once()
+            mock_messenger.send.assert_called_once()
 
 
 class TestOutput(object):

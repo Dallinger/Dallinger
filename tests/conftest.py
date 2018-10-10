@@ -384,17 +384,6 @@ def db_session():
 
 
 @pytest.fixture
-def dummy_mailer():
-    from smtplib import SMTP
-    from dallinger.heroku import messages
-    server = mock.create_autospec(SMTP)
-    orig_server = messages.get_email_server
-    messages.get_email_server = mock.Mock(return_value=server)
-    yield server
-    messages.get_email_server = orig_server
-
-
-@pytest.fixture
 def custom_app_output():
     with mock.patch('dallinger.heroku.tools.check_output') as check_output:
         def my_check_output(cmd):

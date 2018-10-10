@@ -124,6 +124,47 @@ class GitClient(object):
         self.out.write(msg)
 
 
+class ParticipationTime(object):
+
+    grace_period_seconds = 120
+
+    def __init__(self, participant, reference_time, config):
+        self.participant = participant
+        self.when = reference_time
+        self.allowed_hours = config.get('duration')
+        self.app_id = config.get('app_id', 'unknown')
+
+    @property
+    def assignment_id(self):
+        return self.participant.assignment_id
+
+    @property
+    def allowed_minutes(self):
+        return round(self.allowed_hours * 60)
+
+    @property
+    def allowed_seconds(self):
+        return self.allowed_hours * 60.0 * 60.0
+
+    @property
+    def active_seconds(self):
+        delta = (self.when - self.participant.creation_time)
+        return delta.total_seconds()
+
+    @property
+    def active_minutes(self):
+        return round(self.active_seconds / 60.0)
+
+    @property
+    def excess_minutes(self):
+        return round((self.active_seconds - self.allowed_seconds) / 60)
+
+    @property
+    def is_overdue(self):
+        total_allowed_seconds = self.allowed_seconds + self.grace_period_seconds
+        return self.active_seconds > total_allowed_seconds
+
+
 def wrap_subprocess_call(func, wrap_stdout=True):
     @functools.wraps(func)
     def wrapper(*popenargs, **kwargs):
