@@ -301,6 +301,7 @@ def render_error():
         request_data=request_data,
     )
 
+
 hit_error_template = """Dear experimenter,
 
 This is an automated email from Dallinger. You are receiving this email because

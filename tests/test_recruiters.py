@@ -315,7 +315,7 @@ class TestMTurkRecruiterMessages(object):
     def test_resubmitted_msg_whimsical(self, whimsical):
         data = whimsical.resubmitted_msg()
         assert data['subject'] == 'A matter of minor concern.'
-        assert 'a full 1 minutes over' in data['body'].replace('\n', ' ')
+        assert '1 minutes over' in data['body']
 
     def test_resubmitted_msg_nonwhimsical(self, nonwhimsical):
         data = nonwhimsical.resubmitted_msg()
@@ -325,7 +325,7 @@ class TestMTurkRecruiterMessages(object):
     def test_hit_cancelled_msg_whimsical(self, whimsical):
         data = whimsical.hit_cancelled_msg()
         assert data['subject'] == 'Most troubling news.'
-        assert 'a full 1 minutes over' in data['body'].replace('\n', ' ')
+        assert '1 minutes over' in data['body']
 
     def test_hit_cancelled_msg_nonwhimsical(self, nonwhimsical):
         data = nonwhimsical.hit_cancelled_msg()
