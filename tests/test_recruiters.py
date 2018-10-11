@@ -314,23 +314,27 @@ class TestMTurkRecruiterMessages(object):
 
     def test_resubmitted_msg_whimsical(self, whimsical):
         data = whimsical.resubmitted_msg()
+        body = data['body'].replace('\n', ' ')
         assert data['subject'] == 'A matter of minor concern.'
-        assert '1 minutes over' in data['body']
+        assert 'a full 1 minutes over' in body
 
     def test_resubmitted_msg_nonwhimsical(self, nonwhimsical):
         data = nonwhimsical.resubmitted_msg()
+        body = data['body'].replace('\n', ' ')
         assert data['subject'] == 'Dallinger automated email - minor error.'
-        assert 'Dallinger has auto-corrected the problem' in data['body'].replace('\n', ' ')
+        assert 'Dallinger has auto-corrected the problem' in body
 
     def test_hit_cancelled_msg_whimsical(self, whimsical):
         data = whimsical.hit_cancelled_msg()
+        body = data['body'].replace('\n', ' ')
         assert data['subject'] == 'Most troubling news.'
-        assert '1 minutes over' in data['body']
+        assert 'a full 1 minutes over' in body
 
     def test_hit_cancelled_msg_nonwhimsical(self, nonwhimsical):
         data = nonwhimsical.hit_cancelled_msg()
+        body = data['body'].replace('\n', ' ')
         assert data['subject'] == 'Dallinger automated email - major error.'
-        assert 'Dallinger has paused the experiment' in data['body'].replace('\n', ' ')
+        assert 'Dallinger has paused the experiment' in body
 
 
 @pytest.mark.usefixtures('active_config')

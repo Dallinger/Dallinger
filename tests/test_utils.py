@@ -127,17 +127,17 @@ class TestParticipationTime(object):
     def test_time_translations(self, subject, a, stub_config):
         timeline = subject(a.participant(), datetime.now(), stub_config)
         assert timeline.allowed_hours == stub_config.get('duration')
-        assert timeline.allowed_minutes == 60
+        assert timeline.allowed_minutes == 60.0
         assert timeline.allowed_seconds == 3600.0
 
     def test_excess_minutes(self, subject, a, stub_config):
-        duration_mins = round(stub_config.get('duration') * 60)
+        duration_mins = stub_config.get('duration') * 60
         participant = a.participant()
         five_minutes_over = participant.creation_time + timedelta(minutes=duration_mins + 5)
 
         timeline = subject(a.participant(), five_minutes_over, stub_config)
 
-        assert timeline.excess_minutes == 5
+        assert int(round(timeline.excess_minutes)) == 5
 
     def test_is_overdue_true_if_over_by_two_minutes_or_more(self, subject, a, stub_config):
         duration_secs = round(stub_config.get('duration') * 60 * 60)

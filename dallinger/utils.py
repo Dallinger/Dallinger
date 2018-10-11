@@ -140,7 +140,7 @@ class ParticipationTime(object):
 
     @property
     def allowed_minutes(self):
-        return round(self.allowed_hours * 60)
+        return self.allowed_hours * 60
 
     @property
     def allowed_seconds(self):
@@ -153,11 +153,11 @@ class ParticipationTime(object):
 
     @property
     def active_minutes(self):
-        return round(self.active_seconds / 60.0)
+        return self.active_seconds / 60
 
     @property
     def excess_minutes(self):
-        return round((self.active_seconds - self.allowed_seconds) / 60)
+        return (self.active_seconds - self.allowed_seconds) / 60
 
     @property
     def is_overdue(self):
