@@ -256,10 +256,10 @@ mturk_resubmit_whimsical = """Dearest Friend,
 I am writing to let you know that at {s.when}, during my regular (and thoroughly
 enjoyable) perousal of the most charming participant data table, I happened to
 notice that assignment {s.assignment_id} has been taking longer than we were
-expecting. I recall you had suggested {s.allowed_minutes} minutes as an upper
+expecting. I recall you had suggested {s.allowed_minutes:.0f} minutes as an upper
 limit for what was an acceptable length of time for each assignement, however
-this assignment had been underway for a shocking {s.active_minutes} minutes, a
-full {s.excess_minutes} minutes over your allowance. I immediately dispatched a
+this assignment had been underway for a shocking {s.active_minutes:.0f} minutes, a
+full {s.excess_minutes:.0f} minutes over your allowance. I immediately dispatched a
 telegram to our mutual friends at AWS and they were able to assure me that
 although the notification had failed to be correctly processed, the assignment
 had in fact been completed. Rather than trouble you, I dealt with this myself
@@ -290,8 +290,8 @@ The Dallinger dev. team.
 
 Error details:
 Assignment: {s.assignment_id}
-Allowed time: {s.allowed_minutes} minute(s)
-Time since participant started: {s.active_minutes}
+Allowed time: {s.allowed_minutes:.0f} minute(s)
+Time since participant started: {s.active_minutes:.0f}
 """
 
 
@@ -300,10 +300,10 @@ mturk_cancelled_hit_whimsical = """Dearest Friend,
 I am afraid I write to you with most grave tidings. At {s.when}, during a
 routine check of the usually most delightful participant data table, I happened
 to notice that assignment {s.assignment_id} has been taking longer than we were
-expecting. I recall you had suggested {s.allowed_minutes} minutes as an upper
+expecting. I recall you had suggested {s.allowed_minutes:.0f} minutes as an upper
 limit for what was an acceptable length of time for each assignment, however
-this assignment had been underway for a shocking {s.active_minutes} minutes, a
-full {s.excess_minutes} minutes over your allowance. I immediately dispatched a
+this assignment had been underway for a shocking {s.active_minutes:.0f} minutes, a
+full {s.excess_minutes:.0f} minutes over your allowance. I immediately dispatched a
 telegram to our mutual friends at AWS and they infact informed me that they had
 already sent us a notification which we must have failed to process, implying
 that the assignment had not been successfully completed. Of course when the
@@ -350,8 +350,8 @@ The Dallinger dev. team.
 Error details:
 Assignment: {s.assignment_id}
 
-Allowed time (minutes): {s.allowed_minutes}
-Time since participant started: {s.active_minutes}
+Allowed time (minutes): {s.allowed_minutes:.0f}
+Time since participant started: {s.active_minutes:.0f}
 """
 
 
