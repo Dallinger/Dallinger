@@ -372,7 +372,6 @@ class MTurkHITMessages(object):
             'subject': 'Dallinger automated email - major error.',
             'template': cancelled_hit,
         },
-
     }
 
     def __init__(self, summary):
@@ -558,12 +557,7 @@ class MTurkRecruiter(Recruiter):
         unsubmitted = []
         for participant in participants:
             summary = ParticipationTime(participant, reference_time, self.config)
-            # ask amazon for the status of the assignment
-            try:
-                assignment = self.mturkservice.get_assignment(participant.assignment_id)
-                status = assignment['status']
-            except Exception:
-                status = None
+            status = self._mturk_status_for(participant)
 
             if status == 'Approved':
                 participant.status = 'approved'
@@ -572,19 +566,15 @@ class MTurkRecruiter(Recruiter):
                 participant.status = 'rejected'
                 session.commit()
             elif status == 'Submitted':
-                self._resend_submitted_notification_for(participant)
-                # message the researcher:
-                try:
-                    self.messenger.send(self._resubmitted_msg(summary))
-                except MessengerError as ex:
-                    logger.exception(ex)
+                self._resend_submitted_rest_notification_for(participant)
+                self._message_researcher(self._resubmitted_msg(summary))
                 logger.warning(
                     "Error - submitted notification for participant {} missed. "
                     "A replacement notification was created and sent, "
                     "but proceed with caution.".format(participant.id)
                 )
             else:
-                self._send_notifiation_missing_notification_for(participant)
+                self._send_notification_missing_rest_notification_for(participant)
                 unsubmitted.append(summary)
 
         if unsubmitted:
@@ -592,10 +582,7 @@ class MTurkRecruiter(Recruiter):
             self.close_recruitment()
             pick_one = unsubmitted[0]
             # message the researcher about the one of the participants:
-            try:
-                self.messenger.send(self._cancelled_msg(pick_one))
-            except MessengerError as ex:
-                logger.exception(ex)
+            self._message_researcher(self._cancelled_msg(pick_one))
             # Attempt to force-expire the hit via boto. It's possible
             # that the HIT won't exist if the HIT has been deleted manually.
             try:
@@ -671,6 +658,14 @@ class MTurkRecruiter(Recruiter):
         # except MTurkServiceException as ex:
         #     logger.exception(str(ex))
 
+    def _mturk_status_for(self, participant):
+        try:
+            assignment = self.mturkservice.get_assignment(participant.assignment_id)
+            status = assignment['status']
+        except Exception:
+            status = None
+        return status
+
     def _disable_autorecruit(self):
         heroku_app = heroku_tools.HerokuApp(self.config.get('id'))
         args = json.dumps({'auto_recruit': 'false'})
@@ -681,7 +676,7 @@ class MTurkRecruiter(Recruiter):
             headers=headers,
         )
 
-    def _resend_submitted_notification_for(self, participant):
+    def _resend_submitted_rest_notification_for(self, participant):
         notification_url = self.config.get('notification_url')
         args = {
             'Event.1.EventType': 'AssignmentSubmitted',
@@ -689,7 +684,7 @@ class MTurkRecruiter(Recruiter):
         }
         requests.post(notification_url, data=args)
 
-    def _send_notifiation_missing_notification_for(self, participant):
+    def _send_notification_missing_rest_notification_for(self, participant):
         notification_url = self.config.get('notification_url')
         args = {
             'Event.1.EventType': 'NotificationMissing',
@@ -721,6 +716,12 @@ class MTurkRecruiter(Recruiter):
     def _cancelled_msg(self, summary):
         templates = MTurkHITMessages.by_flavor(summary, self.config.get('whimsical'))
         return templates.hit_cancelled_msg()
+
+    def _message_researcher(self, message):
+        try:
+            self.messenger.send(message)
+        except MessengerError as ex:
+            logger.exception(ex)
 
 
 class MTurkLargeRecruiter(MTurkRecruiter):

@@ -97,6 +97,9 @@ class TestRecruiter(object):
         dummy = mock.NonCallableMock()
         assert recruiter.rejects_questionnaire_from(participant=dummy) is None
 
+    def test_notify_duration_exceeded_logs_only(self, recruiter):
+        recruiter.notify_duration_exceeded(participants=[], reference_time=None)
+
     def test_backward_compat(self, recruiter):
         assert recruiter() is recruiter
 
@@ -685,6 +688,11 @@ class TestMTurkRecruiter(object):
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
         assert requests.patch.call_args[1]['data'] == '{"auto_recruit": "false"}'
+
+    def test_treats_mturk_exception_as_status_none(self, a, recruiter):
+        recruiter.mturkservice.get_assignment.side_effect = Exception("Boom!")
+
+        assert recruiter._mturk_status_for(mock.Mock()) is None
 
     def test_sends_notification_missing_if_no_status_from_mturk(self, a, recruiter, requests):
         recruiter.mturkservice.get_assignment.return_value = {'status': None}
