@@ -132,9 +132,6 @@ class TestSetupExperiment(object):
         assert found_in('experiment.py', exp_dir)
         assert not found_in('experiment_id.txt', exp_dir)
         assert not found_in('Procfile', exp_dir)
-        assert not found_in('launch.py', exp_dir)
-        assert not found_in('worker.py', exp_dir)
-        assert not found_in('clock.py', exp_dir)
 
         exp_id, dst = setup_experiment(log=mock.Mock())
 
@@ -146,9 +143,6 @@ class TestSetupExperiment(object):
         assert found_in('experiment.py', dst)
         assert found_in('models.py', dst)
         assert found_in('Procfile', dst)
-        assert found_in('launch.py', dst)
-        assert found_in('worker.py', dst)
-        assert found_in('clock.py', dst)
 
         assert found_in(os.path.join("static", "css", "dallinger.css"), dst)
         assert found_in(os.path.join("static", "scripts", "dallinger2.js"), dst)
@@ -161,6 +155,36 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "error-complete.html"), dst)
         assert found_in(os.path.join("templates", "launch.html"), dst)
         assert found_in(os.path.join("templates", "complete.html"), dst)
+
+    def test_setup_procfile_no_clock(self, setup_experiment):
+        config = get_config()
+        config.set('clock_on', False)
+        assert config.get('clock_on') is False
+        exp_dir = os.getcwd()
+        assert not found_in('Procfile', exp_dir)
+
+        exp_id, dst = setup_experiment(log=mock.Mock())
+
+        assert found_in('Procfile', dst)
+        with open(os.path.join(dst, 'Procfile')) as proc:
+            assert 'clock: dallinger_heroku_clock' not in [
+                l.strip() for l in proc
+            ]
+
+    def test_setup_procfile_with_clock(self, setup_experiment):
+        config = get_config()
+        config.set('clock_on', True)
+        assert config.get('clock_on') is True
+        exp_dir = os.getcwd()
+        assert not found_in('Procfile', exp_dir)
+
+        exp_id, dst = setup_experiment(log=mock.Mock())
+
+        assert found_in('Procfile', dst)
+        with open(os.path.join(dst, 'Procfile')) as proc:
+            assert 'clock: dallinger_heroku_clock' in [
+                l.strip() for l in proc
+            ]
 
     def test_setup_with_custom_dict_config(self, setup_experiment):
         config = get_config()

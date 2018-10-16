@@ -27,6 +27,9 @@ setup_args = dict(
     entry_points={
         'console_scripts': [
             'dallinger = dallinger.command_line:dallinger',
+            'dallinger_heroku_web = dallinger.heroku.launch:main',
+            'dallinger_heroku_worker = dallinger.heroku.worker:main',
+            'dallinger_heroku_clock = dallinger.heroku.clock:launch',
         ],
         'dallinger.experiments': [],
     },

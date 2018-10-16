@@ -8,8 +8,8 @@ listen = ['high', 'default', 'low']
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 conn = redis.from_url(redis_url)
 
-if __name__ == '__main__':  # pragma: nocover
 
+def main():
     # Make sure gevent patches are applied early.
     import gevent.monkey
     gevent.monkey.patch_all()
@@ -34,3 +34,7 @@ if __name__ == '__main__':  # pragma: nocover
     with Connection(conn):
         worker = Worker(list(map(Queue, listen)))
         worker.work()
+
+
+if __name__ == '__main__':  # pragma: nocover
+    main()
