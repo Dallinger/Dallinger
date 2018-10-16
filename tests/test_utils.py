@@ -139,20 +139,25 @@ class TestParticipationTime(object):
 
         assert int(round(timeline.excess_minutes)) == 5
 
-    def test_is_overdue_true_if_over_by_two_minutes_or_more(self, subject, a, stub_config):
+    def test_is_overdue_true_if_exceeds_grace_period(self, subject, a, stub_config):
         duration_secs = round(stub_config.get('duration') * 60 * 60)
         participant = a.participant()
-        five_minutes_over = participant.creation_time + timedelta(seconds=duration_secs + 121)
+        just_over = timedelta(
+            seconds=duration_secs + subject.grace_period_seconds + 1
+        )
+        reference_time = participant.creation_time + just_over
 
-        timeline = subject(a.participant(), five_minutes_over, stub_config)
+        timeline = subject(a.participant(), reference_time, stub_config)
 
         assert timeline.is_overdue
 
-    def test_is_overdue_false_if_over_by_less_than_two_minutes(self, subject, a, stub_config):
+    def test_is_overdue_false_if_within_grace_period(self, subject, a, stub_config):
         duration_secs = round(stub_config.get('duration') * 60 * 60)
         participant = a.participant()
-        five_minutes_over = participant.creation_time + timedelta(seconds=duration_secs + 119)
-
-        timeline = subject(a.participant(), five_minutes_over, stub_config)
+        just_under = timedelta(
+            seconds=duration_secs + subject.grace_period_seconds - 1
+        )
+        reference_time = participant.creation_time + just_under
+        timeline = subject(a.participant(), reference_time, stub_config)
 
         assert not timeline.is_overdue
