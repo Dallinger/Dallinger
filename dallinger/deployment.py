@@ -126,9 +126,6 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
 
     heroku_files = [
         "Procfile",
-        "launch.py",
-        "worker.py",
-        "clock.py",
         "runtime.txt",
     ]
 
