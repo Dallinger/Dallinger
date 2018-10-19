@@ -1,4 +1,5 @@
 recursive-include dallinger *
+recursive-include dallinger_scripts *
 recursive-include docs *
 
 include requirements.txt

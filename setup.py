@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup_args = dict(
     name='dallinger',
-    packages=['dallinger'],
+    packages=['dallinger', 'dallinger_scripts'],
     version="4.0.0",
     description='Laboratory automation for the behavioral and social sciences',
     url='http://github.com/Dallinger/Dallinger',
@@ -27,9 +27,9 @@ setup_args = dict(
     entry_points={
         'console_scripts': [
             'dallinger = dallinger.command_line:dallinger',
-            'dallinger_heroku_web = dallinger.heroku.launch:main',
-            'dallinger_heroku_worker = dallinger.heroku.worker:main',
-            'dallinger_heroku_clock = dallinger.heroku.clock:launch',
+            'dallinger_heroku_web = dallinger_scripts.web:main',
+            'dallinger_heroku_worker = dallinger_scripts.worker:main',
+            'dallinger_heroku_clock = dallinger_scripts.clock:main',
         ],
         'dallinger.experiments': [],
     },

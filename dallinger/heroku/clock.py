@@ -50,7 +50,3 @@ def launch():
     if not config.ready:
         config.load()
     scheduler.start()
-
-
-if __name__ == '__main__':
-    launch()
