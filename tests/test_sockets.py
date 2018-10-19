@@ -21,7 +21,7 @@ def redis(pubsub):
 @pytest.fixture
 def sockets(redis):
     from dallinger.experiment_server import sockets
-    sockets.conn = redis
+    sockets.redis_conn = redis
     # use a separate ChatBackend for each test
     sockets.chat_backend = sockets.ChatBackend()
 
@@ -76,7 +76,7 @@ class TestChannel:
         pubsub.subscribe.assert_called_once_with([b'custom'])
 
     def test_listen(self, sockets):
-        sockets.conn.pubsub.return_value = pubsub = Mock()
+        sockets.redis_conn.pubsub.return_value = pubsub = Mock()
         pubsub.listen.return_value = [{
             'type': 'message',
             'channel': b'quorum',
@@ -161,7 +161,7 @@ class TestChatEndpoint:
         sockets.request = Mock()
         sockets.request.args = {'tolerance': '.5'}
         sockets.chat(ws)
-        sockets.conn.publish.assert_called_once_with(
+        sockets.redis_conn.publish.assert_called_once_with(
             'special', 'incoming message!'
         )
 
