@@ -14,7 +14,7 @@ pexpect==4.6.0
 psutil==5.4.7
 psycopg2-binary==2.7.5
 redis==2.10.6
-requests==2.19.1
+requests==2.20.0
 rq==0.12.0
 selenium==3.14.1
 six==1.11.0
