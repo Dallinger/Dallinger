@@ -3,7 +3,7 @@
 
 from __future__ import unicode_literals
 from .experiment_server import app
-from ..heroku.worker import conn
+from dallinger.db import redis_conn
 from gevent.lock import Semaphore
 from flask import request
 from flask_sockets import Sockets
@@ -55,7 +55,7 @@ class Channel(object):
 
         This is run continuously in a separate greenlet.
         """
-        pubsub = conn.pubsub()
+        pubsub = redis_conn.pubsub()
         name = self.name
         if isinstance(name, six.text_type):
             name = name.encode('utf-8')
@@ -155,7 +155,7 @@ class Client(object):
             message = self.ws.receive()
             if message is not None:
                 channel_name, data = message.split(':', 1)
-                conn.publish(channel_name, data)
+                redis_conn.publish(channel_name, data)
 
 
 @sockets.route('/chat')

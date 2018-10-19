@@ -5,6 +5,7 @@ from functools import wraps
 import logging
 import os
 import psycopg2
+import redis
 import sys
 import time
 import random
@@ -33,6 +34,8 @@ session = scoped_session(session_factory)
 Base = declarative_base()
 Base.query = session.query_property()
 
+redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+redis_conn = redis.from_url(redis_url)
 
 db_user_warning = """
 *********************************************************
@@ -176,9 +179,8 @@ def queue_message(channel, message):
 # Publish messages to redis after commit
 @event.listens_for(Session, 'after_commit')
 def after_commit(session):
-    from dallinger.heroku.worker import conn as redis
 
     for channel, message in session.info.get('outbox', ()):
         logger.debug(
             'Publishing message to {}: {}'.format(channel, message))
-        redis.publish(channel, message)
+        redis_conn.publish(channel, message)

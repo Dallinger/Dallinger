@@ -1,18 +1,13 @@
 """Heroku web worker."""
 # Make sure gevent patches are applied early.
-import gevent.monkey
-gevent.monkey.patch_all()
-
 import os
-import redis
-
 
 listen = ['high', 'default', 'low']
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-conn = redis.from_url(redis_url)
 
 
 def main():
+    import gevent.monkey
+    gevent.monkey.patch_all()
 
     # These imports are inside the __main__ block
     # to make sure that we only import from rq_gevent_worker
@@ -23,6 +18,7 @@ def main():
         Queue,
         Connection
     )
+    from dallinger.db import redis_conn
     from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
 
     from dallinger.config import initialize_experiment_package
@@ -31,10 +27,20 @@ def main():
     import logging
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
 
-    with Connection(conn):
+    with Connection(redis_conn):
         worker = Worker(list(map(Queue, listen)))
         worker.work()
 
 
 if __name__ == '__main__':  # pragma: nocover
     main()
+else:
+    import warnings
+    warnings.warn(
+        u"Importing from heroku.worker is deprecated and may cause errors."
+        u"The redis `conn` should be imported from `dallinger.db.redis_conn`",
+        DeprecationWarning
+    )
+    from dallinger.db import redis_conn
+
+    conn = redis_conn
