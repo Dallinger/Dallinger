@@ -1,4 +1,7 @@
 """Heroku web worker."""
+# Make sure gevent patches are applied early.
+import gevent.monkey
+gevent.monkey.patch_all()
 
 import os
 import redis
@@ -10,9 +13,6 @@ conn = redis.from_url(redis_url)
 
 
 def main():
-    # Make sure gevent patches are applied early.
-    import gevent.monkey
-    gevent.monkey.patch_all()
 
     # These imports are inside the __main__ block
     # to make sure that we only import from rq_gevent_worker
