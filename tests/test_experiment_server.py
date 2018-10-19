@@ -322,14 +322,14 @@ class TestWorkerComplete(object):
 
 @pytest.fixture
 def mock_messenger():
-    from dallinger.heroku.messages import EmailingHITMessenger
-    messenger = mock.Mock(spec=EmailingHITMessenger)
+    from dallinger.notifications import EmailingMessenger
+    messenger = mock.Mock(spec=EmailingMessenger)
     with mock.patch('dallinger.experiment_server.experiment_server.get_messenger') as get:
         get.return_value = messenger
         yield messenger
 
 
-@pytest.mark.usefixtures('experiment_dir', 'db_session', 'dummy_mailer')
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
 class TestHandleError(object):
 
     def test_completes_assignment(self, a, webapp):
@@ -422,18 +422,9 @@ class TestHandleError(object):
         assert notifications[1].assignment_id == assignment_id
         assert notifications[1].details['request_data']['participant_id'] == participant_id
 
-    def test_sends_email(self, a, webapp, active_config, dummy_mailer):
-        active_config.extend({'mode': u'sandbox'})
-        webapp.post('/handle-error', data={})
-
-        dummy_mailer.login.assert_called_once()
-        dummy_mailer.starttls.assert_called_once()
-        dummy_mailer.sendmail.assert_called_once()
-        assert dummy_mailer.sendmail.call_args[0][0] == u'test@example.com'
-
     def test_sends_message(self, webapp, mock_messenger):
         webapp.post('/handle-error', data={})
-        mock_messenger.send_hit_error_msg.assert_called_once()
+        mock_messenger.send.assert_called_once()
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
