@@ -33,13 +33,13 @@ Built-in configuration parameters include:
     ``sandbox`` (MTurk sandbox), and ``live`` (MTurk).
 
 ``title``
-    Title of the HIT on Amazon Mechanical Turk.
+    The title of the HIT on Amazon Mechanical Turk.
 
 ``description``
-    Description of the HIT on Amazon Mechanical Turk.
+    The description of the HIT on Amazon Mechanical Turk.
 
 ``keywords``
-    Comma-separated list of keywords to use on Amazon Mechanical Turk.
+    A comma-separated list of keywords to use on Amazon Mechanical Turk.
 
 ``lifetime``
     How long in hours that your HIT remains visible to workers.
@@ -59,11 +59,11 @@ Built-in configuration parameters include:
     to qualify to participate in your experiment. 1-100.
 
 ``contact_email_on_error`` *unicode*
-    Email address used as recipient for error report emails, and displayed to workers
+    The email address used as the recipient for error report emails, and the email displayed to workers
     when there is an error.
 
 ``auto_recruit``
-    Whether recruitment should be automatic.
+    A boolean on whether recruitment should be automatic.
 
 ``assign_qualifications``
     A boolean which controls whether an experiment-specific qualification
@@ -166,7 +166,7 @@ The number of Heroku dynos that are required and their specifications can make a
 very large difference to how the application behaves.
 
 ``num_dynos_web``
-    This configuration variable determines how many dynos are started to deal with
+    This configuration variable determines how many dynos are run to deal with
     web traffic. They will be transparently load-balanced, so the more web dynos are
     started the more simultaneous HTTP requests the stack can handle.
     If an experiment defines the ``channel`` variable to subscribe to websocket events
@@ -178,7 +178,7 @@ very large difference to how the application behaves.
 
 ``num_dynos_worker``
     Workers are dynos that pull tasks from a queue and execute them in the background.
-    They are optimised for many short tasks, but they are also used to run bots which
+    They are optimized for many short tasks, but they are also used to run bots which
     are very long-lived. Each worker can run up to 20 concurrent tasks, however they
     are co-operatively multitasked so a poorly behaving task can cause all others
     sharing its host to block.
@@ -198,8 +198,8 @@ very large difference to how the application behaves.
     increased, not both.
 
 ``redis_size``
-    A larger value for this increases the number of connections available on the redis dyno,
-    this should be increased for experiments that make substantial use of websockets. Values
+    A larger value for this increases the number of connections available on the redis dyno.
+    This should be increased for experiments that make substantial use of websockets. Values
     are ``premium-0`` to ``premium-14``. It is very unlikely that values higher than ``premium-5``
     are useful.
 
@@ -211,5 +211,5 @@ very large difference to how the application behaves.
     to finish that you'd expect a user to take in the worst case.
 
 ``base_payment``
-    The amount of US dollars to pay for completion of the experiment. The higher this is
+    The amount of US dollars to pay for completion of the experiment. The higher this is,
     the easier it will be to attract workers.
