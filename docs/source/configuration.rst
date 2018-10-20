@@ -33,13 +33,13 @@ Built-in configuration parameters include:
     ``sandbox`` (MTurk sandbox), and ``live`` (MTurk).
 
 ``title``
-    Title of the HIT on Amazon Mechanical Turk.
+    The title of the HIT on Amazon Mechanical Turk.
 
 ``description``
-    Description of the HIT on Amazon Mechanical Turk.
+    The description of the HIT on Amazon Mechanical Turk.
 
 ``keywords``
-    Comma-separated list of keywords to use on Amazon Mechanical Turk.
+    A comma-separated list of keywords to use on Amazon Mechanical Turk.
 
 ``lifetime``
     How long in hours that your HIT remains visible to workers.
@@ -59,11 +59,11 @@ Built-in configuration parameters include:
     to qualify to participate in your experiment. 1-100.
 
 ``contact_email_on_error`` *unicode*
-    Email address used as recipient for error report emails, and displayed to workers
+    The email address used as the recipient for error report emails, and the email displayed to workers
     when there is an error.
 
 ``auto_recruit``
-    Whether recruitment should be automatic.
+    A boolean on whether recruitment should be automatic.
 
 ``assign_qualifications``
     A boolean which controls whether an experiment-specific qualification
@@ -154,3 +154,62 @@ Built-in configuration parameters include:
     Multiplier used to determine the number of gunicorn web worker processes
     started per Heroku CPU count. Reduce this if you see Heroku warnings
     about memory limits for your experiment. Default is `1.5`
+
+
+Choosing configuration values
+-----------------------------
+
+When running real experiments it is important to pick configuration variables that
+result in a deployment that performs appropriately.
+
+The number of Heroku dynos that are required and their specifications can make a
+very large difference to how the application behaves.
+
+``num_dynos_web``
+    This configuration variable determines how many dynos are run to deal with
+    web traffic. They will be transparently load-balanced, so the more web dynos are
+    started the more simultaneous HTTP requests the stack can handle.
+    If an experiment defines the ``channel`` variable to subscribe to websocket events
+    then all of these callbacks happen on the dyno that handles the initial ``/launch``
+    POST, so experiments that use this functionality heavily receive significantly
+    less benefit from increasing ``num_dynos_web``.
+    The optimum value differs between experiments, but a good rule of thumb is 1 web
+    dyno for every 10-20 simultaneous human users.
+
+``num_dynos_worker``
+    Workers are dynos that pull tasks from a queue and execute them in the background.
+    They are optimized for many short tasks, but they are also used to run bots which
+    are very long-lived. Each worker can run up to 20 concurrent tasks, however they
+    are co-operatively multitasked so a poorly behaving task can cause all others
+    sharing its host to block.
+    When running with bots, you should always pick a value of ``num_dynos_worker` that
+    is at least ``0.05*number_of_bots``, otherwise it is guaranteed to fail. In practice,
+    there may well be experiment-specific tasks that also need to execute, and bots are
+    more performant on underloaded dynos, so a better heuristic is ``0.25*number_of_bots``.
+
+``dyno_type``
+    This determines how powerful the heroku dyno that's started is. It applies to both
+    web and worker dyno types. The minimum recommended is ``standard-1x``, which should be
+    sufficient for experiments that do not rely on real-time coordination, such as
+    :doc:`demos/bartlett1932/index`.
+    Experiments that require significant power to process websocket events should consider
+    the higher levels, ``standard-2x``, ``performance-m`` and ``performance-l``. In all but
+    the most intensive experiments, either ``dyno_type`` or ``num_dynos_web`` should be
+    increased, not both.
+
+``redis_size``
+    A larger value for this increases the number of connections available on the redis dyno.
+    This should be increased for experiments that make substantial use of websockets. Values
+    are ``premium-0`` to ``premium-14``. It is very unlikely that values higher than ``premium-5``
+    are useful.
+
+``duration``
+    The duration parameter determines the number of hours that an MTurk worker has to complete
+    the experiment. Choosing numbers that are too short can cause people to refuse to work on
+    a HIT. A deadline that is too long may give people pause for thought as it may make
+    the task seem underpaid. Set this to be significantly above the total time from start
+    to finish that you'd expect a user to take in the worst case.
+
+``base_payment``
+    The amount of US dollars to pay for completion of the experiment. The higher this is,
+    the easier it will be to attract workers.
