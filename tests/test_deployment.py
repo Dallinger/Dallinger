@@ -486,7 +486,9 @@ class TestDebugServer(object):
     ):
         debugger_unpatched.proxy_port = '2222'
         debugger_unpatched.notify(
-            " {} some-fake-url:5000".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+            " {} some-fake-url:{}".format(
+                recruiters.NEW_RECRUIT_LOG_PREFIX,
+                active_config.get('base_port'))
         )
         browser.open.assert_called_once_with(
             'some-fake-url:2222', autoraise=True, new=1
@@ -573,7 +575,9 @@ class TestLoad(object):
         loader.out.log.assert_has_calls([
             mock.call('Starting up the server...'),
             mock.call('Ingesting dataset from some_experiment_id-data.zip...'),
-            mock.call('Server is running on http://0.0.0.0:5000. Press Ctrl+C to exit.'),
+            mock.call('Server is running on http://0.0.0.0:{}. Press Ctrl+C to exit.'.format(
+                os.environ.get('base_port', 5000)
+            )),
             mock.call('Terminating dataset load for experiment some_experiment_id'),
             mock.call('Cleaning up local Heroku process...'),
             mock.call('Local Heroku process terminated.')
@@ -591,7 +595,9 @@ class TestLoad(object):
         replay_loader.out.log.assert_has_calls([
             mock.call('Starting up the server...'),
             mock.call('Ingesting dataset from some_experiment_id-data.zip...'),
-            mock.call('Server is running on http://0.0.0.0:5000. Press Ctrl+C to exit.'),
+            mock.call('Server is running on http://0.0.0.0:{}. Press Ctrl+C to exit.'.format(
+                os.environ.get('base_port', 5000)
+            )),
             mock.call('Launching the experiment...'),
             mock.call('Launching replay browser...'),
             mock.call('Terminating dataset load for experiment some_experiment_id'),
