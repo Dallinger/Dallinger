@@ -28,12 +28,12 @@ from rq import (
 from dallinger.config import get_config
 from dallinger.config import initialize_experiment_package
 from dallinger import data
+from dallinger.db import redis_conn
 from dallinger.deployment import _deploy_in_mode
 from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.notifications import get_messenger
-from dallinger.heroku.worker import conn
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuInfo
 from dallinger.mturk import MTurkService
@@ -676,7 +676,7 @@ def verify():
 def rq_worker():
     """Start an rq worker in the context of dallinger."""
     setup_experiment(log)
-    with Connection(conn):
+    with Connection(redis_conn):
         # right now we care about low queue for bots
         worker = Worker('low')
         worker.work()

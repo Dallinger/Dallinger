@@ -33,7 +33,6 @@ from dallinger import db
 from dallinger import experiment
 from dallinger import models
 from dallinger import information
-from dallinger.heroku.worker import conn as redis
 from dallinger.config import get_config
 from dallinger import recruiters
 from dallinger.notifications import get_messenger
@@ -47,9 +46,10 @@ from .utils import ValidatesBrowser
 
 # Initialize the Dallinger database.
 session = db.session
+redis_conn = db.redis_conn
 
 # Connect to the Redis queue for notifications.
-q = Queue(connection=redis)
+q = Queue(connection=redis_conn)
 WAITING_ROOM_CHANNEL = 'quorum'
 
 app = Flask('Experiment_Server')

@@ -10,9 +10,9 @@ from rq import Queue
 from sqlalchemy import func
 
 from dallinger.config import get_config
+from dallinger.db import redis_conn
 from dallinger.db import session
 from dallinger.heroku import tools as heroku_tools
-from dallinger.heroku.worker import conn
 from dallinger.notifications import get_messenger
 from dallinger.notifications import MessengerError
 from dallinger.models import Participant
@@ -30,7 +30,7 @@ logger = logging.getLogger(__file__)
 
 def _get_queue():
     # Connect to Redis Queue
-    return Queue('low', connection=conn)
+    return Queue('low', connection=redis_conn)
 
 
 # These are constants because other components may listen for these
@@ -729,7 +729,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
     nickname = 'mturklarge'
 
     def __init__(self, *args, **kwargs):
-        conn.set('num_recruited', 0)
+        redis_conn.set('num_recruited', 0)
         super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
 
     def open_recruitment(self, n=1):
@@ -740,7 +740,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
             raise MTurkRecruiterException(
                 "Tried to open_recruitment on already open recruiter."
             )
-        conn.incr('num_recruited', n)
+        redis_conn.incr('num_recruited', n)
         to_recruit = max(n, 10)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
@@ -752,15 +752,15 @@ class MTurkLargeRecruiter(MTurkRecruiter):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
         to_recruit = n
-        if int(conn.get('num_recruited')) < 10:
-            num_recruited = conn.incr('num_recruited', n)
+        if int(redis_conn.get('num_recruited')) < 10:
+            num_recruited = redis_conn.incr('num_recruited', n)
             logger.info('Recruited participant from preallocated pool')
             if num_recruited > 10:
                 to_recruit = num_recruited - 10
             else:
                 to_recruit = 0
         else:
-            conn.incr('num_recruited', n)
+            redis_conn.incr('num_recruited', n)
         if to_recruit:
             return super(MTurkLargeRecruiter, self).recruit(to_recruit)
 
