@@ -340,7 +340,7 @@ the spelling of your documentation. This can be very useful:
     $ make spelling
 
 The `docs` directory also includes `makefile.bat`, which does the same
-tasks on Microsoft Windows systems.
+tasks on Windows systems.
 
 myexperiments.pushbutton/docs/source/index.rst
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
