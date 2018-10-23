@@ -19,15 +19,14 @@ replay the experiment in real-time.
 
 - Simplify data export by generating CSV file from the remote database
 
-- Improve stability and reliability of Bot participants
-
-- Improved documentation of python `Experiment` API and `dallinger2.js` Javascript API
+- Improve stability and reliability of Bot participants 
 
 - `store+json2.min.js` is now included in standard Dallinger JS "bundle"
 
-- A new tutorial on building Dallinger experiments using the `dallinger-cookiecutter` package
 
 - Documentation improvements and additions:
+  + A new tutorial on building Dallinger experiments using the `dallinger-cookiecutter` package
+  + Improved documentation of python `Experiment` API and `dallinger2.js` Javascript API
   + Exporting and analyzing experiment data
   + Choosing configuration values for `num_dynos_web` and `num_dynos_worker`
   + Email notification setup
