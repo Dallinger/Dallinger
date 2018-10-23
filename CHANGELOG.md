@@ -1,5 +1,41 @@
 # Change Log
 
+## [v5.0.0](https://github.com/dallinger/dallinger/tree/v5.0.0) (2018-10-29)
+
+- **Feature** Adds a new configuration variable, `assign_qualifications`, to control whether recruiters that support participant qualifications assign qualifications for the experiment ID and any configured `group_name` when participants are recruited.
+
+- **Feature** A new button on the jupyter_replay widget attempts to
+replay the experiment in real-time.
+
+- **Feature** Adds a new configuration variable `worker_multiplier` to control the ratio of worker dynos to CPU cores. The default value is 1.5. Since more complex experiments may use significantly more RAM per worker than simpler ones, allowing this to be configured is probably the best route. The new default seems to be sensible for avoiding the RAM limits for most experiments without significantly underutilizing dyno resources.
+
+- **Feature** Juypter replays are now allow an experiment to exclude its waiting room and surveying from replay times.
+
+- **Feature** New `dallinger apps` command lists all currently running experiments started by the current heroku user
+
+- **Feature** New `dallinger revoke` command attempts to revoke MTurk qualifications by name or qualification ID for one or more MTurk worker ID's
+
+- **Feature** The `dallinger destroy` command now automatically attempts to expire any HITs for the app, and adds a `--no-expire-hit` flag to disable HIT expiration.
+
+- Simplify data export by generating CSV file from the remote database
+
+- Improve stability and reliability of Bot participants
+
+- Improved documentation of python `Experiment` API and `dallinger2.js` Javascript API
+
+- `store+json2.min.js` is now included in standard Dallinger JS "bundle"
+
+- A new tutorial on building Dallinger experiments using the `dallinger-cookiecutter` package
+
+- Documentation improvements and additions:
+  + Exporting and analyzing experiment data
+  + Choosing configuration values for `num_dynos_web` and `num_dynos_worker`
+  + Email notification setup
+  + Improved audience targeting in documentation structure
+  + Installation and setup
+
+- Miscellaneous bug fixes
+
 ## [v4.0.0](https://github.com/dallinger/dallinger/tree/v4.0.0) (2018-05-15)
 
 - **Feature** Python 3 support (tested with Python 3.6.4)
