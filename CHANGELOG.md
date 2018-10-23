@@ -7,7 +7,7 @@
 - **Feature** A new button on the jupyter_replay widget attempts to
 replay the experiment in real-time.
 
-- **Feature** Adds a new configuration variable `worker_multiplier` to control the ratio of worker dynos to CPU cores. The default value is 1.5. Since more complex experiments may use significantly more RAM per worker than simpler ones, allowing this to be configured is probably the best route. The new default seems to be sensible for avoiding the RAM limits for most experiments without significantly underutilizing dyno resources.
+- **Feature** Adds a new configuration variable `worker_multiplier` to control the ratio of worker dynos to CPU cores. The default value is 1.5.
 
 - **Feature** Juypter replays are now allow an experiment to exclude its waiting room and surveying from replay times.
 
