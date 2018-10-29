@@ -6,7 +6,10 @@ First, make sure you have Dallinger installed:
 -  :doc:`installing_dallinger_for_users`
 -  :doc:`developing_dallinger_setup_guide`
 
-To test out Dallinger, we'll run a demo experiment in debug mode.
+To test out Dallinger, we'll run a demo experiment in "debug" mode.
+
+Note that running the demo in "sandbox" mode as opposed to "debug" mode, will require a Heroku account.
+More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
 
 You can read more about this experiment here:
 `Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932/index.html>`__ and download the experiment files.
