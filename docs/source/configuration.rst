@@ -58,8 +58,8 @@ Recruitment (General)
 
 ``recruiter`` *unicode*
     The recruiter class to use during the experiment run. While this can be a
-    full class name, it is more common to use the class's `nickname` property
-    for this value, for example ``mturk``, ``cli``, ``bots``, or ``multi``. 
+    full class name, it is more common to use the class's ``nickname`` property
+    for this value; for example ``mturk``, ``cli``, ``bots``, or ``multi``.
     NOTE: when running in debug mode, the HotAir (``hotair``) recruiter will 
     always be used. The exception is if the ``--bots`` option is passed to
     ``dallinger debug``, in which case the BotRecruiter will be used instead.
@@ -67,8 +67,8 @@ Recruitment (General)
 ``recruiters`` *unicode - custom format*
     When using multiple recruiters in a single experiment run via the ``multi``
     setting for the ``recruiter`` config key, ``recruiters`` allows you to 
-    specify which recruiters you'd like to use, and how many particpants to 
-    recruiter from each recruiter. The syntax for this value is:
+    specify which recruiters you'd like to use, and how many participants to
+    recruit from each. The special syntax for this value is:
 
     ``recruiters = [nickname 1]: [recruits], [nickname 2]: [recruits], etc.``
 
@@ -97,8 +97,8 @@ Amazon Mechanical Turk Recruitment
     A boolean which controls whether an experiment-specific qualification
     (based on the experiment ID), and a group qualification (based on the value
     of ``group_name``) will be assigned to participants by the recruiter.
-    This feature assumes the recruiter supports qualifications, like the Amazon
-    Mechanical Turk does.
+    This feature assumes a recruiter which supports qualifications,
+    like the ``MTurkRecruiter``.
 
 ``group_name`` *unicode*
     Assign a named qualification to workers who complete a HIT.
@@ -123,11 +123,11 @@ Amazon Mechanical Turk Recruitment
     How long in hours participants have until the HIT will time out.
 
 ``us_only`` *boolean*
-    A boolean that control whether this HIT is available only to MTurk workers
-    in the U.S.
+    Controls whether this HIT is available only to MTurk workers in the U.S.
 
 ``base_payment`` *float*
-    Base payment in U.S. dollars.  
+    Base payment in U.S. dollars. All workers who accept the HIT are guaranteed
+    this much compensation.
 
 ``approve_requirement`` *integer*
     The percentage of past MTurk HITs that must have been approved for a worker
@@ -139,6 +139,9 @@ Amazon Mechanical Turk Recruitment
 
 Email Notifications
 ~~~~~~~~~~~~~~~~~~~
+
+See :doc:`Email Notification Setup <email_setup>` for a much more detailed
+explanation of these values and their use.
 
 ``contact_email_on_error`` *unicode*
     The email address used as the recipient for error report emails, and the email displayed to workers when there is an error.
@@ -154,9 +157,6 @@ Email Notifications
 
 ``smtp_password`` *unicode*
     Password for the outgoing mail host.
-
-See :doc:`Email Notification Setup <email_setup>` documentation for a detailed explanation
-of these values and their use.    
 
 
 Deployment Configuration
