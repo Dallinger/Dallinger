@@ -77,6 +77,10 @@ Amazon Mechanical Turk Recruitment
 ``group_name``
     Assign a named qualification to workers who complete a HIT. *Unicode string*.
 
+``qualification_blocklist``
+    Comma-separated list of qualification names. Workers with qualifications in
+    this list will be prevented from viewing and accepting the HIT.
+
 ``title``
     The title of the HIT on Amazon Mechanical Turk.
 
