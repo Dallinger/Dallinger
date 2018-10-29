@@ -43,7 +43,9 @@ General
     to ``critical``.
 
 ``whimsical`` *boolean*
-    What's life without whimsy?
+    What's life without whimsy? Controls whether email notifications sent
+    regarding various experiment errors are whimsical in tone, or more
+    matter-of-fact.
 
 
 Recruitment (General)
