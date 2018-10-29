@@ -45,7 +45,7 @@ This pays the user based on how well they perform in the experiment. It is very 
 
 The ``bonus`` function should be kept as simple as possible, delegating to other functions for readability.
 
-For example, the :doc:`demos/bartlett1932/index` demo involves showing participants a piece of text and asking them to reproduce it from memory. A simple reward function could be as follows:
+A simple reward function could be as follows:
 
 .. code-block:: python
 
