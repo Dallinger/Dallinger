@@ -31,18 +31,18 @@ Built-in configuration parameters, grouped into categories:
 General
 ~~~~~~~
 
-``mode``
+``mode`` *unicode*
     Run the experiment in this mode. Options include ``debug`` (local testing),
     ``sandbox`` (MTurk sandbox), and ``live`` (MTurk).
 
-``logfile``
+``logfile`` *unicode*
     Where to write logs.
 
-``loglevel``
+``loglevel`` *unicode*
     A number between 0 and 4 that controls the verbosity of logs, from ``debug``
     to ``critical``.
 
-``whimsical``
+``whimsical`` *boolean*
     What's life without whimsy?
 
 
@@ -52,11 +52,11 @@ Recruitment (General)
 ``auto_recruit``
     A boolean on whether recruitment should be automatic.
 
-``browser_exclude_rule`` [comma separated string]
+``browser_exclude_rule`` *unicode* [comma separated string]
     A set of rules you can apply to prevent participants with unsupported web
     browsers from participating in your experiment.
 
-``recruiter``
+``recruiter`` *unicode*
     The recruiter class to use during the experiment run. While this can be a
     full class name, it is more common to use the class's `nickname` property
     for this value, for example ``mturk``, ``cli``, ``bots``, or ``multi``. 
@@ -64,7 +64,7 @@ Recruitment (General)
     always be used. The exception is if the ``--bots`` option is passed to
     ``dallinger debug``, in which case the BotRecruiter will be used instead.
 
-``recruiters``
+``recruiters`` *unicode*
     When using multiple recruiters in a single experiment run via the ``multi``
     setting for the ``recruiter`` config key, ``recruiters`` allows you to 
     specify which recruiters you'd like to use, and how many particpants to 
@@ -81,59 +81,59 @@ Recruitment (General)
 Amazon Mechanical Turk Recruitment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``aws_access_key_id``
+``aws_access_key_id`` *unicode*
     AWS access key ID.
 
-``aws_secret_access_key``
+``aws_secret_access_key`` *unicode*
     AWS access key secret.
 
-``aws_region``
+``aws_region`` *unicode*
     AWS region to use. Defaults to ``us-east-1``.
 
-``ad_group``
+``ad_group`` *unicode*
     Obsolete. See ``group_name``.
 
-``assign_qualifications``
+``assign_qualifications`` *boolean*
     A boolean which controls whether an experiment-specific qualification
     (based on the experiment ID), and a group qualification (based on the value
     of ``group_name``) will be assigned to participants by the recruiter.
     This feature assumes the recruiter supports qualifications, like the Amazon
     Mechanical Turk does.
 
-``group_name``
-    Assign a named qualification to workers who complete a HIT. *Unicode string*.
+``group_name`` *unicode*
+    Assign a named qualification to workers who complete a HIT.
 
-``qualification_blocklist``
+``qualification_blocklist`` *unicode*
     Comma-separated list of qualification names. Workers with qualifications in
     this list will be prevented from viewing and accepting the HIT.
 
-``title``
+``title`` *unicode*
     The title of the HIT on Amazon Mechanical Turk.
 
-``description``
+``description`` *unicode*
     The description of the HIT on Amazon Mechanical Turk.
 
-``keywords``
+``keywords`` *unicode*
     A comma-separated list of keywords to use on Amazon Mechanical Turk.
 
-``lifetime``
+``lifetime`` *integer*
     How long in hours that your HIT remains visible to workers.
 
-``duration``
+``duration`` *float*
     How long in hours participants have until the HIT will time out.
 
-``us_only``
+``us_only`` *boolean*
     A boolean that control whether this HIT is available only to MTurk workers
     in the U.S.
 
-``base_payment``
+``base_payment`` *float*
     Base payment in U.S. dollars.  
 
-``approve_requirement``
+``approve_requirement`` *integer*
     The percentage of past MTurk HITs that must have been approved for a worker
     to qualify to participate in your experiment. 1-100.
 
-``organization_name``
+``organization_name`` *unicode*
     Obsolete.
 
 
@@ -143,16 +143,16 @@ Email Notifications
 ``contact_email_on_error`` *unicode*
     The email address used as the recipient for error report emails, and the email displayed to workers when there is an error.
 
-``dallinger_email_address``
+``dallinger_email_address`` *unicode*
     An email address for use by Dallinger to send status emails.
 
-``smtp_host``
+``smtp_host`` *unicode*
     Hostname and port of a mail server for outgoing mail. Defaults to ``smtp.gmail.com:587``
 
-``smtp_username``
+``smtp_username`` *unicode*
     Username for outgoing mail host.
 
-``smtp_password``
+``smtp_password`` *unicode*
     Password for the outgoing mail host.
 
 
@@ -160,44 +160,44 @@ Email Notifications
 Deployment Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-``database_url``
+``database_url`` *unicode*
     URI of the Postgres database.
 
-``database_size``
+``database_size`` *unicode*
     Size of the database on Heroku. See `Heroku Postgres plans <https://devcenter.heroku.com/articles/heroku-postgres-plans>`__.
 
-``dyno_type``
+``dyno_type`` *unicode*
     Heroku dyno type to use. See `Heroku dynos types <https://devcenter.heroku.com/articles/dyno-types>`__.
 
-``redis_size``
+``redis_size`` *unicode*
     Size of the redis server on Heroku. See `Heroku Redis <https://elements.heroku.com/addons/heroku-redis>`__.
 
-``num_dynos_web``
+``num_dynos_web`` *integer*
     Number of Heroku dynos to use for processing incoming HTTP requests. It is
     recommended that you use at least two.
 
-``num_dynos_worker``
+``num_dynos_worker`` *integer*
     Number of Heroku dynos to use for performing other computations.
 
-``host``
+``host`` *unicode*
     IP address of the host.
 
-``port``
+``port`` *unicode*
     Port of the host.
 
-``notification_url``
+``notification_url`` *unicode*
     URL where notifications are sent. This should not be set manually.
 
-``clock_on``
+``clock_on`` *boolean*
     If the clock process is on, it will perform a series of checks that ensure
     the integrity of the database.
 
-``heroku_team``
+``heroku_team`` *unicode*
     The name of the Heroku team to which all applications will be assigned.
     This is useful for centralized billing. Note, however, that it will prevent
     you from using free-tier dynos.
 
-``worker_multiplier``
+``worker_multiplier`` *float*
     Multiplier used to determine the number of gunicorn web worker processes
     started per Heroku CPU count. Reduce this if you see Heroku warnings
     about memory limits for your experiment. Default is `1.5`
