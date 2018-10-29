@@ -11,8 +11,8 @@ Installation Options
 Dallinger is tested with Ubuntu 14.04 LTS, 16.04 LTS, 18.04 LTS and Mac OS X locally.
 We do not recommended running Dallinger with Microsoft Windows, however if you do, running Ubuntu in a virtual machine is the recommend method. You can also read about what is possible with using Dallinger with Docker :doc:`here<docker_setup>`.
 
-Using Dallinger via Docker
------------------------
+Using Dallinger with Docker
+---------------------------
 Docker is a containerization tool used for developing isolated software environments. Read more about using Dallinger with Docker :doc:`here<docker_setup>`.
 
 Install Python
