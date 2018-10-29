@@ -49,10 +49,10 @@ General
 Recruitment (General)
 ~~~~~~~~~~~~~~~~~~~~~
 
-``auto_recruit``
+``auto_recruit`` *boolean*
     A boolean on whether recruitment should be automatic.
 
-``browser_exclude_rule`` *unicode* [comma separated string]
+``browser_exclude_rule`` *unicode - comma separated*
     A set of rules you can apply to prevent participants with unsupported web
     browsers from participating in your experiment.
 
@@ -64,7 +64,7 @@ Recruitment (General)
     always be used. The exception is if the ``--bots`` option is passed to
     ``dallinger debug``, in which case the BotRecruiter will be used instead.
 
-``recruiters`` *unicode*
+``recruiters`` *unicode - custom format*
     When using multiple recruiters in a single experiment run via the ``multi``
     setting for the ``recruiter`` config key, ``recruiters`` allows you to 
     specify which recruiters you'd like to use, and how many particpants to 
@@ -103,7 +103,7 @@ Amazon Mechanical Turk Recruitment
 ``group_name`` *unicode*
     Assign a named qualification to workers who complete a HIT.
 
-``qualification_blocklist`` *unicode*
+``qualification_blocklist`` *unicode - comma seperated*
     Comma-separated list of qualification names. Workers with qualifications in
     this list will be prevented from viewing and accepting the HIT.
 
