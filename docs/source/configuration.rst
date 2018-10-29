@@ -52,7 +52,30 @@ Recruitment (General)
 ``auto_recruit``
     A boolean on whether recruitment should be automatic.
 
+``browser_exclude_rule`` [comma separated string]
+    A set of rules you can apply to prevent participants with unsupported web
+    browsers from participating in your experiment.
 
+``recruiter``
+    The recruiter class to use during the experiment run. While this can be a
+    full class name, it is more common to use the class's `nickname` property
+    for this value, for example ``mturk``, ``cli``, ``bots``, or ``multi``. 
+    NOTE: when running in debug mode, the HotAir (``hotair``) recruiter will 
+    always be used. The exception is if the ``--bots`` option is passed to
+    ``dallinger debug``, in which case the BotRecruiter will be used instead.
+
+``recruiters``
+    When using multiple recruiters in a single experiment run via the ``multi``
+    setting for the ``recruiter`` config key, ``recruiters`` allows you to 
+    specify which recruiters you'd like to use, and how many particpants to 
+    recruiter from each recruiter. The syntax for this value is:
+
+    ``recruiters = [nickname 1]: [recruits], [nickname 2]: [recruits], etc.``
+
+    For example, to recruit 5 human participants via MTurk, and 5 bot participants,
+    the configuration would be:
+
+    ``recruiters = mturk: 5, bots: 5``
 
 
 Amazon Mechanical Turk Recruitment
@@ -66,6 +89,9 @@ Amazon Mechanical Turk Recruitment
 
 ``aws_region``
     AWS region to use. Defaults to ``us-east-1``.
+
+``ad_group``
+    Obsolete. See ``group_name``.
 
 ``assign_qualifications``
     A boolean which controls whether an experiment-specific qualification
@@ -101,26 +127,21 @@ Amazon Mechanical Turk Recruitment
     in the U.S.
 
 ``base_payment``
-    Base payment in U.S. dollars.
-
-``browser_exclude_rule`` [comma separated string]
-    A set of rules you can apply to prevent participants with unsupported web
-    browsers from participating in your experiment.    
+    Base payment in U.S. dollars.  
 
 ``approve_requirement``
     The percentage of past MTurk HITs that must have been approved for a worker
     to qualify to participate in your experiment. 1-100.
 
-``organization_name`` [string]
-    Identifies your institution, business, or organization.
+``organization_name``
+    Obsolete.
 
 
 Email Notifications
 ~~~~~~~~~~~~~~~~~~~
 
 ``contact_email_on_error`` *unicode*
-    The email address used as the recipient for error report emails, and the email displayed to workers
-    when there is an error.
+    The email address used as the recipient for error report emails, and the email displayed to workers when there is an error.
 
 ``dallinger_email_address``
     An email address for use by Dallinger to send status emails.
