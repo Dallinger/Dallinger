@@ -26,11 +26,56 @@ is found first. If the parameter is not found, Dallinger will use the default.
 Built-in configuration
 ----------------------
 
-Built-in configuration parameters include:
+Built-in configuration parameters, grouped into categories:
+
+General
+~~~~~~~
 
 ``mode``
     Run the experiment in this mode. Options include ``debug`` (local testing),
     ``sandbox`` (MTurk sandbox), and ``live`` (MTurk).
+
+``logfile``
+    Where to write logs.
+
+``loglevel``
+    A number between 0 and 4 that controls the verbosity of logs, from ``debug``
+    to ``critical``.
+
+``whimsical``
+    What's life without whimsy?
+
+
+Recruitment (General)
+~~~~~~~~~~~~~~~~~~~~~
+
+``auto_recruit``
+    A boolean on whether recruitment should be automatic.
+
+
+
+
+Amazon Mechanical Turk Recruitment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``aws_access_key_id``
+    AWS access key ID.
+
+``aws_secret_access_key``
+    AWS access key secret.
+
+``aws_region``
+    AWS region to use. Defaults to ``us-east-1``.
+
+``assign_qualifications``
+    A boolean which controls whether an experiment-specific qualification
+    (based on the experiment ID), and a group qualification (based on the value
+    of ``group_name``) will be assigned to participants by the recruiter.
+    This feature assumes the recruiter supports qualifications, like the Amazon
+    Mechanical Turk does.
+
+``group_name``
+    Assign a named qualification to workers who complete a HIT. *Unicode string*.
 
 ``title``
     The title of the HIT on Amazon Mechanical Turk.
@@ -54,37 +99,41 @@ Built-in configuration parameters include:
 ``base_payment``
     Base payment in U.S. dollars.
 
+``browser_exclude_rule`` [comma separated string]
+    A set of rules you can apply to prevent participants with unsupported web
+    browsers from participating in your experiment.    
+
 ``approve_requirement``
     The percentage of past MTurk HITs that must have been approved for a worker
     to qualify to participate in your experiment. 1-100.
+
+``organization_name`` [string]
+    Identifies your institution, business, or organization.
+
+
+Email Notifications
+~~~~~~~~~~~~~~~~~~~
 
 ``contact_email_on_error`` *unicode*
     The email address used as the recipient for error report emails, and the email displayed to workers
     when there is an error.
 
-``auto_recruit``
-    A boolean on whether recruitment should be automatic.
+``dallinger_email_address``
+    An email address for use by Dallinger to send status emails.
 
-``assign_qualifications``
-    A boolean which controls whether an experiment-specific qualification
-    (based on the experiment ID), and a group qualification (based on the value
-    of ``group_name``) will be assigned to participants by the recruiter.
-    This feature assumes the recruiter supports qualifications, like Amazon
-    Mechanical Turk does.
+``smtp_host``
+    Hostname and port of a mail server for outgoing mail. Defaults to ``smtp.gmail.com:587``
 
-``group_name``
-    A string. *Unicode string*.
+``smtp_username``
+    Username for outgoing mail host.
 
-``loglevel``
-    A number between 0 and 4 that controls the verbosity of logs, from ``debug``
-    to ``critical``.
+``smtp_password``
+    Password for the outgoing mail host.
 
-``organization_name`` [string]
-    Identifies your institution, business, or organization.
 
-``browser_exclude_rule`` [comma separated string]
-    A set of rules you can apply to prevent participants with unsupported web
-    browsers from participating in your experiment.
+
+Deployment Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``database_url``
     URI of the Postgres database.
@@ -118,37 +167,10 @@ Built-in configuration parameters include:
     If the clock process is on, it will perform a series of checks that ensure
     the integrity of the database.
 
-``logfile``
-    Where to write logs.
-
-``aws_access_key_id``
-    AWS access key ID.
-
-``aws_secret_access_key``
-    AWS access key secret.
-
-``aws_region``
-    AWS region to use. Defaults to ``us-east-1``.
-
-``dallinger_email_address``
-    An email address for use by Dallinger to send status emails.
-
-``smtp_host``
-    Hostname and port of a mail server for outgoing mail. Defaults to ``smtp.gmail.com:587``
-
-``smtp_username``
-    Username for outgoing mail host.
-
-``smtp_password``
-    Password for the outgoing mail host.
-
 ``heroku_team``
     The name of the Heroku team to which all applications will be assigned.
     This is useful for centralized billing. Note, however, that it will prevent
     you from using free-tier dynos.
-
-``whimsical``
-    What's life without whimsy?
 
 ``worker_multiplier``
     Multiplier used to determine the number of gunicorn web worker processes
