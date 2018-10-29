@@ -4,8 +4,7 @@
 
 - **Feature** Adds a new configuration variable, `assign_qualifications`, to control whether recruiters that support participant qualifications assign qualifications for the experiment ID and any configured `group_name` when participants are recruited.
 
-- **Feature** A new button on the jupyter_replay widget attempts to
-replay the experiment in real-time.
+- **Feature** A new button on the jupyter_replay widget allows replay of the experiment in real-time.
 
 - **Feature** Adds a new configuration variable `worker_multiplier` to control the ratio of worker dynos to CPU cores. The default value is 1.5.
 
