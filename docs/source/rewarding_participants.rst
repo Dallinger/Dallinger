@@ -109,8 +109,6 @@ Sometimes experimenters may wish to convert an existing Javascript and HTML expe
 
 In order to integrate with Dallinger, the experiment must use the dallinger2.js function ``createInfo`` function to send its current state to the server. This is what allows analysis of the user's performance later, so it's important to send as much information as possible.
 
-The included :doc:`demos/twentyfortyeight/index` demo is an example of this type of experiment. It shows a popular javascript game with no interaction with the server or other players. Tiles in the grid have numbers associated with them, which can be combined to gain higher numbered tiles. If the experimenter wanted to give a bonus based on the highest tile the user reached there is a strong incentive for the player to try and cheat and therefore receive a much larger payout than expected.
-
 In this case, the data is sent to the server as:
 
 .. code-block:: javascript
