@@ -155,6 +155,8 @@ Email Notifications
 ``smtp_password`` *unicode*
     Password for the outgoing mail host.
 
+See :doc:`Email Notification Setup <email_setup>` documentation for a detailed explanation
+of these values and their use.    
 
 
 Deployment Configuration
