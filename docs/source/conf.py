@@ -55,7 +55,7 @@ else:
     extensions.append("sphinxcontrib.spelling")
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+#templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -142,29 +142,47 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-import alabaster
-html_theme_path = [alabaster.get_path()]
-extensions += ['alabaster']
-html_theme = 'alabaster'
-html_context = {
-    'css_files': ['_static/style.css'],
-}
+html_theme = "sphinx_rtd_theme"
+html_theme_path = ["_themes", ]
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
 html_theme_options = {
-    'logo_name': True,
-    'github_user': 'Dallinger',
-    'github_repo': 'Dallinger',
-    'github_type': 'star',
-    'github_button': False,
-    'github_banner': "corner.jpg",
-    'travis_button': False,
-    'description': 'Laboratory automation for the behavioral and social sciences.',
-    'show_powered_by': False,
+    'logo_only': True,
+    'canonical_url': '',
+    'analytics_id': '',
+    'display_version': True,
+    'prev_next_buttons_location': 'bottom',
+    'style_external_links': False,
+    'vcs_pageview_mode': '',
+    # Toc options
+    'collapse_navigation': True,
+    'sticky_navigation': True,
+    'navigation_depth': 4,
+    'includehidden': False,
+    'titles_only': False
 }
+html_context = {
+    "display_github": True, # Integrate GitHub
+    "github_user": "Dallinger", # Username
+    "github_repo": "Dallinger", # Repo name
+    "github_version": "master", # Version
+    "conf_py_path": "/docs/source/", # Path in the checkout to the docs root
+}
+# html_theme_options = {
+#      'logo_name': True,
+#      'display_github': True,
+#      'github_user': 'Dallinger',
+#      'github_repo': 'Dallinger',
+#      'github_type': 'star',
+#      'github_button': False,
+#      'github_banner': "corner.jpg",
+#      'travis_button': False,
+#      'description': 'Laboratory automation for the behavioral and social sciences.',
+#      'show_powered_by': False,
+# }
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []
@@ -213,15 +231,15 @@ html_use_smartypants = True
 
 # Custom sidebar templates, maps document names to template names.
 #
-html_sidebars = {
-    '**': [
-        # 'about.html',
-        # 'navigation.html',
-        'relations.html',
-        # 'searchbox.html',
-        'donate.html',
-    ]
-}
+# html_sidebars = {
+#     '**': [
+#         # 'about.html',
+#         # 'navigation.html',
+#         'relations.html',
+#         # 'searchbox.html',
+#         'donate.html',
+#     ]
+# }
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
