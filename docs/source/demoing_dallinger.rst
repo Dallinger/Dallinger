@@ -8,7 +8,7 @@ First, make sure you have Dallinger installed:
 
 To test out Dallinger, we'll run a demo experiment in "debug" mode.
 
-Note that running the demo in "sandbox" mode as opposed to "debug" mode, will require a Heroku account.
+Note that running the demo in "sandbox" mode as opposed to "debug" mode will require a Heroku account.
 More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
 
 You can read more about this experiment here:

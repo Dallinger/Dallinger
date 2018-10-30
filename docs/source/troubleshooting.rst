@@ -159,4 +159,4 @@ contents of your active virtual environment's site-packages folder. In
 The contents of this file will include the path to the working copy that's
 active. If you instead see a directory tree with actual dallinger files, you can
 restore "editable mode" by re-running the installation steps for dallinger from
-the "Developer Installation" documentation.
+the :doc:`developing_dallinger_setup_guide` documentation.
