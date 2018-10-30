@@ -65,7 +65,7 @@ directory.
 
 Change into your the new directory and make sure you are still in your
 virtual environment before installing the dependencies. If you want to
-be extra careful, run the command ``workon dallinger``, which will ensure
+be extra careful, run the command ``workon dlgr_env``, which will ensure
 that you are in the right virtual environment.
 
 **Note**: if you are using Anaconda – as of August 10, 2016 – you will need to
