@@ -61,6 +61,7 @@ setup_args = dict(
             "Sphinx",
             "tox",
             "sphinx-js",
+            "sphinx_rtd_theme",
         ]
     }
 )
