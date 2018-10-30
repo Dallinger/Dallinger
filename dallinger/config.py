@@ -56,7 +56,7 @@ default_keys = (
     ('num_dynos_worker', int, []),
     ('organization_name', six.text_type, []),
     ('port', int, ['PORT']),
-    ('qualification_blocklist', six.text_type, ['qualification_blacklist']),
+    ('qualification_blacklist', six.text_type, []),
     ('recruiter', six.text_type, []),
     ('recruiters', six.text_type, []),
     ('redis_size', six.text_type, []),

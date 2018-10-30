@@ -105,7 +105,7 @@ Amazon Mechanical Turk Recruitment
 ``group_name`` *unicode*
     Assign a named qualification to workers who complete a HIT.
 
-``qualification_blocklist`` *unicode - comma seperated*
+``qualification_blacklist`` *unicode - comma seperated*
     Comma-separated list of qualification names. Workers with qualifications in
     this list will be prevented from viewing and accepting the HIT.
 
