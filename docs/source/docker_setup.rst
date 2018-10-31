@@ -1,26 +1,9 @@
-Docker Setup
-============
+Dallinger with Docker
+=====================
 
-Docker support is newly added. Install Dallinger by pulling our image from Dockerhub. This installs Dallinger within an isolated Ubuntu 16.04 environment, running all the necessary services bridged to your local machine's ports.
+With the release of Dallinger version 5.0.0, we have created a Python script that uses `docker-compose <https://docs.docker.com/compose/>`__ to provide an automated installation and configuration of Dallinger to run experiments.
 
-Instructions
-------------
+The code and detailed instructions can be found in this `github repository <https://github.com/Dallinger/Dockerfiles/blob/master/README.md/>`__.
 
-Install Dallinger by pulling our image from Dockerhub.
-
-::
-
-    docker pull dallinger/dallinger
-
-Make sure your ports 5000, 5432, and 6379 are open, then run:
-
-::
-
-    docker run -p 5000:5000 -p 5432:5432 -p 6379:6379 -it dallinger/dallinger
-
-This command will attach you to the Ubuntu container and run the Bartlett (1932) experiment demo.
-You can visit the URL(s) at the end of the log using the command:
-
-::
-
-    python -m webbrowser <URL_IN_LOG>
+Please note that we consider this to be a working yet experimental method of running Dallinger. It adds an extra level of complexity which can potentially get in the way when trying to create and debug a new experiment as debugging is more diffcult than when using Dallinger natively or in a virtual machine.
+Having said that, there are can be certain advantages to this method, since Docker can install everything required to run Dallinger quickly in comparison to installing all the requirements yourself, and on platforms such as Microsoft Windows where a native installation is not possible.
