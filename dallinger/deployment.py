@@ -431,9 +431,9 @@ class DebugDeployment(HerokuLocalDeployment):
 
     def configure(self):
         super(DebugDeployment, self).configure()
-        self.exp_config["recruiter"] = "hotair"
+        self.exp_config["recruiter"] = u"hotair"
         if self.bot:
-            self.exp_config["recruiter"] = "bots"
+            self.exp_config["recruiter"] = u"bots"
 
     def execute(self, heroku):
         base_url = get_base_url()
