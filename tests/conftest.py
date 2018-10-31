@@ -23,8 +23,7 @@ def clear_workers():
 
     def _zap():
         kills = [
-            ['pkill', '-f', 'python launch.py'],
-            ['pkill', '-f', 'python worker.py'],
+            ['pkill', '-f', 'heroku'],
         ]
         for kill in kills:
             try:
