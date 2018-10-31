@@ -431,6 +431,7 @@ class DebugDeployment(HerokuLocalDeployment):
 
     def configure(self):
         super(DebugDeployment, self).configure()
+        self.exp_config["recruiter"] = "hotair"
         if self.bot:
             self.exp_config["recruiter"] = "bots"
 

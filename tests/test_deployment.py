@@ -432,6 +432,41 @@ class TestDebugServer(object):
         debugger.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
         return debugger
 
+    def test_overrides_recruiter_configuration(self, output):
+        from dallinger.recruiters import HotAirRecruiter
+        from dallinger.deployment import DebugDeployment
+        config = {'recruiter': 'cli'}
+        debugger = DebugDeployment(
+            output, verbose=True, bot=False, proxy_port=None, exp_config=config
+        )
+
+        debugger.configure()
+
+        assert debugger.exp_config.get('recruiter') == HotAirRecruiter.nickname
+
+    def test_overrides_recruiter_to_use_bots_when_instructed(self, output):
+        from dallinger.recruiters import BotRecruiter
+        from dallinger.deployment import DebugDeployment
+        config = {'recruiter': 'cli'}
+        debugger = DebugDeployment(
+            output, verbose=True, bot=True, proxy_port=None, exp_config=config
+        )
+
+        debugger.configure()
+
+        assert debugger.exp_config.get('recruiter') == BotRecruiter.nickname
+
+    def test_overrides_mode_configuration(self, output):
+        from dallinger.deployment import DebugDeployment
+        config = {'mode': 'sandbox'}
+        debugger = DebugDeployment(
+            output, verbose=True, bot=False, proxy_port=None, exp_config=config
+        )
+
+        debugger.configure()
+
+        assert debugger.exp_config.get('mode') == 'debug'
+
     def test_startup(self, debugger):
         debugger.run()
         "Server is running" in str(debugger.out.log.call_args_list[0])
