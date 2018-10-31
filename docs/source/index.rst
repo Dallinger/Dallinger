@@ -47,7 +47,6 @@ designing new experiments for others to use.
     creating_an_experiment
     docker_setup
     running_the_tests
-    required_experiment_files
     the_experiment_class
     classes
     web_api
