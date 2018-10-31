@@ -18,6 +18,7 @@ from dallinger.notifications import MessengerError
 from dallinger.models import Participant
 from dallinger.models import Recruitment
 from dallinger.mturk import MTurkService
+from dallinger.pulse import PulseService
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
@@ -968,6 +969,93 @@ class MultiRecruiter(Recruiter):
             recruiter.close_recruitment()
 
 
+class PulseRecruiter(Recruiter):
+    """Recruit participants using Pulse API"""
+
+    nickname = 'pulse'
+    pulse_service = None
+
+    def __init__(self):
+        super(PulseRecruiter, self).__init__()
+        self.config = get_config()
+
+        self.pulse_service = PulseService(
+            self.config.get('pulse_api_url'),
+            self.config.get('pulse_api_key'),
+            self.config.get('pulse_app_id')
+        )
+
+        logger.info("Initialized PulseRecruiter.")
+
+    def open_recruitment(self, n=1):
+        """Start recruiting right away."""
+        msg = "Recruiting..."
+        if self.pulse_service.get_existing_activity() is None:
+            logger.info("No project found, creating a new campaign")
+
+            self.pulse_service.create_campaign(
+                self.config.get('title'),
+                self.config.get('description'),
+                self.config.get('pulse_location'),
+                self.config.get('pulse_link'),
+                self.config.get('pulse_image_url'),
+                self.config.get('pulse_page_id')
+            )
+            msg = "Creating campaign and opening recruitment"
+        else:
+            logger.info("Using existing project")
+
+        logger.info("Open recruitment: {}".format(self.pulse_service.project_id))
+
+        self.recruit()
+
+        return {
+            'items': [self.pulse_service.project_id],
+            'message': msg
+        }
+
+    def recruit(self, n=1):
+        """Recruit n new participants to the queue"""
+
+        agents = self.pulse_service.get_agents(self.config.get('pulse_location'))
+
+        for agent in agents:
+            experiment_url = '{}/ad?recruiter={}&hitId={}&assignmentId={}&workerId={}'.format(
+                get_base_url(),
+                self.nickname,
+                self.pulse_service.project_id,
+                agent,
+                agent
+            )
+
+            try:
+                self.pulse_service.recruit(agent, experiment_url)
+            except Exception as ex:
+                logger.error("Exception while running Pulse recruitment")
+                logger.exception(ex)
+
+        return []
+
+    def approve_hit(self, assignment_id):
+        return True
+
+    def close_recruitment(self):
+        """Clean up once the experiment is complete.
+
+        This does nothing at this time.
+        """
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+
+    def reward_bonus(self, assignment_id, amount, reason):
+        """ Reward the participant """
+
+        participant = session.query(Participant).filter_by(
+            assignment_id=assignment_id
+        ).first()
+
+        self.pulse_service.reward(participant.hit_id, assignment_id)
+
+
 def for_experiment(experiment):
     """Return the Recruiter instance for the specified Experiment.
 
@@ -994,9 +1082,9 @@ def from_config(config):
     if name is not None:
         recruiter = by_name(name)
 
-        # Special case 2: may run BotRecruiter or MultiRecruiter in any mode
+        # Special case 2: may run BotRecruiter or MultiRecruiter or PulseRecruiter in any mode
         # (debug or not), so it trumps everything else:
-        if isinstance(recruiter, (BotRecruiter, MultiRecruiter)):
+        if isinstance(recruiter, (BotRecruiter, MultiRecruiter, PulseRecruiter)):
             return recruiter
 
     # Special case 3: if we're not using bots and we're in debug mode,
