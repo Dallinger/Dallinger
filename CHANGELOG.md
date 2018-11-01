@@ -1,6 +1,6 @@
 # Change Log
 
-## [v5.0.0](https://github.com/dallinger/dallinger/tree/v5.0.0) (2018-10-29)
+## [v5.0.0](https://github.com/dallinger/dallinger/tree/v5.0.0) (2018-10-31)
 
 - **Feature** Adds a new configuration variable, `assign_qualifications`, to control whether recruiters that support participant qualifications assign qualifications for the experiment ID and any configured `group_name` when participants are recruited.
 
