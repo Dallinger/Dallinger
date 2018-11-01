@@ -960,3 +960,75 @@ class TestMultiRecruiter(object):
             recruiter.close_recruitment()
             f1.assert_called_once()
             f2.assert_called_once()
+
+
+@pytest.mark.usefixtures('active_config')
+class TestPulseRecruiter(object):
+    @pytest.fixture
+    def recruiter(self):
+        from dallinger.pulse import PulseService
+        from dallinger.recruiters import PulseRecruiter
+        pulse = PulseRecruiter()
+        pulse.pulse_service.api_get = mock.MagicMock(return_value={})
+        pulse.pulse_service.api_post = mock.MagicMock(return_value={})
+        return pulse
+
+    def test_setup(self, recruiter):
+        assert recruiter.pulse_service.api_url == 'https://fake_url'
+        assert recruiter.pulse_service.api_key == 'fake_key'
+        assert recruiter.pulse_service.app_id == 'fake_app'
+
+    def test_open_recruitment(self, recruiter):
+        recruiter.recruit = mock.Mock()
+        recruiter.pulse_service.get_existing_activity = mock.Mock(return_value=1)
+
+        assert recruiter.open_recruitment(1) == {'items': [None], 'message': 'Recruiting...'}
+
+        called = (
+            'fake experiment title',
+            'fake HIT description',
+            'us',
+            'https://fake_url',
+            'https://fake_url/image.jpeg',
+            '12345'
+        )
+
+        recruiter.pulse_service.get_existing_activity = mock.Mock(return_value=None)
+        recruiter.pulse_service.create_campaign = mock.Mock()
+        recruiter.pulse_service.project_id = '123'
+
+        assert recruiter.open_recruitment(1) == {'items': ['123'], 'message': 'Creating campaign and opening recruitment'}
+        assert recruiter.pulse_service.create_campaign.call_args[0] == called
+
+    def test_recruit(self, recruiter):
+        recruiter.pulse_service.project_id = '123'
+        recruiter.pulse_service.get_agents = mock.Mock(return_value=['asdf'])
+        recruiter.pulse_service.recruit = mock.Mock()
+
+        recruiter.recruit(1)
+
+        assert recruiter.pulse_service.get_agents.call_args[0][0] == 'us'
+
+        experiment_url = 'http://0.0.0.0:5000/ad?recruiter=pulse&hitId=123&assignmentId=asdf&workerId=asdf'
+        assert recruiter.pulse_service.recruit.call_args[0] == ('asdf', experiment_url)
+
+    def test_approve_hit(self, recruiter):
+        assert recruiter.approve_hit('123') is True
+
+    def test_close_recruitment(self, recruiter):
+        assert recruiter.close_recruitment() is None
+
+    @mock.patch("dallinger.recruiters.session")
+    def test_reward_bonus(self, mock_sess, recruiter):
+        recruiter.pulse_service.reward = mock.Mock()
+
+        mock_sess.query().filter_by().first().hit_id = 'asdf'
+
+        recruiter.reward_bonus('123', 1, '1')
+
+        assert mock_sess.query().filter_by.call_args[1]['assignment_id'] == '123'
+        assert recruiter.pulse_service.reward.call_args[0][0] == 'asdf'
+        assert recruiter.pulse_service.reward.call_args[0][1] == '123'
+        assert recruiter.pulse_service.reward.call_args[0][2] == 'TransferTo'
+        assert recruiter.pulse_service.reward.call_args[0][3] == 'Airtime'
+        assert recruiter.pulse_service.reward.call_args[0][4] == 0.01

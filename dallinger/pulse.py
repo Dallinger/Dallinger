@@ -51,7 +51,6 @@ class PulseService:
 
         return None
 
-
     def create_campaign(self, title, description, location, link, image_url, page_id):
         """ Create a facebook campaign and save the campaign and project IDs """
         payload = {
@@ -126,7 +125,7 @@ class PulseService:
             "agents": [agent],
             "activityId": self.project_id,
             "url": url,
-            "message": "The experiment is ready, please click on the URL."
+            "message": "The experiment is ready, please click on the URL to begin."
         }
 
         resp = self.api_post('engage', payload)
@@ -136,16 +135,16 @@ class PulseService:
 
         return True
 
-    def reward(self, hitId, agentId):
+    def reward(self, hitId, agentId, processor, currency, amount):
         """ Reward participants with airtime"""
 
         payload = {
             "type": "SolicitReferralAndPay",
             "agents": [agentId],
-            "message": "Thank you for participating, you will be receiving your reward shortly. Would you like to refer anybody else? You will receive a .5 airtime bonus if they participate! If yes, please provide their contact info.",
-            "netAmount": "1.0",
-            "paymentProcessor": "TransferTo",
-            "currency": "AirTime",
+            "message": "Thank you for participating, you will be receiving your reward shortly.",
+            "netAmount": amount,
+            "paymentProcessor": processor,
+            "currency": currency,
             'activityId': hitId,
             "agent_properties": {"participatedIn": hitId}
         }

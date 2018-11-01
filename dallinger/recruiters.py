@@ -1053,7 +1053,13 @@ class PulseRecruiter(Recruiter):
             assignment_id=assignment_id
         ).first()
 
-        self.pulse_service.reward(participant.hit_id, assignment_id)
+        self.pulse_service.reward(
+            participant.hit_id,
+            assignment_id,
+            self.config.get('pulse_reward_processor'),
+            self.config.get('pulse_reward_currency'),
+            self.config.get('base_payment')
+        )
 
 
 def for_experiment(experiment):
