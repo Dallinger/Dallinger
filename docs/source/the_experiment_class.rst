@@ -79,6 +79,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: is_complete
 
+  .. automethod:: is_overrecruited
+
   .. automethod:: log
 
   .. automethod:: log_summary
