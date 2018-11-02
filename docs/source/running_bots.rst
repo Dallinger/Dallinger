@@ -4,8 +4,8 @@ Running bots as participants
 Dallinger supports running simulated experiments using bots
 that participate in the experiment automatically.
 
-Not all experiments will have bots available; the :doc:`demos/bartlett1932/index`
-and :doc:`demos/chatroom/index` demos are the only built-in experiments that do.
+Note that not all experiments will have bots available.
+The :doc:`demos/bartlett1932/index` demo does have bots available.
 
 
 Running an experiment locally with bots

@@ -13,7 +13,7 @@ Using the waiting room
 ^^^^^^^^^^^^^^^^^^^^^^
 
 To use the waiting room, users must first be directed into it rather than
-the experiment. The :doc:`demos/chatroom/index` demo shows an example of this.
+the experiment.
 
 Your ``instructions.html`` should call ``dallinger.goToPage('waiting')`` and should
 not call ``dallinger.createParticipant``.
