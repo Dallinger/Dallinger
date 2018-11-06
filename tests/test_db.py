@@ -1,6 +1,11 @@
 import mock
 
 
+def test_redis():
+    from dallinger.db import redis_conn
+    assert redis_conn.ping()
+
+
 def test_serialized(db_session):
     from dallinger.db import serialized
     from dallinger.models import Participant
