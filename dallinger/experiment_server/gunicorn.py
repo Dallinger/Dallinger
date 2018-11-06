@@ -14,7 +14,7 @@ WORKER_CLASS = 'geventwebsocket.gunicorn.workers.GeventWebSocketWorker'
 
 def when_ready(arbiter):
     # Signal to parent process that server has started
-    logger.warn('Ready.')
+    logger.warning('Ready.')
 
 
 class StandaloneServer(Application):

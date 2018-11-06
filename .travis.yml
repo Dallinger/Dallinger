@@ -26,26 +26,25 @@ addons:
     - pandoc
     - enchant
     - heroku-toolbelt
-    - redis-server
 install:
   - sudo apt-get --yes install snapd
   - sudo snap install --classic heroku
 services:
   - redis-server
 before_install:
-- rm -rf ~/.local/share/heroku
-- rvm install 2.1.5
-- pip install --upgrade setuptools pip wheel
+  - rm -rf ~/.local/share/heroku
+  - rvm install 2.1.5
+  - pip install --upgrade setuptools pip wheel
 install:
-- pip install tox==3.1.2
-- gem install danger
-- gem install danger-commit_lint
-- gem install chandler
+  - pip install tox==3.1.2
+  - gem install danger
+  - gem install danger-commit_lint
+  - gem install chandler
 before_script:
-- bundle exec danger
-- createuser dallinger --createdb
-- createdb -O dallinger dallinger
-- createdb -O dallinger dallinger-import-bartlett-test
+  - bundle exec danger
+  - createuser dallinger --createdb
+  - createdb -O dallinger dallinger
+  - createdb -O dallinger dallinger-import-bartlett-test
 env:
   global:
   - DATABASE_URL=postgresql://dallinger@localhost/dallinger
@@ -57,14 +56,14 @@ env:
   - secure: fd4hFOH60UV8laBN4Mjva0w/EmVK3SVC5p/0O1oqPriPhUpoJ3eVVRvITbdvPctEJJgRR9t62rPk+Rv4EOXeRFfsjZK9gOfQqv/9VhJBebdQfOx2dwQLjDiGTrklkokDIDyfpyYOoJzZ/oP+6EneD403ilHnXC4fd/4EDQmaIRI=
   - secure: 3rnkGugv5Hp71gjwQMUj5tup7/xk94p5IXEh0VItSXTziKn0pBY+yrCzAuIzlylbrl0baLaZOFGEFn2K+Jf+tr9mmN23X+zOUNsIqC4swlLLJx6hzH5AZaRmqzGjURM2gLISUayXGT9flOXyOKzzCGFELJKG9KlVyEOJ4fk04wQ=
 script:
-- tox
+  - tox
 after_success:
-- bash <(curl -s https://codecov.io/bash)
-- if [ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
-    sh scripts/github_releases.sh;
-  fi
+  - bash <(curl -s https://codecov.io/bash)
+  - if [ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
+      sh scripts/github_releases.sh;
+    fi
 before_deploy:
-- pandoc --from=markdown --to=rst --output=README.rst README.md
+  - pandoc --from=markdown --to=rst --output=README.rst README.md
 deploy:
   - provider: pypi  # production pypi
     distributions: sdist

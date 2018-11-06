@@ -1,6 +1,11 @@
 import mock
 
 
+def test_redis():
+    from dallinger.db import redis_conn
+    assert redis_conn.ping()
+
+
 def test_serialized(db_session):
     from dallinger.db import serialized
     from dallinger.models import Participant
@@ -57,7 +62,7 @@ def test_serialized(db_session):
 
 
 def test_after_commit_hook(db_session):
-    with mock.patch('dallinger.heroku.worker.conn') as redis:
+    with mock.patch('dallinger.db.redis_conn') as redis:
         from dallinger.db import queue_message
         queue_message('test', 'test')
         db_session.commit()

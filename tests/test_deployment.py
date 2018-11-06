@@ -59,6 +59,14 @@ def fake_git():
 
 
 @pytest.fixture
+def fake_redis():
+    mock_connection = mock.Mock(name="fake redis connection")
+    with mock.patch('dallinger.deployment.redis') as redis_module:
+        redis_module.from_url.return_value = mock_connection
+        yield mock_connection
+
+
+@pytest.fixture
 def herokuapp():
     # Patch addon since we're using a free app which doesn't support them:
     from dallinger.heroku.tools import HerokuApp
@@ -251,7 +259,7 @@ class TestSetupExperiment(object):
         assert verify_package() is False
 
 
-@pytest.mark.usefixtures('active_config', 'launch', 'fake_git', 'faster')
+@pytest.mark.usefixtures('active_config', 'launch', 'fake_git', 'fake_redis', 'faster')
 class TestDeploySandboxSharedSetupNoExternalCalls(object):
 
     @pytest.fixture
@@ -260,7 +268,8 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         return deploy_sandbox_shared_setup
 
     def test_result(self, dsss, heroku_mock):
-        result = dsss(log=mock.Mock())
+        log = mock.Mock()
+        result = dsss(log=log)
         assert result == {
             'app_home': u'fake-url',
             'app_name': u'dlgr-fake-uid',
@@ -295,6 +304,10 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
             smtp_password=u'fake email password',
             smtp_username=u'fake email username', whimsical=True
         )
+
+    def test_verifies_working_redis(self, dsss, heroku_mock, fake_redis):
+        dsss(log=mock.Mock())
+        fake_redis.set.assert_called_once_with('foo', 'bar')
 
     def test_scales_dynos(self, dsss, heroku_mock):
         dsss(log=mock.Mock())

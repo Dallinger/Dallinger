@@ -661,7 +661,7 @@ class Experiment(object):
         # We need to fake dallinger_experiment to point at the current experiment
         module = sys.modules[type(self).__module__]
         if sys.modules.get('dallinger_experiment', module) != module:
-            logger.warn('dallinger_experiment is already set, updating')
+            logger.warning('dallinger_experiment is already set, updating')
         sys.modules['dallinger_experiment'] = module
 
         # Load the configuration system and globals
