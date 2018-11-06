@@ -53,14 +53,14 @@ def cwd(root):
 def experiment_dir(root):
     os.chdir('tests/experiment')
     yield
-    cwd(root)
+    os.chdir(root)
 
 
 @pytest.fixture(scope="class")
 def bartlett_dir(root):
     os.chdir('demos/dlgr/demos/bartlett1932')
     yield
-    cwd(root)
+    os.chdir(root)
 
 
 @pytest.fixture(scope='class', autouse=True)

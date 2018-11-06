@@ -806,7 +806,7 @@ class BotRecruiter(Recruiter):
             urls.append(url)
             bot = factory(url, assignment_id=assignment, worker_id=worker, hit_id=hit)
             job = q.enqueue(bot.run_experiment, timeout=self._timeout)
-            logger.warn("Created job {} for url {}.".format(job.id, url))
+            logger.warning("Created job {} for url {}.".format(job.id, url))
 
         return urls
 
