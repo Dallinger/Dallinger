@@ -26,7 +26,6 @@ addons:
     - pandoc
     - enchant
     - heroku-toolbelt
-    - redis-server
 install:
   - sudo apt-get --yes install snapd
   - sudo snap install --classic heroku
