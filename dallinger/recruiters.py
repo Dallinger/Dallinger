@@ -727,6 +727,7 @@ class MTurkRecruiter(Recruiter):
 class MTurkLargeRecruiter(MTurkRecruiter):
 
     nickname = 'mturklarge'
+    pool_size = 10
 
     def __init__(self, *args, **kwargs):
         redis_conn.set('num_recruited', 0)
@@ -740,29 +741,39 @@ class MTurkLargeRecruiter(MTurkRecruiter):
             raise MTurkRecruiterException(
                 "Tried to open_recruitment on already open recruiter."
             )
-        redis_conn.incr('num_recruited', n)
-        to_recruit = max(n, 10)
+        self._increment_recruitment_count_by(n)
+        to_recruit = max(n, self.pool_size)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
     def recruit(self, n=1):
-        logger.info("Recruiting {} MTurkLarge participants".format(
-            n
-        ))
+        logger.info("Recruiting {} MTurkLarge participants".format(n))
         if not self.config.get('auto_recruit', False):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
-        to_recruit = n
-        if int(redis_conn.get('num_recruited')) < 10:
-            num_recruited = redis_conn.incr('num_recruited', n)
-            logger.info('Recruited participant from preallocated pool')
-            if num_recruited > 10:
-                to_recruit = num_recruited - 10
-            else:
-                to_recruit = 0
+
+        to_recruit = 0
+        if self.pool_is_exhausted:
+            # Once we've exhausted the initial pool we don't really care
+            # about the total, but keeep it up to date anyway:
+            self._increment_recruitment_count_by(n)
+            to_recruit = n
         else:
-            redis_conn.incr('num_recruited', n)
-        if to_recruit:
-            return super(MTurkLargeRecruiter, self).recruit(to_recruit)
+            self._increment_recruitment_count_by(n)
+            to_recruit = self.current_recruit_count - self.pool_size
+
+        if to_recruit > 0:
+            super(MTurkLargeRecruiter, self).recruit(to_recruit)
+
+    @property
+    def current_recruit_count(self):
+        return int(redis_conn.get('num_recruited'))
+
+    @property
+    def pool_is_exhausted(self):
+        return self.current_recruit_count >= self.pool_size
+
+    def _increment_recruitment_count_by(self, count):
+        redis_conn.incr('num_recruited', count)
 
 
 class BotRecruiter(Recruiter):

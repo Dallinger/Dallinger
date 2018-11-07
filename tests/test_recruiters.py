@@ -745,6 +745,7 @@ class TestMTurkLargeRecruiter(object):
             r.mturkservice = mockservice('fake key', 'fake secret', 'fake_region')
             r.mturkservice.check_credentials.return_value = True
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
+            r.current_hit_id = mock.Mock(return_value='fake HIT id')
             return r
 
     def test_open_recruitment_raises_error_if_experiment_in_progress(self, a, recruiter):
@@ -761,7 +762,7 @@ class TestMTurkLargeRecruiter(object):
         assert len(result['items']) == 1
         recruiter.mturkservice.check_credentials.assert_called_once()
 
-    def test_open_recruitment_single_recruitee(self, recruiter):
+    def test_open_recruitment_single_recruitee_actually_overrecruits(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url='http://fake-domain/ad?recruiter=mturklarge',
@@ -779,8 +780,9 @@ class TestMTurkLargeRecruiter(object):
             annotation='some experiment uid',
         )
 
-    def test_more_than_ten_can_be_recruited_on_open(self, recruiter):
-        recruiter.open_recruitment(n=20)
+    def test_open_recruitment_with_more_than_pool_size_uses_requested_count(self, recruiter):
+        num_recruits = recruiter.pool_size + 1
+        recruiter.open_recruitment(n=num_recruits)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url='http://fake-domain/ad?recruiter=mturklarge',
             approve_requirement=95,
@@ -788,7 +790,7 @@ class TestMTurkLargeRecruiter(object):
             duration_hours=1.0,
             keywords=['kw1', 'kw2', 'kw3'],
             lifetime_days=1,
-            max_assignments=20,
+            max_assignments=num_recruits,
             notification_url='https://url-of-notification-route',
             reward=0.01,
             title='fake experiment title',
@@ -798,35 +800,55 @@ class TestMTurkLargeRecruiter(object):
         )
 
     def test_recruit_participants_auto_recruit_on_recruits_for_current_hit(self, recruiter):
-        fake_hit_id = 'fake HIT id'
-        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
         recruiter.open_recruitment(n=1)
-        recruiter.recruit(n=9)
+        recruiter.recruit(n=recruiter.pool_size - 1)
+
         recruiter.mturkservice.extend_hit.assert_not_called()
+
         recruiter.recruit(n=1)
+
         recruiter.mturkservice.extend_hit.assert_called_once_with(
             'fake HIT id',
             duration_hours=1.0,
             number=1
         )
 
-    def test_recruiting_partially_from_preallocated_pool(self, recruiter):
-        fake_hit_id = 'fake HIT id'
-        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+    def test_recruit_draws_partially_from_preallocated_pool(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.recruit(n=5)
+
         recruiter.mturkservice.extend_hit.assert_not_called()
         recruiter.recruit(n=10)
+
         recruiter.mturkservice.extend_hit.assert_called_once_with(
             'fake HIT id',
             duration_hours=1.0,
             number=6
         )
 
+    def test_recruit_right_at_cutoff(self, recruiter):
+        recruiter.open_recruitment(n=recruiter.pool_size)
+        recruiter.recruit()
+
+        recruiter.mturkservice.extend_hit.assert_called_once_with(
+            'fake HIT id',
+            duration_hours=1.0,
+            number=1
+        )
+
+    def test_recruit_more_after_initial_recruitment_exceeding_pool_size(self, recruiter):
+        recruiter.open_recruitment(n=recruiter.pool_size + 1)
+        recruiter.recruit(n=5)
+
+        recruiter.mturkservice.extend_hit.assert_called_once_with(
+            'fake HIT id',
+            duration_hours=1.0,
+            number=5
+        )
+
     def test_recruit_auto_recruit_off_does_not_extend_hit(self, recruiter):
         recruiter.config['auto_recruit'] = False
-        fake_hit_id = 'fake HIT id'
-        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+
         recruiter.recruit()
 
         assert not recruiter.mturkservice.extend_hit.called
