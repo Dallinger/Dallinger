@@ -754,7 +754,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         to_recruit = 0
         if self.pool_is_exhausted:
             # Once we've exhausted the initial pool we don't really care
-            # about the total, but keeep it up to date anyway:
+            # about the total, but keep it up to date anyway:
             self._increment_recruitment_count_by(n)
             to_recruit = n
         else:
