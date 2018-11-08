@@ -727,11 +727,40 @@ class TestMTurkRecruiter(object):
         )
 
 
+class TestRedisTally(object):
+
+    @pytest.fixture
+    def redis_tally(self):
+        from dallinger.recruiters import RedisTally
+        return RedisTally()
+
+    def test_that_its_a_counter(self, redis_tally):
+        assert redis_tally.current == 0
+        redis_tally.increment(3)
+        assert redis_tally.current == 3
+
+
 @pytest.mark.usefixtures('active_config')
 class TestMTurkLargeRecruiter(object):
 
     @pytest.fixture
-    def recruiter(self, active_config):
+    def counter(self):
+        # We don't want to depend on redis in these tests.
+        class PrimitiveCounter(object):
+
+            _count = 0
+
+            def increment(self, count):
+                self._count += count
+
+            @property
+            def current(self):
+                return self._count
+
+        return PrimitiveCounter()
+
+    @pytest.fixture
+    def recruiter(self, active_config, counter):
         from dallinger.mturk import MTurkService
         from dallinger.recruiters import MTurkLargeRecruiter
         with mock.patch.multiple('dallinger.recruiters',
@@ -741,7 +770,7 @@ class TestMTurkLargeRecruiter(object):
             mocks['os'].getenv.return_value = 'fake-host-domain'
             mockservice = mock.create_autospec(MTurkService)
             active_config.extend({'mode': u'sandbox'})
-            r = MTurkLargeRecruiter()
+            r = MTurkLargeRecruiter(counter=counter)
             r.mturkservice = mockservice('fake key', 'fake secret', 'fake_region')
             r.mturkservice.check_credentials.return_value = True
             r.mturkservice.create_hit.return_value = {'type_id': 'fake type id'}
@@ -799,9 +828,9 @@ class TestMTurkLargeRecruiter(object):
             annotation='some experiment uid',
         )
 
-    def test_recruit_participants_auto_recruit_on_recruits_for_current_hit(self, recruiter):
-        recruiter.open_recruitment(n=1)
-        recruiter.recruit(n=recruiter.pool_size - 1)
+    def test_recruit_draws_on_initial_pool_before_extending_hit(self, recruiter):
+        recruiter.open_recruitment(n=recruiter.pool_size - 1)
+        recruiter.recruit(n=1)
 
         recruiter.mturkservice.extend_hit.assert_not_called()
 
@@ -813,30 +842,7 @@ class TestMTurkLargeRecruiter(object):
             number=1
         )
 
-    def test_recruit_draws_partially_from_preallocated_pool(self, recruiter):
-        recruiter.open_recruitment(n=1)
-        recruiter.recruit(n=5)
-
-        recruiter.mturkservice.extend_hit.assert_not_called()
-        recruiter.recruit(n=10)
-
-        recruiter.mturkservice.extend_hit.assert_called_once_with(
-            'fake HIT id',
-            duration_hours=1.0,
-            number=6
-        )
-
-    def test_recruit_right_at_cutoff(self, recruiter):
-        recruiter.open_recruitment(n=recruiter.pool_size)
-        recruiter.recruit()
-
-        recruiter.mturkservice.extend_hit.assert_called_once_with(
-            'fake HIT id',
-            duration_hours=1.0,
-            number=1
-        )
-
-    def test_recruit_more_after_initial_recruitment_exceeding_pool_size(self, recruiter):
+    def test_recruits_more_immediately_if_initial_recruitment_exceeds_pool_size(self, recruiter):
         recruiter.open_recruitment(n=recruiter.pool_size + 1)
         recruiter.recruit(n=5)
 

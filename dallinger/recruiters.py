@@ -724,14 +724,29 @@ class MTurkRecruiter(Recruiter):
             logger.exception(ex)
 
 
+class RedisTally(object):
+
+    _key = 'num_recruited'
+
+    def __init__(self):
+        redis_conn.set(self._key, 0)
+
+    def increment(self, count):
+        redis_conn.incr(self._key, count)
+
+    @property
+    def current(self):
+        return int(redis_conn.get(self._key))
+
+
 class MTurkLargeRecruiter(MTurkRecruiter):
 
     nickname = 'mturklarge'
     pool_size = 10
 
     def __init__(self, *args, **kwargs):
-        redis_conn.set('num_recruited', 0)
-        super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
+        self.counter = kwargs.get('counter', RedisTally())
+        super(MTurkLargeRecruiter, self).__init__()
 
     def open_recruitment(self, n=1):
         logger.info("Opening MTurkLarge recruitment for {} participants".format(
@@ -741,7 +756,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
             raise MTurkRecruiterException(
                 "Tried to open_recruitment on already open recruiter."
             )
-        self._increment_recruitment_count_by(n)
+        self.counter.increment(n)
         to_recruit = max(n, self.pool_size)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
@@ -752,20 +767,13 @@ class MTurkLargeRecruiter(MTurkRecruiter):
             return
 
         needed = max(0, n - self.remaining_pool)
-        self._increment_recruitment_count_by(n)
+        self.counter.increment(n)
         if needed:
             return super(MTurkLargeRecruiter, self).recruit(needed)
 
     @property
-    def current_recruit_count(self):
-        return int(redis_conn.get('num_recruited'))
-
-    @property
     def remaining_pool(self):
-        return max(0, self.pool_size - self.current_recruit_count)
-
-    def _increment_recruitment_count_by(self, count):
-        redis_conn.incr('num_recruited', count)
+        return max(0, self.pool_size - self.counter.current)
 
 
 class BotRecruiter(Recruiter):
