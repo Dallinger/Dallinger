@@ -751,26 +751,18 @@ class MTurkLargeRecruiter(MTurkRecruiter):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
 
-        to_recruit = 0
-        if self.pool_is_exhausted:
-            # Once we've exhausted the initial pool we don't really care
-            # about the total, but keep it up to date anyway:
-            self._increment_recruitment_count_by(n)
-            to_recruit = n
-        else:
-            self._increment_recruitment_count_by(n)
-            to_recruit = self.current_recruit_count - self.pool_size
-
-        if to_recruit > 0:
-            super(MTurkLargeRecruiter, self).recruit(to_recruit)
+        needed = max(0, n - self.remaining_pool)
+        self._increment_recruitment_count_by(n)
+        if needed:
+            return super(MTurkLargeRecruiter, self).recruit(needed)
 
     @property
     def current_recruit_count(self):
         return int(redis_conn.get('num_recruited'))
 
     @property
-    def pool_is_exhausted(self):
-        return self.current_recruit_count >= self.pool_size
+    def remaining_pool(self):
+        return max(0, self.pool_size - self.current_recruit_count)
 
     def _increment_recruitment_count_by(self, count):
         redis_conn.incr('num_recruited', count)
