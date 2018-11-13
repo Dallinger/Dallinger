@@ -74,6 +74,14 @@ var dallinger = (function () {
     mode: dlgr.getUrlParameter('mode'),
     participantId: dlgr.getUrlParameter('participant_id')
   };
+  if (typeof store !== "undefined") {
+    store.set("recruiter", dlgr.identity.recruiter);
+    store.set("hit_id", dlgr.identity.hitId);
+    store.set("worker_id", dlgr.identity.workerId);
+    store.set("assignment_id", dlgr.identity.assignmentId);
+    store.set("participant_id", dlgr.identity.participantId);
+    store.set("mode", dlgr.identity.mode);
+  }
 
   dlgr.BusyForm = (function () {
     /* Loads a spinner as a visual cue that something is happening
