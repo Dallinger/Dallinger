@@ -1020,6 +1020,8 @@ class TestMTurkServiceWithFakeConnection(object):
         )
 
     def test_approve_assignment_wraps_exception_helpfully(self, with_mock):
+        fake_response = fake_get_assignment_response()
+        with_mock.mturk.get_assignment = mock.Mock(return_value=fake_response)
         with_mock.mturk.configure_mock(**{
             'approve_assignment.side_effect': ClientError({}, "Boom!")
         })

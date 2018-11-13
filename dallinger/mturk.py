@@ -525,9 +525,12 @@ class MTurkService(object):
                 self.mturk.approve_assignment(AssignmentId=assignment_id)
             )
         except ClientError as ex:
+            assignment = self.get_assignment(assignment_id)
             raise MTurkServiceException(
-                "Failed to approve assignment {}: {}".format(
-                    assignment_id, str(ex))
+                "Failed to approve assignment {}, {}: {}".format(
+                    assignment_id,
+                    str(assignment),
+                    str(ex))
             )
 
     def _calc_old_api_signature(self, params, *args):
