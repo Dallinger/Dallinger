@@ -11,7 +11,7 @@ class TestAgents(object):
 
     def test_create_agent_generic(self, a):
         agent = a.agent()
-        assert agent
+        assert isinstance(agent, nodes.Agent)
 
     def test_create_agent_with_participant(self, a):
         participant = a.participant()
@@ -30,10 +30,10 @@ class TestAgents(object):
         assert len(results) == 1
         assert results[0] is agent
 
-    def test_fitness_expression_search_fail(self, a):
+    def test_fitness_expression_search_requires_exact_match(self, a):
         agent = a.agent()
         agent.fitness = 1.99999
-        results = nodes.Agent.query.filter_by(fitness=1.9).all()
+        results = nodes.Agent.query.filter_by(fitness=1.9999).all()
         assert len(results) == 0
 
     def test_create_agent_generic_transmit_to_all(self, a):
@@ -46,7 +46,7 @@ class TestAgents(object):
         agent1.connect(direction="to", whom=agent3)
         assert agent1.transmit(to_whom=models.Node) == []
 
-    def test_fail_agent(self, a):
+    def test_fail_agent_assigns_time_of_death(self, a):
         agent = a.agent()
         assert agent.failed is False and agent.time_of_death is None
 

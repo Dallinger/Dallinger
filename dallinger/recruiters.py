@@ -724,13 +724,29 @@ class MTurkRecruiter(Recruiter):
             logger.exception(ex)
 
 
+class RedisTally(object):
+
+    _key = 'num_recruited'
+
+    def __init__(self):
+        redis_conn.set(self._key, 0)
+
+    def increment(self, count):
+        redis_conn.incr(self._key, count)
+
+    @property
+    def current(self):
+        return int(redis_conn.get(self._key))
+
+
 class MTurkLargeRecruiter(MTurkRecruiter):
 
     nickname = 'mturklarge'
+    pool_size = 10
 
     def __init__(self, *args, **kwargs):
-        redis_conn.set('num_recruited', 0)
-        super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
+        self.counter = kwargs.get('counter', RedisTally())
+        super(MTurkLargeRecruiter, self).__init__()
 
     def open_recruitment(self, n=1):
         logger.info("Opening MTurkLarge recruitment for {} participants".format(
@@ -740,29 +756,24 @@ class MTurkLargeRecruiter(MTurkRecruiter):
             raise MTurkRecruiterException(
                 "Tried to open_recruitment on already open recruiter."
             )
-        redis_conn.incr('num_recruited', n)
-        to_recruit = max(n, 10)
+        self.counter.increment(n)
+        to_recruit = max(n, self.pool_size)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
     def recruit(self, n=1):
-        logger.info("Recruiting {} MTurkLarge participants".format(
-            n
-        ))
+        logger.info("Recruiting {} MTurkLarge participants".format(n))
         if not self.config.get('auto_recruit', False):
             logger.info('auto_recruit is False: recruitment suppressed')
             return
-        to_recruit = n
-        if int(redis_conn.get('num_recruited')) < 10:
-            num_recruited = redis_conn.incr('num_recruited', n)
-            logger.info('Recruited participant from preallocated pool')
-            if num_recruited > 10:
-                to_recruit = num_recruited - 10
-            else:
-                to_recruit = 0
-        else:
-            redis_conn.incr('num_recruited', n)
-        if to_recruit:
-            return super(MTurkLargeRecruiter, self).recruit(to_recruit)
+
+        needed = max(0, n - self.remaining_pool)
+        self.counter.increment(n)
+        if needed:
+            return super(MTurkLargeRecruiter, self).recruit(needed)
+
+    @property
+    def remaining_pool(self):
+        return max(0, self.pool_size - self.counter.current)
 
 
 class BotRecruiter(Recruiter):
