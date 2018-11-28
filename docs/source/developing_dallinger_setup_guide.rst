@@ -16,28 +16,43 @@ You can check what version of Python you have by running:
 
     python --version
 
+.. toctree::
+    :maxdepth: 1
 
-Follow the :doc:`Python installation instructions <installing_python>`.
+    Python installation instructions <installing_python_dev>
 
 Install Postgres
 ----------------
 
-Follow the :doc:`Postgresql installation instructions <installing_postgres>`.
+.. toctree::
+    :maxdepth: 1
 
-Create the Databases
---------------------
+    Postgresql installation instructions <installing_postgres_dev>
 
-Follow the :doc:`Create the databases instructions <creating_databases>`.
+Create the Database
+-------------------
+
+.. toctree::
+    :maxdepth: 1
+
+    Create the databases instructions <creating_databases_dev>
 
 Install Heroku and Redis
 ------------------------
 
-Follow the :doc:`Heroku and Redis installation instructions <heroku_redis>`.
+.. toctree::
+    :maxdepth: 1
+
+    Heroku and Redis installation instructions <heroku_redis_dev>
+
 
 Set up a virtual environment
 ----------------------------
 
-Follow the :doc:`Virtual environment setup instructions <setup_virtualenv>`.
+.. toctree::
+    :maxdepth: 1
+
+    Virtual environment setup instructions <setup_virtualenv_dev>
 
 **Note**: if you are using Anaconda, ignore this ``virtualenv``
 section; use ``conda`` to create your virtual environment. Or, see the

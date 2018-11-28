@@ -11,13 +11,14 @@ to launch experiments and analyse their data. They cover the basics of installin
 and setting up Dallinger, as well as use of the command line tools.
 
 .. toctree::
+    :caption: User Documentation
     :maxdepth: 1
 
     installing_dallinger_for_users
     dallinger_with_anaconda
     aws_etc_keys
-    command_line_utility
     demoing_dallinger
+    command_line_utility
     configuration
     email_setup
     python_module
@@ -36,6 +37,7 @@ These documentation topics build on the previous set to include help with
 designing new experiments for others to use.
 
 .. toctree::
+    :caption: Experiment Author Documentation
     :maxdepth: 1
 
     developing_dallinger_setup_guide
@@ -60,6 +62,7 @@ in order to contribute to the development of Dallinger itself. This is not neede
 in order to develop new experiments.
 
 .. toctree::
+    :caption: Core Contribution Documentation
     :maxdepth: 1
 
     developing_dallinger_setup_guide
@@ -70,6 +73,7 @@ General Information
 ^^^^^^^^^^^^^^^^^^^
 
 .. toctree::
+    :caption: General Information
     :maxdepth: 1
 
     acknowledgments

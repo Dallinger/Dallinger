@@ -55,9 +55,9 @@ To start the experiment with this configuration, run::
 
 
 Running a single bot
-********************
+~~~~~~~~~~~~~~~~~~~~
 
 If you want to run a single bot as part of an ongoing experiment, you can use
 the :ref:`bot <dallinger-bot>` command. This is useful for testing a single
-bot's behavior as part of a longer-running experiment, and allows easy access 
+bot's behavior as part of a longer-running experiment, and allows easy access
 to the Python pdb debugger.

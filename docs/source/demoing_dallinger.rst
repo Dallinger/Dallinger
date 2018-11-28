@@ -21,7 +21,8 @@ Navigate to the bartlett1932 directory and run
     dallinger debug
 
 
-Make sure that the dallinger virtualenv is enabled so that the dallinger command is available to you.
+If applicable, make sure that your virtualenv is enabled so that the ``dallinger`` command is available to you. 
+All Dallinger command options are explained in the :doc:`Command-line Utility" <command_line_utility>` section.
 
 You will see some output as Dallinger loads. When it is finished, you will
 see something that looks like:

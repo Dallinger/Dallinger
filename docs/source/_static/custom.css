@@ -1,0 +1,17 @@
+/* ============= RTD THEME CUSTOMIZATIONS ======================= */
+
+div.wy-nav-content {
+    max-width: none !important;
+}
+
+.wy-side-nav-search > div.version {
+    color: rgba(255,255,255,0.8);
+}
+
+.wy-nav-side {
+    color: #dadada;
+}
+
+.highlight pre {
+    background: #eee;
+}

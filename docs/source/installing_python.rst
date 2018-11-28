@@ -2,8 +2,8 @@ Installing Python
 ===================
 
 
-OSX
-~~~
+Mac OS X
+~~~~~~~~
 
 Using Homebrew will install the latest version of Python and pip by default.
 
@@ -13,14 +13,14 @@ Using Homebrew will install the latest version of Python and pip by default.
 
 This will install the latest Python3 and pip3.
 
-You can also use the preinstalled Python in OSX, currently Python 2.7 as of writing.
+You can also use the preinstalled Python in Mac OS X, currently Python 2.7 as of writing.
 
 If you installed Python 3 with Homebrew, you should now be able to run the ``python3`` command from the terminal.
 If the command cannot be found, check the Homebrew installation log to see
-if there were any errors. Sometimes there are problems symlinking Python 3 to 
+if there were any errors. Sometimes there are problems symlinking Python 3 to
 the python3 command. If this is the case for you, look `here <https://stackoverflow.com/questions/27784545/brew-error-could-not-symlink-path-is-not-writable>`__ for clues to assist you.
 
-With the preinstalled Python in OSX, you will need to install pip yourself. You can use:
+With the preinstalled Python in Mac OS X, you will need to install pip yourself. You can use:
 ::
 
     sudo easy_install pip

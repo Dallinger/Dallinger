@@ -92,7 +92,7 @@ Next, sign up for a `Heroku <https://www.heroku.com/>`__ account.
 
 You should see an interface that looks something like the following:
 
-.. figure:: http://note.io/11c7tkL
+.. figure:: _static/heroku.jpg
    :alt: This is the interface with the Heroku app
 
    This is the interface with the Heroku app

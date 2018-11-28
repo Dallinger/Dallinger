@@ -28,22 +28,34 @@ You can check what version of Python you have by running:
 
 You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed. It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.)
 
-Follow the :doc:`Python installation instructions <installing_python>`.
+.. toctree::
+    :maxdepth: 1
+
+    Python installation instructions <installing_python>
 
 Install Postgres
 ----------------
 
-Follow the :doc:`Postgresql installation instructions <installing_postgres>`.
+.. toctree::
+    :maxdepth: 1
+
+    Postgresql installation instructions <installing_postgres>
 
 Create the Database
 -------------------
 
-Follow the :doc:`Create the databases instructions <creating_databases>`.
+.. toctree::
+    :maxdepth: 1
+
+    Create the databases instructions <creating_databases>
 
 Install Heroku and Redis
 ------------------------
 
-Follow the :doc:`Heroku and Redis installation instructions <heroku_redis>`.
+.. toctree::
+    :maxdepth: 1
+
+    Heroku and Redis installation instructions <heroku_redis>
 
 
 Install Git
@@ -52,25 +64,21 @@ Install Git
 Dallinger uses Git, a distributed version control system, for version control of its code.
 If you do not have it installed, you can install it as follows:
 
-OSX
-~~~
-::
+.. toctree::
+    :maxdepth: 1
 
-    brew install git
-
-Ubuntu
-~~~~~~
-::
-
-    sudo apt install git
+    Git installation instructions <installing_git>
 
 
 Set up a virtual environment
 ----------------------------
 
-Follow the :doc:`Virtual environment setup instructions <setup_virtualenv>`.
+.. toctree::
+    :maxdepth: 1
 
-**Note**: if you are using Anaconda, ignore this ``virtualenv``
+    Virtual environment setup instructions <setup_virtualenv>
+
+**Note**: if you are using Anaconda, ignore this virtualenv
 section; use ``conda`` to create your virtual environment. Or, see the
 special :doc:`Anaconda installation instructions <dallinger_with_anaconda>`.
 
