@@ -4,8 +4,10 @@ Running bots as participants
 Dallinger supports running simulated experiments using bots
 that participate in the experiment automatically.
 
-Note that not all experiments will have bots available.
-The :doc:`demos/bartlett1932/index` demo does have bots available.
+.. note::
+
+    Not all experiments will have bots available.
+    The :doc:`demos/bartlett1932/index` demo does have bots available.
 
 
 Running an experiment locally with bots
@@ -24,11 +26,13 @@ You may also set the configuration value ``recruiter='bots'`` in local or global
 configurations, as an environment variable or as a keyword argument to
 :py:meth:`~dallinger.experiments.Experiment.run`.
 
-Note: Bots are run by worker processes. If the experiment recruits many bots
-at the same time, you may need to increase the ``num_dynos_worker`` config setting
-to run additional worker processes. Each worker process can run up to 20 bots
-(though if the bots are implemented using selenium to run a real browser,
-you'll probably hit resource limits before that).
+.. note::
+
+    Bots are run by worker processes. If the experiment recruits many bots
+    at the same time, you may need to increase the ``num_dynos_worker`` config setting
+    to run additional worker processes. Each worker process can run up to 20 bots
+    (though if the bots are implemented using selenium to run a real browser,
+    you'll probably hit resource limits before that).
 
 
 Running an experiment with a mix of bots and real participants

@@ -223,7 +223,7 @@ If you get an error like the following:
         Is the server running locally and accepting
         connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
 
-then postgres is not running. Start postgres as described :doc:`here <installing_postgres>`.
+then postgres is not running. Start postgres as described in the Install Postgresql section above.
 
 Ubuntu
 ~~~~~~
@@ -323,9 +323,11 @@ Ubuntu
 Set up a virtual environment
 ----------------------------
 
-**Note**: if you are using Anaconda, ignore this virtualenv
-section; use ``conda`` to create your virtual environment. Or, see the
-special :doc:`Anaconda installation instructions <dallinger_with_anaconda>`.
+.. note::
+
+    If you are using Anaconda, ignore this virtualenv
+    section; use ``conda`` to create your virtual environment. Or, see the
+    special :doc:`Anaconda installation instructions <dallinger_with_anaconda>`.
 
 
 Why use virtualenv?

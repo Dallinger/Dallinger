@@ -47,7 +47,6 @@ designing new experiments for others to use.
     developing_dallinger_setup_guide
     creating_an_experiment
     docker_setup
-    running_the_tests
     the_experiment_class
     classes
     web_api
@@ -61,9 +60,8 @@ designing new experiments for others to use.
 Core Contribution Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In addition to the Developer Installation guide found in the previous section, this section covers extra topics relevant
-to those wishing to contribute to the development of Dallinger itself. This is not needed
-in order to develop new experiments.
+This section covers extra topics relevant to those wishing to contribute to the development of Dallinger itself. This is not needed
+in order to develop new experiments. Follow the Developer Installation process from the previous section to get started.
 
 .. toctree::
     :caption: Core Contribution Documentation

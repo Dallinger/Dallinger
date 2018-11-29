@@ -213,7 +213,7 @@ If you get an error like the following:
         Is the server running locally and accepting
         connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
 
-then postgres is not running. Start postgres as described :doc:`here <installing_postgres>`.
+then postgres is not running. Start postgres as described in the Install Postgresql section above.
 
 Ubuntu
 ~~~~~~
@@ -513,9 +513,11 @@ virtual environment before installing the dependencies. If you want to
 be extra careful, run the command ``workon dlgr_env``, which will ensure
 that you are in the right virtual environment.
 
-**Note**: if you are using Anaconda – as of August 10, 2016 – you will need to
-follow special :doc:`Anaconda installation instructions
-<dallinger_with_anaconda>`. This should be fixed in future versions.
+.. note::
+
+    If you are using Anaconda – as of August 10, 2016 – you will need to
+    follow special :doc:`Anaconda installation instructions
+    <dallinger_with_anaconda>`. This should be fixed in future versions.
 
 ::
 
@@ -539,8 +541,10 @@ Test that your installation works by running:
 
     dallinger --version
 
-**Note**: if you are using Anaconda and get a long traceback here,
-please see the special :doc:`dallinger_with_anaconda`.
+.. note::
+
+    If you are using Anaconda and get a long traceback here,
+    please see the special :doc:`dallinger_with_anaconda`.
 
 Install the dlgr.demos sub-package
 ----------------------------------
