@@ -61,15 +61,14 @@ designing new experiments for others to use.
 Core Contribution Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-These documentation topics cover setting up a development version of Dallinger,
-in order to contribute to the development of Dallinger itself. This is not needed
+In addition to the Developer Installation guide found in the previous section, this section covers extra topics relevant
+to those wishing to contribute to the development of Dallinger itself. This is not needed
 in order to develop new experiments.
 
 .. toctree::
     :caption: Core Contribution Documentation
     :maxdepth: 1
 
-    developing_dallinger_setup_guide
     running_the_tests
     contributing_to_dallinger
 
