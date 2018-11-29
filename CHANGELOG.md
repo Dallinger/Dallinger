@@ -5,6 +5,7 @@
 - Documentation improvements and additions:
   + New theme that supports searching of the documentation
   + Styling improvements to some documents for increased readability
+  + Updated description of what Dallinger is
 
 - Miscellaneous bug fixes
 
