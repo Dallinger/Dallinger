@@ -1,7 +1,11 @@
 Dallinger
 ~~~~~~~~~
 
-Laboratory automation for the behavioral and social sciences.
+Dallinger is a tool to automate experiments that use combinations of automated bots and human subjects recruited on platforms like Mechanical Turk.
+
+Dallinger allows crowd sourced experiments to be abstracted into single function calls that can be inserted into higher-order algorithms. It fully automates the process of recruiting participants, obtaining informed consent, arranging participants into a network, running the experiment, coordinating communication, recording and managing the data, and paying the participants.
+
+The Dallinger technology stack consists of: Python, Redis, Web Sockets, Heroku, AWS, Mechanical Turk, boto, Flask, PostgreSQL, SQLAlchemy, Gunicorn, Pytest and gevent among others.
 
 User Documentation
 ^^^^^^^^^^^^^^^^^^

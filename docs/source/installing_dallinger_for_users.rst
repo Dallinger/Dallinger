@@ -41,13 +41,13 @@ Install Postgres
 
     Postgresql installation instructions <installing_postgres>
 
-Create the Database
--------------------
+Create the databases
+--------------------
 
 .. toctree::
     :maxdepth: 1
 
-    Create the databases instructions <creating_databases>
+    Creating the databases instructions <creating_databases>
 
 Install Heroku and Redis
 ------------------------
