@@ -154,7 +154,7 @@ html_theme_options = {
     'canonical_url': '',
     'analytics_id': '',
     'display_version': True,
-    'prev_next_buttons_location': 'none',
+    'prev_next_buttons_location': 'bottom',
     'style_external_links': True,
     # Toc options
     'collapse_navigation': True,

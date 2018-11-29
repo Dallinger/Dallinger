@@ -1638,8 +1638,8 @@ extensive API, so you will probably need to refer to the documentation
 constantly as you go along. Here are some resources within the documentation
 that should prove to be very useful while you develop your experiment further:
 
-- :doc:`The Web API <web_api>`.
-- :doc:`The Javascript API <javascript_api>`.
-- :doc:`The Database API <classes>`.
-- :doc:`The Experiment Class <the_experiment_class>`.
-- :doc:`Writing Bots <writing_bots>`.
+- :doc:`The Web API <web_api>`
+- :doc:`The Javascript API <javascript_api>`
+- :doc:`The Database API <classes>`
+- :doc:`The Experiment Class <the_experiment_class>`
+- :doc:`Writing Bots <writing_bots>`
