@@ -21,7 +21,7 @@ database_url = postgresql://postgres@localhost/dallinger
 database_size = standard-0
 
 [Server]
-dyno_type = free
+dyno_type = hobby
 num_dynos_web = 1
 num_dynos_worker = 1
 host = 0.0.0.0
