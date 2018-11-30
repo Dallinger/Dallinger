@@ -139,6 +139,18 @@ Amazon Mechanical Turk Recruitment
     Obsolete.
 
 
+Preventing Repeat Participants
+""""""""""""""""""""""""""""""
+
+If you set a ``group_name`` and ``assign_qualifications`` is also set to
+``true``, workers who complete your HIT will be given an MTurk qualification for
+your ``group_name``. In the future, you can prevent these workers from
+participating in a HIT with the same ``group_name`` by including that name in
+the ``qualification_blacklist`` configuration. These four configuration keys
+work together to create a system to prevent recuiting workers who have already
+completed a prior run of the same experiment.
+
+
 Email Notifications
 ~~~~~~~~~~~~~~~~~~~
 
