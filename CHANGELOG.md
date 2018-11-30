@@ -6,8 +6,8 @@
   + New theme that supports searching of the documentation
   + Styling improvements to some documents for increased readability
   + Updated description of what Dallinger is
+  + Add Preventing Repeat Participants section to Configuration documentation
 
-- Miscellaneous bug fixes
 
 ## [v5.0.0](https://github.com/dallinger/dallinger/tree/v5.0.0) (2018-10-31)
 
