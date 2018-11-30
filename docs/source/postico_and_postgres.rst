@@ -1,10 +1,10 @@
 Viewing the PostgreSQL Database
 ===============================
 
-OSX
-~~~
+Mac OS X
+~~~~~~~~
 
-Postico is a nice tool for examining Postgres databases on OS X. We use
+Postico is a nice tool for examining Postgres databases on Mac OS X. We use
 it to connect to live experiment databases. Here are the steps needed to
 do this:
 
