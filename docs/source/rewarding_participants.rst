@@ -105,7 +105,9 @@ Javascript-only experiments
 """""""""""""""""""""""""""
 Sometimes experimenters may wish to convert an existing Javascript and HTML experiment to run within the Dallinger framework. Such games rely on logic entirely running in the user's browser, rather than instructions from the Dallinger Experiment class. However, code running in the user's browser cannot be trusted to determine how much the user should be paid, as it is open to manipulation through debugging tools.
 
-**Note**: It might seem unlikely that users would bother to cheat, but it is quite easy for technically proficient users to do so if they choose, and the temptation of changing their payout may be too much to resist.
+.. note::
+
+    It might seem unlikely that users would bother to cheat, but it is quite easy for technically proficient users to do so if they choose, and the temptation of changing their payout may be too much to resist.
 
 In order to integrate with Dallinger, the experiment must use the dallinger2.js function ``createInfo`` function to send its current state to the server. This is what allows analysis of the user's performance later, so it's important to send as much information as possible.
 

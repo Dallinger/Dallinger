@@ -36,34 +36,34 @@ before Cookiecutter creates your experiment's directory.
 The questions are below. Be sure to follow indications about allowed
 characters, or your experiment may not run:
 
-- `namespace`: This can be used as a general "container" or "brand" name
+- ``namespace``: This can be used as a general "container" or "brand" name
   for your experiments. It should be all lower case and not contain any spaces
   or special characters other than `_`.
 
-- `experiment_name`: The experiment will be stored in this sub-directory.
+- ``experiment_name``: The experiment will be stored in this sub-directory.
   This should be all lower case and not contain any spaces or special
   characters other than `_`.
 
-- `repo_name`: The GitHub repository name where experiment package will
+- ``repo_name``: The GitHub repository name where experiment package will
   eventually live. This should not contain any spaces or special characters
   other than `-` and `_`.
 
-- `package_name`: The python package name for your experiment. This is
+- ``package_name``: The python package name for your experiment. This is
   usually the name of your namespace and your experiment name separated by a
   dot. This should be all lower case and not contain any spaces or special
   characters other than `_`.
 
-- `experiment_class`: The python class name for your custom experiment
+- ``experiment_class``: The python class name for your custom experiment
   class. This should not contain any spaces or special characters. This is
   where the main code of your experiment will live.
 
-- `experiment_description`: A short description of your experiment
+- ``experiment_description``: A short description of your experiment
 
-- `author`: The package author's full name
+- ``author``: The package author's full name
 
-- `author_email`: The contact email for the experiment author.
+- ``author_email``: The contact email for the experiment author.
 
-- `author_github`: The GitHub account name where the package will eventually
+- ``author_github``: The GitHub account name where the package will eventually
   live.
 
 If you do not intend to publish your experiment and do not plan to store
@@ -86,8 +86,8 @@ begin right after Cookiecutter downloads the project repository:
     Resolving deltas: 100% (54/54), done.
     namespace [dlgr_contrib]: myexperiments
     experiment_name [testexperiment]: pushbutton
-    repo_name [myexperiments.pushbutton]: 
-    package_name [myexperiments.pushbutton]: 
+    repo_name [myexperiments.pushbutton]:
+    package_name [myexperiments.pushbutton]:
     experiment_class [TestExperiment]: PushButton
     experiment_description [A simple Dallinger experiment.]: An experiment where the user has to press a button
     author [Jordan Suchow]: John Smith
@@ -97,11 +97,11 @@ begin right after Cookiecutter downloads the project repository:
 Once you are finished with those questions, Cookiecutter will create a
 directory structure containing a basic experiment which you can then
 modify to create your own. In the case of the example above, that
-directory will be named `myexperiments.pushbutton`.
+directory will be named ``myexperiments.pushbutton``.
 
 When you clone the cookiecutter template from a GitHub repository, as we did
 here, cookiecutter saves the downloaded template inside your home directory,
-in the `.cookiecutter` sub-directory. The next time you run it, cookiecutter
+in the ``.cookiecutter`` sub-directory. The next time you run it, cookiecutter
 can use the stored template, or you can update it to the latest version. The
 default behavior is to ask you what you want to do. If you see a question
 like the following, just press <enter> to get the latest version:
@@ -139,13 +139,13 @@ like this:
     $ pip install -r dev-requirements.txt
 
 Make sure you run this command from the initial directory created by
-Cookiecutter. In this case the directory is `myexperiments.pushbutton`.
+Cookiecutter. In this case the directory is ``myexperiments.pushbutton``.
 
 The Experiment Package
 ----------------------
 
 There are several files and directories that are created with the
-`cookiecutter` command. Let's start with a general overview before
+``cookiecutter`` command. Let's start with a general overview before
 going into each file in detail.
 
 The directory structure of the package is the following:
@@ -178,7 +178,7 @@ files a lot after initial setup.
 myexperiments.pushbutton/myexperiments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This is what is know in Python as a `namespace` directory. Its only
+This is what is know in Python as a ``namespace`` directory. Its only
 purpose is marking itself as a container of several packages under a
 common name. The idea is that using a namespace, you can have many
 related but independent packages under one name, but you don't need to
@@ -245,7 +245,7 @@ myexperiments.pushbutton/requirements.txt
 
 The Python packages required by your experiment should be listed here. Do
 not include versions, just the package name. Versions are handled in
-`constraints.txt`, discussed above. The file looks like this:
+``constraints.txt``, discussed above. The file looks like this:
 
 ::
 
@@ -260,7 +260,7 @@ template includes just two dependencies, `dallinger` and `requests`.
 myexperiments.pushbutton/dev-requirements.txt
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Similar to `requirements.txt` above, but contains the development
+Similar to ``requirements.txt`` above, but contains the development
 dependencies. You should only change this if you add a development
 specific tool to your package. The format is the same as for the other
 requirements.
@@ -270,28 +270,28 @@ myexperiments.pushbutton/README.md
 
 This is where the name and purpose of your experiment are explained,
 along with minimal installation instructions. More detailed documentation
-should go in the `docs` directory.
+should go in the ``docs`` directory.
 
 Other files in myexperiments.pushbutton
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There are a few more files in the `myexperiments.pushbutton` directory.
+There are a few more files in the ``myexperiments.pushbutton`` directory.
 Here is a quick description of each:
 
-- `.gitignore`. Used by `git` to keep track of which files to ignore
+- ``.gitignore``. Used by `git` to keep track of which files to ignore
   when looking for changes in your project.
-- `.travis.yml`. Travis is a continuous integration service, which can
+- ``.travis.yml``. Travis is a continuous integration service, which can
   run your experiment's tests each time you push some changes. This is
   the configuration file where this is set up.
-- `CHANGELOG.md`. This is where you should keep track of changes to your
+- ``CHANGELOG.md``. This is where you should keep track of changes to your
   experiment. It is appended to `README.md` to form your experiment's
   basic description.
-- `CONTRIBUTING.md`. Guidelines for collaborating with your project.
-- `MANIFEST.in`. Used by the installer to determine which files and
+- ``CONTRIBUTING.md``. Guidelines for collaborating with your project.
+- ``MANIFEST.in``. Used by the installer to determine which files and
   directories to include in uploads of your package.
-- `setup.cfg`. Used by the installer to define metadata and settings for
+- ``setup.cfg``. Used by the installer to define metadata and settings for
   some development extensions.
-- `tox.ini`. Sets up the testing environment.
+- ``tox.ini``. Sets up the testing environment.
 
 myexperiments.pushbutton/test/test_pushbutton.py
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -302,7 +302,7 @@ documentation for `pytest <https://docs.pytest.org/en/latest/>`__ for
 information about setting up tests.
 
 To run the tests as they are, and once you start adding your own, use
-the `pytest` command. Make sure you install dev-requirements.txt
+the ``pytest`` command. Make sure you install dev-requirements.txt
 before running the tests, then enter this command from the directory that
 was created when you initially ran the cookiecutter command.
 
@@ -312,7 +312,7 @@ was created when you initially ran the cookiecutter command.
     ===================== test session starts ===============================
     platform linux2 -- Python 2.7.15rc1, pytest-3.7.1, py-1.5.4, pluggy-0.7.1
     rootdir: /home/jsmith/myexperiments.pushbutton, inifile:
-    collected 1 item                                                                                                                                                                                                               
+    collected 1 item
 
     test/test_pushbutton.py .                                          [100%]
 
@@ -329,7 +329,7 @@ documentation, for which you would use the following command:
 
     $ make html
 
-Make sure that you are in the `docs` directory and that the
+Make sure that you are in the ``docs`` directory and that the
 development requirements have been installed before running this.
 
 The development requirements include an Sphinx plugin for checking
@@ -339,7 +339,7 @@ the spelling of your documentation. This can be very useful:
 
     $ make spelling
 
-The `docs` directory also includes `makefile.bat`, which does the same
+The ``docs`` directory also includes ``makefile.bat``, which does the same
 tasks on Microsoft Windows systems.
 
 myexperiments.pushbutton/docs/source/index.rst
@@ -364,15 +364,15 @@ Other files and directories in myexperiments.pushbutton/docs/source
 There are a few more files in the documentation directory. Here's a
 brief explanation of each:
 
-- `acknowledgments.rst`. A place for thanking any institutions or
+- ``acknowledgments.rst``. A place for thanking any institutions or
   individuals that may have helped with the experiment. Can be used
   as an example of how to add new pages to your docs and link them
   to the table of contents (see the link in `index.rst`).
-- `conf.py`. Python configuration for Sphinx. You don't need to
+- ``conf.py``. Python configuration for Sphinx. You don't need to
   touch this unless you start experimenting with plugins and
   documentation themes.
-- `_static`. Static resources for the theme.
-- `_templates`. Layout templates for the theme.
+- ``_static``. Static resources for the theme.
+- ``_templates``. Layout templates for the theme.
 
 Experiment Code in Detail
 -------------------------
@@ -506,7 +506,7 @@ See the next section for more about bots.
 			config.register(key, types[key])
 
 Next, we get the experiment configuration, which includes parsing
-the `config.txt` file shown above. The `get_config()` call also
+the ``config.txt`` file shown above. The `get_config()` call also
 looks for an `extra_parameters` function, which is used to
 register the `custom_variable` and `num_participants` parameters
 discussed in the configuration section above.
@@ -559,7 +559,7 @@ One of Dallinger's features is the ability to have automated
 experiment participants, or `bots`. These allow the experimenter to
 perform simulated runs of an experiment using hundreds or even
 thousands of participants easily. To support bots, an experiment
-needs to have a `bots.py` file that defines at least one bot. Our
+needs to have a ``bots.py`` file that defines at least one bot. Our
 sample experiment has one, which if you recall was imported at the
 top of the experiment code.
 
@@ -608,7 +608,7 @@ The `Bot` class inherits from `BotBase`. A bot needs to have a
 For this experiment, we simply wait until a clickable button with
 the id `submit-response` is loaded, and then we click it. That's
 it. Other experiments will of course require more complex
-interactions, but this is the gist of it. 
+interactions, but this is the gist of it.
 
 To write a bot you need to know fairly well what your experiment
 does, plus a good command of the Selenium webdriver API, which
@@ -723,9 +723,9 @@ mechanisms.
     {% block body %}
         <div class="main_div">
             <hr>
-    
+
             <p>In this experiment, you will click a button.</p>
-    
+
             <hr>
 
             <div>
@@ -768,7 +768,7 @@ by calling the `dallinger.createParticipant` method.
 myexperiments.pushbutton/myexperiments/pushbutton/templates/exp.html
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The `exp` template is where the main experiment action happens. In this
+The ``exp.html`` template is where the main experiment action happens. In this
 case, there's not a lot of action, though.
 
 ::
@@ -804,7 +804,7 @@ myexperiments.pushbutton/myexperiments/pushbutton/templates/questionnaire.html
 
 Dallinger experiments conclude with the user filling in a questionnaire
 about the completed experiment. It's possible to add custom questions to
-this questionnaire, which our `questionnaire` template does:
+this questionnaire, which our ``questionnaire.html`` template does:
 
 ::
 
@@ -839,12 +839,12 @@ Javascript form tools to add more complex question UI elements.
 myexperiments.pushbutton/myexperiments/pushbutton/static/scripts/experiment.js
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The final piece in the puzzle is the `experiment.js` file, which contains
+The final piece in the puzzle is the ``experiment.js`` file, which contains
 the Javascript code for the experiment. Like the Python code, this is
 a simple example, but it can be as complex as you need, and use any
 Javascript libraries that you wish to include in your experiment.
 
-::
+.. code-block:: javascript
 
     var my_node_id;
 
@@ -881,7 +881,7 @@ consents, we go to the instructions page, and if not, the window is closed
 and the experiment ends. As you can see, there's also a button to print
 the consent page.
 
-::
+.. code-block:: javascript
 
 	  $("#submit-response").click(function() {
 		$("#submit-response").addClass('disabled');
@@ -969,7 +969,7 @@ but there are other kinds of nodes, like sources, which are used to transmit
 information. Nodes are connected to other nodes in different ways, depending
 on the type of network that is defined for the experiment.
 
-`Sources` are an important kind of node, because many times the information
+``Sources`` are an important kind of node, because many times the information
 (stimulus) required for conducting the experiment will come from one. A
 source can only transmit information, never receive it. For this experiment,
 we will use a source to send the text that the user must read and recreate.
@@ -977,23 +977,23 @@ we will use a source to send the text that the user must read and recreate.
 Dallinger supports various kinds of networks out of the box, and you can
 create your own too. The most common networks are:
 
-- `Chain`. A network where each new node is connected to the most recently
+- ``Chain``. A network where each new node is connected to the most recently
   added node. The top node of the chain can be a source.
 
-- `FullyConnected`. A network in which each node is connected to every other
+- ``FullyConnected``. A network in which each node is connected to every other
   node. This includes sources.
 
-- `Empty`. A network where every node is isolated from the rest. It can
+- ``Empty``. A network where every node is isolated from the rest. It can
   include a source, in which case it will be connected to the nodes.
 
 For this experiment, we will use a chain network. The top node will be a
 source, so that we can use different texts on each run, and send them to
 each newly connected participant. In fact, most of the Python code for the
 experiment will deal with network management. Let's get started. All the
-code in this section goes into the `experiment.py` file generated by the
+code in this section goes into the ``experiment.py`` file generated by the
 cookiecutter:
 
-:: 
+::
 
 	from dallinger.experiment import Experiment
 	from dallinger.networks import Chain
@@ -1117,7 +1117,7 @@ is space, we call the `recruit` method of the recruiter. Otherwise, we call
 
 It is important to note that recruitment will only start automatically if the
 experiment is configured to do so, bu setting `auto_recruit` to true in the
-`config.txt` file. The template that we created already has this variable set
+``config.txt`` file. The template that we created already has this variable set
 up like this.
 
 Sources and Models
@@ -1128,7 +1128,7 @@ send new participants the text to be read and recalled for our experiment.
 In fact, we assumed that this already existed, and proceeded to add the
 `from . import models` line in our code in the previous section.
 
-To make this work, we need to create a `models.py` file inside our
+To make this work, we need to create a ``models.py`` file inside our
 experiment, and add this code:
 
 ::
@@ -1164,7 +1164,7 @@ Dallinger's main objects, including `Source`, are defined as
 the only requirement is that it provide a `_contents` method, which
 should return the source information.
 
-For our experiment, we will add a static/stimuli directory where we'll
+For our experiment, we will add a ``static/stimuli`` directory where we'll
 store our story text files. In the code above, you can see that we
 explicitly name eight stories. If you are following along and typing the
 code as we go, you can get those files from `the dallinger repository
@@ -1198,7 +1198,7 @@ write the code that will drive the actual experiment. Dallinger is very
 flexible, and you can design really complicated experiments for it. Some
 will require pretty heavy backend code, and probably a handful of
 dependencies. For this kind of advanced experiments, a lot of the code
-could be in Python. 
+could be in Python.
 
 Dallinger also includes a Redis-based chat backend, which can be used to
 relay messages from experiment participants to the application and each
@@ -1213,9 +1213,9 @@ require any other Python code for it. We already have a source for the texts
 defined, the network is set up, and recruitment is enabled, so all we need
 to get the Bartlett experiment going is a simple Javascript UI.
 
-The code that we will walk through will be saved in our `experiment.js` file:
+The code that we will walk through will be saved in our ``experiment.js`` file:
 
-::
+.. code-block:: javascript
 
   var my_node_id
 
@@ -1224,9 +1224,9 @@ The code that we will walk through will be saved in our `experiment.js` file:
 
     dallinger.preventExit = true;
 
-The `experiment.js` file will be executed on page load (see below for the
+The ``experiment.js`` file will be executed on page load (see below for the
 template walk through), so we use the JQuery `$(document).ready` hook to
-run our code. 
+run our code.
 
 The very first thing we do is setting `dallinger.preventExit` to True, which
 will prevent experiment participants from closing the window or reloading the
@@ -1237,20 +1237,20 @@ Next, we define a few functions that will be called from the various
 experiment templates. This are functions that are more or less required for
 all experiments:
 
-::
+.. code-block:: javascript
 
     $("#print-consent").click(function() {
       window.print();
     });
-                        
+
     $("#consent").click(function() {
       store.set("recruiter", dallinger.getUrlParameter("recruiter"));
-      store.set("hit_id", dallinger.getUrlParameter("hit_id"));  
+      store.set("hit_id", dallinger.getUrlParameter("hit_id"));
       store.set("worker_id", dallinger.getUrlParameter("worker_id"));
       store.set("assignment_id", dallinger.getUrlParameter("assignment_id"));
       store.set("mode", dallinger.getUrlParameter("mode"));
-                                                          
-      dallinger.allowExit();                      
+
+      dallinger.allowExit();
       window.location.href = '/instructions';
     });
 
@@ -1258,7 +1258,7 @@ all experiments:
       dallinger.allowExit();
       window.close();
     });
-       
+
     $("#go-to-experiment").click(function() {
       dallinger.allowExit();
       window.location.href = '/exp';
@@ -1293,8 +1293,8 @@ write the text that the user can recall after reading it. We will have
 both in a single page, but only show one at a time. When the page loads, the
 user will see the text, followed by a `finish-reading` button:
 
-::
-              
+.. code-block:: javascript
+
     $("#finish-reading").click(function() {
       $("#stimulus").hide();
       $("#response-form").show();
@@ -1312,16 +1312,16 @@ you need more information.
 
 Now for the `submit-response` button code:
 
-::
+.. code-block:: javascript
 
     $("#submit-response").click(function() {
       $("#submit-response").addClass('disabled');
       $("#submit-response").html('Sending...');
 
       var response = $("#reproduction").val();
-                
+
       $("#reproduction").val("");
-                    
+
       dallinger.createInfo(my_node_id, {
         contents: response,
         info_type: 'Info'
@@ -1329,7 +1329,7 @@ Now for the `submit-response` button code:
         create_agent();
       });
     });
-                                                
+
   });
 
 When the user is done typing the text and clicks on the `submit-response`
@@ -1341,21 +1341,21 @@ creates a Dallinger Info object associated with the current participant. This
 info will store the recalled text. If the info creation succeeds, the
 `create_agent` function will be called:
 
-::
-                                                  
+.. code-block:: javascript
+
   var create_agent = function() {
-    $('#finish-reading').prop('disabled', true);             
-    dallinger.createAgent()                            
-    .done(function (resp) {                                
-      $('#finish-reading').prop('disabled', false);           
-      my_node_id = resp.node.id;                               
-      get_info();                                           
+    $('#finish-reading').prop('disabled', true);
+    dallinger.createAgent()
+    .done(function (resp) {
+      $('#finish-reading').prop('disabled', false);
+      my_node_id = resp.node.id;
+      get_info();
     })
-    .fail(function (rejection) {                          
-      if (rejection.status === 403) {                     
-        dallinger.allowExit();                                   
-        dallinger.goToPage('questionnaire');           
-      } else {                                            
+    .fail(function (rejection) {
+      if (rejection.status === 403) {
+        dallinger.allowExit();
+        dallinger.goToPage('questionnaire');
+      } else {
         dallinger.error(rejection);
       }
     });
@@ -1387,7 +1387,7 @@ experiment.
 Now let's discuss the `get_info` function mentioned above, which is
 called when the experiment first calls the `create_agent` function:
 
-::
+.. code-block:: javascript
 
   var get_info = function() {
     dallinger.getReceivedInfos(my_node_id)
@@ -1429,7 +1429,7 @@ The experiment templates
 
 The experiment uses regular dallinger templates for the ad page and
 consent form. It does define its own layout, as an example of how to
-include dependencies. Here's the full `layout.html` template:
+include dependencies. Here's the full ``layout.html`` template:
 
 ::
 
@@ -1447,14 +1447,14 @@ include dependencies. Here's the full `layout.html` template:
 
 The only important part if the layout template is the `libs` block. Here you
 can add any Javascript dependencies that your experiment needs. Just place
-them in the experiment's static directory, and they will be available for
+them in the experiment's ``static`` directory, and they will be available for
 linking from this page.
 
-Note how we load everything else before the `experiment.js` file that
+Note how we load everything else before the ``experiment.js`` file that
 contains our experiment code (The `super` call brings up any dependencies
 defined in the base layout).
 
-Next comes the `instructions.html` template:
+Next comes the ``instructions.html`` template:
 
 ::
 
@@ -1466,7 +1466,8 @@ Next comes the `instructions.html` template:
 
 			<hr>
 
-			<p>In this experiment, you will read a passage of text. Your job is to remember the passage as well as you can, because you will be asked some questions about it afterwards.</p>
+			<p>In this experiment, you will read a passage of text. </p>
+			<p>Your job is to remember the passage as well as you can, because you will be asked some questions about it afterwards.</p>
 
 			<hr>
 
@@ -1525,7 +1526,7 @@ our experiment is defined:
 		</script>
 	{% endblock %}
 
-The `exp.html` template is the one that connects with the experiment code we
+The ``exp.html`` template is the one that connects with the experiment code we
 described above. There is `stimulus` div where the story text will be
 displayed, inside the `story` blockquote tag. There is also the
 `finish-reading` button. which will be disabled until we get the story text
@@ -1570,8 +1571,8 @@ use a `webdriver` to go from page to page. Dallinger bots use the
 	from selenium.common.exceptions import TimeoutException
 	from selenium.webdriver.support.ui import WebDriverWait
 	from selenium.webdriver.support import expected_conditions as EC
-									   
-	from dallinger.bots import BotBase 
+
+	from dallinger.bots import BotBase
 
 After the selenium imports, we import `BotBase` from dallinger, which our
 bot will subclass. The only required method for a bot is the `participate`
@@ -1637,8 +1638,8 @@ extensive API, so you will probably need to refer to the documentation
 constantly as you go along. Here are some resources within the documentation
 that should prove to be very useful while you develop your experiment further:
 
-- :doc:`The Web API <web_api>`.
-- :doc:`The Javascript API <javascript_api>`.
-- :doc:`The Database API <classes>`.
-- :doc:`The Experiment Class <the_experiment_class>`.
-- :doc:`Writing Bots <writing_bots>`.
+- :doc:`The Web API <web_api>`
+- :doc:`The Javascript API <javascript_api>`
+- :doc:`The Database API <classes>`
+- :doc:`The Experiment Class <the_experiment_class>`
+- :doc:`Writing Bots <writing_bots>`
