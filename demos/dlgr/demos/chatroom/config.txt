@@ -2,7 +2,7 @@
 mode = sandbox
 auto_recruit = true
 network = FullyConnected
-repeats = 2
+repeats = 1
 n = 2
 
 [MTurk]
