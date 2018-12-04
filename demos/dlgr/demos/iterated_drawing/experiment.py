@@ -39,7 +39,7 @@ class IteratedDrawing(Experiment):
 
     def create_network(self):
         """Return a new network."""
-        return Chain(max_size=10)
+        return Chain(max_size=5)
 
     def add_node_to_network(self, node, network):
         """Add node to the chain and receive transmissions."""
