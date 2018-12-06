@@ -49,7 +49,7 @@ class MCMCP(Experiment):
 
     def create_network(self):
         """Create a new network."""
-        return Chain(max_size=100)
+        return Chain(max_size=10)
 
     def get_network_for_participant(self, participant):
         if len(participant.nodes(failed="all")) < self.trials_per_participant:
