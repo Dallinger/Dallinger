@@ -1,6 +1,8 @@
-"""The game Snake."""
+"""The game concentration."""
 
 import dallinger
+from dallinger.experiment import Experiment
+from dallinger.networks import Empty
 
 config = dallinger.config.get_config()
 
@@ -9,7 +11,7 @@ def extra_parameters():
     config.register('num_participants', int)
 
 
-class ConcentrationGame(dallinger.experiment.Experiment):
+class ConcentrationGame(Experiment):
     """Define the structure of the experiment."""
 
     def __init__(self, session=None):
@@ -19,3 +21,7 @@ class ConcentrationGame(dallinger.experiment.Experiment):
         self.initial_recruitment_size = config["num_participants"]
         if session:
             self.setup()
+
+    def create_network(self):
+        """Return a new network."""
+        return Empty(max_size=self.initial_recruitment_size)
