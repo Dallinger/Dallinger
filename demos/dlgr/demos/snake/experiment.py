@@ -1,4 +1,5 @@
 """The game Snake."""
+
 import dallinger as dlgr
 from dallinger.experiment import Experiment
 from dallinger.networks import Empty
