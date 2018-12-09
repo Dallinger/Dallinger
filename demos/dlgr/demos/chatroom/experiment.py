@@ -1,4 +1,4 @@
-"""Coordination chatroom game."""
+"""Chatroom game."""
 
 import logging
 import random
