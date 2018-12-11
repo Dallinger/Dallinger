@@ -808,6 +808,11 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         e.orig = TransactionRollbackError()
         raise e
 
+    missing = [p for p in (worker_id, hit_id, assignment_id) if p == 'undefined']
+    if missing:
+        msg = "/participant POST: required values were 'undefined'"
+        return error_response(error_type=msg, status=403)
+
     fingerprint_hash = request.args.get('fingerprint_hash')
     try:
         fingerprint_found = models.Participant.query.\
