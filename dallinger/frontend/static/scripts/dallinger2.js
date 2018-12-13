@@ -57,14 +57,6 @@ var dallinger = (function () {
       }
       this._storage.set(key, value);
     },
-    setMany: function (obj) {
-      var k, v;
-      for (k in obj) {
-        if (obj.hasOwnProperty(k)) {
-           this.set(k, obj[k]);
-        }
-      }
-    },
     get: function (key) {
       return this._storage.get(key);
     },
@@ -105,7 +97,6 @@ var dallinger = (function () {
     participantId: dlgr.getUrlParameter('participant_id')
   };
   if (dlgr.storage.available) {
-    // dlgr.storage.setMany(dlgr.identity);
     dlgr.storage.set("recruiter", dlgr.identity.recruiter);
     dlgr.storage.set("hit_id", dlgr.identity.hitId);
     dlgr.storage.set("worker_id", dlgr.identity.workerId);
