@@ -56,14 +56,6 @@ var dallinger = (function () {
       }
       this._storage.set(key, value);
     },
-    setMany: function (obj) {
-      var k, v;
-      for (k in obj) {
-        if (obj.hasOwnProperty(k)) {
-           this.set(k, obj[k]);
-        }
-      }
-    },
     get: function (key) {
       return this._storage.get(key);
     },
@@ -77,29 +69,9 @@ var dallinger = (function () {
 
   };
 
-  /**
-   * ``dallinger.identity`` provides information about the participant.
-   * It has the following methods:
-   *
-   * ``recruiter()``       - Type of recruiter
-   *
-   * ``hitId()``           - MTurk HIT Id
-   *
-   * ``workerId()``        - MTurk Worker Id
-   *
-   * ``assignmentId()``    - MTurk Assignment Id
-   *
-   * ``mode()``            - Dallinger experiment mode
-   *
-   * ``participantId()``   - Dallinger participant Id
-   *
-   * ``haveParticipant()`` - Boolean indicating whether a Partipant has been set
-   *
-   * @namespace
-   */
   var Identity = (function () {
 
-    var _persisted = [
+    var _savedFromURL = [
       'recruiter', 'hit_id', 'worker_id', 'assignment_id', 'mode',
     ];
 
@@ -124,7 +96,7 @@ var dallinger = (function () {
       return this._getOrSet('mode', value);
     };
 
-    Identity.prototype.fingerprint_hash = function (value) {
+    Identity.prototype.fingerprintHash = function (value) {
       return this._getOrSet('fingerprint_hash', value);
     };
 
@@ -156,21 +128,17 @@ var dallinger = (function () {
         'hit_id': this.hitId(),
         'worker_id': this.workerId(),
         'assignment_id': this.assignmentId(),
-        'fingerprint_hash': this.fingerprint_hash(),
+        'fingerprintHash': this.fingerprintHash(),
       };
     };
 
     Identity.prototype._initialize = function () {
       var i;
 
-      for (i = 0; i < _persisted.length; i++) {
-        this._storage.set(_persisted[i], dlgr.getUrlParameter(_persisted[i]));
+      for (i = 0; i < _savedFromURL.length; i++) {
+        this._storage.set(_savedFromURL[i], dlgr.getUrlParameter(_savedFromURL[i]));
       }
       this.participantId(dlgr.getUrlParameter('participant_id'));
-    };
-
-    Identity.prototype._get = function (key) {
-      return this._storage.get(key);
     };
 
     Identity.prototype._getOrSet = function (key, value) {
@@ -181,13 +149,39 @@ var dallinger = (function () {
       }
     };
 
-    Identity.prototype._set = function (key, value) {
-      return this._storage.set(key, value);
-    };
-
     return Identity;
   }());
 
+  /**
+   * ``dallinger.identity`` provides information about the participant.
+   * Get/set methods (in each case, if an argument is passed, the method will
+   * act as a setter).:
+   *
+   * ``recruiter([value])``       - Type ("nickname") of recruiter
+   *
+   * ``hitId([value])``           - MTurk HIT Id
+   *
+   * ``workerId([value])``        - MTurk Worker Id
+   *
+   * ``assignmentId([value])``    - MTurk Assignment Id
+   *
+   * ``mode([value])``            - Dallinger experiment mode
+   *
+   * ``participantId([value])``   - Dallinger participant Id
+   *
+   * ``fingerprintHash([value])`` - Browser fingerprint
+   *
+   * ``haveParticipant([value])`` - Boolean indicating whether a Partipant has been set
+   *
+   * Other methods:
+   *
+   * ``serverData()`` - Returns all keys and values, but with the keys adjusted
+   *  to match what's expected by the server API routes, ie.
+   *  'participant_id' rather than 'participantId'.
+   *
+   *
+   * @namespace
+   */
   dlgr.identity = new Identity();
 
   dlgr.BusyForm = (function () {
@@ -468,7 +462,7 @@ var dallinger = (function () {
    */
   dlgr.createParticipant = function() {
     var deferred = $.Deferred(),
-      fingerprint_hash,
+      fingerprintHash,
       url,
       hit_params;
     if (dlgr.missingFingerprint()) {
@@ -479,13 +473,13 @@ var dallinger = (function () {
       return;
     }
     new Fingerprint2().get(function(result){
-      dlgr.identity.fingerprint_hash(result);
+      dlgr.identity.fingerprintHash(result);
     });
 
     hit_params = get_hit_params();
     url = "/participant/" + hit_params.worker_id + "/" + hit_params.hit_id +
       "/" + hit_params.assignment_id + "/" + hit_params.mode + "?fingerprint_hash=" +
-      (hit_params.fingerprint_hash || fingerprint_hash) + '&recruiter=' + hit_params.recruiter;
+      (hit_params.fingerprintHash || fingerprintHash) + '&recruiter=' + hit_params.recruiter;
 
     if (dlgr.identity.haveParticipant()) {
       deferred.resolve();
