@@ -101,7 +101,6 @@ var dallinger = (function () {
     dlgr.storage.set("hit_id", dlgr.identity.hitId);
     dlgr.storage.set("worker_id", dlgr.identity.workerId);
     dlgr.storage.set("assignment_id", dlgr.identity.assignmentId);
-    dlgr.storage.set("participant_id", dlgr.identity.participantId);
     dlgr.storage.set("mode", dlgr.identity.mode);
   }
 
