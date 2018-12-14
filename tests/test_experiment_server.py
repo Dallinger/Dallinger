@@ -543,19 +543,7 @@ class TestAdRoute(object):
 
 
 @pytest.mark.usefixtures('experiment_dir', 'db_session')
-class TestParticipantRoute(object):
-
-    @pytest.fixture
-    def overrecruited(self):
-        with mock.patch(
-            'dallinger.experiment_server.experiment_server.Experiment'
-        ) as mock_class:
-            mock_exp = mock.Mock(name="the experiment")
-            mock_exp.is_overrecruited.return_value = True
-            mock_exp.quorum = 50
-            mock_class.return_value = mock_exp
-
-            yield mock_class
+class TestParticipantGetRoute(object):
 
     def test_participant_info(self, a, webapp):
         p = a.participant()
@@ -571,6 +559,22 @@ class TestParticipantRoute(object):
         assert data.get('status') == 'error'
         assert 'no participant found' in data.get('html')
 
+
+@pytest.mark.usefixtures('experiment_dir', 'db_session')
+class TestParticipantCreateRoute(object):
+
+    @pytest.fixture
+    def overrecruited(self):
+        with mock.patch(
+            'dallinger.experiment_server.experiment_server.Experiment'
+        ) as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.is_overrecruited.return_value = True
+            mock_exp.quorum = 50
+            mock_class.return_value = mock_exp
+
+            yield mock_class
+
     def test_creates_participant_if_worker_id_unique(self, webapp):
         worker_id = '1'
         hit_id = '1'
@@ -580,6 +584,18 @@ class TestParticipantRoute(object):
         ))
 
         assert resp.status_code == 200
+
+    def test_rejects_undefined_values(self, webapp):
+        worker_id = 'undefined'
+        hit_id = 'undefined'
+        assignment_id = '1'
+        resp = webapp.post('/participant/{}/{}/{}/debug'.format(
+            worker_id, hit_id, assignment_id
+        ))
+
+        data = json.loads(resp.data.decode('utf8'))
+        assert resp.status_code == 403
+        assert 'values were &#39;undefined&#39;' in data['html']
 
     def test_prevent_duplicate_participant_for_worker(self, a, db_session, webapp):
         p = a.participant()
