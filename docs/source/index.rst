@@ -34,6 +34,18 @@ and setting up Dallinger, as well as use of the command line tools.
     troubleshooting
 
 
+Dallinger Demos
+^^^^^^^^^^^^^^^
+
+Several demos demonstrate Dallinger in action:
+
+.. toctree::
+    :caption: Dallinger Demos
+    :maxdepth: 1
+
+    demo_index
+
+
 Experiment Author Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
