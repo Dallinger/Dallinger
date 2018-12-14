@@ -48,6 +48,28 @@ var dallinger = (function () {
     }
   };
 
+  dlgr.storage = {
+    available: typeof store !== 'undefined',
+    _storage: store,
+    set: function (key, value) {
+      if (this._isUndefined(value)) {
+        return;
+      }
+      this._storage.set(key, value);
+    },
+    get: function (key) {
+      return this._storage.get(key);
+    },
+    all: function () {
+      return this._storage.getAll();
+    },
+    _isUndefined: function (value) {
+      return typeof value === 'undefined';
+    }
+
+
+  };
+
   /**
    * ``dallinger.identity`` provides information about the participant.
    * It has the following string properties:
@@ -74,13 +96,12 @@ var dallinger = (function () {
     mode: dlgr.getUrlParameter('mode'),
     participantId: dlgr.getUrlParameter('participant_id')
   };
-  if (typeof store !== "undefined") {
-    store.set("recruiter", dlgr.identity.recruiter);
-    store.set("hit_id", dlgr.identity.hitId);
-    store.set("worker_id", dlgr.identity.workerId);
-    store.set("assignment_id", dlgr.identity.assignmentId);
-    store.set("participant_id", dlgr.identity.participantId);
-    store.set("mode", dlgr.identity.mode);
+  if (dlgr.storage.available) {
+    dlgr.storage.set("recruiter", dlgr.identity.recruiter);
+    dlgr.storage.set("hit_id", dlgr.identity.hitId);
+    dlgr.storage.set("worker_id", dlgr.identity.workerId);
+    dlgr.storage.set("assignment_id", dlgr.identity.assignmentId);
+    dlgr.storage.set("mode", dlgr.identity.mode);
   }
 
   dlgr.BusyForm = (function () {
@@ -204,13 +225,13 @@ var dallinger = (function () {
   var get_hit_params = function() {
     // check if the local store is available, and if so, use it.
     var data = {};
-    if (typeof store !== "undefined") {
-      data.recruiter = store.get("recruiter");
-      data.worker_id = store.get("worker_id");
-      data.hit_id = store.get("hit_id");
-      data.assignment_id = store.get("assignment_id");
-      data.mode = store.get("mode");
-      data.fingerprint_hash = store.get("fingerprint_hash");
+    if (dlgr.storage.available) {
+      data.recruiter = dlgr.storage.get("recruiter");
+      data.worker_id = dlgr.storage.get("worker_id");
+      data.hit_id = dlgr.storage.get("hit_id");
+      data.assignment_id = dlgr.storage.get("assignment_id");
+      data.mode = dlgr.storage.get("mode");
+      data.fingerprint_hash = dlgr.storage.get("fingerprint_hash");
     } else {
       data.recruiter = dlgr.identity.recruiter;
       data.worker_id = dlgr.identity.worker_id;
