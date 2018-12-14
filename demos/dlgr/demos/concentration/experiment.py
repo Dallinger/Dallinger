@@ -1,4 +1,4 @@
-"""The game concentration."""
+"""The game Concentration."""
 
 import dallinger
 from dallinger.experiment import Experiment
