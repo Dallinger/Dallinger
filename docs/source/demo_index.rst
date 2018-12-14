@@ -11,4 +11,11 @@ More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
     :caption: Demos
     :glob:
 
-    demos/*/*
+    demos/bartlett1932/*
+    demos/concentration/*
+    demos/function_learning/*
+    demos/mcmcp/*
+    demos/sheep_market/*
+    demos/snake/*
+    demos/twentyfortyeight/*
+    demos/vox_populi/*

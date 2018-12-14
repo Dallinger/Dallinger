@@ -5,6 +5,8 @@ create_agent = function() {
   dallinger.createAgent()
     .done(function (resp) {
       my_node_id = resp.node.id;
+      console.log(resp);
+      console.log(my_node_id);
       get_info();
     })
     .fail(function () {
