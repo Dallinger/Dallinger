@@ -142,7 +142,6 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
 
     frontend_files = [
         os.path.join("static", "css", "dallinger.css"),
-        os.path.join("static", "scripts", "dallinger.js"),
         os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "scripts", "require.js"),
