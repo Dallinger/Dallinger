@@ -218,7 +218,6 @@ def verify_package(verbose=True):
         os.path.join("templates", "launch.html"),
         os.path.join("templates", "thanks.html"),
         os.path.join("static", "css", "dallinger.css"),
-        os.path.join("static", "scripts", "dallinger.js"),
         os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "scripts", "tracker.js"),
