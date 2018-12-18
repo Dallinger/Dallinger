@@ -14,7 +14,7 @@ $(document).ready(function() {
 
   // Proceed to the waiting room.
   $("#go-to-waiting-room").click(function() {
-    window.location.href = '/waiting?hit_id=' + dallinger.identity.hitId + '&assignment_id=' + dallinger.identity.assignmentId + '&worker_id=' + dallinger.identity.workerId + '&mode=' + dallinger.identity.mode;
+      dallinger.goToPage("waiting");
   });
 
 });
