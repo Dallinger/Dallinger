@@ -1,2 +1,2 @@
 nltk==3.3
-dallinger==5.0.1
+dallinger==5.0.2
