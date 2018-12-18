@@ -860,14 +860,8 @@ Javascript libraries that you wish to include in your experiment.
 
 	  // Consent to the experiment.
 	  $("#consent").click(function() {
-		store.set("recruiter", dallinger.getUrlParameter("recruiter"));
-		store.set("hit_id", dallinger.getUrlParameter("hit_id"));
-		store.set("worker_id", dallinger.getUrlParameter("worker_id"));
-		store.set("assignment_id", dallinger.getUrlParameter("assignment_id"));
-		store.set("mode", dallinger.getUrlParameter("mode"));
-
 		dallinger.allowExit();
-		window.location.href = '/instructions';
+		dallinger.goToPage('instructions');
 	  });
 
 	  // Consent to the experiment.
@@ -1251,7 +1245,7 @@ all experiments:
       store.set("mode", dallinger.getUrlParameter("mode"));
 
       dallinger.allowExit();
-      window.location.href = '/instructions';
+      dallinger.goToPage('instructions');
     });
 
     $("#no-consent").click(function() {
@@ -1261,7 +1255,7 @@ all experiments:
 
     $("#go-to-experiment").click(function() {
       dallinger.allowExit();
-      window.location.href = '/exp';
+      dallinger.goToPage('experiment');
     });
 
 Mostly, these functions are related to the user expressing consent to
