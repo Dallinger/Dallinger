@@ -1,5 +1,15 @@
 # Change Log
 
+## [v5.0.2](https://github.com/dallinger/dallinger/tree/v5.0.2) (2018-12-18)
+
+- Documentation improvements and additions:
+  + Update Creating an Experiment documentation to use dallinger.goToPage() standard
+  + Reintroduce seven working demos into the documentation
+
+- Legacy `dallinger.js` has been removed
+- Fixed: AttributeError: 'int' object has no attribute 'items' (rq has been updated to 0.13.0 to fix this)
+- Fixed: dallinger2.js: valid store values are overwritten with 'undefined'
+
 ## [v5.0.1](https://github.com/dallinger/dallinger/tree/v5.0.1) (2018-11-30)
 
 - Documentation improvements and additions:
