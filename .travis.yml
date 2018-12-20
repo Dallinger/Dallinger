@@ -28,7 +28,6 @@ addons:
     packages:
     - pandoc
     - enchant
-    - heroku-toolbelt
 install:
   - sudo apt-get --yes install snapd
   - sudo snap install --classic heroku
