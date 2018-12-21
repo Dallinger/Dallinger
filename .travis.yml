@@ -23,7 +23,7 @@ matrix:
     env:
       - TOXENV=py37
 addons:
-  postgresql: "9.4"
+  postgresql: "10"
   apt:
     packages:
     - pandoc
