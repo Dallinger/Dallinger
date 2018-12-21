@@ -33,7 +33,7 @@ requires passing in the application id. Example:
 
 ::
 
-    $ dallinger export app=6ab5e918-44c0-f9bc-5d97-a5ddbbddb68a
+    $ dallinger export --app 6ab5e918-44c0-f9bc-5d97-a5ddbbddb68a
 
 This will connect to the database and export the data, which will be saved as
 a zip file inside the `data` directory:
