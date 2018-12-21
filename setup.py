@@ -21,6 +21,7 @@ setup_args = dict(
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ],
     include_package_data=True,
     zip_safe=False,
@@ -38,7 +39,7 @@ setup_args = dict(
             "networkx<2.0",  # 2.0 is incompatible with odo
             "odo",
             "openpyxl<2.5",  # 2.5 is incompatible with tablib
-            "pandas<0.23",    # 0.23 is incompatible
+            "pandas<0.23",
             "tablib<0.12",    # 0.12 is incompatible
         ],
         'jupyter': [
