@@ -70,40 +70,6 @@ var dallinger = (function () {
 
   };
 
-  /**
-   * ``dallinger.identity`` provides information about the participant.
-   * It has the following string properties:
-   *
-   * ``recruiter``     - Type of recruiter
-   *
-   * ``hitId``         - MTurk HIT Id
-   *
-   * ``workerId``      - MTurk Worker Id
-   *
-   * ``assignmentId``  - MTurk Assignment Id
-   *
-   * ``mode``          - Dallinger experiment mode
-   *
-   * ``participantId`` - Dallinger participant Id
-   *
-   * @namespace
-   */
-  dlgr.identity = {
-    recruiter: dlgr.getUrlParameter('recruiter'),
-    hitId: dlgr.getUrlParameter('hit_id'),
-    workerId: dlgr.getUrlParameter('worker_id'),
-    assignmentId: dlgr.getUrlParameter('assignment_id'),
-    mode: dlgr.getUrlParameter('mode'),
-    participantId: dlgr.getUrlParameter('participant_id')
-  };
-  if (dlgr.storage.available) {
-    dlgr.storage.set("recruiter", dlgr.identity.recruiter);
-    dlgr.storage.set("hit_id", dlgr.identity.hitId);
-    dlgr.storage.set("worker_id", dlgr.identity.workerId);
-    dlgr.storage.set("assignment_id", dlgr.identity.assignmentId);
-    dlgr.storage.set("mode", dlgr.identity.mode);
-  }
-
   dlgr.BusyForm = (function () {
     /* Loads a spinner as a visual cue that something is happening
        and disables any jQuery objects passed to freeze(). */
@@ -224,6 +190,8 @@ var dallinger = (function () {
 
   var get_hit_params = function() {
     // check if the local store is available, and if so, use it.
+    // TODO: Do we really want to have fallback behavior here? It's hard
+    // to verify that it actually works.
     var data = {};
     if (dlgr.storage.available) {
       data.recruiter = dlgr.storage.get("recruiter");
@@ -397,25 +365,13 @@ var dallinger = (function () {
    */
   dlgr.createParticipant = function() {
     var deferred = $.Deferred(),
-      fingerprint_hash,
-      url,
-      hit_params;
-    if (dlgr.missingFingerprint()) {
-      window.alert(
-        'An ad blocker is preventing this experiment from ' +
-        'loading. Please disable it and reload the page.'
-      );
-      return;
-    }
-    new Fingerprint2().get(function(result){
-      fingerprint_hash = result;
-      store.set("fingerprint_hash", fingerprint_hash);
-    });
+        url,
+        hit_params;
 
     hit_params = get_hit_params();
     url = "/participant/" + hit_params.worker_id + "/" + hit_params.hit_id +
       "/" + hit_params.assignment_id + "/" + hit_params.mode + "?fingerprint_hash=" +
-      (hit_params.fingerprint_hash || fingerprint_hash) + '&recruiter=' + hit_params.recruiter;
+      (hit_params.fingerprint_hash) + '&recruiter=' + hit_params.recruiter;
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();
@@ -639,6 +595,54 @@ var dallinger = (function () {
       test.remove();
     }, 100);
   };
+
+  var _initialize = function () {
+    if (dlgr.missingFingerprint()) {
+      window.alert(
+        'An ad blocker is preventing this experiment from ' +
+        'loading. Please disable it and reload the page.'
+      );
+      return;
+    }
+    /**
+     * ``dallinger.identity`` provides information about the participant.
+     * It has the following string properties:
+     *
+     * ``recruiter``     - Type of recruiter
+     *
+     * ``hitId``         - MTurk HIT Id
+     *
+     * ``workerId``      - MTurk Worker Id
+     *
+     * ``assignmentId``  - MTurk Assignment Id
+     *
+     * ``mode``          - Dallinger experiment mode
+     *
+     * ``participantId`` - Dallinger participant Id
+     *
+     * @namespace
+     */
+    dlgr.identity = {
+      recruiter: dlgr.getUrlParameter('recruiter'),
+      hitId: dlgr.getUrlParameter('hit_id'),
+      workerId: dlgr.getUrlParameter('worker_id'),
+      assignmentId: dlgr.getUrlParameter('assignment_id'),
+      mode: dlgr.getUrlParameter('mode'),
+      participantId: dlgr.getUrlParameter('participant_id')
+    };
+    if (dlgr.storage.available) {  // TODO: just raise an error rather than check?
+      dlgr.storage.set("recruiter", dlgr.identity.recruiter);
+      dlgr.storage.set("hit_id", dlgr.identity.hitId);
+      dlgr.storage.set("worker_id", dlgr.identity.workerId);
+      dlgr.storage.set("assignment_id", dlgr.identity.assignmentId);
+      dlgr.storage.set("mode", dlgr.identity.mode);
+      new Fingerprint2().get(function(result){
+        dlgr.storage.set("fingerprint_hash", result);
+      });
+    }
+  };
+
+  _initialize();
 
   return dlgr;
 }());
