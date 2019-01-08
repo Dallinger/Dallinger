@@ -112,8 +112,11 @@ class RogersExperiment(Experiment):
         """Recruit participants if necessary."""
         num_approved = len(Participant.query.filter_by(status="approved").all())
         end_of_generation = num_approved % self.generation_size == 0
-        incomplete = num_approved < (self.generations * self.generation_size)
-        if end_of_generation and incomplete:
+        complete = num_approved >= (self.generations * self.generation_size)
+        if complete:
+            self.log("All networks full: closing recruitment", "-----")
+            self.recruiter.close_recruitment()
+        elif end_of_generation:
             self.log("generation finished, recruiting another")
             self.recruiter.recruit(n=self.generation_size)
 
