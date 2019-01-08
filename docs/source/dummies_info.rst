@@ -101,5 +101,10 @@ Infos also have a transformations function. Transformations are hard to understa
 
 The final function `_mutated_contents` definitely won't make any sense until we cover Transformations, so if you want to know about that function right now you should skip ahead to the Transformations page.
 
+Kinds of Infos
+--------------
+
+Just like with the Node class, Dallinger comes with a bunch of pre-packaged Info types. You can see them in Dallinger/dallinger.info.py. If you go there now you will see 4 classes of Info: the Gene, Meme, State and TrackingEvent. But none of these do anything different to the base class Info - they are just different names for the same fundamental thing. This might seem a little wasteful, but remember you can often pass the info `type` as an argument in many functions (e.g. node.infos()). This applies to these types of Info, even though they don't have any special functions. Thus, you can freely use these types in your experiments and filter by them too, for instance using `node.infos(type=Gene)` to get a nodes genes. We'll see an example of this in the Rogers demo later on.
+
 
 
