@@ -64,17 +64,17 @@ class RogersExperiment(Experiment):
         for net in self.networks():
             source = self.models.RogersSource(network=net)
             source.create_information()
-            if net.role == "practice":
-                env = self.models.RogersEnvironment(network=net)
-                env.create_state(proportion=self.practice_difficulty)
-            if net.role == "catch":
-                env = self.models.RogersEnvironment(network=net)
-                env.create_state(proportion=self.catch_difficulty)
-            if net.role == "experiment":
-                difficulty = self.difficulties[self.networks(role="experiment")
-                                               .index(net)]
-                env = self.models.RogersEnvironment(network=net)
-                env.create_state(proportion=difficulty)
+            net.max_size = net.max_size + 1  # make room for environment node.
+            env = self.models.RogersEnvironment(network=net)
+            env.create_state(proportion=self.color_proportion_for_network(net))
+
+    def color_proportion_for_network(self, net):
+        if net.role == "practice":
+            return self.practice_difficulty
+        if net.role == "catch":
+            return self.catch_difficulty
+        if net.role == "experiment":
+            return self.difficulties[self.networks(role="experiment").index(net)]
 
     def create_network(self):
         """Create a new network."""
@@ -112,8 +112,11 @@ class RogersExperiment(Experiment):
         """Recruit participants if necessary."""
         num_approved = len(Participant.query.filter_by(status="approved").all())
         end_of_generation = num_approved % self.generation_size == 0
-        incomplete = num_approved < (self.generations * self.generation_size)
-        if end_of_generation and incomplete:
+        complete = num_approved >= (self.generations * self.generation_size)
+        if complete:
+            self.log("All networks full: closing recruitment", "-----")
+            self.recruiter.close_recruitment()
+        elif end_of_generation:
             self.log("generation finished, recruiting another")
             self.recruiter.recruit(n=self.generation_size)
 

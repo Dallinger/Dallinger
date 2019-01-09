@@ -5,6 +5,7 @@ import random
 
 from .models import Network
 from .nodes import Source
+from .nodes import Agent
 
 
 class DelayedChain(Network):
@@ -169,8 +170,7 @@ class DiscreteGenerational(Network):
 
     def add_node(self, node):
         """Link to the agent from a parent based on the parent's fitness"""
-        nodes = [n for n in self.nodes() if not isinstance(n, Source)]
-        num_agents = len(nodes)
+        num_agents = len(self.nodes(type=Agent))
         curr_generation = int((num_agents - 1) / float(self.generation_size))
         node.generation = curr_generation
 
