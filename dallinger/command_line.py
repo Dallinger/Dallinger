@@ -277,6 +277,20 @@ def verify_package(verbose=True):
     return ok
 
 
+def require_exp_directory(f):
+    """Decorator to verify that a command is run inside a valid Dallinger
+    experiment directory.
+    """
+    error = "The current directory is not a Dallinger experiment."
+
+    @wraps(f)
+    def wrapper(**kwargs):
+        if not verify_directory(kwargs.get('verbose')):
+            raise click.UsageError(error)
+        return f(**kwargs)
+    return wrapper
+
+
 click.disable_unicode_literals_warning = True
 
 
@@ -346,6 +360,7 @@ def get_summary(app):
 @click.option('--bot', is_flag=True, flag_value=True,
               help='Use bot to complete experiment')
 @click.option('--proxy', default=None, help='Alternate port when opening browser windows')
+@require_exp_directory
 def debug(verbose, bot, proxy, exp_config=None):
     """Run the experiment locally."""
     debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config)
@@ -367,6 +382,7 @@ def _mturk_service_from_config(sandbox):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='Experiment id')
+@require_exp_directory
 @report_idle_after(21600)
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
@@ -379,6 +395,7 @@ def sandbox(verbose, app):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='ID of the deployed experiment')
+@require_exp_directory
 @report_idle_after(21600)
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
@@ -711,7 +728,13 @@ def bot(app, debug):
 @dallinger.command()
 def verify():
     """Verify that app is compatible with Dallinger."""
-    verify_package(verbose=True)
+    verbose = True
+    log("Verifying current directory as a Dallinger experiment...", delay=0, verbose=verbose)
+    ok = verify_package(verbose=verbose)
+    if ok:
+        log("✓ Everything looks good!", delay=0, verbose=verbose)
+    else:
+        log("☹ Some problems were found.", delay=0, verbose=verbose)
 
 
 @dallinger.command()
