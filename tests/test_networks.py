@@ -585,6 +585,16 @@ class TestDiscreteGenerational(TestNetworks):
         for agent in first_generation:
             assert source not in agent.neighbors(direction='from')
 
+    def test_assigns_generation_correctly_when_addition_non_agent_included(self, net):
+        nodes.RandomBinaryStringSource(network=net)
+        net.max_size += 1  # Necessary hack if you want to add another Node.
+        nodes.Environment(network=net)
+
+        by_gen = self._fill(net)
+
+        for generation in by_gen.values():
+            assert len(generation) == net.generation_size
+
 
 class TestSequentialMicrosociety(object):
 
