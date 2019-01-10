@@ -148,6 +148,42 @@ class TestHeader(object):
         assert dallinger.version.__version__ in dallinger.command_line.header
 
 
+@pytest.mark.usefixtures('bartlett_dir')
+class TestDebugCommand(object):
+
+    @pytest.fixture
+    def debug(self):
+        from dallinger.command_line import debug
+        return debug
+
+    @pytest.fixture
+    def deployment(self):
+        with mock.patch('dallinger.command_line.DebugDeployment') as mock_dbgr:
+            yield mock_dbgr
+
+    def test_fails_if_run_outside_experiment_dir(self, debug, deployment):
+        exp_dir = os.getcwd()
+        os.chdir('..')
+        result = CliRunner().invoke(
+            debug,
+            []
+        )
+        os.chdir(exp_dir)
+
+        deployment.assert_not_called()
+        assert result.exit_code == 2
+        assert 'directory is not a Dallinger experiment' in result.output
+
+    def test_creates_debug_deployment(self, debug, deployment):
+        CliRunner().invoke(
+            debug,
+            []
+        )
+
+        deployment.assert_called_once()
+
+
+@pytest.mark.usefixtures('bartlett_dir')
 class TestSandboxAndDeploy(object):
 
     @pytest.fixture
@@ -164,6 +200,19 @@ class TestSandboxAndDeploy(object):
     def deploy_in_mode(self):
         with mock.patch('dallinger.command_line._deploy_in_mode') as mock_dim:
             yield mock_dim
+
+    def test_sandbox_fails_if_run_outside_experiment_dir(self, sandbox, deploy_in_mode):
+        exp_dir = os.getcwd()
+        os.chdir('..')
+        result = CliRunner().invoke(
+            sandbox,
+            []
+        )
+        os.chdir(exp_dir)
+
+        deploy_in_mode.assert_not_called()
+        assert result.exit_code == 2
+        assert 'directory is not a Dallinger experiment' in result.output
 
     def test_sandbox_with_app_id(self, sandbox, deploy_in_mode):
         CliRunner().invoke(
@@ -211,6 +260,19 @@ class TestSandboxAndDeploy(object):
         deploy_in_mode.assert_called_once_with(
             'live', app='some app id', verbose=True, log=mock.ANY
         )
+
+    def test_deploy_fails_if_run_outside_experiment_dir(self, deploy, deploy_in_mode):
+        exp_dir = os.getcwd()
+        os.chdir('..')
+        result = CliRunner().invoke(
+            deploy,
+            []
+        )
+        os.chdir(exp_dir)
+
+        deploy_in_mode.assert_not_called()
+        assert result.exit_code == 2
+        assert 'directory is not a Dallinger experiment' in result.output
 
 
 class TestLoad(object):

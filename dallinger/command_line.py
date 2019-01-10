@@ -143,75 +143,100 @@ def verify_id(ctx, param, app):
     return app
 
 
-def verify_package(verbose=True):
-    """Ensure the package has a config file and a valid experiment file."""
-    is_passing = True
-
-    # Check for existence of required files.
-    required_files = [
+def verify_directory(verbose=True):
+    """Ensure that the current directory looks like a Dallinger experiment.
+    """
+    ok = True
+    expected_files = [
         "config.txt",
         "experiment.py",
     ]
 
-    for f in required_files:
+    for f in expected_files:
         if os.path.exists(f):
             log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
         else:
             log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
-            is_passing = False
+            ok = False
 
-    # Check the experiment file.
-    if os.path.exists("experiment.py"):
+    return ok
 
-        # Check if the experiment file has exactly one Experiment class.
-        tmp = tempfile.mkdtemp()
-        clone_dir = os.path.join(tmp, 'temp_exp_package')
-        to_ignore = shutil.ignore_patterns(
-            os.path.join(".git", "*"),
-            "*.db",
-            "snapshots",
-            "data",
-            "server.log"
-        )
-        shutil.copytree(os.getcwd(), clone_dir, ignore=to_ignore)
 
-        initialize_experiment_package(clone_dir)
-        from dallinger_experiment import experiment
-        classes = inspect.getmembers(experiment, inspect.isclass)
-        exps = [c for c in classes
-                if (c[1].__bases__[0].__name__ in "Experiment")]
+def verify_experiment_module(verbose):
+    """Perform basic sanity checks on experiment.py.
+    """
+    ok = True
+    if not os.path.exists("experiment.py"):
+        return False
 
-        if len(exps) == 0:
-            log("✗ experiment.py does not define an experiment class.",
-                delay=0, chevrons=False, verbose=verbose)
-            is_passing = False
-        elif len(exps) == 1:
-            log("✓ experiment.py defines 1 experiment",
-                delay=0, chevrons=False, verbose=verbose)
-        else:
-            log("✗ experiment.py defines more than one experiment class.",
-                delay=0, chevrons=False, verbose=verbose)
+    # Check if the experiment file has exactly one Experiment class.
+    tmp = tempfile.mkdtemp()
+    clone_dir = os.path.join(tmp, 'temp_exp_package')
+    to_ignore = shutil.ignore_patterns(
+        os.path.join(".git", "*"),
+        "*.db",
+        "snapshots",
+        "data",
+        "server.log"
+    )
+    shutil.copytree(os.getcwd(), clone_dir, ignore=to_ignore)
 
+    initialize_experiment_package(clone_dir)
+    from dallinger_experiment import experiment
+    classes = inspect.getmembers(experiment, inspect.isclass)
+    exps = [c for c in classes
+            if (c[1].__bases__[0].__name__ in "Experiment")]
+
+    if len(exps) == 0:
+        log("✗ experiment.py does not define an experiment class.",
+            delay=0, chevrons=False, verbose=verbose)
+        ok = False
+    elif len(exps) == 1:
+        log("✓ experiment.py defines 1 experiment",
+            delay=0, chevrons=False, verbose=verbose)
+    else:
+        log("✗ experiment.py defines more than one experiment class.",
+            delay=0, chevrons=False, verbose=verbose)
+
+    return ok
+
+
+def verify_config(verbose=True):
+    """Check for common or costly errors in experiment configuration.
+    """
+    ok = True
     config = get_config()
     if not config.ready:
         config.load()
-
     # Check base_payment is correct
-    base_pay = config.get('base_payment')
-    dollarFormat = "{:.2f}".format(base_pay)
+    try:
+        base_pay = config.get('base_payment')
+    except KeyError:
+        log("✗ No value for base_pay.", delay=0, chevrons=False, verbose=verbose)
+    else:
+        dollarFormat = "{:.2f}".format(base_pay)
 
-    if base_pay <= 0:
-        log("✗ base_payment must be positive value in config.txt.",
-            delay=0, chevrons=False, verbose=verbose)
-        is_passing = False
+        if base_pay <= 0:
+            log("✗ base_payment must be positive value in config.txt.",
+                delay=0, chevrons=False, verbose=verbose)
+            ok = False
 
-    if float(dollarFormat) != float(base_pay):
-        log("✗ base_payment must be in [dollars].[cents] format in config.txt. Try changing "
-            "{0} to {1}.".format(base_pay, dollarFormat), delay=0, chevrons=False, verbose=verbose)
-        is_passing = False
+        if float(dollarFormat) != float(base_pay):
+            log("✗ base_payment must be in [dollars].[cents] format in config.txt. Try changing "
+                "{0} to {1}.".format(base_pay, dollarFormat),
+                delay=0, chevrons=False, verbose=verbose)
+            ok = False
 
-    # Check front-end files do not exist
-    files = [
+    return ok
+
+
+def verify_no_conflicts(verbose=True):
+    """Warn if there are filenames which conflict with those deployed by
+    Dallinger, but always returns True (meaning "OK").
+    """
+    conflicts = False
+
+    reserved_files = [
         os.path.join("templates", "complete.html"),
         os.path.join("templates", "error.html"),
         os.path.join("templates", "error-complete.html"),
@@ -224,14 +249,46 @@ def verify_package(verbose=True):
         os.path.join("static", "robots.txt")
     ]
 
-    for f in files:
+    for f in reserved_files:
         if os.path.exists(f):
             log("✗ {} OVERWRITES shared frontend files inserted at run-time".format(f),
                 delay=0, chevrons=False, verbose=verbose)
+            conflicts = True
 
-    log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
+    if not conflicts:
+        log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
 
-    return is_passing
+    return True
+
+
+def verify_package(verbose=True):
+    """Perform a series of checks on the current directory to verify that
+    it's a valid Dallinger experiment.
+    """
+    results = (
+        verify_directory(verbose),
+        verify_experiment_module(verbose),
+        verify_config(verbose),
+        verify_no_conflicts(verbose)
+    )
+
+    ok = all(results)
+
+    return ok
+
+
+def require_exp_directory(f):
+    """Decorator to verify that a command is run inside a valid Dallinger
+    experiment directory.
+    """
+    error = "The current directory is not a Dallinger experiment."
+
+    @wraps(f)
+    def wrapper(**kwargs):
+        if not verify_directory(kwargs.get('verbose')):
+            raise click.UsageError(error)
+        return f(**kwargs)
+    return wrapper
 
 
 click.disable_unicode_literals_warning = True
@@ -303,6 +360,7 @@ def get_summary(app):
 @click.option('--bot', is_flag=True, flag_value=True,
               help='Use bot to complete experiment')
 @click.option('--proxy', default=None, help='Alternate port when opening browser windows')
+@require_exp_directory
 def debug(verbose, bot, proxy, exp_config=None):
     """Run the experiment locally."""
     debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config)
@@ -324,6 +382,7 @@ def _mturk_service_from_config(sandbox):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='Experiment id')
+@require_exp_directory
 @report_idle_after(21600)
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
@@ -336,6 +395,7 @@ def sandbox(verbose, app):
 @dallinger.command()
 @click.option('--verbose', is_flag=True, flag_value=True, help='Verbose mode')
 @click.option('--app', default=None, help='ID of the deployed experiment')
+@require_exp_directory
 @report_idle_after(21600)
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
@@ -668,7 +728,13 @@ def bot(app, debug):
 @dallinger.command()
 def verify():
     """Verify that app is compatible with Dallinger."""
-    verify_package(verbose=True)
+    verbose = True
+    log("Verifying current directory as a Dallinger experiment...", delay=0, verbose=verbose)
+    ok = verify_package(verbose=verbose)
+    if ok:
+        log("✓ Everything looks good!", delay=0, verbose=verbose)
+    else:
+        log("☹ Some problems were found.", delay=0, verbose=verbose)
 
 
 @dallinger.command()
