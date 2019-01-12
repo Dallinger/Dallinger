@@ -16,13 +16,13 @@ from dallinger import db
 from dallinger.nodes import Agent, Source, Environment
 from dallinger.information import Gene, Meme, State
 from dallinger import models
-from experiment import (
-    RogersExperiment,
+from dlgr.demos.rogers.experiment import RogersExperiment
+from dlgr.demos.rogers.models import (
     RogersAgent,
     RogersAgentFounder,
     RogersSource,
     RogersEnvironment,
-    LearningGene
+    LearningGene,
 )
 
 
@@ -143,11 +143,17 @@ class TestRogers(object):
     else:
 
         def setup(self):
+            from dallinger.config import get_config
+            config = get_config()
+            config.load()
             self.db = db.init_db(drop_all=True)
 
         def teardown(self):
             self.db.rollback()
             self.db.close()
+            from dallinger.config import get_config
+            config = get_config()
+            config.clear()
 
         def add(self, *args):
             self.db.add_all(args)
@@ -205,13 +211,13 @@ class TestRogers(object):
 
                 worker_id = str(random.random())
                 assignment_id = str(random.random())
-                from models import Participant
+                from dallinger.models import Participant
                 p = Participant(
-                    recruiter_id='hotair', workerid=worker_id,
-                    assignmentid=assignment_id, hitid=hit_id)
+                    recruiter_id='hotair', worker_id=worker_id,
+                    assignment_id=assignment_id, hit_id=hit_id, mode='debug')
                 self.db.add(p)
                 self.db.commit()
-                p_id = p.unique_id
+                p_id = p.id
                 p_ids.append(p_id)
                 p_start_time = timenow()
 
@@ -222,14 +228,13 @@ class TestRogers(object):
                         break
                     else:
                         agent = exp.create_node(
-                            participant_id=p_id,
+                            participant=p,
                             network=network)
                         exp.add_node_to_network(
-                            participant_id=p_id,
                             node=agent,
                             network=network)
                         self.db.commit()
-                        exp.node_post_request(participant_id=p_id, node=agent)
+                        exp.node_post_request(participant=p, node=agent)
                         self.db.commit()
                         assign_stop_time = timenow()
                         assign_time += (assign_stop_time - assign_start_time)
@@ -303,7 +308,11 @@ class TestRogers(object):
             for network in [exp.networks()[0]]:
 
                 agents = network.nodes(type=Agent)
-                assert len(agents) == network.max_size
+                environments = network.nodes(type=Environment)
+                sources = network.nodes(type=Source)
+                assert len(sources) == 1
+                assert len(environments) == 1
+                assert len(agents) + len(environments) + len(sources) == network.max_size
 
                 source = network.nodes(type=Source)
                 assert len(source) == 1
@@ -503,7 +512,7 @@ class TestRogers(object):
             sys.stdout.flush()
 
             assert exp.bonus(participant=Participant.query.filter_by(
-                unique_id=p_ids[0]).all()[0]) == exp.bonus_payment
+                id=p_ids[0]).all()[0]) == exp.bonus_payment
 
             print("Testing bonus payments...            done!")
             sys.stdout.flush()

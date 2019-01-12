@@ -6,7 +6,12 @@
 
         <hr>
 
-        <p>There are 125 rounds in total. The first 5 are practice rounds. Depending on how many rounds you get right, you can earn a bonus of up to $1.00. The practice rounds will not affect your bonus.</p>
+        <p>
+            There are {{ experiment.experiment_repeats }} rounds in total.
+            {% if experiment.practice_repeats %}The first {{ experiment.practice_repeats }} are practice rounds.{% endif %}
+            {% if experiment.bonus_payment %}Depending on how many rounds you get right, you can earn a bonus of up to ${{ '{:.2f}'.format(experiment.bonus_payment) }}.{% endif %}
+            {% if experiment.practice_repeats %}The practice rounds will not affect your bonus.{% endif %}
+        </p>
 
         <p>Each round is different from the others - just because there were more blue dots on one round does not mean there will be more on the next round.</p>
 
