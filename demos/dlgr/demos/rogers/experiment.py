@@ -1,7 +1,9 @@
 """Replicate Rogers' paradox by simulating evolution with people."""
 
 import random
+import six
 
+from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.information import Meme
 from dallinger.models import Network
@@ -10,6 +12,27 @@ from dallinger.models import Participant
 from dallinger.networks import DiscreteGenerational
 from dallinger.nodes import Agent
 from dallinger.nodes import Environment
+
+config = get_config()
+
+
+def extra_parameters():
+
+    types = {
+        'experiment_repeats': int,
+        'practice_repeats': int,
+        'catch_repeats': int,
+        'practice_difficulty': float,
+        'catch_difficulty': float,
+        'difficulties': six.text_type,  # comma separated floats
+        'min_acceptable_performance': float,
+        'generations': int,
+        'generation_size': int,
+        'bonus_payment': float,
+    }
+
+    for key in types:
+        config.register(key, types[key])
 
 
 class RogersExperiment(Experiment):
@@ -28,23 +51,31 @@ class RogersExperiment(Experiment):
         super(RogersExperiment, self).__init__(session)
         from . import models
         self.models = models
-        self.verbose = False
-        self.experiment_repeats = 10
-        self.practice_repeats = 0
-        self.catch_repeats = 0  # a subset of experiment repeats
-        self.practice_difficulty = 0.80
-        self.difficulties = [0.525, 0.5625, 0.65] * self.experiment_repeats
-        self.catch_difficulty = 0.80
-        self.min_acceptable_performance = 10 / float(12)
-        self.generation_size = 4
-        self.generations = 4
-        self.bonus_payment = 1.0
-        self.initial_recruitment_size = self.generation_size
         self.known_classes["LearningGene"] = self.models.LearningGene
 
         if session and not self.networks():
             self.setup()
         self.save()
+
+    def configure(self):
+        self.experiment_repeats = config.get('experiment_repeats', 10)
+        self.practice_repeats = config.get('practice_repeats', 0)
+        self.catch_repeats = config.get('catch_repeats', 0)  # a subset of experiment repeats
+        self.practice_difficulty = config.get('practice_difficulty', 0.80)
+
+        self.difficulties = [
+            float(f.strip()) for f in
+            config.get('difficulties', '0.525, 0.5625, 0.65').split(',')
+        ] * self.experiment_repeats
+
+        self.catch_difficulty = config.get('catch_difficulty', 0.80)
+        self.min_acceptable_performance = config.get(
+            'min_acceptable_performance', 10 / float(12)
+        )
+        self.generation_size = config.get('generation_size', 4)
+        self.generations = config.get('generations', 4)
+        self.bonus_payment = config.get('bonus_payment', 1.0)
+        self.initial_recruitment_size = self.generation_size
 
     @property
     def public_properties(self):
