@@ -15,6 +15,7 @@ More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
     demos/concentration/*
     demos/function_learning/*
     demos/mcmcp/*
+    demos/rogers/*
     demos/sheep_market/*
     demos/snake/*
     demos/twentyfortyeight/*
