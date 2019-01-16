@@ -1,6 +1,6 @@
 # Change Log
 
-## [v5.0.3](https://github.com/dallinger/dallinger/tree/v5.0.3) (2019-01-15)
+## [v5.0.3](https://github.com/dallinger/dallinger/tree/v5.0.3) (2019-01-16)
 
 - Documentation improvements and additions:
   + Reintroduce working and refactored Roger's paradox demo, including better documentation
