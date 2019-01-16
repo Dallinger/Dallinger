@@ -1,5 +1,16 @@
 # Change Log
 
+## [v5.0.3](https://github.com/dallinger/dallinger/tree/v5.0.3) (2019-01-15)
+
+- Documentation improvements and additions:
+  + Reintroduce working and refactored Roger's paradox demo, including better documentation
+  + Correct dallinger export syntax
+
+- Give better and more verbose feedback when attempting to run an experiment from a location that is not a valid experiment directory
+
+- Fixed: Python 3.7 issues related to numpy version, numpy updated to 1.15.4
+- Fixed: Fingerprint hash appearing as undefined in experiment runs
+
 ## [v5.0.2](https://github.com/dallinger/dallinger/tree/v5.0.2) (2018-12-18)
 
 - Documentation improvements and additions:
