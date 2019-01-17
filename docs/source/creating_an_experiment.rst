@@ -980,6 +980,9 @@ create your own too. The most common networks are:
 - ``Empty``. A network where every node is isolated from the rest. It can
   include a source, in which case it will be connected to the nodes.
 
+For more information about networks in Dallinger, see the
+:doc:`network documentation <networks>`.
+
 For this experiment, we will use a chain network. The top node will be a
 source, so that we can use different texts on each run, and send them to
 each newly connected participant. In fact, most of the Python code for the
