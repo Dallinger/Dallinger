@@ -61,8 +61,27 @@ transmit information when connected `to` another node. It can receive
 information when connected `from` another node. If it is connected to another
 node in `both` directions, it can both receive and transmit.
 
+Nodes have a `connect` method that is used to connect them to other nodes.
+This method can specify the direction of a connection:
+
+::
+
+    my_node.connect(some_node, direction='both')
+    my_node.connect(another_node, direction='from')
+
+The default direction is `to`. The following example will make a `to`
+connection:
+
+::
+
+    my_node.connect(another_node)
+    
 Note that sources can only transmit information, so the only connection type
-allowed for a source node is `to`.
+allowed for a source node is `to` another node:
+
+::
+
+    my_source.connect(receiver_node)
 
 Using a network
 ---------------
@@ -127,16 +146,22 @@ Empty
 ^^^^^
 
 There are experiments where participants do not need to interact with each
-other at all. Generally, in this case, a source will be required. The empty
+other at all. Generally, in this case, a source will be required. The Empty
 network does not connect any nodes with each other, which results in a
 series of isolated nodes. The only exception is, if a source node is added,
 it will be connected to all existing nodes, which means that it's possible to
 send a stimulus to all network nodes, regardless of their isolation.
 
+.. figure:: _static/empty.jpg
+   :scale: 50 %
+   :alt: Empty Network
+
+   Empty Network
+
 Chain
 ^^^^^
 
-A chain network, also known as `line` network, connects each new node to the
+A Chain network, also known as `line` network, connects each new node to the
 previous one, so that nodes can receive information from their parent, but
 cannot send information back. In other words, it's a one way transmission
 chain. In general, it's useful to have a source as the first node, so that
@@ -148,10 +173,36 @@ This network can be useful for experiments where some piece of information,
 for example, a text, needs to be modified or interpreted by each participant
 in succession.
 
+.. figure:: _static/chain.png
+   :scale: 50 %
+   :alt: Chain Network
+
+   Chain Network
+
+DelayedChain
+^^^^^^^^^^^^
+
+DelayedChain is a special Chain network designed to work within the limits of
+MTurk configuration, which sometimes requires at least 10 participants from
+the start. In this case, for a Chain network, it would be impractical to make
+participants sign on from the beginning and then wait for their turn  in the
+Chain for a long time. To avoid this, DelayedChain basically ignores the
+first 9 participants, and then starts the Chain from the 10th participant on.
+
+This is intended to be used with a source, in order to form a long running
+chain where participants are recruited as soon as the previous participant
+has finished. If there's no source, the first eleven nodes have no parent.
+
+.. figure:: _static/delayed.png
+   :scale: 50 %
+   :alt: DelayedChain Network
+
+   DelayedChain Network
+
 Star
 ^^^^
 
-A start network uses its first node as a central node, and nodes created
+A Star network uses its first node as a central node, and nodes created
 after that have a bidirectional connection (`both`) with that node. This
 means the central node can send and receive information from/to all nodes,
 but every other node in the network can only communicate with the central
@@ -160,39 +211,54 @@ node.
 A source can't be used as a first node, since the connections to it need to
 be in both directions.
 
+This network can be useful for experiments where one user has a supervisory
+role over others who are working individually, for example making a decision
+based on advice from the other players
+
+.. figure:: _static/star.png
+   :scale: 50 %
+   :alt: Star Network
+
+   Star Network
+
 Burst
 ^^^^^
 
-A burst network is very similar to a star network, except the central node is
+A Burst network is very similar to a Star network, except the central node is
 connected to the other nodes using a `to` connection. In this case, a source
 can be used as a central node.
+
+This type of network can be used for experiments where participants do not
+need to interact, but require the same stimuli or directions as the others.
+
+.. figure:: _static/burst.png
+   :scale: 50 %
+   :alt: Burst Network
+
+   Burst Network
 
 FullyConnected
 ^^^^^^^^^^^^^^
 
-A fully connected network is one where all the nodes are connected to each
+A FullyConnected network is one where all the nodes are connected to each
 other in both directions, thus allowing any node to transmit and receive from
 any other node. This can be very useful for cooperation experiments or
 chatrooms.
 
-A source is allowed as a node in this network, and it will use a `to`
+A source is allowed as a node in this network. However, it will use a `to`
 connection to the other nodes, so transmitting to it will not be allowed.
+
+.. figure:: _static/full.png
+   :scale: 50 %
+   :alt: FullyConnected Network
+
+   FullyConnected Network
 
 Other available networks
 ------------------------
 
 There are other, somewhat more specialized networks that an experiment can
 use. Here's a quick rundown.
-
-DelayedChain
-^^^^^^^^^^^^
-
-The delayed chain acts as a sort of burst network for the first eleven nodes,
-but turns into a chain network for all nodes after that. If the network has a
-source, it is assigned as a parent to the first eleven nodes. From the
-twelfth node onwards, the previous node is used as a parent, using a `to`
-connection, like in the chain network. If there's no source, the first eleven
-nodes have no parent.
 
 DiscreteGenerational
 ^^^^^^^^^^^^^^^^^^^^
@@ -273,8 +339,9 @@ connected back to the first, making a full circle (thus, the ring name).
 
 Ring is a subclass of `dallinger.models.Network`, which contains the basic
 network model and implementation. The `__mapper_args__` assignment at the
-top is for differentiating this network from the rest. Usually the safe
-thing is to use the same as the subclass, to avoid confusion.
+top is for differentiating this network from others, so that data exports
+don't give incorrect results. Usually the safe thing is to use the same name
+as the subclass, to avoid confusion.
 
 Most simple networks will only need to override the `add_node` method. This
 method is called after a node is added, with the added node as a parameter.
@@ -309,3 +376,8 @@ part of the network using the persistent custom properties available in all
 Dallinger models. If they are not stored, any calculations that rely on them
 have to be performed at initialization time. Once they are stored, they can
 be used in any part of the network code, like in the `add_node` method.
+
+In the code above, we use `repr` when storing the property value. This is
+because Dallinger custom properties are all of the text type, so even if a
+custom property represents a number, it has to be stored as a string. If the
+property is a string to begin with, it's not necessary to convert it.
