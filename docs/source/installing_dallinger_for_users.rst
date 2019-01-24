@@ -269,6 +269,25 @@ To check which version of the Heroku CLI you have installed, run:
 The Heroku CLI is available for download from
 `heroku.com <https://devcenter.heroku.com/articles/heroku-cli>`__.
 
+
+Mac OS X
+~~~~~~~~
+::
+
+    brew install heroku/brew/heroku
+
+Ubuntu 16+
+~~~~~~~~~~
+::
+
+    sudo snap install --classic heroku
+
+Standalone installation
+~~~~~~~~~~~~~~~~~~~~~~~
+::
+
+    curl https://cli-assets.heroku.com/install.sh | sh
+
 Install Redis
 -------------
 
