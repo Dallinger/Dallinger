@@ -35,6 +35,7 @@ default_keys = (
     ('browser_exclude_rule', six.text_type, []),
     ('clock_on', bool, []),
     ('contact_email_on_error', six.text_type, []),
+    ('chrome-path', six.binary_type, []),
     ('dallinger_email_address', six.text_type, []),
     ('database_size', six.text_type, []),
     ('database_url', six.text_type, [], True),

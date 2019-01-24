@@ -5,6 +5,7 @@ import redis
 import requests
 import shutil
 import six
+import sys
 import tempfile
 import threading
 import time
@@ -25,16 +26,27 @@ from dallinger.utils import get_base_url
 from dallinger.utils import GitClient
 
 
+config = get_config()
+OSX_CHROME_PATH = 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+
+
+def _make_chrome(path):
+    new_chrome = webbrowser.Chrome()
+    new_chrome.name = path
+    profile_directory = tempfile.mkdtemp()
+    with open(os.path.join(profile_directory, 'First Run'), 'wb') as firstrun:
+            # This file existing prevents prompts to make the new profile directory
+            # the default
+            firstrun.flush()
+    new_chrome.remote_args = webbrowser.Chrome.remote_args + [
+        '--user-data-dir="{}"'.format(profile_directory)
+    ]
+    return new_chrome
+
+
 def new_webbrowser_profile():
     if is_command('google-chrome'):
-        new_chrome = webbrowser.Chrome()
-        new_chrome.name = 'google-chrome'
-        profile_directory = tempfile.mkdtemp()
-        new_chrome.remote_args = webbrowser.Chrome.remote_args + [
-            '--user-data-dir="{}"'.format(profile_directory),
-            '--no-first-run',
-        ]
-        return new_chrome
+        return _make_chrome('google-chrome')
     elif is_command('firefox'):
         new_firefox = webbrowser.Mozilla()
         new_firefox.name = 'firefox'
@@ -43,6 +55,12 @@ def new_webbrowser_profile():
             '-profile', profile_directory, '-new-instance', '-no-remote', '-url', '%s',
         ]
         return new_firefox
+    elif sys.platform == 'darwin':
+        chrome_path = config.get('chrome-path', OSX_CHROME_PATH)
+        if os.path.exists(chrome_path):
+            return _make_chrome(chrome_path)
+        else:
+            return webbrowser
     else:
         return webbrowser
 
