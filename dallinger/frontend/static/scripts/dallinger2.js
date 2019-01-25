@@ -647,3 +647,4 @@ var dallinger = (function () {
   return dlgr;
 }());
 
+module.exports.dallinger = dallinger;
