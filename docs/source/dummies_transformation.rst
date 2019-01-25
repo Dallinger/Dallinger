@@ -20,8 +20,8 @@ The Transformation Table
 ------------------------
 
 Most of the transformation table is extremely familiar: columns inherited from SharedMixin, as well as columns for network and node (the node doing the transformation), but there are also unique columns called `info_in_id` and `info_out_id`:
-
 ::
+
     #: the id of the info that was transformed.
     info_in_id = Column(Integer, ForeignKey('info.id'), index=True)
 
@@ -42,8 +42,8 @@ Transformation Objects
 ----------------------
 
 Transformations don't have any unique functions beyond what we have already seen (i.e. they do have `__repr__`, `__json__` etc., but you should be familiar with those). This is because Transformations don't actually do things, they simply exist and serve as a record of relationships between infos. It is a similar state of affairs in the Vector class - vectors don't really do much, they just exist and serve as a record of a relationship between two nodes. All this said though, the `__init__` function of the Transformation class does do a couple of interesting things so we might as well give it a look:
-
 ::
+
     def __init__(self, info_in, info_out):
         """Create a transformation."""
         # check info_in is from the same node as info_out

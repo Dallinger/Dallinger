@@ -17,13 +17,13 @@ The Info Table
 --------------
 
 The first port of call in order to understand a database class, like Info, is to examine the columns of the database table. Again, we can do this the easy way via Postico, but because this is a fun learning experience we'll look directly at the code. So open up models.py and find the class Info by looking for this line:
-
 ::
+
 	class Info(Base, SharedMixin):
 
 The first thing to note is that, just like Node and Vector, Info extends the classes Base (which allows it to make a table) and SharedMixin. We covered SharedMixin when discussing Nodes, but in short it gives the table a bunch of commonly used columns like `id`, `creation_time`, `property1`, `failed` and so on. For more information on what these columns do see the Node page, but for now let's press on with the columns that are unique to Infod. First is the origin_id:
-
 ::
+
     #: the id of the Node that created the info
     origin_id = Column(Integer, ForeignKey('node.id'), index=True)
 
@@ -37,8 +37,8 @@ Hopefully this should be quite familiar by now because its virtually identical t
 The next bit creates not a column, but a relationship, called `origin`. Relationships aren't visible in the table, but it means that at runtime, you can ask [an Info] directly for its origin and it will return to you a Node object. This is much faster that asking for its origin_id then looking up which Node has that id in the Node table. This is another example of how database/object duality works in our favor when using Dallinger."
 
 Infos also have a `network_id` and `network`, which again, are basically the same as for Vectors, so I won't bother going through them again. What we will go into, however, is the final column that really is unique to Infos; the `contents` column.
-
 ::
+
     #: the contents of the info. Must be stored as a String.
     contents = Column(Text(), default=None)
 
@@ -57,8 +57,8 @@ Info Objects
 ------------
 
 Most of the functions that Infos have are extremely similar to those of Nodes and Vectors (e.g. init, repr, json), so I'm not going to keep repeating myself and instead I'll focus on just the new elements of Infos. The first is this:
-
 ::
+
     @validates("contents")
     def _write_once(self, key, value):
         existing = getattr(self, key)
@@ -66,11 +66,12 @@ Most of the functions that Infos have are extremely similar to those of Nodes an
             raise ValueError("The contents of an info is write-once.")
         return value
 
+
 This mysterious chunk of code exists just to stop you changing the contents of an info once its already been created. We set Infos up this way to stop people accidentally overwriting valuable information which they then can't get back. If you end up in a scenario where you actually want to change the contents of an info you should fail the old info and just create a new one with the contents you want (if you're feeling fancy you can link the old and new infos via a transformation, but more on that in a few pages.)
 
 Next is `info.transmissions()`:
-
 ::
+
     def transmissions(self, status="all"):
         """Get all the transmissions of this info.
 

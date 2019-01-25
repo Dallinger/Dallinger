@@ -15,10 +15,10 @@ With this the diagram above makes sense: Transmissions need Vectors and Infos be
 
 Note that Transmissions can only occur along a single Vector and so if you want an Info to go on a longer journey then you will need to break the trip into single Vector chunks. In fact, things get even tricker because the `Node.transmit()` function (see the Node page) only let's Nodes transmit Infos they have created. So if you want Node A to create an Info and sent to to Node C, but via Node B, you would do the following:
 
-1 - A makes the info
-2 - A transmits it to B
-3 - B receives it, and makes a new info with the same contents (perhaps linking the new info to the old one via a transformation)
-4 - B transmits the new info to C
+1. A makes the info
+2. A transmits it to B
+3. B receives it, and makes a new info with the same contents (perhaps linking the new info to the old one via a transformation)
+4. B transmits the new info to C
 
 This is why, back in the previous page, I said the London Underground analogy isn't brilliant for Infos. In the London Underground each train (which is sort of like an Info, sort of) can easily be sent along a very long journey without anything serious going wrong. Moreover, trains don't have an "origin" station where they were made. Instead the Underground network contains a finite number of trains that are continually suffled around the network and were made somewhere quite different. In Dallinger things are different. Infos are continually being made by Nodes all the time, and while those Nodes can sent ther Infos to other Nodes they have a connection with, those Nodes cannot send them any further. Instead they have to duplicate them, making a new Info, and transmit the duplicant.
 
@@ -27,16 +27,16 @@ The Transmission Table
 ----------------------
 
 The Transmission table has a lot of columns, but nothing you shouldn't be too surprised by. Like the other classes they extend Base and SharedMixin (see the Node page for more details). After this they get all the columns and relationships you should by now half-expect: `vector_id` (the Vector the Transmission was sent along), `info_id` (the Info that was Transmitted), `origin` and `destination` (the origin and destination Nodes of the Transmission, the same as the origin and destination Nodes of the Vector, also the origin Node is the same as the origin Node of the Info) and the `network` (which is the same as the Network of the Info, Vector and Nodes). The last two columns, however, are new. The first is `receive_time`:
-
 ::
+
     #: the time at which the transmission was received
     receive_time = Column(DateTime, default=None)
 
 This is the timestamp for when the destination Node received the Transmission. Think of it like an email. My mum can sent me an email whenever she feels like it, but I won't actually receive the contents of the email until I check my inbox and click to read it (sorry Mum). The same is true of Transmissions: they have both a sent time (called `creation_time`) as well as a `receive_time`. Back in the Node page we looked at the function `Node.receive()`, this is the function that marks any sent Transmissions as received and accesses the Info that was sent.
 
 The other column is status:
-
 ::
+
     #: the status of the transmission, can be "pending", which means the
     #: transmission has been sent, but not received; or "received", which means
     #: the transmission has been sent and received
@@ -49,8 +49,8 @@ Transmission Objects
 --------------------
 
 Transmissions only have a single function that we haven't already seen in previous classes (so look back over previous pages is something confuses you) and that's `mark_received`:
-
 ::
+
     def mark_received(self):
         """Mark a transmission as having been received."""
         self.receive_time = timenow()

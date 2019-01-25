@@ -3,6 +3,9 @@ Questions
 
 Here we are, the final database class. This ones a stub too, so its nice and easy.
 
+.. figure:: _static/class_chart.jpg
+   :alt: 
+
 What is a Question?
 -------------------
 

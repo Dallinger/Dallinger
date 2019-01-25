@@ -17,13 +17,13 @@ The Vector table
 ----------------
 
 The first port of call in order to understand a database class is to examine the columns of the database table. Again, we can do this the easy way via Postico, but because this is a fun learning experience we'll look directly at the code. So open up models.py and find the class Vector by looking for this line:
-
 ::
+
 	class Vector(Base, SharedMixin):
 
 The first thing to note is that, just like Node, Vector extends the classes Base (which allows it to make a table) and SharedMixin. We covered SharedMixin when discussing Nodes, but in short it gives the table a bunch of commonly used columns like `id`, `creation_time`, `property1`, `failed` and so on. For more information on what these columns do see the Node page, but for now let's press on with the columns that are unique to Vectors. First is the origin_id:
-
 ::
+
     #: the id of the Node at which the vector originates
     origin_id = Column(Integer, ForeignKey('node.id'), index=True)
     
@@ -36,8 +36,8 @@ So we can see a column is created called `origin_id`, it will store an integer, 
 The next bit creates not a column, but a relationship, called `origin`. Relationships aren't visible in the table, but it means that at runtime, you can ask a Vector directly for its origin and it will return to you a Node object. This is much faster that asking for its origin_id then looking up which Node has that id in the Node table. This is another example of how database/object duality works in our favor when using Dallinger.
 
 The next bit of code repeats this process but for the destination node:
-
 ::
+
     #: the id of the Node at which the vector terminates.
     destination_id = Column(Integer, ForeignKey('node.id'), index=True)
     
@@ -46,8 +46,8 @@ The next bit of code repeats this process but for the destination node:
                                backref="all_incoming_vectors")
 
 Finally, the Vector table is given a network_id column and a relationship with a network object (it's the network the vector is in).
-
 ::
+
     #: the id of the network the vector is in.
     network_id = Column(Integer, ForeignKey('network.id'), index=True)
     
@@ -62,8 +62,8 @@ Vector Objects
 After the creation of columns and relationships the Vector class, just like the Node class, contains a whole bunch of functions that you can call at runtime to ask Vectors to do things. Vectors have fewer functions that Nodes though, this simply reflects the fact that most of the things that experimenters need to get done are most easily done by instructing Nodes to do things and not Vectors. Nonetheless, we'll go over the functions of the Vector class below. Let's start with `__init__`, the function that runs whenever a Vector is created.
 
 The first thing to notice is that `__init__` requires both an origin and destination node be passed to it for it to run correctly:
-
 ::
+
     def __init__(self, origin, destination):
 
 After this it runs a few checks to make sure that the origin and destination nodes are both in the same network and that neither of them have failed, and so on. If all the checks pass the Vector is created and is assigned the origin node as its origin, the destination node as its destination and the network of the origin node as its network.
