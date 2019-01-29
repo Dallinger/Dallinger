@@ -31,7 +31,8 @@ def new_webbrowser_profile():
         new_chrome.name = 'google-chrome'
         profile_directory = tempfile.mkdtemp()
         new_chrome.remote_args = webbrowser.Chrome.remote_args + [
-            '--user-data-dir="{}"'.format(profile_directory)
+            '--user-data-dir="{}"'.format(profile_directory),
+            '--no-first-run',
         ]
         return new_chrome
     elif is_command('firefox'):

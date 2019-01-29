@@ -103,9 +103,10 @@ class TestIsolatedWebbrowser(object):
             isolated = new_webbrowser_profile()
         assert isinstance(isolated, webbrowser.Chrome)
         assert isolated.remote_args[:2] == [r'%action', r'%s']
-        assert isolated.remote_args[-1].startswith(
+        assert isolated.remote_args[-2].startswith(
             '--user-data-dir="{}'.format(tempfile.gettempdir())
         )
+        assert isolated.remote_args[-1] == r'--no-first-run'
 
     def test_firefox_isolation(self):
         import webbrowser
