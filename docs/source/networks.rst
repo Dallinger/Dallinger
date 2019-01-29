@@ -18,16 +18,16 @@ Dallinger comes with a variety of networks that can be used by experimenters,
 and it's possible both to extend these networks or create completely new ones
 as well. The networks included in Dallinger are:
 
-- Empty.
-- Chain.
-- DelayedChain.
-- Star.
-- Burst.
-- FullyConnected.
-- DiscreteGenerational.
-- ScaleFree.
-- SequentialMicrosociety.
-- SplitSampleNetwork.
+- Empty
+- Chain
+- DelayedChain
+- Star
+- Burst
+- FullyConnected
+- DiscreteGenerational
+- ScaleFree
+- SequentialMicrosociety
+- SplitSampleNetwork
 
 Nodes and Sources
 -----------------
@@ -54,12 +54,15 @@ nodes.
 Node connections
 ----------------
 
-A node can be connected to another node in three ways. A single direction
-connection to another node (to), a single direction connection from another
-node (from), or a bidirectional connection to another node (both). A node can
-transmit information when connected `to` another node. It can receive
-information when connected `from` another node. If it is connected to another
-node in `both` directions, it can both receive and transmit.
+A node can be connected to another node in three ways:
+
+1. a single direction connection to another node ("to")
+2. a single direction connection from another node ("from")
+3. a bidirectional connection to another node ("both")
+
+A node can transmit information when connected `to` another node. It can
+receive information when connected `from` another node. If it is connected to
+another node in `both` directions, it can both receive and transmit.
 
 Nodes have a `connect` method that is used to connect them to other nodes.
 This method can specify the direction of a connection:
