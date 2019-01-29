@@ -39,7 +39,8 @@ def _make_chrome(path):
             # the default
             firstrun.flush()
     new_chrome.remote_args = webbrowser.Chrome.remote_args + [
-        '--user-data-dir="{}"'.format(profile_directory)
+        '--user-data-dir="{}"'.format(profile_directory),
+        '--no-first-run',
     ]
     return new_chrome
 
