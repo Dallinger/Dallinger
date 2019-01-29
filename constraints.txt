@@ -13,7 +13,7 @@ localconfig==1.1.1
 pexpect==4.6.0
 psutil==5.5.0
 psycopg2-binary==2.7.7
-redis==3.0.1
+redis==3.1.0
 requests==2.21.0
 rq==0.13.0
 selenium==3.141.0
