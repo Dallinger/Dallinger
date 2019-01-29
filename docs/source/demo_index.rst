@@ -12,6 +12,7 @@ More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
     :glob:
 
     demos/bartlett1932/*
+    demos/chatroom/*
     demos/concentration/*
     demos/function_learning/*
     demos/mcmcp/*
