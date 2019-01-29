@@ -27,7 +27,7 @@ from dallinger.utils import GitClient
 
 
 config = get_config()
-OSX_CHROME_PATH = 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+OSX_CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
 
 def _make_chrome(path):
