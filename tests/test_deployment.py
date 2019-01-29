@@ -120,8 +120,11 @@ class TestIsolatedWebbrowser(object):
 
     def test_fallback_isolation(self):
         import webbrowser
-        with mock.patch('dallinger.deployment.is_command') as is_command:
-            is_command.return_value = False
+        with mock.patch.multiple(
+            'dallinger.deployment', is_command=mock.DEFAULT, sys=mock.DEFAULT
+        ) as patches:
+            patches['is_command'].return_value = False
+            patches['sys'].platform = 'anything but "darwin"'
             isolated = new_webbrowser_profile()
         assert isolated == webbrowser
 
