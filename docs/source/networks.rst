@@ -56,9 +56,9 @@ Node connections
 
 A node can be connected to another node in three ways:
 
-1. a single direction connection to another node ("to")
-2. a single direction connection from another node ("from")
-3. a bidirectional connection to another node ("both")
+1. "to" - a single direction connection to another node
+2. "from" - a single direction connection from another node
+3. "both" - a bidirectional connection to another node
 
 A node can transmit information when connected `to` another node. It can
 receive information when connected `from` another node. If it is connected to
@@ -72,7 +72,7 @@ This method can specify the direction of a connection:
     my_node.connect(some_node, direction='both')
     my_node.connect(another_node, direction='from')
 
-The default direction is ``to``. The following example will make a ``to``
+The default direction is "to". The following example will make a `to`
 connection:
 
 ::
@@ -80,7 +80,7 @@ connection:
     my_node.connect(another_node)
     
 Note that sources can only transmit information, so the only connection type
-allowed for a source node is ``to`` another node:
+allowed for a source node is `to` another node:
 
 ::
 
@@ -94,13 +94,13 @@ method in its code. For example, to use a ``Chain`` network:
 
 ::
 
-	from dallinger.experiment import Experiment
-	from dallinger.networks import Chain
+    from dallinger.experiment import Experiment
+    from dallinger.networks import Chain
 
-	class MyExperiment(Experiment):
+    class MyExperiment(Experiment):
 
-		def create_network(self):
-			return Chain(max_size=5)
+        def create_network(self):
+            return Chain(max_size=5)
 
 Like the example shows, to use a network it's necessary to import it from
 ``dallinger.networks`` using the network class name (the name from the list
