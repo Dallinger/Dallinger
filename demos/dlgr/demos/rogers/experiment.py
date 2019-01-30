@@ -72,8 +72,8 @@ class RogersExperiment(Experiment):
         self.min_acceptable_performance = config.get(
             'min_acceptable_performance', 10 / float(12)
         )
-        self.generation_size = config.get('generation_size', 4)
-        self.generations = config.get('generations', 4)
+        self.generation_size = config.get('generation_size', 2)
+        self.generations = config.get('generations', 3)
         self.bonus_payment = config.get('bonus_payment', 1.0)
         self.initial_recruitment_size = self.generation_size
 
