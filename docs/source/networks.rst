@@ -39,12 +39,12 @@ the participants. Not all experiments have sources, though. A chatroom
 experiment, for example, could just rely on user interactions and not
 require any other stimuli.
 
-All nodes have methods named `transmit` and `receive`, for sending and
+All nodes have methods named ``transmit`` and ``receive``, for sending and
 receiving information to or from other nodes. These methods can be used when
 adding a node to allow any specialized communication between nodes that an
 experiment may require.
 
-Nodes can have a `fitness` property, which is a number that can be used in
+Nodes can have a ``fitness`` property, which is a number that can be used in
 some network models. The basic networks do not use this property.
 
 Some networks require that nodes have other properties, so for properly using
@@ -56,15 +56,15 @@ Node connections
 
 A node can be connected to another node in three ways:
 
-1. a single direction connection to another node ("to")
-2. a single direction connection from another node ("from")
-3. a bidirectional connection to another node ("both")
+1. "to" - a single direction connection to another node
+2. "from" - a single direction connection from another node
+3. "both" - a bidirectional connection to another node
 
 A node can transmit information when connected `to` another node. It can
 receive information when connected `from` another node. If it is connected to
 another node in `both` directions, it can both receive and transmit.
 
-Nodes have a `connect` method that is used to connect them to other nodes.
+Nodes have a ``connect`` method that is used to connect them to other nodes.
 This method can specify the direction of a connection:
 
 ::
@@ -72,7 +72,7 @@ This method can specify the direction of a connection:
     my_node.connect(some_node, direction='both')
     my_node.connect(another_node, direction='from')
 
-The default direction is `to`. The following example will make a `to`
+The default direction is "to". The following example will make a `to`
 connection:
 
 ::
@@ -89,34 +89,34 @@ allowed for a source node is `to` another node:
 Using a network
 ---------------
 
-To use a specific network, an experiment needs to define a `create_network`
-method in its code. For example, to use a `Chain` network:
+To use a specific network, an experiment needs to define a ``create_network``
+method in its code. For example, to use a ``Chain`` network:
 
 ::
 
-	from dallinger.experiment import Experiment
-	from dallinger.networks import Chain
+    from dallinger.experiment import Experiment
+    from dallinger.networks import Chain
 
-	class MyExperiment(Experiment):
+    class MyExperiment(Experiment):
 
-		def create_network(self):
-			return Chain(max_size=5)
+        def create_network(self):
+            return Chain(max_size=5)
 
 Like the example shows, to use a network it's necessary to import it from
-`dallinger.networks` using the network class name (the name from the list
+``dallinger.networks`` using the network class name (the name from the list
 given above). Once imported, it needs to be initialized as part of the
-experiment, which is done using the `create_network` method.
+experiment, which is done using the ``create_network`` method.
 
-All networks accept the `max_size` parameter, which is illustrated above. It
+All networks accept the ``max_size`` parameter, which is illustrated above. It
 represents the maximum number of nodes that a network can have. In the
-example above, maximum size is 5 nodes. The `full` method of the network can
+example above, maximum size is 5 nodes. The ``full`` method of the network can
 be used to check if a network is full.
 
 Multiple networks
 ^^^^^^^^^^^^^^^^^
 
-In experiments configured for a number of `practice_repeats` or
-`experiment_repeats` higher than one, the `create_network` method is called
+In experiments configured for a number of ``practice_repeats`` or
+``experiment_repeats`` higher than one, the ``create_network`` method is called
 multiple times, once for every repeat. This means that an experiment can have
 multiple networks at the same time.
 
@@ -267,21 +267,21 @@ DiscreteGenerational
 ^^^^^^^^^^^^^^^^^^^^
 
 In this network, nodes are arranged into "generations". This network accepts
-some new parameters: `generations` (number of generations), `generation_size`
-(how many nodes in a generation) and `initial_source`. If there is an initial
+some new parameters: ``generations`` (number of generations), ``generation_size``
+(how many nodes in a generation) and ``initial_source``. If there is an initial
 source, it will be used as the parent for all first generation nodes. After
 the first generation, the parent from each new node will be selected from the
-previous generation, using the `fitness` attribute of the nodes to select it.
+previous generation, using the ``fitness`` attribute of the nodes to select it.
 The higher the fitness, the higher the probability that a node will be a
 parent.
 
 Note that for this network to function correctly, the experiment nodes need
-to have a `generation` property defined.
+to have a ``generation`` property defined.
 
 ScaleFree
 ^^^^^^^^^
 
-This network takes two parameters: `m0` and `m`. The first (m0) is the
+This network takes two parameters: ``m0`` and ``m``. The first (m0) is the
 number of initial nodes. These initial nodes will be connected in a fully
 connected network among each other. The second parameter (m) is the number of
 connections that every subsequent node will have. The nodes for this limited
@@ -299,7 +299,7 @@ SplitSampleNetwork
 ^^^^^^^^^^^^^^^^^^
 
 This network helps when implementing split sample experiment designs. It
-assigns a random boolean value to a property named `exploratory`. When this
+assigns a random boolean value to a property named ``exploratory``. When this
 property is True, it means that the current network is part of the
 exploratory data subset.
 
@@ -336,17 +336,17 @@ interconnections. To create one, we can subclass from the Network model:
                     parent = min(other_nodes, key=attrgetter('creation_time'))
                     node.connect(whom=parent)
                    
-In the above example, we create a simple `ring` network, where each node is
+In the above example, we create a simple ring network, where each node is
 connected in chain to the next one, until we get to the last one, which is
-connected back to the first, making a full circle (thus, the ring name).
+connected back to the first, making a full circle (thus, the 'ring' name).
 
-Ring is a subclass of `dallinger.models.Network`, which contains the basic
-network model and implementation. The `__mapper_args__` assignment at the
+Our ``Ring`` network is a subclass of ``dallinger.models.Network``, which contains the basic
+network model and implementation. The ``__mapper_args__`` assignment at the
 top is for differentiating this network from others, so that data exports
 don't give incorrect results. Usually the safe thing is to use the same name
 as the subclass, to avoid confusion.
 
-Most simple networks will only need to override the `add_node` method. This
+Most simple networks will only need to override the ``add_node`` method. This
 method is called after a node is added, with the added node as a parameter.
 This method then can decide how and when to connect this node to other nodes
 in the network.
@@ -361,10 +361,10 @@ this point, this is almost the same as a chain network, but when we get to
 the last node, we connect the new node to the first node, in addition to its
 connection to the previous node.
 
-The code in the `add_node` method can be as complex as needed, so very
+The code in the ``add_node`` method can be as complex as needed, so very
 complex networks are possible. In most cases, to create a more advanced
 network it will be necessary to add custom properties to it. This is done by
-overriding the `__init__` method of the network to add the properties. The
+overriding the ``__init__`` method of the network to add the properties. The
 following example shows how to do that:
 
 ::
@@ -378,9 +378,9 @@ property need not be persistent, but in general it's better to save it as
 part of the network using the persistent custom properties available in all
 Dallinger models. If they are not stored, any calculations that rely on them
 have to be performed at initialization time. Once they are stored, they can
-be used in any part of the network code, like in the `add_node` method.
+be used in any part of the network code, like in the ``add_node`` method.
 
-In the code above, we use `repr` when storing the property value. This is
+In the code above, we use ``repr`` when storing the property value. This is
 because Dallinger custom properties are all of the text type, so even if a
 custom property represents a number, it has to be stored as a string. If the
 property is a string to begin with, it's not necessary to convert it.
