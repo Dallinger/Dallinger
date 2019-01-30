@@ -11,7 +11,7 @@ require participants to interact among themselves in various ways.
 In Dallinger, these interactions among participants and stimuli are
 represented using networks. Each participant and each stimulus represent a
 node in a network. The way these nodes are connected to each other is known
-as a ``network topology``. For brevity, we will use the term ``network`` from now
+as a `network topology`. For brevity, we will use the term `network` from now
 on when discussing Dallinger network topologies.
 
 Dallinger comes with a variety of networks that can be used by experimenters,
@@ -33,7 +33,7 @@ Nodes and Sources
 -----------------
 
 In these networks, each participant is considered as a node. There is also a
-special kind of node, known as a ``source``, which transmits information to
+special kind of node, known as a `source`, which transmits information to
 other nodes. Sources are used in Dallinger as a means to send the stimuli to
 the participants. Not all experiments have sources, though. A chatroom
 experiment, for example, could just rely on user interactions and not
@@ -60,9 +60,9 @@ A node can be connected to another node in three ways:
 2. a single direction connection from another node ("from")
 3. a bidirectional connection to another node ("both")
 
-A node can transmit information when connected ``to`` another node. It can
-receive information when connected ``from`` another node. If it is connected to
-another node in ``both`` directions, it can both receive and transmit.
+A node can transmit information when connected `to` another node. It can
+receive information when connected `from` another node. If it is connected to
+another node in `both` directions, it can both receive and transmit.
 
 Nodes have a ``connect`` method that is used to connect them to other nodes.
 This method can specify the direction of a connection:
@@ -72,7 +72,7 @@ This method can specify the direction of a connection:
     my_node.connect(some_node, direction='both')
     my_node.connect(another_node, direction='from')
 
-The default direction is ``to``. The following example will make a ``to``
+The default direction is ```to```. The following example will make a ```to```
 connection:
 
 ::
@@ -120,8 +120,8 @@ In experiments configured for a number of ``practice_repeats`` or
 multiple times, once for every repeat. This means that an experiment can have
 multiple networks at the same time.
 
-The experiment setup code assigns each network a role of ``practice`` or
-``experiment``, depending on how it was created. The experiment class allows
+The experiment setup code assigns each network a role of `practice` or
+`experiment`, depending on how it was created. The experiment class allows
 experiment developers to query networks by role (practice, experiment), or by
 state (full, not full). For example:
 
@@ -164,7 +164,7 @@ send a stimulus to all network nodes, regardless of their isolation.
 Chain
 ^^^^^
 
-A Chain network, also known as ``line`` network, connects each new node to the
+A Chain network, also known as `line` network, connects each new node to the
 previous one, so that nodes can receive information from their parent, but
 cannot send information back. In other words, it's a one way transmission
 chain. In general, it's useful to have a source as the first node, so that
@@ -206,7 +206,7 @@ Star
 ^^^^
 
 A Star network uses its first node as a central node, and nodes created
-after that have a bidirectional connection (``both``) with that node. This
+after that have a bidirectional connection (`both`) with that node. This
 means the central node can send and receive information from/to all nodes,
 but every other node in the network can only communicate with the central
 node.
@@ -228,7 +228,7 @@ Burst
 ^^^^^
 
 A Burst network is very similar to a Star network, except the central node is
-connected to the other nodes using a ``to`` connection. In this case, a source
+connected to the other nodes using a `to` connection. In this case, a source
 can be used as a central node.
 
 This type of network can be used for experiments where participants do not
@@ -248,7 +248,7 @@ other in both directions, thus allowing any node to transmit and receive from
 any other node. This can be very useful for cooperation experiments or
 chatrooms.
 
-A source is allowed as a node in this network. However, it will use a ``to``
+A source is allowed as a node in this network. However, it will use a `to`
 connection to the other nodes, so transmitting to it will not be allowed.
 
 .. figure:: _static/full.png
@@ -291,7 +291,7 @@ connections will have a higher probability of being selected.
 SequentialMicrosociety
 ^^^^^^^^^^^^^^^^^^^^^^
 
-A network in which each new node will be connected using a ``to`` connection to
+A network in which each new node will be connected using a `to` connection to
 a limited set of its most recent predecessors. The number of recent
 predecessors is passed in as an argument (n) at network creation.
 
@@ -336,11 +336,11 @@ interconnections. To create one, we can subclass from the Network model:
                     parent = min(other_nodes, key=attrgetter('creation_time'))
                     node.connect(whom=parent)
                    
-In the above example, we create a simple ``ring`` network, where each node is
+In the above example, we create a simple ring network, where each node is
 connected in chain to the next one, until we get to the last one, which is
-connected back to the first, making a full circle (thus, the ring name).
+connected back to the first, making a full circle (thus, the 'ring' name).
 
-Ring is a subclass of ``dallinger.models.Network``, which contains the basic
+Our ``Ring`` network is a subclass of ``dallinger.models.Network``, which contains the basic
 network model and implementation. The ``__mapper_args__`` assignment at the
 top is for differentiating this network from others, so that data exports
 don't give incorrect results. Usually the safe thing is to use the same name
@@ -353,7 +353,7 @@ in the network.
 
 In our code, we first get all nodes in the network (except the new one). If
 the new node is a source, we raise an exception, because due to the circular
-nature of our network, there can be no sources (they don't accept ``from``
+nature of our network, there can be no sources (they don't accept `from`
 connections and can only transmit).
 
 After that, we take the most recent node and connect it to the new node. At
