@@ -72,7 +72,7 @@ This method can specify the direction of a connection:
     my_node.connect(some_node, direction='both')
     my_node.connect(another_node, direction='from')
 
-The default direction is ```to```. The following example will make a ```to```
+The default direction is ``to``. The following example will make a ``to``
 connection:
 
 ::
