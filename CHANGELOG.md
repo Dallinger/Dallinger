@@ -5,9 +5,9 @@
 Documentation improvements and additions:
   + New documentation section on Networks added
   + Reintroduce working Chatroom demo
-  + Change configuration of certain demos to work in free heroku tier (hobby)
 
 - Start monitoring Javascript code coverage
+- Change configuration of certain demos to work in free heroku tier (hobby)
 
 - Fixed: Prevent Google Chrome from showing default browser popup when running Dallinger in debug mode
 - Fixed: Fixed profiles issues with Google Chrome on OSX
