@@ -2,7 +2,7 @@
 
 ## [v5.0.4](https://github.com/dallinger/dallinger/tree/v5.0.4) (2019-01-31)
 
-Documentation improvements and additions:
+- Documentation improvements and additions:
   + New documentation section on Networks added
   + Reintroduce working Chatroom demo
 
