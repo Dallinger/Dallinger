@@ -7,10 +7,10 @@ Documentation improvements and additions:
   + Reintroduce working Chatroom demo
 
 - Start monitoring Javascript code coverage
-- Change configuration of certain demos to work in free heroku tier (hobby)
+- Change configuration of certain demos to work in free Heroku tier (hobby)
 
 - Fixed: Prevent Google Chrome from showing default browser popup when running Dallinger in debug mode
-- Fixed: Fixed profiles issues with Google Chrome on OSX
+- Fixed: Running Dallinger in debug mode on OSX now uses a new browser profile for each browser window
 
 ## [v5.0.3](https://github.com/dallinger/dallinger/tree/v5.0.3) (2019-01-16)
 
