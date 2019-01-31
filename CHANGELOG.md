@@ -1,5 +1,17 @@
 # Change Log
 
+## [v5.0.4](https://github.com/dallinger/dallinger/tree/v5.0.4) (2019-01-31)
+
+Documentation improvements and additions:
+  + New documentation section on Networks added
+  + Reintroduce working Chatroom demo
+  + Change configuration of certain demos to work in free heroku tier (hobby)
+
+- Start monitoring Javascript code coverage
+
+- Fixed: Prevent Google Chrome from showing default browser popup when running Dallinger in debug mode
+- Fixed: Fixed profiles issues with Google Chrome on OSX
+
 ## [v5.0.3](https://github.com/dallinger/dallinger/tree/v5.0.3) (2019-01-16)
 
 - Documentation improvements and additions:
