@@ -1,7 +1,7 @@
 Nodes
 =====
 
-Nodes are a type of object created by Dallinger, they have their own dedicated table in the database, and because they are probably the object you'll interact with the most in an experiment we'll start with them first.
+Nodes are one type of object created by Dallinger. They have their own dedicated table in the database, and because they are probably the object with which you'll interact the most, we'll examine them first.
 
 .. figure:: _static/class_chart.jpg
    :alt: 
@@ -9,30 +9,30 @@ Nodes are a type of object created by Dallinger, they have their own dedicated t
 What is a Node?
 ---------------
 
-Node's are a point in a network. So if we're thinking of a social network like Facebook each node would be a user. Or, if we think about the London underground (a local rail network) each node would be a station.
+Nodes are a point in a network. If we're thinking of a social network like Facebook, each node would be a user. Or, if we think about the London underground (a local rail network), each node would be a station.
 
-From the diagram above we can see that a Node needs a Network. What this means is that you cannot possibly create a Node outside of a Network. In the same way that all facebook users are, by definition, part of the facebook social network, all Nodes in Dallinger are, by definition, within a Network. Note that this doesn't mean that a Node must be linked up somehow to other Nodes - it is perfectly OK for a node to be floating loose in space (just like facebook users don't have to have any friends). The only requirement is that the space it floats in, is a network.
+From the diagram above, we can see that in the Dallinger system, a Node requires a Network. What this means is that you cannot possibly create a Node outside of a Network. In the same way that all Facebook users are, by definition, part of the Facebook social network, all Nodes in Dallinger are, by definition, within a Network. Note that this doesn't mean that a Node must be linked up to other Nodes - it is perfectly OK for a Node to be floating loose in space (just like Facebook users don't have to have any friends). The only requirement is that the space it floats in is a Network.
 
-The other requirement of Nodes is a soft one - Nodes *might* have a Participant. This is because when participants take part in an experiment they do so through a Node. Returning again to Facebook, the story is the same: when a human wishes to engage with Facebook they do so by creating a user account (the Facebook equivalent of a Node). So why is this a soft requirement? Don't all nodes need a Participant? The answer is no. Dallinger allows Nodes to be AI controlled such that they can take part in experiments without a human participant guiding their behavior. This way you can do a whole bunch of things like:
+The other requirement of Nodes is a soft one: Nodes *might* have an associated Participant. This is because when participants take part in an experiment, they do so through a Node. Returning again to Facebook, the story is the same: when a human wishes to engage with Facebook they do so by creating a user account (the Facebook equivalent of a Node). So, why is this a soft requirement - don't all nodes need a Participant? The answer is no. Dallinger also allows Nodes to be `AI controlled` such that they can take part in experiments without a human participant guiding their behavior. This way you can do a whole bunch of things like:
 
-1. In a questionnaire experiment have a node act as the quiz master, creating and sending out questions to human participants
-2. Have a translator node: anything sent to it can be translated to any other language and sent back to the user.
-3. Have confederate nodes that masquerade as humans but are actually following the experimenter's bidding and trying to manipulate their behavior (think Russian Twitter bots).
+1. In a questionnaire experiment have a Node act as the quiz master, creating and sending out questions to human participants
+2. Have a translator Node: anything sent to it can be translated to any other language and sent back to the user
+3. Have confederate Nodes that masquerade as humans, but are actually following the experimenter's bidding and trying to manipulate their behavior (think Russian Twitter bots)
 
 OK, maybe don't actually do the last one, but you get the picture: by allowing Nodes to operate without a human Participant, Dallinger allows a much wider range of experimental designs than would otherwise be possible.
 
-The reverse is true also: a single participant can be associated with multiple nodes. So, in facebook terms this is like a single person having multiple accounts. Again, this opens up new experimental designs:
+The reverse is true also: a single Participant can be associated with multiple Nodes. In Facebook terms, this is like a single person having multiple accounts. Again, this opens up new experimental designs:
 
-1. You can allow a participant to take part in multiple networks. Because each Node is bound within a particular network the participant will need a different node for each network.
-2. You can have a whole team of nodes under the control of a single participant (maybe like foosball).
-3. A participant can take part in the same experiment at separate times, using a different node for each time period helps you keep track of what happened when.
+1. You can allow a Participant to take part in multiple Networks (because each Node is bound within a Particular Network, the Participant will need a different Node for each Network)
+2. You can have a whole team of Nodes under the control of a single Participant (maybe like foosball)
+3. A Participant can take part in the same experiment at separate times, and using a different Node for each time period helps you keep track of what happened when
 
 If you look back at the above diagram you'll see that there are a couple of other arrows connected to Node (going to Infos and Vectors) but we'll come to those in a couple of pages time.
 
 The Node table
 --------------
 
-Remembering what we already covered about the table/object duality of Dallinger's objects let's start by looking at the Node table. While each row tells us about a specific Node, right now we're more interested in the column names as these tell us about the kinds of properties that all Nodes have. The quickest way to do this is in Postico: we can open up the Node table and look at the column names. But there's also a harder (but more informative) way: we can look at the Dallinger code that creates the table. Guess which way we're going to do it... that's right: the hard, but informative way (you'll thank me later). So, to start let's open up the code. You'll want to open the file `models.py` and it can be found in Dallinger/dallinger/models.py. It's called models because that's a common name for files that contain the code descriptions of the key classes that make up a program. Later on in this guide you'll see how to create custom classes on an experiment-by-experiment basis and in that case you'll be making your own models.py file. But let's not worry about that for now, instead, open up models.py and look for the definition of the Node class. You'll know when you've found it because it starts with the following line:
+Remembering what we already covered about the table/object duality of Dallinger's objects, let's start by looking at the Node table. While each row tells us about a specific Node, right now we're more interested in the column names, as these tell us the properties common to all Nodes. The quickest way to do this is in Postico: we can open up the Node table and look at the column names. But there's also a harder (but more informative) way: we can look at the Dallinger code that creates the table. Guess which way we're going to do it... that's right: the hard, but informative way (you'll thank me later). So, to start let's open up the code. You'll want to open the file `models.py` (Dallinger/dallinger/models.py). It's called "models.py" because that's a common name for files that contain the code descriptions of the key classes that make up a program. Later on in this guide you'll see how to create custom classes on an experiment-by-experiment basis, and in that case you'll be making your own models.py file. But let's not worry about that for now. Instead, open up models.py and look for the definition of the Node class. You'll know when you've found it because it starts with the following line:
 ::
 
 	class Node(Base, SharedMixin):
@@ -42,7 +42,7 @@ Immediately below this you'll see
 
 	__tablename__ = "node"
 
-And as you might have guessed this specifies that objects of this class (Node) will get stored in a table called node. The next few lines create some columns that you should recognize from Postico:
+And as you might have guessed, this specifies that objects of this class (``Node``) will get stored in a table called ``node``. The next few lines create some columns that you should recognize from Postico:
 ::
 
     #: A String giving the name of the class. Defaults to
@@ -66,16 +66,16 @@ And as you might have guessed this specifies that objects of this class (Node) w
     #: the participant the node is associated with
     participant = relationship(Participant, backref='all_nodes')
 
-Let's go through these one at a time. The first one creates a column called type, and specifies that its a String up to 50 characters long. The immediately following lines allow this column to take on different values (i.e. be "polymorphic"). Why would we want this? Well, remember that due to table/object duality at some point any row in the table is going to be read and turned into an object, but the program needs to know what kind of object to turn in into. We might expect things in the Node table to be turned into Nodes, and in general you are right. But remember how we discussed above that different kinds of Nodes can be created (bots, for instance). The type column is what let's the program know what kind of Node object to turn each row of the table into. We'll see example where types other than "node" are used later on, but for now, let's just stick with "node".
+Let's go through these one at a time. The first one creates a column called ``type``, and specifies that it's a String up to 50 characters long. The immediately following lines allow this column to take on different values (i.e. be "polymorphic"). Why would we want this? Well, remember that due to table/object duality at some point any row in the table is going to be read and turned into an object, but the program needs to know what kind of object to turn in into. We might expect things in the Node table to be turned into Nodes, and in general you are right. But remember how we discussed above that different kinds of Nodes can be created (bots, for instance). The ``type`` column is what let's the program know what kind of Node object to turn each row of the table into. We'll see examples where types other than ``node`` are used later on, but for now, let's just stick with ``node``.
 
-The next row creates the network_id column. It contains an integer (not a String). The next bit (`ForeignKey('network.id')`) might seem a bit mysterious, but again it can be solved by thinking about row/object duality. Recall that if you want to know details of a nodes network you can just do something like:
+The next row creates the ``network_id`` column. It contains an integer (not a String). The next bit (``ForeignKey('network.id')``) might seem a bit mysterious, but again it can be solved by thinking about row/object duality. Recall that if you want to know details of a Node's Network you can just do something like:
 ::
 
 	node.network.creation_time
 
-well this ForeignKey is what let's you do that. It says that whatever you get by typing `node.network_id`, you should get the same thing by typing `node.network.id`. In fact it doesn't just say that you *should* get the same thing, it says you *will* get the same thing. This is just firmly cementing the relationship between a node and its network.
+This ``ForeignKey`` is what lets you do that. It says that whatever you get by typing ``node.network_id``, you should get the same thing by typing ``node.network.id``. In fact it doesn't just say that you *should* get the same thing, it says you *will* get the same thing. The ``ForeignKey`` is what firmly cements the relationship between a Node and its Network.
 
-The final bit (`index=True`) really doesn't need to trouble you. It's basically an instruction to the database to keep tabs on this column. In practice it slightly slows down row creation, but hugely speeds up searches across the table. If we didn't have this set to true experiments would steadily slow down as more participants took part in the experiment and the tables grew.
+The final bit (``index=True``) really doesn't need to trouble you. It's basically an instruction to the database to keep tabs on this column. In practice it slightly slows down row creation, but hugely speeds up searches across the table. If we didn't have this set to ``true`` experiments would steadily slow down as more participants took part in the experiment and the tables grew.
 
 OK, on to the next one:
 ::
@@ -83,27 +83,27 @@ OK, on to the next one:
 	#: the network the node is in
     network = relationship(Network, backref="all_nodes")
 
-At first this look like another column, but hang on - if you look in Postico you'll see that there isn't a "network" column in the node table at all, just "network_id", so what is this? Note also that this line of code says nothing about a `Column`, instead it's creating a `relationship`. As you might have guessed this line is what allows you to do things like `node.network.creation_time`. Specifically it sets up the link allowing you to do `node.network` and get a network object in return. You might also notice that it works in reverse thanks to the `backref` value. So you can do `network.all_nodes` and get a list of all the nodes in a network.
+At first this looks like another column, but hang on - if you look in Postico you'll see that there isn't a "network" column in the Node table at all, just "network_id", so what is this? Note also that this line of code says nothing about a ``Column``, instead it's creating a ``relationship``. As you might have guessed, this line is what allows you to do things like ``node.network.creation_time``. Specifically, it sets up the link allowing you to do ``node.network`` and get a Network object in return. You might also notice that it works in reverse thanks to the ``backref`` value. So you can do ``network.all_nodes`` and get a list of all the Nodes in a Network.
 
 Relationships are extremely handy shortcuts to jump between objects of different kinds without having to type out long and boring queries to do with the tables. In our model of table/object duality relationships are firmly on the object side of things: once you export the data and are working with spreadsheets they will no longer be available.
 
 SharedMixin, or where are the rest of my columns?
 -------------------------------------------------
 
-If you look at the next bit of code in models.py you'll see that it has stopped creating columns and started doing other things. But, if you look in Postico you'll see that there are a whole bunch of other columns, so where are these coming from? The answer is from a different class called `SharedMixin`.
+If you look at the next bit of code in models.py you'll see that it has stopped creating columns and started doing other things. But, if you look in Postico you'll see that there are a whole bunch of other columns, so where are these coming from? The answer is from a different class called ``SharedMixin``.
 
-`SharedMixin` can be found in models.py too, you can find it by searching for this line:
+``SharedMixin`` can be found in models.py too, you can find it by searching for this line:
 ::
 
 	class SharedMixin(object):
     """Create shared columns."""
 
-As the short comment tag suggests, SharedMixin is a class that creates columns that are going to be shared by all the tables, not just the Node table. By using SharedMixin we don't have to manually add these columns to every table, we can just write them out once and then add them as a group to each table. So how are the columns in SharedMixin added to the node table? Well if you go back to the Node class definition you'll see that SharedMixin is listed in the parentheses along with the word Base:
+As the short comment tag suggests, ``SharedMixin`` is a class that creates columns that are going to be shared by all the tables, not just the Node table. By using ``SharedMixin``, we don't have to manually add these columns to every table, we can just write them out once and then add them as a group to each table. So how are the columns in ``SharedMixin`` added to the node table? Well if you go back to the ``Node`` class definition you'll see that ``SharedMixin`` is listed in the parentheses along with the word ``Base``:
 ::
 
 	class Node(Base, SharedMixin):
 
-What this means is that Node inherits from both Base and SharedMixin. You don't need to worry what Base means for now (it basically just means make a table for this kind of thing), but by placing SharedMixin here it tells Dallinger to add all of the columns defined in the SharedMixin class to the node table. So what are these columns? Well, by-and-large, they're pretty straight forward. Here's the first two:
+What this means is that ``Node`` inherits from both ``Base`` and ``SharedMixin``. You don't need to worry what ``Base`` does for now (it basically just means "make a table for this kind of thing"), but placing ``SharedMixin`` here tells Dallinger to add all of the columns defined in the ``SharedMixin`` class to the "node" table. So what are these columns? Well, by-and-large, they're pretty straightforward. Here are the first two:
 ::
 
     #: a unique number for every entry. 1, 2, 3 and so on...
@@ -112,9 +112,9 @@ What this means is that Node inherits from both Base and SharedMixin. You don't 
     #: the time at which the Network was created.
     creation_time = Column(DateTime, nullable=False, default=timenow)
 
-`id` is an Integer, it's also the `primary_key` of the table which means that no two rows can have the same value. `Creation_time` is a time, it can't be null (i.e. all filled rows must have a value) and unless you tell it otherwise it will be filled with whatever the time was when the row was filled (that's the `default=timenow` bit).
+``id`` is an Integer, it's also the `primary key` (``primary_key=True``) of the table, which means that no two rows can have the same value. The ``creation_time`` holds a time, it can't be ``null`` (i.e. all filled rows must have a value), and unless you tell it otherwise, it will be filled with whatever the time was when the row was filled (that's the ``default=timenow`` bit).
 
-After this are a bunch of property columns:
+After this are a bunch of ``property`` columns:
 ::
 
 	#: a generic column that can be used to store experiment-specific details in
@@ -123,7 +123,7 @@ After this are a bunch of property columns:
 
 These can be used for anything you feel like, we'll see some examples of this later on.
 
-Next come `failed` and `time_of_death`:
+Next come ``failed` and ``time_of_death``:
 ::
 
     #: boolean indicating whether the Network has failed which
@@ -134,16 +134,16 @@ Next come `failed` and `time_of_death`:
     #: the time at which failing occurred
     time_of_death = Column(DateTime, default=None)
 
-`failed` is used to mark rows as, well, failed and `time_of_death` simply records the time at which this failing occurred. Rows start off unfailed (i.e. their `failed` value is False), but once rows are marked as failed (i.e. their `failed` value is set to True) Dallinger will ignore them from then on, unless told otherwise. For instance, if you ask how many nodes are in a network, Dallinger will tell you how many *unfailed* nodes are in the network. Similarly, if you ask for all the nodes associated with a particular participant, Dallinger will give you a list of all the *unfailed* nodes of that participant.
+``failed`` is used to mark rows as, well, failed and ``time_of_death`` simply records the time at which this failing occurred. Rows start off unfailed (i.e. their ``failed`` value is ``False``), but once rows are marked as failed (i.e. their ``failed`` value is set to ``True``) Dallinger will ignore them from then on, unless told otherwise. For instance, if you ask how many Nodes are in a Network, Dallinger will tell you how many *unfailed* Nodes are in the Network. Similarly, if you ask for all the Nodes associated with a particular Participant, Dallinger will give you a list of all the *unfailed* Nodes of that Participant.
 
-Why would you want to fail a node? Well let's say you a participant spills coffee on their computer half way through the experiment and they disappear. You recruit another participant to take their place, but you now need a way to get rid of the incomplete data from the earlier participant. This is what failing is for - the data isn't deleted, but, unless you tell it otherwise, Dallinger will continue with the experiment as if those rows in the table were not there. There's a thousand reasons you might want to fail a participant and we'll see many more of them later on in this guide.
+Why would you want to fail a Node? Well let's say you a participant spills coffee on their computer half way through the experiment and they disappear. You recruit another participant to take their place, but you now need a way to get rid of the incomplete data from the earlier participant. This is what failing is for - the data isn't deleted, but, unless you tell it otherwise, Dallinger will continue with the experiment as if those rows in the table were not there. There's a thousand reasons you might want to fail a Participant Node, and we'll see many more of them later on in this guide.
 
-The final column is `details`. This serves a very similar function to the property columns discussed above, but is fancier and generally better. Chances are that down the line `details` will entirely replace the property columns and so this bit of the guide will need to be rewritten.
+The final column is ``details``. This serves a very similar function to the ``property`` columns discussed above, but is fancier and generally better. Chances are that down the line ``details`` will entirely replace the ``property`` columns and so this bit of the guide will need to be rewritten.
 
 Node objects
 ------------
 
-So far we've covered Node's from the table view, but remember that all Dallinger classes have table/object duality and in general the object side of things is far more useful. So what are the extra features of Nodes if we treat them as objects? (In a good way.) Let's return to the Node class in models.py and look immediately below where the columns were created. The first function is `__init__`:
+So far we've covered Node's from the table view, but remember that all Dallinger classes have table/object duality and in general the object side of things is far more useful. So what are the extra features of Nodes if we treat them as objects? (In a good way.) Let's return to the Node class in models.py and look immediately below where the columns were created. The first function is ``__init__``:
 ::
 
 	def __init__(self, network, participant=None):
@@ -169,11 +169,11 @@ So far we've covered Node's from the table view, but remember that all Dallinger
             self.participant = participant
             self.participant_id = participant.id
 
-All objects in python need an `__init__` function, they tell the program how to make objects of this kind, and Dallinger is no different. So this function tells Dallinger how to make a Node. It's quite straight forward: the function demands that a network object be sent to it, but will also accept a participant object too (remember that Node's need a network, but only *might* have a participant). The function then checks to make sure the network isn't failed (yes, just like nodes, networks can fail too, and no, once a network is failed, you cannot add more nodes to it), that the participant isn't failed (ditto) and that the participant is "working" (more on this in the participant page). If all these checks are satisfied it adds the network to itself (think of this as filling in a row and creating relationships) and it does the same for its participant too if its been sent one.
+All objects in python need an ``__init__`` function, they tell the program how to make objects of this kind, and Dallinger is no different. So this function tells Dallinger how to make a Node. It's quite straight forward: the function demands that a Network object be sent to it, but will also accept a Participant object too (remember that Nodes need a Network, but only *might* have a Participant). The function then checks to make sure the Network isn't failed (yes, just like Nodes, Networks can fail too, and no, once a Network is failed, you cannot add more Nodes to it), that the Participant isn't failed (ditto) and that the Participant is "working" (more on this in the participant page). If all these checks are satisfied it adds the Network to itself (think of this as filling in a row and creating relationships) and it does the same for its Participant too if it's been sent one.
 
-The next two functions, `__repr__` and `__json__` both return String representations of the node. `__repr__` returns a very basic one, whereas `__json__` returns a full description of all columns in the node table. You'll see `__json__` used a lot as its a handy way to create a String containing all the information about a node that can then be sent over the internet.
+The next two functions, ``__repr__`` and ``__json__`` both return String representations of the Node. ``__repr__`` returns a very basic one, whereas ``__json__`` returns a full description of all columns in the node table. You'll see ``__json__`` used a lot as its a handy way to create a String containing all the information about a Node that can then be sent over the internet.
 
-The next few functions are all used to get other things from the database. Let's look at the first one, `vectors()`. If you're new to Dallinger, you probably don't know what vectors are yet, but for now just think of them as links that connect nodes in the network, and just like nodes, they have their own table where each row corresponds to a different Vector. Now let's say you want to know how many vectors a Node is connected with. You can do this by doing a query over the Vector table (and this is what most of the contents of this function is doing), but we've provided this handy function to make your life easier, so now you can do something like `node.vectors()` and you'll be sent a list of vectors that join this node to other nodes. But you've actually got a few more options as shown by the function declaration:
+The next few functions are all used to get other things from the database. Let's look at the first one, ``vectors()``. If you're new to Dallinger, you probably don't know what vectors are yet, but for now just think of them as links that connect Nodes in the Network, and just like Nodes, they have their own table where each row corresponds to a different Vector. Now let's say you want to know how many vectors a Node is connected with. You can do this by doing a query over the Vector table (and this is what most of the contents of this function is doing), but we've provided this handy function to make your life easier, so now you can do something like ``node.vectors()`` and you'll be sent a list of Vectors that join this Node to other Nodes. But you've actually got a few more options as shown by the function declaration:
 ::
 
     def vectors(self, direction="all", failed=False):
@@ -183,7 +183,7 @@ The next few functions are all used to get other things from the database. Let's
         Failed can be True, False or all
         """
 
-So you can request vectors that are outgoing from a node like this: `node.vectors(direction="outgoing")` or you can even ask for failed vectors to be included like this: `node.vectors(failed="all")`. To get a sense of how much work this is saving you, this is what `node.vectors()` looks like as a query over the tables:
+So you can request Vectors that are outgoing from a Node like this: ``node.vectors(direction="outgoing")`` or you can even ask for failed Vectors to be included like this: ``node.vectors(failed="all")``. To get a sense of how much work this is saving you, this is what ``node.vectors()`` looks like as a query over the tables:
 ::
 
 	Vector.query\
@@ -192,23 +192,23 @@ So you can request vectors that are outgoing from a node like this: `node.vector
                     Vector.origin_id == node.id)))\
         .all()
 
-In a more human language this corresponds to "Please do a search over the Vector table returning only those rows where the failed column contains False AND either the destination_id column OR origin_id column contains the same number as the id of the node". Pretty elaborate! Its methods such as these that will allow you to write quite complex experiments in remarkably few lines of code - you just need to learn about them first. As a note, observe that table queries by default don't ignore failed rows (we had to ask the query to only return not failed rows), so if you ever do start writing out queries the long way instead of using Dallinger's handy shortcuts don't forget to add this.
+In a more human language this corresponds to "Please do a search over the Vector table returning only those rows where the failed column contains False AND either the destination_id column OR origin_id column contains the same number as the id of the Node". Pretty elaborate! Its methods such as these that will allow you to write quite complex experiments in remarkably few lines of code - you just need to learn about them first. As a note, observe that table queries by default don't ignore failed rows (we had to ask the query to only return not failed rows), so if you ever do start writing out queries the long way instead of using Dallinger's handy shortcuts don't forget to add this.
 
 The next few functions are just other queries over the tables in the database but with wrappers that make them nicer to use. As you read the following you should try to figure out how the code is doing what it does. You should also compare this with the more technical documentation :ref:`here <classes>` as down the line you'll want to work from the documentation or code itself, and not from this more cumbersome guide.
 
-`node.neighbors()` will return a list of nodes that the central node has a connection to. Let's say you want to offer a participant a choice of other participants who they can ask for help. Neighbors is really useful for this as it gives a list of all other nodes the participant's node is currently connected to and so are avilable to help. If you look at the function you can see it accepts the parameters `direction` and `type`. These tell the query to look only for neighbors of a certain type (e.g. bots, or agents etc.) or connected to the focal node in a certain direction (`Vectors` are directional so there might be a vector from A to B, but not from B to A). You've probably also noticed that the function can take a parameter called `failed` but further inspection of the code shows it will raise an error if you try to use this parameter - I'll leave it up to you to read the code to see why this is.
+``node.neighbors()`` will return a list of Nodes that the central Node has a connection to. Let's say you want to offer a participant a choice of other participants who they can ask for help. Neighbors is really useful for this as it gives a list of all other Nodes the participant's Node is currently connected to and so are avilable to help. If you look at the function you can see it accepts the parameters ``direction`` and ``type``. These tell the query to look only for neighbors of a certain type (e.g. bots, or agents etc.) or connected to the focal Node in a certain direction (`Vectors` are directional so there might be a Vector from A to B, but not from B to A). You've probably also noticed that the function can take a parameter called ``failed`` but further inspection of the code shows it will raise an error if you try to use this parameter - I'll leave it up to you to read the code to see why this is.
 
-`node.is_connected()` looks for a Vector between two specific nodes. Again, a direction parameter allows you to specify whether you're looking for a connection from A to B, or to B from A, or both.
+``node.is_connected()`` looks for a Vector between two specific Nodes. Again, a direction parameter allows you to specify whether you're looking for a connection from A to B, or to B from A, or both.
 
-`node.infos()` gets all the Infos made by a Node of a specified `type`.
+``node.infos()`` gets all the Infos made by a Node of a specified `type`.
 
-`node.received_infos()` gets all the Infos sent to a Node by other Nodes.
+``node.received_infos()`` gets all the Infos sent to a Node by other Nodes.
 
-`node.transmissions()` get all transmissions sent or received by a node. Parameters can be used to be more precise, for instance only getting transmissions sent by the node, or maybe only getting transmissions sent to the node but that have not yet been read (this is basically like checking your inbox).
+``node.transmissions()`` get all Transmissions sent or received by a Node. Parameters can be used to be more precise, for instance only getting Transmissions sent by the Node, or maybe only getting Transmissions sent to the Node but that have not yet been read (this is basically like checking your inbox).
 
-`node.transformations()` does a query over the transformation table, but transformations are hard to understand so let's leave this for now.
+``node.transformations()`` does a query over the transformation table, but Transformations are hard to understand, so let's leave this for now.
 
-After this the functions change from looking over the database to get information about a node, to being instructions that tell a node to do something. Once your experiment is running, when participants first arrive they typically do quite a few of the "get" kinds of functions in order to figure out who they are, and what they need to do. But once participants start making decisions you'll see more and more of the "do something" kinds of functions. Let's walk though a few examples, the first is `node.fail()`, here's the code in full:
+After this the functions change from looking over the database to get information about a Node, to being instructions that tell a Node to do something. Once your experiment is running, when participants first arrive they typically do quite a few of the "get" kinds of functions in order to figure out who they are, and what they need to do. But once participants start making decisions you'll see more and more of the "do something" kinds of functions. Let's walk though a few examples, the first is ``node.fail()``, here's the code in full:
 ::
 
     def fail(self):
@@ -242,9 +242,9 @@ After this the functions change from looking over the database to get informatio
             for t in self.transformations():
                 t.fail()
 
-Remember that we tell a node to fail when we want to make it disappear for some reason (like a participant spilling coffee on their keyboard and so vanishing mid way through an experiment). This function is quite simple. It first checks that the node isn't already failed (`if self.failed is True`) because telling a node to fail twice probably indicates there is a bug in your code. If this check passes the node has its `failed` value set to True (you'll be able to see this in the failed column of the node table in the database) and its `time_of_death` value set to whatever the time is now (again this will be visible in the database). But note if then does a whole bunch of other things: basically it gets lists of all the vectors connected to the node (`self.vectors()`), all the infos made by the node, all the transmissions sent or received by the node and all the transformations made by the node, and tells them to fail as well. In this way the database remains coherent: if we didn't do this there would be a bunch of infos, for instance, without a node that created them. (Well, the node would still be there in the database, just marked as failed, but remember that by default Dallinger ignores all failed rows in the database, but it wouldn't know to ignore a failed node's infos unless they were also failed too).
+Remember that we tell a Node to fail when we want to make it disappear for some reason (like a participant spilling coffee on their keyboard and so vanishing mid way through an experiment). This function is quite simple. It first checks that the Node isn't already failed (``if self.failed is True``) because telling a Node to fail twice probably indicates there is a bug in your code. If this check passes the Node has its ``failed`` value set to ``True`` (you'll be able to see this in the failed column of the node table in the database) and its ``time_of_death`` value set to whatever the time is now (again this will be visible in the database). But note if then does a whole bunch of other things: basically it gets lists of all the Vectors connected to the Node (``self.vectors()``), all the Infos made by the Node, all the Transmissions sent or received by the Node and all the Transformations made by the Node, and tells them to fail as well. In this way the database remains coherent: if we didn't do this there would be a bunch of infos, for instance, without a Node that created them. (Well, the Node would still be there in the database, just marked as failed, but remember that by default Dallinger ignores all failed rows in the database, but it wouldn't know to ignore a failed Node's Infos unless they were also failed too).
 
-The next function is `node.connect()`, again, here's the code in full:
+The next function is ``node.connect()``, again, here's the code in full:
 ::
 
     def connect(self, whom, direction="to"):
@@ -304,14 +304,14 @@ The next function is `node.connect()`, again, here's the code in full:
                     new_vectors.append(Vector(origin=node, destination=self))
         return new_vectors
 
-OK, this function is a lot longer and more complicated than `node.fail()`, but the first half is basically all a comment explaining what the function does. From that alone it should (hopefully) be quite clear what the function does: it joins nodes via vectors. But let's break it down bit by bit to see exactly how it does this:
+OK, this function is a lot longer and more complicated than ``node.fail()``, but the first half is basically all a comment explaining what the function does. From that alone it should (hopefully) be quite clear what the function does: it joins nodes via vectors. But let's break it down bit by bit to see exactly how it does this:
 
-First note that the function takes two arguments: `whom` and `direction` (`self` is always listed in python functions, so don't worry about it for now).
+First note that the function takes two arguments: ``whom`` and ``direction`` (``self`` is always listed in python functions, so don't worry about it for now).
 ::
 
 	def connect(self, whom, direction="to"):
 
-The next step is to check that `direction` has been given an acceptable value. The default is "to" (this is why it's listed in the above line of code), but "from" and "both" are also ok. If any other value is passed an error will be raised and the program will crash.
+The next step is to check that ``direction`` has been given an acceptable value. The default is "to" (this is why it's listed in the above line of code), but "from" and "both" are also ok. If any other value is passed an error will be raised and the program will crash.
 ::
 
     	# check direction
@@ -319,13 +319,13 @@ The next step is to check that `direction` has been given an acceptable value. T
             raise ValueError("{} is not a valid direction for connect()"
                              .format(direction))
 
-The other argument (`whom`), which determines which other nodes the node will connect with, needs a bit more preparation. First its "flattened".
+The other argument (``whom``), which determines which other nodes the node will connect with, needs a bit more preparation. First it's "flattened".
 ::
 
         # make whom a list
         whom = self.flatten([whom])
 
-To understand why this is needs a bit of explanation. When we were creating this function we wanted it to be quite powerful in that the user could pass anything vaguely sensible and the function would behave intuitively. So, if a user passed a single node we wanted that node to connect with the users node. The user might pass a list of nodes, and again, we want the user's node to connect with all nodes in that list. The user also might do something unusual like pass a list containing other lists, each of which contains a some specific nodes. To handle this, the first thing the function does it take whatever it has been sent and turn it into a single list, that doesn't contain any other lists. This is what the flatten function does. So if the user sends a single node, flatten turns it into a list containing just that Node. Here's a couple more examples:
+To understand why this is needs a bit of explanation. When we were creating this function we wanted it to be quite powerful in that the user could pass anything vaguely sensible and the function would behave intuitively. So, if a user passed a single node we wanted that node to connect with the users node. The user might pass a list of nodes, and again, we want the user's Node to connect with all Nodes in that list. The user also might do something unusual like pass a list containing other lists, each of which contains a some specific nodes. To handle this, the first thing the function does it take whatever it has been sent and turn it into a single list, that doesn't contain any other lists. This is what the flatten function does. So if the user sends a single node, flatten turns it into a list containing just that Node. Here's a couple more examples:
 ::
 
 	node1								-> flatten() -> [node1]
@@ -371,7 +371,7 @@ We made it! OK, go get a cup of tea and come back when you're ready for more.
 
 The next function is `flatten`, but I'll leave it up to you to see how it turns nested lists into flat lists. After this we get to `transmit` which is another big and complicated function. The purpose of transmit is to send information (`Infos`, more on what these are later) between connected nodes. If you're using dallinger chances are that you're intersted in doing networked experiments of some kind and so you'll be using this function a lot. You might, for instance, have a chat room where participants can send each other messages. You might alternatively want to show the decisions of past participants to current participants. Because transmit is used so often its important to understand it, so we'll go through it bit-by-bit again. Fortunately, it uses some of the same tricks as `connect`. Let's break it down:
 
-First off let's see what arguments it takes: `what` and `to_whom`. As the comment makes clear, `what` determines the contents of the transmission, while `to_whom` determines which nodes transmissions will be sent to.
+First off let's see what arguments it takes: ``what`` and ``to_whom``. As the comment makes clear, ``what`` determines the contents of the transmission, while ``to_whom`` determines which nodes transmissions will be sent to.
 ::
 
 	def transmit(self, what=None, to_whom=None):
@@ -387,19 +387,19 @@ Then we flatten whatever was sent and go through it one element at a time.
 
         for what in self.flatten([what]):
 
-If its a `None` we call the default behavior function (`_what()`) to see what we should do. `_what()` is directly after `transmit()` in models.py and by default it returns `Info`. So, by default, if you pass `None` it gets turned into `Info`. you can overwrite the function `_what()` if you want to change this behavior and we'll see examples of this later on.
+If its a ``None`` we call the default behavior function (``_what()``) to see what we should do. ``_what()`` is directly after ``transmit()`` in models.py and by default it returns ``Info``. So, by default, if you pass ``None`` it gets turned into ``Info``. you can overwrite the function ``_what()`` if you want to change this behavior and we'll see examples of this later on.
 ::
 
             if what is None:
                 what = self._what()
 
-Next, if its a Class (and only if its a Class of `Info`) we get a list of all Infos of that class and add (i.e. `update()`) them to the set:
+Next, if its a Class (and only if its a Class of ``Info``) we get a list of all Infos of that class and add (i.e. ``update()``) them to the set:
 ::
 
             if inspect.isclass(what) and issubclass(what, Info):
                 whats.update(self.infos(type=what))
 
-Finally, if its just a regular `Info` object, we just add it to the set:
+Finally, if its just a regular ``Info`` object, we just add it to the set:
 ::
 
             else:
