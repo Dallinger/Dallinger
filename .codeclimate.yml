@@ -14,14 +14,10 @@ checks:
       threshold: 750
   method-complexity:
     enabled: true
-    exclude_patterns:
-    - "tests/"
     config:
       threshold: 5
   method-count:
     enabled: true
-    exclude_patterns:
-    - "tests/"
     config:
       threshold: 20
   method-lines:
@@ -39,14 +35,12 @@ checks:
   similar-code:
     enabled: true
     exclude_patterns:
-    - "tests/"
     - "demos/"
     config:
       threshold: #language-specific defaults. overrides affect all languages.
   identical-code:
     enabled: true
     exclude_patterns:
-    - "tests/"
     - "demos/"    
     config:
       threshold: #language-specific defaults. overrides affect all languages.
@@ -61,6 +55,7 @@ exclude_patterns:
 - "**/node_modules/"
 - "**/*min.js"
 - "scripts/"
+- "tests/"
 - ".cache/"
 - ".eggs/"
 - "**/rq_gevent_worker.py"
