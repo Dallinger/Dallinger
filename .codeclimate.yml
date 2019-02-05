@@ -46,12 +46,13 @@ checks:
     - "demos/"    
     config:
       threshold: #language-specific defaults. overrides affect all languages.
- eslint:
-   enabled: true
- fixme:
-   enabled: true
- radon:
-   enabled: true
+plugins:
+  eslint:
+    enabled: true
+  fixme:
+    enabled: true
+  radon:
+    enabled: true
 exclude_patterns:
 - "**/node_modules/"
 - "**/*min.js"
