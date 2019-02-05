@@ -1,35 +1,108 @@
----
-engines:
-  csslint:
+version: "2"
+checks:
+  argument-count:
     enabled: true
+    config:
+      threshold: 4
+  complex-logic:
+    enabled: true
+    config:
+      threshold: 4
   file-lines:
+    enabled: true
     config:
       threshold: 750
-  duplication:
+  method-complexity:
     enabled: true
     config:
-      languages:
-      - ruby
-      - javascript
-      - python
-      - php
-    exclude_paths:
-      - "tests/*"
-  eslint:
+      threshold: 5
+  method-count:
     enabled: true
-  fixme:
+    config:
+      threshold: 20
+  method-lines:
     enabled: true
-  radon:
+    config:
+      threshold: 25
+  nested-control-flow:
     enabled: true
-ratings:
-  paths:
-  - "**.css"
-  - "**.inc"
-  - "**.js"
-  - "**.jsx"
-  - "**.module"
-  - "**.php"
-  - "**.py"
-  - "**.rb"
-exclude_paths:
+    config:
+      threshold: 4
+  return-statements:
+    enabled: true
+    config:
+      threshold: 4
+  similar-code:
+    enabled: true
+    exclude_patterns:
+    - "tests/"
+    - "demos/"
+    config:
+      threshold: #language-specific defaults. overrides affect all languages.
+  identical-code:
+    enabled: true
+    exclude_patterns:
+    - "tests/"
+    - "demos/"    
+    config:
+      threshold: #language-specific defaults. overrides affect all languages.
+ eslint:
+   enabled: true
+ fixme:
+   enabled: true
+ radon:
+   enabled: true
+exclude_patterns:
+- "**/node_modules/"
 - "**/*min.js"
+
+# - "config/"
+# - "db/"
+# - "dist/"
+# - "features/"
+# - "**/node_modules/"
+# - "script/"
+# - "**/spec/"
+# - "**/test/"
+# - "**/tests/"
+# - "**/vendor/"
+# - "**/*.d.ts"
+
+#---
+#engines:
+#  csslint:
+#    enabled: true
+#  file-lines:
+#    config:
+#      threshold: 750
+#  duplication:
+#    enabled: true
+#    config:
+#      languages:
+#      - ruby
+#      - javascript
+#      - python
+#      - php
+#    exclude_paths:
+#      - "tests/*"
+#      - "demos/*"
+#  eslint:
+#    enabled: true
+#  fixme:
+#    enabled: true
+#  radon:
+#    enabled: true
+#ratings:
+#  paths:
+#  - "**.css"
+#  - "**.inc"
+#  - "**.js"
+#  - "**.jsx"
+#  - "**.module"
+#  - "**.php"
+#  - "**.py"
+#  - "**.rb"
+#exclude_paths:
+#- "**/*min.js"
+
+
