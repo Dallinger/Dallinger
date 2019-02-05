@@ -34,7 +34,7 @@ An in depth introduction to Dallinger for those new to programming, web developm
 	dummies_network
 	dummies_participant
 	dummies_question
-.. dummies_experiment
+	dummies_experiment
 .. dummies_experiment_bartlett
 .. dummies_experiment_rogers
 .. dummies_experiment_chatroom
