@@ -1,7 +1,7 @@
 Nodes
 =====
 
-Nodes are one type of object created by Dallinger. They have their own dedicated table in the database, and because they are probably the object with which you'll interact the most, we'll examine them first.
+Nodes are one type of object created by Dallinger. They have their own dedicated table in the database, and because they are probably the objects with which you'll interact the most, we'll examine them first.
 
 .. figure:: _static/class_chart.jpg
    :alt: 
@@ -32,7 +32,7 @@ If you look back at the above diagram you'll see that there are a couple of othe
 The Node table
 --------------
 
-Remembering what we already covered about the table/object duality of Dallinger's objects, let's start by looking at the Node table. While each row tells us about a specific Node, right now we're more interested in the column names, as these tell us the properties common to all Nodes. The quickest way to do this is in Postico: we can open up the Node table and look at the column names. But there's also a harder (but more informative) way: we can look at the Dallinger code that creates the table. Guess which way we're going to do it... that's right: the hard, but informative way (you'll thank me later). So, to start let's open up the code. You'll want to open the file `models.py` (Dallinger/dallinger/models.py). It's called "models.py" because that's a common name for files that contain the code descriptions of the key classes that make up a program. Later on in this guide you'll see how to create custom classes on an experiment-by-experiment basis, and in that case you'll be making your own models.py file. But let's not worry about that for now. Instead, open up models.py and look for the definition of the Node class. You'll know when you've found it because it starts with the following line:
+Remembering what we already covered about the table/object duality of Dallinger's objects, let's start by looking at the Node table. While each row tells us about a specific Node, right now we're more interested in the column names, as these tell us the properties common to all Nodes. The quickest way to do this is in Postico: we can open up the Node table and look at the column names. But there's also a harder (yet more informative) way: we can look at the Dallinger code that creates the table. Guess which way we're going to do it... that's right: the hard and informative way (you'll thank me later). So, to start let's open up the code. You'll want to open the file `models.py` (Dallinger/dallinger/models.py). It's called "models.py" because that's a common name for files that contain the code descriptions of the key classes that make up a program. Later on in this guide you'll see how to create custom classes on an experiment-by-experiment basis, and in that case you'll be making your own models.py file. But let's not worry about that for now. Instead, open up models.py and look for the definition of the Node class. You'll know when you've found it because it starts with the following line:
 ::
 
 	class Node(Base, SharedMixin):
@@ -66,7 +66,7 @@ And as you might have guessed, this specifies that objects of this class (``Node
     #: the participant the node is associated with
     participant = relationship(Participant, backref='all_nodes')
 
-Let's go through these one at a time. The first one creates a column called ``type``, and specifies that it's a String up to 50 characters long. The immediately following lines allow this column to take on different values (i.e. be "polymorphic"). Why would we want this? Well, remember that due to table/object duality at some point any row in the table is going to be read and turned into an object, but the program needs to know what kind of object to turn in into. We might expect things in the Node table to be turned into Nodes, and in general you are right. But remember how we discussed above that different kinds of Nodes can be created (bots, for instance). The ``type`` column is what let's the program know what kind of Node object to turn each row of the table into. We'll see examples where types other than ``node`` are used later on, but for now, let's just stick with ``node``.
+Let's go through these one at a time. The first one creates a column called ``type``, and specifies that it's a String up to 50 characters long. The immediately following lines allow this column to take on different values (i.e. be "polymorphic"). Why would we want this? Well, remember that due to table/object duality at some point any row in the table is going to be read and turned into an object, but the program needs to know what kind of object to turn it into. You might expect things in the Node table to be turned into Nodes, and in general you are right. But remember how we discussed above that different kinds of Nodes can be created (bots, for instance). The ``type`` column is what lets the program know what kind of Node object to turn each row of the table into. We'll see examples where types other than ``node`` are used later on, but for now, let's just stick with ``node``.
 
 The next row creates the ``network_id`` column. It contains an integer (not a String). The next bit (``ForeignKey('network.id')``) might seem a bit mysterious, but again it can be solved by thinking about row/object duality. Recall that if you want to know details of a Node's Network you can just do something like:
 ::
@@ -90,7 +90,7 @@ Relationships are extremely handy shortcuts to jump between objects of different
 SharedMixin, or where are the rest of my columns?
 -------------------------------------------------
 
-If you look at the next bit of code in models.py you'll see that it has stopped creating columns and started doing other things. But, if you look in Postico you'll see that there are a whole bunch of other columns, so where are these coming from? The answer is from a different class called ``SharedMixin``.
+If you look at the next bit of code in models.py, you'll see that it has stopped creating columns and started doing other things. But, if you look in Postico you'll see that there are a whole bunch of other columns, so where are these coming from? The answer is from a different class called ``SharedMixin``.
 
 ``SharedMixin`` can be found in models.py too, you can find it by searching for this line:
 ::
@@ -98,7 +98,7 @@ If you look at the next bit of code in models.py you'll see that it has stopped 
 	class SharedMixin(object):
     """Create shared columns."""
 
-As the short comment tag suggests, ``SharedMixin`` is a class that creates columns that are going to be shared by all the tables, not just the Node table. By using ``SharedMixin``, we don't have to manually add these columns to every table, we can just write them out once and then add them as a group to each table. So how are the columns in ``SharedMixin`` added to the node table? Well if you go back to the ``Node`` class definition you'll see that ``SharedMixin`` is listed in the parentheses along with the word ``Base``:
+As the short comment tag suggests, ``SharedMixin`` is a class that creates columns that are going to be shared by all the tables, not just the Node table. By using ``SharedMixin``, we don't have to manually add these columns to every table, we can just write them out once and then add them as a group to each table. So how are the columns in ``SharedMixin`` added to the node table? Well, if you go back to the ``Node`` class definition, you'll see that ``SharedMixin`` is listed in the parentheses along with the word ``Base``:
 ::
 
 	class Node(Base, SharedMixin):
@@ -114,7 +114,7 @@ What this means is that ``Node`` inherits from both ``Base`` and ``SharedMixin``
 
 ``id`` is an Integer, it's also the `primary key` (``primary_key=True``) of the table, which means that no two rows can have the same value. The ``creation_time`` holds a time, it can't be ``null`` (i.e. all filled rows must have a value), and unless you tell it otherwise, it will be filled with whatever the time was when the row was filled (that's the ``default=timenow`` bit).
 
-After this are a bunch of ``property`` columns:
+After this there are a bunch of ``property`` columns:
 ::
 
 	#: a generic column that can be used to store experiment-specific details in
@@ -136,9 +136,9 @@ Next come ``failed`` and ``time_of_death``:
 
 ``failed`` is used to mark rows as, well, failed and ``time_of_death`` simply records the time at which this failing occurred. Rows start off unfailed (i.e. their ``failed`` value is ``False``), but once rows are marked as failed (i.e. their ``failed`` value is set to ``True``) Dallinger will ignore them from then on, unless told otherwise. For instance, if you ask how many Nodes are in a Network, Dallinger will tell you how many *unfailed* Nodes are in the Network. Similarly, if you ask for all the Nodes associated with a particular Participant, Dallinger will give you a list of all the *unfailed* Nodes of that Participant.
 
-Why would you want to fail a Node? Well let's say you a participant spills coffee on their computer half way through the experiment and they disappear. You recruit another participant to take their place, but you now need a way to get rid of the incomplete data from the earlier participant. This is what failing is for - the data isn't deleted, but, unless you tell it otherwise, Dallinger will continue with the experiment as if those rows in the table were not there. There's a thousand reasons you might want to fail a Participant Node, and we'll see many more of them later on in this guide.
+Why would you want to fail a Node? Well let's say that a participant spills coffee on their computer half way through the experiment and they disappear. You recruit another participant to take their place, but you now need a way to get rid of the incomplete data from the earlier participant. This is what failing is for - the data isn't deleted, but, unless you tell it otherwise, Dallinger will continue with the experiment as if those rows in the table were not there. There's a thousand reasons you might want to fail a Participant Node, and we'll see many more of them later on in this guide.
 
-The final column is ``details``. This serves a very similar function to the ``property`` columns discussed above, but is fancier and generally better. Chances are that down the line ``details`` will entirely replace the ``property`` columns and so this bit of the guide will need to be rewritten.
+The final column is ``details``. This serves a very similar function to the ``property`` columns discussed above, but is fancier and generally better. Chances are that in a future version of Dallinger, ``details`` will entirely replace the ``property`` columns and so this bit of the guide will need to be rewritten.
 
 Node objects
 ------------
