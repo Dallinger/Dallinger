@@ -59,4 +59,5 @@ exclude_patterns:
 - "scripts/"
 - ".cache/"
 - ".eggs/"
+- "rq_gevent_worker.py"
 
