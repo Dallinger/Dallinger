@@ -14,10 +14,14 @@ checks:
       threshold: 750
   method-complexity:
     enabled: true
+    exclude_patterns:
+    - "tests/"
     config:
       threshold: 5
   method-count:
     enabled: true
+    exclude_patterns:
+    - "tests/"
     config:
       threshold: 20
   method-lines:
