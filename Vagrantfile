@@ -3,6 +3,8 @@
 
 Vagrant.configure("2") do |config|
   config.vm.box = "ubuntu/xenial64"
+  config.vm.box_version = "= 20190204.3.0"
+  config.vbguest.auto_update = true
 
   config.vm.provider "virtualbox" do |vb|
       vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
@@ -17,25 +19,31 @@ Vagrant.configure("2") do |config|
     use_dhcp_assigned_default_route: true
 
   config.vm.provision "shell", privileged: false, inline: <<-SHELL
+    # Apt setup
+    sudo add-apt-repository -y ppa:deadsnakes/ppa
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+    sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -sc)-pgdg main" > /etc/apt/sources.list.d/PostgreSQL.list'
     sudo apt-get update
 
     # Python dependencies
-    sudo apt-get install -y python3.6 python-pip
+    sudo apt-get install -y python3.6 python3.6-dev python2.7 python2.7-dev python-pip python-virtualenv
 
     # Postgres setup
-    sudo apt-get install -y postgresql-9.5 postgresql-server-dev-9.5
-    sudo -u postgres createuser -ds ubuntu
-    createdb dallinger
+    sudo apt-get install -y postgresql-10 postgresql-server-dev-10
+    sudo -u postgres createuser -ds vagrant
+    echo dallinger | sudo -u postgres createuser -ds dallinger -h localhost
+    sudo -u postgres createdb dallinger --owner dallinger
     # trust all connections
-    sudo sed /etc/postgresql/9.5/main/pg_hba.conf -e 's/md5/trust/g' --in-place
+    sudo sed /etc/postgresql/10/main/pg_hba.conf -e 's/md5/trust/g' --in-place
+    sudo sed /etc/postgresql/10/main/pg_hba.conf -e 's/peer/trust/g' --in-place
     sudo service postgresql reload
 
     # Virtual environment
     echo 'source ~/venv/bin/activate' >> ~/.bashrc
     echo 'cd /vagrant' >> ~/.bashrc
     echo 'export HOST=`ifconfig | grep Ethernet -A1 | grep addr: | tail -n1 | cut -d: -f2 | cut -d " " -f1`' >> ~/.bashrc
-    sudo pip install virtualenv
-    virtualenv --no-site-packages ~/venv
+    echo 'export TOX_WORK_DIR=/tmp' >> ~/.bashrc
+    /usr/bin/virtualenv --python python3.6 ~/venv
     source ~/venv/bin/activate
     cd /vagrant
 
@@ -47,6 +55,7 @@ Vagrant.configure("2") do |config|
     # Dallinger install
     python setup.py develop
     dallinger setup
+    echo '[vm]' >> ~/.dallingerconfig
     echo 'base_port = 5000' >> ~/.dallingerconfig
 
     # Heroku CLI installation
@@ -60,7 +69,8 @@ Vagrant.configure("2") do |config|
     sudo apt-get install redis-server -y
 
     # Test runner
-    sudo apt-get install tox -y
+    pip install --upgrade tox
+    ln -s /vagrant/.tox /tmp
 
 
   SHELL
