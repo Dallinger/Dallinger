@@ -2,6 +2,9 @@
 engines:
   csslint:
     enabled: true
+  file-lines:
+    config:
+      threshold: 750
   duplication:
     enabled: true
     config:
