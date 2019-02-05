@@ -51,9 +51,7 @@ def exp_class_working_dir(meth):
         try:
             config = get_config()
             orig_path = os.getcwd()
-            new_path = os.path.dirname(
-                sys.modules[self.__class__.__module__].__file__
-            )
+            new_path = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
             os.chdir(new_path)
             # Override configs
             config.register_extra_parameters()
@@ -62,18 +60,20 @@ def exp_class_working_dir(meth):
         finally:
             config.clear()
             os.chdir(orig_path)
+
     return new_meth
 
 
 class Experiment(object):
     """Define the structure of an experiment."""
+
     app_id = None
     # Optional Redis channel to create and subscribe to on launch. Note that if
     # you define a channel, you probably also want to override the send()
     # method, since this is where messages from Redis will be sent.
     channel = None
     exp_config = None
-    replay_path = '/'
+    replay_path = "/"
 
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
@@ -127,7 +127,7 @@ class Experiment(object):
 
         #: dictionary, the properties of this experiment that are exposed
         #: to the public over an AJAX call
-        if not hasattr(self, 'public_properties'):
+        if not hasattr(self, "public_properties"):
             # Guard against subclasses replacing this with a @property
             self.public_properties = {}
 
@@ -136,11 +136,12 @@ class Experiment(object):
 
         try:
             location = type(self).__module__
-            parent, experiment_module = location.rsplit('.', 1)
-            module = import_module(parent + '.jupyter')
+            parent, experiment_module = location.rsplit(".", 1)
+            module = import_module(parent + ".jupyter")
         except (ImportError, ValueError):
             try:
                 from .jupyter import ExperimentWidget
+
                 self.widget = ExperimentWidget(self)
             except ImportError:
                 self.widget = None
@@ -205,26 +206,22 @@ class Experiment(object):
     def networks(self, role="all", full="all"):
         """All the networks in the experiment."""
         if full not in ["all", True, False]:
-            raise ValueError("full must be boolean or all, it cannot be {}"
-                             .format(full))
+            raise ValueError(
+                "full must be boolean or all, it cannot be {}".format(full)
+            )
 
         if full == "all":
             if role == "all":
                 return Network.query.all()
             else:
-                return Network\
-                    .query\
-                    .filter_by(role=role)\
-                    .all()
+                return Network.query.filter_by(role=role).all()
         else:
             if role == "all":
-                return Network.query.filter_by(full=full)\
-                    .all()
+                return Network.query.filter_by(full=full).all()
             else:
-                return Network\
-                    .query\
-                    .filter(and_(Network.role == role, Network.full == full))\
-                    .all()
+                return Network.query.filter(
+                    and_(Network.role == role, Network.full == full)
+                ).all()
 
     def get_network_for_participant(self, participant):
         """Find a network for a participant.
@@ -236,40 +233,52 @@ class Experiment(object):
 
         """
         key = participant.id
-        networks_with_space = Network.query.filter_by(
-            full=False).order_by(Network.id).all()
+        networks_with_space = (
+            Network.query.filter_by(full=False).order_by(Network.id).all()
+        )
         networks_participated_in = [
-            node.network_id for node in
-            Node.query.with_entities(Node.network_id)
-                .filter_by(participant_id=participant.id).all()
+            node.network_id
+            for node in Node.query.with_entities(Node.network_id)
+            .filter_by(participant_id=participant.id)
+            .all()
         ]
 
         legal_networks = [
-            net for net in networks_with_space
-            if net.id not in networks_participated_in
+            net for net in networks_with_space if net.id not in networks_participated_in
         ]
 
         if not legal_networks:
             self.log("No networks available, returning None", key)
             return None
 
-        self.log("{} networks out of {} available"
-                 .format(len(legal_networks),
-                         (self.practice_repeats + self.experiment_repeats)),
-                 key)
+        self.log(
+            "{} networks out of {} available".format(
+                len(legal_networks), (self.practice_repeats + self.experiment_repeats)
+            ),
+            key,
+        )
 
-        legal_practice_networks = [net for net in legal_networks
-                                   if net.role == "practice"]
+        legal_practice_networks = [
+            net for net in legal_networks if net.role == "practice"
+        ]
         if legal_practice_networks:
             chosen_network = legal_practice_networks[0]
-            self.log("Practice networks available."
-                     "Assigning participant to practice network {}."
-                     .format(chosen_network.id), key)
+            self.log(
+                "Practice networks available."
+                "Assigning participant to practice network {}.".format(
+                    chosen_network.id
+                ),
+                key,
+            )
         else:
             chosen_network = self.choose_network(legal_networks, participant)
-            self.log("No practice networks available."
-                     "Assigning participant to experiment network {}"
-                     .format(chosen_network.id), key)
+            self.log(
+                "No practice networks available."
+                "Assigning participant to experiment network {}".format(
+                    chosen_network.id
+                ),
+                key,
+            )
         return chosen_network
 
     def choose_network(self, networks, participant):
@@ -355,8 +364,7 @@ class Experiment(object):
 
     def log_summary(self):
         """Log a summary of all the participants' status codes."""
-        participants = Participant.query\
-            .with_entities(Participant.status).all()
+        participants = Participant.query.with_entities(Participant.status).all()
         counts = Counter([p.status for p in participants])
         sorted_counts = sorted(counts.items(), key=itemgetter(0))
         self.log("Status summary: {}".format(str(sorted_counts)))
@@ -414,9 +422,9 @@ class Experiment(object):
 
     def fail_participant(self, participant):
         """Fail all the nodes of a participant."""
-        participant_nodes = Node.query\
-            .filter_by(participant_id=participant.id, failed=False)\
-            .all()
+        participant_nodes = Node.query.filter_by(
+            participant_id=participant.id, failed=False
+        ).all()
 
         for node in participant_nodes:
             node.fail()
@@ -486,35 +494,32 @@ class Experiment(object):
         app_id = self.make_uuid(app_id)
 
         if bot:
-            kwargs['recruiter'] = 'bots'
+            kwargs["recruiter"] = "bots"
 
         self.app_id = app_id
         self.exp_config = exp_config or kwargs
-        self.update_status('Starting')
+        self.update_status("Starting")
         try:
             if self.exp_config.get("mode") == "debug":
                 dlgr.command_line.debug.callback(
-                    verbose=True,
-                    bot=bot,
-                    proxy=None,
-                    exp_config=self.exp_config
+                    verbose=True, bot=bot, proxy=None, exp_config=self.exp_config
                 )
             else:
                 dlgr.deployment.deploy_sandbox_shared_setup(
                     dlgr.command_line.log,
                     app=app_id,
                     verbose=self.verbose,
-                    exp_config=self.exp_config
+                    exp_config=self.exp_config,
                 )
         except Exception:
-            self.update_status('Errored')
+            self.update_status("Errored")
             raise
         else:
-            self.update_status('Running')
+            self.update_status("Running")
         self._await_completion()
-        self.update_status('Retrieving data')
+        self.update_status("Retrieving data")
         data = self.retrieve_data()
-        self.update_status('Completed')
+        self.update_status("Completed")
         return data
 
     def collect(self, app_id, exp_config=None, bot=False, **kwargs):
@@ -529,29 +534,35 @@ class Experiment(object):
         """
         try:
             results = data_load(app_id)
-            self.log('Data found for experiment {}, retrieving.'.format(app_id),
-                     key="Retrieve:")
+            self.log(
+                "Data found for experiment {}, retrieving.".format(app_id),
+                key="Retrieve:",
+            )
             return results
         except IOError:
             self.log(
-                'Could not fetch data for id: {}, checking registry'.format(app_id),
-                key="Retrieve:"
+                "Could not fetch data for id: {}, checking registry".format(app_id),
+                key="Retrieve:",
             )
 
         exp_config = exp_config or {}
         if is_registered(app_id):
-            raise RuntimeError('The id {} is registered, '.format(app_id) +
-                               'but you do not have permission to access to the data')
-        elif kwargs.get('mode') == 'debug' or exp_config.get('mode') == 'debug':
-            raise RuntimeError('No remote or local data found for id {}'.format(app_id))
+            raise RuntimeError(
+                "The id {} is registered, ".format(app_id)
+                + "but you do not have permission to access to the data"
+            )
+        elif kwargs.get("mode") == "debug" or exp_config.get("mode") == "debug":
+            raise RuntimeError("No remote or local data found for id {}".format(app_id))
 
         try:
             assert isinstance(uuid.UUID(app_id, version=4), uuid.UUID)
         except (ValueError, AssertionError):
-            raise ValueError('Invalid UUID supplied {}'.format(app_id))
+            raise ValueError("Invalid UUID supplied {}".format(app_id))
 
-        self.log('{} appears to be a new experiment id, running experiment.'.format(app_id),
-                 key="Retrieve:")
+        self.log(
+            "{} appears to be a new experiment id, running experiment.".format(app_id),
+            key="Retrieve:",
+        )
         return self.run(exp_config, app_id, bot, **kwargs)
 
     @classmethod
@@ -574,20 +585,20 @@ class Experiment(object):
         which in turn uses :meth:`~Experiment.is_complete`.
         """
         heroku_app = HerokuApp(self.app_id)
-        status_url = '{}/summary'.format(heroku_app.url)
+        status_url = "{}/summary".format(heroku_app.url)
         data = {}
         try:
             resp = requests.get(status_url)
             data = resp.json()
         except (ValueError, requests.exceptions.RequestException):
-            logger.exception('Error fetching experiment status.')
-        logger.debug('Current application state: {}'.format(data))
-        return data.get('completed', False)
+            logger.exception("Error fetching experiment status.")
+        logger.debug("Current application state: {}".format(data))
+        return data.get("completed", False)
 
     def _await_completion(self):
         # Debug runs synchronously, but in live mode we need to loop and check
         # experiment status
-        if self.exp_config.get('mode') != 'debug':
+        if self.exp_config.get("mode") != "debug":
             self.log("Waiting for experiment to complete.", "")
             while not self.experiment_completed():
                 time.sleep(30)
@@ -596,15 +607,15 @@ class Experiment(object):
     def retrieve_data(self):
         """Retrieves and saves data from a running experiment"""
         local = False
-        if self.exp_config.get('mode') == 'debug':
+        if self.exp_config.get("mode") == "debug":
             local = True
         filename = export(self.app_id, local=local)
-        logger.debug('Data exported to %s' % filename)
+        logger.debug("Data exported to %s" % filename)
         return Data(filename)
 
     def end_experiment(self):
         """Terminates a running experiment"""
-        if self.exp_config.get('mode') != 'debug':
+        if self.exp_config.get("mode") != "debug":
             HerokuApp(self.app_id).destroy()
         return True
 
@@ -657,18 +668,21 @@ class Experiment(object):
         return self._replay_range
 
     @contextmanager
-    def restore_state_from_replay(self, app_id, session, zip_path=None, **configuration_options):
+    def restore_state_from_replay(
+        self, app_id, session, zip_path=None, **configuration_options
+    ):
         # We need to fake dallinger_experiment to point at the current experiment
         module = sys.modules[type(self).__module__]
-        if sys.modules.get('dallinger_experiment', module) != module:
-            logger.warning('dallinger_experiment is already set, updating')
-        sys.modules['dallinger_experiment'] = module
+        if sys.modules.get("dallinger_experiment", module) != module:
+            logger.warning("dallinger_experiment is already set, updating")
+        sys.modules["dallinger_experiment"] = module
 
         # Load the configuration system and globals
         config = get_config()
         # Manually load extra parameters and ignore errors
         try:
             from dallinger_experiment.experiment import extra_parameters
+
             try:
                 extra_parameters()
                 extra_parameters.loaded = True
@@ -689,28 +703,24 @@ class Experiment(object):
         # Create a second database session so we can load the full history
         # of the experiment to be replayed and selectively import events
         # into the main database
-        specific_db_url = db_url + '-import-' + app_id
-        import_engine = create_engine(
-            specific_db_url
-        )
+        specific_db_url = db_url + "-import-" + app_id
+        import_engine = create_engine(specific_db_url)
         try:
             # Clear the temporary storage and import it
             init_db(drop_all=True, bind=import_engine)
         except Exception:
             create_db_engine = create_engine(db_url)
             conn = create_db_engine.connect()
-            conn.execute('COMMIT;')
-            conn.execute('CREATE DATABASE "{}"'.format(specific_db_url.rsplit('/', 1)[1]))
-            conn.close()
-            import_engine = create_engine(
-                specific_db_url
+            conn.execute("COMMIT;")
+            conn.execute(
+                'CREATE DATABASE "{}"'.format(specific_db_url.rsplit("/", 1)[1])
             )
+            conn.close()
+            import_engine = create_engine(specific_db_url)
             init_db(drop_all=True, bind=import_engine)
 
         self.import_session = scoped_session(
-            sessionmaker(autocommit=False,
-                         autoflush=True,
-                         bind=import_engine)
+            sessionmaker(autocommit=False, autoflush=True, bind=import_engine)
         )
 
         # Find the real data for this experiment
@@ -724,8 +734,7 @@ class Experiment(object):
         ingest_zip(zip_path, engine=import_engine)
         self._replay_range = tuple(
             self.import_session.query(
-                func.min(Info.creation_time),
-                func.max(Info.creation_time)
+                func.min(Info.creation_time), func.max(Info.creation_time)
             )
         )[0]
         # We apply the configuration options we were given and yield
@@ -748,7 +757,7 @@ class Experiment(object):
         except AttributeError:
             pass
         config._reset(register_defaults=True)
-        del sys.modules['dallinger_experiment']
+        del sys.modules["dallinger_experiment"]
 
     def revert_to_time(self, session, target):
         # We do not support going back in time
@@ -757,6 +766,7 @@ class Experiment(object):
     def _ipython_display_(self):
         """Display Jupyter Notebook widget"""
         from IPython.display import display
+
         display(self.widget)
 
     def update_status(self, status):
@@ -766,17 +776,15 @@ class Experiment(object):
     def jupyter_replay(self, *args, **kwargs):
         from ipywidgets import widgets
         from IPython.display import display
+
         try:
-            sys.modules['dallinger_experiment']._jupyter_cleanup()
+            sys.modules["dallinger_experiment"]._jupyter_cleanup()
         except (KeyError, AttributeError):
             pass
         replay = self.restore_state_from_replay(*args, **kwargs)
         scrubber = replay.__enter__()
         scrubber.build_widget()
-        replay_widget = widgets.VBox([
-            self.widget,
-            scrubber.widget,
-        ])
+        replay_widget = widgets.VBox([self.widget, scrubber.widget])
         # Scrub to start of experiment and re-render the main widget
         scrubber(self.usable_replay_range[0])
         self.widget.render()
@@ -790,7 +798,7 @@ class Experiment(object):
         def _jupyter_cleanup():
             replay.__exit__(None, None, None)
 
-        sys.modules['dallinger_experiment']._jupyter_cleanup = _jupyter_cleanup
+        sys.modules["dallinger_experiment"]._jupyter_cleanup = _jupyter_cleanup
 
 
 class Scrubber(object):
@@ -804,7 +812,9 @@ class Scrubber(object):
         which is a datetime object."""
         if self.experiment._replay_time_index > time:
             self.experiment.revert_to_time(session=self.session, target=time)
-        events = self.experiment.events_for_replay(session=self.session, target=time).all()
+        events = self.experiment.events_for_replay(
+            session=self.session, target=time
+        ).all()
         for event in events:
             if event.creation_time <= self.experiment._replay_time_index:
                 # Skip events we've already handled
@@ -816,7 +826,9 @@ class Scrubber(object):
             self.experiment._replay_time_index = event.creation_time
         # Override app_id to allow exports to be created that don't
         # overwrite the original dataset
-        self.experiment.app_id = "{}_{}".format(self.experiment.original_app_id, time.isoformat())
+        self.experiment.app_id = "{}_{}".format(
+            self.experiment.original_app_id, time.isoformat()
+        )
 
     def in_realtime(self, callback=None):
         exp_start, exp_end = self.experiment.usable_replay_range
@@ -845,6 +857,7 @@ class Scrubber(object):
 
     def build_widget(self):
         from ipywidgets import widgets
+
         start, end = self.experiment.usable_replay_range
         options = []
         current = start
@@ -856,7 +869,7 @@ class Scrubber(object):
             # the experiment start when scrubbing backwards
             current = current.replace(microsecond=0)
         scrubber = widgets.SelectionSlider(
-            description='Current time',
+            description="Current time",
             options=options,
             disabled=False,
             continuous_update=False,
@@ -868,17 +881,20 @@ class Scrubber(object):
                 # here is just to keep the UI in sync
                 return
             old_status = self.experiment.widget.status
-            self.experiment.widget.status = 'Updating'
+            self.experiment.widget.status = "Updating"
             self.experiment.widget.render()
-            self(change['new'])
+            self(change["new"])
             self.experiment.widget.status = old_status
             self.experiment.widget.render()
-        scrubber.observe(advance, 'value')
+
+        scrubber.observe(advance, "value")
 
         def realtime_callback():
             self.experiment.widget.render()
             try:
-                scrubber.value = self.experiment._replay_time_index.replace(microsecond=0)
+                scrubber.value = self.experiment._replay_time_index.replace(
+                    microsecond=0
+                )
             except Exception:
                 # The scrubber is an approximation of the current time, we shouldn't
                 # bail out if it can't be updated (for example at experiment bounds)
@@ -888,25 +904,24 @@ class Scrubber(object):
 
         play_button = widgets.ToggleButton(
             value=False,
-            description='',
+            description="",
             disabled=False,
-            tooltip='Play back in realtime',
-            icon='play'
+            tooltip="Play back in realtime",
+            icon="play",
         )
 
         def playback(change):
             import threading
-            if change['new']:
+
+            if change["new"]:
                 thread = threading.Thread(
-                    target=self.in_realtime,
-                    kwargs={
-                        'callback': realtime_callback
-                    }
+                    target=self.in_realtime, kwargs={"callback": realtime_callback}
                 )
                 thread.start()
             else:
                 self.realtime = False
-        play_button.observe(playback, 'value')
+
+        play_button.observe(playback, "value")
 
         self.widget = widgets.HBox(children=[scrubber, play_button])
         return self.widget
@@ -914,6 +929,7 @@ class Scrubber(object):
     def _ipython_display_(self):
         """Display Jupyter Notebook widget"""
         from IPython.display import display
+
         self.build_widget()
         display(self.widget())
 
@@ -929,10 +945,10 @@ def load():
 
         classes = inspect.getmembers(experiment, inspect.isclass)
         for name, c in classes:
-            if 'Experiment' in c.__bases__[0].__name__:
+            if "Experiment" in c.__bases__[0].__name__:
                 return c
         else:
             raise ImportError
     except ImportError:
-        logger.error('Could not import experiment.')
+        logger.error("Could not import experiment.")
         raise

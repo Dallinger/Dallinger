@@ -4,11 +4,11 @@
 # Vendored copy from git://github.com/reallistic/rq-gevent-worker.git
 # because there isn't a working release.
 
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from gevent import monkey
 from gevent.hub import LoopExit
+
 monkey.patch_all()
 
 import logging
@@ -27,8 +27,8 @@ from rq.version import VERSION
 class GeventDeathPenalty(BaseDeathPenalty):
     def setup_death_penalty(self):
         exception = JobTimeoutException(
-            'Gevent Job exceeded maximum timeout value (%d seconds).'
-            % self._timeout)
+            "Gevent Job exceeded maximum timeout value (%d seconds)." % self._timeout
+        )
         self.gevent_timeout = gevent.Timeout(self._timeout, exception)
         self.gevent_timeout.start()
 
@@ -42,8 +42,8 @@ class GeventWorker(Worker):
 
     def __init__(self, *args, **kwargs):
         pool_size = self.DEFAULT_POOL_SIZE
-        if 'pool_size' in kwargs:
-            pool_size = kwargs.pop('pool_size')
+        if "pool_size" in kwargs:
+            pool_size = kwargs.pop("pool_size")
         self.gevent_pool = gevent.pool.Pool(pool_size)
         self.children = []
         self.gevent_worker = None
@@ -51,16 +51,16 @@ class GeventWorker(Worker):
 
     def register_birth(self):
         super(GeventWorker, self).register_birth()
-        self.connection.hset(self.key, 'pool_size', self.gevent_pool.size)
+        self.connection.hset(self.key, "pool_size", self.gevent_pool.size)
 
     def heartbeat(self, timeout=0, pipeline=None):
         connection = pipeline if pipeline is not None else self.connection
         super(GeventWorker, self).heartbeat(timeout)
-        connection.hset(self.key, 'curr_pool_len', len(self.gevent_pool))
+        connection.hset(self.key, "curr_pool_len", len(self.gevent_pool))
 
     def _install_signal_handlers(self):
         def request_force_stop():
-            self.log.warning('Cold shut down.')
+            self.log.warning("Cold shut down.")
             self.gevent_pool.kill()
             raise SystemExit()
 
@@ -69,9 +69,11 @@ class GeventWorker(Worker):
                 gevent.signal(signal.SIGINT, request_force_stop)
                 gevent.signal(signal.SIGTERM, request_force_stop)
 
-                self.log.warning('Warm shut down requested.')
-                self.log.warning('Stopping after all greenlets are finished. '
-                                 'Press Ctrl+C again for a cold shutdown.')
+                self.log.warning("Warm shut down requested.")
+                self.log.warning(
+                    "Stopping after all greenlets are finished. "
+                    "Press Ctrl+C again for a cold shutdown."
+                )
 
                 self._stop_requested = True
                 self.gevent_pool.join()
@@ -98,8 +100,11 @@ class GeventWorker(Worker):
 
         self.did_perform_work = False
         self.register_birth()
-        self.log.info("RQ GEVENT worker (Greenlet pool size={0}) {1!r} started, version {2}".
-                      format(self.gevent_pool.size, self.key, VERSION))
+        self.log.info(
+            "RQ GEVENT worker (Greenlet pool size={0}) {1!r} started, version {2}".format(
+                self.gevent_pool.size, self.key, VERSION
+            )
+        )
         self.set_state(WorkerStatus.STARTED)
 
         try:
@@ -111,7 +116,7 @@ class GeventWorker(Worker):
                         self.clean_registries()
 
                     if self._stop_requested:
-                        self.log.info('Stopping on request.')
+                        self.log.info("Stopping on request.")
                         break
 
                     timeout = None if burst else max(1, self.default_worker_ttl - 60)
@@ -180,7 +185,8 @@ class GeventWorker(Worker):
                 self.set_state(WorkerStatus.BUSY)
                 self.log.warning(
                     "RQ GEVENT worker greenlet pool empty current size %s",
-                    self.gevent_pool.size)
+                    self.gevent_pool.size,
+                )
 
             while self.gevent_pool.full():
                 gevent.sleep(0.1)
@@ -189,12 +195,15 @@ class GeventWorker(Worker):
 
             try:
                 result = self.queue_class.dequeue_any(
-                    self.queues, timeout, connection=self.connection)
+                    self.queues, timeout, connection=self.connection
+                )
                 self.set_state(WorkerStatus.IDLE)
                 if result is not None:
                     job, queue = result
-                    self.log.info('%s: %s (%s)' % (green(queue.name),
-                                  blue(job.description), job.id))
+                    self.log.info(
+                        "%s: %s (%s)"
+                        % (green(queue.name), blue(job.description), job.id)
+                    )
                 break
             except DequeueTimeout:
                 pass
@@ -207,10 +216,12 @@ def main():
     import sys
     from rq.cli import worker as rq_main
 
-    if '-w' in sys.argv or '--worker-class' in sys.argv:
-        print("You cannot specify worker class when using this script,"
-              "use the official rqworker instead")
+    if "-w" in sys.argv or "--worker-class" in sys.argv:
+        print(
+            "You cannot specify worker class when using this script,"
+            "use the official rqworker instead"
+        )
         sys.exit(1)
 
-    sys.argv.extend(['-w', 'rq_gevent_worker.GeventWorker'])
+    sys.argv.extend(["-w", "rq_gevent_worker.GeventWorker"])
     rq_main()

@@ -3,6 +3,7 @@ import mock
 
 def test_redis():
     from dallinger.db import redis_conn
+
     assert redis_conn.ping()
 
 
@@ -24,13 +25,15 @@ def test_serialized(db_session):
         if interruptor:
             interruptor()
 
-        session.add(Participant(
-            recruiter_id='hotair',
-            worker_id='serialized_{}'.format(count + 1),
-            assignment_id='test',
-            hit_id='test',
-            mode='test',
-        ))
+        session.add(
+            Participant(
+                recruiter_id="hotair",
+                worker_id="serialized_{}".format(count + 1),
+                assignment_id="test",
+                hit_id="test",
+                mode="test",
+            )
+        )
 
     # Define a function to get in the way of our transaction
     # by changing the participant count from another db session
@@ -40,7 +43,7 @@ def test_serialized(db_session):
     def interruptor():
         if not interrupted:
             session2 = db_session.session_factory()
-            session2.connection(execution_options={'isolation_level': 'SERIALIZABLE'})
+            session2.connection(execution_options={"isolation_level": "SERIALIZABLE"})
             add_participant(session2)
             session2.commit()
             interrupted.append(True)
@@ -62,9 +65,10 @@ def test_serialized(db_session):
 
 
 def test_after_commit_hook(db_session):
-    with mock.patch('dallinger.db.redis_conn') as redis:
+    with mock.patch("dallinger.db.redis_conn") as redis:
         from dallinger.db import queue_message
-        queue_message('test', 'test')
+
+        queue_message("test", "test")
         db_session.commit()
 
-        assert redis.called_once_with('test', 'test')
+        assert redis.called_once_with("test", "test")

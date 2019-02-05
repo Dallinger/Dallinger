@@ -9,12 +9,12 @@ import logging
 
 logger = logging.getLogger(__file__)
 
-WORKER_CLASS = 'geventwebsocket.gunicorn.workers.GeventWebSocketWorker'
+WORKER_CLASS = "geventwebsocket.gunicorn.workers.GeventWebSocketWorker"
 
 
 def when_ready(arbiter):
     # Signal to parent process that server has started
-    logger.warning('Ready.')
+    logger.warning("Ready.")
 
 
 class StandaloneServer(Application):
@@ -36,7 +36,7 @@ class StandaloneServer(Application):
     @property
     def port(self):
         """Heroku sets the port its running on as an environment variable"""
-        return os.environ.get('PORT')
+        return os.environ.get("PORT")
 
     def init(self, *args):
         """init method
@@ -52,7 +52,7 @@ class StandaloneServer(Application):
     def load(self):
         """Return our application to be run."""
         app = util.import_app("dallinger.experiment_server.sockets:app")
-        if self.options.get('mode') == 'debug':
+        if self.options.get("mode") == "debug":
             app.debug = True
         return app
 
@@ -67,17 +67,17 @@ class StandaloneServer(Application):
         mode = config.get("mode")
         bind_address = "{}:{}".format(host, self.port)
         self.options = {
-            'bind': bind_address,
-            'workers': workers,
-            'worker_class': WORKER_CLASS,
-            'loglevels': self.loglevels,
-            'loglevel': self.loglevels[config.get("loglevel")],
-            'errorlog': '-',
-            'accesslog': '-',
-            'mode': mode,
-            'proc_name': 'dallinger_experiment_server',
-            'limit_request_line': '0',
-            'when_ready': when_ready,
+            "bind": bind_address,
+            "workers": workers,
+            "worker_class": WORKER_CLASS,
+            "loglevels": self.loglevels,
+            "loglevel": self.loglevels[config.get("loglevel")],
+            "errorlog": "-",
+            "accesslog": "-",
+            "mode": mode,
+            "proc_name": "dallinger_experiment_server",
+            "limit_request_line": "0",
+            "when_ready": when_ready,
         }
 
 
@@ -89,22 +89,22 @@ def launch():
         logging.INFO,
         logging.WARNING,
         logging.ERROR,
-        logging.CRITICAL
+        logging.CRITICAL,
     ]
-    LOG_LEVEL = LOG_LEVELS[config.get('loglevel')]
-    logging.basicConfig(format='%(asctime)s %(message)s', level=LOG_LEVEL)
+    LOG_LEVEL = LOG_LEVELS[config.get("loglevel")]
+    logging.basicConfig(format="%(asctime)s %(message)s", level=LOG_LEVEL)
 
     # Avoid duplicate logging to stderr
-    error_logger = logging.getLogger('gunicorn.error')
+    error_logger = logging.getLogger("gunicorn.error")
     error_logger.propagate = False
-    access_logger = logging.getLogger('gunicorn.access')
+    access_logger = logging.getLogger("gunicorn.access")
     access_logger.propagate = False
 
     # Set up logging to file
     # (We're not using gunicorn's errorlog and accesslog settings
     # for this because it redirects stdout and stderr)
-    logfile = config.get('logfile')
-    if config.get('logfile') != '-':
+    logfile = config.get("logfile")
+    if config.get("logfile") != "-":
         handler = logging.FileHandler(logfile)
         error_logger.addHandler(handler)
         access_logger.addHandler(handler)
