@@ -14,7 +14,7 @@ def random_walk(network):
     """
     latest = network.latest_transmission_recipient()
 
-    if (not network.transmissions() or latest is None):
+    if not network.transmissions() or latest is None:
         sender = random.choice(network.nodes(type=Source))
     else:
         sender = latest
@@ -35,14 +35,14 @@ def moran_cultural(network):
         replacer.transmit()
     else:
         replacer = random.choice(network.nodes(type=Agent))
-        replaced = random.choice(
-            replacer.neighbors(direction="to", type=Agent))
+        replaced = random.choice(replacer.neighbors(direction="to", type=Agent))
 
         from operator import attrgetter
 
         replacer.transmit(
-            what=max(replacer.infos(), key=attrgetter('creation_time')),
-            to_whom=replaced)
+            what=max(replacer.infos(), key=attrgetter("creation_time")),
+            to_whom=replaced,
+        )
 
 
 def moran_sexual(network):
@@ -57,12 +57,12 @@ def moran_sexual(network):
         replacer.transmit()
     else:
         from operator import attrgetter
+
         agents = network.nodes(type=Agent)
-        baby = max(agents, key=attrgetter('creation_time'))
+        baby = max(agents, key=attrgetter("creation_time"))
         agents = [a for a in agents if a.id != baby.id]
         replacer = random.choice(agents)
-        replaced = random.choice(
-            replacer.neighbors(direction="to", type=Agent))
+        replaced = random.choice(replacer.neighbors(direction="to", type=Agent))
 
         # Give the baby the same outgoing connections as the replaced.
         for node in replaced.neighbors(direction="to"):

@@ -5,7 +5,6 @@ from collections import defaultdict
 
 
 class TestNetworks(object):
-
     def test_create_network(self, db_session):
         net = models.Network()
         assert isinstance(net, models.Network)
@@ -91,9 +90,13 @@ class TestNetworks(object):
         agent1.fail()
 
         assert set(net.nodes()) == set([node2, agent2, agent3])
-        assert set(net.nodes(failed="all")) == set([node1, node2, agent1, agent2, agent3])
+        assert set(net.nodes(failed="all")) == set(
+            [node1, node2, agent1, agent2, agent3]
+        )
         assert set(net.nodes(failed=True)) == set([node1, agent1])
-        assert set(net.nodes(type=nodes.Agent, failed="all")) == set([agent1, agent2, agent3])
+        assert set(net.nodes(type=nodes.Agent, failed="all")) == set(
+            [agent1, agent2, agent3]
+        )
 
     def test_network_vectors(self, db_session):
         net = networks.Network()
@@ -137,7 +140,9 @@ class TestNetworks(object):
         assert len(net.vectors()) == 2
         assert source.network == net
         assert agent1.network == net
-        assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=nodes.Agent)] == [0, 0]
+        assert [
+            len(n.vectors(direction="outgoing")) for n in net.nodes(type=nodes.Agent)
+        ] == [0, 0]
         assert len(net.nodes(type=nodes.Source)[0].vectors(direction="outgoing")) == 2
 
     def test_network_add_source_local(self, db_session):
@@ -151,7 +156,9 @@ class TestNetworks(object):
         source.connect(whom=net.nodes(type=nodes.Agent)[0])
 
         assert len(net.vectors()) == 1
-        assert [len(n.vectors(direction="outgoing")) for n in net.nodes(type=nodes.Agent)] == [0, 0]
+        assert [
+            len(n.vectors(direction="outgoing")) for n in net.nodes(type=nodes.Agent)
+        ] == [0, 0]
         assert len(net.nodes(type=nodes.Source)[0].vectors(direction="outgoing")) == 1
 
     def test_network_add_node(self, db_session):
@@ -183,7 +190,9 @@ class TestNetworks(object):
 
         assert set(node1.neighbors(direction="to")) == set([node2, agent1, agent2])
         assert len(node1.vectors(direction="outgoing")) == 3
-        assert set(node1.neighbors(direction="to", type=nodes.Agent)) == set([agent1, agent2])
+        assert set(node1.neighbors(direction="to", type=nodes.Agent)) == set(
+            [agent1, agent2]
+        )
 
         agent1.fail()
         agent2.fail()
@@ -207,7 +216,6 @@ class TestNetworks(object):
 
 
 class TestChain(object):
-
     def test_nodes_are_connected_to_their_successor_if_added_immediately(self, a):
         chain = a.chain()
         old = a.node(network=chain)
@@ -265,7 +273,6 @@ class TestChain(object):
 
 
 class TestDelayedChain(object):
-
     def test_parent_is_always_source_for_first_11_nodes_when_source_exists(self, a):
         net = a.delayed_chain()
         source = a.source(network=net)
@@ -284,7 +291,9 @@ class TestDelayedChain(object):
 
         assert not any([node.neighbors() for node in net.nodes()])
 
-    def test_starts_assigning_newest_sibling_as_parent_after_11_nodes_in_network(self, a):
+    def test_starts_assigning_newest_sibling_as_parent_after_11_nodes_in_network(
+        self, a
+    ):
         net = a.delayed_chain()
 
         for _ in range(12):
@@ -302,7 +311,7 @@ class TestDelayedChain(object):
             net.add_node(a.node(network=net))
 
         non_source_nodes = [node for node in net.nodes() if node is not source]
-        added_after_11_existed = non_source_nodes[:len(non_source_nodes) - 11]
+        added_after_11_existed = non_source_nodes[: len(non_source_nodes) - 11]
 
         for index, node in enumerate(added_after_11_existed):
             try:
@@ -313,7 +322,6 @@ class TestDelayedChain(object):
 
 
 class TestFullyConnected(object):
-
     def test_nodes_get_connected_bidirectionally(self, a):
         connected = a.fully_connected()
         node1 = a.node(network=connected)
@@ -369,7 +377,6 @@ class TestFullyConnected(object):
 
 
 class TestEmpty(object):
-
     def test_create_empty(self, a):
         """Empty networks should have nodes, but no edges."""
         net = a.empty()
@@ -394,7 +401,6 @@ class TestEmpty(object):
 
 
 class TestBurst(object):
-
     def test_all_subsequent_nodes_connect_only_to_first_one(self, a):
         burst = a.burst()
         center = a.node(network=burst)
@@ -421,11 +427,10 @@ class TestBurst(object):
         network.add_node(newest)
         with pytest.raises(ValueError) as exc_info:
             network.add_node(oldest)
-            assert exc_info.match('cannot connect to itself')
+            assert exc_info.match("cannot connect to itself")
 
 
 class TestStar(object):
-
     def test_all_subsequent_nodes_connect_bidirectionally_to_first_one(self, a):
         star = a.star()
         center = a.node(network=star)
@@ -452,11 +457,10 @@ class TestStar(object):
         network.add_node(newest)
         with pytest.raises(ValueError) as exc_info:
             network.add_node(oldest)
-            assert exc_info.match('cannot connect to itself')
+            assert exc_info.match("cannot connect to itself")
 
 
 class TestScaleFree(object):
-
     def test_create_scale_free(self, a):
         m0 = 4
         m = 4
@@ -509,6 +513,7 @@ class GenerationalAgent(nodes.Agent):
         """Make generation queryable."""
         from sqlalchemy import Integer
         from sqlalchemy.sql.expression import cast
+
         return cast(self.property2, Integer)
 
 
@@ -526,7 +531,8 @@ class TestDiscreteGenerational(TestNetworks):
         net = networks.DiscreteGenerational(
             generations=self.n_gens,
             generation_size=self.gen_size,
-            initial_source=initial_source)
+            initial_source=initial_source,
+        )
         db_session.add(net)
 
         return net
@@ -536,7 +542,7 @@ class TestDiscreteGenerational(TestNetworks):
         by_gen = defaultdict(list)
         for i in range(total_nodes):
             agent = GenerationalAgent(network=net)
-            agent.fitness = i + .1
+            agent.fitness = i + 0.1
             net.add_node(agent)
             by_gen[agent.generation].append(agent)
 
@@ -545,11 +551,11 @@ class TestDiscreteGenerational(TestNetworks):
     def test_initial_source_attr_true(self, net):
         assert net.initial_source
 
-    @pytest.mark.parametrize('initial_source', [False])
+    @pytest.mark.parametrize("initial_source", [False])
     def test_initial_source_attr_false(self, net):
         assert not net.initial_source
 
-    @pytest.mark.parametrize('initial_source', [True, False])
+    @pytest.mark.parametrize("initial_source", [True, False])
     def test_add_node_fills_network_dimensions(self, net):
         nodes.RandomBinaryStringSource(network=net)
         self._fill(net)
@@ -566,24 +572,24 @@ class TestDiscreteGenerational(TestNetworks):
 
         # First generation is conncted to source
         for agent in first_generation:
-            assert agent.neighbors(direction='from') == [source]
+            assert agent.neighbors(direction="from") == [source]
 
         # Subsequent generations get assigned a single random parent
         # from the previous generation
         for generation, agents in subsequent_generations.items():
             for agent in agents:
-                parents = agent.neighbors(direction='from')
+                parents = agent.neighbors(direction="from")
                 assert len(parents) == 1
                 assert parents[0] in by_gen[agent.generation - 1]
 
-    @pytest.mark.parametrize('initial_source', [False])
+    @pytest.mark.parametrize("initial_source", [False])
     def test_add_node_with_initial_source_false(self, net):
         source = nodes.RandomBinaryStringSource(network=net)
         first_generation = self._fill(net)[0]
 
         # First generation is NOT conncted to source
         for agent in first_generation:
-            assert source not in agent.neighbors(direction='from')
+            assert source not in agent.neighbors(direction="from")
 
     def test_assigns_generation_correctly_when_addition_non_agent_included(self, net):
         nodes.RandomBinaryStringSource(network=net)
@@ -597,7 +603,6 @@ class TestDiscreteGenerational(TestNetworks):
 
 
 class TestSequentialMicrosociety(object):
-
     def test_n_property_type_marshalling(self, a):
         net = a.sequential_microsociety(n=3)
         assert net.n is 3
@@ -638,7 +643,6 @@ class TestSequentialMicrosociety(object):
 
 
 class TestSplitSampleNetwork(object):
-
     def test_sample_splitting(self, a):
         nets = [a.split_sample() for i in range(100)]
         sets = [net.exploratory for net in nets]

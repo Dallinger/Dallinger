@@ -1,16 +1,16 @@
 class WorkerEvent(object):
 
-    key = '-----'
+    key = "-----"
 
     supported_event_types = (
-        'AssignmentAccepted',
-        'AssignmentAbandoned',
-        'AssignmentReassigned',
-        'AssignmentReturned',
-        'AssignmentSubmitted',
-        'BotAssignmentSubmitted',
-        'BotAssignmentRejected',
-        'NotificationMissing',
+        "AssignmentAccepted",
+        "AssignmentAbandoned",
+        "AssignmentReassigned",
+        "AssignmentReturned",
+        "AssignmentSubmitted",
+        "BotAssignmentSubmitted",
+        "BotAssignmentRejected",
+        "NotificationMissing",
     )
 
     @classmethod
@@ -37,13 +37,11 @@ class WorkerEvent(object):
 
 
 class AssignmentAccepted(WorkerEvent):
-
     def __call__(self):
         pass
 
 
 class AssignmentAbandoned(WorkerEvent):
-
     def __call__(self):
         if self.participant.status == "working":
             self.update_particant_end_time()
@@ -52,7 +50,6 @@ class AssignmentAbandoned(WorkerEvent):
 
 
 class AssignmentReturned(WorkerEvent):
-
     def __call__(self):
         if self.participant.status == "working":
             self.update_particant_end_time()
@@ -109,14 +106,13 @@ class AssignmentSubmitted(WorkerEvent):
 
     def approve_assignment(self):
         self.participant.recruiter.approve_hit(self.assignment_id)
-        self.participant.base_pay = self.config.get('base_payment')
+        self.participant.base_pay = self.config.get("base_payment")
 
     def award_bonus(self, bonus):
         self.log("Bonus = {}: paying bonus".format(bonus))
         self.participant.recruiter.reward_bonus(
-            self.assignment_id,
-            bonus,
-            self.experiment.bonus_reason())
+            self.assignment_id, bonus, self.experiment.bonus_reason()
+        )
 
     def fail_data_check(self):
         self.participant.status = "bad_data"
@@ -137,7 +133,6 @@ class AssignmentSubmitted(WorkerEvent):
 
 
 class BotAssignmentSubmitted(WorkerEvent):
-
     def __call__(self):
         self.log("Received bot submission.")
         self.update_particant_end_time()
@@ -151,7 +146,6 @@ class BotAssignmentSubmitted(WorkerEvent):
 
 
 class BotAssignmentRejected(WorkerEvent):
-
     def __call__(self):
         self.log("Received rejected bot submission.")
         self.update_particant_end_time()
@@ -163,7 +157,6 @@ class BotAssignmentRejected(WorkerEvent):
 
 
 class NotificationMissing(WorkerEvent):
-
     def __call__(self):
         if self.participant.status == "working":
             self.update_particant_end_time()
@@ -171,7 +164,6 @@ class NotificationMissing(WorkerEvent):
 
 
 class AssignmentReassigned(WorkerEvent):
-
     def __call__(self):
         self.update_particant_end_time()
         self.participant.status = "replaced"

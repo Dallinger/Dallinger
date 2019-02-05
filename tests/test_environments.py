@@ -2,7 +2,6 @@ from dallinger import nodes, information, models
 
 
 class TestEnvironments(object):
-
     def test_create_environment(self, db_session):
         """Create an environment"""
         net = models.Network()
@@ -42,4 +41,4 @@ class TestEnvironments(object):
 
         state = environment.state()
 
-        assert state.contents == u'some content'
+        assert state.contents == u"some content"

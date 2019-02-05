@@ -27,37 +27,42 @@ from dallinger.utils import GitClient
 
 
 config = get_config()
-OSX_CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+OSX_CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 
 def _make_chrome(path):
     new_chrome = webbrowser.Chrome()
     new_chrome.name = path
     profile_directory = tempfile.mkdtemp()
-    with open(os.path.join(profile_directory, 'First Run'), 'wb') as firstrun:
-            # This file existing prevents prompts to make the new profile directory
-            # the default
-            firstrun.flush()
+    with open(os.path.join(profile_directory, "First Run"), "wb") as firstrun:
+        # This file existing prevents prompts to make the new profile directory
+        # the default
+        firstrun.flush()
     new_chrome.remote_args = webbrowser.Chrome.remote_args + [
         '--user-data-dir="{}"'.format(profile_directory),
-        '--no-first-run',
+        "--no-first-run",
     ]
     return new_chrome
 
 
 def new_webbrowser_profile():
-    if is_command('google-chrome'):
-        return _make_chrome('google-chrome')
-    elif is_command('firefox'):
+    if is_command("google-chrome"):
+        return _make_chrome("google-chrome")
+    elif is_command("firefox"):
         new_firefox = webbrowser.Mozilla()
-        new_firefox.name = 'firefox'
+        new_firefox.name = "firefox"
         profile_directory = tempfile.mkdtemp()
         new_firefox.remote_args = [
-            '-profile', profile_directory, '-new-instance', '-no-remote', '-url', '%s',
+            "-profile",
+            profile_directory,
+            "-new-instance",
+            "-no-remote",
+            "-url",
+            "%s",
         ]
         return new_firefox
-    elif sys.platform == 'darwin':
-        chrome_path = config.get('chrome-path', OSX_CHROME_PATH)
+    elif sys.platform == "darwin":
+        chrome_path = config.get("chrome-path", OSX_CHROME_PATH)
         if os.path.exists(chrome_path):
             return _make_chrome(chrome_path)
         else:
@@ -91,6 +96,7 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
 
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
+
     generated_uid = public_id = Experiment.make_uuid(app)
 
     # If the user provided an app name, use it everywhere that's user-facing.
@@ -102,11 +108,7 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     # Copy this directory into a temporary folder, ignoring .git
     dst = os.path.join(tempfile.mkdtemp(), public_id)
     to_ignore = shutil.ignore_patterns(
-        os.path.join(".git", "*"),
-        "*.db",
-        "snapshots",
-        "data",
-        "server.log",
+        os.path.join(".git", "*"), "*.db", "snapshots", "data", "server.log"
     )
     shutil.copytree(os.getcwd(), dst, ignore=to_ignore)
 
@@ -124,7 +126,7 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     if exp_config:
         config.extend(exp_config)
 
-    config.extend({'id': six.text_type(generated_uid)})
+    config.extend({"id": six.text_type(generated_uid)})
 
     config.write(filter_sensitive=True)
 
@@ -132,7 +134,8 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     if not debug:
         log("Freezing the experiment package...")
         shutil.make_archive(
-            os.path.join(cwd, "snapshots", public_id + "-code"), "zip", dst)
+            os.path.join(cwd, "snapshots", public_id + "-code"), "zip", dst
+        )
 
     # Check directories.
     ensure_directory(os.path.join("static", "scripts"))
@@ -141,19 +144,17 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
 
     # Get dallinger package location.
     from pkg_resources import get_distribution
-    dist = get_distribution('dallinger')
+
+    dist = get_distribution("dallinger")
     src_base = os.path.join(dist.location, dist.project_name)
 
-    heroku_files = [
-        "Procfile",
-        "runtime.txt",
-    ]
+    heroku_files = ["Procfile", "runtime.txt"]
 
     for filename in heroku_files:
         src = os.path.join(src_base, "heroku", filename)
         shutil.copy(src, os.path.join(dst, filename))
 
-    clock_on = config.get('clock_on', False)
+    clock_on = config.get("clock_on", False)
 
     # If the clock process has been disabled, overwrite the Procfile.
     if not clock_on:
@@ -176,11 +177,9 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("templates", "questionnaire.html"),
         os.path.join("templates", "thanks.html"),
         os.path.join("templates", "waiting.html"),
-        os.path.join("static", "robots.txt")
+        os.path.join("static", "robots.txt"),
     ]
-    frontend_dirs = [
-        os.path.join("templates", "base"),
-    ]
+    frontend_dirs = [os.path.join("templates", "base")]
 
     for filename in frontend_files:
         src = os.path.join(src_base, "frontend", filename)
@@ -219,12 +218,12 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, remaining=RETRIES):
 
     if not launch_request.ok:
         if remaining < 1:
-            error('Experiment launch failed, check web dyno logs for details.')
-            if launch_data.get('message'):
-                error(launch_data['message'])
+            error("Experiment launch failed, check web dyno logs for details.")
+            if launch_data.get("message"):
+                error(launch_data["message"])
             launch_request.raise_for_status()
         delay = 2 * delay
-        error('Experiment launch failed, retrying in {} seconds ...'.format(delay))
+        error("Experiment launch failed, retrying in {} seconds ...".format(delay))
         return _handle_launch_data(url, error, delay, remaining)
 
     return launch_data
@@ -235,7 +234,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     if verbose:
         out = None
     else:
-        out = open(os.devnull, 'w')
+        out = open(os.devnull, "w")
 
     config = get_config()
     if not config.ready:
@@ -267,18 +266,18 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
-    team = config.get("heroku_team", '').strip() or None
+    team = config.get("heroku_team", "").strip() or None
     heroku_app = HerokuApp(dallinger_uid=id, output=out, team=team)
     heroku_app.bootstrap()
     heroku_app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
 
     # Set up add-ons and AWS environment variables.
-    database_size = config.get('database_size')
-    redis_size = config.get('redis_size', 'premium-0')
+    database_size = config.get("database_size")
+    redis_size = config.get("redis_size", "premium-0")
     addons = [
         "heroku-postgresql:{}".format(quote(database_size)),
         "heroku-redis:{}".format(quote(redis_size)),
-        "papertrail"
+        "papertrail",
     ]
     if config.get("sentry", False):
         addons.append("sentry")
@@ -311,10 +310,12 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
 
     log("Saving the URL of the postgres database...")
     # Set the notification URL and database URL in the config file.
-    config.extend({
-        "notification_url": heroku_app.url + "/notifications",
-        "database_url": heroku_app.db_url,
-    })
+    config.extend(
+        {
+            "notification_url": heroku_app.url + "/notifications",
+            "database_url": heroku_app.db_url,
+        }
+    )
     config.write()
     git.add("config.txt")
     time.sleep(0.25)
@@ -337,16 +338,16 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
 
     # Launch the experiment.
     log("Launching the experiment on the remote server and starting recruitment...")
-    launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url), error=log)
+    launch_data = _handle_launch_data("{}/launch".format(heroku_app.url), error=log)
     result = {
-        'app_name': heroku_app.name,
-        'app_home': heroku_app.url,
-        'recruitment_msg': launch_data.get('recruitment_msg', None),
+        "app_name": heroku_app.name,
+        "app_home": heroku_app.url,
+        "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
     log("Experiment details:")
-    log("App home: {}".format(result['app_home']), chevrons=False)
+    log("App home: {}".format(result["app_home"]), chevrons=False)
     log("Recruiter info:")
-    log(result['recruitment_msg'], chevrons=False)
+    log(result["recruitment_msg"], chevrons=False)
 
     # Return to the branch whence we came.
     os.chdir(cwd)
@@ -361,10 +362,7 @@ def _deploy_in_mode(mode, app, verbose, log):
     config.load()
 
     # Set the mode.
-    config.extend({
-        "mode": mode,
-        "logfile": u"-",
-    })
+    config.extend({"mode": mode, "logfile": u"-"})
 
     # Do shared setup.
     deploy_sandbox_shared_setup(log, verbose=verbose, app=app)
@@ -377,10 +375,7 @@ class HerokuLocalDeployment(object):
     dispatch = {}  # Subclass may provide handlers for Heroku process output
 
     def configure(self):
-        self.exp_config.update({
-            "mode": u"debug",
-            "loglevel": 0,
-        })
+        self.exp_config.update({"mode": u"debug", "loglevel": 0})
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
@@ -391,10 +386,10 @@ class HerokuLocalDeployment(object):
         os.chdir(self.tmp_dir)
         # Update the logfile to the new directory
         config = get_config()
-        logfile = config.get('logfile')
-        if logfile and logfile != '-':
+        logfile = config.get("logfile")
+        if logfile and logfile != "-":
             logfile = os.path.join(self.original_dir, logfile)
-            config.extend({'logfile': logfile})
+            config.extend({"logfile": logfile})
             config.write()
 
     def run(self):
@@ -434,8 +429,8 @@ class HerokuLocalDeployment(object):
 class DebugDeployment(HerokuLocalDeployment):
 
     dispatch = {
-        r'[^\"]{} (.*)$'.format(recruiters.NEW_RECRUIT_LOG_PREFIX): 'new_recruit',
-        r'{}'.format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): 'recruitment_closed',
+        r"[^\"]{} (.*)$".format(recruiters.NEW_RECRUIT_LOG_PREFIX): "new_recruit",
+        r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
 
     def __init__(self, output, verbose, bot, proxy_port, exp_config):
@@ -459,14 +454,16 @@ class DebugDeployment(HerokuLocalDeployment):
         self.out.log("Launching the experiment...")
         time.sleep(4)
         try:
-            result = _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
+            result = _handle_launch_data(
+                "{}/launch".format(base_url), error=self.out.error
+            )
         except Exception:
             # Show output from server
-            self.dispatch[r'POST /launch'] = 'launch_request_complete'
+            self.dispatch[r"POST /launch"] = "launch_request_complete"
             heroku.monitor(listener=self.notify)
         else:
-            if result['status'] == 'success':
-                self.out.log(result['recruitment_msg'])
+            if result["status"] == "success":
+                self.out.log(result["recruitment_msg"])
                 self.heroku = heroku
                 heroku.monitor(listener=self.notify)
 
@@ -486,7 +483,7 @@ class DebugDeployment(HerokuLocalDeployment):
         url = match.group(1)
         if self.proxy_port is not None:
             self.out.log("Using proxy port {}".format(self.proxy_port))
-            url = url.replace(str(get_config().get('base_port')), self.proxy_port)
+            url = url.replace(str(get_config().get("base_port")), self.proxy_port)
         new_webbrowser_profile().open(url, new=1, autoraise=True)
 
     def recruitment_closed(self, match):
@@ -505,18 +502,18 @@ class DebugDeployment(HerokuLocalDeployment):
         """
         self.out.log("Recruitment is complete. Waiting for experiment completion...")
         base_url = get_base_url()
-        status_url = base_url + '/summary'
+        status_url = base_url + "/summary"
         while not self.complete:
             time.sleep(10)
             try:
                 resp = requests.get(status_url)
                 exp_data = resp.json()
             except (ValueError, requests.exceptions.RequestException):
-                self.out.error('Error fetching experiment status.')
+                self.out.error("Error fetching experiment status.")
             else:
-                self.out.log('Experiment summary: {}'.format(exp_data))
-                if exp_data.get('completed', False):
-                    self.out.log('Experiment completed, all nodes filled.')
+                self.out.log("Experiment summary: {}".format(exp_data))
+                if exp_data.get("completed", False):
+                    self.out.log("Experiment completed, all nodes filled.")
                     self.complete = True
                     self.heroku.stop()
 
@@ -533,9 +530,7 @@ class DebugDeployment(HerokuLocalDeployment):
 
 
 class LoaderDeployment(HerokuLocalDeployment):
-    dispatch = {
-        'Replay ready: (.*)$': 'start_replay',
-    }
+    dispatch = {"Replay ready: (.*)$": "start_replay"}
 
     def __init__(self, app_id, output, verbose, exp_config):
         self.app_id = app_id
@@ -546,10 +541,7 @@ class LoaderDeployment(HerokuLocalDeployment):
         self.zip_path = None
 
     def configure(self):
-        self.exp_config.update({
-            "mode": u"debug",
-            "loglevel": 0,
-        })
+        self.exp_config.update({"mode": u"debug", "loglevel": 0})
 
         self.zip_path = data.find_experiment_export(self.app_id)
         if self.zip_path is None:
@@ -566,19 +558,21 @@ class LoaderDeployment(HerokuLocalDeployment):
         until terminated with <control>-c.
         """
         db.init_db(drop_all=True)
-        self.out.log("Ingesting dataset from {}...".format(os.path.basename(self.zip_path)))
+        self.out.log(
+            "Ingesting dataset from {}...".format(os.path.basename(self.zip_path))
+        )
         data.ingest_zip(self.zip_path)
         base_url = get_base_url()
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
 
-        if self.exp_config.get('replay', False):
+        if self.exp_config.get("replay", False):
             self.out.log("Launching the experiment...")
             time.sleep(4)
-            _handle_launch_data('{}/launch'.format(base_url), error=self.out.error)
+            _handle_launch_data("{}/launch".format(base_url), error=self.out.error)
             heroku.monitor(listener=self.notify)
 
         # Just run until interrupted:
-        while(self.keep_running()):
+        while self.keep_running():
             time.sleep(1)
 
     def start_replay(self, match):

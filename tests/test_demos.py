@@ -10,7 +10,7 @@ class TestDemos(object):
     def test_verify_all_demos(self):
         demo_paths = os.listdir(os.path.join("demos", "dlgr", "demos"))
         for demo_path in demo_paths:
-            if demo_path == '__pycache__':
+            if demo_path == "__pycache__":
                 continue
             if os.path.isdir(demo_path):
                 os.chdir(demo_path)
@@ -23,6 +23,7 @@ class TestBartlett1932(object):
 
     def _make_one(self):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932
+
         return Bartlett1932(self._db)
 
     def setup(self):
@@ -42,11 +43,10 @@ class TestBartlett1932(object):
     def test_networks_holds_single_experiment_node(self):
         demo = self._make_one()
         assert len(demo.networks()) == 1
-        assert u'experiment' == demo.networks()[0].role
+        assert u"experiment" == demo.networks()[0].role
 
 
 class TestEntryPointImport(object):
-
     def test_bartlett1932_entry_point(self):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932 as OrigExp
         from dallinger.experiments import Bartlett1932

@@ -30,13 +30,13 @@ logger = logging.getLogger(__file__)
 
 def _get_queue():
     # Connect to Redis Queue
-    return Queue('low', connection=redis_conn)
+    return Queue("low", connection=redis_conn)
 
 
 # These are constants because other components may listen for these
 # messages in logs:
-NEW_RECRUIT_LOG_PREFIX = 'New participant requested:'
-CLOSE_RECRUITMENT_LOG_PREFIX = 'Close recruitment.'
+NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
+CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
 
 
 class Recruiter(object):
@@ -111,7 +111,7 @@ class Recruiter(object):
         an assignment is submitted. If no event should be processed,
         return None.
         """
-        return 'AssignmentSubmitted'
+        return "AssignmentSubmitted"
 
 
 class CLIRecruiter(Recruiter):
@@ -119,7 +119,7 @@ class CLIRecruiter(Recruiter):
     assigment.
     """
 
-    nickname = 'cli'
+    nickname = "cli"
 
     def __init__(self):
         super(CLIRecruiter, self).__init__()
@@ -129,27 +129,20 @@ class CLIRecruiter(Recruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening CLI recruitment for {} participants".format(
-            n
-        ))
+        logger.info("Opening CLI recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = (
             'Search for "{}" in the logs for subsequent recruitment URLs.\n'
-            'Open the logs for this experiment with '
+            "Open the logs for this experiment with "
             '"dallinger logs --app {}"'.format(
-                NEW_RECRUIT_LOG_PREFIX, self.config.get('id')
+                NEW_RECRUIT_LOG_PREFIX, self.config.get("id")
             )
         )
-        return {
-            'items': recruitments,
-            'message': message
-        }
+        return {"items": recruitments, "message": message}
 
     def recruit(self, n=1):
         """Generate experiemnt URLs and print them to the console."""
-        logger.info("Recruiting {} CLI participants".format(
-            n
-        ))
+        logger.info("Recruiting {} CLI participants".format(n))
         urls = []
         template = "{}/ad?recruiter={}&assignmentId={}&hitId={}&workerId={}&mode={}"
         for i in range(n):
@@ -159,33 +152,32 @@ class CLIRecruiter(Recruiter):
                 generate_random_id(),
                 generate_random_id(),
                 generate_random_id(),
-                self._get_mode()
+                self._get_mode(),
             )
-            logger.info('{} {}'.format(NEW_RECRUIT_LOG_PREFIX, ad_url))
+            logger.info("{} {}".format(NEW_RECRUIT_LOG_PREFIX, ad_url))
             urls.append(ad_url)
 
         return urls
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + ' cli')
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " cli")
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
-        logger.info(
-            "Assignment {} has been marked for approval".format(assignment_id)
-        )
+        logger.info("Assignment {} has been marked for approval".format(assignment_id))
         return True
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Print out bonus info for the assignment"""
         logger.info(
             'Award ${} for assignment {}, with reason "{}"'.format(
-                amount, assignment_id, reason)
+                amount, assignment_id, reason
+            )
         )
 
     def _get_mode(self):
-        return self.config.get('mode')
+        return self.config.get("mode")
 
 
 class HotAirRecruiter(CLIRecruiter):
@@ -195,22 +187,17 @@ class HotAirRecruiter(CLIRecruiter):
     - Prints experiment /ad URLs to the console
     """
 
-    nickname = 'hotair'
+    nickname = "hotair"
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening HotAir recruitment for {} participants".format(
-            n
-        ))
+        logger.info("Opening HotAir recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = "Recruitment requests will open browser windows automatically."
 
-        return {
-            'items': recruitments,
-            'message': message
-        }
+        return {"items": recruitments, "message": message}
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Logging-only, Hot Air implementation"""
@@ -221,29 +208,22 @@ class HotAirRecruiter(CLIRecruiter):
 
     def _get_mode(self):
         # Ignore config settings and always use debug mode
-        return 'debug'
+        return "debug"
 
 
 class SimulatedRecruiter(Recruiter):
     """A recruiter that recruits simulated participants."""
 
-    nickname = 'sim'
+    nickname = "sim"
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
-        logger.info("Opening Sim recruitment for {} participants".format(
-            n
-        ))
-        return {
-            'items': self.recruit(n),
-            'message': 'Simulated recruitment only'
-        }
+        logger.info("Opening Sim recruitment for {} participants".format(n))
+        return {"items": self.recruit(n), "message": "Simulated recruitment only"}
 
     def recruit(self, n=1):
         """Recruit n participants."""
-        logger.info("Recruiting {} Sim participants".format(
-            n
-        ))
+        logger.info("Recruiting {} Sim participants".format(n))
         return []
 
     def close_recruitment(self):
@@ -356,7 +336,6 @@ Time since participant started: {s.active_minutes:.0f}
 
 
 class MTurkHITMessages(object):
-
     @staticmethod
     def by_flavor(summary, whimsical):
         if whimsical:
@@ -364,13 +343,13 @@ class MTurkHITMessages(object):
         return MTurkHITMessages(summary)
 
     _templates = {
-        'resubmitted': {
-            'subject': 'Dallinger automated email - minor error.',
-            'template': mturk_resubmit,
+        "resubmitted": {
+            "subject": "Dallinger automated email - minor error.",
+            "template": mturk_resubmit,
         },
-        'cancelled': {
-            'subject': 'Dallinger automated email - major error.',
-            'template': cancelled_hit,
+        "cancelled": {
+            "subject": "Dallinger automated email - major error.",
+            "template": cancelled_hit,
         },
     }
 
@@ -378,29 +357,29 @@ class MTurkHITMessages(object):
         self.summary = summary
 
     def resubmitted_msg(self):
-        return self._build('resubmitted')
+        return self._build("resubmitted")
 
     def hit_cancelled_msg(self):
-        return self._build('cancelled')
+        return self._build("cancelled")
 
     def _build(self, category):
         data = self._templates[category]
         return {
-            'body': data['template'].format(s=self.summary),
-            'subject': data['subject'],
+            "body": data["template"].format(s=self.summary),
+            "subject": data["subject"],
         }
 
 
 class WhimsicalMTurkHITMessages(MTurkHITMessages):
 
     _templates = {
-        'resubmitted': {
-            'subject': 'A matter of minor concern.',
-            'template': mturk_resubmit_whimsical,
+        "resubmitted": {
+            "subject": "A matter of minor concern.",
+            "template": mturk_resubmit_whimsical,
         },
-        'cancelled': {
-            'subject': 'Most troubling news.',
-            'template': mturk_cancelled_hit_whimsical,
+        "cancelled": {
+            "subject": "Most troubling news.",
+            "template": mturk_cancelled_hit_whimsical,
         },
     }
 
@@ -412,31 +391,28 @@ class MTurkRecruiterException(Exception):
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
-    nickname = 'mturk'
+    nickname = "mturk"
 
-    experiment_qualification_desc = 'Experiment-specific qualification'
-    group_qualification_desc = 'Experiment group qualification'
+    experiment_qualification_desc = "Experiment-specific qualification"
+    group_qualification_desc = "Experiment group qualification"
 
     def __init__(self):
         super(MTurkRecruiter, self).__init__()
         self.config = get_config()
-        self.ad_url = '{}/ad?recruiter={}'.format(
-            get_base_url(),
-            self.nickname,
-        )
-        self.hit_domain = os.getenv('HOST')
+        self.ad_url = "{}/ad?recruiter={}".format(get_base_url(), self.nickname)
+        self.hit_domain = os.getenv("HOST")
         self.mturkservice = MTurkService(
-            self.config.get('aws_access_key_id'),
-            self.config.get('aws_secret_access_key'),
-            self.config.get('aws_region'),
-            self.config.get('mode') != "live"
+            self.config.get("aws_access_key_id"),
+            self.config.get("aws_secret_access_key"),
+            self.config.get("aws_region"),
+            self.config.get("mode") != "live",
         )
         self.messenger = get_messenger(self.config)
         self._validate_config()
 
     def _validate_config(self):
-        mode = self.config.get('mode')
-        if mode not in ('sandbox', 'live'):
+        mode = self.config.get("mode")
+        if mode not in ("sandbox", "live"):
             raise MTurkRecruiterException(
                 '"{}" is not a valid mode for MTurk recruitment. '
                 'The value of "mode" must be either "sandbox" or "live"'.format(mode)
@@ -448,14 +424,14 @@ class MTurkRecruiter(Recruiter):
         the Mechanical Turk site to submit their HIT, which in turn triggers
         notifications to the /notifications route.
         """
-        if self.config.get('mode') == "sandbox":
+        if self.config.get("mode") == "sandbox":
             return "https://workersandbox.mturk.com/mturk/externalSubmit"
         return "https://www.mturk.com/mturk/externalSubmit"
 
     @property
     def qualifications(self):
-        quals = {self.config.get('id'): self.experiment_qualification_desc}
-        group_name = self.config.get('group_name', None)
+        quals = {self.config.get("id"): self.experiment_qualification_desc}
+        group_name = self.config.get("group_name", None)
         if group_name:
             quals[group_name] = self.group_qualification_desc
 
@@ -463,9 +439,7 @@ class MTurkRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
-        logger.info("Opening MTurk recruitment for {} participants".format(
-            n
-        ))
+        logger.info("Opening MTurk recruitment for {} participants".format(n))
         if self.is_in_progress:
             raise MTurkRecruiterException(
                 "Tried to open_recruitment on already open recruiter."
@@ -476,54 +450,52 @@ class MTurkRecruiter(Recruiter):
 
         self.mturkservice.check_credentials()
 
-        if self.config.get('assign_qualifications'):
+        if self.config.get("assign_qualifications"):
             self._create_mturk_qualifications()
 
         hit_request = {
-            'max_assignments': n,
-            'title': self.config.get('title'),
-            'description': self.config.get('description'),
-            'keywords': self._config_to_list('keywords'),
-            'reward': self.config.get('base_payment'),
-            'duration_hours': self.config.get('duration'),
-            'lifetime_days': self.config.get('lifetime'),
-            'ad_url': self.ad_url,
-            'notification_url': self.config.get('notification_url'),
-            'approve_requirement': self.config.get('approve_requirement'),
-            'us_only': self.config.get('us_only'),
-            'blacklist': self._config_to_list('qualification_blacklist'),
-            'annotation': self.config.get('id'),
+            "max_assignments": n,
+            "title": self.config.get("title"),
+            "description": self.config.get("description"),
+            "keywords": self._config_to_list("keywords"),
+            "reward": self.config.get("base_payment"),
+            "duration_hours": self.config.get("duration"),
+            "lifetime_days": self.config.get("lifetime"),
+            "ad_url": self.ad_url,
+            "notification_url": self.config.get("notification_url"),
+            "approve_requirement": self.config.get("approve_requirement"),
+            "us_only": self.config.get("us_only"),
+            "blacklist": self._config_to_list("qualification_blacklist"),
+            "annotation": self.config.get("id"),
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
-        if self.config.get('mode') == "sandbox":
-            lookup_url = "https://workersandbox.mturk.com/mturk/preview?groupId={type_id}"
+        if self.config.get("mode") == "sandbox":
+            lookup_url = (
+                "https://workersandbox.mturk.com/mturk/preview?groupId={type_id}"
+            )
         else:
             lookup_url = "https://worker.mturk.com/mturk/preview?groupId={type_id}"
 
         return {
-            'items': [lookup_url.format(**hit_info), ],
-            'message': 'HIT now published to Amazon Mechanical Turk'
+            "items": [lookup_url.format(**hit_info)],
+            "message": "HIT now published to Amazon Mechanical Turk",
         }
 
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
-        logger.info("Recruiting {} MTurk participants".format(
-            n
-        ))
-        if not self.config.get('auto_recruit', False):
-            logger.info('auto_recruit is False: recruitment suppressed')
+        logger.info("Recruiting {} MTurk participants".format(n))
+        if not self.config.get("auto_recruit", False):
+            logger.info("auto_recruit is False: recruitment suppressed")
             return
 
         hit_id = self.current_hit_id()
         if hit_id is None:
-            logger.info('no HIT in progress: recruitment aborted')
+            logger.info("no HIT in progress: recruitment aborted")
             return
 
         try:
             return self.mturkservice.extend_hit(
-                hit_id,
-                number=n,
-                duration_hours=self.config.get('duration')
+                hit_id, number=n, duration_hours=self.config.get("duration")
             )
         except MTurkServiceException as ex:
             logger.exception(str(ex))
@@ -536,16 +508,14 @@ class MTurkRecruiter(Recruiter):
         haven't actually completed the experiment. This allows them to remain
         eligible for future runs.
         """
-        if participant.status == 'overrecruited' or not self.qualification_active:
+        if participant.status == "overrecruited" or not self.qualification_active:
             return
 
         worker_id = participant.worker_id
 
         for name in self.qualifications:
             try:
-                self.mturkservice.increment_qualification_score(
-                    name, worker_id
-                )
+                self.mturkservice.increment_qualification_score(name, worker_id)
             except QualificationNotFoundException as ex:
                 logger.exception(ex)
 
@@ -559,13 +529,13 @@ class MTurkRecruiter(Recruiter):
             summary = ParticipationTime(participant, reference_time, self.config)
             status = self._mturk_status_for(participant)
 
-            if status == 'Approved':
-                participant.status = 'approved'
+            if status == "Approved":
+                participant.status = "approved"
                 session.commit()
-            elif status == 'Rejected':
-                participant.status = 'rejected'
+            elif status == "Rejected":
+                participant.status = "rejected"
                 session.commit()
-            elif status == 'Submitted':
+            elif status == "Submitted":
                 self._resend_submitted_rest_notification_for(participant)
                 self._message_researcher(self._resubmitted_msg(summary))
                 logger.warning(
@@ -620,17 +590,18 @@ class MTurkRecruiter(Recruiter):
     @property
     def is_in_progress(self):
         # Has this recruiter resulted in any participants?
-        return bool(Participant.query.filter_by(
-            recruiter_id=self.nickname
-        ).first())
+        return bool(Participant.query.filter_by(recruiter_id=self.nickname).first())
 
     @property
     def qualification_active(self):
-        return bool(self.config.get('assign_qualifications', False))
+        return bool(self.config.get("assign_qualifications", False))
 
     def current_hit_id(self):
-        any_participant_record = Participant.query.with_entities(
-            Participant.hit_id).filter_by(recruiter_id=self.nickname).first()
+        any_participant_record = (
+            Participant.query.with_entities(Participant.hit_id)
+            .filter_by(recruiter_id=self.nickname)
+            .first()
+        )
 
         if any_participant_record is not None:
             return str(any_participant_record.hit_id)
@@ -648,7 +619,7 @@ class MTurkRecruiter(Recruiter):
         expire_hit rather than the disable_hit API call. This allows people
         who have already picked up the hit to complete it as normal.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + ' mturk')
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " mturk")
         # We are not expiring the hit currently as notifications are failing
         # TODO: Reinstate this
         # try:
@@ -661,42 +632,38 @@ class MTurkRecruiter(Recruiter):
     def _mturk_status_for(self, participant):
         try:
             assignment = self.mturkservice.get_assignment(participant.assignment_id)
-            status = assignment['status']
+            status = assignment["status"]
         except Exception:
             status = None
         return status
 
     def _disable_autorecruit(self):
-        heroku_app = heroku_tools.HerokuApp(self.config.get('id'))
-        args = json.dumps({'auto_recruit': 'false'})
-        headers = heroku_tools.request_headers(self.config.get('heroku_auth_token'))
-        requests.patch(
-            heroku_app.config_url,
-            data=args,
-            headers=headers,
-        )
+        heroku_app = heroku_tools.HerokuApp(self.config.get("id"))
+        args = json.dumps({"auto_recruit": "false"})
+        headers = heroku_tools.request_headers(self.config.get("heroku_auth_token"))
+        requests.patch(heroku_app.config_url, data=args, headers=headers)
 
     def _resend_submitted_rest_notification_for(self, participant):
-        notification_url = self.config.get('notification_url')
+        notification_url = self.config.get("notification_url")
         args = {
-            'Event.1.EventType': 'AssignmentSubmitted',
-            'Event.1.AssignmentId': participant.assignment_id
+            "Event.1.EventType": "AssignmentSubmitted",
+            "Event.1.AssignmentId": participant.assignment_id,
         }
         requests.post(notification_url, data=args)
 
     def _send_notification_missing_rest_notification_for(self, participant):
-        notification_url = self.config.get('notification_url')
+        notification_url = self.config.get("notification_url")
         args = {
-            'Event.1.EventType': 'NotificationMissing',
-            'Event.1.AssignmentId': participant.assignment_id
+            "Event.1.EventType": "NotificationMissing",
+            "Event.1.AssignmentId": participant.assignment_id,
         }
         requests.post(notification_url, data=args)
 
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
         # but the config system only supports strings for now, so we convert:
-        as_string = self.config.get(key, '')
-        return [item.strip() for item in as_string.split(',') if item.strip()]
+        as_string = self.config.get(key, "")
+        return [item.strip() for item in as_string.split(",") if item.strip()]
 
     def _create_mturk_qualifications(self):
         """Create MTurk Qualification for experiment ID, and for group_name
@@ -710,11 +677,11 @@ class MTurkRecruiter(Recruiter):
                 pass
 
     def _resubmitted_msg(self, summary):
-        templates = MTurkHITMessages.by_flavor(summary, self.config.get('whimsical'))
+        templates = MTurkHITMessages.by_flavor(summary, self.config.get("whimsical"))
         return templates.resubmitted_msg()
 
     def _cancelled_msg(self, summary):
-        templates = MTurkHITMessages.by_flavor(summary, self.config.get('whimsical'))
+        templates = MTurkHITMessages.by_flavor(summary, self.config.get("whimsical"))
         return templates.hit_cancelled_msg()
 
     def _message_researcher(self, message):
@@ -726,7 +693,7 @@ class MTurkRecruiter(Recruiter):
 
 class RedisTally(object):
 
-    _key = 'num_recruited'
+    _key = "num_recruited"
 
     def __init__(self):
         redis_conn.set(self._key, 0)
@@ -741,17 +708,15 @@ class RedisTally(object):
 
 class MTurkLargeRecruiter(MTurkRecruiter):
 
-    nickname = 'mturklarge'
+    nickname = "mturklarge"
     pool_size = 10
 
     def __init__(self, *args, **kwargs):
-        self.counter = kwargs.get('counter', RedisTally())
+        self.counter = kwargs.get("counter", RedisTally())
         super(MTurkLargeRecruiter, self).__init__()
 
     def open_recruitment(self, n=1):
-        logger.info("Opening MTurkLarge recruitment for {} participants".format(
-            n
-        ))
+        logger.info("Opening MTurkLarge recruitment for {} participants".format(n))
         if self.is_in_progress:
             raise MTurkRecruiterException(
                 "Tried to open_recruitment on already open recruiter."
@@ -762,8 +727,8 @@ class MTurkLargeRecruiter(MTurkRecruiter):
 
     def recruit(self, n=1):
         logger.info("Recruiting {} MTurkLarge participants".format(n))
-        if not self.config.get('auto_recruit', False):
-            logger.info('auto_recruit is False: recruitment suppressed')
+        if not self.config.get("auto_recruit", False):
+            logger.info("auto_recruit is False: recruitment suppressed")
             return
 
         needed = max(0, n - self.remaining_pool)
@@ -779,8 +744,8 @@ class MTurkLargeRecruiter(MTurkRecruiter):
 class BotRecruiter(Recruiter):
     """Recruit bot participants using a queue"""
 
-    nickname = 'bots'
-    _timeout = '1h'
+    nickname = "bots"
+    _timeout = "1h"
 
     def __init__(self):
         super(BotRecruiter, self).__init__()
@@ -788,21 +753,17 @@ class BotRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
-        logger.info("Opening Bot recruitment for {} participants".format(
-            n
-        ))
+        logger.info("Opening Bot recruitment for {} participants".format(n))
         factory = self._get_bot_factory()
-        bot_class_name = factory('', '', '').__class__.__name__
+        bot_class_name = factory("", "", "").__class__.__name__
         return {
-            'items': self.recruit(n),
-            'message': 'Bot recruitment started using {}'.format(bot_class_name)
+            "items": self.recruit(n),
+            "message": "Bot recruitment started using {}".format(bot_class_name),
         }
 
     def recruit(self, n=1):
         """Recruit n new participant bots to the queue"""
-        logger.info("Recruiting {} Bot participants".format(
-            n
-        ))
+        logger.info("Recruiting {} Bot participants".format(n))
         factory = self._get_bot_factory()
         urls = []
         q = _get_queue()
@@ -811,9 +772,11 @@ class BotRecruiter(Recruiter):
             worker = generate_random_id()
             hit = generate_random_id()
             assignment = generate_random_id()
-            ad_parameters = 'recruiter={}&assignmentId={}&hitId={}&workerId={}&mode=sandbox'
+            ad_parameters = (
+                "recruiter={}&assignmentId={}&hitId={}&workerId={}&mode=sandbox"
+            )
             ad_parameters = ad_parameters.format(self.nickname, assignment, hit, worker)
-            url = '{}/ad?{}'.format(base_url, ad_parameters)
+            url = "{}/ad?{}".format(base_url, ad_parameters)
             urls.append(url)
             bot = factory(url, assignment_id=assignment, worker_id=worker, hit_id=hit)
             job = q.enqueue(bot.run_experiment, timeout=self._timeout)
@@ -829,7 +792,7 @@ class BotRecruiter(Recruiter):
 
         This does nothing at this time.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + ' bot')
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " bot")
 
     def notify_duration_exceeded(self, participants, reference_time):
         """The bot participant has been working longer than the time defined in
@@ -841,25 +804,24 @@ class BotRecruiter(Recruiter):
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Logging only. These are bots."""
-        logger.info(
-            "Bots don't get bonuses. Sorry, bots."
-        )
+        logger.info("Bots don't get bonuses. Sorry, bots.")
 
     def submitted_event(self):
-        return 'BotAssignmentSubmitted'
+        return "BotAssignmentSubmitted"
 
     def _get_bot_factory(self):
         # Must be imported at run-time
         from dallinger_experiment.experiment import Bot
+
         return Bot
 
 
 class MultiRecruiter(Recruiter):
 
-    nickname = 'multi'
+    nickname = "multi"
 
     # recruiter spec e.g. recruiters = bots: 5, mturk: 1
-    SPEC_RE = re.compile(r'(\w+):\s*(\d+)')
+    SPEC_RE = re.compile(r"(\w+):\s*(\d+)")
 
     def __init__(self):
         super(MultiRecruiter, self).__init__()
@@ -871,7 +833,7 @@ class MultiRecruiter(Recruiter):
         Example: recruiters = bots: 5, mturk: 1
         """
         recruiters = []
-        spec = get_config().get('recruiters')
+        spec = get_config().get("recruiters")
         for match in self.SPEC_RE.finditer(spec):
             name = match.group(1)
             count = int(match.group(2))
@@ -890,10 +852,9 @@ class MultiRecruiter(Recruiter):
         recruit_count = 0
         while recruit_count <= n:
             counts = dict(
-                session.query(
-                    Recruitment.recruiter_id,
-                    func.count(Recruitment.id)
-                ).group_by(Recruitment.recruiter_id).all()
+                session.query(Recruitment.recruiter_id, func.count(Recruitment.id))
+                .group_by(Recruitment.recruiter_id)
+                .all()
             )
             for recruiter_id, target_count in self.spec:
                 remaining = 0
@@ -922,9 +883,7 @@ class MultiRecruiter(Recruiter):
     def open_recruitment(self, n=1):
         """Return initial experiment URL list.
         """
-        logger.info("Multi recruitment running for {} participants".format(
-            n
-        ))
+        logger.info("Multi recruitment running for {} participants".format(n))
         recruitments = []
         messages = {}
         remaining = n
@@ -936,31 +895,27 @@ class MultiRecruiter(Recruiter):
                 recruitments.extend(result)
             else:
                 result = recruiter.open_recruitment(count)
-                recruitments.extend(result['items'])
-                messages[recruiter.nickname] = result['message']
+                recruitments.extend(result["items"])
+                messages[recruiter.nickname] = result["message"]
 
             remaining -= count
             if remaining <= 0:
                 break
 
-        logger.info((
-            'Multi-recruited {} out of {} participants, '
-            'using {} recruiters.').format(
-                n - remaining, n, len(messages)
-            )
+        logger.info(
+            (
+                "Multi-recruited {} out of {} participants, " "using {} recruiters."
+            ).format(n - remaining, n, len(messages))
         )
 
-        return {
-            'items': recruitments,
-            'message': '\n'.join(messages.values())
-        }
+        return {"items": recruitments, "message": "\n".join(messages.values())}
 
     def recruit(self, n=1):
         """For multi recruitment recruit and open_recruitment
         have the same logic. We may need to open recruitment on any of our
         sub-recruiters at any point in recruitment.
         """
-        return self.open_recruitment(n)['items']
+        return self.open_recruitment(n)["items"]
 
     def close_recruitment(self):
         for name in set(name for name, count in self.spec):
@@ -983,12 +938,12 @@ def from_config(config):
     the bot recruiter, which can be used in debug mode)
     and the MTurkRecruiter in other modes.
     """
-    debug_mode = config.get('mode', None) == 'debug'
-    name = config.get('recruiter', None)
+    debug_mode = config.get("mode", None) == "debug"
+    name = config.get("recruiter", None)
     recruiter = None
 
     # Special case 1: Don't use a configured recruiter in replay mode
-    if config.get('replay', None):
+    if config.get("replay", None):
         return HotAirRecruiter()
 
     if name is not None:

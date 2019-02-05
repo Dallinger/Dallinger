@@ -6,7 +6,6 @@ import dallinger
 
 
 class TestExamples(object):
-
     def setup(self):
         """Set up the environment by resetting the tables."""
         os.chdir(os.path.join("demos", "dlgr", "demos"))

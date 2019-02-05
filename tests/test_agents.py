@@ -92,7 +92,7 @@ class TestAgents(object):
 
         with raises(ValueError) as ex_info:
             agent1.transmit(what=info, to_whom=agent2)
-            assert ex_info.match('they do not have the same origin')
+            assert ex_info.match("they do not have the same origin")
 
     def test_agent_transmit_everything_to_everyone(self, a):
         net = a.network()

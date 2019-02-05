@@ -22,8 +22,8 @@ class ReplayBackend(object):
         gevent.sleep(0.200)
 
         try:
-            logger.info('Replay ready: {}{}'.format(
-                get_base_url(), self.experiment.replay_path)
+            logger.info(
+                "Replay ready: {}{}".format(get_base_url(), self.experiment.replay_path)
             )
         except RuntimeError:
             # config not loaded, we may be in unit tests
@@ -32,7 +32,7 @@ class ReplayBackend(object):
         while not self.experiment.replay_started():
             gevent.sleep(0.01)
 
-        self.experiment.log('Looping through replayable data', key='replay')
+        self.experiment.log("Looping through replayable data", key="replay")
         timestamp = self.timestamp
         events = self.experiment.events_for_replay()
 
@@ -42,9 +42,10 @@ class ReplayBackend(object):
 
         first_timestamp = timestamp(events[0].creation_time)
         self.experiment.log(
-            'Found {} messages to replay starting from {}'.format(
+            "Found {} messages to replay starting from {}".format(
                 events.count(), events[0].creation_time
-            ), key='replay'
+            ),
+            key="replay",
         )
         start = time.time()
         for event in events:
@@ -53,18 +54,21 @@ class ReplayBackend(object):
             if event_offset >= cur_offset:
                 if (event_offset - cur_offset) > 1:
                     self.experiment.log(
-                        'Waiting {} seconds to replay {} {}'.format(
+                        "Waiting {} seconds to replay {} {}".format(
                             event_offset - cur_offset, event.type, event.id
-                        ), key='replay'
+                        ),
+                        key="replay",
                     )
                 gevent.sleep(event_offset - cur_offset)
             self.experiment.replay_event(event)
 
         self.experiment.log(
-            'Replayed {} events in {} seconds (original duration {} seconds)'.format(
-                events.count(), time.time() - start,
-                timestamp(event.creation_time) - first_timestamp
-            ), key='replay'
+            "Replayed {} events in {} seconds (original duration {} seconds)".format(
+                events.count(),
+                time.time() - start,
+                timestamp(event.creation_time) - first_timestamp,
+            ),
+            key="replay",
         )
         self.experiment.replay_finish()
         return
@@ -72,4 +76,4 @@ class ReplayBackend(object):
     @staticmethod
     def timestamp(dt):
         """Generate a microsecond accurate timestamp from a datetime."""
-        return time.mktime(dt.timetuple()) + dt.microsecond / 1E6
+        return time.mktime(dt.timetuple()) + dt.microsecond / 1e6

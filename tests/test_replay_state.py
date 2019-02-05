@@ -10,44 +10,34 @@ import pytest
 
 @pytest.fixture
 def zip_path():
-    return os.path.join(
-        "tests",
-        "datasets",
-        "test_export.zip"
-    )
+    return os.path.join("tests", "datasets", "test_export.zip")
 
 
 class TestReplayState(object):
-
     @pytest.fixture
     def cleanup(self):
         yield
-        shutil.rmtree('data')
+        shutil.rmtree("data")
 
     @pytest.fixture
     def experiment(self):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932
+
         yield Bartlett1932()
 
-    bartlett_export = os.path.join(
-        "tests",
-        "datasets",
-        "bartlett_bots.zip"
-    )
+    bartlett_export = os.path.join("tests", "datasets", "bartlett_bots.zip")
 
     @pytest.fixture
     def scrubber(self, experiment, db_session):
         with experiment.restore_state_from_replay(
-            'bartlett-test',
-            session=db_session,
-            zip_path=self.bartlett_export,
+            "bartlett-test", session=db_session, zip_path=self.bartlett_export
         ) as scrubber:
             yield scrubber
 
     def test_scrub_forwards(self, scrubber):
         target = datetime(2017, 6, 23, 12, 0, 29, 941148)
         with mock.patch(
-            'dlgr.demos.bartlett1932.experiment.Bartlett1932.replay_event'
+            "dlgr.demos.bartlett1932.experiment.Bartlett1932.replay_event"
         ) as replay_event:
             replay_event.assert_not_called()
             scrubber(target)
@@ -58,7 +48,7 @@ class TestReplayState(object):
     def test_cannot_scrub_backwards(self, scrubber):
         target = datetime(2017, 6, 23, 12, 0, 29, 941148)
         with mock.patch(
-            'dlgr.demos.bartlett1932.experiment.Bartlett1932.replay_event'
+            "dlgr.demos.bartlett1932.experiment.Bartlett1932.replay_event"
         ) as replay_event:
             replay_event.assert_not_called()
             scrubber(datetime.now())
