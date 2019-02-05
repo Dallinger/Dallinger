@@ -56,54 +56,7 @@ plugins:
 exclude_patterns:
 - "**/node_modules/"
 - "**/*min.js"
-
-# - "config/"
-# - "db/"
-# - "dist/"
-# - "features/"
-# - "**/node_modules/"
-# - "script/"
-# - "**/spec/"
-# - "**/test/"
-# - "**/tests/"
-# - "**/vendor/"
-# - "**/*.d.ts"
-
-#---
-#engines:
-#  csslint:
-#    enabled: true
-#  file-lines:
-#    config:
-#      threshold: 750
-#  duplication:
-#    enabled: true
-#    config:
-#      languages:
-#      - ruby
-#      - javascript
-#      - python
-#      - php
-#    exclude_paths:
-#      - "tests/*"
-#      - "demos/*"
-#  eslint:
-#    enabled: true
-#  fixme:
-#    enabled: true
-#  radon:
-#    enabled: true
-#ratings:
-#  paths:
-#  - "**.css"
-#  - "**.inc"
-#  - "**.js"
-#  - "**.jsx"
-#  - "**.module"
-#  - "**.php"
-#  - "**.py"
-#  - "**.rb"
-#exclude_paths:
-#- "**/*min.js"
-
+- "scripts/"
+- ".cache/"
+- ".eggs/"
 
