@@ -1,7 +1,7 @@
 Questions
 =========
 
-Here we are, the final database class. This ones a stub too, so its nice and easy.
+Here we are, the final database class. This ones a stub too, so it's nice and easy.
 
 .. figure:: _static/class_chart.jpg
    :alt: 
