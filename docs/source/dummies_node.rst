@@ -143,7 +143,7 @@ The final column is ``details``. This serves a very similar function to the ``pr
 Node objects
 ------------
 
-So far we've covered Nodes from the table view, but remember that all Dallinger classes have table/object duality and in general the object side of things is far more useful. So what are the extra features of Nodes if we treat them as objects? (In a good way.) Let's return to the ``Node`` class in `models.py` and look immediately below where the columns were created. The first function is ``__init__``:
+So far we've covered Nodes from the table view, but remember that all Dallinger classes have table/object duality and in general the object side of things is far more useful. So what are the extra features of Nodes if we treat them as objects? Let's return to the ``Node`` class in `models.py` and look immediately below where the columns were created. The first function is ``__init__``:
 ::
 
 	def __init__(self, network, participant=None):
@@ -169,9 +169,9 @@ So far we've covered Nodes from the table view, but remember that all Dallinger 
             self.participant = participant
             self.participant_id = participant.id
 
-All objects in python need an ``__init__`` function, they tell the program how to make objects of this kind, and Dallinger is no different. So this function tells Dallinger how to make a ``Node``. It's quite straightforward: the function demands that a ``Network`` object be sent to it, but will also accept a ``Participant`` object too (remember that Nodes need a Network, but only *might* have a Participant). The function then checks to make sure the Network isn't failed (yes, just like Nodes, Networks can fail too, and no, once a Network is failed, you cannot add more Nodes to it), that the Participant isn't failed (ditto) and that the Participant is "working" (more on this in the participant page). If all these checks are satisfied it adds the ``Network`` to itself (think of this as filling in a row and creating relationships) and it does the same for its ``Participant`` too if it's been sent one.
+All objects in python need an ``__init__`` function. They tell the program how to make objects of this kind, and Dallinger is no different. So this function tells Dallinger how to make a ``Node``. It's quite straightforward: the function demands that a ``Network`` object be sent to it, but will also accept a ``Participant`` object too (remember that Nodes need a Network, but only *might* have a Participant). The function then checks to make sure that the Network isn't failed (yes, just like Nodes, Networks can fail too, and no, once a Network is failed, you cannot add more Nodes to it), that the Participant isn't failed (ditto) and that the Participant is "working" (more on this in the participants page). If all these checks are satisfied it adds the ``Network`` to itself (think of this as filling in a row and creating relationships) and it does the same for its ``Participant`` too if it's been sent one.
 
-The next two functions, ``__repr__`` and ``__json__`` both return String representations of the ``Node``. ``__repr__`` returns a very basic one, whereas ``__json__`` returns a full description of all columns in the `node` database table. You'll see ``__json__`` used a lot as its a handy way to create a String containing all the information about a Node that can then be sent over the Internet.
+The next two functions, ``__repr__`` and ``__json__`` both return String representations of the ``Node``. ``__repr__`` returns a very basic one, whereas ``__json__`` returns a full description of all columns in the `node` database table. You'll see ``__json__`` used a lot as it's a handy way to create a String containing all the information about a Node that can then be sent over the Internet.
 
 The next few functions are all used to get other things from the database. Let's look at the first one, ``vectors()``. If you're new to Dallinger, you probably don't know what vectors are yet, but for now just think of them as links that connect Nodes in the Network, and just like Nodes, they have their own table where each row corresponds to a different Vector. Now let's say you want to know how many vectors a Node is connected with. You can do this by doing a query over the Vector table (and this is what most of the contents of this function is doing), but we've provided this handy function to make your life easier, so now you can do something like ``node.vectors()`` and you'll be sent a list of Vectors that join this Node to other Nodes. But you've actually got a few more options as shown by the function declaration:
 ::
@@ -192,11 +192,11 @@ So you can request Vectors that are outgoing from a Node like this: ``node.vecto
                     Vector.origin_id == node.id)))\
         .all()
 
-In a more human language this corresponds to "Please do a search over the Vector table returning only those rows where the failed column contains False AND either the destination_id column OR origin_id column contains the same number as the id of the Node". Pretty elaborate! Its methods such as these that will allow you to write quite complex experiments in remarkably few lines of code - you just need to learn about them first. As a note, observe that table queries by default don't ignore failed rows (we had to ask the query to only return not failed rows), so if you ever do start writing out queries the long way instead of using Dallinger's handy shortcuts don't forget to add this.
+In a more human language this corresponds to "Please do a search over the Vector table returning only those rows where the failed column contains False AND either the destination_id column OR origin_id column contains the same number as the id of the Node". Pretty elaborate! It's methods such as these that will allow you to write quite complex experiments in remarkably few lines of code - you just need to learn about them first. As a note, observe that table queries by default don't ignore failed rows (we had to ask the query to only return not failed rows), so if you ever do start writing out queries the long way instead of using Dallinger's handy shortcuts don't forget to add this.
 
 The next few functions are just other queries over the tables in the database but with wrappers that make them nicer to use. As you read the following you should try to figure out how the code is doing what it does. You should also compare this with the more technical documentation :ref:`here <classes>` as down the line you'll want to work from the documentation or code itself, and not from this more cumbersome guide.
 
-``Node.neighbors()`` will return a list of Nodes that the central Node has a connection to. Let's say you want to offer a participant a choice of other participants who they can ask for help. ``Node.neighbors()`` is really useful for this, as it gives a list of all other Nodes the participant's Node is currently connected to and so are avilable to help. If you look at the function you can see it accepts the parameters ``direction`` and ``type``. These tell the query to look only for neighbors of a certain type (e.g. bots, or agents etc.) or connected to the focal Node in a certain direction (Vectors are directional so there might be a Vector from A to B, but not from B to A). You've probably also noticed that the function can take a parameter called ``failed`` but further inspection of the code shows it will raise an error if you try to use this parameter - I'll leave it up to you to read the code to see why this is.
+``Node.neighbors()`` will return a list of Nodes that the central Node has a connection to. Let's say you want to offer a participant a choice of other participants who they can ask for help. ``Node.neighbors()`` is really useful for this, as it gives a list of all other Nodes the participant's Node is currently connected to and so are available to help. If you look at the function you can see it accepts the parameters ``direction`` and ``type``. These tell the query to look only for neighbors of a certain type (e.g. bots, or agents etc.) or connected to the focal Node in a certain direction (Vectors are directional so there might be a Vector from A to B, but not from B to A). You've probably also noticed that the function can take a parameter called ``failed`` but further inspection of the code shows it will raise an error if you try to use this parameter - I'll leave it up to you to read the code to see why this is.
 
 ``Node.is_connected()`` looks for a Vector between two specific Nodes. Again, a direction parameter allows you to specify whether you're looking for a connection from A to B, or to B from A, or both.
 
@@ -304,7 +304,7 @@ The next function is ``node.connect()``, again, here's the code in full:
                     new_vectors.append(Vector(origin=node, destination=self))
         return new_vectors
 
-OK, this function is a lot longer and more complicated than ``node.fail()``, but the first half is basically all a comment explaining what the function does: it joins Nodes via Vectors. But let's break it down bit by bit to see exactly how it does this:
+OK, this function is a lot longer and more complicated than ``node.fail()``, but the first half is basically a comment explaining what the function does: it joins Nodes via Vectors. But let's break it down bit by bit to see exactly how it does this:
 
 First note that the function takes two arguments: ``whom`` and ``direction`` (``self`` is always listed in python functions, so don't worry about it for now).
 ::
@@ -319,13 +319,13 @@ The next step is to check that ``direction`` has been given an acceptable value.
             raise ValueError("{} is not a valid direction for connect()"
                              .format(direction))
 
-The other argument (``whom``), which determines which other Nodes the node will connect with, needs a bit more preparation. First it's "flattened".
+The other argument (``whom``), which determines which other Nodes the Node will connect with, needs a bit more preparation. First it's "flattened".
 ::
 
         # make whom a list
         whom = self.flatten([whom])
 
-To understand why this is needs a bit of explanation. When we were creating this function we wanted it to be quite powerful in that the user could pass anything vaguely sensible and the function would behave intuitively. So, if a user passed a single Node we wanted that Node to connect with the user's Node. The user might pass a Python ``list`` of Nodes, and again, we want the user's Node to connect with all ``Node`` objects in that list. The user also might do something unusual like pass a list containing other lists, each of which contains one or more other ``Node`` objects. To handle this, the first thing the function does it take whatever it has been sent and turn it into a single, unnested Python ``list``. This is what the ``flatten()`` function does: if the user sends a single ``Node``, ``flatten()`` turns it into a list containing just that Node. Here's a couple more examples:
+To understand why this is needs a bit of explanation. When we were creating this function we wanted it to be quite powerful in that the user could pass anything vaguely sensible and the function would behave intuitively. So, if a user passed a single Node we wanted that Node to connect with the user's Node. The user might pass a Python ``list`` of Nodes, and again, we want the user's Node to connect with all ``Node``s in that ``list``. The user also might do something unusual like pass a ``list`` containing other ``list``s, each of which contains a some specific ``Node``s. To handle this, the first thing the function does it take whatever it has been sent and turn it into a single ``list``, that doesn't contain any other ``list``s. This is what the ``flatten()`` function does: if the user sends a single Node, ``flatten()`` turns it into a ``list`` containing just that Node. Here's a couple more examples:
 ::
 
 	node1								-> flatten() -> [node1]
@@ -337,9 +337,9 @@ To understand why this is needs a bit of explanation. When we were creating this
 We're now in a position where the function can go through this list and create connections to each node one at a time. In fact its going to go through the list twice. It makes a first pass creating all outgoing connections, and then does it again making incoming connections. That's why the function has this structure:
 ::
 
-		if direction in ["to", "both"]:
+        if direction in ["to", "both"]:
 
-			## make some connections
+            ## make some connections
             
         if direction in ["from", "both"]:
             
@@ -351,7 +351,7 @@ In both cases the first thing it does is check whether the requested connection 
             already_connected_to = self.flatten(
                 [self.is_connected(direction="to", whom=whom)])
 
-Here it's passing a list of Nodes to ``is_connected()`` and it's getting a list of ``True`` and ``False`` values back. So let's say you passed three nodes as targets to ``connect()`` but you're already connected to the third of them, ``is_connected()`` will return ``[False, False, True]``. The function then goes through both the list of Nodes and the list of whether a connection already exists at the same time. If a connection exists, it tells you off (but doesn't crash), and if a connection doesn't exist then it makes one. Here's this bit of the code:
+Here it's passing a list of Nodes to ``is_connected()`` and it's getting a list of ``True`` and ``False`` values back. So let's say you passed three nodes as targets to ``connect()`` but you're already connected to the third one of them, ``is_connected()`` will return ``[False, False, True]``. The function then goes through both the list of Nodes and the list of whether a connection already exists, at the same time. If a connection exists, it tells you off (but doesn't crash), and if a connection doesn't exist then it makes one. Here's this bit of the code:
 ::
 
             for node, connected in zip(whom, already_connected_to):
@@ -362,22 +362,22 @@ Here it's passing a list of Nodes to ``is_connected()`` and it's getting a list 
                 else:
                     new_vectors.append(Vector(origin=self, destination=node))
 
-Notice that the final line here contains the instructions to make new Vectors (i.e. it conatins ``Vector()``). You're probably not totally clear on what a Vector is yet, but we'll come to that shortly. For now, just note that this command will cause new rows to be added to the Vector table (remember the tables are a record of everything that ever happens, so if you don't write stuff down in the table it will be forgotten). And at the very end of the function a list containing all the newly made Vectors is returned to whatever called the function in the first place:
+Notice that the final line here contains the instructions to make new Vectors (i.e. it contains ``Vector()``). You're probably not totally clear on what a Vector is yet, but we'll come to that shortly. For now, just note that this command will cause new rows to be added to the Vector table (remember the tables are a record of everything that ever happens, so if you don't write stuff down in the table it will be forgotten). And at the very end of the function a list containing all the newly made Vectors is returned to whatever called the function in the first place:
 ::
 
 	new_vectors.append(Vector(origin=self, destination=node))
 
 We made it! OK, go get a cup of tea and come back when you're ready for more.
 
-The next function is ``flatten()``, but I'll leave it up to you to see how it turns nested ``list``s into flat ``list``s. After this we get to ``transmit()`` which is another big and complicated function. The purpose of transmit is to send information (`Infos`, more on what these are later) between connected Nodes. If you're using Dallinger chances are that you're intersted in doing networked experiments of some kind, and so you'll be using this function a lot. You might, for instance, have a chat room where participants can send each other messages. You might alternatively want to show the decisions of past participants to current participants. Because ``transmit()`` is used so often it's important to understand it, so we'll go through it bit-by-bit again. Fortunately, it uses some of the same tricks as ``connect()``. Let's break it down:
+The next function is ``flatten()``, but I'll leave it up to you to see how it turns nested ``lists`` into flat ``lists``. After this we get to ``transmit()`` which is another big and complicated function. The purpose of ``transmit()`` is to send information (`Infos`, more on what these are later) between connected Nodes. If you're using Dallinger chances are that you're interested in doing networked experiments of some kind, and so you'll be using this function a lot. You might, for instance, have a chat room where participants can send messages to each other. You might alternatively want to show the decisions of past participants to current participants. Because ``transmit()`` is used so often it's important to understand it, so we'll go through it bit-by-bit again. Fortunately, it uses some of the same tricks as ``connect()``. Let's break it down:
 
-First off let's see what arguments it takes: ``what`` and ``to_whom``. As the comment makes clear, ``what`` determines the contents of the transmission, while ``to_whom`` determines which Nodes Transmissions will be sent to.
+First off let's see what arguments it takes: ``what`` and ``to_whom``. As the comment makes clear, ``what`` determines the contents of the transmission, while ``to_whom`` determines to which Nodes, Transmissions will be sent to.
 ::
 
 	def transmit(self, what=None, to_whom=None):
         """Transmit one or more infos from one node to another.
 
-As before, we try to allow the arguments to contain a range of different things users might send and for the function to handle them graciously. As with ``connect()``, ``transmit()`` is OK with single objects, lists of multiple objects and (arbitrarily) nested lists of objects. It also accepts Python class names: for ``what`` you can send a specific info, but you can also just name the class ``Info``, in which case the function will try to send everything the Node has made of that class (i.e. all its Infos). It also accepts ``None`` in which case the Node's default behavior kicks in. You can even combine specific objects, classes of objects, and ``None`` in the same (nested) ``list`` if you want. The function handles this by collapsing whatever nested ``list`` you send into a single ``list`` (actually a ``set``, but this is basically a ``list`` that doesn't contain duplicates) and by turning any classes into ``list``s of all objects of that class. Here's how it does it. First we make an empty set:
+As before, we try to allow the arguments to contain a range of different things users might send and for the function to handle them graciously. As with ``connect()``, ``transmit()`` is OK with single objects, lists of multiple objects and (arbitrarily) nested lists of objects. It also accepts Python class names: for ``what`` you can send a specific Info, but you can also just name the class ``Info``, in which case the function will try to send everything the Node has made of that class (i.e. all its Infos). It also accepts ``None`` in which case the Node's default behavior kicks in. You can even combine specific objects, classes of objects, and ``None`` in the same (nested) ``list`` if you want. The function handles this by collapsing whatever nested ``list`` you send into a single ``list`` (actually a ``set``, but this is basically a ``list`` that doesn't contain duplicates) and by turning any classes into ``lists`` of all objects of that class. Here's how it does it. First we make an empty set:
 ::
 
 			whats = set()
@@ -387,13 +387,13 @@ Then we flatten whatever was sent and go through it one element at a time.
 
         for what in self.flatten([what]):
 
-If it's a ``None`` we call the default behavior function (``_what()``) to see what we should do. ``_what()`` is directly after ``transmit()`` in models.py and by default it returns ``Info``. So, by default, if you pass ``None`` it gets turned into ``Info``. you can overwrite the function ``_what()`` if you want to change this behavior and we'll see examples of this later on.
+If it's a ``None`` we call the default behavior function, (``_what()``), to see what we should do. ``_what()`` is directly after ``transmit()`` in models.py and by default it returns ``Info``. So, by default, if you pass ``None`` it gets turned into ``Info``. You can overwrite the function ``_what()`` if you want to change this behavior and we'll see examples of this later on.
 ::
 
             if what is None:
                 what = self._what()
 
-Next, if it's a Class (and only if it's a Class of ``Info``) we get a ``list`` of all ``Info``s of that class and add (i.e. ``update()``) them to the set:
+Next, if it's a Class (and only if it's a Class of ``Info``) we get a `'list`` of all ``Infos`` of that class and add (i.e. ``update()``) them to the set:
 ::
 
             if inspect.isclass(what) and issubclass(what, Info):
@@ -417,13 +417,13 @@ Exactly the same process is repeated for ``to_whom``:
             else:
                 to_whoms.add(to_whom)
 
-So now we have two sets: one of all the Infos we want to send, and another of all the nodes we want to send the Infos too. The final step is to actually send the Infos to the Nodes. Note that because all the Infos are going to be sent to all the Nodes if you want to have just some Infos go to just some Nodes you'll need to make separate calls to ``transmit()`` effectively sending the Infos in batches. The first step in actually sending the Infos is to make an empty list to store the transmissions that will be created (again these will be stored as rows in the transmission table in the database) and to get a set of the outgoing Vectors of the Node. This is because you're only allowed to send a Transmission to a Node if you have a Vector going from you to them and so you'll need to know what all your Vectors are to check this.
+So now we have two sets: one of all the Infos we want to send, and another of all the nodes we want to send the Infos to. The final step is to actually send the Infos to the Nodes. Note that because all the Infos are going to be sent to all the Nodes, if you want to have just some Infos go to just some Nodes you'll need to make separate calls to ``transmit()`` effectively sending the Infos in batches. The first step in actually sending the Infos is to make an empty list to store the transmissions that will be created (again these will be stored as rows in the transmission table in the database) and to get a set of the outgoing Vectors of the Node. This is because you're only allowed to send a Transmission to a Node if you have a Vector going from you to them and so you'll need to know what all your Vectors are to check this.
 ::
 
         transmissions = []
         vectors = self.vectors(direction="outgoing")
 
-Then we set up two ``for`` loops to go through each info in the ``whats`` set and each node in the ``to_whoms`` set.
+Then we set up two ``for`` loops to go through each Info in the ``whats`` set and each Node in the ``to_whoms`` set.
 ::
 
         for what in whats:
@@ -440,13 +440,13 @@ For each of these we try to find the Vector from you to the target Node, but if 
                         "{} cannot transmit to {} as it does not have "
                         "a connection to them".format(self, to_whom))
 
-As long as it does exist, we create a new ``Transmission`` object and add it to the ``list``. Note that the ``Transmission`` is defined by ``what`` is being sent, but not ``to_whom`` it is being sent, Instead it's defined by the Vector it's being sent along. More on this later.
+As long as it exists, we create a new ``Transmission`` object and add it to the ``list``. Note that the ``Transmission`` is defined by ``what`` is being sent, but not ``to_whom`` it is being sent, instead it's being defined by the Vector it's being sent along with. More on this later.
 ::
 
                 t = Transmission(info=what, vector=vector)
                 transmissions.append(t)
 
-At the end of all this we sent the finished ``list`` back to whoever called the function in the first place.
+At the end of all this we send the finished ``list`` back to whoever called the function in the first place.
 ::
 
         return transmissions
@@ -460,14 +460,14 @@ Right, let's say you've managed to send some Transmissions to nodeB. What this a
 
     def receive(self, what=None):
 
-Next, note that the function checks the receiving Node hasn't failed. Failed Nodes aren't allowed to do anything anymore, and so if you try to make one receive some Transmissions, you'll get told off.
+Next, note that the function checks that the receiving Node hasn't failed. Failed Nodes aren't allowed to do anything anymore, and so if you try to make one receive some Transmissions, you'll get an error.
 ::
 
         if self.failed:
             raise ValueError("{} cannot receive as it has failed."
                              .format(self))
 
-Assuming this check passes the function then tries to work out what exactly is being received. If you didn't pass anything, ``what`` defaults to ``None`` and if the function sees that ``what`` is ``None`` if just looks up a list of all your pending Transmissions (more on "pending" in the Transmissions page).
+Assuming this check passes, the function then tries to work out what exactly is being received. If you didn't pass anything, ``what`` defaults to ``None`` and if the function sees that ``what`` is ``None`` it just looks up a list of all your pending Transmissions (more on "pending" in the Transmissions page).
 ::
 
         received_transmissions = []
@@ -483,7 +483,7 @@ It then goes through all these transmissions, changes their ``status`` to "recei
                 transmission.receive_time = timenow()
                 received_transmissions.append(transmission)
 
-But, if ``what`` is not ``None``, then ``receive()`` tries a couple of other things. First, it sees whether its a specific Transmission. If it is, it makes sure that this Transmission has been sent to you and that you haven't already received it. If this check fails the program raises an error and stops, but if it passes the Transmission's status is updated and its added to the list of received Transmissions.
+But, if ``what`` is not ``None``, then ``receive()`` tries a couple of other things. First, it sees whether it's a specific Transmission. If it is, it makes sure that this Transmission has been sent to you and that you haven't already received it. If this check fails, the program raises an error and stops, but if it passes the Transmission's status is updated and it's added to the list of received Transmissions.
 ::
 
         elif isinstance(what, Transmission):
@@ -498,7 +498,7 @@ But, if ``what`` is not ``None``, then ``receive()`` tries a couple of other thi
                     "in its pending_transmissions".format(self, what)
                 )
 
-If it's neither ``None`` nor a specific Transmission then the function just gives up and raises an error. This means the function is not nearly as flexible as ``transmit()`` (what if you want to receive a nested list of ``Transmission`` objects and subclasses of ``Transmission``?), but it's also much simpler as a result and no one has ever needed more complex functionality so I think we're ok.
+If it's neither ``None`` nor a specific Transmission then the function just gives up and raises an error. This means that this function is not nearly as flexible as ``transmit()`` (what if you want to receive a nested list of ``Transmission`` objects and subclasses of ``Transmission``?), but it's also much simpler as a result and no one has ever needed more complex functionality, so I think we're ok.
 ::
 
         else:
@@ -509,7 +509,7 @@ The final thing the function does is extract all the Infos from the received Tra
 
         self.update([t.info for t in received_transmissions])
 
-What does ``update()`` do? I'm glad you asked; it's the very next function, and the answer is... pretty much nothing. ``Node.update()`` basically gives Nodes an opportunity to do something automatically as soon as they receive some Transmissions. It gets sent all the Infos the Node has been sent because it's likely that whatever the Node does is going to depend on what it's been sent. However, because this is probably experiment-specific, by default the function just checks that the Node hasn't failed, as failed Nodes definitely should not be updating.
+What does ``update()`` do? I'm glad you asked; it's the very next function, and the answer is... pretty much nothing. ``Node.update()`` basically gives Nodes an opportunity to do something automatically as soon as they receive some Transmissions. It gets sent all the Infos the Node has been sent because it's likely that whatever the Node does is going to depend on what it has been sent. However, because this is probably experiment-specific, by default the function just checks that the Node hasn't failed, as failed Nodes definitely should not be updating.
 
 But what kinds of updates might we want? The next couple of functions (and the final functions in the ``Node`` class!) offer some ideas. The first is ``replicate()``. It takes whatever ``Info`` you've been sent and simply makes a copy. The key line is this one:
 ::
@@ -518,7 +518,7 @@ But what kinds of updates might we want? The next couple of functions (and the f
 
 It basically says make a new ``Info`` (``info_out``) of the same kind as the ``Info`` you were sent (``type(info_in)``), specify that you are the ``Node`` that's making this new ``Info`` (``origin=self``) and give it the same contents as the ``Info`` you were sent (``contents=info_in.contents``). We don't need to discuss the rest of the function for now as it won't make sense until we cover Transformations, so maybe make a note of this and return to it later.
 
-The other pre-packaged kind of update is ``mutate()`` but this makes even less sense until we cover Transformations and Infos, so let's leave it be for now.
+The other pre-packaged kind of update is ``mutate()`` but this makes even less sense until we cover Transformations and Infos, so let's let it be for now.
 
 Kinds of Nodes
 --------------
@@ -530,7 +530,7 @@ The first kind of ``Node`` is the ``Agent``. Its class definition starts at the 
 
 	class Agent(Node):
 
-This means that the following code defines a new class called ``Agent`` but because the class ``Node`` is contained in parentheses, this also informs the program that ``Agent`` objects `inherit` all of the functionality of the class ``Node``. This is handy, because in general we only want to change a couple of things about a ``Node`` and so by inheriting everything as a baseline we don't have a recreate all the functionality we wanted to keep. The next line of code tells Dallinger that when ``Node`` Python objects are translated into database records, the value in their ``type`` column should be "agent":
+This means that the following code defines a new class called ``Agent`` but because the class ``Node`` is contained in parentheses, this also informs the program that ``Agent`` objects `inherit` all of the functionality of the class ``Node``. This is handy, because in general we only want to change a couple of things about a ``Node`` and so by inheriting everything as a baseline we don't have to recreate all the functionality we wanted to keep. The next line of code tells Dallinger that when ``Node`` Python objects are translated into database records, the value in their ``type`` column should be "agent":
 ::
 
 	__mapper_args__ = {"polymorphic_identity": "agent"}
@@ -548,7 +548,7 @@ This probably looks quite strange unless you are familiar with the details of da
 
 So ``Agent`` inherits this whole bit of code from the class ``Node``, but specifically overwrites the bit called ``polymorphic_identity``, changing it from ``node`` to ``agent``.
 
-The rest of the ``Agent`` class is kinda funny looking. What it's doing is setting up Agent's to have a property called ``fitness``. This is because Agents were created for use in evolutionary simulations, and having a ``fitness`` property is essential to this. However, remember that everything needs to get stored in the database otherwise it will be forgotten, *but* there isn't a column for ``fitness``. So what this code does is repurpose the ```property1`` column for use storing ``fitness``. What this means is that at run-time you can do things like ``agent1.fitness`` and it will return the contents of the ``property1`` column to you instead of just crashing. Obviously you could just use the ``property1`` column as-is and just remember that you are storing ``fitness`` values in it, but depending on how forgetful you are that might be a risky strategy. Anyway, here's how the code works bit by bit. The first chunk lets you ask agents for their fitness (i.e. ``agent1.fitness``):
+The rest of the ``Agent`` class is kinda funny looking. What it's doing is setting up Agents to have a property called ``fitness``. This is because Agents were created for use in evolutionary simulations, and having a ``fitness`` property is essential for this. However, remember that everything needs to get stored in the database otherwise it will be forgotten, *but* there isn't a column for ``fitness``. So what this code does is repurpose the ``property1`` column for storing ``fitness``. What this means is that at run-time you can do things like ``agent1.fitness`` and it will return the contents of the ``property1`` column to you instead of just crashing. Obviously you could just use the ``property1`` column as-is and just remember that you are storing ``fitness`` values in it, but depending on how forgetful you are that might be a risky strategy. Anyway, here's how the code works bit by bit. The first chunk lets you ask Agents for their fitness (i.e. ``agent1.fitness``):
 ::
 
     @hybrid_property
@@ -559,7 +559,7 @@ The rest of the ``Agent`` class is kinda funny looking. What it's doing is setti
         except TypeError:
             return None
 
-The next bit allows you to set an Agent's fitness and have it stored in ``property1`` (so ``agent1.fitness = 3.1``):
+The next bit allows you to set an Agent's ``fitness`` and have it stored in ``property1`` (so ``agent1.fitness = 3.1``):
 ::
 
     @fitness.setter
@@ -588,7 +588,7 @@ The only further change it makes (beyond the ``polymorphic_identity``) is to ove
         for info_in in infos:
             self.replicate(info_in=info_in)
 
-Note that in doing this its making use of the function ``replicate()`` which it inherits from the base class ``Node`` and which we covered above.
+Note that in doing this, it's making use of the function ``replicate()`` which it inherits from the base class ``Node`` and which we covered above.
 
 The next class is the ``Source`` which extends the class ``Node``.
 ::
@@ -597,14 +597,14 @@ The next class is the ``Source`` which extends the class ``Node``.
 
 	    __mapper_args__ = {"polymorphic_identity": "generic_source"}
 
-Sources are intended to act as automated information senders in experiments (e.g. some sort of quizmaster) and so they have a bunch of useful functions to speed this along. Most of these functions look unfamiliar, except (hopfully) the first:
+Sources are intended to act as automated information senders in experiments (e.g. some sort of quiz master) and so they have a bunch of useful functions to speed this along. Most of these functions look unfamiliar, except (hopefully) the first:
 ::
 
     def _what(self):
         """What to transmit by default."""
         return self.create_information()
 
-``_what()`` is called when the Node's ``transmit()`` function is sent a ``what`` argument of ``None`` and its purpose is to set the default behavior of what is transmitted if nothing is specified (see above for more details). In the class ``Node``, ``_what()`` returns ``Info`` - i.e. if you don't specify otherwise a ``Node`` will transmit all its ``Info`` objects when asked to transmit. This is different for a ``Source`` however, and instead the function ``creation_information()`` is called. The purpose of this function is to create a new ``Info`` on demand. So if the ``Source`` is a quiz master, it will create a new question. But for the generic class ``Source`` to make a new ``Info`` it needs to know two things: (1) what type of ``Info`` should I make? And (2) what should its contents be? To answer these questions the type and contents of the info are farmed out to two other functions, ``_info_type()`` and ``_contents()`` (note how functions starting with ``_`` are used to set default behavior).
+``_what()`` is called when the Node's ``transmit()`` function is sent a ``what`` argument of ``None`` and its purpose is to set the default behavior of what is transmitted if nothing is specified (see above for more details). In the class ``Node``, ``_what()`` returns ``Info`` - i.e. if you don't specify otherwise a ``Node`` will transmit all its ``Info`` objects when asked to transmit. This is different for a ``Source`` however, and instead the function ``creation_information()`` is called. The purpose of this function is to create a new ``Info`` on demand. So if the ``Source`` is a quiz master, it will create a new question. But for the generic class ``Source`` to make a new ``Info`` it needs to know two things: (1) what type of ``Info`` should I make? And (2) what should its contents be? To answer these questions the type and contents of the Info are farmed out to two other functions, ``_info_type()`` and ``_contents()`` (note how functions starting with ``_`` are used to set default behavior).
 ::
 
     def create_information(self):
@@ -624,7 +624,7 @@ Sources are intended to act as automated information senders in experiments (e.g
             "{}.contents() needs to be defined.".format(type(self)))
 
 
-By default, ``_info_type()`` sends the class ``Info``. So if you don't change this function then the Source will create standard Infos. However, the ``_contents()`` function, by default, raises an error. This is because the generic ``Source`` has no idea what the contents of its Infos should be and so if you are using it without overriding this function you've probably made a mistake.
+By default, ``_info_type()`` sends the class ``Info``. So if you don't change this function then the ``Source`` will create standard Infos. However, the ``_contents()`` function, by default, raises an error. This is because the generic ``Source`` has no idea what the contents of its Infos should be and so if you are using it without overriding this function you've probably made a mistake.
 
 The last function of the ``Source`` class overrides the ``receive()`` function to raise an error:
 ::
@@ -647,4 +647,4 @@ The next class ``RandomBinaryStringSource`` gives an example of how ``Source`` c
 	        """Generate a random binary string."""
         	return "".join([str(random.randint(0, 1)) for i in range(2)])
 
-That's everything for Node. Next we'll move on to the class ``Vector``. Don't worry things will be easier (and shorter) going out.
+That's everything for Node. Next we'll move on to the class ``Vector``. Don't worry things will be easier (and shorter) going forward.
