@@ -35,13 +35,13 @@ checks:
   similar-code:
     enabled: true
     exclude_patterns:
-    - "demos/"
+    - "demos/*"
     config:
       threshold: #language-specific defaults. overrides affect all languages.
   identical-code:
     enabled: true
     exclude_patterns:
-    - "demos/"    
+    - "demos/*"
     config:
       threshold: #language-specific defaults. overrides affect all languages.
 plugins:
@@ -55,7 +55,7 @@ exclude_patterns:
 - "**/node_modules/"
 - "**/*min.js"
 - "scripts/"
-- "tests/"
+- "**/tests/"
 - ".cache/"
 - ".eggs/"
 - "**/rq_gevent_worker.py"
