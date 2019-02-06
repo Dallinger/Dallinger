@@ -35,13 +35,13 @@ checks:
   similar-code:
     enabled: true
     exclude_patterns:
-    - "demos/*"
+    - "demos/**"
     config:
       threshold: #language-specific defaults. overrides affect all languages.
   identical-code:
     enabled: true
     exclude_patterns:
-    - "demos/*"
+    - "demos/**"
     config:
       threshold: #language-specific defaults. overrides affect all languages.
 plugins:
