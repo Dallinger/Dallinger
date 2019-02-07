@@ -1036,12 +1036,7 @@ class PulseRecruiter(Recruiter):
                 agent
             )
 
-            try:
-                self.pulse_service.recruit(agent, experiment_url)
-            except Exception as ex:
-                logger.error("Exception while running Pulse recruitment")
-                logger.exception(ex)
-
+            self.pulse_service.recruit(agent, experiment_url)
         return []
 
     def approve_hit(self, assignment_id):
@@ -1058,8 +1053,9 @@ class PulseRecruiter(Recruiter):
         """ Reward the participant """
 
         participant = session.query(Participant).filter_by(
-            assignment_id=assignment_id
-        ).first()
+            assignment_id=assignment_id,
+            recruiter_id=self.nickname,
+        ).one()
 
         self.pulse_service.reward(
             participant.hit_id,
@@ -1096,9 +1092,9 @@ def from_config(config):
     if name is not None:
         recruiter = by_name(name)
 
-        # Special case 2: may run BotRecruiter or MultiRecruiter or PulseRecruiter in any mode
+        # Special case 2: may run BotRecruiter or MultiRecruiter in any mode
         # (debug or not), so it trumps everything else:
-        if isinstance(recruiter, (BotRecruiter, MultiRecruiter, PulseRecruiter)):
+        if isinstance(recruiter, (BotRecruiter, MultiRecruiter)):
             return recruiter
 
     # Special case 3: if we're not using bots and we're in debug mode,
