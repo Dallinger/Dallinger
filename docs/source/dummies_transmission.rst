@@ -9,18 +9,18 @@ Transmissions are another type of object created by Dallinger. Just like all the
 What is a Transmission?
 -----------------------
 
-Moreso than the classes we've covered before, Transmissions are a little abstract. The are essentially an instance of an Info being sent from one Node to another along a Vector. As such, if you have access to the Transmission table in the database you can see a full record of everytime information was passed between nodes. Using our London Underground analogy a Transmission is the equivalent of a train having driven between adjacent stations along one of the lines. So the Transmission is not the train itself (that's the Info, sort of), nor is it the track (that's the Vector). Rather the Transmission is the fact that a particular train drove along a particular piece of track.
+More so than the classes we've covered before, Transmissions are a little abstract. They are essentially an instance of an Info being sent from one Node to another along a Vector. As such, if you have access to the Transmission table in the database you can see a complete record of when information was passed between nodes. Using our London Underground analogy a Transmission is the equivalent of a train having driven between adjacent stations along one of the lines. So the Transmission is not the train itself (that's the Info, sort of), nor is it the track (that's the Vector). Rather the Transmission is the fact that a particular train drove along a particular piece of track.
 
-With this the diagram above makes sense: Transmissions need Vectors and Infos because they denote the an Info being sent along a Vector. Obviously they also need Nodes, but this can be taken for granted because if Infos and Vectors exist then Nodes must also exist, because Infos and Vectors require Nodes.
+With this the diagram above makes sense: Transmissions need Vectors and Infos because they denote an Info being sent along a Vector. Obviously they also need Nodes, but this can be taken for granted because if Infos and Vectors exist then Nodes must also exist, because Infos and Vectors require Nodes.
 
 Note that Transmissions can only occur along a single Vector and so if you want an Info to go on a longer journey then you will need to break the trip into single Vector chunks. In fact, things get even tricker because the ``Node.transmit()`` function (see the Node page) only lets Nodes transmit Infos they have created. So if you want Node A to create an Info and send it to Node C, but via Node B, you would do the following:
 
-1. A makes the info
+1. A makes the Info
 2. A transmits it to B
 3. B receives it, and makes a new info with the same contents (perhaps linking the new info to the old one with a Transformation)
 4. B transmits the new info to C
 
-This is why, back in the previous page, I said the London Underground analogy isn't brilliant for Infos. In the London Underground each train (which is sort of like an Info, sort of) can easily be sent along a very long journey without anything serious going wrong. Moreover, trains don't have an "origin" station where they were made. Instead the Underground network contains a finite number of trains that are continually suffled around the network and were made somewhere quite different. In Dallinger things are different: Infos are continually being made by Nodes all the time, and while Nodes can send their Infos to other Nodes they have a connection to, they cannot send them any further. Instead the receiving Node has to duplicate the Info they received, making a new Info, and transmit the duplicant.
+This is why, back in the previous page, I said the London Underground analogy isn't brilliant for Infos. In the London Underground, each train (which is sort of like an Info, sort of) can easily be sent along a very long journey without anything serious going wrong. Moreover, trains don't have an "origin" station where they were made. Instead the Underground network contains a finite number of trains that are continually shuffled around the network and were made somewhere quite different. In Dallinger things are different: Infos are continually being made by Nodes all the time, and while Nodes can send their Infos to other Nodes they have a connection to, they cannot send them any further. Instead the receiving Node has to duplicate the Info they received, making a new Info, and transmit the duplicate.
 
 
 The Transmission Table
