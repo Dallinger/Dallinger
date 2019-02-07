@@ -89,6 +89,8 @@ class AssignmentSubmitted(WorkerEvent):
         else:
             self.log("Bonus = {}: NOT paying bonus".format(bonus))
 
+        self.finalize_assignment()
+
         if self.did_attend():
             self.approve_submission()
             self.experiment.recruit()
@@ -110,6 +112,9 @@ class AssignmentSubmitted(WorkerEvent):
     def approve_assignment(self):
         self.participant.recruiter.approve_hit(self.assignment_id)
         self.participant.base_pay = self.config.get('base_payment')
+
+    def finalize_assignment(self):
+        self.participant.recruiter.finalize_hit(self.assignment_id)
 
     def award_bonus(self, bonus):
         self.log("Bonus = {}: paying bonus".format(bonus))

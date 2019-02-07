@@ -82,6 +82,11 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
+    def finalize_hit(self, assignment_id):
+        """A hook once all payment decisions have happened to allow
+        single payments of base pay and bonus"""
+        return None
+
     def notify_completed(self, participant):
         """Allow the Recruiter to be notified when a recruited Participant
         has completed an experiment they joined.
