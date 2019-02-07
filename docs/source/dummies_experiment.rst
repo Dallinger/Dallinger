@@ -166,7 +166,7 @@ OK, so let's see how this pans out in the code proper. First the function gets t
     networks_with_space = Network.query.filter_by(
         full=False).order_by(Network.id).all()
 
-If you are paying close attenion you might be wondering why the 2nd line looks odd, and in particular, why it doesn't use the ``networks()`` function we've already discussed. Chances are its because this function was written before ``networks()`` existed and so the search query is written in sqlalchemy (the library Dallinger uses to access the database). If you go back up and look at ``networks()`` you'll see that its basically a slightly nicer wrapper for the same thing. So, the query could be rewritten as:
+If you are paying close attenion you might be wondering why the 2nd line looks odd, and in particular, why it doesn't use the ``networks()`` function we've already discussed. Chances are it's because this function was written before ``networks()`` existed and so the search query is written in sqlalchemy (the library Dallinger uses to access the database). If you go back up and look at ``networks()`` you'll see that its basically a slightly nicer wrapper for the same thing. So, the query could be rewritten as:
 ::
 
 	networks_with_space = self.networks(full=False)
