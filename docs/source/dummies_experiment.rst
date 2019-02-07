@@ -400,18 +400,18 @@ Be careful when calculating the bonus - MTurk will let you pay a bonus up to sev
 
 When participants get their bonus they are also sent an email by MTurk letting them know, and the contents of this email is determined by the function ``bonus_reason()``. Most experiments don't change this, but if you want to change it you can overwrite this function.
 
-``attention_check()`` is in some ways very similar to ``data_check()``, but its looking for a different thing. ``data_check()`` looks to make sure the data is in the correct format - sometimes participants end up missing questions, or getting too many Nodes, and so on. However, othertimes participants just pay no attention and mash their way through the experiment, this is what the ``attention_check()`` looks for. Either way, failing the data check or the attention check has pretty similar consequences: the participant's data is deleted and a replacement participant is recruited. The differences are as follows:
+``attention_check()`` is in some ways very similar to ``data_check()``, but it's looking for a different thing. ``data_check()`` looks to make sure the data is in the correct format - sometimes participants end up missing questions, or getting too many Nodes, and so on. However, othertimes participants just pay no attention and mash their way through the experiment, this is what the ``attention_check()`` looks for. Either way, failing the data check or the attention check has pretty similar consequences: the participant's data is deleted and a replacement participant is recruited. The differences are as follows:
 
 1. The data check runs before the attention check, and if the data check is failed the attention check isn't run at all.
 2. A Participant that fails the data check is given the status `bad_data`, while a participant that fails the attention check is given the status `did_not_attend`. This can helps you figure out what's going wrong by quickly looking at the database. Note that a participant that would fail both checks will get the status `bad_data` because of point 1.
-3. A Participant that fails the data check will not get a bonus, this is because Dallinger cannot be sure that letting the bonus function run will even work (for instance, in the function above, what would happen if the participant didn't even have a node?) and so it skips it. However, a Participant that fails the attention check is assumed to have acceptable data and so will still get a bonus.
+3. A Participant that fails the data check will not get a bonus, this is because Dallinger cannot be sure that letting the bonus function run will even work (for instance, in the function above, what would happen if the participant didn't even have a Node?) and so it skips it. However, a Participant that fails the attention check is assumed to have acceptable data and so will still get a bonus.
 
-``submission_successful()`` is the last second thing to run when a participant successfully completes the experiment (i.e. the have passed both the attention check and data check, and been paid a bonus). By default it does nothing, but its here so you can add things to the Participant processing routine if you want to.
+``submission_successful()`` is the second last thing to run when a participant successfully completes the experiment (i.e. they have passed both the attention check and data check, and been paid a bonus). By default it does nothing, but it's here so you can add things to the Participant processing routine if you want to.
 
 recruit
 -------
 
-``recruit()`` is run immediately after ``submission_successful()`` and as its name suggests it is involved in recruiting additional participants. Remember that it only runs if the Participant successfully passes the attention and data check (if either of these are failed then a replacement participant is automatically recruited). By default it does nothing but check to see if the Networks are already full and if they are it closes recruitment.
+``recruit()`` is run immediately after ``submission_successful()`` and as its name suggests it is involved in recruiting additional participants. Remember that it only runs if the Participant successfully passes the attention and data check (if either of these are failed then a replacement participant is automatically recruited). By default it does nothing but check to see if the Networks are already full and if they are, it closes recruitment.
 ::
 
     if not self.networks(full=False):
