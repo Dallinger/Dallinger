@@ -989,6 +989,9 @@ class PulseRecruiter(Recruiter):
             self.config.get('pulse_api_key'),
             self.config.get('pulse_app_id')
         )
+        self.reward_processor = self.config.get('pulse_reward_processor')
+        self.reward_currency = self.config.get('pulse_reward_currency')
+        self.location = self.config.get('pulse_location')
 
         logger.info("Initialized PulseRecruiter.")
 
@@ -1001,7 +1004,7 @@ class PulseRecruiter(Recruiter):
             self.pulse_service.create_campaign(
                 self.config.get('title'),
                 self.config.get('description'),
-                self.config.get('pulse_location'),
+                self.location,
                 self.config.get('pulse_link'),
                 self.config.get('pulse_image_url'),
                 self.config.get('pulse_page_id')
@@ -1022,7 +1025,7 @@ class PulseRecruiter(Recruiter):
     def recruit(self, n=1):
         """Recruit n new participants to the queue"""
 
-        agents = self.pulse_service.get_agents(self.config.get('pulse_location'))
+        agents = self.pulse_service.get_agents(self.location)
 
         for agent in agents:
             experiment_url = '{}/ad?recruiter={}&hitId={}&assignmentId={}&workerId={}'.format(
@@ -1061,9 +1064,9 @@ class PulseRecruiter(Recruiter):
         self.pulse_service.reward(
             participant.hit_id,
             assignment_id,
-            self.config.get('pulse_reward_processor'),
-            self.config.get('pulse_reward_currency'),
-            self.config.get('base_payment')
+            self.reward_processor,
+            self.reward_currency,
+            amount
         )
 
 
