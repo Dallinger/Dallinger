@@ -1007,28 +1007,48 @@ class TestPulseRecruiter(object):
 
         recruiter.recruit(1)
 
-        assert recruiter.pulse_service.get_agents.call_args[0][0] == 'us'
+        # def get_agents(self, location):
+        assert recruiter.pulse_service.get_agents.call_args[0] == ('us', )
 
         experiment_url = 'http://0.0.0.0:5000/ad?recruiter=pulse&hitId=123&assignmentId=asdf&workerId=asdf'
         assert recruiter.pulse_service.recruit.call_args[0] == ('asdf', experiment_url)
 
-    def test_approve_hit(self, recruiter):
-        assert recruiter.approve_hit('123') is True
+    def test_approve_hit(self, a, recruiter, stub_config):
+        recruiter.pulse_service.project_id = '123'
+        p = a.participant(recruiter_id='pulse', hit_id='123', assignment_id='asdf', worker_id='asdf')
+
+        recruiter.pulse_service.reward = mock.MagicMock(return_value={})
+        stub_config.extend({'base_payment': 1.23})
+        recruiter.approve_hit('asdf')
+        recruiter.finalize_hit('asdf')
+
+        # def reward(self, hitId, agentId, processor, currency, amount)
+        assert recruiter.pulse_service.reward.call_args[0] == (
+            '123',
+            'asdf',
+            'TransferTo',
+            'Airtime',
+            1.23
+        )
 
     def test_close_recruitment(self, recruiter):
         assert recruiter.close_recruitment() is None
 
-    @mock.patch("dallinger.recruiters.session")
-    def test_reward_bonus(self, mock_sess, recruiter):
-        recruiter.pulse_service.reward = mock.Mock()
+    def test_reward_bonus(self, a, recruiter, stub_config):
+        recruiter.pulse_service.project_id = '123'
+        p = a.participant(recruiter_id='pulse', hit_id='123', assignment_id='asdf', worker_id='asdf')
 
-        mock_sess.query().filter_by().first().hit_id = 'asdf'
+        recruiter.pulse_service.reward = mock.MagicMock(return_value={})
+        stub_config.extend({'base_payment': 1.23})
+        recruiter.approve_hit('asdf')
+        recruiter.reward_bonus('asdf', 1, 'Being good')
+        recruiter.finalize_hit('asdf')
 
-        recruiter.reward_bonus('123', 1, '1')
-
-        assert mock_sess.query().filter_by.call_args[1]['assignment_id'] == '123'
-        assert recruiter.pulse_service.reward.call_args[0][0] == 'asdf'
-        assert recruiter.pulse_service.reward.call_args[0][1] == '123'
-        assert recruiter.pulse_service.reward.call_args[0][2] == 'TransferTo'
-        assert recruiter.pulse_service.reward.call_args[0][3] == 'Airtime'
-        assert recruiter.pulse_service.reward.call_args[0][4] == 0.01
+        # def reward(self, hitId, agentId, processor, currency, amount)
+        assert recruiter.pulse_service.reward.call_args[0] == (
+            '123',
+            'asdf',
+            'TransferTo',
+            'Airtime',
+            2.23
+        )
