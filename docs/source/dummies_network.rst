@@ -9,9 +9,9 @@ Networks are another type of object created by Dallinger, with their own table j
 What is a Network?
 ------------------
 
-Networks are the space in which all of the other objects we have covered so far (Nodes, Vectors, etc) exist. Nonetheless they are also objects themselves, with a corresponding table each row of which refers to a single Network. If this feels a bit strange, think about how your chair is an object contained within your house, which is itself an object. Or try drawing a collection of Nodes and Vectors of a piece of paper - the paper itself is the Network.
+Networks are the spaces in which all of the other objects we have covered so far (Nodes, Vectors, etc) exist. Nonetheless they are also objects themselves, with each corresponding table row referring to a single Network. If this feels a bit strange, think about how your chair is an object contained within your house, which is itself an object. Or try drawing a collection of Nodes and Vectors on a piece of paper - the paper itself is the Network.
 
-The main question you probably have though is how does a Network know how to arrange the Nodes and Vectors in the right way? As we will see below, Networks aren't just a blank page in which other objects are stored, rather they come with a few rules as well and these rules determine the structure that Networks take. The rules don't describe the final structure of the Network (though this can be deduced from the rules) rather they describe how a Network grows as new Nodes are added and when this growth should stop.
+The main question you probably have though is how does a Network know to arrange the Nodes and Vectors in the right way? As we will see below, Networks aren't just a blank page in which other objects are stored, rather they come with a few rules as well and these rules determine the structure that Networks take. The rules don't describe the final structure of the Network (though this can be deduced from the rules) rather they describe how a Network grows as new Nodes are added and when this growth should stop.
 
 Having a table for Networks obviously allows the creation of multiple Networks (each occupying a different row in the table). It might seem unclear why this is permitted, but the answer is that it allows the experimenter to easily run multiple parallel conditions or experimental repeats at the same time, with each Network corresponding to a different condition or repeat. Participants who take part in the experiment can take part in each Network sequentially, take part in only a subset of them or take part in just a single Network. This is all configurable on an experiment-by-experiment basis and we will see how when we come to the ``Experiment`` class.
 
@@ -34,16 +34,16 @@ As ever, Networks inherit the common columns defined by ``SharedMixin`` (see the
     #: networks as either "practice" or "experiment"
     role = Column(String(26), nullable=False, default="default", index=True)
 
-``max_size`` is an integer that tells you the greatest number of Nodes the Network is allowed to contain. This is used, as we will see below, to let Dallinger figure out once the Network has finished growing. At this point the Network will not longer accept any new Nodes and the experiment will stop.
+``max_size`` is an integer that tells you the greatest number of Nodes the Network is allowed to contain. This is used, as we will see below, to let Dallinger know when the Network has finished growing. At this point the Network will not longer accept any new Nodes and the experiment will stop.
 
 ``full`` is a boolean (true or false) that tells you whether the Network has any space left for new Nodes. It's basically a quicker way of checking whether the number of Nodes in the Network is currently less than ``max_size``.
 
-``role`` is used for experimental conditions. It is very common in experiments that you will run multiple conditions. For instance, if you wanted to explore the effect of communication on participants' performance at a task you might have an experimental condition where communication was allowed and a control condition where it is not. Each Network would need to know whether it was a control or an experiment Network and you can set the value of role accordingly. Then, when the Network is following its automatic growth rules, these can check for the role of the Network and behave accordingly. You can set role to whatever you want (we'll see this in action in some of the demo experiments), but, Dallinger automatically recognizes one specific role: "practice". By default participants will first take part in any networks given the role "practice", and only then will they move on to other Networks. We'll dig into this in more detail in the section on the Experiment class.
+``role`` is used for experimental conditions. It is very common in experiments that you will run multiple conditions. For instance, if you wanted to explore the effect of communication on participants' performance at a task, you might have an experimental condition where communication was allowed and a control condition where it is not. Each Network would need to know whether it was a control or an experiment Network and you can set the value of ``role`` accordingly. Then, when the Network is following its automatic growth rules, these can check for the ``role`` of the Network and behave accordingly. You can set ``role`` to whatever you want (we'll see this in action in some of the demo experiments), but, Dallinger automatically recognizes one specific role: "practice". By default participants will first take part in any Networks with the ``role`` set to "practice", and only then will they move on to other Networks. We'll dig into this in more detail in the section on the Experiment class.
 
 Network Objects
 ---------------
 
-Networks are big and have a lot of functions that do a whole bunch of different things. Like many of the previous classes we have looked at the functions fall into two broad categories: functions that get things about the nNetwork and functions that make the Network do things. We'll go through them in the order they appear in models.py.
+Networks are big and have a lot of functions that do a whole bunch of different things. Like many of the previous classes we have looked at the functions fall into two broad categories: functions that get things about the Network and functions that make the Network do things. We'll go through them in the order they appear in models.py.
 
 First is the ``network.nodes()`` function:
 ::
@@ -90,11 +90,11 @@ First is the ``network.nodes()`` function:
                     .filter_by(failed=failed, network_id=self.id)\
                     .all()
 
-This returns a list of Nodes that exist within the network. It takes a few different parameters. The first is ``type``. Recall from the section on Nodes that Dallinger includes several different types of Node (and moreover that users are welcome to create their own). If you pass a type of Node (e.g. ``Agent``) as a parameter in function calls to this function it will filter the list of returned nodes such that only nodes of that type will be returned. So if you only want Agents you can call ``network.nodes(type=Agent)``. If you don't list a Class all suitable Nodes are returned.
+This returns a list of Nodes that exist within the Network. It takes a few different parameters. The first is ``type``. Recall from the section on Nodes that Dallinger includes several different types of Nodes (and moreover that users are welcome to create their own). If you pass Node type (e.g. ``Agent``) as a parameter in function calls to this function, it will filter the list of returned Nodes such that only Nodes of that type will be returned. So if you only want Agents, you can call ``network.nodes(type=Agent)``. If you don't list a Class, all suitable Nodes are returned.
 
-The ``failed`` parameter concerns whether you want failed Nodes to be returned. Remeber that a Network might contain a mix of failed and not-failed Nodes because sometimes participants do strange things, or bugs crop up and a participant's data needs to be removed as the experiment runs. Failing does exactly this, and so most of the time when you ask for a Network's Nodes you probably don't want to include the failed Nodes. This is why ``failed`` defaults to ``False``. However, if you want to include the failed Nodes you can set it to ``"all"``. Moreover, if you want only the failed Nodes you can set it to ``True``.
+The ``failed`` parameter determines whether you want failed Nodes to be returned. Remember that a Network might contain a mix of failed and not-failed Nodes because sometimes participants do strange things, or bugs crop up and a participant's data needs to be removed as the experiment runs. Failing does exactly this, and so most of the time when you ask for a Network's Nodes you probably don't want to include failed Nodes. This is why ``failed`` defaults to ``False``. However, if you want to include the failed Nodes you can set it to ``"all"``. Moreover, if you only want the failed Nodes you can set it to ``True``.
 
-The last parameter is ``participant_id``. As we will see later nodes can be associated with Participant objects and this is a way to filter by participant_id. So if you want only the nodes associcated with Participant 2 you can call ``network.nodes(participant_id=2)``.
+The last parameter is ``participant_id``. As we will see later Nodes can be associated with Participant objects and this is a way to filter by ``participant_id``. So if you want only the nodes associcated with Participant 2 you can call ``network.nodes(participant_id=2)``.
 ::
 
     def size(self, type=None, failed=False):
@@ -105,7 +105,7 @@ The last parameter is ``participant_id``. As we will see later nodes can be asso
         """
         return len(self.nodes(type=type, failed=failed))
 
-``size()`` tells you the current number of Nodes in the Network. As you can see it is a simple wrapper around the ``nodes()`` function where rather than returning the list of Nodes it just tells you the length. Like ``nodes()`` it takes ``type`` and ``failed`` as parameters (though not ``participant_id`` for some reason).
+``size()`` tells you the current number of Nodes in the Network. As you can see it is a simple wrapper around the ``nodes()`` function where rather than returning the list of Nodes, it just tells you the length. Like ``nodes()`` it takes ``type`` and ``failed`` as parameters (though not ``participant_id`` for some reason).
 ::
 
     def infos(self, type=None, failed=False):
@@ -170,7 +170,7 @@ The last parameter is ``participant_id``. As we will see later nodes can be asso
 	                    network_id=self.id, status=status, failed=failed)\
 	                .all()
 
-The ``transmissions()`` function returns a list of Transmissions in the Network. As the experiment runs this list might get extremely long and so ost of the time you probably want to ask a specific Node for its Transmissions (i.e. ``node.transmissions()``) rather than the Network itself, but it's here incase you need it. As with most functions that get Transmissions you can filter by the status of the Transmissions ("pending" for Transmissions that have been sent but not yet received, "received" for Transmissions that have been both sent and received, and "all" for both of these sets together). And as with most functions that get any type of object you can filter by failed (``True``, ``False`` or ``"all"``).
+The ``transmissions()`` function returns a list of Transmissions in the Network. As the experiment runs this list might get extremely long and so most of the time you probably want to ask a specific Node for its Transmissions (i.e. ``node.transmissions()``) rather than the Network itself, but it's here in case you need it. As with most functions that get Transmissions, you can filter by the status of the Transmissions ("pending" for Transmissions that have been sent but not yet received, "received" for Transmissions that have been both sent and received, and "all" for both of these sets together). And as with most functions that get any type of object you can filter by failed (``True``, ``False`` or ``"all"``).
 ::
 
     def transformations(self, type=None, failed=False):
@@ -197,7 +197,7 @@ The ``transmissions()`` function returns a list of Transmissions in the Network.
                 .filter_by(network_id=self.id, failed=failed)\
                 .all()
 
-``Transformations()`` returns a list of transformations that occured in this network. You can filter by the ``type`` of transformation as well as by ``failed``.
+``Transformations()`` returns a list of transformations that occured in this Network. You can filter by the ``type`` of transformation as well as by ``failed``.
 ::
 
     def latest_transmission_recipient(self):
@@ -236,7 +236,7 @@ The ``transmissions()`` function returns a list of Transmissions in the Network.
                 .filter_by(network_id=self.id, failed=failed)\
                 .all()
 
-``vectors()`` returns a list of all the Vectors in the Network (filtered by ``failed``). Again this function is probably overkill for most experimental needs. If you want to know who a Node is connected to you should use node functions like ``node.vectors()`` or ``node.neighbors()`` instead. But, just incase you really want to get a list of all the Vectors in the Network this function is here for you.
+``vectors()`` returns a list of all the Vectors in the Network (filtered by ``failed``). Again this function is probably overkill for most experimental needs. If you want to know who a Node is connected to you should use node functions like ``node.vectors()`` or ``node.neighbors()`` instead. But, just in case you really want to get a list of all the Vectors in the Network, this function is here for you.
 
 After this we come to a bunch of functions that ask Networks to do things, let's take a look.
 ::
@@ -245,9 +245,9 @@ After this we come to a bunch of functions that ask Networks to do things, let's
         """Add the node to the network."""
         raise NotImplementedError
 
-Above we mentioned that Networks contain a bunch of rules that determine how the Network grows. ``add_node`` is one of these and its pretty much the most important one. Here it just raises and error though, and this is because the base class ``Network`` has no structure at all and so doesn't know how to grow. This function will always be overwritten in specific types of Network with specific behavior and we'll see some examples of this very shortly.
+Above we mentioned that Networks contain a bunch of rules that determine how the Network grows. ``add_node`` is one of these and it's pretty much the most important one. Here it just raises an error though, and this is because the base class ``Network`` has no structure at all and so doesn't know how to grow. This function will always be overwritten in specific types of Networks with specific behavior and we'll see some examples of this very shortly.
 
-Note also that the function takes a Node as a parameter. This is the new Node that has been created, and, because Nodes *must* have a Network the node is actually already in the Network. What's happening when this function is called is that the n]Network is being notified that the Node has been added to it and so the Network can take any action that is necessary (e.g. connecting it to other Nodes, sending it Transmissions and so on). Again, we'll see some examples of this shortly and we'll also see how this function is called in specific experiments when we come to the ``Experiment`` class.
+Note also that the function takes a Node as a parameter. This is the new Node that has been created, and, because Nodes *must* have a Network the node is actually already in the Network. What's happening when this function is called is that the Network is being notified that the Node has been added to it and so the Network can take any action that is necessary (e.g. connecting it to other Nodes, sending it Transmissions and so on). Again, we'll see some examples of this shortly and we'll also see how this function is called in specific experiments when we come to the ``Experiment`` class.
 
 The ``Network`` class also has a ``fail()`` and ``print_verbose()`` function, but these aren't particularly interesting, so let's skip to ``calculate_full()``.
 ::
@@ -256,7 +256,7 @@ The ``Network`` class also has a ``fail()`` and ``print_verbose()`` function, bu
         """Set whether the network is full."""
         self.full = len(self.nodes()) >= (self.max_size or 0)
 
-This function simply tells the Network to update the value in its full column to reflect its current size. It is called automatically by Dallinger when new Nodes are created so you don't need to worry about it, but its important to know that this function exists and when it is called so you know how Dallinger is keeping track of these things. The goal of this "book" is to pull back the curtain so you get to see Dallinger's inner workings as once you get to that point you'll be able to build new experiments with ease.
+This function simply tells the Network to update the value in its full column to reflect its current size. It is called automatically by Dallinger when new Nodes are created so you don't need to worry about it, but it's important to know that this function exists and when it is called so that you know how Dallinger is keeping track of these things. The goal of this "book" is to pull back the curtain so that you get to see Dallinger's inner workings, as once you get to that point, you'll be able to build new experiments with ease.
 
 Kinds of Networks
 -----------------
@@ -281,7 +281,7 @@ So, how does it do this? Let's go through the code line by line. First it gets a
 
 	other_nodes = [n for n in self.nodes() if n.id != node.id]
 
-If this statement looks strange to you, you might want to look up a tutorial on python list comprehension. Also, note that this function is being run by the Network object, so ``self`` in the code above refers to the Network. After this it makes sure that, if there are already Nodes in the Network, you aren't trying to add a Source. This is because Sources cannot receive information (see the Nodes chapter) so if you try to add them to the end of a chain then bad things will happen.
+If this statement looks strange to you, you might want to look up a tutorial on python list comprehension. Also, note that this function is being run by the Network object, so ``self`` in the code above refers to the Network. After this it makes sure that, if there are already Nodes in the Network, you aren't trying to add a Source. This is because Sources cannot receive information (see the Nodes chapter) so if you try to add them to the end of a chain, bad things will happen.
 ::
 
 		if isinstance(node, Source) and other_nodes:
@@ -323,7 +323,7 @@ The ``Star`` network does almost the opposite to the ``Chain``. Whenever a new N
             first_node = min(nodes, key=attrgetter('creation_time'))
             first_node.connect(whom=node)
 
-The ``DiscreteGenerational`` is the first example of a moderately complicated Network. This is used for multi-generational evolutionary experiments where participants take part in sequential batches. For an example of a experiment using this see the Rogers demo.
+The ``DiscreteGenerational`` is the first example of a moderately complicated Network. This is used for multi-generational evolutionary experiments where participants take part in sequential batches. For an example of an experiment using this see the Rogers demo.
 
 ``DiscreteGenerational`` networks have extra parameters that detemine their behavior. These are ``generations`` (how many generations you want the Network to run for), ``generation_size`` (the number of Nodes in each generation) and ``initial_source`` (whether the first generation connects to a source or just starts from nothing. These must be passed as arguments when the Network is created and you can see them being set in the ``__init__()`` function as properties 1, 2 and 3:
 ::
@@ -332,9 +332,9 @@ The ``DiscreteGenerational`` is the first example of a moderately complicated Ne
         self.property2 = repr(generation_size)
         self.property3 = repr(initial_source)
 
-They are also made available as a property so you can do things like ``network.generation_size`` instead of having to remember that generation size is property 2 and then do ``network.property2``.
+They are also made available as a property so you can do things like ``network.generation_size`` instead of having to remember that generation size is property 2 and accessing it via ``network.property2``.
 
-The ``add_node()`` function is quite complicated, so let's break it down. First it needs to work out what generation the current Node is in. It does this by counting all the Nodes in the Network (excluding the initial source, if it exists) and dividing this by the generation_size. It them assigns this number to the Node as its ``generation``. So, if you want to use this Network you need to set up your Nodes to have a property called ``generation``. None of the Nodes we have seen so far have this, and so we'll see how its done in the demos later.
+The ``add_node()`` function is quite complicated, so let's break it down. First it needs to work out what generation the current Node is in. It does this by counting all the Nodes in the Network (excluding the initial source, if it exists) and dividing this by the generation_size. It them assigns this number to the Node as its ``generation``. So, if you want to use this Network you need to set up your Nodes to have a property called ``generation``. None of the Nodes we have seen so far have this, and so we'll see how it's done in the demos later.
 ::
 
         nodes = [n for n in self.nodes() if not isinstance(n, Source)]
@@ -361,6 +361,6 @@ Note that the ``_select_oldest_source`` and ``_select_fit_node_from_generation``
 
 Either way, once the parent Node is selected the last thing to do is to connect the parent to the child and ask the parent to transmit to the child. What is transmitted will depend on the experiment, see the Rogers demo for more details of this.
 
-The files contains a bunch of other Networks too, but I'll leave those up to the reader to figure out how they work. If you're struggling to see what a Network does grab a pen and paper and manually sketch out what happens as one Node after another gets added.
+The file `networks.py` contains a bunch of other Networks too, but I'll leave those up to the reader to figure out how they work. If you're struggling to see what a Network does grab a pen and paper and manually sketch out what happens as one Node after another gets added.
 
 
