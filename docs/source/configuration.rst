@@ -139,6 +139,47 @@ Amazon Mechanical Turk Recruitment
     Obsolete.
 
 
+IST Pulse Recruitment
+~~~~~~~~~~~~~~~~~~~~~
+
+``pulse_api_url`` *unicode*
+    The API endpoint for the Pulse recruitment instance to use
+
+``pulse_api_key`` *unicode*
+    An API key authorised to act on the specified app
+
+``pulse_app_id`` *unicode*
+    The username part of the credentials, supplied by IST.
+
+``pulse_image_url`` *unicode*
+    Not known
+
+``pulse_link`` *unicode*
+    Not known
+
+``pulse_location`` *unicode*
+    Not known
+
+``pulse_page_id`` *unicode*
+    Not known
+
+``pulse_reward_processor`` *unicode*
+    Not known
+
+``pulse_reward_currency`` *unicode*
+    Not known
+
+``title`` *unicode*
+    The title of the HIT on Amazon Mechanical Turk.
+
+``description`` *unicode*
+    The description of the HIT on Amazon Mechanical Turk.
+
+``base_payment`` *float*
+    Base payment in U.S. dollars. All workers who accept the HIT are guaranteed
+    this much compensation.
+
+
 Preventing Repeat Participants
 """"""""""""""""""""""""""""""
 
