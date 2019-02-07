@@ -1040,6 +1040,11 @@ class PulseRecruiter(Recruiter):
         return []
 
     def approve_hit(self, assignment_id):
+        participant = session.query(Participant).filter_by(
+            assignment_id=assignment_id,
+            recruiter_id=self.nickname,
+        ).one()
+        participant.base_pay = self.config.get('base_payment')
         return True
 
     def close_recruitment(self):
@@ -1051,6 +1056,12 @@ class PulseRecruiter(Recruiter):
 
     def reward_bonus(self, assignment_id, amount, reason):
         """ Reward the participant """
+        participant = session.query(Participant).filter_by(
+            assignment_id=assignment_id,
+            recruiter_id=self.nickname,
+        ).one()
+        participant.bonus = amount
+        return True
 
         participant = session.query(Participant).filter_by(
             assignment_id=assignment_id,
