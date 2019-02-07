@@ -1,7 +1,7 @@
 Networks
 ========
 
-Networks are another type of object created by Dallinger, with their own table just like all the other types of object.
+Networks are another type of object created by Dallinger, with their own table just like all the other types of objects.
 
 .. figure:: _static/class_chart.jpg
    :alt: 
