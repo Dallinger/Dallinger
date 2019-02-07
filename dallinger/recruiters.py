@@ -1063,10 +1063,15 @@ class PulseRecruiter(Recruiter):
         participant.bonus = amount
         return True
 
+    def finalize_hit(self, assignment_id):
         participant = session.query(Participant).filter_by(
             assignment_id=assignment_id,
             recruiter_id=self.nickname,
         ).one()
+
+        amount = participant.base_pay
+        if participant.bonus:
+            amount += participant.bonus
 
         self.pulse_service.reward(
             participant.hit_id,
