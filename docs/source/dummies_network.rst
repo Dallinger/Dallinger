@@ -297,7 +297,7 @@ After this the magic happens. If there were any other Nodes in the Network (i.e.
             parent = max(other_nodes, key=attrgetter('creation_time'))
             parent.connect(whom=node)
 
-This function alone is all you need to grow a chain. It might feel a bit odd defining Network structure by a growth rule and not by a more top-down "blueprint" style approach, and so you might want to figure out some of the other Networks too. Here's the ``add_node()`` function for the ``FullyConnected`` network for example:
+This function alone is all you need to grow a chain. It might feel a bit odd defining Network structure by a growth rule and not by a more top-down "blueprint" style approach, so we will take a look at how some other Networks are constructed, so you can become more familiar with this approach. Here's the ``add_node()`` function for the ``FullyConnected`` network for example:
 ::
 
     def add_node(self, node):
