@@ -2,6 +2,7 @@ import pytest
 from mock import Mock, MagicMock, patch
 from dallinger.pulse import PulseService
 
+
 @pytest.fixture
 def pulse_service():
     return PulseService("https://fake_url", "fake_key", "fake_app")
@@ -12,7 +13,7 @@ def fake_activities_get_response():
         "response": {
             "activities": [
                 {
-                    "startedAtTime": "2018-07-10T17:16:51+0000^^http://www.w3.org/2001/XMLSchema#dateTime",
+                    "startedAtTime": "2018-07-10T17:16:51+0000^^http://www.w3.org/2001/XMLSchema#dateTime",  # noqa: E501
                     "wasStartedBy": "23418bfa-f255-4778-989e-d9ab66308359",
                     "wasAssociatedWith": "3931db12-d07c-4056-8f5f-b7838c0179dc",
                     "label": "Test",
@@ -21,7 +22,7 @@ def fake_activities_get_response():
                 },
                 {
                     "at_location": "http://sws.geonames.org/226074/",
-                    "startedAtTime": "2018-07-10T17:16:51+0000^^http://www.w3.org/2001/XMLSchema#dateTime",
+                    "startedAtTime": "2018-07-10T17:16:51+0000^^http://www.w3.org/2001/XMLSchema#dateTime",  # noqa: E501
                     "wasInfluencedBy": "3270ecd9-5dec-4864-94a4-36752a15e367",
                     "wasStartedBy": "23418bfa-f255-4778-989e-d9ab66308359",
                     "label": "Test",
@@ -142,6 +143,7 @@ def fake_engage_response():
         "statusCode": 200
     }
 
+
 class TestPulseService(object):
     @patch('requests.get', return_value=Mock(text='{"test":"fakeresponse"}'))
     def test_get_has_creds(self, mock_get, pulse_service):
@@ -244,8 +246,13 @@ class TestPulseService(object):
     def test_reward(self, pulse_service):
         pulse_service.api_post = MagicMock(return_value=fake_engage_response())
 
-        assert pulse_service.reward("1d0cd9f4-94f9-438d-aa05-c8865144d0b2", "ecbd08d2-6fdc-430b-abac-7b1827ae4433",
-                                    "TransferTo", "Airtime", 1.0)
+        assert pulse_service.reward(
+            "1d0cd9f4-94f9-438d-aa05-c8865144d0b2",
+            "ecbd08d2-6fdc-430b-abac-7b1827ae4433",
+            "TransferTo",
+            "Airtime",
+            1.0
+        )
 
         payload = {
             "type": "SolicitReferralAndPay",
@@ -264,8 +271,13 @@ class TestPulseService(object):
         pulse_service.api_post = MagicMock(return_value={})
 
         with pytest.raises(Exception):
-            pulse_service.reward("1d0cd9f4-94f9-438d-aa05-c8865144d0b2", "ecbd08d2-6fdc-430b-abac-7b1827ae4433",
-                                 "TransferTo", "Airtime", 1.0)
+            pulse_service.reward(
+                "1d0cd9f4-94f9-438d-aa05-c8865144d0b2",
+                "ecbd08d2-6fdc-430b-abac-7b1827ae4433",
+                "TransferTo",
+                "Airtime",
+                1.0
+            )
 
     def test_get_agents(self, pulse_service):
         pulse_service.project_id = "1d0cd9f4-94f9-438d-aa05-c8865144d0b2"
@@ -279,7 +291,7 @@ class TestPulseService(object):
                 "wasActivatedBy": "1d0cd9f4-94f9-438d-aa05-c8865144d0b2",
                 "atLocation": "http://sws.geonames.org/226074/",
                 "language": "eng",
-                "activatedAtTime": "2018-07-24T01:00:00.000Z^^http://www.w3.org/2001/XMLSchema#dateTime",
+                "activatedAtTime": "2018-07-24T01:00:00.000Z^^http://www.w3.org/2001/XMLSchema#dateTime",  # noqa: E501
                 "firstName": "T1",
                 "blocked": "false^^http://www.w3.org/2001/XMLSchema#boolean",
                 "name": "T1 Test",
@@ -293,7 +305,7 @@ class TestPulseService(object):
                 "wasActivatedBy": "1d0cd9f4-94f9-438d-aa05-c8865144d0b2",
                 "atLocation": "http://sws.geonames.org/226074/",
                 "language": "eng",
-                "activatedAtTime": "2018-07-24T01:00:00.000Z^^http://www.w3.org/2001/XMLSchema#dateTime",
+                "activatedAtTime": "2018-07-24T01:00:00.000Z^^http://www.w3.org/2001/XMLSchema#dateTime",  # noqa: E501
                 "firstName": "T2",
                 "blocked": "false^^http://www.w3.org/2001/XMLSchema#boolean",
                 "name": "T2 Test",

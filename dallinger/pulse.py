@@ -36,11 +36,12 @@ class PulseService:
         return resp
 
     def get_existing_activity(self):
-        """ Check activity endpoint to see if this application has an existing project associated with it"""
+        """ Check activity endpoint to see if this application has an existing project
+        associated with it"""
         resp = self.api_get('activity')
 
-        if resp.get('response') is None or type(resp.get('response')) is not dict:
-            raise Exception("Invalid response on get activity: {}".format(resp))
+        if resp.get('response') is None or not isinstance(resp.get('response'), dict):
+            raise ValueError("Invalid response on get activity: {}".format(resp))
         else:
             resp = resp.get('response')
 
@@ -85,13 +86,13 @@ class PulseService:
 
         resp = self.api_post('campaign', payload)
 
-        if resp.get('response') is None or type(resp.get('response')) is not dict:
-            raise Exception("Invalid response on create campaign: {}".format(resp))
+        if resp.get('response') is None or not isinstance(resp.get('response'), dict):
+            raise ValueError("Invalid response on create campaign: {}".format(resp))
         else:
             resp = resp.get('response')
 
-        if len(resp.get('projects', [])) < 1:
-            raise Exception("Invalid response on create campaign: {}".format(resp))
+        if not resp.get('projects', []):
+            raise ValueError("Invalid response on create campaign: {}".format(resp))
 
         self.project_id = resp.get('projects')[0].get('id')
 
@@ -102,10 +103,10 @@ class PulseService:
     def get_agents(self, location):
         resp = self.api_get('agent', {'location': location})
 
-        if resp.get('response', {}).get('agents') is None:
-            raise Exception("Could not get pulse recruits")
-
         resp_agents = resp.get('response', {}).get('agents')
+        if resp_agents is None:
+            raise ValueError("Could not get pulse recruits")
+
         agents = []
 
         for agent in resp_agents:
@@ -116,7 +117,6 @@ class PulseService:
                 agents.append(agent.get('id'))
 
         return agents
-
 
     def recruit(self, agent, url):
         """ Send notification to contacts that the experiment is live """
@@ -130,8 +130,9 @@ class PulseService:
 
         resp = self.api_post('engage', payload)
 
-        if resp.get('response') is None or resp.get('response', {}).get('flow', {}).get('uuid') is None:
-            raise Exception("Could not trigger flow")
+        uuid = resp.get('response', {}).get('flow', {}).get('uuid')
+        if resp.get('response') is None or uuid is None:
+            raise ValueError("Could not trigger flow")
 
         return True
 
@@ -153,9 +154,8 @@ class PulseService:
 
         resp = self.api_post('engage', payload)
 
-        if resp.get('response') is None or resp.get('response', {}).get('flow', {}).get('uuid') is None:
-            raise Exception("Could not trigger flow")
+        uuid = resp.get('response', {}).get('flow', {}).get('uuid')
+        if resp.get('response') is None or uuid is None:
+            raise ValueError("Could not trigger flow")
 
         return True
-
-

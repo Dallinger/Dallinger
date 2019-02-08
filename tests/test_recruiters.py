@@ -966,7 +966,6 @@ class TestMultiRecruiter(object):
 class TestPulseRecruiter(object):
     @pytest.fixture
     def recruiter(self):
-        from dallinger.pulse import PulseService
         from dallinger.recruiters import PulseRecruiter
         pulse = PulseRecruiter()
         pulse.pulse_service.api_get = mock.MagicMock(return_value={})
@@ -997,7 +996,10 @@ class TestPulseRecruiter(object):
         recruiter.pulse_service.create_campaign = mock.Mock()
         recruiter.pulse_service.project_id = '123'
 
-        assert recruiter.open_recruitment(1) == {'items': ['123'], 'message': 'Creating campaign and opening recruitment'}
+        assert recruiter.open_recruitment(1) == {
+            'items': ['123'],
+            'message': 'Creating campaign and opening recruitment'
+        }
         assert recruiter.pulse_service.create_campaign.call_args[0] == called
 
     def test_recruit(self, recruiter):
@@ -1010,12 +1012,12 @@ class TestPulseRecruiter(object):
         # def get_agents(self, location):
         assert recruiter.pulse_service.get_agents.call_args[0] == ('us', )
 
-        experiment_url = 'http://0.0.0.0:5000/ad?recruiter=pulse&hitId=123&assignmentId=asdf&workerId=asdf'
+        experiment_url = 'http://0.0.0.0:5000/ad?recruiter=pulse&hitId=123&assignmentId=asdf&workerId=asdf'  # noqa: E501
         assert recruiter.pulse_service.recruit.call_args[0] == ('asdf', experiment_url)
 
     def test_approve_hit(self, a, recruiter, stub_config):
         recruiter.pulse_service.project_id = '123'
-        p = a.participant(recruiter_id='pulse', hit_id='123', assignment_id='asdf', worker_id='asdf')
+        a.participant(recruiter_id='pulse', hit_id='123', assignment_id='asdf', worker_id='asdf')
 
         recruiter.pulse_service.reward = mock.MagicMock(return_value={})
         stub_config.extend({'base_payment': 1.23})
@@ -1036,7 +1038,7 @@ class TestPulseRecruiter(object):
 
     def test_reward_bonus(self, a, recruiter, stub_config):
         recruiter.pulse_service.project_id = '123'
-        p = a.participant(recruiter_id='pulse', hit_id='123', assignment_id='asdf', worker_id='asdf')
+        a.participant(recruiter_id='pulse', hit_id='123', assignment_id='asdf', worker_id='asdf')
 
         recruiter.pulse_service.reward = mock.MagicMock(return_value={})
         stub_config.extend({'base_payment': 1.23})
