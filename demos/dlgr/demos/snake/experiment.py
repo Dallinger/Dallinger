@@ -8,7 +8,7 @@ config = dlgr.config.get_config()
 
 
 def extra_parameters():
-    config.register('n', int)
+    config.register("n", int)
 
 
 class SnakeGame(Experiment):

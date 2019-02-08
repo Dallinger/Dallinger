@@ -28,9 +28,7 @@ class RogersSource(Source):
     def create_information(self):
         """Create a new learning gene."""
         if len(self.infos()) == 0:
-            LearningGene(
-                origin=self,
-                contents="asocial")
+            LearningGene(origin=self, contents="asocial")
 
     def _what(self):
         """Transmit a learning gene by default."""
@@ -90,16 +88,19 @@ class RogersAgent(Agent):
     def calculate_fitness(self):
         """Calculcate your fitness."""
         if self.fitness is not None:
-            raise Exception("You are calculating the fitness of agent {}, "
-                            .format(self.id) +
-                            "but they already have a fitness")
+            raise Exception(
+                "You are calculating the fitness of agent {}, ".format(self.id)
+                + "but they already have a fitness"
+            )
         infos = self.infos()
 
-        said_blue = ([i for i in infos if
-                      isinstance(i, Meme)][0].contents == "blue")
+        said_blue = [i for i in infos if isinstance(i, Meme)][0].contents == "blue"
         proportion = float(
-            max(State.query.filter_by(network_id=self.network_id).all(),
-                key=attrgetter('creation_time')).contents)
+            max(
+                State.query.filter_by(network_id=self.network_id).all(),
+                key=attrgetter("creation_time"),
+            ).contents
+        )
         self.proportion = proportion
         is_blue = proportion > 0.5
 
@@ -108,9 +109,9 @@ class RogersAgent(Agent):
         else:
             self.score = 0
 
-        is_asocial = [
-            i for i in infos if isinstance(i, LearningGene)
-        ][0].contents == "asocial"
+        is_asocial = [i for i in infos if isinstance(i, LearningGene)][
+            0
+        ].contents == "asocial"
         e = 2
         b = 1
         c = 0.3 * b
@@ -159,8 +160,7 @@ class RogersEnvironment(Environment):
 
     def step(self):
         """Prompt the environment to change."""
-        current_state = max(self.infos(type=State),
-                            key=attrgetter('creation_time'))
+        current_state = max(self.infos(type=State), key=attrgetter("creation_time"))
         current_contents = float(current_state.contents)
         new_contents = 1 - current_contents
         info_out = State(origin=self, contents=new_contents)

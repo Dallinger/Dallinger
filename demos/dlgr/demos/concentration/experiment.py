@@ -8,7 +8,7 @@ config = dallinger.config.get_config()
 
 
 def extra_parameters():
-    config.register('num_participants', int)
+    config.register("num_participants", int)
 
 
 class ConcentrationGame(Experiment):

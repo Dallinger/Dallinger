@@ -7,7 +7,7 @@ config = dallinger.config.get_config()
 
 
 def extra_parameters():
-    config.register('n', int)
+    config.register("n", int)
 
 
 class TwentyFortyEight(Experiment):

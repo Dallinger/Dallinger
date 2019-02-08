@@ -25,9 +25,9 @@ logger = logging.getLogger(__file__)
 
 
 def extra_parameters():
-    config.register('network', unicode)
-    config.register('repeats', int)
-    config.register('n', int)
+    config.register("network", unicode)
+    config.register("repeats", int)
+    config.register("n", int)
 
 
 class CoordinationChatroom(dlgr.experiment.Experiment):
@@ -36,8 +36,8 @@ class CoordinationChatroom(dlgr.experiment.Experiment):
     def __init__(self, session=None):
         """Initialize the experiment."""
         super(CoordinationChatroom, self).__init__(session)
-        self.experiment_repeats = repeats = config.get('repeats')
-        self.quorum = config.get('n')
+        self.experiment_repeats = repeats = config.get("repeats")
+        self.quorum = config.get("n")
         # Recruit for all networks at once
         self.initial_recruitment_size = repeats * self.quorum
         self.config = config
@@ -48,10 +48,7 @@ class CoordinationChatroom(dlgr.experiment.Experiment):
 
     def create_network(self):
         """Create a new network by reading the configuration file."""
-        class_ = getattr(
-            dlgr.networks,
-            self.config.get('network')
-        )
+        class_ = getattr(dlgr.networks, self.config.get("network"))
         return class_(max_size=self.quorum)
 
     def choose_network(self, networks, participant):
@@ -72,11 +69,11 @@ class Bot(BotBase):
     """A bot conversation demo."""
 
     GREETINGS = [
-        'Hello.',
-        'How do you do.',
-        'Good day.',
-        'Anyone here?',
-        'Hi.',
+        "Hello.",
+        "How do you do.",
+        "Good day.",
+        "Anyone here?",
+        "Hi.",
         "What's up?",
     ]
 
@@ -89,12 +86,12 @@ class Bot(BotBase):
         iesha_chatbot,
         rude_chatbot,
         suntsu_chatbot,
-        zen_chatbot
+        zen_chatbot,
     ]
 
     def get_chat_history(self):
-        story = self.driver.find_element_by_id('story')
-        return story.text.split('\n')
+        story = self.driver.find_element_by_id("story")
+        return story.text.split("\n")
 
     def wait_to_send_message(self):
         waiting_time = random.expovariate(1.0 / self.AVG_TIME_BETWEEN_MESSAGES)
@@ -111,7 +108,8 @@ class Bot(BotBase):
         random.seed(self.worker_id)
         chatbot = random.choice(self.PERSONALITIES)
         WebDriverWait(self.driver, 10).until(
-            EC.element_to_be_clickable((By.ID, 'send-message')))
+            EC.element_to_be_clickable((By.ID, "send-message"))
+        )
         logger.info("Entering participate method")
         start = time.time()
         while (time.time() - start) < self.TOTAL_CHAT_TIME:

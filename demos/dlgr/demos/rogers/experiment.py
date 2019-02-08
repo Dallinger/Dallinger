@@ -19,16 +19,16 @@ config = get_config()
 def extra_parameters():
 
     types = {
-        'experiment_repeats': int,
-        'practice_repeats': int,
-        'catch_repeats': int,
-        'practice_difficulty': float,
-        'catch_difficulty': float,
-        'difficulties': six.text_type,  # comma separated floats
-        'min_acceptable_performance': float,
-        'generations': int,
-        'generation_size': int,
-        'bonus_payment': float,
+        "experiment_repeats": int,
+        "practice_repeats": int,
+        "catch_repeats": int,
+        "practice_difficulty": float,
+        "catch_difficulty": float,
+        "difficulties": six.text_type,  # comma separated floats
+        "min_acceptable_performance": float,
+        "generations": int,
+        "generation_size": int,
+        "bonus_payment": float,
     }
 
     for key in types:
@@ -50,6 +50,7 @@ class RogersExperiment(Experiment):
         """
         super(RogersExperiment, self).__init__(session)
         from . import models
+
         self.models = models
         self.known_classes["LearningGene"] = self.models.LearningGene
 
@@ -58,38 +59,39 @@ class RogersExperiment(Experiment):
         self.save()
 
     def configure(self):
-        self.experiment_repeats = config.get('experiment_repeats', 10)
-        self.practice_repeats = config.get('practice_repeats', 0)
-        self.catch_repeats = config.get('catch_repeats', 0)  # a subset of experiment repeats
-        self.practice_difficulty = config.get('practice_difficulty', 0.80)
+        self.experiment_repeats = config.get("experiment_repeats", 10)
+        self.practice_repeats = config.get("practice_repeats", 0)
+        self.catch_repeats = config.get(
+            "catch_repeats", 0
+        )  # a subset of experiment repeats
+        self.practice_difficulty = config.get("practice_difficulty", 0.80)
 
         self.difficulties = [
-            float(f.strip()) for f in
-            config.get('difficulties', '0.525, 0.5625, 0.65').split(',')
+            float(f.strip())
+            for f in config.get("difficulties", "0.525, 0.5625, 0.65").split(",")
         ] * self.experiment_repeats
 
-        self.catch_difficulty = config.get('catch_difficulty', 0.80)
+        self.catch_difficulty = config.get("catch_difficulty", 0.80)
         self.min_acceptable_performance = config.get(
-            'min_acceptable_performance', 10 / float(12)
+            "min_acceptable_performance", 10 / float(12)
         )
-        self.generation_size = config.get('generation_size', 2)
-        self.generations = config.get('generations', 3)
-        self.bonus_payment = config.get('bonus_payment', 1.0)
+        self.generation_size = config.get("generation_size", 2)
+        self.generations = config.get("generations", 3)
+        self.bonus_payment = config.get("bonus_payment", 1.0)
         self.initial_recruitment_size = self.generation_size
 
     @property
     def public_properties(self):
         return {
-            'practice_repeats': self.practice_repeats,
-            'experiment_repeats': self.experiment_repeats,
+            "practice_repeats": self.practice_repeats,
+            "experiment_repeats": self.experiment_repeats,
         }
 
     def setup(self):
         """First time setup."""
         super(RogersExperiment, self).setup()
 
-        for net in random.sample(self.networks(role="experiment"),
-                                 self.catch_repeats):
+        for net in random.sample(self.networks(role="experiment"), self.catch_repeats):
             net.role = "catch"
 
         for net in self.networks():
@@ -112,20 +114,21 @@ class RogersExperiment(Experiment):
         return DiscreteGenerational(
             generations=self.generations,
             generation_size=self.generation_size,
-            initial_source=True
+            initial_source=True,
         )
 
     def create_node(self, network, participant):
         """Make a new node for participants."""
         if network.role == "practice" or network.role == "catch":
-            return self.models.RogersAgentFounder(network=network,
-                                                  participant=participant)
+            return self.models.RogersAgentFounder(
+                network=network, participant=participant
+            )
         elif network.size(type=Agent) < network.generation_size:
-            return self.models.RogersAgentFounder(network=network,
-                                                  participant=participant)
+            return self.models.RogersAgentFounder(
+                network=network, participant=participant
+            )
         else:
-            return self.models.RogersAgent(network=network,
-                                           participant=participant)
+            return self.models.RogersAgent(network=network, participant=participant)
 
     def info_post_request(self, node, info):
         """Run whenever an info is created."""
@@ -182,24 +185,31 @@ class RogersExperiment(Experiment):
         nodes = Node.query.filter_by(participant_id=participant.id).all()
 
         if len(nodes) != self.experiment_repeats + self.practice_repeats:
-            print("Error: Participant has {} nodes. Data check failed"
-                  .format(len(nodes)))
+            print(
+                "Error: Participant has {} nodes. Data check failed".format(len(nodes))
+            )
             return False
 
         nets = [n.network_id for n in nodes]
         if len(nets) != len(set(nets)):
-            print("Error: Participant participated in the same network \
-                   multiple times. Data check failed")
+            print(
+                "Error: Participant participated in the same network \
+                   multiple times. Data check failed"
+            )
             return False
 
         if None in [n.fitness for n in nodes]:
-            print("Error: some of participants nodes are missing a fitness. \
-                   Data check failed.")
+            print(
+                "Error: some of participants nodes are missing a fitness. \
+                   Data check failed."
+            )
             return False
 
         if None in [n.score for n in nodes]:
-            print("Error: some of participants nodes are missing a score. \
-                   Data check failed")
+            print(
+                "Error: some of participants nodes are missing a score. \
+                   Data check failed"
+            )
             return False
         return True
 
@@ -212,19 +222,18 @@ class RogersExperiment(Experiment):
         environment.connect(whom=node)
 
         gene = node.infos(type=self.models.LearningGene)[0].contents
-        if (gene == "social"):
+        if gene == "social":
             agent_model = self.models.RogersAgent
-            prev_agents = agent_model.query\
-                .filter_by(failed=False,
-                           network_id=network.id,
-                           generation=node.generation - 1)\
-                .all()
+            prev_agents = agent_model.query.filter_by(
+                failed=False, network_id=network.id, generation=node.generation - 1
+            ).all()
             parent = random.choice(prev_agents)
             parent.connect(whom=node)
             parent.transmit(what=Meme, to_whom=node)
-        elif (gene == "asocial"):
+        elif gene == "asocial":
             environment.transmit(to_whom=node)
         else:
-            raise ValueError("{} has invalid learning gene value of {}"
-                             .format(node, gene))
+            raise ValueError(
+                "{} has invalid learning gene value of {}".format(node, gene)
+            )
         node.receive()
