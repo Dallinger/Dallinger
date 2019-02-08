@@ -15,6 +15,10 @@ Using Dallinger with Docker
 ---------------------------
 Docker is a containerization tool used for developing isolated software environments. Read more about using Dallinger with Docker :doc:`here<docker_setup>`.
 
+
+
+
+
 Install Python
 --------------
 
@@ -489,7 +493,7 @@ If using Python 3.x and pip3:
     sudo pip3 install virtualenvwrapper
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
-	export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
+    export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
     source /usr/local/bin/virtualenvwrapper.sh
 
 
