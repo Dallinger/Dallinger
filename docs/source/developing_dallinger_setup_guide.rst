@@ -418,6 +418,8 @@ From then on, you only need to use the ``workon`` command before starting.
 
 Ubuntu
 ~~~~~~
+
+If using Python 2.7 and pip:
 ::
 
     sudo pip install virtualenv
@@ -425,6 +427,18 @@ Ubuntu
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
     source /usr/local/bin/virtualenvwrapper.sh
+
+
+If using Python 3.x and pip3:
+::
+
+    sudo pip3 install virtualenv
+    sudo pip3 install virtualenvwrapper
+    export WORKON_HOME=$HOME/.virtualenvs
+    mkdir -p $WORKON_HOME
+	export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
+    source /usr/local/bin/virtualenvwrapper.sh
+
 
 Now create the virtualenv using the ``mkvirtualenv`` command as follows:
 

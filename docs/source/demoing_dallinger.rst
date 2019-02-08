@@ -14,16 +14,16 @@ To test out Dallinger, we'll run a demo experiment in "debug" mode.
     More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
 
 You can read more about this experiment here:
-`Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932/index.html>`__ and download the experiment files.
+`Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932/index.html>`__.
 
-Navigate to the bartlett1932 directory and run
+The experiment files can be found `here <https://dallinger.readthedocs.io/en/latest/_static/bartlett1932.zip>`__. Extract them to a location of your choice, then from there, navigate to the `bartlett1932` directory and run:
 
 ::
 
     dallinger debug
 
 
-If applicable, make sure that your virtualenv is enabled so that the ``dallinger`` command is available to you. 
+If applicable, make sure that your virtualenv is enabled so that the ``dallinger`` command is available to you.
 All Dallinger command options are explained in the :doc:`Command-line Utility" <command_line_utility>` section.
 
 You will see some output as Dallinger loads. When it is finished, you will

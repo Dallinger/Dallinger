@@ -26,7 +26,12 @@ You can check what version of Python you have by running:
     python --version
 
 
-You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed. It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.)
+.. note::
+
+    You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed.
+    It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.)
+    If you are using Python 3, you may find that you may need to use ``pip3`` instead of ``pip`` where applicable in the instructions that follow.
+
 
 Mac OS X
 ~~~~~~~~
@@ -451,6 +456,8 @@ From then on, you only need to use the ``workon`` command before starting.
 
 Ubuntu
 ~~~~~~
+
+If using Python 2.7 and pip:
 ::
 
     sudo pip install virtualenv
@@ -458,6 +465,18 @@ Ubuntu
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
     source /usr/local/bin/virtualenvwrapper.sh
+
+
+If using Python 3.x and pip3:
+::
+
+    sudo pip3 install virtualenv
+    sudo pip3 install virtualenvwrapper
+    export WORKON_HOME=$HOME/.virtualenvs
+    mkdir -p $WORKON_HOME
+	export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
+    source /usr/local/bin/virtualenvwrapper.sh
+
 
 Now create the virtualenv using the ``mkvirtualenv`` command as follows:
 
@@ -471,14 +490,14 @@ If you are using Python 2 that is part of your Ubuntu installation:
 
     mkvirtualenv dlgr_env --python /usr/bin/python
 
-If you are using another Python version 
+If you are using another Python version
 (eg. custom installed Python 3.x on Ubuntu 14.04):
 ::
 
     mkvirtualenv dlgr_env --python <specify_your_python_path_here>
 
 
-Virtualenvwrapper provides an easy way to switch between virtual environments 
+Virtualenvwrapper provides an easy way to switch between virtual environments
 by simply typing: ``workon [virtual environment name]``.
 
 The technical details:
