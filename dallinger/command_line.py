@@ -44,7 +44,7 @@ from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
-header = """
+header = r"""
     ____        ____
    / __ \____ _/ / (_)___  ____ ____  _____
   / / / / __ `/ / / / __ \/ __ `/ _ \/ ___/

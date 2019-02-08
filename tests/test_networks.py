@@ -605,7 +605,7 @@ class TestDiscreteGenerational(TestNetworks):
 class TestSequentialMicrosociety(object):
     def test_n_property_type_marshalling(self, a):
         net = a.sequential_microsociety(n=3)
-        assert net.n is 3
+        assert net.n == 3
 
     def test_new_nodes_connected_to_active_nodes_only(self, a):
         """Create a sequential microsociety."""
@@ -646,5 +646,5 @@ class TestSplitSampleNetwork(object):
     def test_sample_splitting(self, a):
         nets = [a.split_sample() for i in range(100)]
         sets = [net.exploratory for net in nets]
-        assert sum(sets) is not 0
-        assert sum(sets) is not 100
+        assert sum(sets) != 0
+        assert sum(sets) != 100

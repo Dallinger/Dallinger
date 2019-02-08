@@ -158,7 +158,7 @@ class TestCLIRecruiter(object):
         assert "mode=new_mode" in result["items"][0]
 
     def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.submitted_event() is "AssignmentSubmitted"
+        assert recruiter.submitted_event() == "AssignmentSubmitted"
 
 
 @pytest.mark.usefixtures("active_config")
@@ -210,7 +210,7 @@ class TestHotAirRecruiter(object):
         assert "mode=debug" in result["items"][0]
 
     def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.submitted_event() is "AssignmentSubmitted"
+        assert recruiter.submitted_event() == "AssignmentSubmitted"
 
 
 class TestSimulatedRecruiter(object):
@@ -233,7 +233,7 @@ class TestSimulatedRecruiter(object):
         assert recruiter.open_recruitment(n=3)["items"] == []
 
     def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.submitted_event() is "AssignmentSubmitted"
+        assert recruiter.submitted_event() == "AssignmentSubmitted"
 
     def test_close_recruitment(self, recruiter):
         assert recruiter.close_recruitment() is None
@@ -282,7 +282,7 @@ class TestBotRecruiter(object):
         recruiter.reward_bonus("any assignment id", 0.01, "You're great!")
 
     def test_returns_specific_submission_event_type(self, recruiter):
-        assert recruiter.submitted_event() is "BotAssignmentSubmitted"
+        assert recruiter.submitted_event() == "BotAssignmentSubmitted"
 
     def test_notify_duration_exceeded_rejects_participants(self, a, recruiter):
         bot = a.participant(recruiter_id="bots")
