@@ -308,7 +308,7 @@ def stub_config():
         u'pulse_api_key': u'fake_key',
         u'pulse_app_id': u'fake_app',
         u'pulse_image_url': u'https://fake_url/image.jpeg',
-        u'pulse_link': u'https://fake_url',
+        u'pulse_privacy_link': u'https://fake_url',
         u'pulse_location': u'us',
         u'pulse_page_id': u'12345',
         u'pulse_reward_processor': u'TransferTo',

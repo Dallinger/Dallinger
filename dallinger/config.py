@@ -61,7 +61,7 @@ default_keys = (
     ('pulse_api_key', six.text_type, []),
     ('pulse_app_id', six.text_type, []),
     ('pulse_image_url', six.text_type, []),
-    ('pulse_link', six.text_type, []),
+    ('pulse_privacy_link', six.text_type, []),
     ('pulse_location', six.text_type, []),
     ('pulse_page_id', six.text_type, []),
     ('pulse_reward_processor', six.text_type, []),

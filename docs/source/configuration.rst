@@ -152,22 +152,26 @@ IST Pulse Recruitment
     The username part of the credentials, supplied by IST.
 
 ``pulse_image_url`` *unicode*
-    Not known
+    An image available over the web that will be used to advertise the experiment.
+    It should contain advertising copy, such as "Participate in a social experiment
+    hosted by UC Berkeley and earn $5 upon completion"
 
-``pulse_link`` *unicode*
-    Not known
+``pulse_privacy_link`` *unicode*
+    A web accessible link to the privacy policy that governs this experiment.
 
 ``pulse_location`` *unicode*
-    Not known
+    A URI representing a location in the geonames ontology where the advertising will be targeted.
+    For example, http://sws.geonames.org/6252001 for USA.
 
 ``pulse_page_id`` *unicode*
-    Not known
+    The facebook page to run advertising through. This must have been through the
+    requisite approvals by Facebook.
 
 ``pulse_reward_processor`` *unicode*
-    Not known
+    This should be `TransferTo`.
 
 ``pulse_reward_currency`` *unicode*
-    Not known
+    This should be `Airtime`.
 
 ``title`` *unicode*
     The title of the HIT on Amazon Mechanical Turk.

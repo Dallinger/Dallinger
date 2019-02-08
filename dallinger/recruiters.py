@@ -1005,7 +1005,7 @@ class PulseRecruiter(Recruiter):
                 self.config.get('title'),
                 self.config.get('description'),
                 self.location,
-                self.config.get('pulse_link'),
+                self.config.get('pulse_privacy_link'),
                 self.config.get('pulse_image_url'),
                 self.config.get('pulse_page_id')
             )
