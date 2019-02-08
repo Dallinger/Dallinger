@@ -358,7 +358,7 @@ class HerokuLocalWrapper(object):
     """
 
     shell_command = "heroku"
-    success_regex = "^.*? \d+ workers$"
+    success_regex = r"^.*? \d+ workers$"
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
     MONITOR_STOP = object()
@@ -499,13 +499,13 @@ class HerokuLocalWrapper(object):
         return re.match(self.success_regex, line)
 
     def _redis_not_running(self, line):
-        return re.match("^.*? worker.1 .*? Connection refused.$", line)
+        return re.match(r"^.*? worker.1 .*? Connection refused.$", line)
 
     def _worker_error(self, line):
-        return re.match("^.*? web.1 .*? \[ERROR\] (.*?)$", line)
+        return re.match(r"^.*? web.1 .*? \[ERROR\] (.*?)$", line)
 
     def _startup_error(self, line):
-        return re.match("\[DONE\] Killing all processes", line)
+        return re.match(r"\[DONE\] Killing all processes", line)
 
     def __enter__(self):
         self.start()
