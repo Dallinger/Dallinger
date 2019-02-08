@@ -1,0 +1,16 @@
+repos:
+# - repo: git://github.com/pre-commit/pre-commit-hooks
+#   rev: v2.1.0
+#   hooks:
+#   - id: debug-statements
+#     stages: [push]
+
+
+- repo: local
+  hooks:
+  - id: black
+    name: black
+    entry: black
+    language: system
+    types: [python]
+    files: tests|dallinger|dallinger_scripts|demos      
