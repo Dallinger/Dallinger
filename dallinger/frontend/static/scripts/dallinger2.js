@@ -189,24 +189,14 @@ var dallinger = (function () {
   };
 
   var get_hit_params = function() {
-    // check if the local store is available, and if so, use it.
-    // TODO: Do we really want to have fallback behavior here? It's hard
-    // to verify that it actually works.
     var data = {};
-    if (dlgr.storage.available) {
-      data.recruiter = dlgr.storage.get("recruiter");
-      data.worker_id = dlgr.storage.get("worker_id");
-      data.hit_id = dlgr.storage.get("hit_id");
-      data.assignment_id = dlgr.storage.get("assignment_id");
-      data.mode = dlgr.storage.get("mode");
-      data.fingerprint_hash = dlgr.storage.get("fingerprint_hash");
-    } else {
-      data.recruiter = dlgr.identity.recruiter;
-      data.worker_id = dlgr.identity.worker_id;
-      data.hit_id = dlgr.identity.hit_id;
-      data.assignment_id = dlgr.identity.assignment_id;
-      data.mode = dlgr.identity.mode;
-    }
+    data.recruiter = dlgr.storage.get("recruiter");
+    data.worker_id = dlgr.storage.get("worker_id");
+    data.hit_id = dlgr.storage.get("hit_id");
+    data.assignment_id = dlgr.storage.get("assignment_id");
+    data.mode = dlgr.storage.get("mode");
+    data.fingerprint_hash = dlgr.storage.get("fingerprint_hash");
+
     return data;
   };
 
@@ -381,7 +371,7 @@ var dallinger = (function () {
         dlgr.post(url).done(function (resp) {
           console.log(resp);
           $('.btn-success').prop('disabled', false);
-          dlgr.identity.participantId = resp.participant.id;
+          dlgr.storage.set('participant_id', resp.participant.id);
           if (resp.quorum && resp.quorum.n !== resp.quorum.q) {
             if (resp.quorum.overrecruited) {
               dlgr.skip_experiment = true;
@@ -604,6 +594,16 @@ var dallinger = (function () {
       );
       return;
     }
+
+    dlgr.storage.set("recruiter", dlgr.getUrlParameter('recruiter'));
+    dlgr.storage.set("hit_id", dlgr.getUrlParameter('hit_id'));
+    dlgr.storage.set("worker_id", dlgr.getUrlParameter('worker_id'));
+    dlgr.storage.set("assignment_id", dlgr.getUrlParameter('assignment_id'));
+    dlgr.storage.set("mode", dlgr.getUrlParameter('mode'));
+    new Fingerprint2().get(function(result){
+      dlgr.storage.set("fingerprint_hash", result);
+    });
+
     /**
      * ``dallinger.identity`` provides information about the participant.
      * It has the following string properties:
@@ -623,23 +623,15 @@ var dallinger = (function () {
      * @namespace
      */
     dlgr.identity = {
-      recruiter: dlgr.getUrlParameter('recruiter'),
-      hitId: dlgr.getUrlParameter('hit_id'),
-      workerId: dlgr.getUrlParameter('worker_id'),
-      assignmentId: dlgr.getUrlParameter('assignment_id'),
-      mode: dlgr.getUrlParameter('mode'),
-      participantId: dlgr.getUrlParameter('participant_id')
+      recruiter: dlgr.storage.get("recruiter"),
+      hitId: dlgr.storage.get("hit_id"),
+      workerId: dlgr.storage.get('worker_id'),
+      assignmentId: dlgr.storage.get('assignment_id'),
+      mode: dlgr.storage.get('mode'),
+      participantId: dlgr.storage.get('participant_id'),
     };
-    if (dlgr.storage.available) {  // TODO: just raise an error rather than check?
-      dlgr.storage.set("recruiter", dlgr.identity.recruiter);
-      dlgr.storage.set("hit_id", dlgr.identity.hitId);
-      dlgr.storage.set("worker_id", dlgr.identity.workerId);
-      dlgr.storage.set("assignment_id", dlgr.identity.assignmentId);
-      dlgr.storage.set("mode", dlgr.identity.mode);
-      new Fingerprint2().get(function(result){
-        dlgr.storage.set("fingerprint_hash", result);
-      });
-    }
+
+
   };
 
   _initialize();
