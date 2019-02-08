@@ -13,4 +13,4 @@ repos:
   rev: v2.1.0
   hooks:
   - id: flake8
-    stages: [push]
+    stages: [commit, push]
