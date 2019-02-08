@@ -12,9 +12,7 @@ from dallinger.nodes import Source
 
 class MCMCPAgent(Agent):
 
-    __mapper_args__ = {
-        "polymorphic_identity": "MCMCP_agent"
-    }
+    __mapper_args__ = {"polymorphic_identity": "MCMCP_agent"}
 
     def update(self, infos):
         info = infos[0]
@@ -30,9 +28,7 @@ class MCMCPAgent(Agent):
 class AnimalSource(Source):
     """A source that transmits animal shapes."""
 
-    __mapper_args__ = {
-        "polymorphic_identity": "animal_source"
-    }
+    __mapper_args__ = {"polymorphic_identity": "animal_source"}
 
     def create_information(self):
         """Create a new Info.
@@ -45,9 +41,7 @@ class AnimalSource(Source):
 class AnimalInfo(Info):
     """An Info that can be chosen."""
 
-    __mapper_args__ = {
-        "polymorphic_identity": "vector_info"
-    }
+    __mapper_args__ = {"polymorphic_identity": "vector_info"}
 
     @hybrid_property
     def chosen(self):
@@ -76,7 +70,7 @@ class AnimalInfo(Info):
         "neck_length": [0, 2.5],
         "neck_angle": [90, 180],
         "head_length": [0.05, 0.75],
-        "head_angle": [5, 80]
+        "head_angle": [5, 80],
     }
 
     def __init__(self, origin, contents=None):
@@ -112,6 +106,4 @@ class AnimalInfo(Info):
 class Perturbation(Transformation):
     """A perturbation is a transformation that perturbs the contents."""
 
-    __mapper_args__ = {
-        "polymorphic_identity": "perturbation"
-    }
+    __mapper_args__ = {"polymorphic_identity": "perturbation"}

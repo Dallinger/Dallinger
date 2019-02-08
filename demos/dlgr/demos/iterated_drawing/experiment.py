@@ -19,6 +19,7 @@ class IteratedDrawing(Experiment):
         """
         super(IteratedDrawing, self).__init__(session)
         from . import models
+
         self.models = models
         self.experiment_repeats = 1
         if session:
