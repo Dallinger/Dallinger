@@ -81,12 +81,8 @@ to the core platform, independent of any particular kind of experiment run on
 it. Here are a few discrete pieces of functionality that could make good summer
 projects:
 
-+ Browser fingerprinting. Use the `valve2 <https://github.com/Valve/fingerprintjs2>`__
-browser fingerprinting library to detect when a person participates twice in an
-experiment, without exposing personally identifiable information.
-+ Speed testing. One way that an experiment can go wrong is if the participant's
-internet connection cannot keep up. Integrate a speed-testing mechanism that
-excludes participants whose internet connections are too slow for the experiment.
++ Browser fingerprinting. Use the `valve2 <https://github.com/Valve/fingerprintjs2>`__ browser fingerprinting library to detect when a person participates twice in an experiment, without exposing personally identifiable information.
++ Speed testing. One way that an experiment can go wrong is if the participant's internet connection cannot keep up. Integrate a speed-testing mechanism that excludes participants whose internet connections are too slow for the experiment.
 
 3
 ~
