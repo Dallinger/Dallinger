@@ -1,7 +1,8 @@
 Developer Installation
 ======================
 
-We recommend installing Dallinger on Mac OS X. It's also possible to use Ubuntu, either directly or in a virtual machine. If you are attempting to use Dallinger on Microsoft Windows, running Ubuntu in a virtual machine is the recommend method.
+Dallinger is tested with Ubuntu 18.04 LTS, 16.04 LTS, 14.04 LTS and Mac OS X locally.
+If you are attempting to use Dallinger on Microsoft Windows, running Ubuntu in a virtual machine is the recommend method.
 
 If you are interested in using Dallinger with Docker, read more :doc:`here <docker_setup>`.
 
@@ -268,6 +269,7 @@ Ubuntu
 ~~~~~~
 ::
 
+    sudo apt-get install curl
     curl https://cli-assets.heroku.com/install.sh | sh
 
 

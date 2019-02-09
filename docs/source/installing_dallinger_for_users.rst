@@ -467,6 +467,7 @@ To check which version of the Heroku CLI you have installed, run:
 To install:
 ::
 
+    sudo apt-get install curl
     curl https://cli-assets.heroku.com/install.sh | sh
 
 
