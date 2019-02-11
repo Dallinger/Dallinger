@@ -12,5 +12,6 @@ repos:
 - repo: git://github.com/pre-commit/pre-commit-hooks
   rev: v2.1.0
   hooks:
+  - id: trailing-whitespace
   - id: flake8
-    stages: [commit, push]
+    stages: [push]
