@@ -205,37 +205,37 @@ BACKOFF_FACTOR = 2
 MAX_ATTEMPTS = 4
 
 
-def _handle_launch_data(url, error, delay=INITIAL_DELAY, remaining=MAX_ATTEMPTS):
-    time.sleep(delay)
-    launch_request = requests.post(url)
-    try:
-        launch_data = launch_request.json()
-    except ValueError:
-        error(
-            "Error parsing response from /launch, check web dyno logs for details: "
-            + launch_request.text
-        )
-        raise
+def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
+    for remaining_attempt in sorted(range(attempts), reverse=True):  # [3, 2, 1, 0]
+        time.sleep(delay)
+        launch_request = requests.post(url)
+        try:
+            launch_data = launch_request.json()
+        except ValueError:
+            error(
+                "Error parsing response from /launch, "
+                "check web dyno logs for details: " + launch_request.text
+            )
+            raise
 
-    if launch_request.ok:
-        return launch_data
+        # Early return if successful
+        if launch_request.ok:
+            return launch_data
 
-    # Retry if appropriate
-    remaining = remaining - 1
-    if not remaining:
-        error('Experiment launch failed, check web dyno logs for details.')
-        if launch_data.get('message'):
-            error(launch_data['message'])
-        launch_request.raise_for_status()
-    delay = delay * BACKOFF_FACTOR
-    next_attempt_count = MAX_ATTEMPTS - (remaining - 1)
-    error(
-        'Experiment launch failed. Trying again '
-        '(attempt {} of {}) in {} seconds ...'.format(
-            next_attempt_count, MAX_ATTEMPTS, delay
-        )
-    )
-    return _handle_launch_data(url, error, delay, remaining)
+        if remaining_attempt:
+            delay = delay * BACKOFF_FACTOR
+            next_attempt_count = attempts - (remaining_attempt - 1)
+            error(
+                'Experiment launch failed. Trying again '
+                '(attempt {} of {}) in {} seconds ...'.format(
+                    next_attempt_count, attempts, delay
+                )
+            )
+
+    error('Experiment launch failed, check web dyno logs for details.')
+    if launch_data.get('message'):
+        error(launch_data['message'])
+    launch_request.raise_for_status()
 
 
 def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
