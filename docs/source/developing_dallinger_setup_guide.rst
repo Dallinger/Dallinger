@@ -85,10 +85,10 @@ Naviagate to a terminal and type:
 
 
 The first command will create a user named ``dallinger`` and prompt you for a
-password. The second and third command will create the ``dallinger`` and 
+password. The second and third command will create the ``dallinger`` and
 ``dallinger-import`` databases, setting the newly created user as the owner.
 
-You can optionally inspect your databases by entering ``psql dallinger``. 
+You can optionally inspect your databases by entering ``psql dallinger``.
 Inside psql you can use commands to see the roles and database tables:
 ::
 
@@ -679,6 +679,21 @@ Test that your installation works by running:
 
     dallinger --version
 
+
+Install the Git pre-commit hook
+-------------------------------
+
+With the virtual environment still activated:
+
+::
+
+    pip install pre-commit
+
+This will install a pre-commit hook to check for flake8 violations, and enforce
+a standard Python source code format via `black
+<https://black.readthedocs.io/en/stable/>`__. You may also want to install a
+black plugin for your own code editor, though this is not strictly necessary,
+since the pre-commit hook will run `black` for you on commit.
 
 Install the dlgr.demos sub-package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
