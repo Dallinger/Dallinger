@@ -201,12 +201,12 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
 
 
 INITIAL_DELAY = 5
-RETRIES = 4
+BACKOFF_FACTOR = 2
+MAX_ATTEMPTS = 4
 
 
-def _handle_launch_data(url, error, delay=INITIAL_DELAY, remaining=RETRIES):
+def _handle_launch_data(url, error, delay=INITIAL_DELAY, remaining=MAX_ATTEMPTS):
     time.sleep(delay)
-    remaining = remaining - 1
     launch_request = requests.post(url)
     try:
         launch_data = launch_request.json()
@@ -217,17 +217,25 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, remaining=RETRIES):
         )
         raise
 
-    if not launch_request.ok:
-        if remaining < 1:
-            error('Experiment launch failed, check web dyno logs for details.')
-            if launch_data.get('message'):
-                error(launch_data['message'])
-            launch_request.raise_for_status()
-        delay = 2 * delay
-        error('Experiment launch failed, retrying in {} seconds ...'.format(delay))
-        return _handle_launch_data(url, error, delay, remaining)
+    if launch_request.ok:
+        return launch_data
 
-    return launch_data
+    # Retry if appropriate
+    remaining = remaining - 1
+    if not remaining:
+        error('Experiment launch failed, check web dyno logs for details.')
+        if launch_data.get('message'):
+            error(launch_data['message'])
+        launch_request.raise_for_status()
+    delay = delay * BACKOFF_FACTOR
+    next_attempt_count = MAX_ATTEMPTS - (remaining - 1)
+    error(
+        'Experiment launch failed. Trying again '
+        '(attempt {} of {}) in {} seconds ...'.format(
+            next_attempt_count, MAX_ATTEMPTS, delay
+        )
+    )
+    return _handle_launch_data(url, error, delay, remaining)
 
 
 def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
