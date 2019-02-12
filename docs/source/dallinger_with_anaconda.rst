@@ -3,8 +3,13 @@ Installing Dallinger with Anaconda
 
 If you are interested in Dallinger and use
 `Anaconda <https://www.continuum.io/downloads>`__, you'll need to adapt
-the standard instructions slightly.
+the standard installation instructions slightly.
 
+Install python
+--------------
+::
+
+    conda install python
 
 Install psycopg2
 ----------------
@@ -19,6 +24,12 @@ installing Dallinger.
 
 The `[data]` optional extra makes sure that all the data analysis dependencies
 are installed.
+
+Set up a virtual environment
+----------------------------
+
+If you are using Anaconda, ignore this virtualenv section; use ``conda`` to create your virtual environment. Or, see the
+special :doc:`Anaconda installation instructions <dallinger_with_anaconda>`.
 
 Confirm Dallinger works
 -----------------------
@@ -52,3 +63,7 @@ Finally, you'll need to re-link ``openssl``. Run the following:
 
     brew install --upgrade openssl
     brew unlink openssl && brew link openssl --force
+
+
+Next, you'll need :doc:`access keys for AWS, Heroku,
+etc. <aws_etc_keys>`.

@@ -152,7 +152,7 @@ html_theme_path = ["_themes", ]
 # documentation.
 #
 html_theme_options = {
-    'logo_name': True,
+#    'logo_name': True,
     'canonical_url': '',
     'analytics_id': '',
     'display_version': True,
