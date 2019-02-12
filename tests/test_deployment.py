@@ -406,10 +406,18 @@ class Test_handle_launch_data(object):
 
         log.assert_has_calls(
             [
-                mock.call("Experiment launch failed. Trying again (attempt 2 of 4) in 0.1 seconds ..."),
-                mock.call("Experiment launch failed. Trying again (attempt 3 of 4) in 0.2 seconds ..."),
-                mock.call("Experiment launch failed. Trying again (attempt 4 of 4) in 0.4 seconds ..."),
-                mock.call("Experiment launch failed, check web dyno logs for details."),
+                mock.call(
+                    "Experiment launch failed. Trying again (attempt 2 of 4) in 0.1 seconds ..."
+                ),
+                mock.call(
+                    "Experiment launch failed. Trying again (attempt 3 of 4) in 0.2 seconds ..."
+                ),
+                mock.call(
+                    "Experiment launch failed. Trying again (attempt 4 of 4) in 0.4 seconds ..."
+                ),
+                mock.call(
+                    "Experiment launch failed, check web dyno logs for details."
+                ),
                 mock.call(u"msg!"),
             ]
         )
