@@ -21,6 +21,8 @@ class DrawingSource(Source):
             "owl.png",
         ]
 
+        # We're selecting from a list of only one item here, but it's a useful
+        # technique to demonstrate:
         image = random.choice(images)
 
         image_path = os.path.join("static", "stimuli", image)
