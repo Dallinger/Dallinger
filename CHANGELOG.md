@@ -1,6 +1,6 @@
 # Change Log
 
-## [v5.0.5](https://github.com/dallinger/dallinger/tree/v5.0.4) (2019-02-13)
+## [v5.0.5](https://github.com/dallinger/dallinger/tree/v5.0.5) (2019-02-15)
 
 - Documentation improvements and additions:
   + Reintroduce working and refactored Iterated Drawing demo
