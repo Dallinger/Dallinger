@@ -3,7 +3,7 @@
 ## [v5.0.5](https://github.com/dallinger/dallinger/tree/v5.0.5) (2019-02-15)
 
 - Documentation improvements and additions:
-  + Reintroduce working and refactored Iterated Drawing demo
+  + Reintroduce working and refactored Bartlett (1932) Iterated Drawing demo
   + Reorganize installation documentation so documentation for each supported operating system is grouped together
 
 ## [v5.0.4](https://github.com/dallinger/dallinger/tree/v5.0.4) (2019-01-31)
