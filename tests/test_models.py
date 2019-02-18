@@ -69,6 +69,7 @@ class TestModels(object):
         assert net.property3 is None
         assert net.property4 is None
         assert net.property5 is None
+        assert net.details == {}
         assert net.failed is False
         assert net.time_of_death is None
         assert net.type == "network"
@@ -99,7 +100,8 @@ class TestModels(object):
             "property2": None,
             "property3": None,
             "property4": None,
-            "property5": None
+            "property5": None,
+            "details": {},
         }
 
         # test nodes()
@@ -662,6 +664,14 @@ class TestModels(object):
         self.add(db_session, node)
         assert node.creation_time is not None
 
+    def test_details(self, db_session):
+        net = models.Network()
+        db_session.add(net)
+        node = models.Node(network=net)
+        node.details = {"my_data": [1, 2, 3]}
+        self.add(db_session, node)
+        assert tuple(node.details["my_data"]) == (1, 2, 3)
+
     ##################################################################
     # Participant
     ##################################################################
@@ -706,9 +716,14 @@ class TestModels(object):
         participant = models.Participant(
             recruiter_id='hotair', worker_id=str(1), hit_id=str(1),
             assignment_id=str(1), mode="test")
+        participant.details = {"data": "something"}
         db_session.add(participant)
         db_session.commit()
 
+        participant_json = participant.__json__()
+        assert 'details' in participant_json
+        assert participant_json["details"].get("data") == "something"
+
         # make sure private data is not in there
-        assert 'unique_id' not in participant.__json__()
-        assert 'worker_id' not in participant.__json__()
+        assert 'unique_id' not in participant_json
+        assert 'worker_id' not in participant_json

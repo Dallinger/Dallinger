@@ -68,6 +68,21 @@ class SharedMixin(object):
     #: a generic column for storing structured JSON data
     details = Column(JSONB, nullable=False, server_default="{}", default=lambda: {})
 
+    def __json__(self):
+        """Return json description of a participant."""
+        return {
+            "id": self.id,
+            "creation_time": self.creation_time,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5,
+            "details": self.details,
+        }
+
 
 class Participant(Base, SharedMixin):
     """An ex silico participant."""
@@ -179,7 +194,8 @@ class Participant(Base, SharedMixin):
             "property2": self.property2,
             "property3": self.property3,
             "property4": self.property4,
-            "property5": self.property5
+            "property5": self.property5,
+            "details": self.details,
         }
 
     def nodes(self, type=None, failed=False):
@@ -348,7 +364,8 @@ class Question(Base, SharedMixin):
             "property2": self.property2,
             "property3": self.property3,
             "property4": self.property4,
-            "property5": self.property5
+            "property5": self.property5,
+            "details": self.details,
         }
 
 
@@ -404,7 +421,8 @@ class Network(Base, SharedMixin):
             "property2": self.property2,
             "property3": self.property3,
             "property4": self.property4,
-            "property5": self.property5
+            "property5": self.property5,
+            "details": self.details,
         }
 
     """ ###################################
@@ -690,7 +708,8 @@ class Node(Base, SharedMixin):
             "property2": self.property2,
             "property3": self.property3,
             "property4": self.property4,
-            "property5": self.property5
+            "property5": self.property5,
+            "details": self.details,
         }
 
     """ ###################################
@@ -1393,7 +1412,8 @@ class Vector(Base, SharedMixin):
             "property2": self.property2,
             "property3": self.property3,
             "property4": self.property4,
-            "property5": self.property5
+            "property5": self.property5,
+            "details": self.details,
         }
 
     """#######################################
@@ -1713,7 +1733,8 @@ class Transmission(Base, SharedMixin):
             "property2": self.property2,
             "property3": self.property3,
             "property4": self.property4,
-            "property5": self.property5
+            "property5": self.property5,
+            "details": self.details,
         }
 
     def fail(self):
@@ -1811,7 +1832,8 @@ class Transformation(Base, SharedMixin):
             "property2": self.property2,
             "property3": self.property3,
             "property4": self.property4,
-            "property5": self.property5
+            "property5": self.property5,
+            "details": self.details,
         }
 
     def fail(self):
