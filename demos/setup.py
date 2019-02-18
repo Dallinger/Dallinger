@@ -9,14 +9,14 @@ if sys.argv[-1] == "publish":
 
 
 setup_args = dict(
-    name='dlgr.demos',
+    name="dlgr.demos",
     version="5.0.5",
-    description='Demonstration experiments for Dallinger',
-    url='http://github.com/Dallinger/Dallinger',
-    maintainer='Jordan Suchow',
-    maintainer_email='suchow@berkeley.edu',
-    license='MIT',
-    keywords=['science', 'cultural evolution', 'experiments', 'psychology'],
+    description="Demonstration experiments for Dallinger",
+    url="http://github.com/Dallinger/Dallinger",
+    maintainer="Jordan Suchow",
+    maintainer_email="suchow@berkeley.edu",
+    license="MIT",
+    keywords=["science", "cultural evolution", "experiments", "psychology"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
