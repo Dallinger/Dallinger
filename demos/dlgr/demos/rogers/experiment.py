@@ -145,13 +145,9 @@ class RogersExperiment(Experiment):
 
     def bonus(self, participant):
         """Calculate a participants bonus."""
-        nodes = participant.nodes()
-        nets = Network.query.filter_by(role="experiment").all()
-        net_ids = [net.id for net in nets]
-        nodes = [node for node in nodes if node.network_id in net_ids]
+        scores = [n.score for n in participant.nodes() if n.network.role == "experiment"]
+        average = float(sum(scores)) / float(len(scores))
 
-        score = [node.score for node in nodes]
-        average = float(sum(score)) / float(len(score))
         bonus = round(max(0.0, ((average - 0.5) * 2)) * self.bonus_payment, 2)
         return bonus
 
@@ -160,13 +156,8 @@ class RogersExperiment(Experiment):
         if self.catch_repeats == 0:
             return True
 
-        nodes = participant.nodes()
-        nets = Network.query.filter_by(role="catch").all()
-        net_ids = [net.id for net in nets]
-        nodes = [node for node in nodes if node.network_id in net_ids]
-
-        scores = [n.score for n in nodes]
-        avg = sum(scores) / float(len(scores))
+        scores = [n.score for n in participant.nodes() if n.network.role == "catch"]
+        avg = float(sum(scores)) / float(len(scores))
         return avg >= self.min_acceptable_performance
 
     def data_check(self, participant):
