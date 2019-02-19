@@ -125,7 +125,11 @@ class RogersAgent(Agent):
         """Process received infos."""
         for info_in in infos:
             if isinstance(info_in, LearningGene):
-                if random.random() < 0.10:
+                if (
+                    self.network.role == "experiment" and
+                    self.generation > 0 and
+                    random.random() < 0.10
+                ):
                     self.mutate(info_in)
                 else:
                     self.replicate(info_in)
