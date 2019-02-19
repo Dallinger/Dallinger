@@ -173,9 +173,8 @@ class RogersEnvironment(Source):
 
     def step(self):
         """Prompt the environment to change."""
-        current_state = max(self.infos(type=State),
-                            key=attrgetter('creation_time'))
+        current_state = self.infos(type=State)[0]
         current_contents = float(current_state.contents)
         new_contents = 1 - current_contents
+        current_state.fail()
         info_out = State(origin=self, contents=new_contents)
-        transformations.Mutation(info_in=current_state, info_out=info_out)
