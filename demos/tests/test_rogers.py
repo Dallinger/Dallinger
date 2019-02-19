@@ -20,7 +20,6 @@ from dallinger import models
 from dlgr.demos.rogers.experiment import RogersExperiment
 from dlgr.demos.rogers.models import (
     RogersAgent,
-    RogersAgentFounder,
     RogersSource,
     RogersEnvironment,
     LearningGene,
@@ -217,19 +216,8 @@ class TestRogers(object):
 
             vectors = network.vectors()
 
-            role = network.role
-            if role == "practice":
-                for agent in agents:
-                    assert type(agent) == RogersAgentFounder
-            elif role == "catch":
-                for agent in agents:
-                    assert type(agent) == RogersAgentFounder
-            else:
-                for agent in agents:
-                    if agent.generation == 0:
-                        assert type(agent) == RogersAgentFounder
-                    else:
-                        assert type(agent) == RogersAgent
+            for agent in agents:
+                assert type(agent) == RogersAgent
 
             for agent in agents:
                 if agent.generation == 0:
@@ -242,8 +230,6 @@ class TestRogers(object):
                     assert agent.is_connected(direction="from", whom=environment)
                     assert (
                         RogersAgent in [
-                            type(a) for a in agent.neighbors(direction="from")] or
-                        RogersAgentFounder in [
                             type(a) for a in agent.neighbors(direction="from")]
                     )
 
@@ -285,7 +271,7 @@ class TestRogers(object):
                 ]) == 1
 
             for v in [v for v in vectors if v.origin_id == source.id]:
-                assert isinstance(v.destination, RogersAgentFounder)
+                assert isinstance(v.destination, RogersAgent)
 
         print("Testing vectors...                   done!")
         sys.stdout.flush()
