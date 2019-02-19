@@ -198,18 +198,18 @@ class TestRogers(object):
         for network in [exp.networks()[0]]:
 
             agents = network.nodes(type=Agent)
-            environments = network.nodes(type=Environment)
             sources = network.nodes(type=Source)
-            assert len(sources) == 1
-            assert len(environments) == 1
-            assert len(agents) + len(environments) + len(sources) == network.max_size
+            assert len(sources) == 2
+            assert len(network.nodes(type=RogersSource == 1))
+            assert len(network.nodes(type=RogersEnvironment == 1))
+            assert len(agents) + len(sources) == network.max_size
 
-            source = network.nodes(type=Source)
+            source = network.nodes(type=RogersSource)
             assert len(source) == 1
             source = source[0]
             assert type(source) == RogersSource
 
-            environment = network.nodes(type=Environment)
+            environment = network.nodes(type=RogersEnvironment)
             assert len(environment) == 1
             environment = environment[0]
             assert type(environment) == RogersEnvironment
