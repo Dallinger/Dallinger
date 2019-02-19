@@ -102,7 +102,10 @@ class RogersAgent(Agent):
         said_blue = self.infos(type=Meme)[0].contents == "blue"
 
         proportion = float(
-            max(self.network.nodes(type=RogersEnvironment)[0].infos(), key=attrgetter('id')).contents
+            max(
+                self.network.nodes(type=RogersEnvironment)[0].infos(),
+                key=attrgetter('id')
+            ).contents
         )
         self.proportion = proportion
         is_blue = proportion > 0.5
