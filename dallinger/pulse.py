@@ -68,7 +68,23 @@ class PulseService:
                                 'message': description,
                                 'appLink': link,
                                 'imageUrl': image_url,
-                                'facebookPageId': page_id
+                                'facebookPageId': page_id,
+                                'duration': '1440',
+                                'quickReplyMessage': 'Hey there!',
+                                'quickReplyEngagementTrigger': 'Participate',
+                                'targeting': {
+                                    'publisherPlatforms': ['facebook'],
+                                    'facebookPositions': ['feed'],
+                                    'devicePlatforms': ['desktop'],
+                                    'gender': ['male', 'female'],
+                                    'age': {
+                                        'min': 18,
+                                        'max': 36
+                                    },
+                                    'geo': {
+                                        'countryCode': ['US']
+                                    }
+                                }
                             },
                             {
                                 'type': 'FacebookMessengerBot',
