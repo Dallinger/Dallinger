@@ -156,6 +156,18 @@ If you do not have it installed, you can install it as follows:
     brew install git
 
 
+You will need to configure your Git name and email:
+
+::
+
+  git config --global user.email "you@example.com"
+  git config --global user.name "Your Name"
+
+
+Replace ``you@example.com`` and ``Your Name`` with your email and name to set your account's default identity.
+Omit --global to set the identity only in this repository. You can read more about configuring Git `here <https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup/>`__.
+
+
 Set up a virtual environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -532,6 +544,17 @@ If you do not have it installed, you can install it as follows:
 
     sudo apt install git
 
+You will need to configure your Git name and email:
+
+::
+
+  git config --global user.email "you@example.com"
+  git config --global user.name "Your Name"
+
+
+Replace ``you@example.com`` and ``Your Name`` with your email and name to set your account's default identity.
+Omit --global to set the identity only in this repository. You can read more about configuring Git `here <https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup/>`__.
+
 
 Set up a virtual environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -609,6 +632,14 @@ command inside the virtual environment.
 The how-to:
 
 In the future, you can work on your virtual environment by running:
+If using Python 2.7 and pip:
+::
+
+    source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
+    workon dlgr_env
+
+
+If using Python 3.x and pip3:
 ::
 
     source /usr/local/bin/virtualenvwrapper.sh
@@ -621,6 +652,13 @@ arguments.
 If you plan to do a lot of work with Dallinger, you can make your shell
 execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that:
+
+If using Python 2.7 and pip:
+::
+
+    echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
+
+If using Python 3.x and pip3:
 ::
 
     echo "source /usr/local/bin/virtualenvwrapper.sh" >> ~/.bashrc
