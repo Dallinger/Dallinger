@@ -5,7 +5,7 @@ from sqlalchemy import Float, Integer
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast
 
-from dallinger import transformations
+from dallinger.models import Transformation
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Environment, Source
 
@@ -163,18 +163,24 @@ class RogersEnvironment(Source):
         return cast(self.property1, Float)
 
     def _info_type(self):
+        """By default create States."""
         return State
 
     def _contents(self):
+        """Contents of created infos is either propirtion or 1-proportion by default."""
         if random.random() < 0.5:
             return self.proportion
         else:
             return 1- self.proportion
 
+    def _what(self):
+        """By default transmit the most recent state """
+        return max(self.infos(type=State), key=attrgetter('id'))
+
     def step(self):
         """Prompt the environment to change."""
-        current_state = self.infos(type=State)[0]
+        current_state = max(self.infos(type=State), key=attrgetter('id'))
         current_contents = float(current_state.contents)
         new_contents = 1 - current_contents
-        current_state.fail()
         info_out = State(origin=self, contents=new_contents)
+        Transformation(info_in=current_state, info_out=info_out)
