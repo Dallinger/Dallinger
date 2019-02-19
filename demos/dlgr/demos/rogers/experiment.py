@@ -125,7 +125,7 @@ class RogersExperiment(Experiment):
         """Run when a participant submits successfully."""
         num_approved = len(Participant.query.filter_by(status="approved").all())
         current_generation = participant.nodes()[0].generation
-        if num_approved % self.generation_size == 0 and current_generation % 10 == 0:
+        if num_approved % self.generation_size == 0 and (current_generation % 10 + 1) == 0:
             for e in self.models.RogersEnvironment.query.all():
                 e.step()
 
