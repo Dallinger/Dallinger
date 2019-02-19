@@ -37,7 +37,7 @@ class RogersSource(Source):
         return "asocial"
 
     def _what(self):
-        """Transmit a learning gene by default."""
+        """Transmit the first learning gene by default."""
         return self.infos(type=LearningGene)[0]
 
 
