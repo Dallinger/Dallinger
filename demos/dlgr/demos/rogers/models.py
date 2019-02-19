@@ -123,34 +123,19 @@ class RogersAgent(Agent):
 
     def update(self, infos):
         """Process received infos."""
-        for info_in in infos:
-            if isinstance(info_in, LearningGene):
-                if (
-                    self.network.role == "experiment" and
-                    self.generation > 0 and
-                    random.random() < 0.10
-                ):
-                    self.mutate(info_in)
-                else:
-                    self.replicate(info_in)
+        genes = [i for i in infos if isinstance(i, LearningGene)]
+        for gene in genes:
+            if (
+                self.network.role == "experiment" and
+                self.generation > 0 and
+                random.random() < 0.10
+            ):
+                self.mutate(gene)
+            else:
+                self.replicate(gene)
 
     def _what(self):
         return self.infos(type=LearningGene)[0]
-
-
-class RogersAgentFounder(RogersAgent):
-    """The Rogers Agent Founder.
-
-    It is like Rogers Agent except it cannot mutate.
-    """
-
-    __mapper_args__ = {"polymorphic_identity": "rogers_agent_founder"}
-
-    def update(self, infos):
-        """Process received infos."""
-        for info in infos:
-            if isinstance(info, LearningGene):
-                self.replicate(info)
 
 
 class RogersEnvironment(Environment):

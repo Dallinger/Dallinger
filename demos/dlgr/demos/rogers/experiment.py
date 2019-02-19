@@ -117,15 +117,7 @@ class RogersExperiment(Experiment):
 
     def create_node(self, network, participant):
         """Make a new node for participants."""
-        if network.role == "practice" or network.role == "catch":
-            return self.models.RogersAgentFounder(network=network,
-                                                  participant=participant)
-        elif network.size(type=Agent) < network.generation_size:
-            return self.models.RogersAgentFounder(network=network,
-                                                  participant=participant)
-        else:
-            return self.models.RogersAgent(network=network,
-                                           participant=participant)
+        return self.models.RogersAgent(network=network, participant=participant)
 
     def info_post_request(self, node, info):
         """Run whenever an info is created."""
