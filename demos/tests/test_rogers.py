@@ -132,10 +132,7 @@ class TestRogers(object):
                     process_start_time = timenow()
                     agent.receive()
                     from operator import attrgetter
-                    current_state = max(
-                        State.query.filter_by(network_id=agent.network_id).all(),
-                        key=attrgetter('creation_time')
-                    ).contents
+                    current_state = max(network.nodes(type=RogersEnvironment)[0].infos(), key=attrgetter('id')).contents
                     if float(current_state) >= 0.5:
                         right_answer = "blue"
                         wrong_answer = "yellow"
@@ -200,8 +197,8 @@ class TestRogers(object):
             agents = network.nodes(type=Agent)
             sources = network.nodes(type=Source)
             assert len(sources) == 2
-            assert len(network.nodes(type=RogersSource == 1))
-            assert len(network.nodes(type=RogersEnvironment == 1))
+            assert len(network.nodes(type=RogersSource)) == 1
+            assert len(network.nodes(type=RogersEnvironment)) == 1
             assert len(agents) + len(sources) == network.max_size
 
             source = network.nodes(type=RogersSource)
@@ -247,14 +244,14 @@ class TestRogers(object):
 
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
-            source = network.nodes(type=Source)[0]
-            environment = network.nodes(type=Environment)[0]
+            source = network.nodes(type=RogersSource)[0]
+            environment = network.nodes(type=RogersEnvironment)[0]
 
             for v in vectors:
                 if isinstance(v.origin, Agent):
                     assert v.origin.generation == v.destination.generation - 1
                 else:
-                    assert isinstance(v.origin, Source) or isinstance(v.origin, Environment)
+                    assert isinstance(v.origin, Source) or isinstance(v.origin, RogersEnvironment)
 
             for agent in agents:
                 if agent.generation == 0:
@@ -287,8 +284,8 @@ class TestRogers(object):
 
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
-            source = network.nodes(type=Source)[0]
-            environment = network.nodes(type=Environment)[0]
+            source = network.nodes(type=RogersSource)[0]
+            environment = network.nodes(type=RogersEnvironment)[0]
             infos = network.infos()
 
             for agent in agents:
@@ -317,8 +314,8 @@ class TestRogers(object):
 
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
-            source = network.nodes(type=Source)[0]
-            environment = network.nodes(type=Environment)[0]
+            source = network.nodes(type=RogersSource)[0]
+            environment = network.nodes(type=RogersEnvironment)[0]
             infos = network.infos()
             transmissions = network.transmissions()
 
