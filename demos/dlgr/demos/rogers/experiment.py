@@ -9,7 +9,6 @@ from dallinger.information import Meme
 from dallinger.models import Node
 from dallinger.models import Participant
 from dallinger.networks import DiscreteGenerational
-from dallinger.nodes import Environment
 
 config = get_config()
 
@@ -95,7 +94,8 @@ class RogersExperiment(Experiment):
             source.create_information()
             net.max_size = net.max_size + 1  # make room for environment node.
             env = self.models.RogersEnvironment(network=net)
-            env.create_state(proportion=self.color_proportion_for_network(net))
+            env.proportion = self.color_proportion_for_network(net)
+            env.create_information()
 
     def color_proportion_for_network(self, net):
         if net.role == "practice":
@@ -126,7 +126,7 @@ class RogersExperiment(Experiment):
         num_approved = len(Participant.query.filter_by(status="approved").all())
         current_generation = participant.nodes()[0].generation
         if num_approved % self.generation_size == 0 and current_generation % 10 == 0:
-            for e in Environment.query.all():
+            for e in self.models.RogersEnvironment.query.all():
                 e.step()
 
     def recruit(self):
@@ -189,7 +189,7 @@ class RogersExperiment(Experiment):
         network.add_node(node)
         node.receive()
 
-        environment = network.nodes(type=Environment)[0]
+        environment = network.nodes(type=self.models.RogersEnvironment)[0]
         environment.connect(whom=node)
 
         gene = node.infos(type=self.models.LearningGene)[0].contents
