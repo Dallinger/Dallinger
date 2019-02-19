@@ -1,33 +1,5 @@
 var my_node_id;
 
-// Consent to the experiment.
-$(document).ready(function() {
-
-  $("#finish-reading").click(function() {
-    $("#stimulus").hide();
-    $("#response-form").show();
-    $("#submit-response").removeClass('disabled');
-    $("#submit-response").html('Submit');
-  });
-
-  $("#submit-response").click(function() {
-    $("#submit-response").addClass('disabled');
-    $("#submit-response").html('Sending...');
-
-    var response = $("#reproduction").val();
-
-    $("#reproduction").val("");
-
-    dallinger.createInfo(my_node_id, {
-      contents: response,
-      info_type: 'Info'
-    }).done(function (resp) {
-      create_agent();
-    });
-  });
-
-});
-
 // Create the agent.
 var create_agent = function() {
   $('#finish-reading').prop('disabled', true);
@@ -64,3 +36,31 @@ var get_info = function() {
       $('body').html(rejection.html);
     });
 };
+
+// Consent to the experiment.
+$(document).ready(function() {
+
+  $("#finish-reading").click(function() {
+    $("#stimulus").hide();
+    $("#response-form").show();
+    $("#submit-response").removeClass('disabled');
+    $("#submit-response").html('Submit');
+  });
+
+  $("#submit-response").click(function() {
+    $("#submit-response").addClass('disabled');
+    $("#submit-response").html('Sending...');
+
+    var response = $("#reproduction").val();
+
+    $("#reproduction").val("");
+
+    dallinger.createInfo(my_node_id, {
+      contents: response,
+      info_type: 'Info'
+    }).done(function (resp) {
+      create_agent();
+    });
+  });
+
+});
