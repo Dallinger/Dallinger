@@ -93,16 +93,17 @@ class RogersAgent(Agent):
     def calculate_fitness(self):
         """Calculcate your fitness."""
         if self.fitness is not None:
-            raise Exception("You are calculating the fitness of agent {}, "
-                            .format(self.id) +
-                            "but they already have a fitness")
-        infos = self.infos()
+            raise Exception(
+                "You are calculating the fitness of agent {}, "
+                .format(self.id) +
+                "but they already have a fitness"
+            )
 
-        said_blue = ([i for i in infos if
-                      isinstance(i, Meme)][0].contents == "blue")
+        said_blue = self.infos(type=Meme)[0].contents == "blue"
+
         proportion = float(
-            max(State.query.filter_by(network_id=self.network_id).all(),
-                key=attrgetter('creation_time')).contents)
+            max(self.network.nodes(type=RogersEnvironment)[0].infos(), key=attrgetter('id')).contents
+        )
         self.proportion = proportion
         is_blue = proportion > 0.5
 
@@ -111,9 +112,8 @@ class RogersAgent(Agent):
         else:
             self.score = 0
 
-        is_asocial = [
-            i for i in infos if isinstance(i, LearningGene)
-        ][0].contents == "asocial"
+        is_asocial = self.infos(type=LearningGene)[0].contents == "asocial"
+
         e = 2
         b = 1
         c = 0.3 * b
