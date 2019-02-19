@@ -16,8 +16,11 @@ class LearningGene(Gene):
     __mapper_args__ = {"polymorphic_identity": "learning_gene"}
 
     def _mutated_contents(self):
-        alleles = ["social", "asocial"]
-        return random.choice([a for a in alleles if a != self.contents])
+        # Toggle between the two possibilities
+        if self.contents == "social":
+            return "asocial"
+        else:
+            return "social"
 
 
 class RogersSource(Source):
