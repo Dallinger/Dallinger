@@ -19,7 +19,6 @@ and setting up Dallinger, as well as use of the command line tools.
     :maxdepth: 1
 
     installing_dallinger_for_users
-    dallinger_with_anaconda
     aws_etc_keys
     demoing_dallinger
     command_line_utility
