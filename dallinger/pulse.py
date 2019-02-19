@@ -144,8 +144,8 @@ class PulseService:
             "agents": [agentId],
             "message": "Thank you for participating, you will be receiving your reward shortly.",
             "netAmount": amount,
-            "paymentProcessor": u'PayPal',
-            "currency": u'USD',
+            "paymentProcessor": processor,
+            "currency": currency,
             'activityId': hitId,
             "agent_properties": {"participatedIn": hitId}
         }
