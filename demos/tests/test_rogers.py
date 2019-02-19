@@ -173,6 +173,7 @@ class TestRogers(object):
 
                 self.db.commit()
             else:
+                p.status = "approved"
                 exp.submission_successful(participant=p)
 
             p_stop_time = timenow()
