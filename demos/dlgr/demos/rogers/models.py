@@ -142,16 +142,34 @@ class RogersAgent(Agent):
         return self.infos(type=LearningGene)[0]
 
 
-class RogersEnvironment(Environment):
+class RogersEnvironment(Source):
     """The Rogers environment."""
 
     __mapper_args__ = {"polymorphic_identity": "rogers_environment"}
 
-    def create_state(self, proportion):
-        """Create an environmental state."""
+    @hybrid_property
+    def proportion(self):
+        """Convert property1 to propoertion."""
+        return float(self.property1)
+
+    @proportion.setter
+    def proportion(self, proportion):
+        """Make proportion settable."""
+        self.property1 = repr(proportion)
+
+    @proportion.expression
+    def proportion(self):
+        """Make proportion queryable."""
+        return cast(self.property1, Float)
+
+    def _info_type(self):
+        return State
+
+    def _contents(self):
         if random.random() < 0.5:
-            proportion = 1 - proportion
-        State(origin=self, contents=proportion)
+            return self.proportion
+        else:
+            return 1- self.proportion
 
     def step(self):
         """Prompt the environment to change."""
