@@ -6,11 +6,9 @@ import six
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.information import Meme
-from dallinger.models import Network
 from dallinger.models import Node
 from dallinger.models import Participant
 from dallinger.networks import DiscreteGenerational
-from dallinger.nodes import Agent
 from dallinger.nodes import Environment
 
 config = get_config()
