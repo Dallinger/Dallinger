@@ -28,12 +28,13 @@ class RogersSource(Source):
 
     __mapper_args__ = {"polymorphic_identity": "rogers_source"}
 
-    def create_information(self):
-        """Create a new learning gene."""
-        if len(self.infos()) == 0:
-            LearningGene(
-                origin=self,
-                contents="asocial")
+    def _info_type(self):
+        """Create a learning gene by default."""
+        return LearningGene
+
+    def _contents(self):
+        """Contents of created Infos is 'asocial' by default."""
+        return "asocial"
 
     def _what(self):
         """Transmit a learning gene by default."""
