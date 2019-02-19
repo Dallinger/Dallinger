@@ -140,7 +140,7 @@ class PulseService:
         """ Reward participants with airtime"""
 
         payload = {
-            "type": "SolicitReferralAndPay",
+            "type": "TransferPayment",
             "agents": [agentId],
             "message": "Thank you for participating, you will be receiving your reward shortly.",
             "netAmount": amount,

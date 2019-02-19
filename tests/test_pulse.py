@@ -255,7 +255,7 @@ class TestPulseService(object):
         )
 
         payload = {
-            "type": "SolicitReferralAndPay",
+            "type": "TransferPayment",
             "agents": ["ecbd08d2-6fdc-430b-abac-7b1827ae4433"],
             "message": "Thank you for participating, you will be receiving your reward shortly.",
             "netAmount": 1.0,

@@ -168,10 +168,10 @@ IST Pulse Recruitment
     requisite approvals by Facebook.
 
 ``pulse_reward_processor`` *unicode*
-    This should be `TransferTo`.
+    Supported values are: `PayPal`.
 
 ``pulse_reward_currency`` *unicode*
-    This should be `Airtime`.
+    An currency code supported by the specified reward processor. For PayPal, this should be an ISO4217 string like `USD`.
 
 ``title`` *unicode*
     The title of the HIT on Amazon Mechanical Turk.
