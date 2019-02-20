@@ -11,11 +11,9 @@ from dallinger.models import Participant
 from dallinger.networks import DiscreteGenerational
 from dallinger.nodes import Environment
 
-config = get_config()
-
 
 def extra_parameters():
-
+    config = get_config()
     types = {
         'experiment_repeats': int,
         'practice_repeats': int,
@@ -55,6 +53,7 @@ class RogersExperiment(Experiment):
             self.setup()
 
     def configure(self):
+        config = get_config()
         self.experiment_repeats = config.get('experiment_repeats', 10)
         self.practice_repeats = config.get('practice_repeats', 0)
         self.catch_repeats = config.get('catch_repeats', 0)  # a subset of experiment repeats

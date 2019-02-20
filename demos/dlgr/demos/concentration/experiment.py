@@ -1,13 +1,12 @@
 """The game Concentration."""
 
-import dallinger
+from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.networks import Empty
 
-config = dallinger.config.get_config()
-
 
 def extra_parameters():
+    config = get_config()
     config.register('num_participants', int)
 
 
@@ -22,6 +21,7 @@ class ConcentrationGame(Experiment):
             self.setup()
 
     def configure(self):
+        config = get_config()
         self.initial_recruitment_size = config["num_participants"]
 
     def create_network(self):

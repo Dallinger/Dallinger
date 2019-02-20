@@ -5,7 +5,6 @@ import dallinger as dlgr
 from dallinger.compat import unicode
 from dallinger.config import get_config
 
-config = get_config()
 logger = logging.getLogger(__file__)
 
 try:
@@ -19,6 +18,7 @@ except ImportError:
 
 
 def extra_parameters():
+    config = get_config()
     config.register('network', unicode)
     config.register('repeats', int)
     config.register('n', int)
@@ -34,6 +34,7 @@ class CoordinationChatroom(dlgr.experiment.Experiment):
             self.setup()
 
     def configure(self):
+        config = get_config()
         self.experiment_repeats = repeats = config.get('repeats')
         self.quorum = config.get('n')
         # Recruit for all networks at once

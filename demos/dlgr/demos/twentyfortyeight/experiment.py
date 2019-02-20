@@ -1,12 +1,11 @@
 """The game 2048."""
-import dallinger
+from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.networks import Empty
 
-config = dallinger.config.get_config()
-
 
 def extra_parameters():
+    config = get_config()
     config.register('n', int)
 
 
@@ -21,6 +20,7 @@ class TwentyFortyEight(Experiment):
             self.setup()
 
     def configure(self):
+        config = get_config()
         self.initial_recruitment_size = config.get("n")
 
     def create_network(self):
