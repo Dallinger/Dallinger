@@ -736,8 +736,8 @@ class RedisTally(object):
 
     def __init__(self, nickname):
         self.nickname = nickname
-        redis_conn.set("{}_num_recruited".format(self.nickname), 0)
-        redis_conn.set("{}_num_desired".format(self.nickname), 0)
+        redis_conn.setnx("{}_num_recruited".format(self.nickname), 0)
+        redis_conn.setnx("{}_num_desired".format(self.nickname), 0)
 
     def increment(self, count):
         redis_conn.incr("{}_num_recruited".format(self.nickname), count)
