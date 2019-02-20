@@ -1315,11 +1315,10 @@ def info_post(node_id):
     """
     # get the parameters and validate them
     contents = request_parameter(parameter="contents")
-    details = request_parameter(parameter="details", optional=True)
     info_type = request_parameter(parameter="info_type",
                                   parameter_type="known_class",
                                   default=models.Info)
-    for x in [contents, details, info_type]:
+    for x in [contents, info_type]:
         if type(x) == Response:
             return x
     # check the node exists
@@ -1327,13 +1326,10 @@ def info_post(node_id):
     if node is None:
         return error_response(error_type="/info POST, node does not exist")
 
-    if details:
-        details = loads(details)
-
     exp = Experiment(session)
     try:
         # execute the request
-        info = info_type(origin=node, contents=contents, details=details)
+        info = info_type(origin=node, contents=contents)
         assign_properties(info)
 
         # ping the experiment
