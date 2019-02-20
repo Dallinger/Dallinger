@@ -14,7 +14,7 @@ try:
     Bot = Bot
 except ImportError:
     logger.error(
-        "Bots not available because required packages were not installed."
+        "Chatroom Bots not available because required packages were not installed."
     )
 
 

@@ -53,7 +53,6 @@ class RogersExperiment(Experiment):
 
         if session and not self.networks():
             self.setup()
-        self.save()
 
     def configure(self):
         self.experiment_repeats = config.get('experiment_repeats', 10)

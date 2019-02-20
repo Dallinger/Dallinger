@@ -17,9 +17,11 @@ class TwentyFortyEight(Experiment):
         """Initialize the experiment."""
         super(TwentyFortyEight, self).__init__(session)
         self.experiment_repeats = 1
-        self.initial_recruitment_size = config.get("n")
         if session:
             self.setup()
+
+    def configure(self):
+        self.initial_recruitment_size = config.get("n")
 
     def create_network(self):
         """Return a new network."""

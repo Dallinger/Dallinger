@@ -2,8 +2,8 @@ import os
 import pytest
 import subprocess
 
-from dallinger import db
 from dallinger import experiments
+from dallinger.config import get_config
 
 
 class TestDemos(object):
@@ -19,7 +19,7 @@ class TestDemos(object):
                 assert subprocess.check_call(["dallinger", "verify"])
                 os.chdir("..")
 
-    def test_instantiation(self):
+    def test_instantiation_via_entry_points(self):
         failures = []
         for entry in experiments.iter_entry_points(group='dallinger.experiments'):
             try:
@@ -29,35 +29,23 @@ class TestDemos(object):
 
         if failures:
             pytest.fail(
-                "Some demos weren't directly instantiatable: {}".format(
+                "Some demos had problems loading: {}".format(
                     ', '.join(failures)
                 )
             )
 
 
+@pytest.mark.usefixtures('bartlett_dir')
 class TestBartlett1932(object):
     """Tests for the Bartlett1932 demo class"""
 
-    def _make_one(self):
+    @pytest.fixture
+    def demo(self, db_session):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932
-        return Bartlett1932(self._db)
+        get_config().load()
+        return Bartlett1932(db_session)
 
-    def setup(self):
-        self._db = db.init_db(drop_all=True)
-        # This is only needed for config, which loads on import
-        os.chdir(os.path.join("demos", "dlgr", "demos", "bartlett1932"))
-
-    def teardown(self):
-        self._db.rollback()
-        self._db.close()
-        os.chdir(os.path.join("..", "..", "..", ".."))
-
-    def test_instantiation(self):
-        demo = self._make_one()
-        assert demo is not None
-
-    def test_networks_holds_single_experiment_node(self):
-        demo = self._make_one()
+    def test_networks_holds_single_experiment_node(self, demo):
         assert len(demo.networks()) == 1
         assert u'experiment' == demo.networks()[0].role
 

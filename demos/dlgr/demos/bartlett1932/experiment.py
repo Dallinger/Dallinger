@@ -14,7 +14,6 @@ from dallinger.experiment import Experiment
 
 
 logger = logging.getLogger(__file__)
-config = get_config()
 
 
 def extra_parameters():
@@ -37,9 +36,12 @@ class Bartlett1932(Experiment):
         self.models = models
         self.experiment_repeats = 1
         self.initial_recruitment_size = 1
-        self.num_participants = config.get('num_participants', 1)
         if session:
             self.setup()
+
+    def configure(self):
+        config = get_config()
+        self.num_participants = config.get('num_participants', 1)
 
     def setup(self):
         """Setup the networks.

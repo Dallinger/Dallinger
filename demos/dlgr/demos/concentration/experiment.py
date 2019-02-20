@@ -18,9 +18,11 @@ class ConcentrationGame(Experiment):
         """Initialize the experiment."""
         super(ConcentrationGame, self).__init__(session)
         self.experiment_repeats = 1
-        self.initial_recruitment_size = config["num_participants"]
         if session:
             self.setup()
+
+    def configure(self):
+        self.initial_recruitment_size = config["num_participants"]
 
     def create_network(self):
         """Return a new network."""
