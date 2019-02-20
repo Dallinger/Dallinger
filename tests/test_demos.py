@@ -1,7 +1,9 @@
 import os
+import pytest
 import subprocess
 
 from dallinger import db
+from dallinger import experiments
 
 
 class TestDemos(object):
@@ -16,6 +18,21 @@ class TestDemos(object):
                 os.chdir(demo_path)
                 assert subprocess.check_call(["dallinger", "verify"])
                 os.chdir("..")
+
+    def test_instantiation(self):
+        failures = []
+        for entry in experiments.iter_entry_points(group='dallinger.experiments'):
+            try:
+                entry.load()()
+            except Exception as ex:
+                failures.append("{}: {}".format(entry.name, ex))
+
+        if failures:
+            pytest.fail(
+                "Some demos weren't directly instantiatable: {}".format(
+                    ', '.join(failures)
+                )
+            )
 
 
 class TestBartlett1932(object):
