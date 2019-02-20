@@ -732,12 +732,20 @@ class TestRedisTally(object):
     @pytest.fixture
     def redis_tally(self):
         from dallinger.recruiters import RedisTally
-        return RedisTally()
+        return RedisTally('foo')
 
     def test_that_its_a_counter(self, redis_tally):
         assert redis_tally.current == 0
         redis_tally.increment(3)
         assert redis_tally.current == 3
+
+    def test_shortfall_detection(self, redis_tally):
+        assert redis_tally.current == 0
+        redis_tally.increment_requested(3)
+        redis_tally.increment(1)
+        assert redis_tally.current == 1
+        assert redis_tally.requested == 3
+        assert redis_tally.shortfall == 2
 
 
 @pytest.mark.usefixtures('active_config')
@@ -749,9 +757,13 @@ class TestMTurkLargeRecruiter(object):
         class PrimitiveCounter(object):
 
             _count = 0
+            _requested = 0
 
             def increment(self, count):
                 self._count += count
+
+            def increment_requested(self, count):
+                self._requested += count
 
             @property
             def current(self):
@@ -1007,13 +1019,34 @@ class TestPulseRecruiter(object):
         recruiter.pulse_service.get_agents = mock.Mock(return_value=['asdf'])
         recruiter.pulse_service.recruit = mock.Mock()
 
+        assert recruiter.counter.current == 0
         recruiter.recruit(1)
+        assert recruiter.counter.current == 1
 
         # def get_agents(self, location):
         assert recruiter.pulse_service.get_agents.call_args[0] == ('us', )
 
         experiment_url = 'http://0.0.0.0:5000/ad?recruiter=pulse&hitId=123&assignmentId=asdf&workerId=asdf'  # noqa: E501
         assert recruiter.pulse_service.recruit.call_args[0] == ('asdf', experiment_url)
+
+    def test_recruit_with_shortfall(self, recruiter):
+        recruiter.pulse_service.project_id = '123'
+        recruiter.pulse_service.get_agents = mock.Mock(return_value=['asdf'])
+        recruiter.pulse_service.recruit = mock.Mock()
+
+        assert recruiter.counter.current == 0
+        recruiter.recruit(5)
+        assert recruiter.counter.current == 1
+        assert recruiter.counter.requested == 5
+        assert recruiter.counter.shortfall == 4
+
+        # Simulate more people coming in and the clock triggering
+        recruiter.pulse_service.get_agents = mock.Mock(return_value=['1', '2', '3', '4', '5', '6', '7'])
+        from dallinger.heroku.clock import rerecruit_when_recruiters_have_a_shortfall
+        rerecruit_when_recruiters_have_a_shortfall(recruiter)
+        assert recruiter.counter.current == 5
+        assert recruiter.counter.requested == 5
+        assert recruiter.counter.shortfall == 0
 
     def test_approve_hit(self, a, recruiter, stub_config):
         recruiter.pulse_service.project_id = '123'

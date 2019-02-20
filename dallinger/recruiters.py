@@ -734,15 +734,28 @@ class RedisTally(object):
 
     _key = 'num_recruited'
 
-    def __init__(self):
-        redis_conn.set(self._key, 0)
+    def __init__(self, nickname):
+        self.nickname = nickname
+        redis_conn.set("{}_num_recruited".format(self.nickname), 0)
+        redis_conn.set("{}_num_desired".format(self.nickname), 0)
 
     def increment(self, count):
-        redis_conn.incr(self._key, count)
+        redis_conn.incr("{}_num_recruited".format(self.nickname), count)
+
+    def increment_requested(self, count):
+        redis_conn.incr("{}_num_desired".format(self.nickname), count)
 
     @property
     def current(self):
-        return int(redis_conn.get(self._key))
+        return int(redis_conn.get("{}_num_recruited".format(self.nickname)))
+
+    @property
+    def requested(self):
+        return int(redis_conn.get("{}_num_desired".format(self.nickname)))
+
+    @property
+    def shortfall(self):
+        return self.requested - self.current
 
 
 class MTurkLargeRecruiter(MTurkRecruiter):
@@ -751,7 +764,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
     pool_size = 10
 
     def __init__(self, *args, **kwargs):
-        self.counter = kwargs.get('counter', RedisTally())
+        self.counter = kwargs.get('counter', RedisTally(self.nickname))
         super(MTurkLargeRecruiter, self).__init__()
 
     def open_recruitment(self, n=1):
@@ -763,6 +776,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
                 "Tried to open_recruitment on already open recruiter."
             )
         self.counter.increment(n)
+        self.counter.increment_requested(n)
         to_recruit = max(n, self.pool_size)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
@@ -774,6 +788,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
 
         needed = max(0, n - self.remaining_pool)
         self.counter.increment(n)
+        self.counter.increment_requested(n)
         if needed:
             return super(MTurkLargeRecruiter, self).recruit(needed)
 
@@ -980,8 +995,9 @@ class PulseRecruiter(Recruiter):
     nickname = 'pulse'
     pulse_service = None
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(PulseRecruiter, self).__init__()
+        self.counter = kwargs.get('counter', RedisTally(self.nickname))
         self.config = get_config()
 
         self.pulse_service = PulseService(
@@ -1015,19 +1031,20 @@ class PulseRecruiter(Recruiter):
 
         logger.info("Open recruitment: {}".format(self.pulse_service.project_id))
 
-        self.recruit()
+        self.recruit(n)
 
         return {
             'items': [self.pulse_service.project_id],
             'message': msg
         }
 
-    def recruit(self, n=1):
+    def recruit(self, n=1, shortfall=False):
         """Recruit n new participants to the queue"""
 
         agents = self.pulse_service.get_agents(self.location)
-
-        for agent in agents:
+        if not shortfall:
+            self.counter.increment_requested(n)
+        for agent in agents[:n]:
             experiment_url = '{}/ad?recruiter={}&hitId={}&assignmentId={}&workerId={}'.format(
                 get_base_url(),
                 self.nickname,
@@ -1037,6 +1054,7 @@ class PulseRecruiter(Recruiter):
             )
 
             self.pulse_service.recruit(agent, experiment_url)
+            self.counter.increment(1)
         return []
 
     def approve_hit(self, assignment_id):

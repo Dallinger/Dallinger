@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from datetime import datetime
+import logging
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 import dallinger
@@ -12,6 +13,7 @@ from dallinger.utils import ParticipationTime
 
 # Import the experiment.
 exp = dallinger.experiment.load()
+logger = logging.getLogger(__name__)
 
 scheduler = BlockingScheduler()
 
@@ -43,6 +45,21 @@ def check_db_for_missing_notifications():
     reference_time = datetime.now()
 
     run_check(participants, config, reference_time)
+
+
+@scheduler.scheduled_job('interval', minutes=1)
+def rerecruit_when_recruiters_have_a_shortfall(recruiter=None):
+    """Some recruiters don't always recruit enough players, this checks
+    each recruiter and if that is the case re-calls the recruit method"""
+    if recruiter is None:
+        config = dallinger.config.get_config()
+        recruiter = recruiters.from_config(config)
+    if hasattr(recruiter, 'counter'):
+        # This recruiter keeps track of shortfall
+        shortfall = recruiter.counter.shortfall
+        if shortfall:
+            logger.info("Shortfall of {}, attempting to recruit".format(shortfall))
+            recruiter.recruit(n=shortfall, shortfall=True)
 
 
 def launch():
