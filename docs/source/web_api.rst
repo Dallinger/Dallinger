@@ -160,9 +160,9 @@ passing a class name will pass the class. Note that if the class you
 are specifying is a custom class it will need to be added to the
 dictionary of known\_classes in your experiment code.
 
-You may also pass the values property1, property2, property3,
-property4 and property5. If passed this will fill in the relevant
-values of the transmissions created with the values you specified.
+You may also pass the values property1, property2, property3, property4,
+property5 and details. If passed this will fill in the relevant values of the
+transmissions created with the values you specified.
 
 The transmitting node and a list of created transmissions are sent to
 experiment method ``transmission_post_request(node, transmissions)``.

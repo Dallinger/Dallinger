@@ -782,6 +782,10 @@ def assign_properties(thing):
     properties of the object in the request. This function gets those values
     from the request and fills in the relevant columns of the table.
     """
+    details = request_parameter(parameter='details', optional=True)
+    if details:
+        setattr(thing, 'details', loads(details))
+
     for p in range(5):
         property_name = "property" + str(p + 1)
         property = request_parameter(parameter=property_name, optional=True)
@@ -1396,20 +1400,20 @@ def node_transmit(node_id):
 
     The sender's node id must be specified in the url.
 
-    As with node.transmit() the key parameters are what and to_whom.
-    However, the values these accept are more limited than for the back end
-    due to the necessity of serialization.
+    As with node.transmit() the key parameters are what and to_whom. However,
+    the values these accept are more limited than for the back end due to the
+    necessity of serialization.
 
     If what and to_whom are not specified they will default to None.
-    Alternatively you can pass an int (e.g. '5') or a class name (e.g.
-    'Info' or 'Agent'). Passing an int will get that info/node, passing
-    a class name will pass the class. Note that if the class you are specifying
-    is a custom class it will need to be added to the dictionary of
-    known_classes in your experiment code.
+    Alternatively you can pass an int (e.g. '5') or a class name (e.g. 'Info' or
+    'Agent'). Passing an int will get that info/node, passing a class name will
+    pass the class. Note that if the class you are specifying is a custom class
+    it will need to be added to the dictionary of known_classes in your
+    experiment code.
 
-    You may also pass the values property1, property2, property3, property4
-    and property5. If passed this will fill in the relevant values of the
-    transmissions created with the values you specified.
+    You may also pass the values property1, property2, property3, property4,
+    property5 and details. If passed this will fill in the relevant values of
+    the transmissions created with the values you specified.
 
     For example, to transmit all infos of type Meme to the node with id 10:
     dallinger.post(

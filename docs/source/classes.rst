@@ -53,6 +53,10 @@ columns that are common across tables:
 
 .. autoattribute:: dallinger.models.SharedMixin.property5
     :annotation:
+    :annotation:
+
+.. autoattribute:: dallinger.models.SharedMixin.details
+    :annotation:
 
 .. autoattribute:: dallinger.models.SharedMixin.failed
     :annotation:
@@ -312,6 +316,9 @@ Columns
     :annotation:
 
 .. autoattribute:: dallinger.models.Info.property5
+    :annotation:
+
+.. autoattribute:: dallinger.models.Info.details
     :annotation:
 
 .. autoattribute:: dallinger.models.Info.failed
