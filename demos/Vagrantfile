@@ -89,6 +89,9 @@ Vagrant.configure("2") do |config|
       echo "dallinger_email_address = $EMAIL" >> ~/.dallingerconfig
       echo "contact_email_on_error = $EMAIL" >> ~/.dallingerconfig
     fi
+    if [ ! $(grep -q "^base_port" ~/.dallingerconfig) ]; then
+      echo 'base_port = 5000' >> ~/.dallingerconfig
+    fi
     pip install -U dallinger[data]
 
     # Git configuration
