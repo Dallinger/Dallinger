@@ -40,16 +40,17 @@ Vagrant.configure("2") do |config|
     end
   end
 
-  # Only ask for name and email if we didn't find a .gitconfig and/or .dallingerconfig
-  if config_env.empty? then
-    config_env = {"NAME" => Name.new, "EMAIL" => Email.new}
+  # Only ask for name and email if we didn't find a .gitconfig
+  if !config_env.has_key?('gitconfig') then
+    config_env["NAME"] = Name.new
+    config_env["EMAIL"] = Email.new
   end
 
   config.vm.provision "shell", env: config_env, privileged: false, inline: <<-SHELL
-    if [ -n $dallingerconfig ]; then
+    if [ $dallingerconfig ]; then
       echo 'Copied ~/.dallingerconfig from host machine'
     fi
-    if [ -n $gitconfig ]; then
+    if [ $gitconfig ]; then
       echo 'Copied ~/.gitconfig from host machine'
     fi
     export DEBIAN_FRONTEND=noninteractive
