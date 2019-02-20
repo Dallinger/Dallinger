@@ -116,8 +116,9 @@ class PulseService:
 
         return True
 
-    def get_agents(self, location):
-        resp = self.api_get('agent', {'location': location})
+    def get_agents(self):
+        activity_id = self.get_existing_activity()
+        resp = self.api_get('agent', {'activityId': activity_id})
 
         resp_agents = resp.get('response', {}).get('agents')
         if resp_agents is None:
