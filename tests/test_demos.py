@@ -1,8 +1,8 @@
 import os
 import pytest
-import subprocess
 
 from dallinger import experiments
+from dallinger.command_line import verify_package
 from dallinger.config import get_config
 
 
@@ -10,14 +10,17 @@ class TestDemos(object):
     """Verify all the built-in demos."""
 
     def test_verify_all_demos(self):
-        demo_paths = os.listdir(os.path.join("demos", "dlgr", "demos"))
-        for demo_path in demo_paths:
-            if demo_path == '__pycache__':
-                continue
-            if os.path.isdir(demo_path):
-                os.chdir(demo_path)
-                assert subprocess.check_call(["dallinger", "verify"])
-                os.chdir("..")
+        test_root = os.getcwd()
+        demo_root = os.path.join("demos", "dlgr", "demos")
+        demo_folders = [
+            f for f in os.listdir(demo_root) if os.path.isdir(f) and
+            not f.startswith('_')
+        ]
+        for demo in demo_folders:
+            demo_path = os.path.join(demo_root, demo)
+            os.chdir(demo_path)
+            assert verify_package(verbose=False)
+            os.chdir(test_root)
 
     def test_instantiation_via_entry_points(self):
         failures = []
