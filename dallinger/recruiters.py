@@ -1041,7 +1041,7 @@ class PulseRecruiter(Recruiter):
     def recruit(self, n=1, shortfall=False):
         """Recruit n new participants to the queue"""
 
-        agents = self.pulse_service.get_agents(self.location)
+        agents = self.pulse_service.get_agents()
         if not shortfall:
             self.counter.increment_requested(n)
         for agent in agents[:n]:
