@@ -11,8 +11,6 @@ from dallinger.models import Participant
 from dallinger.utils import ParticipationTime
 
 
-# Import the experiment.
-exp = dallinger.experiment.load()
 logger = logging.getLogger(__name__)
 
 scheduler = BlockingScheduler()
@@ -63,6 +61,8 @@ def rerecruit_when_recruiters_have_a_shortfall(recruiter=None):
 
 
 def launch():
+    # Import the experiment.
+    dallinger.experiment.load()
     config = dallinger.config.get_config()
     if not config.ready:
         config.load()
