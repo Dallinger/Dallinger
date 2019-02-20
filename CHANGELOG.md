@@ -1,5 +1,10 @@
 # Change Log
 
+## [v-master](https://github.com/dallinger/dallinger/master) (xxxx-xx-xx)
+
+- Improve launch retry messaging when running in debug mode
+
+
 ## [v5.0.5](https://github.com/dallinger/dallinger/tree/v5.0.5) (2019-02-15)
 
 - Documentation improvements and additions:
