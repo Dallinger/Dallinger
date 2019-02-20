@@ -12,12 +12,14 @@ class TestDemos(object):
     def test_verify_all_demos(self):
         test_root = os.getcwd()
         demo_root = os.path.join("demos", "dlgr", "demos")
-        demo_folders = [
-            f for f in os.listdir(demo_root) if os.path.isdir(f) and
-            not f.startswith('_')
+        demo_paths = [
+            os.path.join(demo_root, f) for f in os.listdir(demo_root)
+            if not f.startswith('_')
         ]
-        for demo in demo_folders:
-            demo_path = os.path.join(demo_root, demo)
+        if not demo_paths:
+            pytest.fail("Couldn't find any demo folders to validate!")
+
+        for demo_path in demo_paths:
             os.chdir(demo_path)
             assert verify_package(verbose=False)
             os.chdir(test_root)
