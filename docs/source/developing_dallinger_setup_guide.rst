@@ -321,11 +321,13 @@ Now we need to install the dependencies using pip:
 
     pip install -r dev-requirements.txt
 
-Next run ``setup.py`` with the argument ``develop``:
+
+Next, install the Dallinger development directory as an editable package, and include the ``data`` "extra":
 
 ::
 
-    pip install -e .[data]
+    pip install --editable .[data]
+
 
 Test that your installation works by running:
 
@@ -699,11 +701,13 @@ Now we need to install the dependencies using pip:
 
     pip install -r dev-requirements.txt
 
-Next run ``setup.py`` with the argument ``develop``:
+
+Next, install the Dallinger development directory as an editable package, and include the ``data`` "extra":
 
 ::
 
-    pip install -e .[data]
+    pip install --editable .[data]
+
 
 Test that your installation works by running:
 
