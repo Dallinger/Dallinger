@@ -1,4 +1,4 @@
-Vagrant installation
+Vagrant Installation
 ====================
 
 Install the Vagrant virtual machine management system from `Hashicorp <https://www.vagrantup.com/docs/installation/>`__ and the `VirtualBox <https://www.virtualbox.org/>`__ virtualization software.
@@ -28,3 +28,8 @@ When you're finished, shut the Vagrant machine down by running:
 
     vagrant halt
 
+New experiments created using the `cookiecutter` template described in
+:doc:`Creating an Experiment <creating_an_experiment>`
+include a `Vagrantfile` which will setup a virtual machine configured to run
+your new Dallinger experiment. The Dallinger demos package also includes a
+`Vagrantfile`.

@@ -2,6 +2,8 @@
 
 ## [v-master](https://github.com/dallinger/dallinger/master) (xxxx-xx-xx)
 
+- Add user vagrant setup for running demos
+
 - Improve launch retry messaging when running in debug mode
 
 

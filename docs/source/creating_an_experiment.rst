@@ -141,6 +141,10 @@ like this:
 Make sure you run this command from the initial directory created by
 Cookiecutter. In this case the directory is ``myexperiments.pushbutton``.
 
+Your new experiment directory also includes a `Vagrantfile` which will allow
+you to easily create and run a virtual machine preconfigured to run your
+experiment. See :doc:`Vagrant Installation <vagrant_setup>` for details.
+
 The Experiment Package
 ----------------------
 
