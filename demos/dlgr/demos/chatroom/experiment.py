@@ -6,17 +6,13 @@ from dallinger.compat import unicode
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.nodes import Agent
-
-logger = logging.getLogger(__file__)
-
 try:
     from .bots import Bot
-    # Make bot importable without triggering style warnings
-    Bot = Bot
+    Bot = Bot  # Make name "Bot" importable without triggering style warnings
 except ImportError:
-    logger.warning(
-        "Chatroom Bots not available because required packages were not installed."
-    )
+    pass
+
+logger = logging.getLogger(__file__)
 
 
 def extra_parameters():
