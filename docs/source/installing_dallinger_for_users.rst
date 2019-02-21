@@ -363,7 +363,7 @@ ship with Postgresql 10.4 and 9.5 respectively, however Ubuntu 14.04 LTS ships w
 
 Postgres can be installed using the following instructions:
 
-**Ubuntu 18.04 LTS:**
+**Ubuntu 18.04 LTS** or **Ubuntu 16.04 LTS:**
 ::
 
     sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
@@ -373,29 +373,6 @@ To run postgres, use the following command:
 
     sudo service postgresql start
 
-After that you'll need to run the following commands
-::
-
-    sudo sed /etc/postgresql/10/main/pg_hba.conf -e 's/md5/trust/g' --in-place
-    sudo sed -e "s/[#]\?listen_addresses = .*/listen_addresses = '*'/g" -i '/etc/postgresql/10/main/postgresql.conf'
-    sudo service postgresql reload
-
-**Ubuntu 16.04 LTS:**
-::
-
-    sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
-
-To run postgres, use the following command:
-::
-
-    service postgresql start
-
-After that you'll need to run the following commands
-::
-
-    sudo sed /etc/postgresql/9.5/main/pg_hba.conf -e 's/md5/trust/g' --in-place
-    sudo sed -e "s/[#]\?listen_addresses = .*/listen_addresses = '*'/g" -i '/etc/postgresql/9.5/main/postgresql.conf'
-    sudo service postgresql reload
 
 **Ubuntu 14.04 LTS:**
 
@@ -414,13 +391,6 @@ To run postgres, use the following command:
 ::
 
     sudo service postgresql start
-
-After that you'll need to run the following commands
-::
-
-    sudo sed /etc/postgresql/10/main/pg_hba.conf -e 's/md5/trust/g' --in-place
-    sudo sed -e "s/[#]\?listen_addresses = .*/listen_addresses = '*'/g" -i '/etc/postgresql/10/main/postgresql.conf'
-    sudo service postgresql reload
 
 
 Create the databases
