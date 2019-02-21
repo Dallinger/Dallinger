@@ -70,7 +70,7 @@ class PulseService:
                                 'imageUrl': image_url,
                                 'facebookPageId': page_id,
                                 'duration': '1440',
-                                'quickReplyMessage': 'Click the button below!',
+                                'quickReplyMessage': 'Click below!',
                                 'quickReplyEngagementTrigger': 'Participate',
                                 'targeting': {
                                     'publisherPlatforms': ['facebook'],
