@@ -187,7 +187,7 @@ class TestHerokuApp(object):
         check_call.assert_has_calls([
             mock.call(['heroku', 'apps:create', 'dlgr-fake-uid', '--buildpack',
                        'heroku/python',
-                       '--org', 'some-team'], stdout=None),
+                       '--team', 'some-team'], stdout=None),
         ])
 
     def test_bootstrap_sets_variables(self, app, check_call, check_output):
@@ -572,7 +572,7 @@ class TestHerokuInfo(object):
     def test_all_apps(self, info, custom_app_output):
         app_info = info.all_apps()
         custom_app_output.assert_has_calls([
-            mock.call(['heroku', 'apps', '--json', '--org', 'fake team'])
+            mock.call(['heroku', 'apps', '--json', '--team', 'fake team'])
         ])
         assert app_info == [
             {'created_at': '2018-01-01T12:00Z',
@@ -587,7 +587,7 @@ class TestHerokuInfo(object):
         app_info = info.my_apps()
         custom_app_output.assert_has_calls([
             mock.call(['heroku', 'auth:whoami']),
-            mock.call(['heroku', 'apps', '--json', '--org', 'fake team']),
+            mock.call(['heroku', 'apps', '--json', '--team', 'fake team']),
             mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-my-uid']),
             mock.call(['heroku', 'config:get', 'DALLINGER_UID', '--app', 'dlgr-my-uid']),
             mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-another-uid'])

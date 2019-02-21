@@ -1009,7 +1009,7 @@ class TestApps(object):
         assert result.exit_code == 0
         custom_app_output.assert_has_calls([
             mock.call(['heroku', 'auth:whoami']),
-            mock.call(['heroku', 'apps', '--json', '--org', 'fake team']),
+            mock.call(['heroku', 'apps', '--json', '--team', 'fake team']),
             mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-my-uid']),
             mock.call(['heroku', 'config:get', 'DALLINGER_UID', '--app', 'dlgr-my-uid']),
             mock.call(['heroku', 'config:get', 'CREATOR', '--app', 'dlgr-another-uid']),
