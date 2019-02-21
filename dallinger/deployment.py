@@ -215,7 +215,7 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, remaining=RETRIES):
             "Error parsing response from /launch, check web dyno logs for details: "
             + launch_request.text
         )
-        raise
+        pass
 
     if not launch_request.ok:
         if remaining < 1:
