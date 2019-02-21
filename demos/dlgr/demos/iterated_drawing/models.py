@@ -1,8 +1,8 @@
-from dallinger.nodes import Source
-import random
 import base64
-import os
 import json
+import os
+import random
+from dallinger.nodes import Source
 
 
 class DrawingSource(Source):

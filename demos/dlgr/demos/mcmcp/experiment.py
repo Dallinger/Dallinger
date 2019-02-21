@@ -1,7 +1,7 @@
 """Monte Carlo Markov Chains with people."""
-from operator import attrgetter
 import random
 import time
+from operator import attrgetter
 
 from flask import Blueprint, Response
 from selenium.webdriver.common.by import By
