@@ -86,10 +86,6 @@ class PulseService:
                                     }
                                 }
                             },
-                            {
-                                'type': 'FacebookMessengerBot',
-                                'name': title
-                            }
                         ],
                         'name': title
                     },
