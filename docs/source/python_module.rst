@@ -10,10 +10,10 @@ Dallinger experiments can be run through a high-level Python API.
     import dallinger
 
     experiment = dallinger.experiments.Bartlett1932()
-    data = experiment.run({
-        mode=live,
+    data = experiment.run(
+        mode="live",
         base_payment=1.00,
-    })
+    )
 
 All parameters in ``config.txt`` and ``.dallingerconfig`` can be specified
 in the configuration dictionary passed to the
@@ -62,10 +62,10 @@ participants::
     collected = []
     experiment = dallinger.experiments.ConcentrationGame()
     for run_num in range(1, 10):
-        data = experiment.run({
-            mode=live,
+        data = experiment.run(
+            mode="live",
             num_participants=run_num,
-        })
+        )
         collected.append(data)
 
 With this technique, an experimenter can use data from prior runs to
@@ -93,10 +93,10 @@ then collect data using that UUID::
 
     my_app_id = "68f73876-48f3-d1e2-4df7-25e46c99ce28"
     experiment = dallinger.experiments.Bartlett1932()
-    data = experiment.collect(my_app_id, {
-        mode=live,
+    data = experiment.collect(my_app_id,
+        mode="live",
         base_payment=1.00,
-    })
+    )
 
 The first run of the above code will run a live experiment and collect data.
 Subsequent runs will retrieve the data collected during the first run.
