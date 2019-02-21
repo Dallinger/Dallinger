@@ -1040,10 +1040,18 @@ class PulseRecruiter(Recruiter):
 
     def recruit(self, n=1, shortfall=False):
         """Recruit n new participants to the queue"""
-
-        agents = self.pulse_service.get_agents()
+        try:
+            agents = self.pulse_service.get_agents()
+        except ValueError as e:
+            logger.exception("Couldn't get agents")
+            agents = []
         if not shortfall:
             self.counter.increment_requested(n)
+        # Hide agents that we know we've recruited already
+        agents = [
+            agent for agent in agents
+            if not redis_conn.sismember("pulse_agents_started", agent)
+        ]
         for agent in agents[:n]:
             experiment_url = '{}/ad?recruiter={}&hitId={}&assignmentId={}&workerId={}'.format(
                 get_base_url(),
@@ -1054,6 +1062,7 @@ class PulseRecruiter(Recruiter):
             )
 
             self.pulse_service.recruit(agent, experiment_url)
+            redis_conn.sadd("pulse_agents_started", agent)
             self.counter.increment(1)
         return []
 
