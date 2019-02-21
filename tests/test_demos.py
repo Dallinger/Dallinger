@@ -1,5 +1,6 @@
 import os
 import pytest
+import sys
 
 from dallinger import experiments
 from dallinger.command_line import verify_package
@@ -9,20 +10,28 @@ from dallinger.config import get_config
 class TestDemos(object):
     """Verify all the built-in demos."""
 
-    def test_verify_all_demos(self):
-        test_root = os.getcwd()
-        demo_root = os.path.join("demos", "dlgr", "demos")
-        demo_paths = [
-            os.path.join(demo_root, f) for f in os.listdir(demo_root)
-            if not f.startswith('_')
-        ]
-        if not demo_paths:
-            pytest.fail("Couldn't find any demo folders to validate!")
+    @pytest.fixture
+    def iter_demos(self):
+        def _demos():
+            test_root = os.getcwd()
+            demo_root = os.path.join("demos", "dlgr", "demos")
+            demo_paths = [
+                os.path.join(demo_root, f) for f in os.listdir(demo_root)
+                if not f.startswith('_')
+            ]
+            for demo_path in demo_paths:
+                os.chdir(demo_path)
+                yield demo_path
+                del sys.modules['dallinger_experiment']
+                os.chdir(test_root)
+        demos = _demos()
+        return demos
 
-        for demo_path in demo_paths:
-            os.chdir(demo_path)
-            assert verify_package(verbose=False)
-            os.chdir(test_root)
+    def test_verify_all_demos(self, iter_demos):
+        for demo in iter_demos:
+            # print("Verifying {}".format(os.getcwd()))
+            if not verify_package(verbose=False):
+                pytest.fail("{} did not verify!".format(demo))
 
     def test_instantiation_via_entry_points(self):
         failures = []
@@ -48,7 +57,8 @@ class TestBartlett1932(object):
     def demo(self, db_session):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932
         get_config().load()
-        return Bartlett1932(db_session)
+        instance = Bartlett1932(db_session)
+        return instance
 
     def test_networks_holds_single_experiment_node(self, demo):
         assert len(demo.networks()) == 1

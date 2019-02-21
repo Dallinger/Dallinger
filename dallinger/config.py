@@ -4,6 +4,7 @@ from collections import deque
 from contextlib import contextmanager
 from six.moves import configparser
 import distutils.util
+import importlib
 import logging
 import os
 import six
@@ -290,11 +291,11 @@ def initialize_experiment_package(path):
     # Retain already set experiment module
     if sys.modules.get('dallinger_experiment') is not None:
         return
-
     dirname = os.path.dirname(path)
     basename = os.path.basename(path)
     sys.path.insert(0, dirname)
     package = __import__(basename)
+    package = importlib.reload(package)
 
     sys.modules['dallinger_experiment'] = package
     package.__package__ = 'dallinger_experiment'

@@ -171,7 +171,7 @@ def verify_experiment_module(verbose):
 
     # Check if the experiment file has exactly one Experiment class.
     tmp = tempfile.mkdtemp()
-    clone_dir = os.path.join(tmp, 'temp_exp_package')
+    clone_dir = os.path.join(tmp, os.path.basename(os.getcwd()))
     to_ignore = shutil.ignore_patterns(
         os.path.join(".git", "*"),
         "*.db",
