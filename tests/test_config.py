@@ -34,7 +34,12 @@ class TestConfiguration(object):
         with pytest.raises(TypeError):
             config.register('num_participants', object)
 
-    def test_type_mismatch(self):
+    def test_type_mismatch_on_assignment(self):
+        config = get_config()
+        with pytest.raises(TypeError):
+            config['base_payment'] = 12
+
+    def test_type_mismatch_on_extend(self):
         config = Configuration()
         config.register('num_participants', int)
         with pytest.raises(TypeError):

@@ -2,6 +2,7 @@ import mock
 import os
 import pytest
 import shutil
+import sys
 import tempfile
 from dallinger import information
 from dallinger import models
@@ -15,6 +16,15 @@ def subprocess_coverage():
     coverage_path = os.path.dirname(os.path.dirname(__file__))
     os.environ['COVERAGE_PROCESS_START'] = os.path.join(coverage_path, '.coveragerc')
     os.environ['COVERAGE_FILE'] = os.path.join(coverage_path, '.coverage')
+
+
+@pytest.fixture
+def reset_sys_modules():
+    to_clear = [
+        k for k in sys.modules if k.startswith('dallinger_experiment')
+    ]
+    for key in to_clear:
+        del sys.modules[key]
 
 
 @pytest.fixture()
