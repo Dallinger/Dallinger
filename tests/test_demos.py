@@ -12,6 +12,13 @@ class TestDemos(object):
 
     @pytest.fixture
     def iter_demos(self):
+        def _clean_sys_modules():
+            to_clear = [
+                k for k in sys.modules if k.startswith('dallinger_experiment')
+            ]
+            for key in to_clear:
+                del sys.modules[key]
+
         def _demos():
             test_root = os.getcwd()
             demo_root = os.path.join("demos", "dlgr", "demos")
@@ -22,14 +29,13 @@ class TestDemos(object):
             for demo_path in demo_paths:
                 os.chdir(demo_path)
                 yield demo_path
-                del sys.modules['dallinger_experiment']
+                _clean_sys_modules()
                 os.chdir(test_root)
         demos = _demos()
         return demos
 
     def test_verify_all_demos(self, iter_demos):
         for demo in iter_demos:
-            # print("Verifying {}".format(os.getcwd()))
             if not verify_package(verbose=False):
                 pytest.fail("{} did not verify!".format(demo))
 

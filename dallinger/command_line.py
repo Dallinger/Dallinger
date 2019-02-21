@@ -169,9 +169,10 @@ def verify_experiment_module(verbose):
     if not os.path.exists("experiment.py"):
         return False
 
-    # Check if the experiment file has exactly one Experiment class.
+    # Bootstrap a package in a temp directory and make it importable:
+    temp_package_name = 'TEMP_VERIFICATION_PACKAGE'
     tmp = tempfile.mkdtemp()
-    clone_dir = os.path.join(tmp, os.path.basename(os.getcwd()))
+    clone_dir = os.path.join(tmp, temp_package_name)
     to_ignore = shutil.ignore_patterns(
         os.path.join(".git", "*"),
         "*.db",
@@ -180,13 +181,19 @@ def verify_experiment_module(verbose):
         "server.log"
     )
     shutil.copytree(os.getcwd(), clone_dir, ignore=to_ignore)
-
     initialize_experiment_package(clone_dir)
     from dallinger_experiment import experiment
+    if clone_dir not in experiment.__file__:
+        raise ImportError("Checking the wrong experiment.py... aborting.")
     classes = inspect.getmembers(experiment, inspect.isclass)
     exps = [c for c in classes
             if (c[1].__bases__[0].__name__ in "Experiment")]
 
+    # Clean up:
+    for entry in [k for k in sys.modules if temp_package_name in k]:
+        del sys.modules[entry]
+
+    # Run checks:
     if len(exps) == 0:
         log("✗ experiment.py does not define an experiment class.",
             delay=0, chevrons=False, verbose=verbose)
