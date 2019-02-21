@@ -1025,16 +1025,17 @@ class PulseRecruiter(Recruiter):
                 self.config.get('pulse_image_url'),
                 self.config.get('pulse_page_id')
             )
-            msg = "Creating campaign and opening recruitment"
+            msg = "Creating campaign {} and opening recruitment".format(self.pulse_service.project_id)
         else:
             logger.info("Using existing project")
+            msg = "Using existing campaign {}".format(self.pulse_service.project_id)
 
         logger.info("Open recruitment: {}".format(self.pulse_service.project_id))
 
-        self.recruit(n)
+        recruits = self.recruit(n)
 
         return {
-            'items': [self.pulse_service.project_id],
+            'items': recruits,
             'message': msg
         }
 
@@ -1064,7 +1065,7 @@ class PulseRecruiter(Recruiter):
             self.pulse_service.recruit(agent, experiment_url)
             redis_conn.sadd("pulse_agents_started", agent)
             self.counter.increment(1)
-        return []
+        return agents[:n]
 
     def approve_hit(self, assignment_id):
         participant = session.query(Participant).filter_by(
