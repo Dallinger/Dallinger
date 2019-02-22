@@ -578,6 +578,10 @@ If using Python 2.7 and pip:
     mkdir -p $WORKON_HOME
     source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
 
+.. note::
+
+    If the last line failed with "No such file or directory". Try using ``source /usr/local/bin/virtualenvwrapper.sh`` instead. Pip installs `virtualenvwrapper.sh` to different locations depending on the Ubuntu version.
+
 
 If using Python 3.x and pip3:
 ::
