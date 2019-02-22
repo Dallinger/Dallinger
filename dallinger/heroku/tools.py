@@ -62,7 +62,7 @@ class HerokuInfo(HerokuCommandRunner):
         """Capture a backup of the app."""
         cmd = ["heroku", "apps", "--json"]
         if self.team:
-            cmd.extend(["--org", self.team])
+            cmd.extend(["--team", self.team])
         return json.loads(self._result(cmd))
 
     def my_apps(self):
@@ -103,7 +103,7 @@ class HerokuApp(HerokuCommandRunner):
 
         # If a team is specified, assign the app to the team.
         if self.team:
-            cmd.extend(["--org", self.team])
+            cmd.extend(["--team", self.team])
 
         self._run(cmd)
         # Set HOST value
