@@ -20,11 +20,15 @@ The experiment files can be found `here <https://dallinger.readthedocs.io/en/lat
 
 ::
 
-    dallinger debug
+    dallinger debug --verbose
 
 
 If applicable, make sure that your virtualenv is enabled so that the ``dallinger`` command is available to you.
 All Dallinger command options are explained in the :doc:`Command-line Utility" <command_line_utility>` section.
+
+.. note::
+
+    In the command above, we use the "--verbose" option to show more detailed logs in the terminal. This is a good best practice when creating and running your own experiments and gives more insight into errors when they occur.
 
 You will see some output as Dallinger loads. When it is finished, you will
 see something that looks like:
