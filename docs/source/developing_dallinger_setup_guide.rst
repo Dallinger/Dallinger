@@ -23,9 +23,7 @@ You can check what version of Python you have by running:
 
 .. note::
 
-    You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed.
-    It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.)
-    If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
+    You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed. It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.) If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
 
 
 Using Homebrew will install the latest version of Python and pip by default.
@@ -156,6 +154,18 @@ If you do not have it installed, you can install it as follows:
 ::
 
     brew install git
+
+
+You will need to configure your Git name and email:
+
+::
+
+  git config --global user.email "you@example.com"
+  git config --global user.name "Your Name"
+
+
+Replace ``you@example.com`` and ``Your Name`` with your email and name to set your account's default identity.
+Omit --global to set the identity only in this repository. You can read more about configuring Git `here <https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup/>`__.
 
 
 Set up a virtual environment
@@ -311,11 +321,13 @@ Now we need to install the dependencies using pip:
 
     pip install -r dev-requirements.txt
 
-Next run ``setup.py`` with the argument ``develop``:
+
+Next, install the Dallinger development directory as an editable package, and include the ``data`` "extra":
 
 ::
 
-    pip install -e .[data]
+    pip install --editable .[data]
+
 
 Test that your installation works by running:
 
@@ -356,13 +368,6 @@ You can check what version of Python you have by running:
     python --version
 
 
-.. note::
-
-    You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed.
-    It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.)
-    If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
-
-
 Ubuntu 18.04 LTS ships with Python 3.6.
 
 Ubuntu 16.04 LTS ships with Python 3.5, while Ubuntu 14.04 LTS ships with Python 3.4. In case you are using one of these distributions of Ubuntu, you can use
@@ -375,7 +380,10 @@ If you do not have Python 3 installed, you can install it from the
 
 Also make sure you have the python headers installed. The python-dev package
 contains the header files you need to build Python extensions appropriate to the Python version you will be using.
-You will also need to install pip.
+
+.. note::
+
+    You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed. It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.) If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
 
 If using Python 2.7.x:
 ::
@@ -508,6 +516,17 @@ If you do not have it installed, you can install it as follows:
 
     sudo apt install git
 
+You will need to configure your Git name and email:
+
+::
+
+  git config --global user.email "you@example.com"
+  git config --global user.name "Your Name"
+
+
+Replace ``you@example.com`` and ``Your Name`` with your email and name to set your account's default identity.
+Omit --global to set the identity only in this repository. You can read more about configuring Git `here <https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup/>`__.
+
 
 Set up a virtual environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -527,7 +546,11 @@ If using Python 2.7 and pip:
     sudo pip install virtualenvwrapper
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
-    source /usr/local/bin/virtualenvwrapper.sh
+    source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
+
+.. note::
+
+    If the last line failed with "No such file or directory". Try using ``source /usr/local/bin/virtualenvwrapper.sh`` instead. Pip installs `virtualenvwrapper.sh` to different locations depending on the Ubuntu version.
 
 
 If using Python 3.x and pip3:
@@ -585,6 +608,14 @@ command inside the virtual environment.
 The how-to:
 
 In the future, you can work on your virtual environment by running:
+If using Python 2.7 and pip:
+::
+
+    source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
+    workon dlgr_env
+
+
+If using Python 3.x and pip3:
 ::
 
     source /usr/local/bin/virtualenvwrapper.sh
@@ -597,6 +628,13 @@ arguments.
 If you plan to do a lot of work with Dallinger, you can make your shell
 execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that:
+
+If using Python 2.7 and pip:
+::
+
+    echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
+
+If using Python 3.x and pip3:
 ::
 
     echo "source /usr/local/bin/virtualenvwrapper.sh" >> ~/.bashrc
@@ -637,11 +675,13 @@ Now we need to install the dependencies using pip:
 
     pip install -r dev-requirements.txt
 
-Next run ``setup.py`` with the argument ``develop``:
+
+Next, install the Dallinger development directory as an editable package, and include the ``data`` "extra":
 
 ::
 
-    pip install -e .[data]
+    pip install --editable .[data]
+
 
 Test that your installation works by running:
 
