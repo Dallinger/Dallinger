@@ -310,11 +310,11 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     log("Waiting for Redis...")
     ready = False
     while not ready:
-        r = redis.from_url(heroku_app.redis_url)
         try:
+            r = redis.from_url(heroku_app.redis_url)
             r.set("foo", "bar")
             ready = True
-        except redis.exceptions.ConnectionError:
+        except (ValueError, redis.exceptions.ConnectionError):
             time.sleep(2)
 
     log("Saving the URL of the postgres database...")
