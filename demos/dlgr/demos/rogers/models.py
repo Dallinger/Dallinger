@@ -7,7 +7,7 @@ from sqlalchemy.sql.expression import cast
 
 from dallinger.models import Transformation
 from dallinger.information import Gene, Meme, State
-from dallinger.nodes import Agent, Environment, Source
+from dallinger.nodes import Agent, Source
 
 
 class LearningGene(Gene):
