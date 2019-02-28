@@ -1,6 +1,7 @@
 -r requirements.txt
 -c dev-constraints.txt
 alabaster
+black
 bumpversion
 coverage
 coverage_pth
