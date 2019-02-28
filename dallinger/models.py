@@ -68,6 +68,27 @@ class SharedMixin(object):
     #: a generic column for storing structured JSON data
     details = Column(JSONB, nullable=False, server_default="{}", default=lambda: {})
 
+    def json_data(self):
+        return {}
+
+    def __json__(self):
+        """Return json description of a participant."""
+        model_data = {
+            "id": self.id,
+            "creation_time": self.creation_time,
+            "failed": self.failed,
+            "time_of_death": self.time_of_death,
+            "property1": self.property1,
+            "property2": self.property2,
+            "property3": self.property3,
+            "property4": self.property4,
+            "property5": self.property5,
+            "details": self.details,
+        }
+        # Add any model specific data to the base data
+        model_data.update(self.json_data())
+        return model_data
+
 
 class Participant(Base, SharedMixin):
     """An ex silico participant."""
@@ -159,10 +180,9 @@ class Participant(Base, SharedMixin):
         self.mode = mode
         self.fingerprint_hash = fingerprint_hash
 
-    def __json__(self):
+    def json_data(self):
         """Return json description of a participant."""
         return {
-            "id": self.id,
             "type": self.type,
             "recruiter": self.recruiter_id,
             "assignment_id": self.assignment_id,
@@ -172,14 +192,6 @@ class Participant(Base, SharedMixin):
             "base_pay": self.base_pay,
             "bonus": self.bonus,
             "status": self.status,
-            "creation_time": self.creation_time,
-            "failed": self.failed,
-            "time_of_death": self.time_of_death,
-            "property1": self.property1,
-            "property2": self.property2,
-            "property3": self.property3,
-            "property4": self.property4,
-            "property5": self.property5
         }
 
     def nodes(self, type=None, failed=False):
@@ -332,23 +344,14 @@ class Question(Base, SharedMixin):
             self.failed = True
             self.time_of_death = timenow()
 
-    def __json__(self):
+    def json_data(self):
         """Return json description of a question."""
         return {
-            "id": self.id,
             "number": self.number,
             "type": self.type,
             "participant_id": self.participant_id,
             "question": self.question,
             "response": self.response,
-            "failed": self.failed,
-            "time_of_death": self.time_of_death,
-            "creation_time": self.creation_time,
-            "property1": self.property1,
-            "property2": self.property2,
-            "property3": self.property3,
-            "property4": self.property4,
-            "property5": self.property5
         }
 
 
@@ -389,22 +392,13 @@ class Network(Base, SharedMixin):
             len(self.transmissions()),
             len(self.transformations()))
 
-    def __json__(self):
+    def json_data(self):
         """Return json description of a participant."""
         return {
-            "id": self.id,
             "type": self.type,
             "max_size": self.max_size,
             "full": self.full,
             "role": self.role,
-            "creation_time": self.creation_time,
-            "failed": self.failed,
-            "time_of_death": self.time_of_death,
-            "property1": self.property1,
-            "property2": self.property2,
-            "property3": self.property3,
-            "property4": self.property4,
-            "property5": self.property5
         }
 
     """ ###################################
@@ -676,21 +670,12 @@ class Node(Base, SharedMixin):
         """The string representation of a node."""
         return "Node-{}-{}".format(self.id, self.type)
 
-    def __json__(self):
+    def json_data(self):
         """The json of a node."""
         return {
-            "id": self.id,
             "type": self.type,
             "network_id": self.network_id,
-            "creation_time": self.creation_time,
-            "time_of_death": self.time_of_death,
-            "failed": self.failed,
             "participant_id": self.participant_id,
-            "property1": self.property1,
-            "property2": self.property2,
-            "property3": self.property3,
-            "property4": self.property4,
-            "property5": self.property5
         }
 
     """ ###################################
@@ -1379,21 +1364,12 @@ class Vector(Base, SharedMixin):
         return "Vector-{}-{}".format(
             self.origin_id, self.destination_id)
 
-    def __json__(self):
+    def json_data(self):
         """The json representation of a vector."""
         return {
-            "id": self.id,
             "origin_id": self.origin_id,
             "destination_id": self.destination_id,
             "network_id": self.network_id,
-            "creation_time": self.creation_time,
-            "failed": self.failed,
-            "time_of_death": self.time_of_death,
-            "property1": self.property1,
-            "property2": self.property2,
-            "property3": self.property3,
-            "property4": self.property4,
-            "property5": self.property5
         }
 
     """#######################################
@@ -1496,23 +1472,13 @@ class Info(Base, SharedMixin):
         """The string representation of an info."""
         return "Info-{}-{}".format(self.id, self.type)
 
-    def __json__(self):
+    def json_data(self):
         """The json representation of an info."""
         return {
-            "id": self.id,
             "type": self.type,
             "origin_id": self.origin_id,
             "network_id": self.network_id,
-            "creation_time": self.creation_time,
-            "failed": self.failed,
-            "time_of_death": self.time_of_death,
             "contents": self.contents,
-            "property1": self.property1,
-            "property2": self.property2,
-            "property3": self.property3,
-            "property4": self.property4,
-            "property5": self.property5,
-            "details": self.details,
         }
 
     def fail(self):
@@ -1695,25 +1661,16 @@ class Transmission(Base, SharedMixin):
         """The string representation of a transmission."""
         return "Transmission-{}".format(self.id)
 
-    def __json__(self):
+    def json_data(self):
         """The json representation of a transmissions."""
         return {
-            "id": self.id,
             "vector_id": self.vector_id,
             "origin_id": self.origin_id,
             "destination_id": self.destination_id,
             "info_id": self.info_id,
             "network_id": self.network_id,
-            "creation_time": self.creation_time,
             "receive_time": self.receive_time,
-            "failed": self.failed,
-            "time_of_death": self.time_of_death,
             "status": self.status,
-            "property1": self.property1,
-            "property2": self.property2,
-            "property3": self.property3,
-            "property4": self.property4,
-            "property5": self.property5
         }
 
     def fail(self):
@@ -1796,22 +1753,13 @@ class Transformation(Base, SharedMixin):
         self.node_id = info_out.origin_id
         self.network_id = info_out.network_id
 
-    def __json__(self):
+    def json_data(self):
         """The json representation of a transformation."""
         return {
-            "id": self.id,
             "info_in_id": self.info_in_id,
             "info_out_id": self.info_out_id,
             "node_id": self.node_id,
             "network_id": self.network_id,
-            "creation_time": self.creation_time,
-            "failed": self.failed,
-            "time_of_death": self.time_of_death,
-            "property1": self.property1,
-            "property2": self.property2,
-            "property3": self.property3,
-            "property4": self.property4,
-            "property5": self.property5
         }
 
     def fail(self):
