@@ -5,7 +5,7 @@ from sqlalchemy import Float, Integer
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast
 
-from dallinger import transformations
+from dallinger.models import Transformation
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Environment, Source
 
@@ -28,15 +28,16 @@ class RogersSource(Source):
 
     __mapper_args__ = {"polymorphic_identity": "rogers_source"}
 
-    def create_information(self):
-        """Create a new learning gene."""
-        if len(self.infos()) == 0:
-            LearningGene(
-                origin=self,
-                contents="asocial")
+    def _info_type(self):
+        """Create a learning gene by default."""
+        return LearningGene
+
+    def _contents(self):
+        """Contents of created Infos is 'asocial' by default."""
+        return "asocial"
 
     def _what(self):
-        """Transmit a learning gene by default."""
+        """Transmit the first learning gene by default."""
         return self.infos(type=LearningGene)[0]
 
 
@@ -141,22 +142,45 @@ class RogersAgent(Agent):
         return self.infos(type=LearningGene)[0]
 
 
-class RogersEnvironment(Environment):
+class RogersEnvironment(Source):
     """The Rogers environment."""
 
     __mapper_args__ = {"polymorphic_identity": "rogers_environment"}
 
-    def create_state(self, proportion):
-        """Create an environmental state."""
+    @hybrid_property
+    def proportion(self):
+        """Convert property1 to propoertion."""
+        return float(self.property1)
+
+    @proportion.setter
+    def proportion(self, proportion):
+        """Make proportion settable."""
+        self.property1 = repr(proportion)
+
+    @proportion.expression
+    def proportion(self):
+        """Make proportion queryable."""
+        return cast(self.property1, Float)
+
+    def _info_type(self):
+        """By default create States."""
+        return State
+
+    def _contents(self):
+        """Contents of created infos is either propirtion or 1-proportion by default."""
         if random.random() < 0.5:
-            proportion = 1 - proportion
-        State(origin=self, contents=proportion)
+            return self.proportion
+        else:
+            return 1 - self.proportion
+
+    def _what(self):
+        """By default transmit the most recent state """
+        return max(self.infos(type=State), key=attrgetter('id'))
 
     def step(self):
         """Prompt the environment to change."""
-        current_state = max(self.infos(type=State),
-                            key=attrgetter('creation_time'))
+        current_state = max(self.infos(type=State), key=attrgetter('id'))
         current_contents = float(current_state.contents)
         new_contents = 1 - current_contents
         info_out = State(origin=self, contents=new_contents)
-        transformations.Mutation(info_in=current_state, info_out=info_out)
+        Transformation(info_in=current_state, info_out=info_out)

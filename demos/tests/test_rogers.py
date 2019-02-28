@@ -14,7 +14,7 @@ import threading
 import time
 
 from dallinger import db
-from dallinger.nodes import Agent, Source, Environment
+from dallinger.nodes import Agent, Source
 from dallinger.information import Gene, Meme, State
 from dallinger import models
 from dlgr.demos.rogers.experiment import RogersExperiment
@@ -133,8 +133,8 @@ class TestRogers(object):
                     agent.receive()
                     from operator import attrgetter
                     current_state = max(
-                        State.query.filter_by(network_id=agent.network_id).all(),
-                        key=attrgetter('creation_time')
+                        network.nodes(type=RogersEnvironment)[0].infos(),
+                        key=attrgetter('id')
                     ).contents
                     if float(current_state) >= 0.5:
                         right_answer = "blue"
@@ -176,6 +176,7 @@ class TestRogers(object):
 
                 self.db.commit()
             else:
+                p.status = "approved"
                 exp.submission_successful(participant=p)
 
             p_stop_time = timenow()
@@ -196,20 +197,19 @@ class TestRogers(object):
         sys.stdout.flush()
 
         for network in [exp.networks()[0]]:
-
             agents = network.nodes(type=Agent)
-            environments = network.nodes(type=Environment)
             sources = network.nodes(type=Source)
-            assert len(sources) == 1
-            assert len(environments) == 1
-            assert len(agents) + len(environments) + len(sources) == network.max_size
+            assert len(sources) == 2
+            assert len(network.nodes(type=RogersSource)) == 1
+            assert len(network.nodes(type=RogersEnvironment)) == 1
+            assert len(agents) + len(sources) == network.max_size
 
-            source = network.nodes(type=Source)
+            source = network.nodes(type=RogersSource)
             assert len(source) == 1
             source = source[0]
             assert type(source) == RogersSource
 
-            environment = network.nodes(type=Environment)
+            environment = network.nodes(type=RogersEnvironment)
             assert len(environment) == 1
             environment = environment[0]
             assert type(environment) == RogersEnvironment
@@ -244,18 +244,16 @@ class TestRogers(object):
         sys.stdout.flush()
 
         for network in [exp.networks()[0]]:
-
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
-            source = network.nodes(type=Source)[0]
-            environment = network.nodes(type=Environment)[0]
+            source = network.nodes(type=RogersSource)[0]
+            environment = network.nodes(type=RogersEnvironment)[0]
 
             for v in vectors:
                 if isinstance(v.origin, Agent):
                     assert v.origin.generation == v.destination.generation - 1
                 else:
-                    assert isinstance(v.origin, Source) or isinstance(v.origin, Environment)
-
+                    assert isinstance(v.origin, Source) or isinstance(v.origin, RogersEnvironment)
             for agent in agents:
                 if agent.generation == 0:
                     assert len(models.Vector.query.filter_by(
@@ -287,8 +285,8 @@ class TestRogers(object):
 
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
-            source = network.nodes(type=Source)[0]
-            environment = network.nodes(type=Environment)[0]
+            source = network.nodes(type=RogersSource)[0]
+            environment = network.nodes(type=RogersEnvironment)[0]
             infos = network.infos()
 
             for agent in agents:
@@ -317,8 +315,8 @@ class TestRogers(object):
 
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
-            source = network.nodes(type=Source)[0]
-            environment = network.nodes(type=Environment)[0]
+            source = network.nodes(type=RogersSource)[0]
+            environment = network.nodes(type=RogersEnvironment)[0]
             infos = network.infos()
             transmissions = network.transmissions()
 
