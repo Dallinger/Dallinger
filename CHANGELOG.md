@@ -1,10 +1,19 @@
 # Change Log
 
-## [v-master](https://github.com/dallinger/dallinger/master) (xxxx-xx-xx)
+## [v5.0.6](https://github.com/dallinger/dallinger/tree/v5.0.6) (2019-02-28)
 
-- Fixed: Add `details` JSON data to `__json__` methods for all models.
+- Heroku has deprecated the use of the --org parameter which previous versions of Dallinger used. This release fixes Dallinger to use the newer --team parameter instead, which has been available in Heroku for quite some time. The change was introduced in Heroku CLI 7.21. The --team parameter was introduced in Heroku a significant time ago, thus this version of Dallinger will work with many older versions of the Heroku CLI. If using an older version of the Heroku CLI, we recommend updating to the latest version.
+
 - Improve launch retry messaging when running in debug mode
 - `dallinger verify` now fails if you have more than one Experiment class
+
+- Fixed: Add `details` JSON data to `__json__` methods for all models.
+- Fixed bug related to running Dallinger with Redis 3.1.0 or higher.
+
+- Documentation improvements and additions:
+  + Postgres install instructions for Ubuntu have been simplified and tested
+  + Anaconda instructions have been removed
+  + Other minor documentation improvements/clarifications
 
 ## [v5.0.5](https://github.com/dallinger/dallinger/tree/v5.0.5) (2019-02-15)
 
