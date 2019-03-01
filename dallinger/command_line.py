@@ -32,6 +32,7 @@ from dallinger.db import redis_conn
 from dallinger.deployment import _deploy_in_mode
 from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
+from dallinger.deployment import DeveloperDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.notifications import get_messenger
 from dallinger.heroku.tools import HerokuApp
@@ -366,6 +367,15 @@ def get_summary(app):
 def debug(verbose, bot, proxy, exp_config=None):
     """Run the experiment locally."""
     debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config)
+    log(header, chevrons=False)
+    debugger.run()
+
+
+@dallinger.command()
+@require_exp_directory
+def develop():
+    """Run the experiment locally."""
+    debugger = DeveloperDeployment(Output())
     log(header, chevrons=False)
     debugger.run()
 

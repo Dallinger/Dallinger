@@ -66,6 +66,79 @@ def new_webbrowser_profile():
         return webbrowser
 
 
+def export_config_to(directory):
+    cwd = os.getcwd()
+    os.chdir(directory)
+
+    # Load configuration.
+    config = get_config()
+    if not config.ready:
+        config.load()
+
+    config.write(filter_sensitive=True)
+    os.chdir(cwd)
+
+
+def construct_dev_directory(log, app_id):
+    """Create a temp directory with symlinks to Dallinger
+    and custom experiment files.
+    """
+    dst = os.path.join(tempfile.mkdtemp(), app_id)
+
+    # Symlink local experiment files
+    to_ignore = shutil.ignore_patterns(
+        os.path.join(".git", "*"),
+        "*.db",
+        "node_modules",
+        "snapshots",
+        "data",
+        "server.log",
+        "config.txt",  # Will be exported rather than linked
+        "__pycache__",
+    )
+    shutil.copytree(os.getcwd(), dst, ignore=to_ignore, copy_function=os.symlink)
+
+    # Export merged config
+    export_config_to(dst)
+
+    # Link Dallinger files
+    ensure_directory(os.path.join(dst, "static", "scripts"))
+    ensure_directory(os.path.join(dst, "static", "css"))
+    frontend_files = [
+        os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "scripts", "dallinger2.js"),
+        os.path.join("static", "scripts", "reqwest.min.js"),
+        os.path.join("static", "scripts", "require.js"),
+        os.path.join("static", "scripts", "reconnecting-websocket.js"),
+        os.path.join("static", "scripts", "spin.min.js"),
+        os.path.join("static", "scripts", "tracker.js"),
+        os.path.join("static", "scripts", "store+json2.min.js"),
+        os.path.join("templates", "base"),
+        os.path.join("templates", "error.html"),
+        os.path.join("templates", "error-complete.html"),
+        os.path.join("templates", "launch.html"),
+        os.path.join("templates", "develop.html"),
+        os.path.join("templates", "complete.html"),
+        os.path.join("templates", "questionnaire.html"),
+        os.path.join("templates", "thanks.html"),
+        os.path.join("templates", "waiting.html"),
+        os.path.join("static", "robots.txt")
+    ]
+
+    # Get dallinger package location.
+    from pkg_resources import get_distribution
+    dist = get_distribution('dallinger')
+    src_base = os.path.join(dist.location, dist.project_name)
+
+    for filename in frontend_files:
+        src = os.path.join(src_base, "frontend", filename)
+        dst_filepath = os.path.join(dst, filename)
+        if not os.path.exists(dst_filepath):
+            os.symlink(src, dst_filepath)
+
+    return dst
+
+
 def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     """Check the app and, if compatible with Dallinger, freeze its state."""
     # Verify that the Postgres server is running.
@@ -437,6 +510,60 @@ class HerokuLocalDeployment(object):
 
     def execute(self, heroku):
         raise NotImplementedError()
+
+
+class DeveloperDeployment():
+
+    def __init__(self, output):
+        self.out = output
+        self.verbose = True
+        self.exp_config = {
+            "mode": u"debug",
+            "loglevel": 0,
+        }
+        self.original_dir = os.getcwd()
+
+    def setup(self):
+        try:
+            db.check_connection()
+        except Exception:
+            self.out.log("There was a problem connecting to the Postgres database!")
+            raise
+
+        # Load configuration.
+        config = get_config()
+        if not config.ready:
+            config.load()
+        config.extend(self.exp_config)
+
+        # Check that the demo-specific requirements are satisfied.
+        try:
+            with open("requirements.txt", "r") as f:
+                dependencies = [r for r in f.readlines() if r[:3] != "-e "]
+        except (OSError, IOError):
+            dependencies = []
+
+        pkg_resources.require(dependencies)
+
+        # Generate a unique id for this experiment.
+        from dallinger.experiment import Experiment
+        generated_uid = Experiment.make_uuid()
+        config.extend({'id': six.text_type(generated_uid)})
+
+        self.tmp_dir = construct_dev_directory(
+            self.out.log, app_id=generated_uid
+        )
+
+    def run(self):
+        """Set up the environment, get a HerokuLocalWrapper instance, and pass
+        it to the concrete class's execute() method.
+        """
+        self.setup()
+        db.init_db(drop_all=True)
+        config = get_config()
+        # Move this to script:
+        os.environ["PORT"] = str(config.get('base_port', '5000'))
+        self.out.log("Ready to run dallinger_heroku_web from {}".format(self.tmp_dir))
 
 
 class DebugDeployment(HerokuLocalDeployment):
