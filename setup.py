@@ -30,6 +30,7 @@ setup_args = dict(
             'dallinger_heroku_web = dallinger_scripts.web:main',
             'dallinger_heroku_worker = dallinger_scripts.worker:main',
             'dallinger_heroku_clock = dallinger_scripts.clock:main',
+            'dallinger_develop = dallinger_scripts.develop:main',
         ],
         'dallinger.experiments': [],
     },
@@ -67,5 +68,4 @@ setup_args = dict(
 )
 
 update_pins(setup_args)
-
 setup(**setup_args)

@@ -101,6 +101,10 @@ def construct_dev_directory(log, app_id):
     # Export merged config
     export_config_to(dst)
 
+    # Save the experiment id
+    with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
+        file.write(app_id)
+
     # Link Dallinger files
     ensure_directory(os.path.join(dst, "static", "scripts"))
     ensure_directory(os.path.join(dst, "static", "css"))
@@ -560,10 +564,8 @@ class DeveloperDeployment():
         """
         self.setup()
         db.init_db(drop_all=True)
-        config = get_config()
-        # Move this to script:
-        os.environ["PORT"] = str(config.get('base_port', '5000'))
-        self.out.log("Ready to run dallinger_heroku_web from {}".format(self.tmp_dir))
+        self.out.log("Ready to run dallinger_develop from {}".format(self.tmp_dir))
+        self.out.log("Once that's running, visit http://127.0.0.1:5000/develop")
 
 
 class DebugDeployment(HerokuLocalDeployment):
