@@ -1,10 +1,13 @@
-from dallinger.models import Info, Transformation
-from dallinger.nodes import Source, Agent
 import random
 import json
 from sqlalchemy import Boolean
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast
+
+from dallinger.models import Info
+from dallinger.models import Transformation
+from dallinger.nodes import Agent
+from dallinger.nodes import Source
 
 
 class MCMCPAgent(Agent):

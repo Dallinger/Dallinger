@@ -36,8 +36,13 @@
     <div id="canvas_container"><canvas></canvas></div>
 {% endblock %}
 
-{% block scripts %}
-    <script>create_agent();</script>
+{% block libs %}
+    {{ super() }}
     <script src="static/scripts/atom/atom.js" type="text/javascript"></script>
     <script src="static/scripts/stake.js" type="text/javascript"></script>
+    <script src="/static/scripts/experiment.js" type="text/javascript"> </script>
+{% endblock %}
+
+{% block scripts %}
+    <script>create_agent();</script>
 {% endblock %}

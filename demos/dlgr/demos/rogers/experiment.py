@@ -6,18 +6,13 @@ import six
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.information import Meme
-from dallinger.models import Network
 from dallinger.models import Node
 from dallinger.models import Participant
 from dallinger.networks import DiscreteGenerational
-from dallinger.nodes import Agent
-from dallinger.nodes import Environment
-
-config = get_config()
 
 
 def extra_parameters():
-
+    config = get_config()
     types = {
         'experiment_repeats': int,
         'practice_repeats': int,
@@ -55,9 +50,9 @@ class RogersExperiment(Experiment):
 
         if session and not self.networks():
             self.setup()
-        self.save()
 
     def configure(self):
+        config = get_config()
         self.experiment_repeats = config.get('experiment_repeats', 10)
         self.practice_repeats = config.get('practice_repeats', 0)
         self.catch_repeats = config.get('catch_repeats', 0)  # a subset of experiment repeats
@@ -97,7 +92,8 @@ class RogersExperiment(Experiment):
             source.create_information()
             net.max_size = net.max_size + 1  # make room for environment node.
             env = self.models.RogersEnvironment(network=net)
-            env.create_state(proportion=self.color_proportion_for_network(net))
+            env.proportion = self.color_proportion_for_network(net)
+            env.create_information()
 
     def color_proportion_for_network(self, net):
         if net.role == "practice":
@@ -117,15 +113,7 @@ class RogersExperiment(Experiment):
 
     def create_node(self, network, participant):
         """Make a new node for participants."""
-        if network.role == "practice" or network.role == "catch":
-            return self.models.RogersAgentFounder(network=network,
-                                                  participant=participant)
-        elif network.size(type=Agent) < network.generation_size:
-            return self.models.RogersAgentFounder(network=network,
-                                                  participant=participant)
-        else:
-            return self.models.RogersAgent(network=network,
-                                           participant=participant)
+        return self.models.RogersAgent(network=network, participant=participant)
 
     def info_post_request(self, node, info):
         """Run whenever an info is created."""
@@ -135,8 +123,8 @@ class RogersExperiment(Experiment):
         """Run when a participant submits successfully."""
         num_approved = len(Participant.query.filter_by(status="approved").all())
         current_generation = participant.nodes()[0].generation
-        if num_approved % self.generation_size == 0 and current_generation % 10 == 0:
-            for e in Environment.query.all():
+        if num_approved % self.generation_size == 0 and (current_generation % 10 + 1) == 0:
+            for e in self.models.RogersEnvironment.query.all():
                 e.step()
 
     def recruit(self):
@@ -153,13 +141,9 @@ class RogersExperiment(Experiment):
 
     def bonus(self, participant):
         """Calculate a participants bonus."""
-        nodes = participant.nodes()
-        nets = Network.query.filter_by(role="experiment").all()
-        net_ids = [net.id for net in nets]
-        nodes = [node for node in nodes if node.network_id in net_ids]
+        scores = [n.score for n in participant.nodes() if n.network.role == "experiment"]
+        average = float(sum(scores)) / float(len(scores))
 
-        score = [node.score for node in nodes]
-        average = float(sum(score)) / float(len(score))
         bonus = round(max(0.0, ((average - 0.5) * 2)) * self.bonus_payment, 2)
         return bonus
 
@@ -168,13 +152,8 @@ class RogersExperiment(Experiment):
         if self.catch_repeats == 0:
             return True
 
-        nodes = participant.nodes()
-        nets = Network.query.filter_by(role="catch").all()
-        net_ids = [net.id for net in nets]
-        nodes = [node for node in nodes if node.network_id in net_ids]
-
-        scores = [n.score for n in nodes]
-        avg = sum(scores) / float(len(scores))
+        scores = [n.score for n in participant.nodes() if n.network.role == "catch"]
+        avg = float(sum(scores)) / float(len(scores))
         return avg >= self.min_acceptable_performance
 
     def data_check(self, participant):
@@ -208,7 +187,7 @@ class RogersExperiment(Experiment):
         network.add_node(node)
         node.receive()
 
-        environment = network.nodes(type=Environment)[0]
+        environment = network.nodes(type=self.models.RogersEnvironment)[0]
         environment.connect(whom=node)
 
         gene = node.infos(type=self.models.LearningGene)[0].contents

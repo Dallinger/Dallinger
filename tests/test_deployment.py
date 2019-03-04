@@ -129,7 +129,7 @@ class TestIsolatedWebbrowser(object):
         assert isolated == webbrowser
 
 
-@pytest.mark.usefixtures('bartlett_dir', 'active_config')
+@pytest.mark.usefixtures('bartlett_dir', 'active_config', 'reset_sys_modules')
 class TestSetupExperiment(object):
 
     @pytest.fixture
@@ -246,11 +246,6 @@ class TestSetupExperiment(object):
             with pytest.raises(Exception) as ex_info:
                 setup_experiment(log=mock.Mock())
                 assert ex_info.match("Boom!")
-
-    def test_payment_type(self):
-        config = get_config()
-        with raises(TypeError):
-            config['base_payment'] = 12
 
     def test_large_float_payment(self):
         config = get_config()

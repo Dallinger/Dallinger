@@ -290,12 +290,12 @@ def initialize_experiment_package(path):
     # Retain already set experiment module
     if sys.modules.get('dallinger_experiment') is not None:
         return
-
     dirname = os.path.dirname(path)
     basename = os.path.basename(path)
     sys.path.insert(0, dirname)
     package = __import__(basename)
-
+    if path not in package.__path__:
+        raise Exception("Package was not imported from the requested path!")
     sys.modules['dallinger_experiment'] = package
     package.__package__ = 'dallinger_experiment'
     sys.path.pop(0)

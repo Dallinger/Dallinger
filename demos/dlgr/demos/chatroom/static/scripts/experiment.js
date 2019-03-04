@@ -1,27 +1,8 @@
+/*globals $, dallinger */
 var my_node_id;
 
-$(document).ready(function() {
-
-  // Send a message.
-  $("#send-message").click(function() {
-    send_message();
-  });
-
-  // Leave the chatroom.
-  $("#leave-chat").click(function() {
-    leave_chatroom();
-  });
-
-  // Proceed to the waiting room.
-  $("#go-to-waiting-room").click(function() {
-      dallinger.goToPage("waiting");
-  });
-
-});
-
-
 // Create the agent.
-create_agent = function () {
+var create_agent = function () {
   dallinger.createAgent()
     .done(function (resp) {
       my_node_id = resp.node.id;
@@ -33,12 +14,18 @@ create_agent = function () {
       $("#reproduction").focus();
       get_transmissions(my_node_id);
     })
-    .fail(function () {
-      dallinger.goToPage("questionnaire");
+    .fail(function (rejection) {
+      // A 403 is our signal that it's time to go to the questionnaire
+      if (rejection.status === 403) {
+        dallinger.allowExit();
+        dallinger.goToPage('questionnaire');
+      } else {
+        dallinger.error(rejection);
+      }
     });
 };
 
-get_transmissions = function (my_node_id) {
+var get_transmissions = function (my_node_id) {
   dallinger.getTransmissions(my_node_id, { status: 'pending' })
     .done(function (resp) {
       console.log(resp);
@@ -51,7 +38,7 @@ get_transmissions = function (my_node_id) {
     });
 };
 
-display_info = function(info_id) {
+var display_info = function(info_id) {
   dallinger.getInfo(my_node_id, info_id)
     .done(function (resp) {
       console.log(resp.info.contents);
@@ -59,7 +46,7 @@ display_info = function(info_id) {
     });
 };
 
-send_message = function() {
+var send_message = function() {
   $("#send-message").addClass("disabled");
   $("#send-message").html("Sending...");
 
@@ -78,7 +65,7 @@ send_message = function() {
   });
 };
 
-leave_chatroom = function() {
+var leave_chatroom = function() {
   dallinger.goToPage("questionnaire");
 };
 
@@ -88,4 +75,23 @@ $(document).keypress(function (e) {
     $("#send-message").click();
     return false;
   }
+});
+
+$(document).ready(function() {
+
+  // Send a message.
+  $("#send-message").click(function() {
+    send_message();
+  });
+
+  // Leave the chatroom.
+  $("#leave-chat").click(function() {
+    leave_chatroom();
+  });
+
+  // Proceed to the waiting room.
+  $("#go-to-waiting-room").click(function() {
+      dallinger.goToPage("waiting");
+  });
+
 });

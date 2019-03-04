@@ -8,8 +8,14 @@ create_agent = function() {
       game = new Game(15, 20, 30);
       game.run();
     })
-    .fail(function () {
-      dallinger.goToPage('questionnaire');
+    .fail(function (rejection) {
+      // A 403 is our signal that it's time to go to the questionnaire
+      if (rejection.status === 403) {
+        dallinger.allowExit();
+        dallinger.goToPage('questionnaire');
+      } else {
+        dallinger.error(rejection);
+      }
     });
 };
 

@@ -8,11 +8,17 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from dallinger.bots import BotBase
+from dallinger.config import get_config
 from dallinger.networks import Chain
 from dallinger.experiment import Experiment
 
 
 logger = logging.getLogger(__file__)
+
+
+def extra_parameters():
+    config = get_config()
+    config.register('num_participants', int)
 
 
 class Bartlett1932(Experiment):
@@ -33,6 +39,10 @@ class Bartlett1932(Experiment):
         if session:
             self.setup()
 
+    def configure(self):
+        config = get_config()
+        self.num_participants = config.get('num_participants', 1)
+
     def setup(self):
         """Setup the networks.
 
@@ -48,7 +58,7 @@ class Bartlett1932(Experiment):
 
     def create_network(self):
         """Return a new network."""
-        return Chain(max_size=5)
+        return Chain(max_size=self.num_participants)
 
     def add_node_to_network(self, node, network):
         """Add node to the chain and receive transmissions."""
