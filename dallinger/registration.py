@@ -27,9 +27,7 @@ def _create_osf_project(dlgr_id, description=None):
     """Create a project on the OSF."""
 
     if not description:
-        description = "Experiment {} registered by Dallinger.".format(
-            dlgr_id
-        )
+        description = "Experiment {} registered by Dallinger.".format(dlgr_id)
 
     r = requests.post(
         "{}/nodes/".format(root),
@@ -39,12 +37,10 @@ def _create_osf_project(dlgr_id, description=None):
             "title": "Experiment dlgr-{}".format(dlgr_id[0:8]),
             "description": description,
         },
-        headers={
-            "Authorization": "Bearer {}".format(config.get("osf_access_token"))
-        }
+        headers={"Authorization": "Bearer {}".format(config.get("osf_access_token"))},
     )
     r.raise_for_status()
-    osf_id = r.json()['data']['id']
+    osf_id = r.json()["data"]["id"]
 
     logger.info("Project registered on OSF at http://osf.io/{}".format(osf_id))
 
@@ -57,20 +53,12 @@ def _upload_assets_to_OSF(dlgr_id, osf_id, provider="osfstorage"):
     snapshot_filename = "{}-code.zip".format(dlgr_id)
     snapshot_path = os.path.join("snapshots", snapshot_filename)
     r = requests.put(
-        "{}/resources/{}/providers/{}/".format(
-            root,
-            osf_id,
-            provider,
-        ),
-        params={
-            "kind": "file",
-            "name": snapshot_filename,
-        },
+        "{}/resources/{}/providers/{}/".format(root, osf_id, provider),
+        params={"kind": "file", "name": snapshot_filename},
         headers={
-            "Authorization": "Bearer {}".format(
-                config.get("osf_access_token")),
+            "Authorization": "Bearer {}".format(config.get("osf_access_token")),
             "Content-Type": "text/plain",
         },
-        data=open(snapshot_path, 'rb'),
+        data=open(snapshot_path, "rb"),
     )
     r.raise_for_status()

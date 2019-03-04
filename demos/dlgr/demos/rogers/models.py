@@ -95,9 +95,8 @@ class RogersAgent(Agent):
         """Calculcate your fitness."""
         if self.fitness is not None:
             raise Exception(
-                "You are calculating the fitness of agent {}, "
-                .format(self.id) +
-                "but they already have a fitness"
+                "You are calculating the fitness of agent {}, ".format(self.id)
+                + "but they already have a fitness"
             )
 
         said_blue = self.infos(type=Meme)[0].contents == "blue"
@@ -105,7 +104,7 @@ class RogersAgent(Agent):
         proportion = float(
             max(
                 self.network.nodes(type=RogersEnvironment)[0].infos(),
-                key=attrgetter('id')
+                key=attrgetter("id"),
             ).contents
         )
         self.proportion = proportion
@@ -130,9 +129,9 @@ class RogersAgent(Agent):
         genes = [i for i in infos if isinstance(i, LearningGene)]
         for gene in genes:
             if (
-                self.network.role == "experiment" and
-                self.generation > 0 and
-                random.random() < 0.10
+                self.network.role == "experiment"
+                and self.generation > 0
+                and random.random() < 0.10
             ):
                 self.mutate(gene)
             else:
@@ -175,11 +174,11 @@ class RogersEnvironment(Source):
 
     def _what(self):
         """By default transmit the most recent state """
-        return max(self.infos(type=State), key=attrgetter('id'))
+        return max(self.infos(type=State), key=attrgetter("id"))
 
     def step(self):
         """Prompt the environment to change."""
-        current_state = max(self.infos(type=State), key=attrgetter('id'))
+        current_state = max(self.infos(type=State), key=attrgetter("id"))
         current_contents = float(current_state.contents)
         new_contents = 1 - current_contents
         info_out = State(origin=self, contents=new_contents)

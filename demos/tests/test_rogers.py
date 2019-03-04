@@ -32,9 +32,9 @@ def timenow():
 
 
 class TestRogers(object):
-
     def setup(self):
         from dallinger.config import get_config
+
         config = get_config()
         config.load()
         self.db = db.init_db(drop_all=True)
@@ -43,6 +43,7 @@ class TestRogers(object):
         self.db.rollback()
         self.db.close()
         from dallinger.config import get_config
+
         config = get_config()
         config.clear()
 
@@ -84,27 +85,36 @@ class TestRogers(object):
                 print(
                     "Running simulated experiment... participant {} of {}, "
                     "{} participants failed. Prev time: {}".format(
-                        num_completed_participants+1,
+                        num_completed_participants + 1,
                         exp.networks()[0].max_size,
                         len(exp.networks()[0].nodes(failed=True)),
-                        p_times[-1]),
-                    end="\r")
+                        p_times[-1],
+                    ),
+                    end="\r",
+                )
             else:
                 print(
                     "Running simulated experiment... participant {} of {}, "
                     "{} participants failed.".format(
-                        num_completed_participants+1,
+                        num_completed_participants + 1,
                         exp.networks()[0].max_size,
-                        len(exp.networks()[0].nodes(failed=True))),
-                    end="\r")
+                        len(exp.networks()[0].nodes(failed=True)),
+                    ),
+                    end="\r",
+                )
             sys.stdout.flush()
 
             worker_id = str(random.random())
             assignment_id = str(random.random())
             from dallinger.models import Participant
+
             p = Participant(
-                recruiter_id='hotair', worker_id=worker_id,
-                assignment_id=assignment_id, hit_id=hit_id, mode='debug')
+                recruiter_id="hotair",
+                worker_id=worker_id,
+                assignment_id=assignment_id,
+                hit_id=hit_id,
+                mode="debug",
+            )
             self.db.add(p)
             self.db.commit()
             p_id = p.id
@@ -117,24 +127,21 @@ class TestRogers(object):
                 if network is None:
                     break
                 else:
-                    agent = exp.create_node(
-                        participant=p,
-                        network=network)
-                    exp.add_node_to_network(
-                        node=agent,
-                        network=network)
+                    agent = exp.create_node(participant=p, network=network)
+                    exp.add_node_to_network(node=agent, network=network)
                     self.db.commit()
                     exp.node_post_request(participant=p, node=agent)
                     self.db.commit()
                     assign_stop_time = timenow()
-                    assign_time += (assign_stop_time - assign_start_time)
+                    assign_time += assign_stop_time - assign_start_time
 
                     process_start_time = timenow()
                     agent.receive()
                     from operator import attrgetter
+
                     current_state = max(
                         network.nodes(type=RogersEnvironment)[0].infos(),
-                        key=attrgetter('id')
+                        key=attrgetter("id"),
                     ).contents
                     if float(current_state) >= 0.5:
                         right_answer = "blue"
@@ -150,13 +157,11 @@ class TestRogers(object):
                         else:
                             info = Meme(origin=agent, contents=wrong_answer)
                     self.db.commit()
-                    exp.info_post_request(
-                        node=agent,
-                        info=info)
+                    exp.info_post_request(node=agent, info=info)
                     # print("state: {}, answer: {}, score: {}, fitness {}".format(
                     #     current_state, info.contents, agent.score, agent.fitness))
                     process_stop_time = timenow()
-                    process_time += (process_stop_time - process_start_time)
+                    process_time += process_stop_time - process_start_time
 
             worked = exp.data_check(participant=p)
             assert worked
@@ -166,9 +171,9 @@ class TestRogers(object):
             attended = exp.attention_check(participant=p)
             if not attended:
 
-                participant_nodes = models.Node.query\
-                    .filter_by(participant_id=p_id, failed=False)\
-                    .all()
+                participant_nodes = models.Node.query.filter_by(
+                    participant_id=p_id, failed=False
+                ).all()
                 p.status = 102
 
                 for node in participant_nodes:
@@ -228,10 +233,9 @@ class TestRogers(object):
                     assert len(agent.vectors(direction="incoming")) in [2, 3]
                     assert not agent.is_connected(direction="from", whom=source)
                     assert agent.is_connected(direction="from", whom=environment)
-                    assert (
-                        RogersAgent in [
-                            type(a) for a in agent.neighbors(direction="from")]
-                    )
+                    assert RogersAgent in [
+                        type(a) for a in agent.neighbors(direction="from")
+                    ]
 
         print("Testing nodes...                     done!")
         sys.stdout.flush()
@@ -253,20 +257,41 @@ class TestRogers(object):
                 if isinstance(v.origin, Agent):
                     assert v.origin.generation == v.destination.generation - 1
                 else:
-                    assert isinstance(v.origin, Source) or isinstance(v.origin, RogersEnvironment)
+                    assert isinstance(v.origin, Source) or isinstance(
+                        v.origin, RogersEnvironment
+                    )
             for agent in agents:
                 if agent.generation == 0:
-                    assert len(models.Vector.query.filter_by(
-                        origin_id=source.id, destination_id=agent.id).all()) == 1
+                    assert (
+                        len(
+                            models.Vector.query.filter_by(
+                                origin_id=source.id, destination_id=agent.id
+                            ).all()
+                        )
+                        == 1
+                    )
                 else:
-                    assert len(models.Vector.query.filter_by(
-                        origin_id=source.id, destination_id=agent.id).all()) == 0
+                    assert (
+                        len(
+                            models.Vector.query.filter_by(
+                                origin_id=source.id, destination_id=agent.id
+                            ).all()
+                        )
+                        == 0
+                    )
 
             for agent in agents:
-                assert len([
-                    v for v in vectors
-                    if v.origin_id == environment.id and v.destination_id == agent.id
-                ]) == 1
+                assert (
+                    len(
+                        [
+                            v
+                            for v in vectors
+                            if v.origin_id == environment.id
+                            and v.destination_id == agent.id
+                        ]
+                    )
+                    == 1
+                )
 
             for v in [v for v in vectors if v.origin_id == source.id]:
                 assert isinstance(v.destination, RogersAgent)
@@ -291,15 +316,36 @@ class TestRogers(object):
 
             for agent in agents:
                 assert len([i for i in infos if i.origin_id == agent.id]) == 2
-                assert len([
-                    i for i in infos if i.origin_id == agent.id and isinstance(i, Gene)
-                ]) == 1
-                assert len([
-                    i for i in infos if i.origin_id == agent.id and isinstance(i, LearningGene)
-                ]) == 1
-                assert len([
-                    i for i in infos if i.origin_id == agent.id and isinstance(i, Meme)
-                ]) == 1
+                assert (
+                    len(
+                        [
+                            i
+                            for i in infos
+                            if i.origin_id == agent.id and isinstance(i, Gene)
+                        ]
+                    )
+                    == 1
+                )
+                assert (
+                    len(
+                        [
+                            i
+                            for i in infos
+                            if i.origin_id == agent.id and isinstance(i, LearningGene)
+                        ]
+                    )
+                    == 1
+                )
+                assert (
+                    len(
+                        [
+                            i
+                            for i in infos
+                            if i.origin_id == agent.id and isinstance(i, Meme)
+                        ]
+                    )
+                    == 1
+                )
 
         print("Testing infos...                     done!")
         sys.stdout.flush()
@@ -325,13 +371,20 @@ class TestRogers(object):
                 types = [type(t.info) for t in in_ts]
 
                 assert len(in_ts) == 2
-                assert len([
-                    t for t in transmissions
-                    if t.destination_id == agent.id and t.status == "pending"
-                ]) == 0
+                assert (
+                    len(
+                        [
+                            t
+                            for t in transmissions
+                            if t.destination_id == agent.id and t.status == "pending"
+                        ]
+                    )
+                    == 0
+                )
 
                 lg = [
-                    i for i in infos
+                    i
+                    for i in infos
                     if i.origin_id == agent.id and isinstance(i, LearningGene)
                 ]
                 assert len(lg) == 1
@@ -362,8 +415,8 @@ class TestRogers(object):
         is_asocial = True
         e = 2
         b = 1
-        c = 0.3*b
-        baseline = c+0.0001
+        c = 0.3 * b
+        baseline = c + 0.0001
 
         for n in p0_nodes:
             assert n.fitness == (baseline + 1 * b - is_asocial * c) ** e
@@ -374,7 +427,9 @@ class TestRogers(object):
 
             for agent in agents:
                 is_asocial = agent.infos(type=LearningGene)[0].contents == "asocial"
-                assert agent.fitness == ((baseline + agent.score*b - is_asocial*c) ** e)
+                assert agent.fitness == (
+                    (baseline + agent.score * b - is_asocial * c) ** e
+                )
 
         print("Testing fitness...                   done!")
         sys.stdout.flush()
@@ -386,8 +441,10 @@ class TestRogers(object):
         print("Testing bonus payments...", end="\r")
         sys.stdout.flush()
 
-        assert exp.bonus(participant=Participant.query.filter_by(
-            id=p_ids[0]).all()[0]) == exp.bonus_payment
+        assert (
+            exp.bonus(participant=Participant.query.filter_by(id=p_ids[0]).all()[0])
+            == exp.bonus_payment
+        )
 
         print("Testing bonus payments...            done!")
         sys.stdout.flush()
@@ -415,35 +472,31 @@ class TestRogers(object):
 
 
 class TestRogersSandbox(object):
-
     def autobot(self, session, url, i):
         """Define the behavior of each worker."""
         time.sleep(i * 2)
         print("bot {} starting".format(i))
         start_time = timenow()
 
-        my_id = str(i) + ':' + str(i)
+        my_id = str(i) + ":" + str(i)
         current_trial = 0
 
         # create participant
         headers = {
-            'User-Agent': 'python',
-            'Content-Type': 'application/x-www-form-urlencoded',
+            "User-Agent": "python",
+            "Content-Type": "application/x-www-form-urlencoded",
         }
         args = {
-            'hitId': 'rogers-test-hit',
-            'assignmentId': i,
-            'workerId': i,
-            'mode': 'sandbox'
+            "hitId": "rogers-test-hit",
+            "assignmentId": i,
+            "workerId": i,
+            "mode": "sandbox",
         }
-        session.get(url + '/exp', params=args, headers=headers)
+        session.get(url + "/exp", params=args, headers=headers)
 
         # send AssignmentAccepted notification
-        args = {
-            'Event.1.EventType': 'AssignmentAccepted',
-            'Event.1.AssignmentId': i
-        }
-        session.post(url + '/notifications', data=args, headers=headers)
+        args = {"Event.1.EventType": "AssignmentAccepted", "Event.1.AssignmentId": i}
+        session.post(url + "/notifications", data=args, headers=headers)
 
         # work through the trials
         working = True
@@ -455,25 +508,34 @@ class TestRogersSandbox(object):
             information2 = None
             information3 = None
             try:
-                agent = session.post(url + '/node/' + my_id, headers=headers)
+                agent = session.post(url + "/node/" + my_id, headers=headers)
                 working = agent.status_code == 200
                 if working is True:
-                    agent_id = agent.json()['node']['id']
-                    args = {'info_type': "LearningGene"}
+                    agent_id = agent.json()["node"]["id"]
+                    args = {"info_type": "LearningGene"}
                     information = session.get(
-                        url + '/node/' + str(agent_id) + '/infos',
-                        params=args, headers=headers)
-                    args = {'status': "pending", 'direction': "incoming"}
+                        url + "/node/" + str(agent_id) + "/infos",
+                        params=args,
+                        headers=headers,
+                    )
+                    args = {"status": "pending", "direction": "incoming"}
                     transmission = session.get(
-                        url + '/node/' + str(agent_id) + '/transmissions',
-                        params=args, headers=headers)
+                        url + "/node/" + str(agent_id) + "/transmissions",
+                        params=args,
+                        headers=headers,
+                    )
                     information2 = session.get(
-                        url + '/info/' + str(agent_id) + '/' +
-                        str(transmission.json()['transmissions'][0]['info_id']),
-                        headers=headers)
-                    args = {'contents': 'blue', 'info_type': 'Meme'}
+                        url
+                        + "/info/"
+                        + str(agent_id)
+                        + "/"
+                        + str(transmission.json()["transmissions"][0]["info_id"]),
+                        headers=headers,
+                    )
+                    args = {"contents": "blue", "info_type": "Meme"}
                     information3 = session.post(
-                        url + '/info/' + str(agent_id), data=args, headers=headers)
+                        url + "/info/" + str(agent_id), data=args, headers=headers
+                    )
             except Exception:
                 working = False
                 print("critical error for bot {}".format(i))
@@ -486,11 +548,8 @@ class TestRogersSandbox(object):
                 traceback.print_exc()
 
         # send AssignmentSubmitted notification
-        args = {
-            'Event.1.EventType': 'AssignmentSubmitted',
-            'Event.1.AssignmentId': i
-        }
-        session.post(url + '/notifications', data=args, headers=headers)
+        args = {"Event.1.EventType": "AssignmentSubmitted", "Event.1.AssignmentId": i}
+        session.post(url + "/notifications", data=args, headers=headers)
 
         stop_time = timenow()
         print("Bot {} finished in {}".format(i, stop_time - start_time))
@@ -501,7 +560,7 @@ class TestRogersSandbox(object):
         autobots = 36
         sandbox_output = subprocess.check_output(["dallinger", "sandbox"])
 
-        m = re.search('Running as experiment (.*)...', sandbox_output)
+        m = re.search("Running as experiment (.*)...", sandbox_output)
         exp_id = m.group(1)
         url = "http://" + exp_id + ".herokuapp.com"
 
@@ -515,6 +574,6 @@ class TestRogersSandbox(object):
         threads = []
         for i in range(autobots):
             with requests.Session() as session:
-                t = threading.Thread(target=self.autobot, args=(session, url, i,))
+                t = threading.Thread(target=self.autobot, args=(session, url, i))
                 threads.append(t)
                 t.start()

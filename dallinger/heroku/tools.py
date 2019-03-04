@@ -24,7 +24,7 @@ class HerokuCommandRunner(object):
     def __init__(self, output=None, team=None):
         self.out = output
         self.team = team
-        self.out_muted = open(os.devnull, 'w')
+        self.out_muted = open(os.devnull, "w")
 
     @property
     def sys_encoding(self):
@@ -32,7 +32,7 @@ class HerokuCommandRunner(object):
         # library overwrites sys.stdout in the context of its commands,
         # so we need a fallback, which could possibly just be 'utf-8' instead
         # of getdefaultencoding().
-        return getattr(sys.stdout, 'encoding', sys.getdefaultencoding())
+        return getattr(sys.stdout, "encoding", sys.getdefaultencoding())
 
     def login_name(self):
         """Returns the current logged-in heroku user"""
@@ -69,15 +69,15 @@ class HerokuInfo(HerokuCommandRunner):
         my_login = self.login_name()
         my_apps = []
         for app in self.all_apps():
-            name = app.get('name')
+            name = app.get("name")
             creator = self._result(
-                ['heroku', 'config:get', 'CREATOR', '--app', name]
+                ["heroku", "config:get", "CREATOR", "--app", name]
             ).strip()
             if creator == my_login:
                 uid = self._result(
-                    ['heroku', 'config:get', 'DALLINGER_UID', '--app', name]
+                    ["heroku", "config:get", "DALLINGER_UID", "--app", name]
                 ).strip()
-                app['dallinger_uid'] = uid
+                app["dallinger_uid"] = uid
                 my_apps.append(app)
         return my_apps
 
@@ -93,13 +93,7 @@ class HerokuApp(HerokuCommandRunner):
         """Creates the heroku app and local git remote. Call this once you're
         in the local repo you're going to use.
         """
-        cmd = [
-            "heroku",
-            "apps:create",
-            self.name,
-            "--buildpack",
-            "heroku/python",
-        ]
+        cmd = ["heroku", "apps:create", self.name, "--buildpack", "heroku/python"]
 
         # If a team is specified, assign the app to the team.
         if self.team:
@@ -108,9 +102,7 @@ class HerokuApp(HerokuCommandRunner):
         self._run(cmd)
         # Set HOST value
         self.set_multiple(
-            HOST=self.url,
-            CREATOR=self.login_name(),
-            DALLINGER_UID=self.dallinger_uid
+            HOST=self.url, CREATOR=self.login_name(), DALLINGER_UID=self.dallinger_uid
         )
 
     @property
@@ -128,12 +120,17 @@ class HerokuApp(HerokuCommandRunner):
 
     def addon_destroy(self, name):
         """Destroy an addon"""
-        self._run([
-            "heroku",
-            "addons:destroy", name,
-            "--app", self.name,
-            "--confirm", self.name
-        ])
+        self._run(
+            [
+                "heroku",
+                "addons:destroy",
+                name,
+                "--app",
+                self.name,
+                "--confirm",
+                self.name,
+            ]
+        )
 
     def buildpack(self, url):
         """Add a buildpack by URL."""
@@ -161,11 +158,12 @@ class HerokuApp(HerokuCommandRunner):
         postgres://some-long-uid@ec2-52-7-232-59.compute-1.amazonaws.com:5432/d5fou154it1nvt
         """
         output = self.get("DATABASE", subcommand="pg:credentials:url")
-        match = re.search('(postgres://.*)$', output)
+        match = re.search("(postgres://.*)$", output)
         if match is None:
             raise NameError(
                 "Could not retrieve the DB URI. Check for error output from "
-                "heroku above the stack trace.")
+                "heroku above the stack trace."
+            )
         return match.group(1)
 
     @property
@@ -174,21 +172,19 @@ class HerokuApp(HerokuCommandRunner):
         it's fully built
         """
         self.pg_wait()
-        url = self.get('DATABASE_URL')
+        url = self.get("DATABASE_URL")
         return url.strip()
 
     def backup_capture(self):
         """Capture a backup of the app."""
         self._run(
-            ["heroku", "pg:backups:capture", "--app", self.name],
-            pass_stderr=True
+            ["heroku", "pg:backups:capture", "--app", self.name], pass_stderr=True
         )
 
     def backup_download(self):
         """Download a backup to the current working directory."""
         self._run(
-            ["heroku", "pg:backups:download", "--app", self.name],
-            pass_stderr=True
+            ["heroku", "pg:backups:download", "--app", self.name], pass_stderr=True
         )
 
     def destroy(self):
@@ -212,9 +208,7 @@ class HerokuApp(HerokuCommandRunner):
         """Pull remote data from a Heroku Postgres database to a database
         of the same name on your local machine.
         """
-        self._run(
-            ["heroku", "pg:pull", "DATABASE_URL", self.name, "--app", self.name]
-        )
+        self._run(["heroku", "pg:pull", "DATABASE_URL", self.name, "--app", self.name])
 
     def pg_wait(self):
         """Wait for the DB to be fired up."""
@@ -236,28 +230,34 @@ class HerokuApp(HerokuCommandRunner):
 
     def restore(self, url):
         """Restore the remote database from the URL of a backup."""
-        self._run([
-            "heroku", "pg:backups:restore", "{}".format(url), "DATABASE_URL",
-            "--app", self.name,
-            "--confirm", self.name,
-        ])
+        self._run(
+            [
+                "heroku",
+                "pg:backups:restore",
+                "{}".format(url),
+                "DATABASE_URL",
+                "--app",
+                self.name,
+                "--confirm",
+                self.name,
+            ]
+        )
 
     def scale_up_dyno(self, process, quantity, size):
         """Scale up a dyno."""
-        self._run([
-            "heroku",
-            "ps:scale",
-            "{}={}:{}".format(process, quantity, size),
-            "--app", self.name,
-        ])
+        self._run(
+            [
+                "heroku",
+                "ps:scale",
+                "{}={}:{}".format(process, quantity, size),
+                "--app",
+                self.name,
+            ]
+        )
 
     def scale_down_dyno(self, process):
         """Turn off a dyno by setting its process count to 0"""
-        self._run([
-            "heroku",
-            "ps:scale", "{}=0".format(process),
-            "--app", self.name
-        ])
+        self._run(["heroku", "ps:scale", "{}=0".format(process), "--app", self.name])
 
     def scale_down_dynos(self):
         """Turn off web and worker dynos, plus clock process if
@@ -275,7 +275,8 @@ class HerokuApp(HerokuCommandRunner):
             "heroku",
             "config:set",
             "{}={}".format(key, quote(str(value))),
-            "--app", self.name
+            "--app",
+            self.name,
         ]
         if self._is_sensitive_key(key):
             self._run_quiet(cmd)
@@ -287,10 +288,7 @@ class HerokuApp(HerokuCommandRunner):
         quiet = False
         if not kwargs:
             return
-        cmd = [
-            "heroku",
-            "config:set"
-        ]
+        cmd = ["heroku", "config:set"]
         for k in sorted(kwargs):
             cmd.append("{}={}".format(k, quote(str(kwargs[k]))))
             if self._is_sensitive_key(k):
@@ -312,7 +310,7 @@ def app_name(id):
 
 def auth_token():
     """A Heroku authenication token."""
-    return check_output(["heroku", "auth:token"]).rstrip().decode('utf8')
+    return check_output(["heroku", "auth:token"]).rstrip().decode("utf8")
 
 
 def log_in():
@@ -328,7 +326,7 @@ def request_headers(auth_token):
     headers = {
         "Accept": "application/vnd.heroku+json; version=3",
         "Content-Type": "application/json",
-        "Authorization": "Bearer {}".format(auth_token)
+        "Authorization": "Bearer {}".format(auth_token),
     }
 
     return headers
@@ -359,12 +357,12 @@ class HerokuLocalWrapper(object):
     strings as arguments.
     """
 
-    shell_command = 'heroku'
-    success_regex = '^.*? \d+ workers$'
+    shell_command = "heroku"
+    success_regex = r"^.*? \d+ workers$"
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
-    int_signal = getattr(signal, 'CTRL_C_EVENT', signal.SIGINT)
+    int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
     MONITOR_STOP = object()
-    STREAM_SENTINEL = ''
+    STREAM_SENTINEL = ""
 
     def __init__(self, config, output, verbose=True, env=None):
         self.config = config
@@ -382,10 +380,10 @@ class HerokuLocalWrapper(object):
         to indicate success. If no match is seen after 'timeout_secs',
         a HerokuTimeoutError is raised.
         """
+
         def _handle_timeout(signum, frame):
             raise HerokuTimeoutError(
-                "Failed to start after {} seconds.".format(
-                    timeout_secs, self._record)
+                "Failed to start after {} seconds.".format(timeout_secs, self._record)
             )
 
         if self.is_running:
@@ -450,15 +448,15 @@ class HerokuLocalWrapper(object):
 
             if self._redis_not_running(line):
                 self.out.error(
-                    'Could not connect to redis instance, '
-                    'experiment may not behave correctly.'
+                    "Could not connect to redis instance, "
+                    "experiment may not behave correctly."
                 )
 
             if self._worker_error(line) or self._startup_error(line):
                 if not self.verbose:
                     self.out.error(
-                        'There was an error while starting the server. '
-                        'Run with --verbose for details.'
+                        "There was an error while starting the server. "
+                        "Run with --verbose for details."
                     )
                     self.out.error("Sign of error found in line: ".format(line))
                 return False
@@ -467,25 +465,28 @@ class HerokuLocalWrapper(object):
 
     def _boot(self):
         # Child processes don't start without a HOME dir
-        if not self.env.get('HOME', False):
+        if not self.env.get("HOME", False):
             raise HerokuStartupError('"HOME" environment not set... aborting.')
 
-        port = self.config.get('base_port')
-        web_dynos = self.config.get('num_dynos_web', 1)
-        worker_dynos = self.config.get('num_dynos_worker', 1)
+        port = self.config.get("base_port")
+        web_dynos = self.config.get("num_dynos_web", 1)
+        worker_dynos = self.config.get("num_dynos_worker", 1)
         commands = [
-            self.shell_command, 'local', '-p', str(port),
-            "web={},worker={}".format(web_dynos, worker_dynos)
+            self.shell_command,
+            "local",
+            "-p",
+            str(port),
+            "web={},worker={}".format(web_dynos, worker_dynos),
         ]
         try:
             options = {
-                'stdout': subprocess.PIPE,
-                'stderr': subprocess.STDOUT,
-                'env': self.env,
-                'preexec_fn': os.setsid,
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.STDOUT,
+                "env": self.env,
+                "preexec_fn": os.setsid,
             }
             if six.PY3:
-                options['encoding'] = 'utf-8'
+                options["encoding"] = "utf-8"
             self._process = subprocess.Popen(commands, **options)
         except OSError:
             self.out.error("Couldn't start Heroku for local debugging.")
@@ -498,13 +499,13 @@ class HerokuLocalWrapper(object):
         return re.match(self.success_regex, line)
 
     def _redis_not_running(self, line):
-        return re.match('^.*? worker.1 .*? Connection refused.$', line)
+        return re.match(r"^.*? worker.1 .*? Connection refused.$", line)
 
     def _worker_error(self, line):
-        return re.match('^.*? web.1 .*? \[ERROR\] (.*?)$', line)
+        return re.match(r"^.*? web.1 .*? \[ERROR\] (.*?)$", line)
 
     def _startup_error(self, line):
-        return re.match('\[DONE\] Killing all processes', line)
+        return re.match(r"\[DONE\] Killing all processes", line)
 
     def __enter__(self):
         self.start()
@@ -521,25 +522,27 @@ class HerokuLocalWrapper(object):
 
         reprs = []
         for child in psutil.Process(self._process.pid).children(recursive=True):
-            if 'python' in child.name():
-                name = ''.join(child.cmdline())
+            if "python" in child.name():
+                name = "".join(child.cmdline())
             else:
                 name = child.name()
-            reprs.append("<Process pid='{}', name='{}', status='{}'>".format(
-                child.pid, name, child.status())
+            reprs.append(
+                "<Process pid='{}', name='{}', status='{}'>".format(
+                    child.pid, name, child.status()
+                )
             )
 
-        return "<{} pid='{}', children: {}>".format(
-            classname, self._process.pid, reprs
-        )
+        return "<{} pid='{}', children: {}>".format(classname, self._process.pid, reprs)
 
 
 def sanity_check(config):
     # check if dyno size is compatible with team configuration.
-    size = config.get('dyno_type', '').strip()
-    team = config.get('heroku_team', '').strip()
-    if team and size == 'free':
-        raise RuntimeError('Heroku "free" dyno type not compatible '
-                           'with team/org deployment. Please use a '
-                           'different "dyno_type" or unset the '
-                           '"heroku_team" configuration.')
+    size = config.get("dyno_type", "").strip()
+    team = config.get("heroku_team", "").strip()
+    if team and size == "free":
+        raise RuntimeError(
+            'Heroku "free" dyno type not compatible '
+            "with team/org deployment. Please use a "
+            'different "dyno_type" or unset the '
+            '"heroku_team" configuration.'
+        )

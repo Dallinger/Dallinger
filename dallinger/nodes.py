@@ -62,9 +62,7 @@ class Source(Node):
 
     def create_information(self):
         """Create new infos on demand."""
-        info = self._info_type()(
-            origin=self,
-            contents=self._contents())
+        info = self._info_type()(origin=self, contents=self._contents())
         return info
 
     def _info_type(self):
@@ -74,7 +72,8 @@ class Source(Node):
     def _contents(self):
         """The contents of new infos."""
         raise NotImplementedError(
-            "{}.contents() needs to be defined.".format(type(self)))
+            "{}.contents() needs to be defined.".format(type(self))
+        )
 
     def receive(self, what):
         """Raise an error if asked to receive a transmission."""
@@ -105,11 +104,10 @@ class Environment(Node):
             return None
 
         if time is None:
-            return max(self.infos(type=State), key=attrgetter('creation_time'))
+            return max(self.infos(type=State), key=attrgetter("creation_time"))
         else:
-            states = [
-                s for s in self.infos(type=State) if s.creation_time < time]
-            return max(states, key=attrgetter('creation_time'))
+            states = [s for s in self.infos(type=State) if s.creation_time < time]
+            return max(states, key=attrgetter("creation_time"))
 
     def update(self, contents, **kwargs):
         state = State(origin=self, contents=contents, **kwargs)

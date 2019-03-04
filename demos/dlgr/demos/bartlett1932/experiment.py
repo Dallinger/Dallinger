@@ -18,7 +18,7 @@ logger = logging.getLogger(__file__)
 
 def extra_parameters():
     config = get_config()
-    config.register('num_participants', int)
+    config.register("num_participants", int)
 
 
 class Bartlett1932(Experiment):
@@ -33,6 +33,7 @@ class Bartlett1932(Experiment):
         """
         super(Bartlett1932, self).__init__(session)
         from . import models  # Import at runtime to avoid SQLAlchemy warnings
+
         self.models = models
         self.experiment_repeats = 1
         self.initial_recruitment_size = 1
@@ -41,7 +42,7 @@ class Bartlett1932(Experiment):
 
     def configure(self):
         config = get_config()
-        self.num_participants = config.get('num_participants', 1)
+        self.num_participants = config.get("num_participants", 1)
 
     def setup(self):
         """Setup the networks.
@@ -85,17 +86,20 @@ class Bot(BotBase):
         try:
             logger.info("Entering participate method")
             ready = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, 'finish-reading')))
-            stimulus = self.driver.find_element_by_id('stimulus')
-            story = stimulus.find_element_by_id('story')
+                EC.element_to_be_clickable((By.ID, "finish-reading"))
+            )
+            stimulus = self.driver.find_element_by_id("stimulus")
+            story = stimulus.find_element_by_id("story")
             story_text = story.text
             logger.info("Stimulus text:")
             logger.info(story_text)
             ready.click()
             submit = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, 'submit-response')))
+                EC.element_to_be_clickable((By.ID, "submit-response"))
+            )
             textarea = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, 'reproduction')))
+                EC.element_to_be_clickable((By.ID, "reproduction"))
+            )
             textarea.clear()
             text = self.transform_text(story_text)
             logger.info("Transformed text:")

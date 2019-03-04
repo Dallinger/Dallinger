@@ -4,16 +4,7 @@ from datetime import datetime
 import inspect
 
 from sqlalchemy import ForeignKey, or_, and_
-from sqlalchemy import (
-    Column,
-    String,
-    Text,
-    Enum,
-    Integer,
-    Boolean,
-    DateTime,
-    Float
-)
+from sqlalchemy import Column, String, Text, Enum, Integer, Boolean, DateTime, Float
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql.expression import false
 from sqlalchemy.orm import relationship, validates
@@ -98,10 +89,7 @@ class Participant(Base, SharedMixin):
     #: a String giving the name of the class. Defaults to
     #: "participant". This allows subclassing.
     type = Column(String(50))
-    __mapper_args__ = {
-        'polymorphic_on': type,
-        'polymorphic_identity': 'participant'
-    }
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "participant"}
 
     #: A String, the fingerprint hash of the participant.
     fingerprint_hash = Column(String(50), nullable=True)
@@ -164,13 +152,22 @@ class Participant(Base, SharedMixin):
             "bad_data",
             "missing_notification",
             "replaced",
-            name="participant_status"
+            name="participant_status",
         ),
         nullable=False,
         default="working",
-        index=True)
+        index=True,
+    )
 
-    def __init__(self, recruiter_id, worker_id, assignment_id, hit_id, mode, fingerprint_hash=None):
+    def __init__(
+        self,
+        recruiter_id,
+        worker_id,
+        assignment_id,
+        hit_id,
+        mode,
+        fingerprint_hash=None,
+    ):
         """Create a participant."""
         self.recruiter_id = recruiter_id
         self.worker_id = worker_id
@@ -213,15 +210,9 @@ class Participant(Base, SharedMixin):
             raise ValueError("{} is not a valid node failed".format(failed))
 
         if failed == "all":
-            return type\
-                .query\
-                .filter_by(participant_id=self.id)\
-                .all()
+            return type.query.filter_by(participant_id=self.id).all()
         else:
-            return type\
-                .query\
-                .filter_by(failed=failed, participant_id=self.id)\
-                .all()
+            return type.query.filter_by(failed=failed, participant_id=self.id).all()
 
     def questions(self, type=None):
         """Get questions associated with this participant.
@@ -236,10 +227,7 @@ class Participant(Base, SharedMixin):
         if not issubclass(type, Question):
             raise TypeError("{} is not a valid question type.".format(type))
 
-        return type\
-            .query\
-            .filter_by(participant_id=self.id)\
-            .all()
+        return type.query.filter_by(participant_id=self.id).all()
 
     def infos(self, type=None, failed=False):
         """Get all infos created by the participants nodes.
@@ -267,8 +255,7 @@ class Participant(Base, SharedMixin):
 
         """
         if self.failed is True:
-            raise AttributeError(
-                "Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
@@ -282,9 +269,10 @@ class Participant(Base, SharedMixin):
     @property
     def recruiter(self):
         from dallinger import recruiters
-        recruiter_name = self.recruiter_id or 'hotair'
-        if recruiter_name.startswith('bots:'):
-            recruiter_name = 'bots'
+
+        recruiter_name = self.recruiter_id or "hotair"
+        if recruiter_name.startswith("bots:"):
+            recruiter_name = "bots"
         return recruiters.by_name(recruiter_name)
 
 
@@ -296,16 +284,13 @@ class Question(Base, SharedMixin):
     #: a String giving the name of the class. Defaults to
     #: "question". This allows subclassing.
     type = Column(String(50))
-    __mapper_args__ = {
-        'polymorphic_on': type,
-        'polymorphic_identity': 'question'
-    }
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "question"}
 
     #: the participant who made the response
-    participant_id = Column(Integer, ForeignKey('participant.id'))
+    participant_id = Column(Integer, ForeignKey("participant.id"))
 
     #: the participant who answered the question
-    participant = relationship(Participant, backref='all_questions')
+    participant = relationship(Participant, backref="all_questions")
 
     #: A number identifying the question. e.g., each participant might complete
     #: three questions numbered 1, 2, and 3.
@@ -321,8 +306,9 @@ class Question(Base, SharedMixin):
         """Create a question."""
         # check the participant hasn't failed
         if participant.failed:
-            raise ValueError("{} cannot create a question as it has failed"
-                             .format(participant))
+            raise ValueError(
+                "{} cannot create a question as it has failed".format(participant)
+            )
 
         self.participant = participant
         self.participant_id = participant.id
@@ -338,8 +324,7 @@ class Question(Base, SharedMixin):
 
         """
         if self.failed is True:
-            raise AttributeError(
-                "Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
@@ -364,10 +349,7 @@ class Network(Base, SharedMixin):
     #: "network". This allows subclassing.
     type = Column(String(50))
 
-    __mapper_args__ = {
-        'polymorphic_on': type,
-        'polymorphic_identity': 'network'
-    }
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "network"}
 
     #: How big the network can get, this number is used by the full()
     #: method to decide whether the network is full
@@ -382,15 +364,18 @@ class Network(Base, SharedMixin):
 
     def __repr__(self):
         """The string representation of a network."""
-        return ("<Network-{}-{} with {} nodes, {} vectors, {} infos, "
-                "{} transmissions and {} transformations>").format(
+        return (
+            "<Network-{}-{} with {} nodes, {} vectors, {} infos, "
+            "{} transmissions and {} transformations>"
+        ).format(
             self.id,
             self.type,
             len(self.nodes()),
             len(self.vectors()),
             len(self.infos()),
             len(self.transmissions()),
-            len(self.transformations()))
+            len(self.transformations()),
+        )
 
     def json_data(self):
         """Return json description of a participant."""
@@ -423,29 +408,18 @@ class Network(Base, SharedMixin):
 
         if participant_id is not None:
             if failed == "all":
-                return type\
-                    .query\
-                    .filter_by(network_id=self.id,
-                               participant_id=participant_id)\
-                    .all()
+                return type.query.filter_by(
+                    network_id=self.id, participant_id=participant_id
+                ).all()
             else:
-                return type\
-                    .query\
-                    .filter_by(network_id=self.id,
-                               participant_id=participant_id,
-                               failed=failed)\
-                    .all()
+                return type.query.filter_by(
+                    network_id=self.id, participant_id=participant_id, failed=failed
+                ).all()
         else:
             if failed == "all":
-                return type\
-                    .query\
-                    .filter_by(network_id=self.id)\
-                    .all()
+                return type.query.filter_by(network_id=self.id).all()
             else:
-                return type\
-                    .query\
-                    .filter_by(failed=failed, network_id=self.id)\
-                    .all()
+                return type.query.filter_by(failed=failed, network_id=self.id).all()
 
     def size(self, type=None, failed=False):
         """How many nodes in a network.
@@ -471,12 +445,9 @@ class Network(Base, SharedMixin):
             raise ValueError("{} is not a valid failed".format(failed))
 
         if failed == "all":
-            return type.query\
-                .filter_by(network_id=self.id)\
-                .all()
+            return type.query.filter_by(network_id=self.id).all()
         else:
-            return type.query.filter_by(
-                network_id=self.id, failed=failed).all()
+            return type.query.filter_by(network_id=self.id, failed=failed).all()
 
     def transmissions(self, status="all", failed=False):
         """Get transmissions in the network.
@@ -488,31 +459,28 @@ class Network(Base, SharedMixin):
         """
         if status not in ["all", "pending", "received"]:
             raise ValueError(
-                "You cannot get transmission of status {}.".format(status) +
-                "Status can only be pending, received or all"
+                "You cannot get transmission of status {}.".format(status)
+                + "Status can only be pending, received or all"
             )
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid failed".format(failed))
 
         if status == "all":
             if failed == "all":
-                return Transmission.query\
-                    .filter_by(network_id=self.id)\
-                    .all()
+                return Transmission.query.filter_by(network_id=self.id).all()
             else:
-                return Transmission.query\
-                    .filter_by(network_id=self.id, failed=failed)\
-                    .all()
+                return Transmission.query.filter_by(
+                    network_id=self.id, failed=failed
+                ).all()
         else:
             if failed == "all":
-                return Transmission.query\
-                    .filter_by(network_id=self.id, status=status)\
-                    .all()
+                return Transmission.query.filter_by(
+                    network_id=self.id, status=status
+                ).all()
             else:
-                return Transmission.query\
-                    .filter_by(
-                        network_id=self.id, status=status, failed=failed)\
-                    .all()
+                return Transmission.query.filter_by(
+                    network_id=self.id, status=status, failed=failed
+                ).all()
 
     def transformations(self, type=None, failed=False):
         """Get transformations in the network.
@@ -530,24 +498,20 @@ class Network(Base, SharedMixin):
             raise ValueError("{} is not a valid failed".format(failed))
 
         if failed == "all":
-            return type.query\
-                .filter_by(network_id=self.id)\
-                .all()
+            return type.query.filter_by(network_id=self.id).all()
         else:
-            return type.query\
-                .filter_by(network_id=self.id, failed=failed)\
-                .all()
+            return type.query.filter_by(network_id=self.id, failed=failed).all()
 
     def latest_transmission_recipient(self):
         """Get the node that most recently received a transmission."""
         from operator import attrgetter
 
-        ts = Transmission.query\
-            .filter_by(status="received", network_id=self.id, failed=False)\
-            .all()
+        ts = Transmission.query.filter_by(
+            status="received", network_id=self.id, failed=False
+        ).all()
 
         if ts:
-            t = max(ts, key=attrgetter('receive_time'))
+            t = max(ts, key=attrgetter("receive_time"))
             return t.destination
         else:
             return None
@@ -563,13 +527,9 @@ class Network(Base, SharedMixin):
             raise ValueError("{} is not a valid vector failed".format(failed))
 
         if failed == "all":
-            return Vector.query\
-                .filter_by(network_id=self.id)\
-                .all()
+            return Vector.query.filter_by(network_id=self.id).all()
         else:
-            return Vector.query\
-                .filter_by(network_id=self.id, failed=failed)\
-                .all()
+            return Vector.query.filter_by(network_id=self.id, failed=failed).all()
 
     """ ###################################
     Methods that make Networks do things
@@ -582,8 +542,7 @@ class Network(Base, SharedMixin):
     def fail(self):
         """Fail an entire network."""
         if self.failed is True:
-            raise AttributeError(
-                "Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
@@ -598,23 +557,23 @@ class Network(Base, SharedMixin):
     def print_verbose(self):
         """Print a verbose representation of a network."""
         print("Nodes: ")
-        for a in (self.nodes(failed="all")):
+        for a in self.nodes(failed="all"):
             print(a)
 
         print("\nVectors: ")
-        for v in (self.vectors(failed="all")):
+        for v in self.vectors(failed="all"):
             print(v)
 
         print("\nInfos: ")
-        for i in (self.infos(failed="all")):
+        for i in self.infos(failed="all"):
             print(i)
 
         print("\nTransmissions: ")
-        for t in (self.transmissions(failed="all")):
+        for t in self.transmissions(failed="all"):
             print(t)
 
         print("\nTransformations: ")
-        for t in (self.transformations(failed="all")):
+        for t in self.transformations(failed="all"):
             print(t)
 
 
@@ -626,37 +585,37 @@ class Node(Base, SharedMixin):
     #: A String giving the name of the class. Defaults to
     #: ``node``. This allows subclassing.
     type = Column(String(50))
-    __mapper_args__ = {
-        'polymorphic_on': type,
-        'polymorphic_identity': 'node'
-    }
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "node"}
 
     #: the id of the network that this node is a part of
-    network_id = Column(Integer, ForeignKey('network.id'), index=True)
+    network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the node is in
     network = relationship(Network, backref="all_nodes")
 
     #: the id of the participant whose node this is
-    participant_id = Column(Integer, ForeignKey('participant.id'), index=True)
+    participant_id = Column(Integer, ForeignKey("participant.id"), index=True)
 
     #: the participant the node is associated with
-    participant = relationship(Participant, backref='all_nodes')
+    participant = relationship(Participant, backref="all_nodes")
 
     def __init__(self, network, participant=None):
         """Create a node."""
         # check the network hasn't failed
         if network.failed:
-            raise ValueError("Cannot create node in {} as it has failed"
-                             .format(network))
+            raise ValueError(
+                "Cannot create node in {} as it has failed".format(network)
+            )
         # check the participant hasn't failed
         if participant is not None and participant.failed:
-            raise ValueError("{} cannot create a node as it has failed"
-                             .format(participant))
+            raise ValueError(
+                "{} cannot create a node as it has failed".format(participant)
+            )
         # check the participant is working
         if participant is not None and participant.status != "working":
-            raise ValueError("{} cannot create a node as they are not working"
-                             .format(participant))
+            raise ValueError(
+                "{} cannot create a node as they are not working".format(participant)
+            )
 
         self.network = network
         self.network_id = network.id
@@ -692,7 +651,8 @@ class Node(Base, SharedMixin):
         if direction not in ["all", "incoming", "outgoing"]:
             raise ValueError(
                 "{} is not a valid vector direction. "
-                "Must be all, incoming or outgoing.".format(direction))
+                "Must be all, incoming or outgoing.".format(direction)
+            )
 
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid vector failed".format(failed))
@@ -700,37 +660,34 @@ class Node(Base, SharedMixin):
         # get the vectors
         if failed == "all":
             if direction == "all":
-                return Vector.query\
-                    .filter(or_(Vector.destination_id == self.id,
-                                Vector.origin_id == self.id))\
-                    .all()
+                return Vector.query.filter(
+                    or_(Vector.destination_id == self.id, Vector.origin_id == self.id)
+                ).all()
 
             if direction == "incoming":
-                return Vector.query\
-                    .filter_by(destination_id=self.id)\
-                    .all()
+                return Vector.query.filter_by(destination_id=self.id).all()
 
             if direction == "outgoing":
-                return Vector.query\
-                    .filter_by(origin_id=self.id)\
-                    .all()
+                return Vector.query.filter_by(origin_id=self.id).all()
         else:
             if direction == "all":
-                return Vector.query\
-                    .filter(and_(Vector.failed == failed,
-                            or_(Vector.destination_id == self.id,
-                                Vector.origin_id == self.id)))\
-                    .all()
+                return Vector.query.filter(
+                    and_(
+                        Vector.failed == failed,
+                        or_(
+                            Vector.destination_id == self.id,
+                            Vector.origin_id == self.id,
+                        ),
+                    )
+                ).all()
 
             if direction == "incoming":
-                return Vector.query\
-                    .filter_by(destination_id=self.id, failed=failed)\
-                    .all()
+                return Vector.query.filter_by(
+                    destination_id=self.id, failed=failed
+                ).all()
 
             if direction == "outgoing":
-                return Vector.query\
-                    .filter_by(origin_id=self.id, failed=failed)\
-                    .all()
+                return Vector.query.filter_by(origin_id=self.id, failed=failed).all()
 
     def neighbors(self, type=None, direction="to", failed=None):
         """Get a node's neighbors - nodes that are directly connected to it.
@@ -744,14 +701,17 @@ class Node(Base, SharedMixin):
         if type is None:
             type = Node
         if not issubclass(type, Node):
-            raise ValueError("{} is not a valid neighbor type,"
-                             "needs to be a subclass of Node.".format(type))
+            raise ValueError(
+                "{} is not a valid neighbor type,"
+                "needs to be a subclass of Node.".format(type)
+            )
 
         # get direction
         if direction not in ["both", "either", "from", "to"]:
-            raise ValueError("{} not a valid neighbor connection."
-                             "Should be both, either, to or from."
-                             .format(direction))
+            raise ValueError(
+                "{} not a valid neighbor connection."
+                "Should be both, either, to or from.".format(direction)
+            )
 
         if failed is not None:
             raise ValueError(
@@ -763,14 +723,17 @@ class Node(Base, SharedMixin):
                 "return not-failed nodes connected to you via not-failed "
                 "vectors. If you want to do more elaborate queries, for "
                 "example, getting not-failed nodes connected to you via failed"
-                " vectors, you should do so via sql queries.")
+                " vectors, you should do so via sql queries."
+            )
 
         neighbors = []
         # get the neighbours
         if direction == "to":
-            outgoing_vectors = Vector.query\
-                .with_entities(Vector.destination_id)\
-                .filter_by(origin_id=self.id, failed=False).all()
+            outgoing_vectors = (
+                Vector.query.with_entities(Vector.destination_id)
+                .filter_by(origin_id=self.id, failed=False)
+                .all()
+            )
 
             neighbor_ids = [v.destination_id for v in outgoing_vectors]
             if neighbor_ids:
@@ -778,8 +741,11 @@ class Node(Base, SharedMixin):
                 neighbors = [n for n in neighbors if isinstance(n, type)]
 
         if direction == "from":
-            incoming_vectors = Vector.query.with_entities(Vector.origin_id)\
-                .filter_by(destination_id=self.id, failed=False).all()
+            incoming_vectors = (
+                Vector.query.with_entities(Vector.origin_id)
+                .filter_by(destination_id=self.id, failed=False)
+                .all()
+            )
 
             neighbor_ids = [v.origin_id for v in incoming_vectors]
             if neighbor_ids:
@@ -787,12 +753,18 @@ class Node(Base, SharedMixin):
                 neighbors = [n for n in neighbors if isinstance(n, type)]
 
         if direction == "either":
-            neighbors = list(set(self.neighbors(type=type, direction="to") +
-                                 self.neighbors(type=type, direction="from")))
+            neighbors = list(
+                set(
+                    self.neighbors(type=type, direction="to")
+                    + self.neighbors(type=type, direction="from")
+                )
+            )
 
         if direction == "both":
-            neighbors = list(set(self.neighbors(type=type, direction="to")) &
-                             set(self.neighbors(type=type, direction="from")))
+            neighbors = list(
+                set(self.neighbors(type=type, direction="to"))
+                & set(self.neighbors(type=type, direction="from"))
+            )
 
         return neighbors
 
@@ -814,7 +786,8 @@ class Node(Base, SharedMixin):
                 "connection to be failed. The is_connected function will only "
                 "ever check along not-failed vectors. "
                 "If you want to check along failed vectors "
-                "you should do so via sql queries.")
+                "you should do so via sql queries."
+            )
 
         # make whom a list
         if isinstance(whom, list):
@@ -828,37 +801,53 @@ class Node(Base, SharedMixin):
         # check whom contains only Nodes
         for node in whom:
             if not isinstance(node, Node):
-                raise TypeError("is_connected cannot parse objects of type {}."
-                                .format(type(node)))
+                raise TypeError(
+                    "is_connected cannot parse objects of type {}.".format(type(node))
+                )
 
         # check direction
         if direction not in ["to", "from", "either", "both"]:
-            raise ValueError("{} is not a valid direction for is_connected"
-                             .format(direction))
+            raise ValueError(
+                "{} is not a valid direction for is_connected".format(direction)
+            )
 
         # get is_connected
         connected = []
         if direction == "to":
-            vectors = Vector.query.with_entities(Vector.destination_id)\
-                .filter_by(origin_id=self.id, failed=False).all()
+            vectors = (
+                Vector.query.with_entities(Vector.destination_id)
+                .filter_by(origin_id=self.id, failed=False)
+                .all()
+            )
             destinations = set([v.destination_id for v in vectors])
             for w in whom_ids:
                 connected.append(w in destinations)
 
         elif direction == "from":
-            vectors = Vector.query.with_entities(Vector.origin_id)\
-                .filter_by(destination_id=self.id, failed=False).all()
+            vectors = (
+                Vector.query.with_entities(Vector.origin_id)
+                .filter_by(destination_id=self.id, failed=False)
+                .all()
+            )
             origins = set([v.origin_id for v in vectors])
             for w in whom_ids:
                 connected.append(w in origins)
 
         elif direction in ["either", "both"]:
 
-            vectors = Vector.query\
-                .with_entities(Vector.origin_id, Vector.destination_id)\
-                .filter(and_(Vector.failed == false(),
-                             or_(Vector.destination_id == self.id,
-                                 Vector.origin_id == self.id))).all()
+            vectors = (
+                Vector.query.with_entities(Vector.origin_id, Vector.destination_id)
+                .filter(
+                    and_(
+                        Vector.failed == false(),
+                        or_(
+                            Vector.destination_id == self.id,
+                            Vector.origin_id == self.id,
+                        ),
+                    )
+                )
+                .all()
+            )
 
             destinations = set([v.destination_id for v in vectors])
             origins = set([v.origin_id for v in vectors])
@@ -889,23 +878,16 @@ class Node(Base, SharedMixin):
 
         if not issubclass(type, Info):
             raise TypeError(
-                "Cannot get infos of type {} "
-                "as it is not a valid type.".format(type)
+                "Cannot get infos of type {} " "as it is not a valid type.".format(type)
             )
 
         if failed not in ["all", False, True]:
             raise ValueError("{} is not a valid vector failed".format(failed))
 
         if failed == "all":
-            return type\
-                .query\
-                .filter_by(origin_id=self.id)\
-                .all()
+            return type.query.filter_by(origin_id=self.id).all()
         else:
-            return type\
-                .query\
-                .filter_by(origin_id=self.id, failed=failed)\
-                .all()
+            return type.query.filter_by(origin_id=self.id, failed=failed).all()
 
     def received_infos(self, type=None, failed=None):
         """Get infos that have been sent to this node.
@@ -921,22 +903,22 @@ class Node(Base, SharedMixin):
                 "received info to be failed. The received_infos function will "
                 "only ever check not-failed transmissions. "
                 "If you want to check failed transmissions "
-                "you should do so via sql queries.")
+                "you should do so via sql queries."
+            )
 
         if type is None:
             type = Info
 
         if not issubclass(type, Info):
             raise TypeError(
-                "Cannot get infos of type {} "
-                "as it is not a valid type.".format(type)
+                "Cannot get infos of type {} " "as it is not a valid type.".format(type)
             )
 
-        transmissions = Transmission\
-            .query.with_entities(Transmission.info_id)\
-            .filter_by(destination_id=self.id,
-                       status="received",
-                       failed=False).all()
+        transmissions = (
+            Transmission.query.with_entities(Transmission.info_id)
+            .filter_by(destination_id=self.id, status="received", failed=False)
+            .all()
+        )
 
         info_ids = [t.info_id for t in transmissions]
         if info_ids:
@@ -954,63 +936,88 @@ class Node(Base, SharedMixin):
         # check parameters
         if direction not in ["incoming", "outgoing", "all"]:
             raise ValueError(
-                "You cannot get transmissions of direction {}.".format(direction) +
-                "Type can only be incoming, outgoing or all."
+                "You cannot get transmissions of direction {}.".format(direction)
+                + "Type can only be incoming, outgoing or all."
             )
 
         if status not in ["all", "pending", "received"]:
             raise ValueError(
-                "You cannot get transmission of status {}.".format(status) +
-                "Status can only be pending, received or all"
+                "You cannot get transmission of status {}.".format(status)
+                + "Status can only be pending, received or all"
             )
 
         if failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid transmission failed"
-                             .format(failed))
+            raise ValueError("{} is not a valid transmission failed".format(failed))
 
         # get transmissions
         if direction == "all":
             if status == "all":
-                return Transmission.query\
-                    .filter(and_(Transmission.failed == false(),
-                                 or_(Transmission.destination_id == self.id,
-                                     Transmission.origin_id == self.id)))\
-                    .order_by('creation_time')\
+                return (
+                    Transmission.query.filter(
+                        and_(
+                            Transmission.failed == false(),
+                            or_(
+                                Transmission.destination_id == self.id,
+                                Transmission.origin_id == self.id,
+                            ),
+                        )
+                    )
+                    .order_by("creation_time")
                     .all()
+                )
             else:
-                return Transmission.query\
-                    .filter(and_(Transmission.failed == false(),
-                                 Transmission.status == status,
-                                 or_(Transmission.destination_id == self.id,
-                                     Transmission.origin_id == self.id)))\
-                    .order_by('creation_time')\
+                return (
+                    Transmission.query.filter(
+                        and_(
+                            Transmission.failed == false(),
+                            Transmission.status == status,
+                            or_(
+                                Transmission.destination_id == self.id,
+                                Transmission.origin_id == self.id,
+                            ),
+                        )
+                    )
+                    .order_by("creation_time")
                     .all()
+                )
         if direction == "incoming":
             if status == "all":
-                return Transmission.query\
-                    .filter_by(failed=False, destination_id=self.id)\
-                    .order_by('creation_time')\
+                return (
+                    Transmission.query.filter_by(failed=False, destination_id=self.id)
+                    .order_by("creation_time")
                     .all()
+                )
             else:
-                return Transmission.query\
-                    .filter(and_(Transmission.failed == false(),
-                                 Transmission.destination_id == self.id,
-                                 Transmission.status == status))\
-                    .order_by('creation_time')\
+                return (
+                    Transmission.query.filter(
+                        and_(
+                            Transmission.failed == false(),
+                            Transmission.destination_id == self.id,
+                            Transmission.status == status,
+                        )
+                    )
+                    .order_by("creation_time")
                     .all()
+                )
         if direction == "outgoing":
             if status == "all":
-                return Transmission.query\
-                    .filter_by(failed=False, origin_id=self.id)\
-                    .order_by('creation_time')\
+                return (
+                    Transmission.query.filter_by(failed=False, origin_id=self.id)
+                    .order_by("creation_time")
                     .all()
+                )
             else:
-                return Transmission.query\
-                    .filter(and_(Transmission.failed == false(),
-                                 Transmission.origin_id == self.id,
-                                 Transmission.status == status))\
-                    .order_by('creation_time')\
+                return (
+                    Transmission.query.filter(
+                        and_(
+                            Transmission.failed == false(),
+                            Transmission.origin_id == self.id,
+                            Transmission.status == status,
+                        )
+                    )
+                    .order_by("creation_time")
                     .all()
+                )
 
     def transformations(self, type=None, failed=False):
         """
@@ -1020,22 +1027,15 @@ class Node(Base, SharedMixin):
         Failed can be True, False or "all"
         """
         if failed not in ["all", False, True]:
-            raise ValueError("{} is not a valid transmission failed"
-                             .format(failed))
+            raise ValueError("{} is not a valid transmission failed".format(failed))
 
         if type is None:
             type = Transformation
 
         if failed == "all":
-            return type\
-                .query\
-                .filter_by(node_id=self.id)\
-                .all()
+            return type.query.filter_by(node_id=self.id).all()
         else:
-            return type\
-                .query\
-                .filter_by(node_id=self.id, failed=failed)\
-                .all()
+            return type.query.filter_by(node_id=self.id, failed=failed).all()
 
     """ ###################################
     Methods that make nodes do things
@@ -1056,8 +1056,7 @@ class Node(Base, SharedMixin):
 
         """
         if self.failed is True:
-            raise AttributeError(
-                "Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
@@ -1099,8 +1098,9 @@ class Node(Base, SharedMixin):
         """
         # check direction
         if direction not in ["to", "from", "both"]:
-            raise ValueError("{} is not a valid direction for connect()"
-                             .format(direction))
+            raise ValueError(
+                "{} is not a valid direction for connect()".format(direction)
+            )
 
         # make whom a list
         whom = self.flatten([whom])
@@ -1109,22 +1109,26 @@ class Node(Base, SharedMixin):
         new_vectors = []
         if direction in ["to", "both"]:
             already_connected_to = self.flatten(
-                [self.is_connected(direction="to", whom=whom)])
+                [self.is_connected(direction="to", whom=whom)]
+            )
             for node, connected in zip(whom, already_connected_to):
                 if connected:
-                    print("Warning! {} already connected to {}, "
-                          "instruction to connect will be ignored."
-                          .format(self, node))
+                    print(
+                        "Warning! {} already connected to {}, "
+                        "instruction to connect will be ignored.".format(self, node)
+                    )
                 else:
                     new_vectors.append(Vector(origin=self, destination=node))
         if direction in ["from", "both"]:
             already_connected_from = self.flatten(
-                [self.is_connected(direction="from", whom=whom)])
+                [self.is_connected(direction="from", whom=whom)]
+            )
             for node, connected in zip(whom, already_connected_from):
                 if connected:
-                    print("Warning! {} already connected from {}, "
-                          "instruction to connect will be ignored."
-                          .format(self, node))
+                    print(
+                        "Warning! {} already connected from {}, "
+                        "instruction to connect will be ignored.".format(self, node)
+                    )
                 else:
                     new_vectors.append(Vector(origin=node, destination=self))
         return new_vectors
@@ -1182,12 +1186,12 @@ class Node(Base, SharedMixin):
         for what in whats:
             for to_whom in to_whoms:
                 try:
-                    vector = [v for v in vectors
-                              if v.destination_id == to_whom.id][0]
+                    vector = [v for v in vectors if v.destination_id == to_whom.id][0]
                 except IndexError:
                     raise ValueError(
                         "{} cannot transmit to {} as it does not have "
-                        "a connection to them".format(self, to_whom))
+                        "a connection to them".format(self, to_whom)
+                    )
                 t = Transmission(info=what, vector=vector)
                 transmissions.append(t)
 
@@ -1231,21 +1235,20 @@ class Node(Base, SharedMixin):
         """
         # check self is not failed
         if self.failed:
-            raise ValueError("{} cannot receive as it has failed."
-                             .format(self))
+            raise ValueError("{} cannot receive as it has failed.".format(self))
 
         received_transmissions = []
         if what is None:
-            pending_transmissions = self.transmissions(direction="incoming",
-                                                       status="pending")
+            pending_transmissions = self.transmissions(
+                direction="incoming", status="pending"
+            )
             for transmission in pending_transmissions:
                 transmission.status = "received"
                 transmission.receive_time = timenow()
                 received_transmissions.append(transmission)
 
         elif isinstance(what, Transmission):
-            if what in self.transmissions(direction="incoming",
-                                          status="pending"):
+            if what in self.transmissions(direction="incoming", status="pending"):
                 transmission.status = "received"
                 what.receive_time = timenow()
                 received_transmissions.append(what)
@@ -1273,10 +1276,10 @@ class Node(Base, SharedMixin):
         """Replicate an info."""
         # check self is not failed
         if self.failed:
-            raise ValueError("{} cannot replicate as it has failed."
-                             .format(self))
+            raise ValueError("{} cannot replicate as it has failed.".format(self))
 
         from .transformations import Replication
+
         info_out = type(info_in)(origin=self, contents=info_in.contents)
         Replication(info_in=info_in, info_out=info_out)
 
@@ -1292,8 +1295,8 @@ class Node(Base, SharedMixin):
             raise ValueError("{} cannot mutate as it has failed.".format(self))
 
         from .transformations import Mutation
-        info_out = type(info_in)(origin=self,
-                                 contents=info_in._mutated_contents())
+
+        info_out = type(info_in)(origin=self, contents=info_in._mutated_contents())
         Mutation(info_in=info_in, info_out=info_out)
 
 
@@ -1306,21 +1309,23 @@ class Vector(Base, SharedMixin):
     __tablename__ = "vector"
 
     #: the id of the Node at which the vector originates
-    origin_id = Column(Integer, ForeignKey('node.id'), index=True)
+    origin_id = Column(Integer, ForeignKey("node.id"), index=True)
 
     #: the Node at which the vector originates.
-    origin = relationship(Node, foreign_keys=[origin_id],
-                          backref="all_outgoing_vectors")
+    origin = relationship(
+        Node, foreign_keys=[origin_id], backref="all_outgoing_vectors"
+    )
 
     #: the id of the Node at which the vector terminates.
-    destination_id = Column(Integer, ForeignKey('node.id'), index=True)
+    destination_id = Column(Integer, ForeignKey("node.id"), index=True)
 
     #: the Node at which the vector terminates.
-    destination = relationship(Node, foreign_keys=[destination_id],
-                               backref="all_incoming_vectors")
+    destination = relationship(
+        Node, foreign_keys=[destination_id], backref="all_incoming_vectors"
+    )
 
     #: the id of the network the vector is in.
-    network_id = Column(Integer, ForeignKey('network.id'), index=True)
+    network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the vector is in.
     network = relationship(Network, backref="all_vectors")
@@ -1329,24 +1334,34 @@ class Vector(Base, SharedMixin):
         """Create a vector."""
         # check origin and destination are in the same network
         if origin.network_id != destination.network_id:
-            raise ValueError("{}, in network {}, cannot connect with {} "
-                             "as it is in network {}"
-                             .format(origin, origin.network_id,
-                                     destination, destination.network_id))
+            raise ValueError(
+                "{}, in network {}, cannot connect with {} "
+                "as it is in network {}".format(
+                    origin, origin.network_id, destination, destination.network_id
+                )
+            )
 
         # check neither the origin or destination have failed
         if origin.failed:
-            raise ValueError("{} cannot connect to {} as {} has failed"
-                             .format(origin, destination, origin))
+            raise ValueError(
+                "{} cannot connect to {} as {} has failed".format(
+                    origin, destination, origin
+                )
+            )
         if destination.failed:
-            raise ValueError("{} cannot connect to {} as {} has failed"
-                             .format(origin, destination, destination))
+            raise ValueError(
+                "{} cannot connect to {} as {} has failed".format(
+                    origin, destination, destination
+                )
+            )
 
         # check the destination isnt a source
         from dallinger.nodes import Source
+
         if isinstance(destination, Source):
             raise TypeError(
-                "Cannot connect to {} as it is a Source.".format(destination))
+                "Cannot connect to {} as it is a Source.".format(destination)
+            )
 
         # check origin and destination are different nodes
         if origin == destination:
@@ -1361,8 +1376,7 @@ class Vector(Base, SharedMixin):
 
     def __repr__(self):
         """The string representation of a vector."""
-        return "Vector-{}-{}".format(
-            self.origin_id, self.destination_id)
+        return "Vector-{}-{}".format(self.origin_id, self.destination_id)
 
     def json_data(self):
         """The json representation of a vector."""
@@ -1383,23 +1397,16 @@ class Vector(Base, SharedMixin):
         """
         if status not in ["all", "pending", "received"]:
             raise ValueError(
-                "You cannot get {} transmissions.".format(status) +
-                "Status can only be pending, received or all"
+                "You cannot get {} transmissions.".format(status)
+                + "Status can only be pending, received or all"
             )
 
         if status == "all":
-            return Transmission\
-                .query\
-                .filter_by(vector_id=self.id,
-                           failed=False)\
-                .all()
+            return Transmission.query.filter_by(vector_id=self.id, failed=False).all()
         else:
-            return Transmission\
-                .query\
-                .filter_by(vector_id=self.id,
-                           status=status,
-                           failed=False)\
-                .all()
+            return Transmission.query.filter_by(
+                vector_id=self.id, status=status, failed=False
+            ).all()
 
     """####################################
     # Methods that make Vectors do things #
@@ -1408,8 +1415,7 @@ class Vector(Base, SharedMixin):
     def fail(self):
         """Fail a vector."""
         if self.failed is True:
-            raise AttributeError(
-                "Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
@@ -1426,19 +1432,16 @@ class Info(Base, SharedMixin):
     #: a String giving the name of the class. Defaults to "info".
     #: This allows subclassing.
     type = Column(String(50))
-    __mapper_args__ = {
-        'polymorphic_on': type,
-        'polymorphic_identity': 'info'
-    }
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "info"}
 
     #: the id of the Node that created the info
-    origin_id = Column(Integer, ForeignKey('node.id'), index=True)
+    origin_id = Column(Integer, ForeignKey("node.id"), index=True)
 
     #: the Node that created the info.
-    origin = relationship(Node, backref='all_infos')
+    origin = relationship(Node, backref="all_infos")
 
     #: the id of the network the info is in
-    network_id = Column(Integer, ForeignKey('network.id'), index=True)
+    network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the info is in
     network = relationship(Network, backref="all_infos")
@@ -1450,8 +1453,7 @@ class Info(Base, SharedMixin):
         """Create an info."""
         # check the origin hasn't failed
         if origin.failed:
-            raise ValueError("{} cannot create an info as it has failed"
-                             .format(origin))
+            raise ValueError("{} cannot create an info as it has failed".format(origin))
 
         self.origin = origin
         self.origin_id = origin.id
@@ -1489,8 +1491,7 @@ class Info(Base, SharedMixin):
         info to fail.
         """
         if self.failed is True:
-            raise AttributeError(
-                "Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
@@ -1507,22 +1508,15 @@ class Info(Base, SharedMixin):
         """
         if status not in ["all", "pending", "received"]:
             raise ValueError(
-                "You cannot get transmission of status {}.".format(status) +
-                "Status can only be pending, received or all"
+                "You cannot get transmission of status {}.".format(status)
+                + "Status can only be pending, received or all"
             )
         if status == "all":
-            return Transmission\
-                .query\
-                .filter_by(info_id=self.id,
-                           failed=False)\
-                .all()
+            return Transmission.query.filter_by(info_id=self.id, failed=False).all()
         else:
-            return Transmission\
-                .query\
-                .filterby(info_id=self.id,
-                          status=status,
-                          failed=False)\
-                .all()
+            return Transmission.query.filterby(
+                info_id=self.id, status=status, failed=False
+            ).all()
 
     def transformations(self, relationship="all"):
         """Get all the transformations of this info.
@@ -1537,32 +1531,29 @@ class Info(Base, SharedMixin):
         """
         if relationship not in ["all", "parent", "child"]:
             raise ValueError(
-                "You cannot get transformations of relationship {}"
-                .format(relationship) +
-                "Relationship can only be parent, child or all."
+                "You cannot get transformations of relationship {}".format(relationship)
+                + "Relationship can only be parent, child or all."
             )
 
         if relationship == "all":
-            return Transformation\
-                .query\
-                .filter(and_(Transformation.failed == false(),
-                             or_(Transformation.info_in == self,
-                                 Transformation.info_out == self)))\
-                .all()
+            return Transformation.query.filter(
+                and_(
+                    Transformation.failed == false(),
+                    or_(
+                        Transformation.info_in == self, Transformation.info_out == self
+                    ),
+                )
+            ).all()
 
         if relationship == "parent":
-            return Transformation\
-                .query\
-                .filter_by(info_in_id=self.id,
-                           failed=False)\
-                .all()
+            return Transformation.query.filter_by(
+                info_in_id=self.id, failed=False
+            ).all()
 
         if relationship == "child":
-            return Transformation\
-                .query\
-                .filter_by(info_out_id=self.id,
-                           failed=False)\
-                .all()
+            return Transformation.query.filter_by(
+                info_out_id=self.id, failed=False
+            ).all()
 
     def _mutated_contents(self):
         """The mutated contents of an info.
@@ -1574,8 +1565,8 @@ class Info(Base, SharedMixin):
         to be used.
         """
         raise NotImplementedError(
-            "_mutated_contents needs to be overwritten in class {}"
-            .format(type(self)))
+            "_mutated_contents needs to be overwritten in class {}".format(type(self))
+        )
 
 
 class Transmission(Base, SharedMixin):
@@ -1584,33 +1575,35 @@ class Transmission(Base, SharedMixin):
     __tablename__ = "transmission"
 
     #: the id of the vector the info was sent along
-    vector_id = Column(Integer, ForeignKey('vector.id'), index=True)
+    vector_id = Column(Integer, ForeignKey("vector.id"), index=True)
 
     #: the vector the info was sent along.
-    vector = relationship(Vector, backref='all_transmissions')
+    vector = relationship(Vector, backref="all_transmissions")
 
     #: the id of the info that was transmitted
-    info_id = Column(Integer, ForeignKey('info.id'), index=True)
+    info_id = Column(Integer, ForeignKey("info.id"), index=True)
 
     #: the info that was transmitted.
-    info = relationship(Info, backref='all_transmissions')
+    info = relationship(Info, backref="all_transmissions")
 
     #: the id of the Node that sent the transmission
-    origin_id = Column(Integer, ForeignKey('node.id'), index=True)
+    origin_id = Column(Integer, ForeignKey("node.id"), index=True)
 
     #: the Node that sent the transmission.
-    origin = relationship(Node, foreign_keys=[origin_id],
-                          backref="all_outgoing_transmissions")
+    origin = relationship(
+        Node, foreign_keys=[origin_id], backref="all_outgoing_transmissions"
+    )
 
     #: the id of the Node that the transmission was sent to
-    destination_id = Column(Integer, ForeignKey('node.id'), index=True)
+    destination_id = Column(Integer, ForeignKey("node.id"), index=True)
 
     #: the Node that the transmission was sent to.
-    destination = relationship(Node, foreign_keys=[destination_id],
-                               backref="all_incoming_transmissions")
+    destination = relationship(
+        Node, foreign_keys=[destination_id], backref="all_incoming_transmissions"
+    )
 
     #: the id of the network the transmission is in
-    network_id = Column(Integer, ForeignKey('network.id'), index=True)
+    network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the transmission is in.
     network = relationship(Network, backref="networks_transmissions")
@@ -1621,25 +1614,31 @@ class Transmission(Base, SharedMixin):
     #: the status of the transmission, can be "pending", which means the
     #: transmission has been sent, but not received; or "received", which means
     #: the transmission has been sent and received
-    status = Column(Enum("pending", "received", name="transmission_status"),
-                    nullable=False, default="pending", index=True)
+    status = Column(
+        Enum("pending", "received", name="transmission_status"),
+        nullable=False,
+        default="pending",
+        index=True,
+    )
 
     def __init__(self, vector, info):
         """Create a transmission."""
         # check vector is not failed
         if vector.failed:
-            raise ValueError("Cannot transmit along {} as it has failed."
-                             .format(vector))
+            raise ValueError(
+                "Cannot transmit along {} as it has failed.".format(vector)
+            )
 
         # check info is not failed
         if info.failed:
-            raise ValueError("Cannot transmit {} as it has failed."
-                             .format(info))
+            raise ValueError("Cannot transmit {} as it has failed.".format(info))
 
         # check the origin of the vector is the same as the origin of the info
         if info.origin_id != vector.origin_id:
-            raise ValueError("Cannot transmit {} along {} as they do not "
-                             "have the same origin".format(info, vector))
+            raise ValueError(
+                "Cannot transmit {} along {} as they do not "
+                "have the same origin".format(info, vector)
+            )
 
         self.vector_id = vector.id
         self.vector = vector
@@ -1676,8 +1675,7 @@ class Transmission(Base, SharedMixin):
     def fail(self):
         """Fail a transmission."""
         if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed."
-                                 .format(self))
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()
@@ -1691,33 +1689,32 @@ class Transformation(Base, SharedMixin):
     #: a String giving the name of the class. Defaults to
     #: "transformation". This allows subclassing.
     type = Column(String(50))
-    __mapper_args__ = {
-        'polymorphic_on': type,
-        'polymorphic_identity': 'transformation'
-    }
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "transformation"}
 
     #: the id of the info that was transformed.
-    info_in_id = Column(Integer, ForeignKey('info.id'), index=True)
+    info_in_id = Column(Integer, ForeignKey("info.id"), index=True)
 
     #: the info that was transformed.
-    info_in = relationship(Info, foreign_keys=[info_in_id],
-                           backref="transformation_applied_to")
+    info_in = relationship(
+        Info, foreign_keys=[info_in_id], backref="transformation_applied_to"
+    )
 
     #: the id of the info produced by the transformation.
-    info_out_id = Column(Integer, ForeignKey('info.id'), index=True)
+    info_out_id = Column(Integer, ForeignKey("info.id"), index=True)
 
     #: the info produced by the transformation.
-    info_out = relationship(Info, foreign_keys=[info_out_id],
-                            backref="transformation_whence")
+    info_out = relationship(
+        Info, foreign_keys=[info_out_id], backref="transformation_whence"
+    )
 
     #: the id of the Node that did the transformation.
-    node_id = Column(Integer, ForeignKey('node.id'), index=True)
+    node_id = Column(Integer, ForeignKey("node.id"), index=True)
 
     #: the Node that did the transformation.
-    node = relationship(Node, backref='transformations_here')
+    node = relationship(Node, backref="transformations_here")
 
     #: the id of the network the transformation is in.
-    network_id = Column(Integer, ForeignKey('network.id'), index=True)
+    network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the transmission is in.
     network = relationship(Network, backref="networks_transformations")
@@ -1730,19 +1727,22 @@ class Transformation(Base, SharedMixin):
         """Create a transformation."""
         # check info_in is from the same node as info_out
         # or has been sent to the same node
-        if (info_in.origin_id != info_out.origin_id and
-            info_in.id not in [
-                t.info_id for t in info_out.origin.transmissions(
-                    direction="incoming", status="received")]):
+        if info_in.origin_id != info_out.origin_id and info_in.id not in [
+            t.info_id
+            for t in info_out.origin.transmissions(
+                direction="incoming", status="received"
+            )
+        ]:
             raise ValueError(
-                "Cannot transform {} into {} as they are not at the same node."
-                .format(info_in, info_out))
+                "Cannot transform {} into {} as they are not at the same node.".format(
+                    info_in, info_out
+                )
+            )
 
         # check info_in/out are not failed
         for i in [info_in, info_out]:
             if i.failed:
-                raise ValueError("Cannot transform {} as it has failed"
-                                 .format(i))
+                raise ValueError("Cannot transform {} as it has failed".format(i))
 
         self.info_in = info_in
         self.info_out = info_out
@@ -1765,8 +1765,7 @@ class Transformation(Base, SharedMixin):
     def fail(self):
         """Fail a transformation."""
         if self.failed is True:
-            raise AttributeError(
-                "Cannot fail {} - it has already failed.".format(self))
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
             self.time_of_death = timenow()

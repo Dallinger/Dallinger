@@ -28,7 +28,7 @@ from dallinger import models
 logger = logging.getLogger(__name__)
 
 with warnings.catch_warnings():
-    warnings.simplefilter(action='ignore', category=FutureWarning)
+    warnings.simplefilter(action="ignore", category=FutureWarning)
     try:
         import odo
         import pandas as pd
@@ -62,13 +62,14 @@ def find_experiment_export(app_id):
 
     # Check locally first
     cwd = os.getcwd()
-    data_filename = '{}-data.zip'.format(app_id)
+    data_filename = "{}-data.zip".format(app_id)
     path_to_data = os.path.join(cwd, "data", data_filename)
     if os.path.exists(path_to_data):
         try:
             Data(path_to_data)
         except IOError:
             from dallinger import logger
+
             logger.exception(
                 "Error reading local data file {}, checking remote.".format(
                     path_to_data
@@ -80,10 +81,7 @@ def find_experiment_export(app_id):
     # Get remote file instead
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
-    buckets = [
-        user_s3_bucket(),
-        dallinger_s3_bucket(),
-    ]
+    buckets = [user_s3_bucket(), dallinger_s3_bucket()]
 
     for bucket in buckets:
         try:
@@ -110,7 +108,7 @@ def dump_database(id):
     current_dir = os.getcwd()
     os.chdir(tmp_dir)
 
-    FNULL = open(os.devnull, 'w')
+    FNULL = open(os.devnull, "w")
     heroku_app = HerokuApp(dallinger_uid=id, output=FNULL)
     heroku_app.backup_capture()
     heroku_app.backup_download()
@@ -127,7 +125,7 @@ def dump_database(id):
 def backup(id):
     """Backup the database to S3."""
     filename = dump_database(id)
-    key = '{}.dump'.format(id)
+    key = "{}.dump".format(id)
 
     bucket = user_s3_bucket()
     bucket.upload_file(filename, key)
@@ -135,7 +133,7 @@ def backup(id):
 
 
 def registration_key(id):
-    return '{}.reg'.format(id)
+    return "{}.reg".format(id)
 
 
 def register(id, url=None):
@@ -143,7 +141,7 @@ def register(id, url=None):
     bucket = registration_s3_bucket()
     key = registration_key(id)
     obj = bucket.Object(key)
-    obj.put(Body=url or 'missing')
+    obj.put(Body=url or "missing")
     return _generate_s3_url(bucket, key)
 
 
@@ -159,10 +157,7 @@ def copy_heroku_to_local(id):
     """Copy a Heroku database locally."""
     heroku_app = HerokuApp(dallinger_uid=id)
     try:
-        subprocess.call([
-            "dropdb",
-            heroku_app.name,
-        ])
+        subprocess.call(["dropdb", heroku_app.name])
     except Exception:
         pass
 
@@ -193,7 +188,7 @@ copy_local_to_csv = copy_db_to_csv
 def _scrub_participant_table(path_to_data):
     """Scrub PII from the given participant table."""
     path = os.path.join(path_to_data, "participant.csv")
-    with open_for_csv(path, 'r') as input, open("{}.0".format(path), 'w') as output:
+    with open_for_csv(path, "r") as input, open("{}.0".format(path), "w") as output:
         reader = csv.reader(input)
         writer = csv.writer(output)
         headers = next(reader)
@@ -201,8 +196,7 @@ def _scrub_participant_table(path_to_data):
         for i, row in enumerate(reader):
             row[headers.index("worker_id")] = row[headers.index("id")]
             row[headers.index("unique_id")] = "{}:{}".format(
-                row[headers.index("id")],
-                row[headers.index("assignment_id")]
+                row[headers.index("id")], row[headers.index("assignment_id")]
             )
             writer.writerow(row)
 
@@ -235,7 +229,7 @@ def export(id, local=False, scrub_pii=False):
     try:
         shutil.copyfile(
             os.path.join("snapshots", id + "-code.zip"),
-            os.path.join("data", id, id + "-code.zip")
+            os.path.join("data", id, id + "-code.zip"),
         )
 
     except Exception:
@@ -254,7 +248,7 @@ def export(id, local=False, scrub_pii=False):
     archive_data(id, src, dst)
 
     cwd = os.getcwd()
-    data_filename = '{}-data.zip'.format(id)
+    data_filename = "{}-data.zip".format(id)
     path_to_data = os.path.join(cwd, "data", data_filename)
 
     # Backup data on S3 unless run locally
@@ -284,7 +278,7 @@ def ingest_zip(path, engine=None):
         "vector",
         "transmission",
     ]
-    with ZipFile(path, 'r') as archive:
+    with ZipFile(path, "r") as archive:
         filenames = archive.namelist()
         for name in import_order:
             filename = [f for f in filenames if name in f][0]
@@ -292,7 +286,7 @@ def ingest_zip(path, engine=None):
             model = getattr(models, model_name)
             file = archive.open(filename)
             if six.PY3:
-                file = io.TextIOWrapper(file, encoding='utf8', newline='')
+                file = io.TextIOWrapper(file, encoding="utf8", newline="")
             ingest_to_model(file, model, engine)
 
 
@@ -312,27 +306,27 @@ def ingest_to_model(file, model, engine=None):
     if engine is None:
         engine = db.engine
     reader = csv.reader(file)
-    columns = tuple('\"{}\"'.format(n) for n in next(reader))
+    columns = tuple('"{}"'.format(n) for n in next(reader))
     postgres_copy.copy_from(
-        file, model, engine, columns=columns, format='csv', HEADER=False
+        file, model, engine, columns=columns, format="csv", HEADER=False
     )
     fix_autoincrement(model.__table__.name)
 
 
 def archive_data(id, src, dst):
     print("Zipping up the package...")
-    with ZipFile(dst, 'w', ZIP_DEFLATED, allowZip64=True) as zf:
+    with ZipFile(dst, "w", ZIP_DEFLATED, allowZip64=True) as zf:
         for root, dirs, files in os.walk(src):
             for file in files:
                 filename = os.path.join(root, file)
-                arcname = filename.replace(src, '').lstrip('/')
+                arcname = filename.replace(src, "").lstrip("/")
                 zf.write(filename, arcname)
     shutil.rmtree(src)
     print("Done. Data available in {}-data.zip".format(id))
 
 
 def _get_canonical_aws_user_id(s3):
-    return s3.meta.client.list_buckets()['Owner']['ID']
+    return s3.meta.client.list_buckets()["Owner"]["ID"]
 
 
 def _get_or_create_s3_bucket(s3, name):
@@ -341,7 +335,7 @@ def _get_or_create_s3_bucket(s3, name):
     try:
         s3.meta.client.head_bucket(Bucket=name)
     except botocore.exceptions.ClientError as e:
-        error_code = int(e.response['Error']['Code'])
+        error_code = int(e.response["Error"]["Code"])
         if error_code == 404:
             exists = False
         else:
@@ -354,7 +348,7 @@ def _get_or_create_s3_bucket(s3, name):
 
 
 def _generate_s3_url(bucket, key):
-    return 'https://{}.s3.amazonaws.com/{}'.format(bucket.name, key)
+    return "https://{}.s3.amazonaws.com/{}".format(bucket.name, key)
 
 
 def user_s3_bucket(canonical_user_id=None):
@@ -364,7 +358,8 @@ def user_s3_bucket(canonical_user_id=None):
         canonical_user_id = _get_canonical_aws_user_id(s3)
 
     s3_bucket_name = "dallinger-{}".format(
-        hashlib.sha256(canonical_user_id.encode('utf8')).hexdigest()[0:8])
+        hashlib.sha256(canonical_user_id.encode("utf8")).hexdigest()[0:8]
+    )
 
     return _get_or_create_s3_bucket(s3, s3_bucket_name)
 
@@ -372,13 +367,13 @@ def user_s3_bucket(canonical_user_id=None):
 def dallinger_s3_bucket():
     """The public `dallinger` S3 bucket."""
     s3 = _s3_resource(dallinger_region=True)
-    return s3.Bucket('dallinger')
+    return s3.Bucket("dallinger")
 
 
 def registration_s3_bucket():
     """The public write-only `dallinger-registration` S3 bucket."""
     s3 = _s3_resource(dallinger_region=True)
-    return s3.Bucket('dallinger-registrations')
+    return s3.Bucket("dallinger-registrations")
 
 
 def _s3_resource(dallinger_region=False):
@@ -387,17 +382,18 @@ def _s3_resource(dallinger_region=False):
     if not config.ready:
         config.load()
 
-    region = 'us-east-1' if dallinger_region else config.get('aws_region')
+    region = "us-east-1" if dallinger_region else config.get("aws_region")
     return boto3.resource(
-        's3',
+        "s3",
         region_name=region,
-        aws_access_key_id=config.get('aws_access_key_id'),
-        aws_secret_access_key=config.get('aws_secret_access_key'),
+        aws_access_key_id=config.get("aws_access_key_id"),
+        aws_secret_access_key=config.get("aws_secret_access_key"),
     )
 
 
 class Data(object):
     """Dallinger data object."""
+
     def __init__(self, URL):
 
         self.source = URL
@@ -418,6 +414,7 @@ class Data(object):
 
 class Table(object):
     """Dallinger data-table object."""
+
     def __init__(self, path):
 
         self.odo_resource = odo.resource(path)

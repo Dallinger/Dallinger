@@ -19,6 +19,7 @@ class FunctionLearning(Experiment):
         """
         super(FunctionLearning, self).__init__(session)
         from . import models
+
         self.models = models
         self.experiment_repeats = 1
         if session:

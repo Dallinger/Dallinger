@@ -24,7 +24,7 @@ class DelayedChain(Network):
         """Add an agent, connecting it to the previous node."""
         other_nodes = [n for n in self.nodes() if n.id != node.id]
         if len(self.nodes()) > 11:
-            parents = [max(other_nodes, key=attrgetter('creation_time'))]
+            parents = [max(other_nodes, key=attrgetter("creation_time"))]
         else:
             parents = [n for n in other_nodes if isinstance(n, Source)]
 
@@ -45,13 +45,10 @@ class Chain(Network):
         other_nodes = [n for n in self.nodes() if n.id != node.id]
 
         if isinstance(node, Source) and other_nodes:
-            raise Exception(
-                "Chain network already has a nodes, "
-                "can't add a source."
-            )
+            raise Exception("Chain network already has a nodes, " "can't add a source.")
 
         if other_nodes:
-            parent = max(other_nodes, key=attrgetter('creation_time'))
+            parent = max(other_nodes, key=attrgetter("creation_time"))
             parent.connect(whom=node)
 
 
@@ -100,7 +97,7 @@ class Star(Network):
         nodes = self.nodes()
 
         if len(nodes) > 1:
-            first_node = min(nodes, key=attrgetter('creation_time'))
+            first_node = min(nodes, key=attrgetter("creation_time"))
             first_node.connect(direction="both", whom=node)
 
 
@@ -118,7 +115,7 @@ class Burst(Network):
         nodes = self.nodes()
 
         if len(nodes) > 1:
-            first_node = min(nodes, key=attrgetter('creation_time'))
+            first_node = min(nodes, key=attrgetter("creation_time"))
             first_node.connect(whom=node)
 
 
@@ -166,7 +163,7 @@ class DiscreteGenerational(Network):
     @property
     def initial_source(self):
         """The source that seeds the first generation."""
-        return self.property3.lower() != 'false'
+        return self.property3.lower() != "false"
 
     def add_node(self, node):
         """Link to the agent from a parent based on the parent's fitness"""
@@ -178,8 +175,7 @@ class DiscreteGenerational(Network):
             parent = self._select_oldest_source()
         else:
             parent = self._select_fit_node_from_generation(
-                node_type=type(node),
-                generation=curr_generation - 1
+                node_type=type(node), generation=curr_generation - 1
             )
 
         if parent is not None:
@@ -187,14 +183,12 @@ class DiscreteGenerational(Network):
             parent.transmit(to_whom=node)
 
     def _select_oldest_source(self):
-        return min(self.nodes(type=Source), key=attrgetter('creation_time'))
+        return min(self.nodes(type=Source), key=attrgetter("creation_time"))
 
     def _select_fit_node_from_generation(self, node_type, generation):
-        prev_agents = node_type.query\
-            .filter_by(failed=False,
-                       network_id=self.id,
-                       generation=(generation))\
-            .all()
+        prev_agents = node_type.query.filter_by(
+            failed=False, network_id=self.id, generation=(generation)
+        ).all()
         prev_fits = [p.fitness for p in prev_agents]
         prev_probs = [(f / (1.0 * sum(prev_fits))) for f in prev_fits]
 
@@ -248,12 +242,15 @@ class ScaleFree(Network):
             for idx_newvector in range(self.m):
 
                 these_nodes = [
-                    n for n in nodes if (
-                        n.id != node.id and
-                        not n.is_connected(direction="either", whom=node))]
+                    n
+                    for n in nodes
+                    if (
+                        n.id != node.id
+                        and not n.is_connected(direction="either", whom=node)
+                    )
+                ]
 
-                outdegrees = [
-                    len(n.vectors(direction="outgoing")) for n in these_nodes]
+                outdegrees = [len(n.vectors(direction="outgoing")) for n in these_nodes]
 
                 # Select a member using preferential attachment
                 ps = [(d / (1.0 * sum(outdegrees))) for d in outdegrees]
@@ -291,10 +288,10 @@ class SequentialMicrosociety(Network):
         other_nodes = [n for n in self.nodes() if n.id != node.id]
 
         other_nodes_newest_first = sorted(
-            other_nodes, key=attrgetter('creation_time'), reverse=True
+            other_nodes, key=attrgetter("creation_time"), reverse=True
         )
 
-        return other_nodes_newest_first[:(self.n - 1)]
+        return other_nodes_newest_first[: (self.n - 1)]
 
 
 class SplitSampleNetwork(Network):

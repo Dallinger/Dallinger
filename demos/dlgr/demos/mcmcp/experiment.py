@@ -30,6 +30,7 @@ class MCMCP(Experiment):
         """
         super(MCMCP, self).__init__(session)
         from . import models
+
         self.models = models
         self.experiment_repeats = 1
         self.trials_per_participant = 10
@@ -68,19 +69,18 @@ class MCMCP(Experiment):
     def data_check(self, participant):
         """Make sure each trial contains exactly one chosen info."""
         infos = participant.infos()
-        return len([info for info in infos if info.chosen])*2 == len(infos)
+        return len([info for info in infos if info.chosen]) * 2 == len(infos)
 
 
 extra_routes = Blueprint(
-    'extra_routes',
-    __name__,
-    template_folder='templates',
-    static_folder='static')
+    "extra_routes", __name__, template_folder="templates", static_folder="static"
+)
 
 
 @extra_routes.route("/choice/<int:node_id>/<int:choice>", methods=["POST"])
 def choice(node_id, choice):
     from .models import Agent
+
     try:
         exp = MCMCP(db.session)
         node = Agent.query.get(node_id)
@@ -96,13 +96,9 @@ def choice(node_id, choice):
         info.chosen = True
         exp.save()
 
-        return Response(
-            status=200,
-            mimetype='application/json')
+        return Response(status=200, mimetype="application/json")
     except Exception:
-        return Response(
-            status=403,
-            mimetype='application/json')
+        return Response(status=403, mimetype="application/json")
 
 
 class Bot(BotBase):
@@ -113,9 +109,11 @@ class Bot(BotBase):
         try:
             while True:
                 left = WebDriverWait(self.driver, 10).until(
-                    EC.element_to_be_clickable((By.ID, 'left_button')))
+                    EC.element_to_be_clickable((By.ID, "left_button"))
+                )
                 right = WebDriverWait(self.driver, 10).until(
-                    EC.element_to_be_clickable((By.ID, 'right_button')))
+                    EC.element_to_be_clickable((By.ID, "right_button"))
+                )
 
                 random.choice((left, right)).click()
                 time.sleep(1.0)

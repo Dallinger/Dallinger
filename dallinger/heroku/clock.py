@@ -35,7 +35,7 @@ def run_check(participants, config, reference_time):
         recruiter.notify_duration_exceeded(participants, reference_time)
 
 
-@scheduler.scheduled_job('interval', minutes=0.5)
+@scheduler.scheduled_job("interval", minutes=0.5)
 def check_db_for_missing_notifications():
     """Check the database for missing notifications."""
     config = dallinger.config.get_config()

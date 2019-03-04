@@ -7,7 +7,7 @@ from dallinger.networks import Empty
 
 def extra_parameters():
     config = get_config()
-    config.register('num_participants', int)
+    config.register("num_participants", int)
 
 
 class ConcentrationGame(Experiment):

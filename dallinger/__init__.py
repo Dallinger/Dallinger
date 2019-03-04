@@ -13,12 +13,13 @@ from . import (
     experiment,
     experiments,
     heroku,
-    registration
+    registration,
 )
 from .patches import patch
 
 import logging
 from logging import NullHandler
+
 logger = logging.getLogger(__name__)
 logger.addHandler(NullHandler())
 
