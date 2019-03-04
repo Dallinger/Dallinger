@@ -18,7 +18,7 @@ logger = logging.getLogger(__file__)
 
 def extra_parameters():
     config = get_config()
-    config.register('num_participants', int)
+    config.register("num_participants", int)
 
 
 class Bartlett1932(Experiment):
@@ -42,7 +42,7 @@ class Bartlett1932(Experiment):
 
     def configure(self):
         config = get_config()
-        self.num_participants = config.get('num_participants', 1)
+        self.num_participants = config.get("num_participants", 1)
 
     def setup(self):
         """Setup the networks.

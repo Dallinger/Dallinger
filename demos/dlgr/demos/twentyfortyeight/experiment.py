@@ -6,7 +6,7 @@ from dallinger.networks import Empty
 
 def extra_parameters():
     config = get_config()
-    config.register('n', int)
+    config.register("n", int)
 
 
 class TwentyFortyEight(Experiment):

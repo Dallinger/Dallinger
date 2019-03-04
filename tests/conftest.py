@@ -20,9 +20,7 @@ def subprocess_coverage():
 
 @pytest.fixture
 def reset_sys_modules():
-    to_clear = [
-        k for k in sys.modules if k.startswith('dallinger_experiment')
-    ]
+    to_clear = [k for k in sys.modules if k.startswith("dallinger_experiment")]
     for key in to_clear:
         del sys.modules[key]
 

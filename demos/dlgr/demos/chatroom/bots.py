@@ -23,11 +23,11 @@ class Bot(BotBase):
     """A bot conversation demo."""
 
     GREETINGS = [
-        'Hello.',
-        'How do you do.',
-        'Good day.',
-        'Anyone here?',
-        'Hi.',
+        "Hello.",
+        "How do you do.",
+        "Good day.",
+        "Anyone here?",
+        "Hi.",
         "What's up?",
     ]
 
@@ -40,12 +40,12 @@ class Bot(BotBase):
         iesha_chatbot,
         rude_chatbot,
         suntsu_chatbot,
-        zen_chatbot
+        zen_chatbot,
     ]
 
     def get_chat_history(self):
-        story = self.driver.find_element_by_id('story')
-        return story.text.split('\n')
+        story = self.driver.find_element_by_id("story")
+        return story.text.split("\n")
 
     def wait_to_send_message(self):
         waiting_time = random.expovariate(1.0 / self.AVG_TIME_BETWEEN_MESSAGES)
@@ -62,7 +62,8 @@ class Bot(BotBase):
         random.seed(self.worker_id)
         chatbot = random.choice(self.PERSONALITIES)
         WebDriverWait(self.driver, 10).until(
-            EC.element_to_be_clickable((By.ID, 'send-message')))
+            EC.element_to_be_clickable((By.ID, "send-message"))
+        )
         logger.info("Entering participate method")
         start = time.time()
         while (time.time() - start) < self.TOTAL_CHAT_TIME:

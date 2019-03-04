@@ -13,78 +13,66 @@ logger = logging.getLogger(__file__)
 
 marker = object()
 
-LOCAL_CONFIG = 'config.txt'
-SENSITIVE_KEY_NAMES = (
-    'access_id',
-    'access_key',
-    'password',
-    'secret',
-    'token',
-)
+LOCAL_CONFIG = "config.txt"
+SENSITIVE_KEY_NAMES = ("access_id", "access_key", "password", "secret", "token")
 
 default_keys = (
-    ('ad_group', six.text_type, []),
-    ('approve_requirement', int, []),
-    ('assign_qualifications', bool, []),
-    ('auto_recruit', bool, []),
-    ('aws_access_key_id', six.text_type, [], True),
-    ('aws_region', six.text_type, []),
-    ('aws_secret_access_key', six.text_type, [], True),
-    ('base_payment', float, []),
-    ('base_port', int, []),
-    ('browser_exclude_rule', six.text_type, []),
-    ('clock_on', bool, []),
-    ('contact_email_on_error', six.text_type, []),
-    ('chrome-path', six.binary_type, []),
-    ('dallinger_email_address', six.text_type, []),
-    ('database_size', six.text_type, []),
-    ('database_url', six.text_type, [], True),
-    ('description', six.text_type, []),
-    ('duration', float, []),
-    ('dyno_type', six.text_type, []),
-    ('group_name', six.text_type, []),
-    ('heroku_auth_token', six.text_type, [], True),
-    ('heroku_team', six.text_type, ['team']),
-    ('host', six.text_type, []),
-    ('id', six.text_type, []),
-    ('keywords', six.text_type, []),
-    ('lifetime', int, []),
-    ('logfile', six.text_type, []),
-    ('loglevel', int, []),
-    ('mode', six.text_type, []),
-    ('notification_url', six.text_type, []),
-    ('num_dynos_web', int, []),
-    ('num_dynos_worker', int, []),
-    ('organization_name', six.text_type, []),
-    ('port', int, ['PORT']),
-    ('qualification_blacklist', six.text_type, []),
-    ('recruiter', six.text_type, []),
-    ('recruiters', six.text_type, []),
-    ('redis_size', six.text_type, []),
-    ('replay', bool, []),
-    ('sentry', bool, []),
-    ('smtp_host', six.text_type, []),
-    ('smtp_username', six.text_type, []),
-    ('smtp_password', six.text_type, ['dallinger_email_password'], True),
-    ('threads', six.text_type, []),
-    ('title', six.text_type, []),
-    ('us_only', bool, []),
-    ('webdriver_type', six.text_type, []),
-    ('webdriver_url', six.text_type, []),
-    ('whimsical', bool, []),
-    ('worker_multiplier', float, []),
+    ("ad_group", six.text_type, []),
+    ("approve_requirement", int, []),
+    ("assign_qualifications", bool, []),
+    ("auto_recruit", bool, []),
+    ("aws_access_key_id", six.text_type, [], True),
+    ("aws_region", six.text_type, []),
+    ("aws_secret_access_key", six.text_type, [], True),
+    ("base_payment", float, []),
+    ("base_port", int, []),
+    ("browser_exclude_rule", six.text_type, []),
+    ("clock_on", bool, []),
+    ("contact_email_on_error", six.text_type, []),
+    ("chrome-path", six.binary_type, []),
+    ("dallinger_email_address", six.text_type, []),
+    ("database_size", six.text_type, []),
+    ("database_url", six.text_type, [], True),
+    ("description", six.text_type, []),
+    ("duration", float, []),
+    ("dyno_type", six.text_type, []),
+    ("group_name", six.text_type, []),
+    ("heroku_auth_token", six.text_type, [], True),
+    ("heroku_team", six.text_type, ["team"]),
+    ("host", six.text_type, []),
+    ("id", six.text_type, []),
+    ("keywords", six.text_type, []),
+    ("lifetime", int, []),
+    ("logfile", six.text_type, []),
+    ("loglevel", int, []),
+    ("mode", six.text_type, []),
+    ("notification_url", six.text_type, []),
+    ("num_dynos_web", int, []),
+    ("num_dynos_worker", int, []),
+    ("organization_name", six.text_type, []),
+    ("port", int, ["PORT"]),
+    ("qualification_blacklist", six.text_type, []),
+    ("recruiter", six.text_type, []),
+    ("recruiters", six.text_type, []),
+    ("redis_size", six.text_type, []),
+    ("replay", bool, []),
+    ("sentry", bool, []),
+    ("smtp_host", six.text_type, []),
+    ("smtp_username", six.text_type, []),
+    ("smtp_password", six.text_type, ["dallinger_email_password"], True),
+    ("threads", six.text_type, []),
+    ("title", six.text_type, []),
+    ("us_only", bool, []),
+    ("webdriver_type", six.text_type, []),
+    ("webdriver_url", six.text_type, []),
+    ("whimsical", bool, []),
+    ("worker_multiplier", float, []),
 )
 
 
 class Configuration(object):
 
-    SUPPORTED_TYPES = {
-        six.binary_type,
-        six.text_type,
-        int,
-        float,
-        bool,
-    }
+    SUPPORTED_TYPES = {six.binary_type, six.text_type, int, float, bool}
 
     def __init__(self):
         self._reset()
@@ -112,8 +100,8 @@ class Configuration(object):
             if key not in self.types:
                 # This key hasn't been registered, we ignore it
                 if strict:
-                    raise KeyError('{} is not a valid configuration key'.format(key))
-                logger.debug('{} is not a valid configuration key'.format(key))
+                    raise KeyError("{} is not a valid configuration key".format(key))
+                logger.debug("{} is not a valid configuration key".format(key))
                 continue
             expected_type = self.types.get(key)
             if cast_types:
@@ -125,11 +113,8 @@ class Configuration(object):
                     pass
             if not isinstance(value, expected_type):
                 raise TypeError(
-                    'Got {value} for {key}, expected {expected_type}'
-                    .format(
-                        value=repr(value),
-                        key=key,
-                        expected_type=expected_type,
+                    "Got {value} for {key}, expected {expected_type}".format(
+                        value=repr(value), key=key, expected_type=expected_type
                     )
                 )
             normalized_mapping[key] = value
@@ -143,7 +128,7 @@ class Configuration(object):
 
     def get(self, key, default=marker):
         if not self.ready:
-            raise RuntimeError('Config not loaded')
+            raise RuntimeError("Config not loaded")
         for layer in self.data:
             try:
                 return layer[key]
@@ -185,13 +170,9 @@ class Configuration(object):
         if synonyms is None:
             synonyms = set()
         if key in self.types:
-            raise KeyError('Config key {} is already registered'.format(key))
+            raise KeyError("Config key {} is already registered".format(key))
         if type_ not in self.SUPPORTED_TYPES:
-            raise TypeError(
-                '{type} is not a supported type'.format(
-                    type=type_
-                )
-            )
+            raise TypeError("{type} is not a supported type".format(type=type_))
         self.types[key] = type_
         for synonym in synonyms:
             self.synonyms[synonym] = key
@@ -209,14 +190,14 @@ class Configuration(object):
 
     def write(self, filter_sensitive=False):
         parser = configparser.SafeConfigParser()
-        parser.add_section('Parameters')
+        parser.add_section("Parameters")
         for layer in reversed(self.data):
             for k, v in layer.items():
                 if filter_sensitive and self.is_sensitive(k):
                     continue
-                parser.set('Parameters', k, str(v))
+                parser.set("Parameters", k, str(v))
 
-        with open(LOCAL_CONFIG, 'w') as fp:
+        with open(LOCAL_CONFIG, "w") as fp:
             parser.write(fp)
 
     def load_from_environment(self):
@@ -232,14 +213,12 @@ class Configuration(object):
 
         defaults_folder = os.path.join(os.path.dirname(__file__), "default_configs")
         local_defaults_file = os.path.join(defaults_folder, "local_config_defaults.txt")
-        global_defaults_file = os.path.join(defaults_folder, "global_config_defaults.txt")
+        global_defaults_file = os.path.join(
+            defaults_folder, "global_config_defaults.txt"
+        )
 
         # Load the configuration, with local parameters overriding global ones.
-        for config_file in [
-            global_defaults_file,
-            local_defaults_file,
-            globalConfig,
-        ]:
+        for config_file in [global_defaults_file, local_defaults_file, globalConfig]:
             self.load_from_file(config_file)
 
         if os.path.exists(localConfig):
@@ -261,7 +240,10 @@ class Configuration(object):
                     from dallinger_experiment import extra_parameters
                 except ImportError:
                     pass
-        if extra_parameters is not None and getattr(extra_parameters, 'loaded', None) is None:
+        if (
+            extra_parameters is not None
+            and getattr(extra_parameters, "loaded", None) is None
+        ):
             extra_parameters()
             extra_parameters.loaded = True
 
@@ -283,12 +265,12 @@ def get_config():
 def initialize_experiment_package(path):
     """Make the specified directory importable as the `dallinger_experiment` package."""
     # Create __init__.py if it doesn't exist (needed for Python 2)
-    init_py = os.path.join(path, '__init__.py')
+    init_py = os.path.join(path, "__init__.py")
     if not os.path.exists(init_py):
-        open(init_py, 'a').close()
+        open(init_py, "a").close()
 
     # Retain already set experiment module
-    if sys.modules.get('dallinger_experiment') is not None:
+    if sys.modules.get("dallinger_experiment") is not None:
         return
     dirname = os.path.dirname(path)
     basename = os.path.basename(path)
@@ -296,6 +278,6 @@ def initialize_experiment_package(path):
     package = __import__(basename)
     if path not in package.__path__:
         raise Exception("Package was not imported from the requested path!")
-    sys.modules['dallinger_experiment'] = package
-    package.__package__ = 'dallinger_experiment'
+    sys.modules["dallinger_experiment"] = package
+    package.__package__ = "dallinger_experiment"
     sys.path.pop(0)

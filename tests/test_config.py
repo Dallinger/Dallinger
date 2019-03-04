@@ -36,7 +36,7 @@ class TestConfiguration(object):
     def test_type_mismatch_on_assignment(self):
         config = get_config()
         with pytest.raises(TypeError):
-            config['base_payment'] = 12
+            config["base_payment"] = 12
 
     def test_type_mismatch_on_extend(self):
         config = Configuration()
