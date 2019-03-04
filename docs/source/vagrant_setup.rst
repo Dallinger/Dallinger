@@ -1,9 +1,15 @@
 Vagrant Installation
 ====================
 
-Install the Vagrant virtual machine management system from `Hashicorp <https://www.vagrantup.com/docs/installation/>`__ and the `VirtualBox <https://www.virtualbox.org/>`__ virtualization software.
+Install the Vagrant virtual machine management system from `Hashicorp
+<https://www.vagrantup.com/docs/installation/>`__ and the `VirtualBox
+<https://www.virtualbox.org/>`__ virtualization software. Once you've installed
+Vagrant, install the `vbguest` plugin using the command `vagrant plugin install
+vagrant-vbguest`
 
-If you already use a different Virtual Machine provider, it may be compatible with Vagrant, in which case you may need to modify the ``Vagrantfile``. This method is not recommended.
+If you already use a different Virtual Machine provider, it may be compatible
+with Vagrant, in which case you may need to modify the ``Vagrantfile``. This
+method is not recommended.
 
 Starting Dallinger
 ------------------
