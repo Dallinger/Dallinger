@@ -430,7 +430,14 @@ class MTurkService(object):
 
     def disable_hit(self, hit_id):
         self.expire_hit(hit_id)
-        return self._is_ok(self.mturk.delete_hit(HITId=hit_id))
+        try:
+            result = self.mturk.delete_hit(HITId=hit_id)
+        except Exception as ex:
+            if "currently in the state 'Disposed'" in str(ex):
+                # this means "already deleted"...
+                return True
+            raise
+        return self._is_ok(result)
 
     def expire_hit(self, hit_id):
         """Expire a HIT, which will change its status to "Reviewable",
