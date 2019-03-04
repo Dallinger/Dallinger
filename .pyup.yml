@@ -13,6 +13,9 @@ requirements:
   - requirements.txt:
       update: False
       pin: False
+  - build-requirements.txt:
+      update: False
+      pin: False
   - dev-requirements.txt:
       update: False
       pin: False

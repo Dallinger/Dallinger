@@ -1,20 +1,3 @@
--r requirements.txt
+-r build-requirements.txt
 -c dev-constraints.txt
-alabaster
 black
-bumpversion
-coverage
-coverage_pth
-codecov
-flake8
-mock
-pre-commit
-pycodestyle
-pypandoc
-pytest
-recommonmark
-sphinxcontrib-spelling
-Sphinx
-tox
-sphinx-js
-sphinx_rtd_theme
