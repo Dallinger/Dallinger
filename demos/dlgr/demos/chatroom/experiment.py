@@ -34,6 +34,7 @@ class CoordinationChatroom(Experiment):
     def configure(self):
         config = get_config()
         self.experiment_repeats = repeats = config.get('repeats')
+        self.network_class = config.get('network')
         self.quorum = config.get('n')
         # Recruit for all networks at once
         self.initial_recruitment_size = repeats * self.quorum
@@ -42,7 +43,7 @@ class CoordinationChatroom(Experiment):
         """Create a new network by reading the configuration file."""
         class_ = getattr(
             networks,
-            self.config.get('network')
+            self.network_class
         )
         return class_(max_size=self.quorum)
 
