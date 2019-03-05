@@ -566,7 +566,7 @@ If using Python 3.x and pip3:
 
 Now create the virtualenv using the ``mkvirtualenv`` command as follows:
 
-If you are using Python 3 that is part of your Ubuntu installation (16.04 or 18.04):
+If you are using Python 3 that is part of your Ubuntu installation (Ubuntu 18.04):
 ::
 
     mkvirtualenv dlgr_env --python /usr/bin/python3
@@ -577,7 +577,7 @@ If you are using Python 2 that is part of your Ubuntu installation:
     mkvirtualenv dlgr_env --python /usr/bin/python
 
 If you are using another Python version
-(eg. custom installed Python 3.x on Ubuntu 14.04):
+(eg. custom installed Python 3.x on Ubuntu 16.04 or Ubuntu 14.04):
 ::
 
     mkvirtualenv dlgr_env --python <specify_your_python_path_here>
