@@ -3,9 +3,13 @@ Vagrant Installation
 
 Install the Vagrant virtual machine management system from `Hashicorp
 <https://www.vagrantup.com/docs/installation/>`__ and the `VirtualBox
-<https://www.virtualbox.org/>`__ virtualization software. Once you've installed
-Vagrant, install the `vbguest` plugin using the command `vagrant plugin install
-vagrant-vbguest`
+<https://www.virtualbox.org/>`__ virtualization software.
+
+Once you've installed Vagrant, install the `vbguest` plugin using the command:
+
+::
+
+    vagrant plugin install vagrant-vbguest
 
 If you already use a different Virtual Machine provider, it may be compatible
 with Vagrant, in which case you may need to modify the ``Vagrantfile``. This
@@ -36,6 +40,6 @@ When you're finished, shut the Vagrant machine down by running:
 
 New experiments created using the `cookiecutter` template described in
 :doc:`Creating an Experiment <creating_an_experiment>`
-include a `Vagrantfile` which will setup a virtual machine configured to run
+include a ``Vagrantfile`` which will setup a virtual machine configured to run
 your new Dallinger experiment. The Dallinger demos package also includes a
-`Vagrantfile`.
+``Vagrantfile``.
