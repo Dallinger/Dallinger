@@ -24,7 +24,7 @@ The first time you start the virtual machine, Vagrant will download an Ubuntu Li
 
     vagrant up
 
-You can then connect to the vagrant machine over ssh and interact with dallinger. This is done through:
+You can then connect to the vagrant machine over ssh and interact with Dallinger. This is done through:
 
 ::
 
