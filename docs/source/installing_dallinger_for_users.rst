@@ -12,9 +12,13 @@ Dallinger is tested with Ubuntu 18.04 LTS, 16.04 LTS, 14.04 LTS and Mac OS X
 locally. We do not recommended running Dallinger with Microsoft Windows, however
 if you do, running Ubuntu in a virtual machine is the recommend method.
 
-If you would like to use a virtual machine installation of Dallinger, you may
-skip to the :doc:`Creating an Experiment <creating_an_experiment>`
-documentation, and follow the instructions there for using Vagrant.
+Using Dallinger with Vagrant
+----------------------------
+
+It is possible to run Dallinger demos and to create and run a custom experiment without installing Dallinger yourself.
+To do this, you can make use of a Vagrant virtual machine, which installs Dallinger for you in a Linux virtual machine environment.
+More information can be found in the :doc:`Dallinger demos <demo_index>` and :doc:`Creating an Experiment <creating_an_experiment>`
+sections.
 
 Using Dallinger with Docker
 ---------------------------
