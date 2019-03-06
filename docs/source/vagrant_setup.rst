@@ -18,7 +18,10 @@ method is not recommended.
 Starting Dallinger
 ------------------
 
-The first time you start the virtual machine, Vagrant will download an Ubuntu Linux image and run installation steps. This will take some time and downloads a large amount of data through the internet connection. The command to begin this process is:
+The first time you start the virtual machine, Vagrant will download an Ubuntu Linux image and run installation steps. This will take some time and downloads a large amount of data through the internet connection.
+
+
+In your terminal/command prompt, navigate to the directory that contains the ``Vagrantfile`` and begin the process with the following command:
 
 ::
 
