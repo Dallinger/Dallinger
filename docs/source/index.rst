@@ -39,7 +39,7 @@ Many Dallinger users may not have lots of programming experience, and might
 want a bit more information about the inner workings of Dallinger in a
 beginner-friendly format. Thomas Morgan has started such a project:
 `"Dallinger for Programming Novices"
-<https://github.com/thomasmorgan/dallinger-for-novices/tree/master/source>`__.
+<https://github.com/thomasmorgan/dallinger-for-novices>`__.
 Every Dallinger user is encouraged to take a look at this guide, which is a
 nice complement to the documentation presented here.
 
