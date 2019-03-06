@@ -274,7 +274,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
-    team = config.get("heroku_team", "").strip() or None
+    team = config.get("heroku_team", None)
     heroku_app = HerokuApp(dallinger_uid=id, output=out, team=team)
     heroku_app.bootstrap()
     heroku_app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")

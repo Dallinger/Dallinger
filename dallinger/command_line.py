@@ -807,7 +807,7 @@ def apps():
     config = get_config()
     if not config.ready:
         config.load()
-    team = config.get("heroku_team", "").strip() or None
+    team = config.get("heroku_team", None)
     command_runner = HerokuInfo(team=team)
     my_apps = command_runner.my_apps()
     my_user = command_runner.login_name()

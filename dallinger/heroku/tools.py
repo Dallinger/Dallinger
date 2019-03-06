@@ -537,8 +537,8 @@ class HerokuLocalWrapper(object):
 
 def sanity_check(config):
     # check if dyno size is compatible with team configuration.
-    size = config.get("dyno_type", "").strip()
-    team = config.get("heroku_team", "").strip()
+    size = config.get("dyno_type")
+    team = config.get("heroku_team", None)
     if team and size == "free":
         raise RuntimeError(
             'Heroku "free" dyno type not compatible '

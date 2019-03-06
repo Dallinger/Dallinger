@@ -140,19 +140,26 @@ class TestConfiguration(object):
 
     def test_loading_keys_from_config_file(self):
         config = Configuration()
+        config.register("mode", six.text_type)
         config.register("num_participants", int, synonyms={"n"})
         config.register("deploy_worldwide", bool, synonyms={"worldwide"})
-        with NamedTemporaryFile() as configfile:
-            configfile.write(
-                b"""
+        mode_with_trailing_whitespace = "live    "
+        contents = """
 [Example Section]
+mode = {}
 num_participants = 10
 worldwide = false
-"""
-            )
+""".format(
+            mode_with_trailing_whitespace
+        )
+
+        with NamedTemporaryFile() as configfile:
+            configfile.write(bytes(contents, encoding="utf-8"))
             configfile.flush()
             config.load_from_file(configfile.name)
+
         config.ready = True
+        assert config.get("mode") == "live"  # whitespace stripped
         assert config.get("num_participants") == 10
         assert config.get("deploy_worldwide") is False
 
