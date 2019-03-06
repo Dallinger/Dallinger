@@ -89,7 +89,7 @@ After installing Postgres, you will need to create two databases:
 one for your experiments to use, and a second to support importing saved
 experiments. It is recommended that you also create a database user.
 
-Naviagate to a terminal and type:
+Navigate to a terminal and type:
 ::
 
     createuser -P dallinger --createdb
