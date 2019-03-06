@@ -154,7 +154,7 @@ worldwide = false
         )
 
         with NamedTemporaryFile() as configfile:
-            configfile.write(bytes(contents, encoding="utf-8"))
+            configfile.write(contents.encode("utf-8"))
             configfile.flush()
             config.load_from_file(configfile.name)
 
