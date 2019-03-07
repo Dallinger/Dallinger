@@ -5,6 +5,7 @@ repos:
   - id: black
     name: black
     entry: black
+    args: [--quiet]
     language: system
     types: [python]
     files: ^(tests|dallinger|dallinger_scripts|demos)/
