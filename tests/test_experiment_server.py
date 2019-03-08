@@ -20,7 +20,8 @@ class TestAppConfiguration(object):
         webapp.application.debug = False
         from dallinger.experiment_server.gunicorn import StandaloneServer
 
-        StandaloneServer().load()
+        with mock.patch("sys.argv", ["gunicorn"]):
+            StandaloneServer().load()
         assert webapp.application.debug
 
     def test_production_mode_leaves_flask_in_production_mode(
@@ -30,7 +31,8 @@ class TestAppConfiguration(object):
         webapp.application.debug = False
         from dallinger.experiment_server.gunicorn import StandaloneServer
 
-        StandaloneServer().load()
+        with mock.patch("sys.argv", ["gunicorn"]):
+            StandaloneServer().load()
         assert not webapp.application.debug
 
     def test_gunicorn_worker_config(self, webapp, active_config):
@@ -39,17 +41,18 @@ class TestAppConfiguration(object):
             cpu_count.return_value = 2
             from dallinger.experiment_server.gunicorn import StandaloneServer
 
-            server = StandaloneServer()
-            assert server.options["workers"] == u"4"
-            cpu_count.return_value = 4
-            server.load_user_config()
-            assert server.options["workers"] == u"7"
-            active_config.extend({"worker_multiplier": 1.0})
-            server.load_user_config()
-            assert server.options["workers"] == u"5"
-            active_config.extend({"threads": u"2"})
-            server.load_user_config()
-            assert server.options["workers"] == u"2"
+            with mock.patch("sys.argv", ["gunicorn"]):
+                server = StandaloneServer()
+                assert server.options["workers"] == u"4"
+                cpu_count.return_value = 4
+                server.load_user_config()
+                assert server.options["workers"] == u"7"
+                active_config.extend({"worker_multiplier": 1.0})
+                server.load_user_config()
+                assert server.options["workers"] == u"5"
+                active_config.extend({"threads": u"2"})
+                server.load_user_config()
+                assert server.options["workers"] == u"2"
 
 
 @pytest.mark.usefixtures("experiment_dir")
