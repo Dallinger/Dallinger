@@ -7,6 +7,7 @@ import pytest
 import dallinger
 
 
+@pytest.mark.slow
 class TestAPI(object):
     def test_uuid(self):
         from dallinger.experiment import Experiment

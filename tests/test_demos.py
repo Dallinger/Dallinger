@@ -7,6 +7,7 @@ from dallinger.command_line import verify_package
 from dallinger.config import get_config
 
 
+@pytest.mark.slow
 class TestDemos(object):
     """Verify all the built-in demos."""
 

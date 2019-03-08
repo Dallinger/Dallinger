@@ -167,6 +167,7 @@ worldwide = false
         config.ready = True
         assert config.get("num_participants") == 1
 
+    @pytest.mark.slow
     def test_experiment_defined_parameters(self):
         try:
             python = pexpect.spawn("python", encoding="utf-8")

@@ -321,6 +321,7 @@ def qtype(mturk):
 
 @pytest.mark.mturk
 @pytest.mark.mturkworker
+@pytest.mark.slow
 class TestMTurkServiceIntegrationSmokeTest(object):
     """Hits about 75% of the MTurkService class with actual boto.mturk network
     calls. For comprehensive system tests, run with the --mturkfull option.
@@ -560,6 +561,7 @@ class TestMTurkService(object):
 @pytest.mark.skipif(
     not pytest.config.getvalue("mturkfull"), reason="--mturkfull was not specified"
 )
+@pytest.mark.slow
 class TestMTurkServiceWithRequesterAndWorker(object):
     def test_can_assign_new_qualification(self, with_cleanup, worker_id, qtype):
         assert with_cleanup.assign_qualification(qtype["id"], worker_id, score=2)
@@ -681,6 +683,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 @pytest.mark.skipif(
     not pytest.config.getvalue("manual"), reason="--manual was not specified"
 )
+@pytest.mark.slow
 class TestInteractive(object):
     def test_worker_can_see_hit_when_blacklist_not_in_qualifications(
         self, with_cleanup, worker_id, qtype

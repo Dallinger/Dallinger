@@ -26,6 +26,7 @@ def zip_path():
     return os.path.join("tests", "datasets", "test_export.zip")
 
 
+@pytest.mark.slow
 class TestData(object):
     @pytest.fixture
     def cleanup(self):

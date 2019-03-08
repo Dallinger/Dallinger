@@ -2,6 +2,8 @@ from datetime import datetime
 import gevent
 import random
 
+import pytest
+
 
 class DummyEvent(object):
     creation_time = None
@@ -43,6 +45,7 @@ class DummyExperiment(object):
         self.finished = True
 
 
+@pytest.mark.slow
 class TestReplayBackend:
 
     allowed_jitter = 0.05
