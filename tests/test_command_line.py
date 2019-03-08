@@ -68,11 +68,13 @@ def mturk():
 
 
 @pytest.mark.usefixtures("bartlett_dir")
+@pytest.mark.slow
 class TestVerify(object):
     def test_verify(self):
         subprocess.check_call(["dallinger", "verify"])
 
 
+@pytest.mark.slow
 class TestCommandLine(object):
     def test_dallinger_no_args(self):
         output = subprocess.check_output(["dallinger"])
@@ -113,6 +115,7 @@ class TestCommandLine(object):
         subprocess.check_call(["dallinger", "setup"])
 
 
+@pytest.mark.slow
 class TestReportAfterIdleDecorator(object):
     def test_reports_timeout(self, active_config):
         @report_idle_after(1)
@@ -126,6 +129,7 @@ class TestReportAfterIdleDecorator(object):
             mock_messenger.send.assert_called_once()
 
 
+@pytest.mark.slow
 class TestOutput(object):
     @pytest.fixture
     def output(self):
@@ -175,6 +179,7 @@ class TestDebugCommand(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir")
+@pytest.mark.slow
 class TestSandboxAndDeploy(object):
     @pytest.fixture
     def sandbox(self):
@@ -285,6 +290,7 @@ class TestSummary(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir")
+@pytest.mark.slow
 class TestBot(object):
     @pytest.fixture
     def bot_command(self):
@@ -678,6 +684,7 @@ class TestDestroy(object):
 
         return destroy
 
+    @pytest.mark.slow
     def test_calls_destroy(self, destroy, heroku):
         CliRunner().invoke(destroy, ["--app", "some-app-uid", "--yes"])
         heroku.destroy.assert_called_once()

@@ -409,6 +409,9 @@ def pytest_addoption(parser):
     parser.addoption("--chrome", action="store_true", help="Run chrome bot tests")
     parser.addoption("--phantomjs", action="store_true", help="Run phantomjs bot tests")
     parser.addoption(
+        "--runslow", action="store_true", default=False, help="run slow tests"
+    )
+    parser.addoption(
         "--webdriver",
         nargs="?",
         action="store",
@@ -438,3 +441,13 @@ def pytest_addoption(parser):
         action="store_true",
         help="Run griduinverse tests and fail if not all pass",
     )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--runslow"):
+        # --runslow given in cli: do not skip slow tests
+        return
+    skip_slow = pytest.mark.skip(reason="need --runslow option to run")
+    for item in items:
+        if "slow" in item.keywords:
+            item.add_marker(skip_slow)

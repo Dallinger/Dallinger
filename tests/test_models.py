@@ -6,12 +6,13 @@ import six
 import sys
 from datetime import datetime
 from dallinger import models, nodes
-from pytest import raises
+from pytest import raises, mark
 from dallinger.nodes import Agent, Source
 from dallinger.information import Gene
 from dallinger.transformations import Mutation
 
 
+@mark.slow
 class TestModels(object):
     def add(self, session, *args):
         session.add_all(args)

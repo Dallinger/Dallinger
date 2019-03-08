@@ -114,6 +114,7 @@ class TestChatBackend:
         assert client not in chat.channels["quorum"].clients
 
 
+@pytest.mark.slow
 class TestClient:
     def test_send(self, client):
         client.send("message")

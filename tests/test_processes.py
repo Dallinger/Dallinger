@@ -1,6 +1,8 @@
 from dallinger import processes, networks, nodes, models
 from dallinger.nodes import Agent
 
+import pytest
+
 
 class TestProcesses(object):
     def test_random_walk_from_source(self, db_session):
@@ -38,6 +40,7 @@ class TestProcesses(object):
 
         assert msg == agent3.infos()[0].contents
 
+    @pytest.mark.slow
     def test_moran_process_cultural(self, db_session):
 
         # Create a fully-connected network.
@@ -86,6 +89,7 @@ class TestProcesses(object):
             == max(agent1.infos(), key=attrgetter("creation_time")).contents
         )
 
+    @pytest.mark.slow
     def test_moran_process_sexual(self, db_session):
 
         # Create a fully-connected network.

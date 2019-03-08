@@ -453,6 +453,7 @@ class TestHerokuApp(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir")
+@pytest.mark.slow
 class TestHerokuLocalWrapper(object):
     @pytest.fixture
     def config(self):

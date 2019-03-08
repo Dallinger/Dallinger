@@ -259,11 +259,13 @@ class TestSetupExperiment(object):
                 setup_experiment(log=mock.Mock())
                 assert ex_info.match("Boom!")
 
+    @pytest.mark.slow
     def test_large_float_payment(self):
         config = get_config()
         config["base_payment"] = 1.2342
         assert verify_package() is False
 
+    @pytest.mark.slow
     def test_negative_payment(self):
         config = get_config()
         config["base_payment"] = -1.99
@@ -394,6 +396,7 @@ class Test_deploy_in_mode(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir")
+@pytest.mark.slow
 class Test_handle_launch_data(object):
     @pytest.fixture
     def handler(self):
@@ -452,6 +455,7 @@ class Test_handle_launch_data(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
+@pytest.mark.slow
 class TestDebugServer(object):
     @pytest.fixture
     def debugger_unpatched(self, output):
@@ -562,6 +566,7 @@ class TestDebugServer(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
+@pytest.mark.slow
 class TestLoad(object):
 
     exp_id = "some_experiment_id"

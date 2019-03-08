@@ -6,6 +6,7 @@ from dallinger import models
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestAppConfiguration(object):
     def test_config_gets_loaded_before_first_request(self, webapp):
         from dallinger.config import get_config
@@ -19,7 +20,8 @@ class TestAppConfiguration(object):
         webapp.application.debug = False
         from dallinger.experiment_server.gunicorn import StandaloneServer
 
-        StandaloneServer().load()
+        with mock.patch("sys.argv", ["gunicorn"]):
+            StandaloneServer().load()
         assert webapp.application.debug
 
     def test_production_mode_leaves_flask_in_production_mode(
@@ -29,7 +31,8 @@ class TestAppConfiguration(object):
         webapp.application.debug = False
         from dallinger.experiment_server.gunicorn import StandaloneServer
 
-        StandaloneServer().load()
+        with mock.patch("sys.argv", ["gunicorn"]):
+            StandaloneServer().load()
         assert not webapp.application.debug
 
     def test_gunicorn_worker_config(self, webapp, active_config):
@@ -38,20 +41,22 @@ class TestAppConfiguration(object):
             cpu_count.return_value = 2
             from dallinger.experiment_server.gunicorn import StandaloneServer
 
-            server = StandaloneServer()
-            assert server.options["workers"] == u"4"
-            cpu_count.return_value = 4
-            server.load_user_config()
-            assert server.options["workers"] == u"7"
-            active_config.extend({"worker_multiplier": 1.0})
-            server.load_user_config()
-            assert server.options["workers"] == u"5"
-            active_config.extend({"threads": u"2"})
-            server.load_user_config()
-            assert server.options["workers"] == u"2"
+            with mock.patch("sys.argv", ["gunicorn"]):
+                server = StandaloneServer()
+                assert server.options["workers"] == u"4"
+                cpu_count.return_value = 4
+                server.load_user_config()
+                assert server.options["workers"] == u"7"
+                active_config.extend({"worker_multiplier": 1.0})
+                server.load_user_config()
+                assert server.options["workers"] == u"5"
+                active_config.extend({"threads": u"2"})
+                server.load_user_config()
+                assert server.options["workers"] == u"2"
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestAdvertisement(object):
     def test_returns_error_without_hitId_and_assignmentId(self, webapp):
         resp = webapp.get("/ad")
@@ -227,6 +232,7 @@ class TestAdvertisement(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestQuestion(object):
     def test_with_no_participant_id_fails_to_match_route_returns_405(self, webapp):
         # I found this surprising, so leaving the test here.
@@ -284,6 +290,7 @@ class TestQuestion(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
 class TestWorkerComplete(object):
     def test_with_no_participant_id_returns_error(self, webapp):
         resp = webapp.get("/worker_complete")
@@ -371,6 +378,7 @@ def mock_messenger():
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
 class TestHandleError(object):
     def test_completes_assignment(self, a, webapp):
         resp = webapp.post("/handle-error", data={"participant_id": a.participant().id})
@@ -491,6 +499,7 @@ class TestHandleError(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
 class TestWorkerFailed(object):
     def test_with_no_participant_id_returns_error(self, webapp):
         resp = webapp.get("/worker_failed")
@@ -530,6 +539,7 @@ class TestWorkerFailed(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestSimpleGETRoutes(object):
     def test_success_response(self):
         from dallinger.experiment_server.experiment_server import success_response
@@ -580,6 +590,7 @@ class TestSimpleGETRoutes(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestAdRoute(object):
     def test_ad(self, webapp):
         resp = webapp.get(
@@ -610,6 +621,7 @@ class TestAdRoute(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
 class TestParticipantGetRoute(object):
     def test_participant_info(self, a, webapp):
         p = a.participant()
@@ -627,6 +639,7 @@ class TestParticipantGetRoute(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
 class TestParticipantCreateRoute(object):
     @pytest.fixture
     def overrecruited(self):
@@ -697,6 +710,7 @@ class TestParticipantCreateRoute(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
 class TestAPINotificationRoute(object):
     @pytest.fixture
     def queue(self):
@@ -723,6 +737,7 @@ class TestAPINotificationRoute(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestSummaryRoute(object):
     def test_summary_no_participants(self, a, webapp):
         resp = webapp.get("/summary")
@@ -812,6 +827,7 @@ class TestSummaryRoute(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestNetworkRoute(object):
     def test_get_network(self, a, webapp):
         network = a.network()
@@ -833,6 +849,7 @@ class TestNetworkRoute(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestNodeRouteGET(object):
     def test_node_vectors(self, a, webapp):
         node = a.node()
@@ -850,6 +867,7 @@ class TestNodeRouteGET(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
 class TestParticipantNodeCreationRoute(object):
     def test_with_invalid_participant_id_returns_error(self, webapp):
         resp = webapp.post("/node/123")
@@ -948,6 +966,7 @@ class TestRequestParameter(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
 class TestNodeRoutePOST(object):
     def test_node_transmit_info_creates_transmission(self, a, webapp, db_session):
         network = a.star()
@@ -1026,6 +1045,7 @@ class TestNodeRoutePOST(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
 class TestInfoRoutePOST(object):
     def test_invalid_node_id_returns_error(self, webapp):
         nonexistent_node_id = 999
@@ -1074,6 +1094,7 @@ class TestInfoRoutePOST(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
 class TestTrackingEventRoutePOST(object):
     def test_invalid_node_id_returns_error(self, webapp):
         nonexistent_node_id = 999
@@ -1093,6 +1114,7 @@ class TestTrackingEventRoutePOST(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestNodeNeighbors(object):
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.get("/node/123/neighbors?node_type=BadClass")
@@ -1141,6 +1163,7 @@ class TestNodeNeighbors(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestNodeReceivedInfos(object):
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.get("/node/123/received_infos?info_type=BadClass")
@@ -1198,6 +1221,7 @@ class TestNodeReceivedInfos(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestTransformationGet(object):
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.get("/node/123/transformations?transformation_type=BadClass")
@@ -1243,6 +1267,7 @@ class TestTransformationGet(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestTransformationPost(object):
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.post("/transformation/123/123/123?transformation_type=BadClass")
@@ -1305,6 +1330,7 @@ class TestTransformationPost(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestLaunchRoute(object):
     def test_launch(self, webapp):
         resp = webapp.post("/launch", data={})

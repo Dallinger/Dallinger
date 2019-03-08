@@ -460,6 +460,7 @@ class TestStar(object):
             assert exc_info.match("cannot connect to itself")
 
 
+@pytest.mark.slow
 class TestScaleFree(object):
     def test_create_scale_free(self, a):
         m0 = 4
@@ -517,6 +518,7 @@ class GenerationalAgent(nodes.Agent):
         return cast(self.property2, Integer)
 
 
+@pytest.mark.slow
 class TestDiscreteGenerational(TestNetworks):
 
     n_gens = 4
