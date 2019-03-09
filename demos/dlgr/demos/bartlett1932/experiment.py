@@ -42,7 +42,7 @@ class Bartlett1932(Experiment):
 
     def configure(self):
         config = get_config()
-        self.num_participants = config.get("num_participants", 1)
+        self.num_participants = config.get("num_participants")
 
     def setup(self):
         """Setup the networks.

@@ -669,7 +669,7 @@ def awaken(app, databaseurl):
     heroku_app.pg_wait()
     time.sleep(10)
 
-    heroku_app.addon("heroku-redis:{}".format(config.get("redis_size", "premium-0")))
+    heroku_app.addon("heroku-redis:{}".format(config.get("redis_size")))
     heroku_app.restore(url)
 
     # Scale up the dynos.

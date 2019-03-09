@@ -273,7 +273,7 @@ def stub_config():
         u"base_payment": 0.01,
         u"base_port": 5000,
         u"browser_exclude_rule": u"MSIE, mobile, tablet",
-        u"clock_on": True,
+        u"clock_on": False,
         u"contact_email_on_error": u"error_contact@test.com",
         u"dallinger_email_address": u"test@example.com",
         u"database_size": u"standard-0",
@@ -304,6 +304,8 @@ def stub_config():
         u"us_only": True,
         u"webdriver_type": u"phantomjs",
         u"whimsical": True,
+        u"replay": False,
+        u"worker_multiplier": 1.5,
     }
     from dallinger.config import default_keys
     from dallinger.config import Configuration
@@ -327,6 +329,9 @@ def active_config(stub_config):
     config = get_config()
     config.data = stub_config.data
     config.ready = True
+
+    # Ignore calls to config.load when using active_config
+    config.load = mock.Mock(side_effect=lambda: setattr(config, "ready", True))
     return config
 
 

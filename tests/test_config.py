@@ -103,6 +103,13 @@ class TestConfiguration(object):
         config.ready = True
         assert config.get("num_participants", 10) == 10
 
+    def test_get_strips_strings(self):
+        config = Configuration()
+        config.register("test_string", str)
+        config.ready = True
+        config.extend({"test_string": " something "})
+        assert config.get("test_string") == "something"
+
     def test_dict_access(self):
         config = Configuration()
         config.register("num_participants", int)
@@ -219,6 +226,7 @@ worldwide = false
         config.ready = True
         config.set("host", "localhost")
         config.set("base_port", 5000)
+        config.set("num_dynos_web", 1)
         assert get_base_url() == "http://localhost:5000"
 
     def test_remote_base_url(self):
@@ -227,6 +235,7 @@ worldwide = false
         config = get_config()
         config.ready = True
         config.set("host", "https://dlgr-bogus.herokuapp.com")
+        config.set("num_dynos_web", 1)
         assert get_base_url() == "https://dlgr-bogus.herokuapp.com"
 
     def test_remote_base_url_always_ssl(self):
@@ -235,6 +244,7 @@ worldwide = false
         config = get_config()
         config.ready = True
         config.set("host", "http://dlgr-bogus.herokuapp.com")
+        config.set("num_dynos_web", 1)
         assert get_base_url() == "https://dlgr-bogus.herokuapp.com"
 
     def test_write_omits_sensitive_keys_if_filter_sensitive(self, in_tempdir):

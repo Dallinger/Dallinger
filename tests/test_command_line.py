@@ -655,7 +655,7 @@ class TestAwaken(object):
         assert expected == heroku.addon.call_args_list[0]
 
     def test_adds_redis(self, awaken, heroku, data, active_config):
-        active_config["redis_size"] = u"premium-2"
+        active_config.set("redis_size", u"premium-2")
         CliRunner().invoke(awaken, ["--app", "some-app-uid"])
         assert mock.call("heroku-redis:premium-2") == heroku.addon.call_args_list[1]
 
@@ -664,10 +664,11 @@ class TestAwaken(object):
         heroku.restore.assert_called_once_with("fake restore url")
 
     def test_scales_up_dynos(self, awaken, heroku, data, active_config):
-        CliRunner().invoke(awaken, ["--app", "some-app-uid"])
         web_count = active_config.get("num_dynos_web")
         worker_count = active_config.get("num_dynos_worker")
         size = active_config.get("dyno_type")
+        active_config.set("clock_on", True)
+        CliRunner().invoke(awaken, ["--app", "some-app-uid"])
         heroku.scale_up_dyno.assert_has_calls(
             [
                 mock.call("web", web_count, size),

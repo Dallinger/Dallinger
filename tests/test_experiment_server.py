@@ -8,13 +8,11 @@ from dallinger import models
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestAppConfiguration(object):
-    def test_config_gets_loaded_before_first_request(self, webapp):
-        from dallinger.config import get_config
-
-        conf = get_config()
-        conf.clear()
+    def test_config_gets_loaded_before_first_request(self, webapp, active_config):
+        active_config.clear()
         webapp.get("/")
-        assert conf.ready
+        active_config.load.assert_called_once()
+        assert active_config.ready
 
     def test_debug_mode_puts_flask_in_debug_mode(self, webapp, active_config):
         webapp.application.debug = False

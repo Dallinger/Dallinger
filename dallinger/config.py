@@ -29,7 +29,7 @@ default_keys = (
     ("browser_exclude_rule", six.text_type, []),
     ("clock_on", bool, []),
     ("contact_email_on_error", six.text_type, []),
-    ("chrome-path", six.binary_type, []),
+    ("chrome-path", six.text_type, []),
     ("dallinger_email_address", six.text_type, []),
     ("database_size", six.text_type, []),
     ("database_url", six.text_type, [], True),
@@ -131,7 +131,10 @@ class Configuration(object):
             raise RuntimeError("Config not loaded")
         for layer in self.data:
             try:
-                return layer[key]
+                value = layer[key]
+                if isinstance(value, six.text_type):
+                    value = value.strip()
+                return value
             except KeyError:
                 continue
         if default is marker:
@@ -181,7 +184,7 @@ class Configuration(object):
             self.sensitive.add(key)
 
     def load_from_file(self, filename):
-        parser = configparser.SafeConfigParser()
+        parser = configparser.ConfigParser()
         parser.read(filename)
         data = {}
         for section in parser.sections():
@@ -189,7 +192,7 @@ class Configuration(object):
         self.extend(data, cast_types=True, strict=True)
 
     def write(self, filter_sensitive=False):
-        parser = configparser.SafeConfigParser()
+        parser = configparser.ConfigParser()
         parser.add_section("Parameters")
         for layer in reversed(self.data):
             for k, v in layer.items():

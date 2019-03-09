@@ -469,8 +469,8 @@ class HerokuLocalWrapper(object):
             raise HerokuStartupError('"HOME" environment not set... aborting.')
 
         port = self.config.get("base_port")
-        web_dynos = self.config.get("num_dynos_web", 1)
-        worker_dynos = self.config.get("num_dynos_worker", 1)
+        web_dynos = self.config.get("num_dynos_web")
+        worker_dynos = self.config.get("num_dynos_worker")
         commands = [
             self.shell_command,
             "local",

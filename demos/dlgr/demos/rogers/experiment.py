@@ -54,25 +54,22 @@ class RogersExperiment(Experiment):
 
     def configure(self):
         config = get_config()
-        self.experiment_repeats = config.get("experiment_repeats", 10)
-        self.practice_repeats = config.get("practice_repeats", 0)
+        self.experiment_repeats = config.get("experiment_repeats")
+        self.practice_repeats = config.get("practice_repeats")
         self.catch_repeats = config.get(
             "catch_repeats", 0
         )  # a subset of experiment repeats
-        self.practice_difficulty = config.get("practice_difficulty", 0.80)
+        self.practice_difficulty = config.get("practice_difficulty")
 
         self.difficulties = [
-            float(f.strip())
-            for f in config.get("difficulties", "0.525, 0.5625, 0.65").split(",")
+            float(f.strip()) for f in config.get("difficulties").split(",")
         ] * self.experiment_repeats
 
-        self.catch_difficulty = config.get("catch_difficulty", 0.80)
-        self.min_acceptable_performance = config.get(
-            "min_acceptable_performance", 10 / float(12)
-        )
-        self.generation_size = config.get("generation_size", 2)
-        self.generations = config.get("generations", 3)
-        self.bonus_payment = config.get("bonus_payment", 1.0)
+        self.catch_difficulty = config.get("catch_difficulty")
+        self.min_acceptable_performance = config.get("min_acceptable_performance")
+        self.generation_size = config.get("generation_size")
+        self.generations = config.get("generations")
+        self.bonus_payment = config.get("bonus_payment")
         self.initial_recruitment_size = self.generation_size
 
     @property

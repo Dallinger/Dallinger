@@ -218,7 +218,7 @@ class TestSetupExperiment(object):
         os.path.exists(os.path.join("snapshots", exp_id + "-code.zip"))
 
         # There should be a modified configuration in the temp dir
-        deploy_config = configparser.SafeConfigParser()
+        deploy_config = configparser.ConfigParser()
         deploy_config.read(os.path.join(dst, "config.txt"))
         assert int(deploy_config.get("Parameters", "num_dynos_web")) == 2
 
@@ -242,7 +242,7 @@ class TestSetupExperiment(object):
         exp_id, dst = setup_experiment(log=mock.Mock())
 
         # The temp dir should have a config with the sensitive variables missing
-        deploy_config = configparser.SafeConfigParser()
+        deploy_config = configparser.ConfigParser()
         deploy_config.read(os.path.join(dst, "config.txt"))
         assert deploy_config.get("Parameters", "something_normal") == "show this"
         with raises(configparser.NoOptionError):
@@ -326,7 +326,8 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         dsss(log=mock.Mock())
         fake_redis.set.assert_called_once_with("foo", "bar")
 
-    def test_scales_dynos(self, dsss, heroku_mock):
+    def test_scales_dynos(self, dsss, heroku_mock, active_config):
+        active_config.set("clock_on", True)
         dsss(log=mock.Mock())
         heroku_mock.scale_up_dyno.assert_has_calls(
             [

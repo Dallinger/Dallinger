@@ -484,7 +484,7 @@ class MTurkRecruiter(Recruiter):
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
         logger.info("Recruiting {} MTurk participants".format(n))
-        if not self.config.get("auto_recruit", False):
+        if not self.config.get("auto_recruit"):
             logger.info("auto_recruit is False: recruitment suppressed")
             return
 
@@ -594,7 +594,7 @@ class MTurkRecruiter(Recruiter):
 
     @property
     def qualification_active(self):
-        return bool(self.config.get("assign_qualifications", False))
+        return bool(self.config.get("assign_qualifications"))
 
     def current_hit_id(self):
         any_participant_record = (
@@ -662,7 +662,9 @@ class MTurkRecruiter(Recruiter):
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
         # but the config system only supports strings for now, so we convert:
-        as_string = self.config.get(key, "")
+        as_string = self.config.get(key, None)
+        if as_string is None:
+            return []
         return [item.strip() for item in as_string.split(",") if item.strip()]
 
     def _create_mturk_qualifications(self):
@@ -727,7 +729,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
 
     def recruit(self, n=1):
         logger.info("Recruiting {} MTurkLarge participants".format(n))
-        if not self.config.get("auto_recruit", False):
+        if not self.config.get("auto_recruit"):
             logger.info("auto_recruit is False: recruitment suppressed")
             return
 
@@ -938,12 +940,12 @@ def from_config(config):
     the bot recruiter, which can be used in debug mode)
     and the MTurkRecruiter in other modes.
     """
-    debug_mode = config.get("mode", None) == "debug"
+    debug_mode = config.get("mode") == "debug"
     name = config.get("recruiter", None)
     recruiter = None
 
     # Special case 1: Don't use a configured recruiter in replay mode
-    if config.get("replay", None):
+    if config.get("replay"):
         return HotAirRecruiter()
 
     if name is not None:
