@@ -105,7 +105,7 @@ class TestConfiguration(object):
 
     def test_get_strips_strings(self):
         config = Configuration()
-        config.register("test_string", str)
+        config.register("test_string", six.text_type)
         config.ready = True
         config.extend({"test_string": " something "})
         assert config.get("test_string") == "something"
