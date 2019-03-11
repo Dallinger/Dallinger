@@ -325,6 +325,7 @@ def active_config(stub_config):
     dallinger.config.get_config() and returns it.
     """
     from dallinger import config as c
+
     c.config = stub_config
     c.config.load = mock.Mock(side_effect=lambda: setattr(c.config, "ready", True))
     return c.config
