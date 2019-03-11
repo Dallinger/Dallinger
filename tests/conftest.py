@@ -314,6 +314,8 @@ def stub_config():
     for key in default_keys:
         config.register(*key)
     config.extend(defaults.copy())
+    # Patch load() so we don't update any key/value pairs from actual files:
+    config.load = mock.Mock(side_effect=lambda: setattr(config, "ready", True))
     config.ready = True
 
     return config
@@ -327,7 +329,6 @@ def active_config(stub_config):
     from dallinger import config as c
 
     c.config = stub_config
-    c.config.load = mock.Mock(side_effect=lambda: setattr(c.config, "ready", True))
     return c.config
 
 

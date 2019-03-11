@@ -564,7 +564,6 @@ def advertisement():
     """
     if not ("hitId" in request.args and "assignmentId" in request.args):
         raise ExperimentError("hit_assign_worker_id_not_set_in_mturk")
-
     config = _config()
 
     # Browser rule validation, if configured:
