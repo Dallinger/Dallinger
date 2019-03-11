@@ -324,15 +324,10 @@ def active_config(stub_config):
     """Loads the standard config as the active configuration returned by
     dallinger.config.get_config() and returns it.
     """
-    from dallinger.config import get_config
-
-    config = get_config()
-    config.data = stub_config.data
-    config.ready = True
-
-    # Ignore calls to config.load when using active_config
-    config.load = mock.Mock(side_effect=lambda: setattr(config, "ready", True))
-    return config
+    from dallinger import config as c
+    c.config = stub_config
+    c.config.load = mock.Mock(side_effect=lambda: setattr(c.config, "ready", True))
+    return c.config
 
 
 @pytest.fixture
