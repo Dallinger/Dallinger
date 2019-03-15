@@ -74,6 +74,7 @@ def new_webbrowser_profile():
 def _local_root_files():
     """Return an iterable of filenames which should be copied from the
     experiment root directory to the generated temp directory.
+
     Assumes the experiment root directory is the current working directory.
     """
     good_types = ("*.py", "*.txt")
