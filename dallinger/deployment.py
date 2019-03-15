@@ -93,7 +93,9 @@ def assemble_experiment_temp_dir(config):
     - Templates and static resources from Dallinger
     - An export of the loaded configuration
     - Heroku-specific files (Procile, runtime.txt)
+
     Assumes the experiment root directory is the current working directory.
+
     Returns the absolute path of the new directory.
     """
     app_id = config.get("id")
