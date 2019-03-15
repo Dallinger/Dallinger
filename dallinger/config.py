@@ -191,7 +191,7 @@ class Configuration(object):
             data.update(dict(parser.items(section)))
         self.extend(data, cast_types=True, strict=True)
 
-    def write(self, filter_sensitive=False):
+    def write(self, filter_sensitive=False, directory=None):
         parser = configparser.ConfigParser()
         parser.add_section("Parameters")
         for layer in reversed(self.data):
@@ -200,7 +200,9 @@ class Configuration(object):
                     continue
                 parser.set("Parameters", k, str(v))
 
-        with open(LOCAL_CONFIG, "w") as fp:
+        directory = directory or os.getcwd()
+        destination = os.path.join(directory, LOCAL_CONFIG)
+        with open(destination, "w") as fp:
             parser.write(fp)
 
     def load_from_environment(self):
