@@ -11,7 +11,6 @@ from pytest import raises
 from six.moves import configparser
 
 from dallinger.deployment import new_webbrowser_profile
-from dallinger.command_line import verify_package
 from dallinger.config import get_config
 from dallinger import recruiters
 
@@ -258,18 +257,6 @@ class TestSetupExperiment(object):
             with pytest.raises(Exception) as ex_info:
                 setup_experiment(log=mock.Mock())
                 assert ex_info.match("Boom!")
-
-    @pytest.mark.slow
-    def test_large_float_payment(self):
-        config = get_config()
-        config["base_payment"] = 1.2342
-        assert verify_package() is False
-
-    @pytest.mark.slow
-    def test_negative_payment(self):
-        config = get_config()
-        config["base_payment"] = -1.99
-        assert verify_package() is False
 
 
 @pytest.mark.usefixtures("active_config", "launch", "fake_git", "fake_redis", "faster")

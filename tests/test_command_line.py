@@ -67,11 +67,25 @@ def mturk():
         yield mock_mturk
 
 
-@pytest.mark.usefixtures("bartlett_dir")
 @pytest.mark.slow
+@pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
 class TestVerify(object):
+    @pytest.fixture
+    def v_package(self):
+        from dallinger.command_line import verify_package
+
+        return verify_package
+
     def test_verify(self):
         subprocess.check_call(["dallinger", "verify"])
+
+    def test_large_float_payment(self, active_config, v_package):
+        active_config.extend({"base_payment": 1.2342})
+        assert v_package() is False
+
+    def test_negative_payment(self, active_config, v_package):
+        active_config.extend({"base_payment": -1.99})
+        assert v_package() is False
 
 
 @pytest.mark.slow
