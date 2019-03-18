@@ -66,7 +66,64 @@ var dallinger = (function () {
     _isUndefined: function (value) {
       return typeof value === 'undefined';
     }
+  };
 
+  /**
+   * ``dallinger.identity`` provides information about the participant.
+   * It has the following string properties:
+   *
+   * ``recruiter``     - Type of recruiter
+   *
+   * ``hitId``         - MTurk HIT Id
+   *
+   * ``workerId``      - MTurk Worker Id
+   *
+   * ``assignmentId``  - MTurk Assignment Id
+   *
+   * ``mode``          - Dallinger experiment mode
+   *
+   * ``participantId`` - Dallinger participant Id
+   *
+   * @namespace
+   */
+  dlgr.identity = {
+    get recruiter() { return dlgr.storage.get("recruiter"); },
+    set recruiter(value) { dlgr.storage.set("recruiter", value); },
+    get hitId() { return  dlgr.storage.get("hit_id"); },
+    set hitId(value) {  dlgr.storage.set("hit_id", value); },
+    get workerId() { return  dlgr.storage.get('worker_id'); },
+    set workerId(value) {  dlgr.storage.set('worker_id', value); },
+    get assignmentId() { return  dlgr.storage.get('assignment_id'); },
+    set assignmentId(value) {  dlgr.storage.set('assignment_id', value); },
+    get mode() { return  dlgr.storage.get('mode'); },
+    set mode(value) {  dlgr.storage.set('mode', value); },
+    get participantId() { return dlgr.storage.get('participant_id'); },
+    set participantId(value) { dlgr.storage.set('participant_id', value); },
+    get fingerprintHash() { return dlgr.storage.get('fingerprint_hash'); },
+    set fingerprintHash(value) { dlgr.storage.set('fingerprint_hash', value);},
+
+    serverFormat: function () {
+      return {
+        'recruiter': this.recruiter,
+        'mode': this.mode,
+        'hit_id': this.hitId,
+        'worker_id': this.workerId,
+        'assignment_id': this.assignmentId,
+        'fingerprint_hash': this.fingerprintHash,
+      };
+    },
+
+    initialize: function () {
+      this.recruiter = dlgr.getUrlParameter('recruiter');
+      this.hitId = dlgr.getUrlParameter('hit_id');
+      this.workerId = dlgr.getUrlParameter('worker_id');
+      this.assignmentId = dlgr.getUrlParameter('assignment_id');
+      this.mode = dlgr.getUrlParameter('mode');
+      var _self = this;
+      new Fingerprint2().get(function(result){
+        _self.fingerprintHash = result;
+      });
+    }
 
   };
 
@@ -188,18 +245,6 @@ var dallinger = (function () {
     }
   };
 
-  var get_hit_params = function() {
-    var data = {};
-    data.recruiter = dlgr.storage.get("recruiter");
-    data.worker_id = dlgr.storage.get("worker_id");
-    data.hit_id = dlgr.storage.get("hit_id");
-    data.assignment_id = dlgr.storage.get("assignment_id");
-    data.mode = dlgr.storage.get("mode");
-    data.fingerprint_hash = dlgr.storage.get("fingerprint_hash");
-
-    return data;
-  };
-
   // AJAX helpers
   var ajax = function (method, route, data) {
     var deferred = $.Deferred();
@@ -297,7 +342,7 @@ var dallinger = (function () {
       add_hidden_input($form, 'participant_id', rejection.data.participant_id);
     }
     add_hidden_input($form, 'request_data', rejection.requestJSON);
-    hit_params = get_hit_params();
+    hit_params = dlgr.identity.serverFormat();
     for (var prop in hit_params) {
       if (hit_params.hasOwnProperty(prop)) add_hidden_input($form, prop, hit_params[prop]);
     }
@@ -322,10 +367,6 @@ var dallinger = (function () {
   dlgr.submitAssignment = function() {
     var deferred = $.Deferred();
     dlgr.get('/participant/' + dlgr.identity.participantId).done(function (resp) {
-      dlgr.identity.mode = resp.participant.mode;
-      dlgr.identity.hitId = resp.participant.hit_id;
-      dlgr.identity.assignmentId = resp.participant.assignment_id;
-      dlgr.identity.workerId = resp.participant.worker_id;
       dlgr.get('/worker_complete', {
         'participant_id': dlgr.identity.participantId
       }).done(function () {
@@ -355,13 +396,9 @@ var dallinger = (function () {
    */
   dlgr.createParticipant = function() {
     var deferred = $.Deferred(),
-        url,
-        hit_params;
-
-    hit_params = get_hit_params();
-    url = "/participant/" + hit_params.worker_id + "/" + hit_params.hit_id +
-      "/" + hit_params.assignment_id + "/" + hit_params.mode + "?fingerprint_hash=" +
-      (hit_params.fingerprint_hash) + '&recruiter=' + hit_params.recruiter;
+        url = "/participant/" + dlgr.identity.workerId + "/" + dlgr.identity.hitId +
+          "/" + dlgr.identity.assignmentId + "/" + dlgr.identity.mode + "?fingerprint_hash=" +
+          (dlgr.identity.fingerprintHash) + '&recruiter=' + dlgr.identity.recruiter;
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();
@@ -371,7 +408,7 @@ var dallinger = (function () {
         dlgr.post(url).done(function (resp) {
           console.log(resp);
           $('.btn-success').prop('disabled', false);
-          dlgr.storage.set('participant_id', resp.participant.id);
+          dlgr.identity.participantId = resp.participant.id;
           if (resp.quorum && resp.quorum.n !== resp.quorum.q) {
             if (resp.quorum.overrecruited) {
               dlgr.skip_experiment = true;
@@ -594,44 +631,7 @@ var dallinger = (function () {
       );
       return;
     }
-
-    dlgr.storage.set("recruiter", dlgr.getUrlParameter('recruiter'));
-    dlgr.storage.set("hit_id", dlgr.getUrlParameter('hit_id'));
-    dlgr.storage.set("worker_id", dlgr.getUrlParameter('worker_id'));
-    dlgr.storage.set("assignment_id", dlgr.getUrlParameter('assignment_id'));
-    dlgr.storage.set("mode", dlgr.getUrlParameter('mode'));
-    new Fingerprint2().get(function(result){
-      dlgr.storage.set("fingerprint_hash", result);
-    });
-
-    /**
-     * ``dallinger.identity`` provides information about the participant.
-     * It has the following string properties:
-     *
-     * ``recruiter``     - Type of recruiter
-     *
-     * ``hitId``         - MTurk HIT Id
-     *
-     * ``workerId``      - MTurk Worker Id
-     *
-     * ``assignmentId``  - MTurk Assignment Id
-     *
-     * ``mode``          - Dallinger experiment mode
-     *
-     * ``participantId`` - Dallinger participant Id
-     *
-     * @namespace
-     */
-    dlgr.identity = {
-      recruiter: dlgr.storage.get("recruiter"),
-      hitId: dlgr.storage.get("hit_id"),
-      workerId: dlgr.storage.get('worker_id'),
-      assignmentId: dlgr.storage.get('assignment_id'),
-      mode: dlgr.storage.get('mode'),
-      participantId: dlgr.storage.get('participant_id'),
-    };
-
-
+    dlgr.identity.initialize();
   };
 
   _initialize();
