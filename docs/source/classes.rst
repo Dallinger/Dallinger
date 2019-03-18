@@ -25,7 +25,7 @@ and another :class:`Info`. A :class:`Question` is a survey response created by a
 :class:`Participant`.
 
 .. figure:: _static/class_chart.jpg
-   :alt: 
+   :alt:
 
 SharedMixin
 -----------
@@ -52,7 +52,6 @@ columns that are common across tables:
     :annotation:
 
 .. autoattribute:: dallinger.models.SharedMixin.property5
-    :annotation:
     :annotation:
 
 .. autoattribute:: dallinger.models.SharedMixin.details
