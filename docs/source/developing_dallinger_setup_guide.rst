@@ -335,6 +335,33 @@ Test that your installation works by running:
 
     dallinger --version
 
+Install the Git pre-commit hook
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With the virtual environment still activated:
+
+::
+
+    pip install pre-commit
+
+This will install the pre-commit package into the virtual environment. With that
+in place, each `git clone` of Dallinger you create will need to have the pre-commit
+hook installed with:
+
+::
+
+    pre-commit install
+
+This will install a pre-commit hook to check for flake8 violations, and enforce
+a standard Python source code format via `black
+<https://black.readthedocs.io/en/stable/>`__. You can run the `black` code
+formatter and flake8 checks manually at any time by running:
+
+::
+
+    pre-commit run --all-files
+
+You may also want to install a black plugin for your own code editor, though this is not strictly necessary, since the pre-commit hook will run `black` for you on commit.
 
 Install the dlgr.demos sub-package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -691,7 +718,7 @@ Test that your installation works by running:
 
 
 Install the Git pre-commit hook
--------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 With the virtual environment still activated:
 
@@ -709,9 +736,14 @@ hook installed with:
 
 This will install a pre-commit hook to check for flake8 violations, and enforce
 a standard Python source code format via `black
-<https://black.readthedocs.io/en/stable/>`__. You may also want to install a
-black plugin for your own code editor, though this is not strictly necessary,
-since the pre-commit hook will run `black` for you on commit.
+<https://black.readthedocs.io/en/stable/>`__. You can run the `black` code
+formatter and flake8 checks manually at any time by running:
+
+::
+
+    pre-commit run --all-files
+
+You may also want to install a black plugin for your own code editor, though this is not strictly necessary, since the pre-commit hook will run `black` for you on commit.
 
 Install the dlgr.demos sub-package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
