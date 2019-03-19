@@ -102,17 +102,6 @@ var dallinger = (function () {
     get fingerprintHash() { return dlgr.storage.get('fingerprint_hash'); },
     set fingerprintHash(value) { dlgr.storage.set('fingerprint_hash', value);},
 
-    serverFormat: function () {
-      return {
-        'recruiter': this.recruiter,
-        'mode': this.mode,
-        'hit_id': this.hitId,
-        'worker_id': this.workerId,
-        'assignment_id': this.assignmentId,
-        'fingerprint_hash': this.fingerprintHash,
-      };
-    },
-
     initialize: function () {
       this.recruiter = dlgr.getUrlParameter('recruiter');
       this.hitId = dlgr.getUrlParameter('hit_id');
@@ -124,7 +113,6 @@ var dallinger = (function () {
         _self.fingerprintHash = result;
       });
     }
-
   };
 
   dlgr.BusyForm = (function () {
@@ -328,7 +316,16 @@ var dallinger = (function () {
    */
   dlgr.error = function (rejection) {
     // Render an error form for a rejected deferred returned by an ajax() call.
-    var $form, hit_params;
+    var hit_params = {
+          'recruiter': dlgr.identity.recruiter,
+          'mode': dlgr.identity.mode,
+          'hit_id': dlgr.identity.hitId,
+          'worker_id': dlgr.identity.workerId,
+          'assignment_id': dlgr.identity.assignmentId,
+          'fingerprint_hash': dlgr.identity.fingerprintHash,
+        },
+        $form;
+
     console.log("Calling dallinger.error()");
 
     if (rejection.html) {
@@ -342,7 +339,6 @@ var dallinger = (function () {
       add_hidden_input($form, 'participant_id', rejection.data.participant_id);
     }
     add_hidden_input($form, 'request_data', rejection.requestJSON);
-    hit_params = dlgr.identity.serverFormat();
     for (var prop in hit_params) {
       if (hit_params.hasOwnProperty(prop)) add_hidden_input($form, prop, hit_params[prop]);
     }

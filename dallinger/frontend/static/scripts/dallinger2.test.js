@@ -15,7 +15,7 @@ function StubFingerprint2() {
   }
 
   return {"get": get};
-  }
+}
 
 // Setup run before other beforeEach blocks
 beforeEach(() => {
@@ -122,20 +122,6 @@ describe('identity', function () {
   test('values can be set', () => {
     dlgr.identity.recruiter = 'other recruiter';
     expect(dlgr.identity.recruiter).toBe('other recruiter');
-  });
-
-  test('serverFormat uses server-side key names', () => {
-    dlgr.identity.fingerprintHash = 'some fingerprint';
-    expect(dlgr.identity.serverFormat()).toEqual(
-      {
-        "assignment_id": "AAA",
-        "fingerprint_hash": "some fingerprint",
-        "hit_id": "HHH",
-        "mode": "debug",
-        "recruiter": "hotair",
-        "worker_id": "WWW"
-      }
-    );
   });
 
 });
