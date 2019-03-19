@@ -167,7 +167,7 @@ def assemble_experiment_temp_dir(config):
         src = os.path.join(dallinger_root, "heroku", filename)
         shutil.copy(src, os.path.join(dst, filename))
 
-    if not config.get("clock_on", False):
+    if not config.get("clock_on"):
         # If the clock process has been disabled, overwrite the Procfile:
         src = os.path.join(dallinger_root, "heroku", "Procfile_no_clock")
         shutil.copy(src, os.path.join(dst, "Procfile"))
