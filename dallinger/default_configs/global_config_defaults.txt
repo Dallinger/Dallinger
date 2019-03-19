@@ -14,6 +14,7 @@ dallinger_email_address = dallinger@mailinator.com
 
 [Experiment]
 replay = False
+mode = debug
 
 [Recruiter]
 auto_recruit = False
