@@ -101,7 +101,7 @@ describe('identity', function () {
 
   beforeEach(function () {
     window.history.pushState({}, 'Test Title',
-      'test.html?recruiter=hotair&hit_id=VV8OTJ&assignment_id=RW4Z3G&worker_id=KMEAPX&workerId=KMEAPX&mode=debug'
+      'test.html?recruiter=hotair&hit_id=HHH&assignment_id=AAA&worker_id=WWW&mode=debug'
     );
 
     dlgr = require('./dallinger2').dallinger;
@@ -109,9 +109,9 @@ describe('identity', function () {
 
   test('identity object is initialized from query string', () => {
     expect(dlgr.identity.recruiter).toBe('hotair');
-    expect(dlgr.identity.assignmentId).toBe('RW4Z3G');
-    expect(dlgr.identity.hitId).toBe('VV8OTJ');
-    expect(dlgr.identity.workerId).toBe('KMEAPX');
+    expect(dlgr.identity.assignmentId).toBe('AAA');
+    expect(dlgr.identity.hitId).toBe('HHH');
+    expect(dlgr.identity.workerId).toBe('WWW');
     expect(dlgr.identity.mode).toBe('debug');
   });
 
@@ -128,12 +128,12 @@ describe('identity', function () {
     dlgr.identity.fingerprintHash = 'some fingerprint';
     expect(dlgr.identity.serverFormat()).toEqual(
       {
-        "assignment_id": "RW4Z3G",
+        "assignment_id": "AAA",
         "fingerprint_hash": "some fingerprint",
-        "hit_id": "VV8OTJ",
+        "hit_id": "HHH",
         "mode": "debug",
         "recruiter": "hotair",
-        "worker_id": "KMEAPX"
+        "worker_id": "WWW"
       }
     );
   });
