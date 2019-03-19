@@ -25,9 +25,7 @@ from dallinger.utils import ensure_directory
 from dallinger.utils import get_base_url
 from dallinger.utils import GitClient
 
-
 config = get_config()
-OSX_CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 
 def _make_chrome(path):
@@ -62,7 +60,7 @@ def new_webbrowser_profile():
         ]
         return new_firefox
     elif sys.platform == "darwin":
-        chrome_path = config.get("chrome-path", OSX_CHROME_PATH)
+        chrome_path = config.get("chrome-path")
         if os.path.exists(chrome_path):
             return _make_chrome(chrome_path)
         else:
@@ -154,7 +152,7 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
         src = os.path.join(src_base, "heroku", filename)
         shutil.copy(src, os.path.join(dst, filename))
 
-    clock_on = config.get("clock_on", False)
+    clock_on = config.get("clock_on")
 
     # If the clock process has been disabled, overwrite the Procfile.
     if not clock_on:
@@ -274,20 +272,20 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
-    team = config.get("heroku_team", "").strip() or None
+    team = config.get("heroku_team", None)
     heroku_app = HerokuApp(dallinger_uid=id, output=out, team=team)
     heroku_app.bootstrap()
     heroku_app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
 
     # Set up add-ons and AWS environment variables.
     database_size = config.get("database_size")
-    redis_size = config.get("redis_size", "premium-0")
+    redis_size = config.get("redis_size")
     addons = [
         "heroku-postgresql:{}".format(quote(database_size)),
         "heroku-redis:{}".format(quote(redis_size)),
         "papertrail",
     ]
-    if config.get("sentry", False):
+    if config.get("sentry"):
         addons.append("sentry")
 
     for name in addons:
@@ -573,7 +571,7 @@ class LoaderDeployment(HerokuLocalDeployment):
         base_url = get_base_url()
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
 
-        if self.exp_config.get("replay", False):
+        if self.exp_config.get("replay"):
             self.out.log("Launching the experiment...")
             time.sleep(4)
             _handle_launch_data("{}/launch".format(base_url), error=self.out.error)

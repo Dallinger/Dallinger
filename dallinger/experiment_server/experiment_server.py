@@ -236,7 +236,7 @@ def error_page(
             "error.html",
             error_text=error_text,
             compensate=compensate,
-            contact_address=config.get("contact_email_on_error", ""),
+            contact_address=config.get("contact_email_on_error"),
             error_type=error_type,
             hit_id=hit_id,
             assignment_id=assignment_id,
@@ -440,7 +440,7 @@ def handle_error():
     return render_template(
         "error-complete.html",
         completed=completed,
-        contact_address=config.get("contact_email_on_error", ""),
+        contact_address=config.get("contact_email_on_error"),
         hit_id=hit_id,
     )
 
@@ -564,7 +564,6 @@ def advertisement():
     """
     if not ("hitId" in request.args and "assignmentId" in request.args):
         raise ExperimentError("hit_assign_worker_id_not_set_in_mturk")
-
     config = _config()
 
     # Browser rule validation, if configured:

@@ -33,11 +33,11 @@ class EmailConfig(object):
     }
 
     def __init__(self, config):
-        self.host = config.get("smtp_host", "")
-        self.username = config.get("smtp_username", "")
-        self.toaddr = config.get("contact_email_on_error", "")
-        self.password = config.get("smtp_password", "")
-        self.fromaddr = config.get("dallinger_email_address", "")
+        self.host = config.get("smtp_host")
+        self.username = config.get("smtp_username", None)
+        self.toaddr = config.get("contact_email_on_error")
+        self.password = config.get("smtp_password", None)
+        self.fromaddr = config.get("dallinger_email_address")
 
     def validate(self):
         """Could this config be used to send a real email?"""

@@ -11,3 +11,23 @@ smtp_password = ???
 [Error Notifications]
 contact_email_on_error = ???
 dallinger_email_address = dallinger@mailinator.com
+
+[Experiment]
+replay = False
+mode = debug
+
+[Recruiter]
+auto_recruit = False
+assign_qualifications = False
+
+[Bots]
+webdriver_type = phantomjs
+chrome-path = /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+[Heroku]
+clock_on = False
+sentry = False
+redis_size = premium-0
+worker_multiplier = 1.5
+num_dynos_web = 1
+num_dynos_worker = 1

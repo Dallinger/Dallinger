@@ -469,8 +469,8 @@ class HerokuLocalWrapper(object):
             raise HerokuStartupError('"HOME" environment not set... aborting.')
 
         port = self.config.get("base_port")
-        web_dynos = self.config.get("num_dynos_web", 1)
-        worker_dynos = self.config.get("num_dynos_worker", 1)
+        web_dynos = self.config.get("num_dynos_web")
+        worker_dynos = self.config.get("num_dynos_worker")
         commands = [
             self.shell_command,
             "local",
@@ -537,8 +537,8 @@ class HerokuLocalWrapper(object):
 
 def sanity_check(config):
     # check if dyno size is compatible with team configuration.
-    size = config.get("dyno_type", "").strip()
-    team = config.get("heroku_team", "").strip()
+    size = config.get("dyno_type")
+    team = config.get("heroku_team", None)
     if team and size == "free":
         raise RuntimeError(
             'Heroku "free" dyno type not compatible '

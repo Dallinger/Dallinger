@@ -18,6 +18,17 @@ from requests.exceptions import RequestException
 
 logger = logging.getLogger(__file__)
 
+DRIVER_MAP = {
+    "phantomjs": webdriver.PhantomJS,
+    "firefox": webdriver.Firefox,
+    "chrome": webdriver.Chrome,
+}
+CAPABILITY_MAP = {
+    "phantomjs": webdriver.DesiredCapabilities.PHANTOMJS,
+    "firefox": webdriver.DesiredCapabilities.FIREFOX,
+    "chrome": webdriver.DesiredCapabilities.CHROME,
+}
+
 
 class BotBase(object):
     """A base class for bots that works with the built-in demos.
@@ -63,31 +74,26 @@ class BotBase(object):
         if not config.ready:
             config.load()
         driver_url = config.get("webdriver_url", None)
-        driver_type = config.get("webdriver_type", "phantomjs").lower()
+        driver_type = config.get("webdriver_type")
+        driver = None
 
         if driver_url:
-            capabilities = {}
-            if driver_type == "firefox":
-                capabilities = webdriver.DesiredCapabilities.FIREFOX
-            elif driver_type == "chrome":
-                capabilities = webdriver.DesiredCapabilities.CHROME
-            elif driver_type == "phantomjs":
-                capabilities = webdriver.DesiredCapabilities.PHANTOMJS
-            else:
+            capabilities = CAPABILITY_MAP.get(driver_type.lower())
+            if capabilities is None:
                 raise ValueError(
                     "Unsupported remote webdriver_type: {}".format(driver_type)
                 )
             driver = webdriver.Remote(
                 desired_capabilities=capabilities, command_executor=driver_url
             )
-        elif driver_type == "phantomjs":
-            driver = webdriver.PhantomJS()
-        elif driver_type == "firefox":
-            driver = webdriver.Firefox()
-        elif driver_type == "chrome":
-            driver = webdriver.Chrome()
         else:
+            driver_class = DRIVER_MAP.get(driver_type.lower())
+            if driver_class is not None:
+                driver = driver_class()
+
+        if driver is None:
             raise ValueError("Unsupported webdriver_type: {}".format(driver_type))
+
         driver.set_window_size(1024, 768)
         logger.info("Created {} webdriver.".format(driver_type))
         return driver

@@ -669,7 +669,7 @@ def awaken(app, databaseurl):
     heroku_app.pg_wait()
     time.sleep(10)
 
-    heroku_app.addon("heroku-redis:{}".format(config.get("redis_size", "premium-0")))
+    heroku_app.addon("heroku-redis:{}".format(config.get("redis_size")))
     heroku_app.restore(url)
 
     # Scale up the dynos.
@@ -807,7 +807,7 @@ def apps():
     config = get_config()
     if not config.ready:
         config.load()
-    team = config.get("heroku_team", "").strip() or None
+    team = config.get("heroku_team", None)
     command_runner = HerokuInfo(team=team)
     my_apps = command_runner.my_apps()
     my_user = command_runner.login_name()
