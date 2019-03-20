@@ -95,7 +95,7 @@ def exclusion_policy():
     return shutil.ignore_patterns(*patterns)
 
 
-def experiment_directory_size(root="."):
+def size_on_copy(root="."):
     """Return the size of the experiment directory in bytes, excluding any
     files and directories which would be excluded on copy.
     """

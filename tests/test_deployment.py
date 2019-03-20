@@ -143,9 +143,9 @@ class TestIsolatedWebbrowser(object):
 class TestExperimentDirectorySizeCheck(object):
     @pytest.fixture
     def size_check(self):
-        from dallinger.deployment import experiment_directory_size
+        from dallinger.deployment import size_on_copy
 
-        return experiment_directory_size
+        return size_on_copy
 
     def test_includes_files_that_would_be_copied(self, size_check):
         with open("legit.txt", "w") as f:
