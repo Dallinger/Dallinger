@@ -78,6 +78,7 @@ designing new experiments for others to use.
     waiting_rooms
     writing_bots
     extra_configuration
+    scipy
 
 Core Contribution Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
