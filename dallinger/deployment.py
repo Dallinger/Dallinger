@@ -10,7 +10,6 @@ import tempfile
 import threading
 import time
 import webbrowser
-from glob import glob
 from six.moves import shlex_quote as quote
 
 from dallinger import data
