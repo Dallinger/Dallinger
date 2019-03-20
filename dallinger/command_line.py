@@ -145,8 +145,11 @@ def verify_id(ctx, param, app):
 
 
 def verify_directory(verbose=True, max_size_mb=50):
-    """Ensure that the current directory looks like a Dallinger experiment.
+    """Ensure that the current directory looks like a Dallinger experiment, and
+    does not appear to have unintended contents that will be copied on
+    deployment.
     """
+    # Check required files
     ok = True
     mb_to_bytes = 1000 * 1000
     expected_files = ["config.txt", "experiment.py"]
@@ -158,6 +161,7 @@ def verify_directory(verbose=True, max_size_mb=50):
             log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
             ok = False
 
+    # Check size
     max_size = max_size_mb * mb_to_bytes
     size = size_on_copy()
     if size > max_size:
