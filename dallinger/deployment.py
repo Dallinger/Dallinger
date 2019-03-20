@@ -116,12 +116,10 @@ def size_on_copy(root="."):
 def assemble_experiment_temp_dir(config):
     """Create a temp directory from which to run an experiment.
     The new directory will include:
-    - Copies of custom experiment files (.py and .txt only, but not config.txt,
-        which is exported separately)
-    - /templates and /static directories from local experiment directory
+    - Copies of custom experiment files which don't match the exclusion policy
     - Templates and static resources from Dallinger
     - An export of the loaded configuration
-    - Heroku-specific files (Procile, runtime.txt)
+    - Heroku-specific files (Procile, runtime.txt) from Dallinger
 
     Assumes the experiment root directory is the current working directory.
 
