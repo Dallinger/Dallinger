@@ -71,17 +71,47 @@ def new_webbrowser_profile():
         return webbrowser
 
 
-def _local_root_files():
-    """Return an iterable of filenames which should be copied from the
-    experiment root directory to the generated temp directory.
+def exclusion_policy():
+    """Returns a callable which, when passed a directory path and a list
+    of files in that directory, will return a subset of the files which should
+    be excluded from a copy or some other action.
 
-    Assumes the experiment root directory is the current working directory.
+    See https://docs.python.org/3/library/shutil.html#shutil.ignore_patterns
     """
-    good_types = ("*.py", "*.txt")
-    skip = ("config.txt",)
-    for t in good_types:
-        for good_file in [f for f in glob(t) if f not in skip]:
-            yield good_file
+    patterns = set(
+        [
+            os.path.join(".git", "*"),
+            "config.txt",
+            "*.db",
+            "*.dmg",
+            "node_modules",
+            "snapshots",
+            "data",
+            "server.log",
+            "__pycache__",
+        ]
+    )
+
+    return shutil.ignore_patterns(*patterns)
+
+
+def experiment_directory_size(root="."):
+    """Return the size of the experiment directory in bytes, excluding any
+    files and directories which would be excluded on copy.
+    """
+    total_size = 0
+    exclusions = exclusion_policy()
+    for dirpath, dirnames, filenames in os.walk(root, topdown=True):
+        current_exclusions = exclusions(dirpath, os.listdir(dirpath))
+        # Modifying dirnames in-place will prune the subsequent files and
+        # directories visited by os.walk. This is only possible when
+        # topdown = True
+        dirnames[:] = [d for d in dirnames if d not in current_exclusions]
+        legit_files = [f for f in filenames if f not in current_exclusions]
+        for f in legit_files:
+            fp = os.path.join(dirpath, f)
+            total_size += os.path.getsize(fp)
+    return total_size
 
 
 def assemble_experiment_temp_dir(config):
@@ -100,25 +130,9 @@ def assemble_experiment_temp_dir(config):
     """
     app_id = config.get("id")
     dst = os.path.join(tempfile.mkdtemp(), app_id)
-    os.mkdir(dst)
 
-    # Copy local experiment files
-    # TODO Can we trim down this ignore list?
-    to_ignore = shutil.ignore_patterns(
-        os.path.join(".git", "*"),
-        "*.db",
-        "*.dmg",
-        "node_modules",
-        "snapshots",
-        "data",
-        "server.log",
-        "__pycache__",
-    )
-
-    for filename in _local_root_files():
-        shutil.copy(filename, dst)
-    for directory in ("static", "templates"):
-        shutil.copytree(directory, os.path.join(dst, directory), ignore=to_ignore)
+    # Copy local experiment files, minus some
+    shutil.copytree(os.getcwd(), dst, ignore=exclusion_policy())
 
     # Export the loaded configuration
     config.write(filter_sensitive=True, directory=dst)
@@ -218,6 +232,7 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     config.extend({"id": six.text_type(generated_uid)})
 
     temp_dir = assemble_experiment_temp_dir(config)
+    log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:

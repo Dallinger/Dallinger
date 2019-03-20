@@ -139,6 +139,41 @@ class TestIsolatedWebbrowser(object):
         assert isolated == webbrowser
 
 
+@pytest.mark.usefixtures("in_tempdir")
+class TestExperimentDirectorySizeCheck(object):
+    @pytest.fixture
+    def size_check(self):
+        from dallinger.deployment import experiment_directory_size
+
+        return experiment_directory_size
+
+    def test_includes_files_that_would_be_copied(self, size_check):
+        with open("legit.txt", "w") as f:
+            f.write("12345")
+
+        assert size_check(".") == 5
+
+    def test_excludes_files_that_would_not_be_copied(self, size_check):
+        with open("illegit.db", "w") as f:
+            f.write("12345")
+
+        assert size_check(".") == 0
+
+    def test_excludes_directories_that_would_not_be_copied(self, size_check):
+        os.mkdir("snapshots")
+        with open("snapshots/legit.txt", "w") as f:
+            f.write("12345")
+
+        assert size_check(".") == 0
+
+    def test_excludes_bad_files_when_in_subdirectories(self, size_check):
+        os.mkdir("legit_dir")
+        with open("legit_dir/illegit.db", "w") as f:
+            f.write("12345")
+
+        assert size_check(".") == 0
+
+
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
 class TestSetupExperiment(object):
     @pytest.fixture

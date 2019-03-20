@@ -76,6 +76,12 @@ class TestVerify(object):
 
         return verify_package
 
+    @pytest.fixture
+    def v_directory(self):
+        from dallinger.command_line import verify_directory
+
+        return verify_directory
+
     def test_verify(self):
         subprocess.check_call(["dallinger", "verify"])
 
@@ -86,6 +92,16 @@ class TestVerify(object):
     def test_negative_payment(self, active_config, v_package):
         active_config.extend({"base_payment": -1.99})
         assert v_package() is False
+
+    def test_too_big_returns_false(self, v_directory):
+        with mock.patch("dallinger.command_line.experiment_directory_size") as size:
+            size.return_value = 6000000  # 6 MB, so over the limit
+            assert v_directory(max_size_mb=5) is False
+
+    def test_under_limit_returns_true(self, v_directory):
+        with mock.patch("dallinger.command_line.experiment_directory_size") as size:
+            size.return_value = 4000000  # 4 MB, so under the limit
+            assert v_directory(max_size_mb=5) is True
 
 
 @pytest.mark.slow
@@ -184,7 +200,7 @@ class TestDebugCommand(object):
 
         deployment.assert_not_called()
         assert result.exit_code == 2
-        assert "directory is not a Dallinger experiment" in result.output
+        assert "directory is not a valid Dallinger experiment" in result.output
 
     def test_creates_debug_deployment(self, debug, deployment):
         CliRunner().invoke(debug, [])
@@ -220,7 +236,7 @@ class TestSandboxAndDeploy(object):
 
         deploy_in_mode.assert_not_called()
         assert result.exit_code == 2
-        assert "directory is not a Dallinger experiment" in result.output
+        assert "directory is not a valid Dallinger experiment" in result.output
 
     def test_sandbox_with_app_id(self, sandbox, deploy_in_mode):
         CliRunner().invoke(sandbox, ["--verbose", "--app", "some app id"])
@@ -254,7 +270,7 @@ class TestSandboxAndDeploy(object):
 
         deploy_in_mode.assert_not_called()
         assert result.exit_code == 2
-        assert "directory is not a Dallinger experiment" in result.output
+        assert "directory is not a valid Dallinger experiment" in result.output
 
 
 class TestLoad(object):
