@@ -38,7 +38,7 @@ Vagrant.configure("2") do |config|
     # Virtual environment
     echo 'source ~/venv/bin/activate' >> ~/.bashrc
     echo 'cd /vagrant' >> ~/.bashrc
-    echo "export HOST=$(ifconfig | grep 'inet\s' | head -n1 | awk '{print $2;}')" >> ~/.bashrc
+    echo "export HOST=$(ifconfig enp0s8 | grep 'inet\s' | head -n1 | awk '{print $2;}')" >> ~/.bashrc
     echo 'export TOX_WORK_DIR=/tmp' >> ~/.bashrc
     /usr/bin/virtualenv --python $(which python3) --no-site-packages ~/venv
     source ~/venv/bin/activate
