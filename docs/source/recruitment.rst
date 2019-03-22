@@ -5,8 +5,9 @@ A ``recruiter`` is a program that takes charge of recruiting participants for
 an experiment. Dallinger's main recruiter for deployed experiments uses the
 `Amazon Mechanical Turk <https://www.mturk.com>`__, a "crowdsourcing
 marketplace" for automating the process of signing up experiment
-participants, obtain their consent, arranging them in groups to perform the
-experiment, communicating with them, and paying them for their participation.
+participants, obtaining their consent, arranging them in groups to perform
+the experiment, communicating with them, and paying them for their
+participation.
 
 A concept directly related to MTurk recruitment is ``qualifications``. A
 qualification is a participant attribute, like location or approval rate,
@@ -59,9 +60,9 @@ parameterized space of games for the study of human social behavior::
     approve_requirement = 95
     group_name = Griduniverse
 
-The title, description, and keywords are important, because this is what a
-potential participant will see when deciding whether to participate in an
-experiment or not.
+The ``title``, ``description``, and ``keywords`` are important, because this
+is what a potential participant will see when deciding whether to
+participate in an experiment or not.
 
 ``base_payment`` is how much a participant will be paid for their
 participation. This depends more on the experimenter's organization and
@@ -79,15 +80,15 @@ confirmation before timing out. This prevents undecided or forgetful users
 from causing recruitment problems.
 
 Dallinger is being developed in the US, and for the time being most users
-are there. Many experiments can be run without taking into account the
-participant's nationality, but in some cases, experimenters may need to
+are located there. Many experiments can be run without taking into account
+the participant's nationality, but in some cases, experimenters may need to
 restrict participation to US-only participants, The ``us_only`` parameter
 allows this.
 
 A remote experiment obviously would benefit from having very trustworthy
-participants, so that they can be reasonably sure that the experiment will
-be completed and the instructions are followed to the best of the
-participant's ability. MTurk keeps track of how many experiments a
+participants, so that experimenters can be reasonably sure that the
+experiment will be completed and the instructions are followed to the best
+of the participant's ability. MTurk keeps track of how many experiments a
 participant has been in, and what percentage of those are approved by the
 experimenter. The ``approve_requirement`` parameter takes a number from 1 to
 100, representing the percentage of approved experiments that a participant
@@ -160,8 +161,8 @@ attribute only applies to experiments that use a waiting room. The default
 value for ``experiment.quorum`` is zero (no waiting room).
 
 ``experiment.initial_recruitment_size`` is the number of participants
-required at experiment start. This is used at experiment launch to start the
-recruitment process.
+required at the beginning of the experiment. This is used during the
+experiment's launch phase to start the recruitment process.
 
 ::
 
@@ -174,13 +175,14 @@ recruitment process.
         return class_(max_size=self.num_participants + 1)
 
 The ``create_network`` method is where the experiment :doc:`network
-<networks>` is created, usually passing it the number of users set in
-``experiment.initial_recruitment_size``. Most experiments will have a
-specific network defined in their code, and call that network explicitly.
-In the case of GridUniverse, the experiment allows the use of any network
-defined by dallinger, which is passed in as a configuration parameter.
-Regardless of the selected network class, it's called with ``max_size`` set
-to the number of participants configured, plus one.
+<networks>` is created, usually setting the initial number of users to
+the number defined in ``experiment.initial_recruitment_size``. Most
+experiments will have a specific network defined in their code, and call
+that network explicitly. In the case of GridUniverse, the experiment allows
+the use of any network defined by Dallinger, which is passed in as a
+configuration parameter. Regardless of the selected network class, it's
+called with ``max_size`` set to the number of participants configured, plus
+one.
 
 A simpler experiment might use something like this instead:
 
