@@ -81,7 +81,7 @@ Vagrant.configure("2") do |config|
     if [ ! $(grep -q 'heroku login' ~/.bashrc) ]; then
       echo 'source ~/venv/bin/activate' >> ~/.bashrc
       echo 'cd /vagrant' >> ~/.bashrc
-      echo "export HOST=$(ifconfig | grep 'inet\s' | head -n1 | awk '{print $2;}')" >> ~/.bashrc
+      echo "export HOST=$(ifconfig enp0s8 | grep 'inet\s' | head -n1 | awk '{print $2;}')" >> ~/.bashrc
       echo 'if [ ! -f ~/.cache/heroku/lastrun ]; then heroku login -i; fi' >> ~/.bashrc
     fi
     virtualenv --python $(which python3) --no-site-packages ~/venv
