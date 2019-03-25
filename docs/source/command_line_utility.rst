@@ -77,7 +77,7 @@ qualification ID, (or, if the ``--by_name`` is used, a qualification name),
 value ``--value`` parameter, and a list of one or more worker IDs, passed at
 the end of the command. The optional ``--notify`` flag can be used to notify
 workers via email. You can also optionally specify the ``--sandbox`` flag to use
- the MTurk sandbox.
+the MTurk sandbox.
 
 revoke
 ^^^^^^
