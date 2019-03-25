@@ -11,7 +11,6 @@ from pytest import raises
 from six.moves import configparser
 
 from dallinger.deployment import new_webbrowser_profile
-from dallinger.command_line import verify_package
 from dallinger.config import get_config
 from dallinger import recruiters
 
@@ -140,6 +139,41 @@ class TestIsolatedWebbrowser(object):
         assert isolated == webbrowser
 
 
+@pytest.mark.usefixtures("in_tempdir")
+class TestExperimentDirectorySizeCheck(object):
+    @pytest.fixture
+    def size_check(self):
+        from dallinger.deployment import size_on_copy
+
+        return size_on_copy
+
+    def test_includes_files_that_would_be_copied(self, size_check):
+        with open("legit.txt", "w") as f:
+            f.write("12345")
+
+        assert size_check(".") == 5
+
+    def test_excludes_files_that_would_not_be_copied(self, size_check):
+        with open("illegit.db", "w") as f:
+            f.write("12345")
+
+        assert size_check(".") == 0
+
+    def test_excludes_directories_that_would_not_be_copied(self, size_check):
+        os.mkdir("snapshots")
+        with open("snapshots/legit.txt", "w") as f:
+            f.write("12345")
+
+        assert size_check(".") == 0
+
+    def test_excludes_bad_files_when_in_subdirectories(self, size_check):
+        os.mkdir("legit_dir")
+        with open("legit_dir/illegit.db", "w") as f:
+            f.write("12345")
+
+        assert size_check(".") == 0
+
+
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
 class TestSetupExperiment(object):
     @pytest.fixture
@@ -258,18 +292,6 @@ class TestSetupExperiment(object):
             with pytest.raises(Exception) as ex_info:
                 setup_experiment(log=mock.Mock())
                 assert ex_info.match("Boom!")
-
-    @pytest.mark.slow
-    def test_large_float_payment(self):
-        config = get_config()
-        config["base_payment"] = 1.2342
-        assert verify_package() is False
-
-    @pytest.mark.slow
-    def test_negative_payment(self):
-        config = get_config()
-        config["base_payment"] = -1.99
-        assert verify_package() is False
 
 
 @pytest.mark.usefixtures("active_config", "launch", "fake_git", "fake_redis", "faster")

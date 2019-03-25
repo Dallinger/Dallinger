@@ -21,6 +21,7 @@ from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
+from dallinger.utils import dallinger_package_path
 from dallinger.utils import ensure_directory
 from dallinger.utils import get_base_url
 from dallinger.utils import GitClient
@@ -69,96 +70,78 @@ def new_webbrowser_profile():
         return webbrowser
 
 
-def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
-    """Check the app and, if compatible with Dallinger, freeze its state."""
-    # Verify that the Postgres server is running.
-    try:
-        db.check_connection()
-    except Exception:
-        log("There was a problem connecting to the Postgres database!")
-        raise
+def exclusion_policy():
+    """Returns a callable which, when passed a directory path and a list
+    of files in that directory, will return a subset of the files which should
+    be excluded from a copy or some other action.
 
-    # Load configuration.
-    config = get_config()
-    if not config.ready:
-        config.load()
-
-    # Check that the demo-specific requirements are satisfied.
-    try:
-        with open("requirements.txt", "r") as f:
-            dependencies = [r for r in f.readlines() if r[:3] != "-e "]
-    except (OSError, IOError):
-        dependencies = []
-
-    pkg_resources.require(dependencies)
-
-    # Generate a unique id for this experiment.
-    from dallinger.experiment import Experiment
-
-    generated_uid = public_id = Experiment.make_uuid(app)
-
-    # If the user provided an app name, use it everywhere that's user-facing.
-    if app:
-        public_id = str(app)
-
-    log("Experiment id is " + public_id + "")
-
-    # Copy this directory into a temporary folder, ignoring .git
-    dst = os.path.join(tempfile.mkdtemp(), public_id)
-    to_ignore = shutil.ignore_patterns(
-        os.path.join(".git", "*"), "*.db", "snapshots", "data", "server.log"
+    See https://docs.python.org/3/library/shutil.html#shutil.ignore_patterns
+    """
+    patterns = set(
+        [
+            os.path.join(".git", "*"),
+            "config.txt",
+            "*.db",
+            "*.dmg",
+            "node_modules",
+            "snapshots",
+            "data",
+            "server.log",
+            "__pycache__",
+        ]
     )
-    shutil.copytree(os.getcwd(), dst, ignore=to_ignore)
 
-    log(dst, chevrons=False)
+    return shutil.ignore_patterns(*patterns)
+
+
+def size_on_copy(root="."):
+    """Return the size of the experiment directory in bytes, excluding any
+    files and directories which would be excluded on copy.
+    """
+    total_size = 0
+    exclusions = exclusion_policy()
+    for dirpath, dirnames, filenames in os.walk(root, topdown=True):
+        current_exclusions = exclusions(dirpath, os.listdir(dirpath))
+        # Modifying dirnames in-place will prune the subsequent files and
+        # directories visited by os.walk. This is only possible when
+        # topdown = True
+        dirnames[:] = [d for d in dirnames if d not in current_exclusions]
+        legit_files = [f for f in filenames if f not in current_exclusions]
+        for f in legit_files:
+            fp = os.path.join(dirpath, f)
+            total_size += os.path.getsize(fp)
+    return total_size
+
+
+def assemble_experiment_temp_dir(config):
+    """Create a temp directory from which to run an experiment.
+    The new directory will include:
+    - Copies of custom experiment files which don't match the exclusion policy
+    - Templates and static resources from Dallinger
+    - An export of the loaded configuration
+    - Heroku-specific files (Procile, runtime.txt) from Dallinger
+
+    Assumes the experiment root directory is the current working directory.
+
+    Returns the absolute path of the new directory.
+    """
+    app_id = config.get("id")
+    dst = os.path.join(tempfile.mkdtemp(), app_id)
+
+    # Copy local experiment files, minus some
+    shutil.copytree(os.getcwd(), dst, ignore=exclusion_policy())
+
+    # Export the loaded configuration
+    config.write(filter_sensitive=True, directory=dst)
 
     # Save the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
-        file.write(generated_uid)
+        file.write(app_id)
 
-    # Change directory to the temporary folder.
-    cwd = os.getcwd()
-    os.chdir(dst)
-
-    # Write the custom config
-    if exp_config:
-        config.extend(exp_config)
-
-    config.extend({"id": six.text_type(generated_uid)})
-
-    config.write(filter_sensitive=True)
-
-    # Zip up the temporary directory and place it in the cwd.
-    if not debug:
-        log("Freezing the experiment package...")
-        shutil.make_archive(
-            os.path.join(cwd, "snapshots", public_id + "-code"), "zip", dst
-        )
-
-    # Check directories.
-    ensure_directory(os.path.join("static", "scripts"))
-    ensure_directory(os.path.join("templates", "default"))
-    ensure_directory(os.path.join("static", "css"))
-
-    # Get dallinger package location.
-    from pkg_resources import get_distribution
-
-    dist = get_distribution("dallinger")
-    src_base = os.path.join(dist.location, dist.project_name)
-
-    heroku_files = ["Procfile", "runtime.txt"]
-
-    for filename in heroku_files:
-        src = os.path.join(src_base, "heroku", filename)
-        shutil.copy(src, os.path.join(dst, filename))
-
-    clock_on = config.get("clock_on")
-
-    # If the clock process has been disabled, overwrite the Procfile.
-    if not clock_on:
-        src = os.path.join(src_base, "heroku", "Procfile_no_clock")
-        shutil.copy(src, os.path.join(dst, "Procfile"))
-
+    # Copy Dallinger files
+    dallinger_root = dallinger_package_path()
+    ensure_directory(os.path.join(dst, "static", "scripts"))
+    ensure_directory(os.path.join(dst, "static", "css"))
     frontend_files = [
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger2.js"),
@@ -178,23 +161,84 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
         os.path.join("static", "robots.txt"),
     ]
     frontend_dirs = [os.path.join("templates", "base")]
-
     for filename in frontend_files:
-        src = os.path.join(src_base, "frontend", filename)
+        src = os.path.join(dallinger_root, "frontend", filename)
         dst_filepath = os.path.join(dst, filename)
         if not os.path.exists(dst_filepath):
             shutil.copy(src, dst_filepath)
     for filename in frontend_dirs:
-        src = os.path.join(src_base, "frontend", filename)
+        src = os.path.join(dallinger_root, "frontend", filename)
         dst_filepath = os.path.join(dst, filename)
         if not os.path.exists(dst_filepath):
             shutil.copytree(src, dst_filepath)
 
-    time.sleep(0.25)
+    # Copy Heroku files
+    heroku_files = ["Procfile", "runtime.txt"]
+    for filename in heroku_files:
+        src = os.path.join(dallinger_root, "heroku", filename)
+        shutil.copy(src, os.path.join(dst, filename))
 
-    os.chdir(cwd)
+    if not config.get("clock_on"):
+        # If the clock process has been disabled, overwrite the Procfile:
+        src = os.path.join(dallinger_root, "heroku", "Procfile_no_clock")
+        shutil.copy(src, os.path.join(dst, "Procfile"))
 
-    return (public_id, dst)
+    return dst
+
+
+def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
+    """Checks the experiment's python dependencies, then prepares a temp directory
+    with files merged from the custom experiment and Dallinger.
+
+    The resulting directory includes all the files necessary to deploy to
+    Heroku.
+    """
+
+    # Verify that the Postgres server is running.
+    try:
+        db.check_connection()
+    except Exception:
+        log("There was a problem connecting to the Postgres database!")
+        raise
+
+    # Check that the demo-specific requirements are satisfied.
+    try:
+        with open("requirements.txt", "r") as f:
+            dependencies = [r for r in f.readlines() if r[:3] != "-e "]
+    except (OSError, IOError):
+        dependencies = []
+    pkg_resources.require(dependencies)
+
+    # Generate a unique id for this experiment.
+    from dallinger.experiment import Experiment
+
+    generated_uid = public_id = Experiment.make_uuid(app)
+
+    # If the user provided an app name, use it everywhere that's user-facing.
+    if app:
+        public_id = str(app)
+
+    log("Experiment id is " + public_id + "")
+
+    # Load and update the config
+    config = get_config()
+    if not config.ready:
+        config.load()  #
+    if exp_config:
+        config.extend(exp_config)
+    config.extend({"id": six.text_type(generated_uid)})
+
+    temp_dir = assemble_experiment_temp_dir(config)
+    log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
+
+    # Zip up the temporary directory and place it in the cwd.
+    if not debug:
+        log("Freezing the experiment package...")
+        shutil.make_archive(
+            os.path.join(os.getcwd(), "snapshots", public_id + "-code"), "zip", temp_dir
+        )
+
+    return (public_id, temp_dir)
 
 
 INITIAL_DELAY = 5

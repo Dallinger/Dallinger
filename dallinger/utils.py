@@ -7,6 +7,7 @@ import string
 import subprocess
 import sys
 import tempfile
+from pkg_resources import get_distribution
 
 from dallinger.config import get_config
 
@@ -28,6 +29,19 @@ def get_base_url():
         base_url = "http://{}:{}".format(host, port)
 
     return base_url
+
+
+def dallinger_package_path():
+    """Return the absolute path of the root directory of the installed
+    Dallinger package:
+
+    >>> utils.dallinger_package_location()
+    '/Users/janedoe/projects/Dallinger3/dallinger'
+    """
+    dist = get_distribution("dallinger")
+    src_base = os.path.join(dist.location, dist.project_name)
+
+    return src_base
 
 
 def generate_random_id(size=6, chars=string.ascii_uppercase + string.digits):

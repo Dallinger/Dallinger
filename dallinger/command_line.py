@@ -30,6 +30,7 @@ from dallinger.deployment import _deploy_in_mode
 from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
+from dallinger.deployment import size_on_copy
 from dallinger.notifications import get_messenger
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuInfo
@@ -143,10 +144,14 @@ def verify_id(ctx, param, app):
     return app
 
 
-def verify_directory(verbose=True):
-    """Ensure that the current directory looks like a Dallinger experiment.
+def verify_directory(verbose=True, max_size_mb=50):
+    """Ensure that the current directory looks like a Dallinger experiment, and
+    does not appear to have unintended contents that will be copied on
+    deployment.
     """
+    # Check required files
     ok = True
+    mb_to_bytes = 1000 * 1000
     expected_files = ["config.txt", "experiment.py"]
 
     for f in expected_files:
@@ -155,6 +160,18 @@ def verify_directory(verbose=True):
         else:
             log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
             ok = False
+
+    # Check size
+    max_size = max_size_mb * mb_to_bytes
+    size = size_on_copy()
+    if size > max_size:
+        size_in_mb = round(size / mb_to_bytes)
+        log(
+            "✗ {}MB is TOO BIG (greater than {}MB)".format(size_in_mb, max_size_mb),
+            chevrons=False,
+            verbose=verbose,
+        )
+        ok = False
 
     return ok
 
@@ -307,7 +324,7 @@ def require_exp_directory(f):
     """Decorator to verify that a command is run inside a valid Dallinger
     experiment directory.
     """
-    error = "The current directory is not a Dallinger experiment."
+    error = "The current directory is not a valid Dallinger experiment."
 
     @wraps(f)
     def wrapper(**kwargs):

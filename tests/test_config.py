@@ -268,3 +268,16 @@ worldwide = false
             contents = txt.read()
         assert "aws_region" in contents
         assert "aws_secret_access_key" in contents
+
+    def test_write_accepts_alternate_directory(self):
+        import tempfile
+
+        target = os.path.join(tempfile.mkdtemp(), "custom")
+        os.mkdir(target)
+        config = get_config()
+        config.set("aws_region", "some region")
+        config.ready = True
+        config.write(directory=target)
+        with open(os.path.join(target, LOCAL_CONFIG)) as txt:
+            contents = txt.read()
+        assert "aws_region" in contents
