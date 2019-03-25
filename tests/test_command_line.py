@@ -254,7 +254,7 @@ class TestSandboxAndDeploy(object):
         result = CliRunner().invoke(sandbox, ["--verbose", "--app", "dlgr-some app id"])
         deploy_in_mode.assert_not_called()
         assert result.exit_code == -1
-        assert "The --app flag requires the full UUID" in str(result.exception)
+        assert "The --app parameter requires the full UUID" in str(result.exception)
 
     def test_deploy_with_app_id(self, deploy, deploy_in_mode):
         CliRunner().invoke(deploy, ["--verbose", "--app", "some app id"])
@@ -830,7 +830,9 @@ class TestMonitor(object):
     ):
         heroku.db_uri = "fake-db-uri"
         result = CliRunner().invoke(monitor, ["--app", None])
-        assert str(result.exception) == "Select an experiment using the --app flag."
+        assert (
+            str(result.exception) == "Select an experiment using the --app parameter."
+        )
 
 
 class TestHits(object):
