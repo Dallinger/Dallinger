@@ -135,10 +135,10 @@ def report_idle_after(seconds):
 def verify_id(ctx, param, app):
     """Verify the experiment id."""
     if app is None:
-        raise TypeError("Select an experiment using the --app flag.")
+        raise TypeError("Select an experiment using the --app parameter.")
     elif app[0:5] == "dlgr-":
         raise ValueError(
-            "The --app flag requires the full "
+            "The --app parameter requires the full "
             "UUID beginning with {}-...".format(app[5:13])
         )
     return app
@@ -730,7 +730,7 @@ def load(app, verbose, replay, exp_config=None):
 def logs(app):
     """Show the logs."""
     if app is None:
-        raise TypeError("Select an experiment using the --app flag.")
+        raise TypeError("Select an experiment using the --app parameter.")
 
     HerokuApp(dallinger_uid=app).open_logs()
 

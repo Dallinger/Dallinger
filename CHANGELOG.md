@@ -1,5 +1,10 @@
 # Change Log
 
+## [v-master](https://github.com/dallinger/dallinger/master) (xxxx-xx-xx)
+
+- Documentation improvements and additions:
+  + Command Line Utility section: Added previously undocumented commands and expanded on optional parameters
+
 ## [v5.0.6](https://github.com/dallinger/dallinger/tree/v5.0.6) (2019-02-28)
 
 - Heroku has deprecated the use of the --org parameter which previous versions of Dallinger used. This release fixes Dallinger to use the newer --team parameter instead, which has been available in Heroku for quite some time. The change was introduced in Heroku CLI 7.21. The --team parameter was introduced in Heroku a significant time ago, thus this version of Dallinger will work with many older versions of the Heroku CLI. If using an older version of the Heroku CLI, we recommend updating to the latest version.
