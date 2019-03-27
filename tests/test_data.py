@@ -17,7 +17,6 @@ import pytest
 
 import dallinger
 from dallinger.compat import open_for_csv
-from dallinger.config import get_config
 from dallinger.utils import generate_random_id
 
 
@@ -27,24 +26,9 @@ def zip_path():
 
 
 @pytest.mark.slow
-class TestData(object):
-    @pytest.fixture
-    def cleanup(self):
-        yield
-        shutil.rmtree("data")
-
-    @pytest.fixture
-    def export(self, cleanup):
-        path = dallinger.data.export("12345-12345-12345-12345", local=True)
-        return path
-
-    data_path = os.path.join(
-        "tests", "datasets", "12eee6c6-f37f-4963-b684-da585acd77f1-data.zip"
-    )
-
-    config = get_config()
-
-    bartlett_export = os.path.join("tests", "datasets", "bartlett_bots.zip")
+class TestDataS3Integration(object):
+    """Tests that interact with the network and S3, and are slow as a result.
+    """
 
     def test_connection_to_s3(self):
         s3 = dallinger.data._s3_resource()
@@ -65,6 +49,50 @@ class TestData(object):
     def test_user_s3_bucket_no_id_provided(self):
         bucket = dallinger.data.user_s3_bucket()
         assert bucket
+
+    def test_data_loading(self):
+        data = dallinger.data.load("3b9c2aeb-0eb7-4432-803e-bc437e17b3bb")
+        assert data
+        assert data.networks.csv
+
+    def test_register_id(self):
+        new_uuid = "12345-12345-12345-12345"
+        url = dallinger.data.register(new_uuid, "http://original-url.com/value")
+
+        # The registration creates a new file in the dallinger-registrations bucket
+        assert url.startswith("https://dallinger-registrations.")
+        assert new_uuid in url
+
+        # These files should be inaccessible to make it impossible to use the bucket
+        # as a file repository
+        res = requests.get(url)
+        assert res.status_code == 403
+
+        # We should be able to check that the UUID is registered
+        assert dallinger.data.is_registered(new_uuid) is True
+        assert dallinger.data.is_registered("bogus-uuid-value") is False
+
+
+class TestDataLocally(object):
+    """Tests that interact with local data only, and are relatively fast to
+    execute.
+    """
+
+    @pytest.fixture
+    def cleanup(self):
+        yield
+        shutil.rmtree("data")
+
+    @pytest.fixture
+    def export(self, cleanup):
+        path = dallinger.data.export("12345-12345-12345-12345", local=True)
+        return path
+
+    data_path = os.path.join(
+        "tests", "datasets", "12eee6c6-f37f-4963-b684-da585acd77f1-data.zip"
+    )
+
+    bartlett_export = os.path.join("tests", "datasets", "bartlett_bots.zip")
 
     def test_dataset_creation(self):
         """Load a dataset."""
@@ -107,11 +135,6 @@ class TestData(object):
     def test_df_conversion(self):
         data = dallinger.data.Data(self.data_path)
         assert type(data.networks.df) is pd.DataFrame
-
-    def test_data_loading(self):
-        data = dallinger.data.load("3b9c2aeb-0eb7-4432-803e-bc437e17b3bb")
-        assert data
-        assert data.networks.csv
 
     def test_local_data_loading(self):
         local_data_id = "77777-77777-77777-77777"
@@ -158,23 +181,6 @@ class TestData(object):
             next(reader)  # Skip the header
             for row in reader:
                 assert "PII" not in row
-
-    def test_register_id(self):
-        new_uuid = "12345-12345-12345-12345"
-        url = dallinger.data.register(new_uuid, "http://original-url.com/value")
-
-        # The registration creates a new file in the dallinger-registrations bucket
-        assert url.startswith("https://dallinger-registrations.")
-        assert new_uuid in url
-
-        # These files should be inaccessible to make it impossible to use the bucket
-        # as a file repository
-        res = requests.get(url)
-        assert res.status_code == 403
-
-        # We should be able to check that the UUID is registered
-        assert dallinger.data.is_registered(new_uuid) is True
-        assert dallinger.data.is_registered("bogus-uuid-value") is False
 
     def test_scrub_pii_preserves_participants(self, db_session, zip_path, cleanup):
         dallinger.data.ingest_zip(zip_path)
