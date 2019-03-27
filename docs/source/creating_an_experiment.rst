@@ -257,6 +257,12 @@ The first line is what tells the installer which versions to use, and then
 the dependencies go below, one on each line by itself. The experiment
 template includes just two dependencies, `dallinger` and `requests`.
 
+Some dependencies may require C compilation or system level packages to
+be installed correctly. Since experiment deployment uses Heroku, this might
+not always be easy. Before adding a new dependency, check its installation
+requirements first. See the section about using
+:doc:`Scientific Python libraries <scipy>` for more information.
+
 myexperiments.pushbutton/dev-requirements.txt
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
