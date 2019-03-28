@@ -52,12 +52,8 @@ def rerecruit_when_recruiters_have_a_shortfall(recruiter=None):
     if recruiter is None:
         config = dallinger.config.get_config()
         recruiter = recruiters.from_config(config)
-    if hasattr(recruiter, "counter"):
-        # This recruiter keeps track of shortfall
-        shortfall = recruiter.counter.shortfall
-        if shortfall:
-            logger.info("Shortfall of {}, attempting to recruit".format(shortfall))
-            recruiter.recruit(n=shortfall, shortfall=True)
+    if hasattr(recruiter, "ping"):
+        recruiter.ping()
 
 
 def launch():
