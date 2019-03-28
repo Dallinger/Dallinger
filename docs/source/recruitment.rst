@@ -2,7 +2,7 @@ Recruitment
 ===========
 
 A ``recruiter`` is a program that takes charge of recruiting participants for
-an experiment. Dallinger's main recruiter for deployed experiments uses the
+an experiment. Dallinger's main recruiter for deployed experiments uses
 `Amazon Mechanical Turk <https://www.mturk.com>`__, a "crowdsourcing
 marketplace" for automating the process of signing up experiment
 participants, obtaining their consent, arranging them in groups to perform
@@ -40,7 +40,7 @@ instructions and complete the experiment. Dallinger's MTurk recruiter
 supports various configuration parameters to let the experimenter achieve
 this.
 
-One of the key configuration parameters related to recruitment, is the
+One of the key configuration parameters related to recruitment is the
 ``auto_recruit`` parameter. Recruitment will not start automatically
 unless this is set to ``true``. There are many other recruitment parameters,
 though.
@@ -194,11 +194,20 @@ A simpler experiment might use something like this instead:
 Over-recruitment
 ^^^^^^^^^^^^^^^^
 
+It’s common for recruited participants to join and leave an experiment
+before it starts. This is difficult in experiments where multiple
+participants are needed in order to start the experiment. To prevent this
+from disrupting an experiment, experimenters can over-recruit participants
+to ensure that they have the correct amount of participants at the start of
+the experiment. The participants who are over-recruited, but not needed for
+the experiment, still receive a base payout and are sent to the end of the
+experiment.
+
 Over-recruitment occurs when an experiment has a ``quorum`` other than zero
 and the number of participants in the waiting room is larger than the
-quorum. Because users in the waiting room have already been recruited, the
-experiment has to treat them as having completed the experiment, and they
-have to be paid.
+quorum. As mentioned above, because users in the waiting room have already
+been recruited, Dallinger has to treat them as having completed the
+experiment, and they have to be paid.
 
 There are a couple of strategies that can be used to limit over-recruitment.
 It is best for an experiment to close recruitment as soon as possible after
