@@ -40,13 +40,13 @@ class TestClockScheduler(object):
     def teardown(self):
         os.chdir("../..")
 
-    def test_scheduler_has_job(self):
+    def test_scheduler_has_jobs(self):
         jobs = self.clock.scheduler.get_jobs()
-        assert len(jobs) == 1
-        assert (
-            jobs[0].func_ref
-            == "dallinger.heroku.clock:check_db_for_missing_notifications"
-        )
+        assert len(jobs) == 2
+        assert {job.func_ref for job in jobs} == {
+            "dallinger.heroku.clock:check_db_for_missing_notifications",
+            "dallinger.heroku.clock:rerecruit_when_recruiters_have_a_shortfall",
+        }
 
     def test_launch_loads_config(self):
         original_start = self.clock.scheduler.start
