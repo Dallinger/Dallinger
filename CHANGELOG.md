@@ -1,5 +1,7 @@
 # Change Log
 
+## [v-master](https://github.com/dallinger/dallinger/master) (xxxx-xx-xx)
+
 ## [v-5.0.7](https://github.com/dallinger/dallinger/5.0.7) (2019-03-29)
 
 - Improve persistence of participant attributes in `dallinger.identity`, so that these keys and values do not need to be passed between pages as URL parameters in order to preserve them
