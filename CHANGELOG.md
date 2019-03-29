@@ -1,9 +1,17 @@
 # Change Log
 
-## [v-master](https://github.com/dallinger/dallinger/master) (xxxx-xx-xx)
+## [v-5.0.7](https://github.com/dallinger/dallinger/5.0.7) (2019-03-29)
 
+- Improve persistence of participant attributes in `dallinger.identity`, so that these keys and values do not need to be passed between pages as URL parameters in order to preserve them
+- Check the total size of the experiment files that will be copied and deployed, and abort if this exceeds 50MB, to avoid making potentially many copies of large files over repeated experiment runs
+- Consolidated configuration defaults in global_config_defaults.txt so default values aren't defined throughout the codebase
 - Documentation improvements and additions:
   + Command Line Utility section: Added previously undocumented commands and expanded on optional parameters
+  + New Recruitment section: Detailed documentation of Amazon Mechanical Turk recruitment
+  + Include link to Thomas Morgan's beginner documentation
+- Internal/Developer-centric changes:
+  + Enforce standard Python code style with `"black" <https://black.readthedocs.io/en/stable/>`__
+  + Mark slowest tests so they're skipped by default (use the `--runslow` flag to run them)
 
 ## [v5.0.6](https://github.com/dallinger/dallinger/tree/v5.0.6) (2019-02-28)
 
