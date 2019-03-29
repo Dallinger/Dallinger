@@ -771,7 +771,7 @@ class TestRedisTally(object):
     def redis_tally(self):
         from dallinger.recruiters import RedisTally
 
-        return RedisTally('foo')
+        return RedisTally("foo")
 
     def test_that_its_a_counter(self, redis_tally):
         assert redis_tally.current == 0
