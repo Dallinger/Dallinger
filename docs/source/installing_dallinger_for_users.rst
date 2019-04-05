@@ -372,7 +372,7 @@ Postgres can be installed using the following instructions:
 **Ubuntu 18.04 LTS** or **Ubuntu 16.04 LTS:**
 ::
 
-    sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
+    sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib libpq-dev
 
 To run postgres, use the following command:
 ::
