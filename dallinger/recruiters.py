@@ -96,6 +96,12 @@ class Recruiter(object):
             "have been active for too long. No action taken."
         )
 
+    def ping(self):
+        """Called on a schedule, in case any action needs to be taken based on
+        the current state of recruitment.
+        """
+        pass
+
     def rejects_questionnaire_from(self, participant):
         """Recruiters have different circumstances under which experiment
         questionnaires should be accepted or rejected.

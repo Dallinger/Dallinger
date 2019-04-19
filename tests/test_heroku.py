@@ -45,7 +45,7 @@ class TestClockScheduler(object):
         assert len(jobs) == 2
         assert {job.func_ref for job in jobs} == {
             "dallinger.heroku.clock:check_db_for_missing_notifications",
-            "dallinger.heroku.clock:rerecruit_when_recruiters_have_a_shortfall",
+            "dallinger.heroku.clock:ping_recruiter",
         }
 
     def test_launch_loads_config(self):

@@ -46,14 +46,12 @@ def check_db_for_missing_notifications():
 
 
 @scheduler.scheduled_job("interval", minutes=1)
-def rerecruit_when_recruiters_have_a_shortfall(recruiter=None):
-    """Some recruiters don't always recruit enough players, this checks
-    each recruiter and if that is the case re-calls the recruit method"""
-    if recruiter is None:
-        config = dallinger.config.get_config()
-        recruiter = recruiters.from_config(config)
-    if hasattr(recruiter, "ping"):
-        recruiter.ping()
+def ping_recruiter():
+    """Some reruiters may need to perform some action based on state they will
+    track themselves."""
+    config = dallinger.config.get_config()
+    recruiter = recruiters.from_config(config)
+    recruiter.ping()
 
 
 def launch():
