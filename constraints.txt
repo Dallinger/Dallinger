@@ -4,7 +4,7 @@ cached-property==1.5.1
 click==6.7
 flask-crossdomain==0.1
 flask-sockets==0.2.1
-flask==1.0.2
+flask==1.1.1
 future==0.17.1
 gevent==1.4.0
 greenlet==0.4.15
