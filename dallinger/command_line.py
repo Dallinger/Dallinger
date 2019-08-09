@@ -620,7 +620,7 @@ def expire(app, sandbox, exit=True):
     for hit in hits:
         hit_id = hit["id"]
         try:
-            service.expire_hit(hit_id)
+            service.expire_hit(hit_id=hit_id, experiment_id=app)
             success.append(hit_id)
         except MTurkServiceException:
             failures.append(hit_id)

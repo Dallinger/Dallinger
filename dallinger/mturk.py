@@ -60,6 +60,15 @@ class MTurkService(object):
             "mturk", endpoint_url=self.host, region_name=self.region_name
         )
 
+    @cached_property
+    def sns(self):
+        session = boto3.session.Session(
+            aws_access_key_id=self.aws_key,
+            aws_secret_access_key=self.aws_secret,
+            region_name=self.region_name,
+        )
+        return session.client("sns")
+
     @property
     def host(self):
         if self.is_sandbox:
@@ -158,7 +167,6 @@ class MTurkService(object):
         """
         max_fuzzy_matches_to_check = 100
         query = name.upper()
-        start = time.time()
         args = {
             "Query": query,
             "MustBeRequestable": False,
@@ -168,7 +176,7 @@ class MTurkService(object):
         results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
         # This loop is largely for tests, because there's some indexing that
         # needs to happen on MTurk for search to work:
-        while not results and time.time() - start < self.max_wait_secs:
+        while not results and not self._timeout(start=time.time()):
             time.sleep(1)
             results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
 
@@ -292,8 +300,51 @@ class MTurkService(object):
             else:
                 done = True
 
+    def _awaiting_sns_confirmation(self, subscription):
+        report = self.sns.get_subscription_attributes(
+            SubscriptionArn=subscription["SubscriptionArn"]
+        )
+        status = report["Attributes"]["PendingConfirmation"]
+        return status == "true"
+
+    def _create_notification_subscription(
+        self, experiment_id, notification_url, hit_type_id
+    ):
+        protocol = "https" if notification_url.startswith("https") else "http"
+        topic = self.sns.create_topic(Name=experiment_id)
+        subscription = self.sns.subscribe(
+            TopicArn=topic["TopicArn"],
+            Protocol=protocol,
+            Endpoint=notification_url,
+            ReturnSubscriptionArn=True,
+        )
+        while self._awaiting_sns_confirmation(subscription) and not self._timeout(
+            time.time()
+        ):
+            logger.info("Awaiting SNS subscription confirmation...")
+            time.sleep(1)
+
+        self.mturk.update_notification_settings(
+            HITTypeId=hit_type_id,
+            Notification={
+                "Destination": topic["TopicArn"],
+                "Transport": "SNS",
+                "Version": "2014-08-15",
+                "EventTypes": [
+                    "AssignmentAccepted",
+                    "AssignmentAbandoned",
+                    "AssignmentReturned",
+                    "AssignmentSubmitted",
+                    "HITReviewable",
+                    "HITExpired",
+                ],
+            },
+            Active=True,
+        )
+
     def create_hit(
         self,
+        experiment_id,
         title,
         description,
         keywords,
@@ -317,6 +368,10 @@ class MTurkService(object):
         # We need a HIT_Type in order to register for REST notifications
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
+        )
+
+        self._create_notification_subscription(
+            experiment_id, notification_url, hit_type_id
         )
 
         params = {
@@ -373,7 +428,7 @@ class MTurkService(object):
             )
         return self._is_ok(response)
 
-    def disable_hit(self, hit_id):
+    def disable_hit(self, hit_id, experiment_id):
         self.expire_hit(hit_id)
         try:
             result = self.mturk.delete_hit(HITId=hit_id)
@@ -382,6 +437,10 @@ class MTurkService(object):
                 # this means "already deleted"...
                 return True
             raise
+
+        sns_topic = self._get_sns_topic_for_experiment(experiment_id)
+        self.sns.delete_topic(TopicArn=sns_topic["TopicArn"])
+
         return self._is_ok(result)
 
     def expire_hit(self, hit_id):
@@ -485,8 +544,18 @@ class MTurkService(object):
         )
         return q.format(url, frame_height)
 
+    def _get_sns_topic_for_experiment(self, experiment_id):
+        all_topics = self.sns.list_topics()["Topics"]
+        experiment_topics = [
+            t for t in all_topics if t["TopicArn"].endswith(experiment_id)
+        ]
+        return experiment_topics[0]
+
     def _request_token(self):
         return str(time.time())
+
+    def _timeout(self, start):
+        return time.time() - start < self.max_wait_secs
 
     def _translate_assignment(self, assignment):
         # Returns only a subset of included values since we don't use most

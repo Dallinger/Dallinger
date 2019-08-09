@@ -228,6 +228,7 @@ def fake_get_assignment_response():
 
 def standard_hit_config(**kwargs):
     defaults = {
+        "experiment_id": "some-experiment-id",
         "ad_url": "https://url-of-ad-route",
         "approve_requirement": 95,
         "us_only": True,
@@ -740,7 +741,18 @@ class TestInteractive(object):
 @pytest.fixture
 def with_mock(mturk):
     mocked_mturk = mock.Mock(spec=mturk.mturk)
+    mocked_sns = mock.Mock(spec=mturk.sns)
+    mocked_sns.create_topic.return_value = {"TopicArn": "fake-topic-arn"}
+    mocked_sns.subscribe.return_value = {"SubscriptionArn": "fake-subscription-arn"}
+    mocked_sns.get_subscription_attributes.return_value = {
+        "Attributes": {"PendingConfirmation": "false"}
+    }
+    mocked_sns.list_topics.return_value = {
+        "Topics": [{"TopicArn": "long-prefix:some-experiment-id"}]
+    }
     mturk.mturk = mocked_mturk
+    mturk.sns = mocked_sns
+
     return mturk
 
 
@@ -866,14 +878,6 @@ class TestMTurkServiceWithFakeConnection(object):
             QualificationRequirements=quals,
         )
 
-    # def test_set_rest_notification(self, with_mock, requests):
-    #     url = "https://url-of-notification-route"
-    #     hit_type_id = "fake hittype id"
-
-    #     with_mock.set_rest_notification(url, hit_type_id)
-
-    #     requests.post.assert_called_once()
-
     def test_get_assignment_converts_result(self, with_mock):
         fake_response = fake_get_assignment_response()
         with_mock.mturk.get_assignment = mock.Mock(return_value=fake_response)
@@ -922,6 +926,41 @@ class TestMTurkServiceWithFakeConnection(object):
         assert isinstance(hit["created"], datetime.datetime)
         assert isinstance(hit["expiration"], datetime.datetime)
 
+    def test_create_hit_also_creates_sns_subscription(self, with_mock):
+        with_mock.mturk.configure_mock(
+            **{
+                "create_hit_type.return_value": fake_hit_type_response(),
+                "create_hit_with_hit_type.return_value": fake_hit_response(),
+            }
+        )
+
+        with_mock.create_hit(**standard_hit_config())
+
+        with_mock.sns.create_topic.assert_called_once_with(Name="some-experiment-id")
+        with_mock.sns.subscribe.assert_called_once_with(
+            Endpoint="https://url-of-notification-route",
+            Protocol="https",
+            ReturnSubscriptionArn=True,
+            TopicArn="fake-topic-arn",
+        )
+        with_mock.mturk.update_notification_settings.assert_called_once_with(
+            Active=True,
+            HITTypeId=mock.ANY,
+            Notification={
+                "Destination": "fake-topic-arn",
+                "Transport": "SNS",
+                "Version": "2014-08-15",
+                "EventTypes": [
+                    "AssignmentAccepted",
+                    "AssignmentAbandoned",
+                    "AssignmentReturned",
+                    "AssignmentSubmitted",
+                    "HITReviewable",
+                    "HITExpired",
+                ],
+            },
+        )
+
     def test_extend_hit(self, with_mock):
         with_mock.mturk.configure_mock(
             **{
@@ -945,7 +984,7 @@ class TestMTurkServiceWithFakeConnection(object):
 
         assert execinfo.match("Error: failed to add 2 assignments to HIT: Boom!")
 
-    def test_disable_hit(self, with_mock):
+    def test_disable_hit_deletes_hit(self, with_mock):
         with_mock.mturk.configure_mock(
             **{
                 "update_expiration_for_hit.return_value": True,
@@ -953,9 +992,23 @@ class TestMTurkServiceWithFakeConnection(object):
             }
         )
 
-        with_mock.disable_hit("some hit")
+        with_mock.disable_hit(hit_id="some hit", experiment_id="some-experiment-id")
 
         with_mock.mturk.delete_hit.assert_called_once_with(HITId="some hit")
+
+    def test_disable_hit_deletes_sns_topic(self, with_mock):
+        with_mock.mturk.configure_mock(
+            **{
+                "update_expiration_for_hit.return_value": True,
+                "delete_hit.return_value": {},
+            }
+        )
+
+        with_mock.disable_hit(hit_id="some hit", experiment_id="some-experiment-id")
+
+        with_mock.sns.delete_topic.assert_called_once_with(
+            TopicArn="long-prefix:some-experiment-id"
+        )
 
     def test_expire_hit(self, with_mock):
         with_mock.mturk.configure_mock(

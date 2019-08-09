@@ -495,6 +495,7 @@ class MTurkRecruiter(Recruiter):
             self._create_mturk_qualifications()
 
         hit_request = {
+            "experiment_id": self.config.get("id"),
             "max_assignments": n,
             "title": self.config.get("title"),
             "description": self.config.get("description"),
