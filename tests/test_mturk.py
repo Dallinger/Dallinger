@@ -744,15 +744,6 @@ def with_mock(mturk):
     return mturk
 
 
-@pytest.fixture
-def requests():
-    with mock.patch("dallinger.mturk.requests") as mock_requests:
-        response = mock.Mock(text="<IsValid>True</IsValid>")
-        mock_requests.post.return_value = response
-        yield mock_requests
-
-
-@pytest.mark.usefixtures("requests")
 class TestMTurkServiceWithFakeConnection(object):
     def test_is_sandbox_by_default(self, with_mock):
         assert with_mock.is_sandbox
@@ -875,13 +866,13 @@ class TestMTurkServiceWithFakeConnection(object):
             QualificationRequirements=quals,
         )
 
-    def test_set_rest_notification(self, with_mock, requests):
-        url = "https://url-of-notification-route"
-        hit_type_id = "fake hittype id"
+    # def test_set_rest_notification(self, with_mock, requests):
+    #     url = "https://url-of-notification-route"
+    #     hit_type_id = "fake hittype id"
 
-        with_mock.set_rest_notification(url, hit_type_id)
+    #     with_mock.set_rest_notification(url, hit_type_id)
 
-        requests.post.assert_called_once()
+    #     requests.post.assert_called_once()
 
     def test_get_assignment_converts_result(self, with_mock):
         fake_response = fake_get_assignment_response()

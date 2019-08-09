@@ -1,11 +1,6 @@
-from hashlib import sha1
-from six.moves import urllib
-import base64
 import boto3
 import datetime
-import hmac
 import logging
-import requests
 import time
 
 from botocore.exceptions import ClientError
@@ -73,17 +68,6 @@ class MTurkService(object):
             template = u"https://mturk-requester.{}.amazonaws.com"
         return template.format(self.region_name)
 
-    @property
-    def legacy_host(self):
-        """Setting endpoints for REST notifications is not supported by the
-        latest version of the AWS MTurk API, and this is the endpoint boto3
-        communicates with. As a workaround, we use the old endpoint for this
-        one feature.
-        """
-        if self.is_sandbox:
-            return "mechanicalturk.sandbox.amazonaws.com"
-        return "mechanicalturk.amazonaws.com"
-
     def check_credentials(self):
         """Verifies key/secret/host combination by making a balance inquiry"""
         try:
@@ -96,44 +80,6 @@ class MTurkService(object):
             raise MTurkServiceException(
                 "Error checking credentials: {}".format(str(ex))
             )
-
-    def set_rest_notification(self, url, hit_type_id):
-        """Set a REST endpoint to recieve notifications about the HIT
-        The newer AWS MTurk API does not support this feature, which means we
-        cannot use boto3 here. Instead, we make the call manually after
-        assembling a properly signed request.
-        """
-        ISO8601 = "%Y-%m-%dT%H:%M:%SZ"
-        notification_version = "2006-05-05"
-        API_version = "2014-08-15"
-        data = {
-            "AWSAccessKeyId": self.aws_key,
-            "HITTypeId": hit_type_id,
-            "Notification.1.Active": "True",
-            "Notification.1.Destination": url,
-            "Notification.1.EventType.1": "AssignmentAccepted",
-            "Notification.1.EventType.2": "AssignmentAbandoned",
-            "Notification.1.EventType.3": "AssignmentReturned",
-            "Notification.1.EventType.4": "AssignmentSubmitted",
-            "Notification.1.EventType.5": "HITReviewable",
-            "Notification.1.EventType.6": "HITExpired",
-            "Notification.1.Transport": "REST",
-            "Notification.1.Version": notification_version,
-            "Operation": "SetHITTypeNotification",
-            "SignatureVersion": "1",
-            "Timestamp": time.strftime(ISO8601, time.gmtime()),
-            "Version": API_version,
-        }
-        query_string, signature = self._calc_old_api_signature(data)
-        body = query_string + "&Signature=" + urllib.parse.quote_plus(signature)
-        data["Signature"] = signature
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Content-Length": str(len(body)),
-            "Host": self.legacy_host,
-        }
-        resp = requests.post("https://" + self.legacy_host, headers=headers, data=body)
-        return "<IsValid>True</IsValid>" in resp.text
 
     def register_hit_type(
         self, title, description, reward, duration_hours, keywords, qualifications
@@ -372,7 +318,6 @@ class MTurkService(object):
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
         )
-        self.set_rest_notification(notification_url, hit_type_id)
 
         params = {
             "HITTypeId": hit_type_id,
@@ -530,19 +475,6 @@ class MTurkService(object):
                     assignment_id, str(assignment), str(ex)
                 )
             )
-
-    def _calc_old_api_signature(self, params, *args):
-        signature = hmac.new(self.aws_secret.encode("utf-8"), digestmod=sha1)
-        keys = list(params.keys())
-        keys.sort(key=lambda x: x.lower())
-        pairs = []
-        for key in keys:
-            signature.update(key.encode("utf-8"))
-            value = params[key].encode("utf-8")
-            signature.update(value)
-            pairs.append(key + "=" + urllib.parse.quote(value))
-        query_string = "&".join(pairs)
-        return (query_string, base64.b64encode(signature.digest()))
 
     def _external_question(self, url, frame_height):
         q = (
