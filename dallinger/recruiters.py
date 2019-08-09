@@ -1,5 +1,6 @@
 """Recruiters manage the flow of participants to the experiment."""
 
+import flask
 import json
 import logging
 import os
@@ -12,6 +13,9 @@ from sqlalchemy import func
 from dallinger.config import get_config
 from dallinger.db import redis_conn
 from dallinger.db import session
+from dallinger.experiment_server.experiment_server import success_response
+from dallinger.experiment_server.experiment_server import crossdomain
+from dallinger.experiment_server.experiment_server import worker_function
 from dallinger.heroku import tools as heroku_tools
 from dallinger.notifications import get_messenger
 from dallinger.notifications import MessengerError
@@ -25,12 +29,13 @@ from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 from dallinger.utils import ParticipationTime
 
+
 logger = logging.getLogger(__file__)
 
 
-def _get_queue():
+def _get_queue(name="default"):
     # Connect to Redis Queue
-    return Queue("low", connection=redis_conn)
+    return Queue(name, connection=redis_conn)
 
 
 # These are constants because other components may listen for these
@@ -393,13 +398,11 @@ class MTurkRecruiterException(Exception):
     """Custom exception for MTurkRecruiter"""
 
 
-import flask
-from dallinger.experiment_server.experiment_server import success_response
-
-extra_routes = flask.Blueprint("extra_routes", __name__)
+extra_routes = flask.Blueprint("mturk_recruiter", __name__)
 
 
 @extra_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
+@crossdomain(origin="*")
 def mturk_recruiter_notify():
     """Listens for:
         1. AWS SNS subscription confirmation request
@@ -407,14 +410,19 @@ def mturk_recruiter_notify():
     """
     recruiter = MTurkRecruiter()
     message_type = flask.request.form.get("Type")
+    # 1. SNS subscription confirmation request
     if message_type == "SubscriptionConfirmation":
-        url = flask.request.form.get("SubscribeURL")
         token = flask.request.form.get("Token")
         topic = flask.request.form.get("TopicArn")
+        recruiter._confirm_sns_subscription(token=token, topic=topic)
 
-        recruiter.mturkservice.confirm_subscription(
-            subscribe_url=url, token=token, topic=topic
-        )
+        return success_response()
+
+    # 2. MTurk Worker event
+    if message_type == "Notification":
+        message = json.loads(flask.request.form.get("Message"))
+        events = message["Events"]
+        recruiter._report_event_notification(events)
 
         return success_response()
 
@@ -452,11 +460,7 @@ class MTurkRecruiter(Recruiter):
             )
 
     def bind_app(self, app):
-        # XXX Or just have a bluprint or extra_routes class attr, like
-        # experiments do?
-        #
-        # Most important is that the _Framework_ knows less
-        # about the _Plugin_.
+        """Register the SNS endpoint route."""
         app.register_blueprint(extra_routes)
 
     @property
@@ -671,6 +675,25 @@ class MTurkRecruiter(Recruiter):
         # except MTurkServiceException as ex:
         #     logger.exception(str(ex))
 
+    def _confirm_sns_subscription(self, token, topic):
+        self.mturkservice.confirm_subscription(token=token, topic=topic)
+
+    def _report_event_notification(self, events):
+        q = _get_queue()
+        for event in events:
+            event_type = event.get("EventType")
+            assignment_id = event.get("AssignmentId")
+            participant_id = None
+            logger.debug(
+                "rq: Queueing %s with id: %s for worker_function",
+                event_type,
+                assignment_id,
+            )
+            q.enqueue(worker_function, event_type, assignment_id, participant_id)
+            logger.debug(
+                "rq: Submitted Queue Length: %d (%s)", len(q), ", ".join(q.job_ids)
+            )
+
     def _mturk_status_for(self, participant):
         try:
             assignment = self.mturkservice.get_assignment(participant.assignment_id)
@@ -808,7 +831,7 @@ class BotRecruiter(Recruiter):
         logger.info("Recruiting {} Bot participants".format(n))
         factory = self._get_bot_factory()
         urls = []
-        q = _get_queue()
+        q = _get_queue(name="low")
         for _ in range(n):
             base_url = get_base_url()
             worker = generate_random_id()

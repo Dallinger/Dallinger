@@ -90,6 +90,13 @@ class MTurkService(object):
                 "Error checking credentials: {}".format(str(ex))
             )
 
+    def confirm_subscription(self, token, topic):
+        self.sns.confirm_subscription(
+            # AuthenticateOnUnsubscribe=True,  # Should we care?
+            Token=token,
+            TopicArn=topic,
+        )
+
     def register_hit_type(
         self, title, description, reward, duration_hours, keywords, qualifications
     ):
@@ -176,7 +183,8 @@ class MTurkService(object):
         results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
         # This loop is largely for tests, because there's some indexing that
         # needs to happen on MTurk for search to work:
-        while not results and not self._timeout(start=time.time()):
+        start = time.time()
+        while not results and not self._timeout(start):
             time.sleep(1)
             results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
 
@@ -316,10 +324,11 @@ class MTurkService(object):
             TopicArn=topic["TopicArn"],
             Protocol=protocol,
             Endpoint=notification_url,
-            ReturnSubscriptionArn=True,
+            ReturnSubscriptionArn=True,  # So we can start polling the status
         )
+        start = time.time()
         while self._awaiting_sns_confirmation(subscription) and not self._timeout(
-            time.time()
+            start
         ):
             logger.info("Awaiting SNS subscription confirmation...")
             time.sleep(1)

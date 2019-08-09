@@ -368,7 +368,9 @@ class TestMTurkServiceIntegrationSmokeTest(object):
             pytest.fail("HIT was never updated")
         else:
             assert updated["max_assignments"] == 3
-        assert with_cleanup.disable_hit(hit["id"])
+        assert with_cleanup.disable_hit(
+            hit_id=hit["id"], experiment_id=config["experiment_id"]
+        )
 
 
 @pytest.mark.mturk
