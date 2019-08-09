@@ -469,6 +469,7 @@ def launch():
         )
 
     try:
+        exp.recruiter.bind_app(app)
         recruitment_details = exp.recruiter.open_recruitment(
             n=exp.initial_recruitment_size
         )

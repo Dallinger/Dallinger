@@ -291,7 +291,6 @@ def stub_config():
         u"logfile": u"-",
         u"loglevel": 0,
         u"mode": u"debug",
-        u"notification_url": u"https://url-of-notification-route",
         u"num_dynos_web": 1,
         u"num_dynos_worker": 1,
         u"organization_name": u"Monsters University",

@@ -359,17 +359,11 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
             time.sleep(2)
 
     log("Saving the URL of the postgres database...")
-    # Set the notification URL and database URL in the config file.
-    config.extend(
-        {
-            "notification_url": heroku_app.url + "/notifications",
-            "database_url": heroku_app.db_url,
-        }
-    )
+    config.extend({"database_url": heroku_app.db_url})
     config.write()
     git.add("config.txt")
     time.sleep(0.25)
-    git.commit("Save URLs for database and notifications")
+    git.commit("Save URL for database")
     time.sleep(0.25)
 
     # Launch the Heroku app.

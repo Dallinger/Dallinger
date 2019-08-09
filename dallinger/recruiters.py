@@ -57,6 +57,11 @@ class Recruiter(object):
         """
         return self
 
+    def bind_app(self, app):
+        """Recruiters may want to register additional routes using the Flask
+        app."""
+        pass
+
     def open_recruitment(self, n=1):
         """Return a list of one or more initial recruitment URLs and an initial
         recruitment message:
@@ -388,6 +393,32 @@ class MTurkRecruiterException(Exception):
     """Custom exception for MTurkRecruiter"""
 
 
+import flask
+from dallinger.experiment_server.experiment_server import success_response
+
+extra_routes = flask.Blueprint("extra_routes", __name__)
+
+
+@extra_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
+def mturk_recruiter_notify():
+    """Listens for:
+        1. AWS SNS subscription confirmation request
+        2. SNS subcription messages, which forward MTurk notifications
+    """
+    recruiter = MTurkRecruiter()
+    message_type = flask.request.form.get("Type")
+    if message_type == "SubscriptionConfirmation":
+        url = flask.request.form.get("SubscribeURL")
+        token = flask.request.form.get("Token")
+        topic = flask.request.form.get("TopicArn")
+
+        recruiter.mturkservice.confirm_subscription(
+            subscribe_url=url, token=token, topic=topic
+        )
+
+        return success_response()
+
+
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
@@ -399,7 +430,9 @@ class MTurkRecruiter(Recruiter):
     def __init__(self):
         super(MTurkRecruiter, self).__init__()
         self.config = get_config()
-        self.ad_url = "{}/ad?recruiter={}".format(get_base_url(), self.nickname)
+        base_url = get_base_url()
+        self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
+        self.notification_url = "{}/mturk-sns-listener".format(base_url)
         self.hit_domain = os.getenv("HOST")
         self.mturkservice = MTurkService(
             self.config.get("aws_access_key_id"),
@@ -417,6 +450,14 @@ class MTurkRecruiter(Recruiter):
                 '"{}" is not a valid mode for MTurk recruitment. '
                 'The value of "mode" must be either "sandbox" or "live"'.format(mode)
             )
+
+    def bind_app(self, app):
+        # XXX Or just have a bluprint or extra_routes class attr, like
+        # experiments do?
+        #
+        # Most important is that the _Framework_ knows less
+        # about the _Plugin_.
+        app.register_blueprint(extra_routes)
 
     @property
     def external_submission_url(self):
@@ -462,7 +503,7 @@ class MTurkRecruiter(Recruiter):
             "duration_hours": self.config.get("duration"),
             "lifetime_days": self.config.get("lifetime"),
             "ad_url": self.ad_url,
-            "notification_url": self.config.get("notification_url"),
+            "notification_url": self.notification_url,
             "approve_requirement": self.config.get("approve_requirement"),
             "us_only": self.config.get("us_only"),
             "blacklist": self._config_to_list("qualification_blacklist"),
@@ -644,20 +685,18 @@ class MTurkRecruiter(Recruiter):
         requests.patch(heroku_app.config_url, data=args, headers=headers)
 
     def _resend_submitted_rest_notification_for(self, participant):
-        notification_url = self.config.get("notification_url")
         args = {
             "Event.1.EventType": "AssignmentSubmitted",
             "Event.1.AssignmentId": participant.assignment_id,
         }
-        requests.post(notification_url, data=args)
+        requests.post(self.notification_url, data=args)
 
     def _send_notification_missing_rest_notification_for(self, participant):
-        notification_url = self.config.get("notification_url")
         args = {
             "Event.1.EventType": "NotificationMissing",
             "Event.1.AssignmentId": participant.assignment_id,
         }
-        requests.post(notification_url, data=args)
+        requests.post(self.notification_url, data=args)
 
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,

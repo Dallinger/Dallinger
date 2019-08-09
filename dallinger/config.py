@@ -46,7 +46,6 @@ default_keys = (
     ("logfile", six.text_type, []),
     ("loglevel", int, []),
     ("mode", six.text_type, []),
-    ("notification_url", six.text_type, []),
     ("num_dynos_web", int, []),
     ("num_dynos_worker", int, []),
     ("organization_name", six.text_type, []),

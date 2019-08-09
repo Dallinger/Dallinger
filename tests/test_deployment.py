@@ -88,8 +88,8 @@ def heroku_mock():
     instance = mock.Mock(spec=HerokuApp)
     instance.redis_url = "\n"
     instance.name = u"dlgr-fake-uid"
-    instance.url = u"fake-url"
-    instance.db_url = u"fake-url"
+    instance.url = u"fake-web-url"
+    instance.db_url = u"fake-db-url"
     with mock.patch("dallinger.deployment.heroku") as heroku_module:
         heroku_module.auth_token.return_value = u"fake token"
         with mock.patch("dallinger.deployment.HerokuApp") as mock_app_class:
@@ -306,7 +306,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         log = mock.Mock()
         result = dsss(log=log)
         assert result == {
-            "app_home": u"fake-url",
+            "app_home": u"fake-web-url",
             "app_name": u"dlgr-fake-uid",
             "recruitment_msg": "fake\nrecruitment\nlist",
         }
@@ -344,6 +344,10 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
             whimsical=True,
         )
 
+    def test_adds_db_url_to_config(self, dsss, heroku_mock, active_config):
+        dsss(log=mock.Mock())
+        assert active_config.get("database_url") == heroku_mock.db_url
+
     def test_verifies_working_redis(self, dsss, heroku_mock, fake_redis):
         dsss(log=mock.Mock())
         fake_redis.set.assert_called_once_with("foo", "bar")
@@ -362,7 +366,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
     def test_calls_launch(self, dsss, heroku_mock, launch):
         log = mock.Mock()
         dsss(log=log)
-        launch.assert_called_once_with("fake-url/launch", error=log)
+        launch.assert_called_once_with("fake-web-url/launch", error=log)
 
     def test_heroku_sanity_check(self, dsss, heroku_mock, active_config):
         log = mock.Mock()

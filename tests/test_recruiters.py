@@ -434,7 +434,7 @@ class TestMTurkRecruiter(object):
             keywords=[u"kw1", u"kw2", u"kw3"],
             lifetime_days=1,
             max_assignments=1,
-            notification_url=u"https://url-of-notification-route",
+            notification_url=u"http://fake-domain/mturk-sns-listener",
             reward=0.01,
             title=u"fake experiment title",
             us_only=True,
@@ -491,7 +491,7 @@ class TestMTurkRecruiter(object):
             lifetime_days=1,
             keywords=[u"kw1", u"kw2", u"kw3"],
             max_assignments=1,
-            notification_url="https://url-of-notification-route",
+            notification_url="http://fake-domain/mturk-sns-listener",
             reward=0.01,
             title="fake experiment title",
             us_only=True,
@@ -700,7 +700,7 @@ class TestMTurkRecruiter(object):
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
         requests.post.assert_called_once_with(
-            "https://url-of-notification-route",
+            "http://fake-domain/mturk-sns-listener",
             data={
                 "Event.1.EventType": "AssignmentSubmitted",
                 "Event.1.AssignmentId": participants[0].assignment_id,
@@ -740,7 +740,7 @@ class TestMTurkRecruiter(object):
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
         requests.post.assert_called_once_with(
-            "https://url-of-notification-route",
+            "http://fake-domain/mturk-sns-listener",
             data={
                 "Event.1.EventType": "NotificationMissing",
                 "Event.1.AssignmentId": participants[0].assignment_id,
@@ -845,7 +845,7 @@ class TestMTurkLargeRecruiter(object):
             keywords=["kw1", "kw2", "kw3"],
             lifetime_days=1,
             max_assignments=10,
-            notification_url="https://url-of-notification-route",
+            notification_url="http://fake-domain/mturk-sns-listener",
             reward=0.01,
             title="fake experiment title",
             us_only=True,
@@ -866,7 +866,7 @@ class TestMTurkLargeRecruiter(object):
             keywords=["kw1", "kw2", "kw3"],
             lifetime_days=1,
             max_assignments=num_recruits,
-            notification_url="https://url-of-notification-route",
+            notification_url="http://fake-domain/mturk-sns-listener",
             reward=0.01,
             title="fake experiment title",
             us_only=True,
