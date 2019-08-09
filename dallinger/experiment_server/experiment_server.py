@@ -1641,12 +1641,6 @@ def api_notifications():
     return success_response()
 
 
-def _handle_worker_event(
-    assignment_id, participant_id=None, event_type="AssignmentSubmitted"
-):
-    return worker_function(event_type, assignment_id, participant_id)
-
-
 def check_for_duplicate_assignments(participant):
     """Check that the assignment_id of the participant is unique.
 
@@ -1701,10 +1695,10 @@ def _worker_complete(participant_id):
     if event_type is None:
         return
 
-    _handle_worker_event(
-        assignment_id=participant.assignment_id,
-        participant_id=participant.id,
+    worker_function(
         event_type=event_type,
+        assignment_id=participant.assignment_id,
+        participant_id=participant_id,
     )
 
 
@@ -1743,7 +1737,7 @@ def _worker_failed(participant_id):
     if participant.recruiter_id == "bots" or participant.recruiter_id.startswith(
         "bots:"
     ):
-        _handle_worker_event(
+        worker_function(
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
             event_type="BotAssignmentRejected",
