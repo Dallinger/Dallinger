@@ -411,15 +411,16 @@ def mturk_recruiter_notify():
         topic = flask.request.form.get("TopicArn")
         recruiter._confirm_sns_subscription(token=token, topic=topic)
 
-        return success_response()
-
     # 2. MTurk Worker event
-    if message_type == "Notification":
+    elif message_type == "Notification":
         message = json.loads(flask.request.form.get("Message"))
         events = message["Events"]
         recruiter._report_event_notification(events)
 
-        return success_response()
+    else:
+        logger.warn("Unknown SNS notification type: {}".format(message_type))
+
+    return success_response()
 
 
 class MTurkRecruiter(Recruiter):
@@ -676,15 +677,7 @@ class MTurkRecruiter(Recruiter):
             event_type = event.get("EventType")
             assignment_id = event.get("AssignmentId")
             participant_id = None
-            logger.debug(
-                "rq: Queueing %s with id: %s for worker_function",
-                event_type,
-                assignment_id,
-            )
             q.enqueue(worker_function, event_type, assignment_id, participant_id)
-            logger.debug(
-                "rq: Submitted Queue Length: %d (%s)", len(q), ", ".join(q.job_ids)
-            )
 
     def _mturk_status_for(self, participant):
         try:

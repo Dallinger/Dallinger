@@ -371,7 +371,6 @@ class TestSNSListenerRoute(object):
         resp = webapp.post(SNS_ROUTE_PATH, data=post_data)
 
         assert resp.status_code == 200
-
         recruiter._confirm_sns_subscription.assert_called_once_with(
             token="some-long-token", topic="arn:aws:sns:us-west-2:123456789012:MyTopic"
         )
@@ -393,7 +392,6 @@ class TestSNSListenerRoute(object):
         resp = webapp.post(SNS_ROUTE_PATH, data=post_data)
 
         assert resp.status_code == 200
-
         recruiter._report_event_notification.assert_called_once_with(
             [
                 {
