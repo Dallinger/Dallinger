@@ -184,7 +184,7 @@ class MTurkService(object):
         # This loop is largely for tests, because there's some indexing that
         # needs to happen on MTurk for search to work:
         start = time.time()
-        while not results and not self._timeout(start):
+        while not results and self._time_remains(start):
             time.sleep(1)
             results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
 
@@ -327,7 +327,7 @@ class MTurkService(object):
             ReturnSubscriptionArn=True,  # So we can start polling the status
         )
         start = time.time()
-        while self._awaiting_sns_confirmation(subscription) and not self._timeout(
+        while self._awaiting_sns_confirmation(subscription) and self._time_remains(
             start
         ):
             logger.info("Awaiting SNS subscription confirmation...")
@@ -563,8 +563,9 @@ class MTurkService(object):
     def _request_token(self):
         return str(time.time())
 
-    def _timeout(self, start):
-        return time.time() - start < self.max_wait_secs
+    def _time_remains(self, start):
+        elapsed = time.time() - start
+        return elapsed < self.max_wait_secs
 
     def _translate_assignment(self, assignment):
         # Returns only a subset of included values since we don't use most
