@@ -13,9 +13,9 @@ from sqlalchemy import func
 from dallinger.config import get_config
 from dallinger.db import redis_conn
 from dallinger.db import session
-from dallinger.experiment_server.experiment_server import success_response
-from dallinger.experiment_server.experiment_server import crossdomain
-from dallinger.experiment_server.experiment_server import worker_function
+from dallinger.experiment_server.utils import success_response
+from dallinger.experiment_server.utils import crossdomain
+from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
 from dallinger.notifications import get_messenger
 from dallinger.notifications import MessengerError
@@ -61,11 +61,6 @@ class Recruiter(object):
         as a method rather than a property.
         """
         return self
-
-    def bind_app(self, app):
-        """Recruiters may want to register additional routes using the Flask
-        app."""
-        pass
 
     def open_recruitment(self, n=1):
         """Return a list of one or more initial recruitment URLs and an initial
@@ -398,10 +393,10 @@ class MTurkRecruiterException(Exception):
     """Custom exception for MTurkRecruiter"""
 
 
-extra_routes = flask.Blueprint("mturk_recruiter", __name__)
+mturk_routes = flask.Blueprint("mturk_recruiter", __name__)
 
 
-@extra_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
+@mturk_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
 @crossdomain(origin="*")
 def mturk_recruiter_notify():
     """Listens for:
@@ -431,6 +426,7 @@ class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
     nickname = "mturk"
+    extra_routes = mturk_routes
 
     experiment_qualification_desc = "Experiment-specific qualification"
     group_qualification_desc = "Experiment group qualification"
@@ -458,10 +454,6 @@ class MTurkRecruiter(Recruiter):
                 '"{}" is not a valid mode for MTurk recruitment. '
                 'The value of "mode" must be either "sandbox" or "live"'.format(mode)
             )
-
-    def bind_app(self, app):
-        """Register the SNS endpoint route."""
-        app.register_blueprint(extra_routes)
 
     @property
     def external_submission_url(self):

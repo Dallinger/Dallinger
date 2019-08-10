@@ -346,15 +346,6 @@ class TestMTurkRecruiterMessages(object):
 SNS_ROUTE_PATH = "/mturk-sns-listener"
 
 
-@pytest.fixture()
-def webapp2(webapp):
-    from dallinger.recruiters import extra_routes
-
-    if extra_routes.name not in webapp.application.blueprints:
-        webapp.application.register_blueprint(extra_routes)
-    yield webapp
-
-
 class TestSNSListenerRoute(object):
     @pytest.fixture
     def recruiter(self, active_config):
@@ -363,8 +354,7 @@ class TestSNSListenerRoute(object):
             instance = klass.return_value
             yield instance
 
-    def test_answers_subscription_confirmation_request(self, webapp2, recruiter):
-        webapp = webapp2
+    def test_answers_subscription_confirmation_request(self, webapp, recruiter):
         post_data = {
             "Type": "SubscriptionConfirmation",
             "MessageId": "165545c9-2a5c-472c-8df2-7ff2be2b3b1b",
@@ -386,8 +376,7 @@ class TestSNSListenerRoute(object):
             token="some-long-token", topic="arn:aws:sns:us-west-2:123456789012:MyTopic"
         )
 
-    def test_routes_worker_event_notifications(self, webapp2, recruiter):
-        webapp = webapp2
+    def test_routes_worker_event_notifications(self, webapp, recruiter):
         post_data = {
             "Type": "Notification",
             "MessageId": "6af5c15c-64a3-54d1-94fb-949b81bf2019",
