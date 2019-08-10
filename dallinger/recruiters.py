@@ -701,18 +701,16 @@ class MTurkRecruiter(Recruiter):
         requests.patch(heroku_app.config_url, data=args, headers=headers)
 
     def _resend_submitted_rest_notification_for(self, participant):
-        args = {
-            "Event.1.EventType": "AssignmentSubmitted",
-            "Event.1.AssignmentId": participant.assignment_id,
-        }
-        requests.post(self.notification_url, data=args)
+        q = _get_queue()
+        q.enqueue(
+            worker_function, "AssignmentSubmitted", participant.assignment_id, None
+        )
 
     def _send_notification_missing_rest_notification_for(self, participant):
-        args = {
-            "Event.1.EventType": "NotificationMissing",
-            "Event.1.AssignmentId": participant.assignment_id,
-        }
-        requests.post(self.notification_url, data=args)
+        q = _get_queue()
+        q.enqueue(
+            worker_function, "NotificationMissing", participant.assignment_id, None
+        )
 
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,

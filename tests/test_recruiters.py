@@ -414,15 +414,25 @@ class TestSNSListenerRoute(object):
         )
 
 
-@pytest.mark.usefixtures("active_config")
-class TestMTurkRecruiter(object):
-    @pytest.fixture
-    def requests(self):
-        with mock.patch(
-            "dallinger.recruiters.requests", autospec=True
-        ) as mock_requests:
-            yield mock_requests
+@pytest.fixture
+def queue():
+    from rq import Queue
 
+    instance = mock.Mock(spec=Queue)
+    with mock.patch("dallinger.recruiters._get_queue") as mock_q:
+        mock_q.return_value = instance
+
+        yield instance
+
+
+@pytest.fixture
+def requests():
+    with mock.patch("dallinger.recruiters.requests", autospec=True) as mock_requests:
+        yield mock_requests
+
+
+@pytest.mark.usefixtures("active_config", "requests", "queue")
+class TestMTurkRecruiter(object):
     @pytest.fixture
     def messenger(self):
         from dallinger.notifications import DebugMessenger
@@ -765,23 +775,20 @@ class TestMTurkRecruiter(object):
         assert participants[0].status == "rejected"
 
     def test_sends_replacement_mturk_notification_if_resubmitted(
-        self, a, recruiter, requests
+        self, a, recruiter, queue
     ):
         recruiter.mturkservice.get_assignment.return_value = {"status": "Submitted"}
         participants = [a.participant()]
+        from dallinger.recruiters import worker_function
 
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
-        requests.post.assert_called_once_with(
-            "http://fake-domain{}".format(SNS_ROUTE_PATH),
-            data={
-                "Event.1.EventType": "AssignmentSubmitted",
-                "Event.1.AssignmentId": participants[0].assignment_id,
-            },
+        queue.enqueue.assert_called_once_with(
+            worker_function, "AssignmentSubmitted", participants[0].assignment_id, None
         )
         recruiter.messenger.send.assert_called_once()
 
-    def test_notifies_researcher_if_resubmitted(self, a, recruiter, requests):
+    def test_notifies_researcher_if_resubmitted(self, a, recruiter):
         recruiter.mturkservice.get_assignment.return_value = {"status": "Submitted"}
         participants = [a.participant()]
 
@@ -805,22 +812,19 @@ class TestMTurkRecruiter(object):
         assert recruiter._mturk_status_for(mock.Mock()) is None
 
     def test_sends_notification_missing_if_no_status_from_mturk(
-        self, a, recruiter, requests
+        self, a, recruiter, queue
     ):
         recruiter.mturkservice.get_assignment.return_value = {"status": None}
         participants = [a.participant()]
+        from dallinger.recruiters import worker_function
 
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
-        requests.post.assert_called_once_with(
-            "http://fake-domain{}".format(SNS_ROUTE_PATH),
-            data={
-                "Event.1.EventType": "NotificationMissing",
-                "Event.1.AssignmentId": participants[0].assignment_id,
-            },
+        queue.enqueue.assert_called_once_with(
+            worker_function, "NotificationMissing", participants[0].assignment_id, None
         )
 
-    def test_notifies_researcher_when_hit_cancelled(self, a, recruiter, requests):
+    def test_notifies_researcher_when_hit_cancelled(self, a, recruiter):
         recruiter.mturkservice.get_assignment.return_value = {"status": None}
         participants = [a.participant()]
 
@@ -828,7 +832,7 @@ class TestMTurkRecruiter(object):
 
         recruiter.messenger.send.assert_called_once()
 
-    def test_no_assignment_on_mturk_expires_hit(self, a, recruiter, requests):
+    def test_no_assignment_on_mturk_expires_hit(self, a, recruiter):
         recruiter.mturkservice.get_assignment.return_value = {"status": None}
         participants = [a.participant()]
 
