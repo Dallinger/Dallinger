@@ -407,18 +407,20 @@ def mturk_recruiter_notify():
     message_type = flask.request.form.get("Type")
     # 1. SNS subscription confirmation request
     if message_type == "SubscriptionConfirmation":
+        logger.warning("Received a SubscriptionConfirmation message from AWS.")
         token = flask.request.form.get("Token")
         topic = flask.request.form.get("TopicArn")
         recruiter._confirm_sns_subscription(token=token, topic=topic)
 
     # 2. MTurk Worker event
     elif message_type == "Notification":
+        logger.warning("Received an Event Notification from AWS.")
         message = json.loads(flask.request.form.get("Message"))
         events = message["Events"]
         recruiter._report_event_notification(events)
 
     else:
-        logger.warn("Unknown SNS notification type: {}".format(message_type))
+        logger.warning("Unknown SNS notification type: {}".format(message_type))
 
     return success_response()
 
