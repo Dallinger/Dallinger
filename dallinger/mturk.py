@@ -170,7 +170,7 @@ class MTurkService(object):
 
     def confirm_subscription(self, token, topic):
         """Called by the MTurkRecruiter Flask route"""
-        self.sns.confirm_subscription(Token=token, TopicArn=topic)
+        self.sns.confirm_subscription(token=token, topic=topic)
 
     def register_hit_type(
         self, title, description, reward, duration_hours, keywords, qualifications
