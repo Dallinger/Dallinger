@@ -143,7 +143,7 @@ class MTurkService(object):
             aws_access_key_id=self.aws_key,
             aws_secret_access_key=self.aws_secret,
             region_name=self.region_name,
-            max_wait_secs=self.max_wait_secs,
+            max_wait_secs=60,
         )
 
     @property
