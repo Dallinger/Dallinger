@@ -55,6 +55,7 @@ class SNSService(object):
         return session.client("sns")
 
     def confirm_subscription(self, token, topic):
+        logger.warn("Confirming SNS subsription.")
         self._sns.confirm_subscription(
             # AuthenticateOnUnsubscribe=True,  # Should we care?
             Token=token,
@@ -62,6 +63,7 @@ class SNSService(object):
         )
 
     def create_subscription(self, experiment_id, notification_url):
+        logger.warn("Creating new SNS subscription...")
         protocol = "https" if notification_url.startswith("https") else "http"
         topic = self._sns.create_topic(Name=experiment_id)
         subscription = self._sns.subscribe(
@@ -72,12 +74,13 @@ class SNSService(object):
         )
         start = time.time()
         while self._awaiting_confirmation(subscription) and self._time_remains(start):
-            logger.info("Awaiting SNS subscription confirmation...")
+            logger.warn("Awaiting SNS subscription confirmation...")
             time.sleep(1)
-
+        logger.warn("Subscription complete or timed out.")
         return topic["TopicArn"]
 
     def cancel_subscription(self, experiment_id):
+        logger.warn("Cancelling SNS subscription")
         sns_topic = self._get_sns_topic_for_experiment(experiment_id)
         self._sns.delete_topic(TopicArn=sns_topic["TopicArn"])
         return True
