@@ -404,18 +404,20 @@ def mturk_recruiter_notify():
         2. SNS subcription messages, which forward MTurk notifications
     """
     recruiter = MTurkRecruiter()
-    message_type = flask.request.form.get("Type")
+    logger.warning("Raw notification body: {}".format(flask.request.get_data()))
+    content = json.loads(flask.request.get_data())
+    message_type = content.get("Type")
     # 1. SNS subscription confirmation request
     if message_type == "SubscriptionConfirmation":
         logger.warning("Received a SubscriptionConfirmation message from AWS.")
-        token = flask.request.form.get("Token")
-        topic = flask.request.form.get("TopicArn")
+        token = content.get("Token")
+        topic = content.get("TopicArn")
         recruiter._confirm_sns_subscription(token=token, topic=topic)
 
     # 2. MTurk Worker event
     elif message_type == "Notification":
         logger.warning("Received an Event Notification from AWS.")
-        message = json.loads(flask.request.form.get("Message"))
+        message = json.loads(content.get("Message"))
         events = message["Events"]
         recruiter._report_event_notification(events)
 

@@ -1,3 +1,4 @@
+import json
 import mock
 import pytest
 from datetime import datetime
@@ -368,7 +369,7 @@ class TestSNSListenerRoute(object):
             "SigningCertURL": "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-f3ecfb7224c7233fe7bb5f59f96de52f.pem",
         }
 
-        resp = webapp.post(SNS_ROUTE_PATH, data=post_data)
+        resp = webapp.post(SNS_ROUTE_PATH, data=json.dumps(post_data))
 
         assert resp.status_code == 200
         recruiter._confirm_sns_subscription.assert_called_once_with(
