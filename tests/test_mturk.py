@@ -348,6 +348,9 @@ def sns_iso(sns):
 
 
 @pytest.mark.mturk
+@pytest.mark.skipif(
+    not pytest.config.getvalue("mturkfull"), reason="--mturkfull was not specified"
+)
 class TestSNSService(object):
     def test_creates_and_cancel_subscription(self, sns):
         topic_arn = sns.create_subscription("some-exp", "https://some-url")
@@ -566,7 +569,7 @@ class TestMTurkService(object):
 
     def test_get_qualification_type_by_name_no_match(self, with_cleanup, qtype):
         # First query can be very slow, since the qtype was just added:
-        with_cleanup.max_wait_secs = 1
+        with_cleanup.max_wait_secs = 0
         result = with_cleanup.get_qualification_type_by_name("nonsense")
         assert result is None
 
@@ -717,7 +720,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         self, with_cleanup, worker_id
     ):
         # we know the name doesn't exist, so no need to wait
-        with_cleanup.max_wait_secs = 1
+        with_cleanup.max_wait_secs = 0
         with pytest.raises(QualificationNotFoundException):
             with_cleanup.increment_qualification_score("NONEXISTENT", worker_id)
 
@@ -855,7 +858,7 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.mturk.list_qualification_types.return_value = {
             "QualificationTypes": []
         }
-        with_mock.max_wait_secs = 1
+        with_mock.max_wait_secs = 0
         assert with_mock.get_qualification_type_by_name("foo") is None
 
     def test_get_qualification_type_by_name_raises_if_not_unique_and_not_exact_match(

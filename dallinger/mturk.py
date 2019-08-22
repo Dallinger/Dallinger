@@ -1,13 +1,11 @@
 import boto3
 import datetime
 import logging
-import signal
 import time
 
 from botocore.exceptions import ClientError
 from botocore.exceptions import NoCredentialsError
 from cached_property import cached_property
-from contextlib import contextmanager
 
 
 logger = logging.getLogger(__file__)
@@ -20,7 +18,7 @@ class MTurkServiceException(Exception):
     """Custom exception type"""
 
 
-class RemoteAPICallTimedOut(RuntimeError):
+class RemoteAPICallTimedOut(MTurkServiceException):
     """A call to a remote API took too long."""
 
 
@@ -38,24 +36,6 @@ class WorkerLacksQualification(MTurkServiceException):
 
 class RevokedQualification(MTurkServiceException):
     """The Qualification has been revoked for this worker."""
-
-
-@contextmanager
-def timeout(seconds):
-    def timeout_handler(signum, frame):
-        raise RemoteAPICallTimedOut(
-            "Call timed out after exceeding max wait of {} seconds.".format(seconds)
-        )
-
-    assert seconds > 0
-
-    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(seconds)
-    try:
-        yield
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
 
 
 class SNSService(object):
@@ -94,17 +74,20 @@ class SNSService(object):
         )
         protocol = "https" if notification_url.startswith("https") else "http"
         topic = self._sns.create_topic(Name=experiment_id)
-        # notification_url = "https://webhook.site/9a8abb0a-2e1e-4feb-9962-f35d7c1f1d4e"
         subscription = self._sns.subscribe(
             TopicArn=topic["TopicArn"],
             Protocol=protocol,
             Endpoint=notification_url,
             ReturnSubscriptionArn=True,  # So we can start polling the status
         )
-        with timeout(self.max_wait_secs):
-            while self._awaiting_confirmation(subscription):
-                logger.warning("Awaiting SNS subscription confirmation...")
-                time.sleep(1)
+
+        start = time.time()
+        while self._awaiting_confirmation(subscription):
+            elapsed = time.time() - start
+            if elapsed > self.max_wait_secs:
+                raise RemoteAPICallTimedOut("Too long")
+            logger.warning("Awaiting SNS subscription confirmation...")
+            time.sleep(1)
 
         logger.warning("Subscription confirmed.")
         return topic["TopicArn"]
@@ -144,8 +127,7 @@ class MTurkService(object):
         aws_secret_access_key,
         region_name,
         sandbox=True,
-        sns=None,
-        max_wait_secs=1,
+        max_wait_secs=0,
         subscribe=True,
     ):
         self.aws_key = aws_access_key_id
@@ -285,15 +267,13 @@ class MTurkService(object):
         results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
         # This loop is largely for tests, because there's some indexing that
         # needs to happen on MTurk for search to work:
-        try:
-            with timeout(self.max_wait_secs):
-                while not results:
-                    time.sleep(1)
-                    results = self.mturk.list_qualification_types(**args)[
-                        "QualificationTypes"
-                    ]
-        except RemoteAPICallTimedOut:
-            return None
+        start = time.time()
+        while not results:
+            elapsed = time.time() - start
+            if elapsed > self.max_wait_secs:
+                return None
+            time.sleep(1)
+            results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
 
         qualifications = [self._translate_qtype(r) for r in results]
         if len(qualifications) > 1:
@@ -439,9 +419,10 @@ class MTurkService(object):
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
         )
-        self._create_notification_subscription(
-            experiment_id, notification_url, hit_type_id
-        )
+        if self.do_subscribe:
+            self._create_notification_subscription(
+                experiment_id, notification_url, hit_type_id
+            )
         params = {
             "HITTypeId": hit_type_id,
             "Question": mturk_question,
@@ -605,29 +586,25 @@ class MTurkService(object):
     def _create_notification_subscription(
         self, experiment_id, notification_url, hit_type_id
     ):
-        if not self.do_subscribe:
-            return
-
         topic_arn = self.sns.create_subscription(experiment_id, notification_url)
-        logger.warning("We've got a Topic for subscription: {}".format(topic_arn))
-        if topic_arn:
-            self.mturk.update_notification_settings(
-                HITTypeId=hit_type_id,
-                Notification={
-                    "Destination": topic_arn,
-                    "Transport": "SNS",
-                    "Version": "2014-08-15",
-                    "EventTypes": [
-                        "AssignmentAccepted",
-                        "AssignmentAbandoned",
-                        "AssignmentReturned",
-                        "AssignmentSubmitted",
-                        "HITReviewable",
-                        "HITExpired",
-                    ],
-                },
-                Active=True,
-            )
+        logger.warning("Updating HIT with confirmed subscription: {}".format(topic_arn))
+        self.mturk.update_notification_settings(
+            HITTypeId=hit_type_id,
+            Notification={
+                "Destination": topic_arn,
+                "Transport": "SNS",
+                "Version": "2014-08-15",
+                "EventTypes": [
+                    "AssignmentAccepted",
+                    "AssignmentAbandoned",
+                    "AssignmentReturned",
+                    "AssignmentSubmitted",
+                    "HITReviewable",
+                    "HITExpired",
+                ],
+            },
+            Active=True,
+        )
 
     def _external_question(self, url, frame_height):
         q = (
