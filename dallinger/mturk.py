@@ -1,11 +1,13 @@
 import boto3
 import datetime
 import logging
+import signal
 import time
 
 from botocore.exceptions import ClientError
 from botocore.exceptions import NoCredentialsError
 from cached_property import cached_property
+from contextlib import contextmanager
 
 
 logger = logging.getLogger(__file__)
@@ -16,6 +18,10 @@ MAX_SUPPORTED_BATCH_SIZE = 100
 
 class MTurkServiceException(Exception):
     """Custom exception type"""
+
+
+class RemoteAPICallTimedOut(RuntimeError):
+    """A call to a remote API took too long."""
 
 
 class DuplicateQualificationNameError(MTurkServiceException):
@@ -34,16 +40,36 @@ class RevokedQualification(MTurkServiceException):
     """The Qualification has been revoked for this worker."""
 
 
+@contextmanager
+def timeout(seconds):
+    def timeout_handler(signum, frame):
+        raise RemoteAPICallTimedOut(
+            "Call timed out after exceeding max wait of {} seconds.".format(seconds)
+        )
+
+    assert seconds > 0
+
+    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+
+
 class SNSService(object):
     """Handles AWS SNS subscriptions"""
 
+    max_wait_secs = 12
+
     def __init__(
-        self, aws_access_key_id, aws_secret_access_key, region_name, max_wait_secs=0
+        self, aws_access_key_id, aws_secret_access_key, region_name, confirm=True
     ):
         self.aws_key = aws_access_key_id
         self.aws_secret = aws_secret_access_key
         self.region_name = region_name
-        self.max_wait_secs = max_wait_secs
+        self.do_confirm_subscription = confirm
 
     @cached_property
     def _sns(self):
@@ -75,11 +101,12 @@ class SNSService(object):
             Endpoint=notification_url,
             ReturnSubscriptionArn=True,  # So we can start polling the status
         )
-        start = time.time()
-        while self._awaiting_confirmation(subscription) and self._time_remains(start):
-            logger.warning("Awaiting SNS subscription confirmation...")
-            time.sleep(1)
-        logger.warning("Subscription complete or timed out.")
+        with timeout(self.max_wait_secs):
+            while self._awaiting_confirmation(subscription):
+                logger.warning("Awaiting SNS subscription confirmation...")
+                time.sleep(1)
+
+        logger.warning("Subscription confirmed.")
         return topic["TopicArn"]
 
     def cancel_subscription(self, experiment_id):
@@ -89,6 +116,9 @@ class SNSService(object):
         return True
 
     def _awaiting_confirmation(self, subscription):
+        if not self.do_confirm_subscription:
+            return False
+
         report = self._sns.get_subscription_attributes(
             SubscriptionArn=subscription["SubscriptionArn"]
         )
@@ -102,10 +132,6 @@ class SNSService(object):
         ]
         return experiment_topics[0]
 
-    def _time_remains(self, start):
-        elapsed = time.time() - start
-        return elapsed < self.max_wait_secs
-
 
 class MTurkService(object):
     """Facade for Amazon Mechanical Turk services provided via the boto3
@@ -117,9 +143,9 @@ class MTurkService(object):
         aws_access_key_id,
         aws_secret_access_key,
         region_name,
-        sns=None,
         sandbox=True,
-        max_wait_secs=0,
+        sns=None,
+        max_wait_secs=1,
         subscribe=True,
     ):
         self.aws_key = aws_access_key_id
@@ -146,7 +172,6 @@ class MTurkService(object):
             aws_access_key_id=self.aws_key,
             aws_secret_access_key=self.aws_secret,
             region_name=self.region_name,
-            max_wait_secs=60,
         )
 
     @property
@@ -260,12 +285,14 @@ class MTurkService(object):
         results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
         # This loop is largely for tests, because there's some indexing that
         # needs to happen on MTurk for search to work:
-        start = time.time()
-        while not results and self._time_remains(start):
-            time.sleep(1)
-            results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
-
-        if not results:
+        try:
+            with timeout(self.max_wait_secs):
+                while not results:
+                    time.sleep(1)
+                    results = self.mturk.list_qualification_types(**args)[
+                        "QualificationTypes"
+                    ]
+        except RemoteAPICallTimedOut:
             return None
 
         qualifications = [self._translate_qtype(r) for r in results]
@@ -613,10 +640,6 @@ class MTurkService(object):
 
     def _request_token(self):
         return str(time.time())
-
-    def _time_remains(self, start):
-        elapsed = time.time() - start
-        return elapsed < self.max_wait_secs
 
     def _translate_assignment(self, assignment):
         # Returns only a subset of included values since we don't use most

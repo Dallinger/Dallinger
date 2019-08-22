@@ -390,7 +390,7 @@ class TestSNSListenerRoute(object):
             "UnsubscribeURL": "https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-east-1:047991105548:some-experiment-id:fd8f816c-7e93-4815-922b-ad1d1f8cb98b",
         }
 
-        resp = webapp.post(SNS_ROUTE_PATH, data=post_data)
+        resp = webapp.post(SNS_ROUTE_PATH, data=json.dumps(post_data))
 
         assert resp.status_code == 200
         recruiter._report_event_notification.assert_called_once_with(

@@ -324,7 +324,7 @@ def qtype(mturk):
 
 @pytest.fixture
 def sns(aws_creds):
-    params = {"region_name": "us-east-1"}
+    params = {"region_name": "us-east-1", "confirm": False}
     params.update(aws_creds)
     service = SNSService(**params)
 
@@ -566,7 +566,7 @@ class TestMTurkService(object):
 
     def test_get_qualification_type_by_name_no_match(self, with_cleanup, qtype):
         # First query can be very slow, since the qtype was just added:
-        with_cleanup.max_wait_secs = 0
+        with_cleanup.max_wait_secs = 1
         result = with_cleanup.get_qualification_type_by_name("nonsense")
         assert result is None
 
@@ -716,9 +716,8 @@ class TestMTurkServiceWithRequesterAndWorker(object):
     def test_increment_qualification_score_nonexistent_qual(
         self, with_cleanup, worker_id
     ):
-        with_cleanup.max_wait_secs = (
-            0
-        )  # we know the name doesn't exist, so no need to wait
+        # we know the name doesn't exist, so no need to wait
+        with_cleanup.max_wait_secs = 1
         with pytest.raises(QualificationNotFoundException):
             with_cleanup.increment_qualification_score("NONEXISTENT", worker_id)
 

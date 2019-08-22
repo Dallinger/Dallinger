@@ -444,10 +444,10 @@ class MTurkRecruiter(Recruiter):
         self.notification_url = "{}/mturk-sns-listener".format(base_url)
         self.hit_domain = os.getenv("HOST")
         self.mturkservice = MTurkService(
-            self.config.get("aws_access_key_id"),
-            self.config.get("aws_secret_access_key"),
-            self.config.get("aws_region"),
-            self.config.get("mode") != "live",
+            aws_access_key_id=self.config.get("aws_access_key_id"),
+            aws_secret_access_key=self.config.get("aws_secret_access_key"),
+            region_name=self.config.get("aws_region"),
+            sandbox=self.config.get("mode") != "live",
         )
         self.messenger = get_messenger(self.config)
         self._validate_config()
