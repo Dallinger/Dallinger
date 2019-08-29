@@ -1,11 +1,6 @@
-from hashlib import sha1
-from six.moves import urllib
-import base64
 import boto3
 import datetime
-import hmac
 import logging
-import requests
 import time
 
 from botocore.exceptions import ClientError
@@ -21,6 +16,10 @@ MAX_SUPPORTED_BATCH_SIZE = 100
 
 class MTurkServiceException(Exception):
     """Custom exception type"""
+
+
+class RemoteAPICallTimedOut(MTurkServiceException):
+    """A call to a remote API took too long."""
 
 
 class DuplicateQualificationNameError(MTurkServiceException):
@@ -39,20 +38,104 @@ class RevokedQualification(MTurkServiceException):
     """The Qualification has been revoked for this worker."""
 
 
+class SNSService(object):
+    """Handles AWS SNS subscriptions"""
+
+    max_wait_secs = 12
+
+    def __init__(
+        self, aws_access_key_id, aws_secret_access_key, region_name, confirm=True
+    ):
+        self.aws_key = aws_access_key_id
+        self.aws_secret = aws_secret_access_key
+        self.region_name = region_name
+        self.do_confirm_subscription = confirm
+
+    @cached_property
+    def _sns(self):
+        session = boto3.session.Session(
+            aws_access_key_id=self.aws_key,
+            aws_secret_access_key=self.aws_secret,
+            region_name=self.region_name,
+        )
+        return session.client("sns")
+
+    def confirm_subscription(self, token, topic):
+        logger.warning("Confirming SNS subsription.")
+        self._sns.confirm_subscription(
+            # AuthenticateOnUnsubscribe=True,  # Should we care?
+            Token=token,
+            TopicArn=topic,
+        )
+
+    def create_subscription(self, experiment_id, notification_url):
+        logger.warning(
+            "Creating new SNS subscription for {}...".format(notification_url)
+        )
+        protocol = "https" if notification_url.startswith("https") else "http"
+        topic = self._sns.create_topic(Name=experiment_id)
+        subscription = self._sns.subscribe(
+            TopicArn=topic["TopicArn"],
+            Protocol=protocol,
+            Endpoint=notification_url,
+            ReturnSubscriptionArn=True,  # So we can start polling the status
+        )
+
+        start = time.time()
+        while self._awaiting_confirmation(subscription):
+            elapsed = time.time() - start
+            if elapsed > self.max_wait_secs:
+                raise RemoteAPICallTimedOut("Too long")
+            logger.warning("Awaiting SNS subscription confirmation...")
+            time.sleep(1)
+
+        logger.warning("Subscription confirmed.")
+        return topic["TopicArn"]
+
+    def cancel_subscription(self, experiment_id):
+        logger.warning("Cancelling SNS subscription")
+        sns_topic = self._get_sns_topic_for_experiment(experiment_id)
+        self._sns.delete_topic(TopicArn=sns_topic["TopicArn"])
+        return True
+
+    def _awaiting_confirmation(self, subscription):
+        if not self.do_confirm_subscription:
+            return False
+
+        report = self._sns.get_subscription_attributes(
+            SubscriptionArn=subscription["SubscriptionArn"]
+        )
+        status = report["Attributes"]["PendingConfirmation"]
+        return status == "true"
+
+    def _get_sns_topic_for_experiment(self, experiment_id):
+        all_topics = self._sns.list_topics()["Topics"]
+        experiment_topics = [
+            t for t in all_topics if t["TopicArn"].endswith(experiment_id)
+        ]
+        return experiment_topics[0]
+
+
 class MTurkService(object):
     """Facade for Amazon Mechanical Turk services provided via the boto3
        library.
     """
 
-    max_wait_secs = 0
-
     def __init__(
-        self, aws_access_key_id, aws_secret_access_key, region_name, sandbox=True
+        self,
+        aws_access_key_id,
+        aws_secret_access_key,
+        region_name,
+        sandbox=True,
+        max_wait_secs=0,
+        subscribe=True,
     ):
         self.aws_key = aws_access_key_id
         self.aws_secret = aws_secret_access_key
         self.region_name = region_name
         self.is_sandbox = sandbox
+        self.max_wait_secs = max_wait_secs
+        self.do_subscribe = subscribe
 
     @cached_property
     def mturk(self):
@@ -65,6 +148,14 @@ class MTurkService(object):
             "mturk", endpoint_url=self.host, region_name=self.region_name
         )
 
+    @cached_property
+    def sns(self):
+        return SNSService(
+            aws_access_key_id=self.aws_key,
+            aws_secret_access_key=self.aws_secret,
+            region_name=self.region_name,
+        )
+
     @property
     def host(self):
         if self.is_sandbox:
@@ -72,17 +163,6 @@ class MTurkService(object):
         else:
             template = u"https://mturk-requester.{}.amazonaws.com"
         return template.format(self.region_name)
-
-    @property
-    def legacy_host(self):
-        """Setting endpoints for REST notifications is not supported by the
-        latest version of the AWS MTurk API, and this is the endpoint boto3
-        communicates with. As a workaround, we use the old endpoint for this
-        one feature.
-        """
-        if self.is_sandbox:
-            return "mechanicalturk.sandbox.amazonaws.com"
-        return "mechanicalturk.amazonaws.com"
 
     def check_credentials(self):
         """Verifies key/secret/host combination by making a balance inquiry"""
@@ -97,43 +177,9 @@ class MTurkService(object):
                 "Error checking credentials: {}".format(str(ex))
             )
 
-    def set_rest_notification(self, url, hit_type_id):
-        """Set a REST endpoint to recieve notifications about the HIT
-        The newer AWS MTurk API does not support this feature, which means we
-        cannot use boto3 here. Instead, we make the call manually after
-        assembling a properly signed request.
-        """
-        ISO8601 = "%Y-%m-%dT%H:%M:%SZ"
-        notification_version = "2006-05-05"
-        API_version = "2014-08-15"
-        data = {
-            "AWSAccessKeyId": self.aws_key,
-            "HITTypeId": hit_type_id,
-            "Notification.1.Active": "True",
-            "Notification.1.Destination": url,
-            "Notification.1.EventType.1": "AssignmentAccepted",
-            "Notification.1.EventType.2": "AssignmentAbandoned",
-            "Notification.1.EventType.3": "AssignmentReturned",
-            "Notification.1.EventType.4": "AssignmentSubmitted",
-            "Notification.1.EventType.5": "HITReviewable",
-            "Notification.1.EventType.6": "HITExpired",
-            "Notification.1.Transport": "REST",
-            "Notification.1.Version": notification_version,
-            "Operation": "SetHITTypeNotification",
-            "SignatureVersion": "1",
-            "Timestamp": time.strftime(ISO8601, time.gmtime()),
-            "Version": API_version,
-        }
-        query_string, signature = self._calc_old_api_signature(data)
-        body = query_string + "&Signature=" + urllib.parse.quote_plus(signature)
-        data["Signature"] = signature
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Content-Length": str(len(body)),
-            "Host": self.legacy_host,
-        }
-        resp = requests.post("https://" + self.legacy_host, headers=headers, data=body)
-        return "<IsValid>True</IsValid>" in resp.text
+    def confirm_subscription(self, token, topic):
+        """Called by the MTurkRecruiter Flask route"""
+        self.sns.confirm_subscription(token=token, topic=topic)
 
     def register_hit_type(
         self, title, description, reward, duration_hours, keywords, qualifications
@@ -212,7 +258,6 @@ class MTurkService(object):
         """
         max_fuzzy_matches_to_check = 100
         query = name.upper()
-        start = time.time()
         args = {
             "Query": query,
             "MustBeRequestable": False,
@@ -222,12 +267,13 @@ class MTurkService(object):
         results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
         # This loop is largely for tests, because there's some indexing that
         # needs to happen on MTurk for search to work:
-        while not results and time.time() - start < self.max_wait_secs:
+        start = time.time()
+        while not results:
+            elapsed = time.time() - start
+            if elapsed > self.max_wait_secs:
+                return None
             time.sleep(1)
             results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
-
-        if not results:
-            return None
 
         qualifications = [self._translate_qtype(r) for r in results]
         if len(qualifications) > 1:
@@ -348,6 +394,7 @@ class MTurkService(object):
 
     def create_hit(
         self,
+        experiment_id,
         title,
         description,
         keywords,
@@ -372,8 +419,10 @@ class MTurkService(object):
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
         )
-        self.set_rest_notification(notification_url, hit_type_id)
-
+        if self.do_subscribe:
+            self._create_notification_subscription(
+                experiment_id, notification_url, hit_type_id
+            )
         params = {
             "HITTypeId": hit_type_id,
             "Question": mturk_question,
@@ -428,8 +477,10 @@ class MTurkService(object):
             )
         return self._is_ok(response)
 
-    def disable_hit(self, hit_id):
+    def disable_hit(self, hit_id, experiment_id):
         self.expire_hit(hit_id)
+        if self.do_subscribe:
+            self.sns.cancel_subscription(experiment_id)
         try:
             result = self.mturk.delete_hit(HITId=hit_id)
         except Exception as ex:
@@ -437,6 +488,7 @@ class MTurkService(object):
                 # this means "already deleted"...
                 return True
             raise
+
         return self._is_ok(result)
 
     def expire_hit(self, hit_id):
@@ -531,18 +583,28 @@ class MTurkService(object):
                 )
             )
 
-    def _calc_old_api_signature(self, params, *args):
-        signature = hmac.new(self.aws_secret.encode("utf-8"), digestmod=sha1)
-        keys = list(params.keys())
-        keys.sort(key=lambda x: x.lower())
-        pairs = []
-        for key in keys:
-            signature.update(key.encode("utf-8"))
-            value = params[key].encode("utf-8")
-            signature.update(value)
-            pairs.append(key + "=" + urllib.parse.quote(value))
-        query_string = "&".join(pairs)
-        return (query_string, base64.b64encode(signature.digest()))
+    def _create_notification_subscription(
+        self, experiment_id, notification_url, hit_type_id
+    ):
+        topic_arn = self.sns.create_subscription(experiment_id, notification_url)
+        logger.warning("Updating HIT with confirmed subscription: {}".format(topic_arn))
+        self.mturk.update_notification_settings(
+            HITTypeId=hit_type_id,
+            Notification={
+                "Destination": topic_arn,
+                "Transport": "SNS",
+                "Version": "2014-08-15",
+                "EventTypes": [
+                    "AssignmentAccepted",
+                    "AssignmentAbandoned",
+                    "AssignmentReturned",
+                    "AssignmentSubmitted",
+                    "HITReviewable",
+                    "HITExpired",
+                ],
+            },
+            Active=True,
+        )
 
     def _external_question(self, url, frame_height):
         q = (

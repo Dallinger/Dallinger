@@ -1,3 +1,4 @@
+import json
 import mock
 import pytest
 from datetime import datetime
@@ -343,15 +344,94 @@ class TestMTurkRecruiterMessages(object):
         assert "Dallinger has paused the experiment" in body
 
 
-@pytest.mark.usefixtures("active_config")
-class TestMTurkRecruiter(object):
-    @pytest.fixture
-    def requests(self):
-        with mock.patch(
-            "dallinger.recruiters.requests", autospec=True
-        ) as mock_requests:
-            yield mock_requests
+SNS_ROUTE_PATH = "/mturk-sns-listener"
 
+
+class TestSNSListenerRoute(object):
+    @pytest.fixture
+    def recruiter(self, active_config):
+        active_config.extend({"mode": u"sandbox"})  # MTurkRecruiter invalid if debug
+        with mock.patch("dallinger.recruiters.MTurkRecruiter") as klass:
+            instance = klass.return_value
+            yield instance
+
+    def test_answers_subscription_confirmation_request(self, webapp, recruiter):
+        post_data = {
+            "Type": "SubscriptionConfirmation",
+            "MessageId": "165545c9-2a5c-472c-8df2-7ff2be2b3b1b",
+            "Token": "some-long-token",
+            "TopicArn": "arn:aws:sns:us-west-2:123456789012:MyTopic",
+            "Message": "You have chosen to subscribe to the topic arn:aws:sns:us-west-2:123456789012:MyTopic.\nTo confirm the subscription, visit the SubscribeURL included in this message.",
+            "SubscribeURL": "https://some-confirmation-url-at-amazon",
+            "Timestamp": "2012-04-26T20:45:04.751Z",
+            "SignatureVersion": "1",
+            "Signature": "very-long-base64-encoded-string-i-think",
+            "SigningCertURL": "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-f3ecfb7224c7233fe7bb5f59f96de52f.pem",
+        }
+
+        resp = webapp.post(SNS_ROUTE_PATH, data=json.dumps(post_data))
+
+        assert resp.status_code == 200
+        recruiter._confirm_sns_subscription.assert_called_once_with(
+            token="some-long-token", topic="arn:aws:sns:us-west-2:123456789012:MyTopic"
+        )
+
+    def test_routes_worker_event_notifications(self, webapp, recruiter):
+        post_data = {
+            "Type": "Notification",
+            "MessageId": "6af5c15c-64a3-54d1-94fb-949b81bf2019",
+            "TopicArn": "arn:aws:sns:us-east-1:047991105548:some-experiment-id",
+            "Subject": "1565385436809",
+            "Message": '{"Events":[{"EventType":"AssignmentSubmitted","EventTimestamp":"2019-08-09T21:17:16Z","HITId":"12345678901234567890","AssignmentId":"1234567890123456789012345678901234567890","HITTypeId":"09876543210987654321"},{"EventType":"AssignmentSubmitted","EventTimestamp":"2019-08-09T21:17:16Z","HITId":"12345678901234567890","AssignmentId":"1234567890123456789012345678900987654321","HITTypeId":"09876543210987654321"}],"EventDocId":"9928a491605538bb160590bb57b0596a9fbbcbba","SourceAccount":"047991105548","CustomerId":"AUYKYIHQXG6XR","EventDocVersion":"2014-08-15"}',
+            "Timestamp": "2019-08-09T21:17:16.848Z",
+            "SignatureVersion": "1",
+            "Signature": "very-long-base64-encoded-string-i-think",
+            "SigningCertURL": "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-6aad65c2f9911b05cd53efda11f913f9.pem",
+            "UnsubscribeURL": "https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-east-1:047991105548:some-experiment-id:fd8f816c-7e93-4815-922b-ad1d1f8cb98b",
+        }
+
+        resp = webapp.post(SNS_ROUTE_PATH, data=json.dumps(post_data))
+
+        assert resp.status_code == 200
+        recruiter._report_event_notification.assert_called_once_with(
+            [
+                {
+                    "EventType": "AssignmentSubmitted",
+                    "EventTimestamp": "2019-08-09T21:17:16Z",
+                    "HITId": "12345678901234567890",
+                    "AssignmentId": "1234567890123456789012345678901234567890",
+                    "HITTypeId": "09876543210987654321",
+                },
+                {
+                    "EventType": "AssignmentSubmitted",
+                    "EventTimestamp": "2019-08-09T21:17:16Z",
+                    "HITId": "12345678901234567890",
+                    "AssignmentId": "1234567890123456789012345678900987654321",
+                    "HITTypeId": "09876543210987654321",
+                },
+            ]
+        )
+
+
+@pytest.fixture
+def queue():
+    from rq import Queue
+
+    instance = mock.Mock(spec=Queue)
+    with mock.patch("dallinger.recruiters._get_queue") as mock_q:
+        mock_q.return_value = instance
+
+        yield instance
+
+
+@pytest.fixture
+def requests():
+    with mock.patch("dallinger.recruiters.requests", autospec=True) as mock_requests:
+        yield mock_requests
+
+
+@pytest.mark.usefixtures("active_config", "requests", "queue")
+class TestMTurkRecruiter(object):
     @pytest.fixture
     def messenger(self):
         from dallinger.notifications import DebugMessenger
@@ -431,10 +511,11 @@ class TestMTurkRecruiter(object):
             approve_requirement=95,
             description=u"fake HIT description",
             duration_hours=1.0,
+            experiment_id="some experiment uid",
             keywords=[u"kw1", u"kw2", u"kw3"],
             lifetime_days=1,
             max_assignments=1,
-            notification_url=u"https://url-of-notification-route",
+            notification_url=u"http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title=u"fake experiment title",
             us_only=True,
@@ -488,10 +569,11 @@ class TestMTurkRecruiter(object):
             approve_requirement=95,
             description="fake HIT description",
             duration_hours=1.0,
+            experiment_id="some experiment uid",
             lifetime_days=1,
             keywords=[u"kw1", u"kw2", u"kw3"],
             max_assignments=1,
-            notification_url="https://url-of-notification-route",
+            notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
             us_only=True,
@@ -692,23 +774,20 @@ class TestMTurkRecruiter(object):
         assert participants[0].status == "rejected"
 
     def test_sends_replacement_mturk_notification_if_resubmitted(
-        self, a, recruiter, requests
+        self, a, recruiter, queue
     ):
         recruiter.mturkservice.get_assignment.return_value = {"status": "Submitted"}
         participants = [a.participant()]
+        from dallinger.recruiters import worker_function
 
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
-        requests.post.assert_called_once_with(
-            "https://url-of-notification-route",
-            data={
-                "Event.1.EventType": "AssignmentSubmitted",
-                "Event.1.AssignmentId": participants[0].assignment_id,
-            },
+        queue.enqueue.assert_called_once_with(
+            worker_function, "AssignmentSubmitted", participants[0].assignment_id, None
         )
         recruiter.messenger.send.assert_called_once()
 
-    def test_notifies_researcher_if_resubmitted(self, a, recruiter, requests):
+    def test_notifies_researcher_if_resubmitted(self, a, recruiter):
         recruiter.mturkservice.get_assignment.return_value = {"status": "Submitted"}
         participants = [a.participant()]
 
@@ -732,22 +811,19 @@ class TestMTurkRecruiter(object):
         assert recruiter._mturk_status_for(mock.Mock()) is None
 
     def test_sends_notification_missing_if_no_status_from_mturk(
-        self, a, recruiter, requests
+        self, a, recruiter, queue
     ):
         recruiter.mturkservice.get_assignment.return_value = {"status": None}
         participants = [a.participant()]
+        from dallinger.recruiters import worker_function
 
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
-        requests.post.assert_called_once_with(
-            "https://url-of-notification-route",
-            data={
-                "Event.1.EventType": "NotificationMissing",
-                "Event.1.AssignmentId": participants[0].assignment_id,
-            },
+        queue.enqueue.assert_called_once_with(
+            worker_function, "NotificationMissing", participants[0].assignment_id, None
         )
 
-    def test_notifies_researcher_when_hit_cancelled(self, a, recruiter, requests):
+    def test_notifies_researcher_when_hit_cancelled(self, a, recruiter):
         recruiter.mturkservice.get_assignment.return_value = {"status": None}
         participants = [a.participant()]
 
@@ -755,7 +831,7 @@ class TestMTurkRecruiter(object):
 
         recruiter.messenger.send.assert_called_once()
 
-    def test_no_assignment_on_mturk_expires_hit(self, a, recruiter, requests):
+    def test_no_assignment_on_mturk_expires_hit(self, a, recruiter):
         recruiter.mturkservice.get_assignment.return_value = {"status": None}
         participants = [a.participant()]
 
@@ -842,10 +918,11 @@ class TestMTurkLargeRecruiter(object):
             approve_requirement=95,
             description="fake HIT description",
             duration_hours=1.0,
+            experiment_id="some experiment uid",
             keywords=["kw1", "kw2", "kw3"],
             lifetime_days=1,
             max_assignments=10,
-            notification_url="https://url-of-notification-route",
+            notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
             us_only=True,
@@ -863,10 +940,11 @@ class TestMTurkLargeRecruiter(object):
             approve_requirement=95,
             description="fake HIT description",
             duration_hours=1.0,
+            experiment_id="some experiment uid",
             keywords=["kw1", "kw2", "kw3"],
             lifetime_days=1,
             max_assignments=num_recruits,
-            notification_url="https://url-of-notification-route",
+            notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
             us_only=True,

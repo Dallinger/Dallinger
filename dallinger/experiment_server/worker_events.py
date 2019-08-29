@@ -1,3 +1,151 @@
+import logging
+from datetime import datetime
+from operator import attrgetter
+from rq import Queue
+from rq import get_current_job
+from dallinger import db
+from dallinger import information
+from dallinger import models
+from dallinger.config import get_config
+
+
+logger = logging.getLogger(__name__)
+
+
+def _config():
+    config = get_config()
+    if not config.ready:
+        config.load()
+
+    return config
+
+
+def _loaded_experiment(args):
+    from dallinger import experiment
+
+    klass = experiment.load()
+    return klass(args)
+
+
+def _get_queue(name="default"):
+    # Connect to Redis Queue
+    return Queue(name, connection=db.redis_conn)
+
+
+@db.scoped_session_decorator
+def worker_function(
+    event_type, assignment_id, participant_id, node_id=None, details=None
+):
+    """Process the notification."""
+    _config()
+    q = _get_queue()
+    try:
+        db.logger.debug(
+            "rq: worker_function working on job id: %s", get_current_job().id
+        )
+        db.logger.debug(
+            "rq: Received Queue Length: %d (%s)", len(q), ", ".join(q.job_ids)
+        )
+    except AttributeError:
+        db.logger.debug("Debug worker_function called synchronously")
+
+    exp = _loaded_experiment(db.session)
+    key = "-----"
+
+    exp.log(
+        "Received an {} notification for assignment {}, participant {}".format(
+            event_type, assignment_id, participant_id
+        ),
+        key,
+    )
+
+    if event_type == "TrackingEvent":
+        node = None
+        if node_id:
+            node = models.Node.query.get(node_id)
+        if not node:
+            participant = None
+            if participant_id:
+                # Lookup assignment_id to create notifications
+                participant = models.Participant.query.get(participant_id)
+            elif assignment_id:
+                participants = models.Participant.query.filter_by(
+                    assignment_id=assignment_id
+                ).all()
+                # if there are one or more participants select the most recent
+                if participants:
+                    participant = max(participants, key=attrgetter("creation_time"))
+                    participant_id = participant.id
+            if not participant:
+                exp.log(
+                    "Warning: No participant associated with this "
+                    "TrackingEvent notification.",
+                    key,
+                )
+                return
+            nodes = participant.nodes()
+            if not nodes:
+                exp.log(
+                    "Warning: No node associated with this "
+                    "TrackingEvent notification.",
+                    key,
+                )
+                return
+            node = max(nodes, key=attrgetter("creation_time"))
+
+        if not details:
+            details = {}
+        info = information.TrackingEvent(origin=node, details=details)
+        db.session.add(info)
+        db.session.commit()
+        return
+
+    runner_cls = WorkerEvent.for_name(event_type)
+    if not runner_cls:
+        exp.log("Event type {} is not supported... ignoring.".format(event_type))
+        return
+
+    if assignment_id is not None:
+        # save the notification to the notification table
+        notif = models.Notification(assignment_id=assignment_id, event_type=event_type)
+        db.session.add(notif)
+        db.session.commit()
+
+        # try to identify the participant
+        participants = models.Participant.query.filter_by(
+            assignment_id=assignment_id
+        ).all()
+
+        # if there are one or more participants select the most recent
+        if participants:
+            participant = max(participants, key=attrgetter("creation_time"))
+
+        # if there are none print an error
+        else:
+            exp.log(
+                "Warning: No participants associated with this "
+                "assignment_id. Notification will not be processed.",
+                key,
+            )
+            return None
+
+    elif participant_id is not None:
+        participant = models.Participant.query.filter_by(id=participant_id).all()[0]
+    else:
+        raise ValueError(
+            "Error: worker_function needs either an assignment_id or a "
+            "participant_id, they cannot both be None"
+        )
+
+    participant_id = participant.id
+
+    runner = runner_cls(
+        participant, assignment_id, exp, db.session, _config(), datetime.now()
+    )
+    runner()
+    db.session.commit()
+
+
 class WorkerEvent(object):
 
     key = "-----"

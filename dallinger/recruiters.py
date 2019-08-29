@@ -1,5 +1,6 @@
 """Recruiters manage the flow of participants to the experiment."""
 
+import flask
 import json
 import logging
 import os
@@ -12,6 +13,9 @@ from sqlalchemy import func
 from dallinger.config import get_config
 from dallinger.db import redis_conn
 from dallinger.db import session
+from dallinger.experiment_server.utils import success_response
+from dallinger.experiment_server.utils import crossdomain
+from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
 from dallinger.notifications import get_messenger
 from dallinger.notifications import MessengerError
@@ -25,12 +29,13 @@ from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 from dallinger.utils import ParticipationTime
 
+
 logger = logging.getLogger(__file__)
 
 
-def _get_queue():
+def _get_queue(name="default"):
     # Connect to Redis Queue
-    return Queue("low", connection=redis_conn)
+    return Queue(name, connection=redis_conn)
 
 
 # These are constants because other components may listen for these
@@ -388,10 +393,45 @@ class MTurkRecruiterException(Exception):
     """Custom exception for MTurkRecruiter"""
 
 
+mturk_routes = flask.Blueprint("mturk_recruiter", __name__)
+
+
+@mturk_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
+@crossdomain(origin="*")
+def mturk_recruiter_notify():
+    """Listens for:
+        1. AWS SNS subscription confirmation request
+        2. SNS subcription messages, which forward MTurk notifications
+    """
+    recruiter = MTurkRecruiter()
+    logger.warning("Raw notification body: {}".format(flask.request.get_data()))
+    content = json.loads(flask.request.get_data())
+    message_type = content.get("Type")
+    # 1. SNS subscription confirmation request
+    if message_type == "SubscriptionConfirmation":
+        logger.warning("Received a SubscriptionConfirmation message from AWS.")
+        token = content.get("Token")
+        topic = content.get("TopicArn")
+        recruiter._confirm_sns_subscription(token=token, topic=topic)
+
+    # 2. MTurk Worker event
+    elif message_type == "Notification":
+        logger.warning("Received an Event Notification from AWS.")
+        message = json.loads(content.get("Message"))
+        events = message["Events"]
+        recruiter._report_event_notification(events)
+
+    else:
+        logger.warning("Unknown SNS notification type: {}".format(message_type))
+
+    return success_response()
+
+
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
     nickname = "mturk"
+    extra_routes = mturk_routes
 
     experiment_qualification_desc = "Experiment-specific qualification"
     group_qualification_desc = "Experiment group qualification"
@@ -399,13 +439,15 @@ class MTurkRecruiter(Recruiter):
     def __init__(self):
         super(MTurkRecruiter, self).__init__()
         self.config = get_config()
-        self.ad_url = "{}/ad?recruiter={}".format(get_base_url(), self.nickname)
+        base_url = get_base_url()
+        self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
+        self.notification_url = "{}/mturk-sns-listener".format(base_url)
         self.hit_domain = os.getenv("HOST")
         self.mturkservice = MTurkService(
-            self.config.get("aws_access_key_id"),
-            self.config.get("aws_secret_access_key"),
-            self.config.get("aws_region"),
-            self.config.get("mode") != "live",
+            aws_access_key_id=self.config.get("aws_access_key_id"),
+            aws_secret_access_key=self.config.get("aws_secret_access_key"),
+            region_name=self.config.get("aws_region"),
+            sandbox=self.config.get("mode") != "live",
         )
         self.messenger = get_messenger(self.config)
         self._validate_config()
@@ -454,6 +496,7 @@ class MTurkRecruiter(Recruiter):
             self._create_mturk_qualifications()
 
         hit_request = {
+            "experiment_id": self.config.get("id"),
             "max_assignments": n,
             "title": self.config.get("title"),
             "description": self.config.get("description"),
@@ -462,7 +505,7 @@ class MTurkRecruiter(Recruiter):
             "duration_hours": self.config.get("duration"),
             "lifetime_days": self.config.get("lifetime"),
             "ad_url": self.ad_url,
-            "notification_url": self.config.get("notification_url"),
+            "notification_url": self.notification_url,
             "approve_requirement": self.config.get("approve_requirement"),
             "us_only": self.config.get("us_only"),
             "blacklist": self._config_to_list("qualification_blacklist"),
@@ -629,6 +672,17 @@ class MTurkRecruiter(Recruiter):
         # except MTurkServiceException as ex:
         #     logger.exception(str(ex))
 
+    def _confirm_sns_subscription(self, token, topic):
+        self.mturkservice.confirm_subscription(token=token, topic=topic)
+
+    def _report_event_notification(self, events):
+        q = _get_queue()
+        for event in events:
+            event_type = event.get("EventType")
+            assignment_id = event.get("AssignmentId")
+            participant_id = None
+            q.enqueue(worker_function, event_type, assignment_id, participant_id)
+
     def _mturk_status_for(self, participant):
         try:
             assignment = self.mturkservice.get_assignment(participant.assignment_id)
@@ -644,20 +698,16 @@ class MTurkRecruiter(Recruiter):
         requests.patch(heroku_app.config_url, data=args, headers=headers)
 
     def _resend_submitted_rest_notification_for(self, participant):
-        notification_url = self.config.get("notification_url")
-        args = {
-            "Event.1.EventType": "AssignmentSubmitted",
-            "Event.1.AssignmentId": participant.assignment_id,
-        }
-        requests.post(notification_url, data=args)
+        q = _get_queue()
+        q.enqueue(
+            worker_function, "AssignmentSubmitted", participant.assignment_id, None
+        )
 
     def _send_notification_missing_rest_notification_for(self, participant):
-        notification_url = self.config.get("notification_url")
-        args = {
-            "Event.1.EventType": "NotificationMissing",
-            "Event.1.AssignmentId": participant.assignment_id,
-        }
-        requests.post(notification_url, data=args)
+        q = _get_queue()
+        q.enqueue(
+            worker_function, "NotificationMissing", participant.assignment_id, None
+        )
 
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
@@ -768,7 +818,7 @@ class BotRecruiter(Recruiter):
         logger.info("Recruiting {} Bot participants".format(n))
         factory = self._get_bot_factory()
         urls = []
-        q = _get_queue()
+        q = _get_queue(name="low")
         for _ in range(n):
             base_url = get_base_url()
             worker = generate_random_id()

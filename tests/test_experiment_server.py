@@ -1355,7 +1355,7 @@ class TestLaunchRoute(object):
 @pytest.mark.usefixtures("experiment_dir")
 class TestWorkerFunctionIntegration(object):
 
-    dispatcher = "dallinger.experiment_server.experiment_server.WorkerEvent"
+    dispatcher = "dallinger.experiment_server.worker_events.WorkerEvent"
 
     @pytest.fixture
     def worker_func(self):
@@ -1364,7 +1364,7 @@ class TestWorkerFunctionIntegration(object):
         config = get_config()
         if not config.ready:
             config.load()
-        from dallinger.experiment_server.experiment_server import worker_function
+        from dallinger.experiment_server.worker_events import worker_function
 
         yield worker_function
 
@@ -1374,9 +1374,9 @@ class TestWorkerFunctionIntegration(object):
     def test_ignores_unsupported_event_types(self, worker_func):
         mock_exp = mock.Mock()
         with mock.patch(
-            "dallinger.experiment_server.experiment_server.Experiment"
-        ) as mock_Exp:
-            mock_Exp.return_value = mock_exp
+            "dallinger.experiment_server.worker_events._loaded_experiment"
+        ) as mock_exp_loader:
+            mock_exp_loader.return_value = mock_exp
             worker_func(event_type="IgnoreMe", assignment_id=None, participant_id=None)
         log_calls = mock_exp.log.call_args_list
         assert (

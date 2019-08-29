@@ -29,5 +29,4 @@ num_dynos_web = 1
 num_dynos_worker = 1
 redis_size = hobby-dev
 host = 0.0.0.0
-notification_url = None
 clock_on = false
