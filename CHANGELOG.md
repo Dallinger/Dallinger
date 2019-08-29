@@ -2,6 +2,15 @@
 
 ## [v-master](https://github.com/dallinger/dallinger/master) (xxxx-xx-xx)
 
+## [v-5.1.0](https://github.com/dallinger/dallinger/5.1.0) (2019-08-29)
+
+- At MTurk REST notifications are deprecated, the MTurk Recruiter creates an SNS Topic based on the experiment UID, subscribes to it, performs a subscription endpoint confirmation step, then associates the subscription with the HIT in order to receive notifications from MTurk about worker and HIT events
+- MTurk code for registering HITs for REST notification using deprecated/discontinued API removed
+- Dallinger `/notifications` endpoint removed, and replaced by a `/mturk-sns-listener` Flask Blueprint route associated with the MTurk Recruiter
+- Some utility functions moved out of `experiment_server.experiment_server` and into `experiment_server.utils` and `experiment_server.worker_events` to avoid circular dependencies and unwanted import side-effects
+- `notification_url` removed as a config key
+- Event resubmissions by MTurkRecruiter no longer call a Flask route to initiate processing, and instead enqueue the tasks directly
+
 ## [v-5.0.7](https://github.com/dallinger/dallinger/5.0.7) (2019-03-29)
 
 - Improve persistence of participant attributes in `dallinger.identity`, so that these keys and values do not need to be passed between pages as URL parameters in order to preserve them

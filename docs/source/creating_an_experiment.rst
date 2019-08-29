@@ -453,7 +453,6 @@ a non standard location.
     num_dynos_web = 1
     num_dynos_worker = 1
     host = 0.0.0.0
-    notification_url = None
     clock_on = false
     logfile = -
 

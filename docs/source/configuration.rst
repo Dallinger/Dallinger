@@ -62,13 +62,13 @@ Recruitment (General)
     The recruiter class to use during the experiment run. While this can be a
     full class name, it is more common to use the class's ``nickname`` property
     for this value; for example ``mturk``, ``cli``, ``bots``, or ``multi``.
-    NOTE: when running in debug mode, the HotAir (``hotair``) recruiter will 
+    NOTE: when running in debug mode, the HotAir (``hotair``) recruiter will
     always be used. The exception is if the ``--bots`` option is passed to
     ``dallinger debug``, in which case the BotRecruiter will be used instead.
 
 ``recruiters`` *unicode - custom format*
     When using multiple recruiters in a single experiment run via the ``multi``
-    setting for the ``recruiter`` config key, ``recruiters`` allows you to 
+    setting for the ``recruiter`` config key, ``recruiters`` allows you to
     specify which recruiters you'd like to use, and how many participants to
     recruit from each. The special syntax for this value is:
 
@@ -200,9 +200,6 @@ Deployment Configuration
 
 ``port`` *unicode*
     Port of the host.
-
-``notification_url`` *unicode*
-    URL where notifications are sent. This should not be set manually.
 
 ``clock_on`` *boolean*
     If the clock process is on, it will perform a series of checks that ensure
