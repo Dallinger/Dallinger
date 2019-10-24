@@ -405,21 +405,25 @@ var dallinger = (function () {
           console.log(resp);
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
-          if (resp.quorum && resp.quorum.n !== resp.quorum.q) {
-            if (resp.quorum.overrecruited) {
-              dlgr.skip_experiment = true;
-              // reached quorum; resolve immediately
-              deferred.resolve();
-            } else {
+
+          // Waiting room status checks follow:
+          if (! resp.quorum) {
+            // no quorum; resolve immediately.
+            deferred.resolve();
+          } else if (resp.quorum.n === resp.quorum.q) {
+            // last one through the door; they can go straight on to
+            // experiment.
+            deferred.resolve();
+          } else if (resp.quorum.overrecruited) {
+            // quorum exceeded
+            dlgr.skip_experiment = true;
+            deferred.resolve();
+          } else {
               // wait for quorum, then resolve
               dlgr.updateProgressBar(resp.quorum.n, resp.quorum.q);
               dlgr.waitForQuorum().done(function () {
                 deferred.resolve();
               });
-            }
-          } else {
-            // no quorum; resolve immediately
-            deferred.resolve();
           }
         });
       });

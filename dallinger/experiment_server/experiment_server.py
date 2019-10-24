@@ -706,7 +706,9 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         app.logger.warning(msg.format(duplicate.id))
         q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
 
-    # Count working or beyond participants.
+    # Count working or beyond participants. We add 1 for the Participant we're
+    # about to create, so we can check overrecruitment and set their `status`
+    # _before_ adding them to the DB.
     nonfailed_count = (
         models.Participant.query.filter(
             (models.Participant.status == "working")
