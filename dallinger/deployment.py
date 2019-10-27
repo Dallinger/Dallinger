@@ -292,7 +292,10 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     heroku.sanity_check(config)
 
     (id, tmp) = setup_experiment(log, debug=False, app=app, exp_config=exp_config)
+    log("1. Temp directory created with copied files")
+    import pdb
 
+    pdb.set_trace()
     # Register the experiment using all configured registration services.
     if config.get("mode") == "live":
         log("Registering the experiment on configured services...")
@@ -313,7 +316,10 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     git.init()
     git.add("--all")
     git.commit('"Experiment {}"'.format(id))
+    log("2. Git repository created")
+    import pdb
 
+    pdb.set_trace()
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
     team = config.get("heroku_team", None)
@@ -366,9 +372,18 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     git.commit("Save URL for database")
     time.sleep(0.25)
 
+    log("3. Heroku server and remote DB are up and running...")
+    import pdb
+
+    pdb.set_trace()
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
     git.push(remote="heroku", branch="HEAD:master")
+
+    log("4. Git repository pushed to Heroku server")
+    import pdb
+
+    pdb.set_trace()
 
     log("Scaling up the dynos...")
     size = config.get("dyno_type")
@@ -377,6 +392,11 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         heroku_app.scale_up_dyno(process, qty, size)
     if config.get("clock_on"):
         heroku_app.scale_up_dyno("clock", 1, size)
+
+    log("5. Dynos are scaled up!!")
+    import pdb
+
+    pdb.set_trace()
 
     time.sleep(8)
 
@@ -392,6 +412,11 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     log("App home: {}".format(result["app_home"]), chevrons=False)
     log("Recruiter info:")
     log(result["recruitment_msg"], chevrons=False)
+
+    log("6. Launch route called... Recruitment started!")
+    import pdb
+
+    pdb.set_trace()
 
     # Return to the branch whence we came.
     os.chdir(cwd)
