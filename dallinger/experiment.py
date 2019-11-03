@@ -168,15 +168,15 @@ class Experiment(object):
         """
         return recruiters.from_config(get_config())
 
-    def is_overrecruited(self, waiting_count):
-        """Returns True if the number of people waiting is in excess of the
-        total number expected, indicating that this and subsequent users should
+    def is_overrecruited(self, total_needed):
+        """Returns True if the number of people recruited is in excess of the
+        total number requested, indicating that this and subsequent users should
         skip the experiment. A quorum value of 0 means we don't limit
         recruitment, and always return False.
         """
         if not self.quorum:
             return False
-        return waiting_count > self.quorum
+        return total_needed > self.quorum * self.experiment_repeats
 
     def send(self, raw_message):
         """socket interface implementation, and point of entry for incoming
