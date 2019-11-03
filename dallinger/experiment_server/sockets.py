@@ -3,15 +3,19 @@
 
 from __future__ import unicode_literals
 from .experiment_server import app
-from dallinger.db import redis_conn
 from gevent.lock import Semaphore
 from flask import request
 from flask_sockets import Sockets
 from redis import ConnectionError
+
+from dallinger.db import redis_conn
+from dallinger.models import Participant
+
 import gevent
 import os
 import six
 import socket
+import json
 
 sockets = Sockets(app)
 
@@ -97,10 +101,24 @@ class ChatBackend(object):
 
         self.channels[channel_name].subscribe(client)
 
-    def unsubscribe(self, client):
-        """Unsubscribe a client from all channels."""
-        for channel in self.channels.values():
+    def unsubscribe(self, client, dropped=False):
+        """Remove a client from all channels and call disconnect."""
+        participant_id = client.participant_id
+        network_id = client.network_id
+        for channel_name, channel in self.channels.items():
             channel.unsubscribe(client)
+
+            # Tell other clients in network
+            if network_id:
+                redis_conn.publish(
+                    channel_name,
+                    json.dumps({"type": "disconnect", "networkid": network_id}),
+                )
+        if dropped and network_id:
+            participant = Participant.query.filter_by(id=participant_id).one()
+            participant.status = "dropped"
+            log("participant {} disconnected".format(participant_id))
+        gevent.sleep(0.001)
 
 
 # There is one chat backend per process.
@@ -113,6 +131,8 @@ class Client(object):
     def __init__(self, ws, lag_tolerance_secs=0.1):
         self.ws = ws
         self.lag_tolerance_secs = lag_tolerance_secs
+        self.participant_id = ""
+        self.network_id = ""
 
         # This lock is used to make sure that multiple greenlets
         # cannot send to the same socket concurrently.
@@ -127,8 +147,7 @@ class Client(object):
             try:
                 self.ws.send(message)
             except socket.error:
-                chat_backend.unsubscribe(self)
-            # log('Sent to {}: {}'.format(self, message), level='debug')
+                chat_backend.unsubscribe(self, dropped=True)
 
     def heartbeat(self):
         """Send a ping to the websocket periodically.
@@ -153,6 +172,10 @@ class Client(object):
             if message is not None:
                 channel_name, data = message.split(":", 1)
                 redis_conn.publish(channel_name, data)
+                parsed_data = json.loads(data)
+                if parsed_data["type"] == "connect":
+                    self.participant_id = parsed_data["participantid"]
+                    self.network_id = parsed_data["networkid"]
 
 
 @sockets.route("/chat")
