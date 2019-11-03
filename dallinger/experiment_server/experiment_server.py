@@ -507,10 +507,15 @@ def summary():
         | (models.Participant.status == "submitted")
         | (models.Participant.status == "approved")
     ).count()
+
+    waiting_count = models.Participant.query.filter(
+        models.Participant.status == "waiting"
+    ).count()
+
     exp = Experiment(session)
     overrecruited = exp.is_overrecruited(nonfailed_count)
     if exp.quorum:
-        quorum = {"q": exp.quorum, "n": nonfailed_count, "overrecruited": overrecruited}
+        quorum = {"q": exp.quorum, "n": waiting_count, "overrecruited": overrecruited}
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
 
     return Response(dumps(state), status=200, mimetype="application/json")
@@ -717,6 +722,10 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         + 1
     )
 
+    waiting_count = models.Participant.query.filter(
+        models.Participant.status == "waiting"
+    ).count()
+
     recruiter_name = request.args.get("recruiter", "undefined")
     if not recruiter_name or recruiter_name == "undefined":
         recruiter = recruiters.from_config(_config())
@@ -745,7 +754,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
     # Queue notification to others in waiting room
     if exp.quorum:
-        quorum = {"q": exp.quorum, "n": nonfailed_count, "overrecruited": overrecruited}
+        quorum = {"q": exp.quorum, "n": waiting_count, "overrecruited": overrecruited}
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
         result["quorum"] = quorum
 
