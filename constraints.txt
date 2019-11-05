@@ -1,4 +1,4 @@
-apscheduler==3.6.0
+apscheduler==3.6.3
 boto3==1.9.80
 cached-property==1.5.1
 click==6.7
