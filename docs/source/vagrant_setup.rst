@@ -5,6 +5,12 @@ Install the Vagrant virtual machine management system from `Hashicorp <https://w
 
 If you already use a different Virtual Machine provider, it may be compatible with Vagrant, in which case you may need to modify the ``Vagrantfile``. This method is not recommended.
 
+Next, install the vagrant plugin vbguest
+
+::
+
+    install vagrant-vbguest
+
 Starting Dallinger
 ------------------
 
