@@ -112,7 +112,13 @@ class ChatBackend(object):
             if network_id:
                 redis_conn.publish(
                     channel_name,
-                    json.dumps({"type": "disconnect", "networkid": network_id}),
+                    json.dumps(
+                        {
+                            "type": "disconnect",
+                            "networkid": network_id,
+                            "participantid": participant_id,
+                        }
+                    ),
                 )
         if dropped and network_id:
             participant = Participant.query.filter_by(id=participant_id).one()
