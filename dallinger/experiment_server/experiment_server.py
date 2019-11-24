@@ -327,6 +327,7 @@ def launch():
             from dallinger.experiment_server.sockets import chat_backend
 
             chat_backend.subscribe(exp, exp.channel)
+            chat_backend.subscribe(exp, "quorum")
         except Exception:
             return error_response(
                 error_text="Failed to subscribe to chat for channel on launch "
