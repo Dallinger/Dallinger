@@ -575,8 +575,7 @@ var dallinger = (function () {
     socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum");
     socket.onopen = function(msg) {
       socket.send('quorum:' + JSON.stringify({type: 'connect', participantid: dlgr.identity.participantId}));
-    }
->>>>>>> cd82308e... Send connect message to quorum socket on open
+    };
     socket.onmessage = function (msg) {
       if (msg.data.indexOf('quorum:') !== 0) { return; }
       var data = JSON.parse(msg.data.substring(7));
