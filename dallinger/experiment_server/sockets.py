@@ -104,26 +104,13 @@ class ChatBackend(object):
     def unsubscribe(self, client, dropped=False):
         """Remove a client from all channels and call disconnect."""
         participant_id = client.participant_id
-        network_id = client.network_id
+
         for channel_name, channel in self.channels.items():
             channel.unsubscribe(client)
 
-            # Tell other clients in network
-            if network_id:
-                redis_conn.publish(
-                    channel_name,
-                    json.dumps(
-                        {
-                            "type": "disconnect",
-                            "networkid": network_id,
-                            "participantid": participant_id,
-                        }
-                    ),
-                )
-        if dropped and network_id:
-            participant = Participant.query.filter_by(id=participant_id).one()
-            participant.status = "dropped"
-            log("participant {} disconnected".format(participant_id))
+            # Announce disconnection to channel
+            d = {"type": "disconnect", "participantid": participant_id}
+            redis_conn.publish(channel_name, json.dumps(d))
         gevent.sleep(0.001)
 
 
@@ -138,7 +125,6 @@ class Client(object):
         self.ws = ws
         self.lag_tolerance_secs = lag_tolerance_secs
         self.participant_id = ""
-        self.network_id = ""
 
         # This lock is used to make sure that multiple greenlets
         # cannot send to the same socket concurrently.
@@ -181,7 +167,6 @@ class Client(object):
                 parsed_data = json.loads(data)
                 if parsed_data["type"] == "connect":
                     self.participant_id = parsed_data["participantid"]
-                    self.network_id = parsed_data["networkid"]
 
 
 @sockets.route("/chat")

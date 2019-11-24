@@ -402,7 +402,6 @@ var dallinger = (function () {
       $(function () {
         $('.btn-success').prop('disabled', true);
         dlgr.post(url).done(function (resp) {
-          console.log(resp);
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
           if (resp.quorum && resp.quorum.n !== resp.quorum.q) {
@@ -570,16 +569,24 @@ var dallinger = (function () {
    */
   dlgr.waitForQuorum = function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
-    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum");
     var deferred = $.Deferred();
+    var socket;
+    
+    socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum");
+    socket.onopen = function(msg) {
+      socket.send('quorum:' + JSON.stringify({type: 'connect', participantid: dlgr.identity.participantId}));
+    }
+>>>>>>> cd82308e... Send connect message to quorum socket on open
     socket.onmessage = function (msg) {
       if (msg.data.indexOf('quorum:') !== 0) { return; }
       var data = JSON.parse(msg.data.substring(7));
-      var n = data.n;
-      var quorum = data.q;
-      dlgr.updateProgressBar(n, quorum);
-      if (n === quorum) {
-        deferred.resolve();
+      if(data.hasOwnProperty('n') && data.hasOwnProperty('q')) {
+	var n = data.n;
+	var quorum = data.q;
+	dlgr.updateProgressBar(n, quorum);
+	if (n === quorum) {
+          deferred.resolve();
+	}
       }
     };
     return deferred;
