@@ -1,7 +1,7 @@
 apscheduler==3.6.0
 boto3==1.9.80
 cached-property==1.5.1
-click==6.7
+click==7.1
 flask-crossdomain==0.1
 flask-sockets==0.2.1
 flask==1.0.2
