@@ -188,6 +188,7 @@ class TestSetupExperiment(object):
         assert found_in("experiment.py", exp_dir)
         assert not found_in("experiment_id.txt", exp_dir)
         assert not found_in("Procfile", exp_dir)
+        assert not found_in("runtime.txt", exp_dir)
 
         exp_id, dst = setup_experiment(log=mock.Mock())
 
@@ -199,6 +200,7 @@ class TestSetupExperiment(object):
         assert found_in("experiment.py", dst)
         assert found_in("models.py", dst)
         assert found_in("Procfile", dst)
+        assert found_in("runtime.txt", dst)
 
         assert found_in(os.path.join("static", "css", "dallinger.css"), dst)
         assert found_in(os.path.join("static", "scripts", "dallinger2.js"), dst)
@@ -213,6 +215,16 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "error-complete.html"), dst)
         assert found_in(os.path.join("templates", "launch.html"), dst)
         assert found_in(os.path.join("templates", "complete.html"), dst)
+
+    def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
+        active_config.extend({"heroku_python_version": "2.7.14"})
+
+        exp_id, dst = setup_experiment(log=mock.Mock())
+
+        with open(os.path.join(dst, "runtime.txt"), "r") as file:
+            version = file.read()
+
+        assert version == "python-2.7.14"
 
     def test_setup_procfile_no_clock(self, setup_experiment):
         config = get_config()
