@@ -217,7 +217,7 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "complete.html"), dst)
 
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
-        active_config.extend({"heroku_python_version": "2.7.14"})
+        active_config.extend({"heroku_python_version": u"2.7.14"})
 
         exp_id, dst = setup_experiment(log=mock.Mock())
 
