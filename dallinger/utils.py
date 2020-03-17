@@ -2,6 +2,7 @@ import functools
 import io
 import os
 import random
+import shlex
 import shutil
 import string
 import subprocess
@@ -123,6 +124,15 @@ class GitClient(object):
         cmd = ["git", "clone", repository, tempdir]
         self._run(cmd)
         return tempdir
+
+    def files(self):
+        cmd = ["git", "ls-files"]
+        try:
+            raw = check_output(cmd).decode()
+        except Exception as e:
+            return set()
+        result = set(shlex.split(raw))
+        return result
 
     def _run(self, cmd):
         self._log(cmd)
