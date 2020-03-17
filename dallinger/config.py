@@ -38,6 +38,7 @@ default_keys = (
     ("dyno_type", six.text_type, []),
     ("group_name", six.text_type, []),
     ("heroku_auth_token", six.text_type, [], True),
+    ("heroku_python_version", six.text_type, []),
     ("heroku_team", six.text_type, ["team"]),
     ("host", six.text_type, []),
     ("id", six.text_type, []),

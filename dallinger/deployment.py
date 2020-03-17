@@ -173,10 +173,15 @@ def assemble_experiment_temp_dir(config):
             shutil.copytree(src, dst_filepath)
 
     # Copy Heroku files
-    heroku_files = ["Procfile", "runtime.txt"]
+    heroku_files = ["Procfile"]
     for filename in heroku_files:
         src = os.path.join(dallinger_root, "heroku", filename)
         shutil.copy(src, os.path.join(dst, filename))
+
+    # Write out a runtime.txt file based on configuration
+    pyversion = config.get("heroku_python_version")
+    with open(os.path.join(dst, "runtime.txt"), "w") as file:
+        file.write("python-{}".format(pyversion))
 
     if not config.get("clock_on"):
         # If the clock process has been disabled, overwrite the Procfile:
