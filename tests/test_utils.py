@@ -225,7 +225,6 @@ class TestBaseURL(object):
         assert subject() == u"https://dlgr-bogus.herokuapp.com"
 
     def test_os_HOST_environ_used_as_host(self, subject, config):
-        old_host = os.environ.get("HOST")
         with mock.patch("os.environ", {"HOST": u"dlgr-bogus-2.herokuapp.com"}):
             config.load_from_environment()
         config.set("base_port", 80)
