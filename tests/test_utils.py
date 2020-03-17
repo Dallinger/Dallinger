@@ -1,9 +1,10 @@
 import io
+import os
 import mock
 import pytest
 from datetime import datetime
 from datetime import timedelta
-from dallinger import utils
+from dallinger import utils, config
 
 
 class TestSubprocessWrapper(object):
@@ -195,3 +196,38 @@ class TestParticipationTime(object):
         timeline = subject(a.participant(), reference_time, stub_config)
 
         assert not timeline.is_overdue
+
+
+class TestBaseURL(object):
+    @pytest.fixture
+    def subject(self):
+        from dallinger.utils import get_base_url
+
+        return get_base_url
+
+    @pytest.fixture
+    def config(self):
+        instance = config.get_config()
+        instance.ready = True
+        yield instance
+        config.config = None
+
+    def test_local_base_url(self, subject, config):
+        config.set("host", "localhost")
+        config.set("base_port", 5000)
+        config.set("num_dynos_web", 1)
+        assert subject() == "http://localhost:5000"
+
+    def test_remote_base_url_always_ssl(self, subject, config):
+        config.set("host", "http://dlgr-bogus.herokuapp.com")
+        config.set("base_port", 80)
+        config.set("num_dynos_web", 1)
+        assert subject() == "https://dlgr-bogus.herokuapp.com"
+
+    def test_os_HOST_environ_used_as_host(self, subject, config):
+        old_host = os.environ.get("HOST")
+        with mock.patch("os.environ", {"HOST": "dlgr-bogus-2.herokuapp.com"}):
+            config.load_from_environment()
+        config.set("base_port", 80)
+        config.set("num_dynos_web", 1)
+        assert subject() == "https://dlgr-bogus-2.herokuapp.com"
