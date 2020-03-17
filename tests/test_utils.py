@@ -213,21 +213,21 @@ class TestBaseURL(object):
         config.config = None
 
     def test_local_base_url(self, subject, config):
-        config.set("host", "localhost")
+        config.set("host", u"localhost")
         config.set("base_port", 5000)
         config.set("num_dynos_web", 1)
-        assert subject() == "http://localhost:5000"
+        assert subject() == u"http://localhost:5000"
 
     def test_remote_base_url_always_ssl(self, subject, config):
-        config.set("host", "http://dlgr-bogus.herokuapp.com")
+        config.set("host", u"http://dlgr-bogus.herokuapp.com")
         config.set("base_port", 80)
         config.set("num_dynos_web", 1)
-        assert subject() == "https://dlgr-bogus.herokuapp.com"
+        assert subject() == u"https://dlgr-bogus.herokuapp.com"
 
     def test_os_HOST_environ_used_as_host(self, subject, config):
         old_host = os.environ.get("HOST")
-        with mock.patch("os.environ", {"HOST": "dlgr-bogus-2.herokuapp.com"}):
+        with mock.patch("os.environ", {"HOST": u"dlgr-bogus-2.herokuapp.com"}):
             config.load_from_environment()
         config.set("base_port", 80)
         config.set("num_dynos_web", 1)
-        assert subject() == "https://dlgr-bogus-2.herokuapp.com"
+        assert subject() == u"https://dlgr-bogus-2.herokuapp.com"
