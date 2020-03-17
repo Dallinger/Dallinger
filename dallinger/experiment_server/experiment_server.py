@@ -814,6 +814,12 @@ def create_question(participant_id):
             participant=ppt,
         )
 
+    config = get_config()
+    question_max_length = config.get("question_max_length", 1000)
+
+    if len(question) > question_max_length or len(response) > question_max_length:
+        return error_response(error_type="/question POST length too long", status=400)
+
     try:
         # execute the request
         models.Question(
