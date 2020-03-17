@@ -77,6 +77,7 @@ def exclusion_policy():
 
     See https://docs.python.org/3/library/shutil.html#shutil.ignore_patterns
     """
+
     patterns = set(
         [
             os.path.join(".git", "*"),
@@ -90,6 +91,9 @@ def exclusion_policy():
             "__pycache__",
         ]
     )
+    if os.path.isfile(".gitignore"):
+        with open(".gitignore", "r") as ignores:
+            patterns.update(ignores.readlines())
 
     return shutil.ignore_patterns(*patterns)
 
@@ -111,6 +115,33 @@ def size_on_copy(root="."):
             fp = os.path.join(dirpath, f)
             total_size += os.path.getsize(fp)
     return total_size
+
+
+class ExperimentFileSource(object):
+    """TODO: docstring
+    """
+
+    def __init__(self, root_dir="."):
+        self.root = root_dir
+
+    @property
+    def files(self):
+        result = set()
+        exclusions = exclusion_policy()
+        for dirpath, dirnames, filenames in os.walk(self.root, topdown=True):
+            current_exclusions = exclusions(dirpath, os.listdir(dirpath))
+            # Modifying dirnames in-place will prune the subsequent files and
+            # directories visited by os.walk. This is only possible when
+            # topdown = True
+            dirnames[:] = [d for d in dirnames if d not in current_exclusions]
+            legit_files = [
+                os.path.join(dirpath, f)
+                for f in filenames
+                if f not in current_exclusions
+            ]
+            result.update(legit_files)
+
+        return result
 
 
 def assemble_experiment_temp_dir(config):

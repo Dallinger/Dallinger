@@ -140,6 +140,57 @@ class TestIsolatedWebbrowser(object):
 
 
 @pytest.mark.usefixtures("in_tempdir")
+class TestExperimentFilesSource(object):
+    @pytest.fixture
+    def subject(self):
+        from dallinger.deployment import ExperimentFileSource
+
+        return ExperimentFileSource
+
+    def test_lists_files_valid_for_copying(self, subject):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+
+        source = subject()
+
+        assert legit_file in source.files
+
+    def test_excludes_files_that_should_not_be_copied(self, subject):
+        with open("illegit.db", "w") as f:
+            f.write("12345")
+
+        source = subject()
+
+        assert len(source.files) == 0
+
+    def test_excludes_otherwise_valid_files_if_in_gitignore_simple(self, subject):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        with open(".gitignore", "w") as f:
+            f.write("*.txt")
+
+        source = subject()
+
+        assert source.files == {"./.gitignore"}
+
+    def test_excludes_otherwise_valid_files_if_in_gitignore_complex(self, subject):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        with open(".gitignore", "w") as f:
+            f.write("**/subdir/*")
+
+        source = subject()
+
+        assert source.files == {"./.gitignore"}
+
+
+@pytest.mark.usefixtures("in_tempdir")
 class TestExperimentDirectorySizeCheck(object):
     @pytest.fixture
     def size_check(self):
