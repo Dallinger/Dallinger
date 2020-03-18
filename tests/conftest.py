@@ -1,3 +1,4 @@
+import copy
 import mock
 import os
 import pytest
@@ -69,8 +70,16 @@ def bartlett_dir(root):
     os.chdir(root)
 
 
-@pytest.fixture(scope="class", autouse=True)
+@pytest.fixture(autouse=True)
 def reset_config():
+    import dallinger.config
+    
+    initial_config_data = copy.deepcopy(dallinger.config.config.data)
+    initial_config_sensitive = copy.deepcopy(dallinger.config.config.sensitive)
+    initial_config_synonyms = copy.deepcopy(dallinger.config.config.synonyms)
+    initial_config_types = copy.deepcopy(dallinger.config.config.types)
+    initial_config_ready = copy.deepcopy(dallinger.config.config.ready)
+    
     yield
 
     # Make sure dallinger_experiment module isn't kept between tests
@@ -84,9 +93,13 @@ def reset_config():
         del sys.modules[module]
 
     # Make sure extra parameters aren't kept between tests
-    import dallinger.config
 
-    dallinger.config.config = None
+
+    dallinger.config.config.data = initial_config_data
+    dallinger.config.config.sensitive = initial_config_sensitive
+    dallinger.config.config.synonyms = initial_config_synonyms
+    dallinger.config.config.types = initial_config_types
+    dallinger.config.config.ready = initial_config_ready
 
 
 @pytest.fixture(scope="session")
@@ -118,6 +131,7 @@ def webapp(active_config):
     app.config.update({"DEBUG": True, "TESTING": True})
     client = app.test_client()
     yield client
+    app._got_first_request = False
 
 
 @pytest.fixture
@@ -316,19 +330,35 @@ def stub_config():
     # Patch load() so we don't update any key/value pairs from actual files:
     config.load = mock.Mock(side_effect=lambda: setattr(config, "ready", True))
     config.ready = True
-
     return config
-
 
 @pytest.fixture
 def active_config(stub_config):
     """Loads the standard config as the active configuration returned by
     dallinger.config.get_config() and returns it.
     """
-    from dallinger import config as c
+    import copy
+    import dallinger.config
+    
+    initial_config_data = copy.deepcopy(dallinger.config.config.data)
+    initial_config_sensitive = copy.deepcopy(dallinger.config.config.sensitive)
+    initial_config_synonyms = copy.deepcopy(dallinger.config.config.synonyms)
+    initial_config_types = copy.deepcopy(dallinger.config.config.types)
+    initial_config_ready = copy.deepcopy(dallinger.config.config.ready)
+    
+    dallinger.config.config.data = stub_config.data
+    dallinger.config.config.sensitive = stub_config.sensitive
+    dallinger.config.config.synonyms = stub_config.synonyms
+    dallinger.config.config.types = stub_config.types
+    dallinger.config.config.ready = stub_config.ready
+    
+    yield dallinger.config.config
 
-    c.config = stub_config
-    return c.config
+    dallinger.config.config.data = initial_config_data
+    dallinger.config.config.sensitive = initial_config_sensitive
+    dallinger.config.config.synonyms = initial_config_synonyms
+    dallinger.config.config.types = initial_config_types
+    dallinger.config.config.ready = initial_config_ready
 
 
 @pytest.fixture

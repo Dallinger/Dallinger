@@ -10,9 +10,10 @@ from dallinger import models
 class TestAppConfiguration(object):
     def test_config_gets_loaded_before_first_request(self, webapp, active_config):
         active_config.clear()
-        webapp.get("/")
-        active_config.load.assert_called_once()
-        assert active_config.ready
+        with mock.patch("dallinger.config.Configuration.load") as load:
+            webapp.get("/")
+            load.assert_called_once()
+        
 
     def test_debug_mode_puts_flask_in_debug_mode(self, webapp, active_config):
         webapp.application.debug = False
@@ -337,6 +338,7 @@ class TestWorkerComplete(object):
     def test_records_no_notification_mturk_recruiter_and_nondebug(
         self, a, webapp, active_config
     ):
+        import pdb; pdb.set_trace()
         active_config.extend({"mode": u"sandbox", "assign_qualifications": False})
         webapp.get(
             "/worker_complete?participant_id={}".format(
@@ -351,6 +353,7 @@ class TestWorkerComplete(object):
         from dallinger.models import Participant
 
         active_config.extend({"mode": u"sandbox"})
+        breakpoint()
         with mock.patch(
             "dallinger.recruiters.MTurkRecruiter.notify_completed"
         ) as notify_completed:

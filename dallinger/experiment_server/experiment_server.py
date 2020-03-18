@@ -47,14 +47,12 @@ WAITING_ROOM_CHANNEL = "quorum"
 
 app = Flask("Experiment_Server")
 
+config = get_config()
+
 
 @app.before_first_request
 def _config():
-    config = get_config()
-    if not config.ready:
-        config.load()
-
-    return config
+    config.load()
 
 
 def Experiment(args):
@@ -81,7 +79,6 @@ app.register_blueprint(recruiters.mturk_routes)
 @app.route("/")
 def index():
     """Index route"""
-    config = _config()
     html = "<html><head></head><body><h1>Dallinger Experiment in progress</h1><dl>"
     for item in sorted(config.as_dict().items()):
         html += '<dt style="font-weight:bold;margin-top:15px;">{}</dt><dd>{}</dd>'.format(
@@ -239,7 +236,6 @@ def handle_error():
     session.add(notif)
     session.commit()
 
-    config = _config()
     message = {
         "subject": "Error during HIT.",
         "body": hit_error_template.format(
@@ -380,8 +376,7 @@ def advertisement():
     """
     if not ("hitId" in request.args and "assignmentId" in request.args):
         raise ExperimentError("hit_assign_worker_id_not_set_in_mturk")
-    config = _config()
-
+    
     # Browser rule validation, if configured:
     browser = ValidatesBrowser(config)
     if not browser.is_supported(request.user_agent.string):
@@ -546,7 +541,6 @@ def get_page_from_directory(directory, page):
 @app.route("/consent")
 def consent():
     """Return the consent form. Here for backwards-compatibility with 2.x."""
-    config = _config()
     return render_template(
         "consent.html",
         hit_id=request.args["hit_id"],
