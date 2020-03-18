@@ -1,5 +1,4 @@
 import io
-import os
 import mock
 import pytest
 from datetime import datetime
