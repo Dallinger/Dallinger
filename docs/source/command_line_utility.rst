@@ -8,7 +8,15 @@ Dallinger is executed from the command line within the experiment directory with
 verify
 ^^^^^^
 
-Verify that a directory is a Dallinger-compatible app.
+Verify that a directory is a Dallinger-compatible app. A number of checks are run here:
+
+    * Required files are verified to exist
+    * The cumulative size of all experiment files is checked to make sure large files or
+      directories are not accidentally included (note that files excluded with a .gitignore
+      file are **not** included in this size total
+    * The experiment.py file is checked to make sure it includes a single Experiment subclass
+    * The configuration for ``base_payment`` from config.txt is validated
+    * Included files are checked for name conflicts with core Dallinger files
 
 .. _dallinger-bot:
 
