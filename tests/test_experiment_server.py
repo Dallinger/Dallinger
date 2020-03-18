@@ -267,7 +267,7 @@ class TestQuestion(object):
         assert resp.status_code == 200
 
         # This part of the test isn't working because of some weird use of the config object
-        ## Override the length to go shorter
+        # Override the length to go shorter
         # with config.override({"question_max_length": 99}):
         #    resp = webapp.post(
         #        "/question/{}?question=q&response={}&number=1".format(a.participant().id, 'x'*100)
