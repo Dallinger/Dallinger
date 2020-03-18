@@ -163,11 +163,14 @@ def verify_directory(verbose=True, max_size_mb=50):
 
     # Check size
     max_size = max_size_mb * mb_to_bytes
-    size = ExperimentFileSource().size
+    file_source = ExperimentFileSource(os.getcwd())
+    size = file_source.size
     if size > max_size:
         size_in_mb = round(size / mb_to_bytes)
         log(
-            "✗ {}MB is TOO BIG (greater than {}MB)".format(size_in_mb, max_size_mb),
+            "✗ {}MB is TOO BIG (greater than {}MB)\n\tIncluded files:\n\t{}".format(
+                size_in_mb, max_size_mb, "\n\t".join(file_source.files)
+            ),
             chevrons=False,
             verbose=verbose,
         )

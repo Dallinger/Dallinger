@@ -131,7 +131,7 @@ class ExperimentFileSource(object):
         for path in self.files:
             subpath = os.path.relpath(path, start=self.root)
             target_folder = os.path.join(destination, os.path.dirname(subpath))
-            os.makedirs(target_folder, exist_ok=True)
+            ensure_directory(target_folder)
             shutil.copy2(path, target_folder)
 
     def _walk(self):

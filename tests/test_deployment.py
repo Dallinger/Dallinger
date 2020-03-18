@@ -180,7 +180,6 @@ class TestExperimentFilesSource(object):
             f.write("*.txt")
         git.init()
         git.add("--all")
-        git.commit("Test Repo")
 
         source = subject()
 
@@ -195,7 +194,6 @@ class TestExperimentFilesSource(object):
             f.write("**/subdir/*")
         git.init()
         git.add("--all")
-        git.commit("Test Repo")
 
         source = subject()
 
