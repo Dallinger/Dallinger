@@ -111,8 +111,6 @@ class TestGitClient(object):
         with open(".gitignore", "w") as ignore:
             ignore.write("two.*")
         git.init(config=config)
-        git.add("--all")
-        git.commit("Test Repo")
 
         assert set(git.files()) == {".gitignore", "one.txt"}
 

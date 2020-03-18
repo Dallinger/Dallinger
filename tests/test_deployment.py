@@ -179,7 +179,6 @@ class TestExperimentFilesSource(object):
         with open(".gitignore", "w") as f:
             f.write("*.txt")
         git.init()
-        git.add("--all")
 
         source = subject()
 
@@ -193,7 +192,6 @@ class TestExperimentFilesSource(object):
         with open(".gitignore", "w") as f:
             f.write("**/subdir/*")
         git.init()
-        git.add("--all")
 
         source = subject()
 

@@ -126,7 +126,7 @@ class GitClient(object):
         return tempdir
 
     def files(self):
-        cmd = ["git", "ls-files"]
+        cmd = ["git", "ls-files", "--others", "--exclude-standard"]
         try:
             raw = check_output(cmd).decode()
         except Exception as e:
