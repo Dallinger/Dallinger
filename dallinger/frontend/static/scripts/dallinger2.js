@@ -635,4 +635,9 @@ var dallinger = (function () {
   return dlgr;
 }());
 
-module.exports.dallinger = dallinger;
+
+try {
+  module.exports.dallinger = dallinger;
+} catch (err) {
+  // We aren't being loaded from a node context, no need to export
+}
