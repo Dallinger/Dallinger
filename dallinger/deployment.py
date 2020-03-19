@@ -1,4 +1,3 @@
-import functools
 import os
 import pkg_resources
 import re
@@ -78,7 +77,6 @@ def exclusion_policy():
 
     See https://docs.python.org/3/library/shutil.html#shutil.ignore_patterns
     """
-
     patterns = set(
         [
             ".git",
