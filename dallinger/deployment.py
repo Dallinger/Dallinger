@@ -1,3 +1,4 @@
+import functools
 import os
 import pkg_resources
 import re
@@ -109,24 +110,18 @@ class ExperimentFileSource(object):
         """A Set of all files copyable in the source directory, accounting for
         exclusions.
         """
-        result = set()
-        for path in self._walk():
-            result.add(path)
-        return result
+        return {path for path in self._walk()}
 
     @property
     def size(self):
         """Combined size of all files, accounting for exclusions.
         """
-        total_size = 0
-        for path in self._walk():
-            total_size += os.path.getsize(path)
-        return total_size
+        return sum([os.path.getsize(path) for path in self._walk()])
 
     def selective_copy_to(self, destination):
         """Write files from the source directory to another directory, skipping
         files excluded by the general exclusion_policy, plus any files
-        ignored by a local .gitignore file.
+        ignored by git configuration.
         """
         for path in self.files:
             subpath = os.path.relpath(path, start=self.root)
@@ -143,13 +138,13 @@ class ExperimentFileSource(object):
             # directories visited by os.walk. This is only possible when
             # topdown = True
             dirnames[:] = [d for d in dirnames if d not in current_exclusions]
-            legit_files = [
+            legit_files = {
                 os.path.join(dirpath, f)
                 for f in filenames
                 if f not in current_exclusions and os.path.join(dirpath, f)
-            ]
+            }
             if git_files:
-                legit_files = [f for f in legit_files if f in git_files]
+                legit_files = legit_files.intersection(git_files)
             for legit in legit_files:
                 yield legit
 
