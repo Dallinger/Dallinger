@@ -250,7 +250,7 @@ class TestQuestion(object):
         )
         assert models.Question.query.all()
 
-    def test_excessive_question_text_is_blocked(self, a, webapp):
+    def test_excessive_question_text_is_blocked(self, a, webapp, active_config):
         # The normal max length is 1000
         resp = webapp.post(
             "/question/{}?question=q&response={}&number=1".format(
@@ -266,13 +266,14 @@ class TestQuestion(object):
         )
         assert resp.status_code == 200
 
-        # This part of the test isn't working because of some weird use of the config object
         # Override the length to go shorter
-        # with config.override({"question_max_length": 99}):
-        #    resp = webapp.post(
-        #        "/question/{}?question=q&response={}&number=1".format(a.participant().id, 'x'*100)
-        #    )
-        # assert resp.status_code == 400
+        with active_config.override({"question_max_length": 99}):
+            resp = webapp.post(
+                "/question/{}?question=q&response={}&number=1".format(
+                    a.participant().id, "x" * 100
+                )
+            )
+        assert resp.status_code == 400
 
     def test_nonworking_mturk_participants_accepted_if_debug(
         self, a, webapp, active_config
