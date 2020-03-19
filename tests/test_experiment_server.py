@@ -1088,6 +1088,36 @@ class TestInfoRoutePOST(object):
         data = json.loads(resp.data.decode("utf8"))
         assert u"info" in data
 
+    def test_info_defaults_to_unfailed(self, a, webapp):
+        node = a.node()
+        data = {"contents": "foo"}
+        resp = webapp.post("/info/{}".format(node.id), data=data)
+        data = json.loads(resp.data.decode("utf8"))
+        assert data["info"]["failed"] is False
+
+    def test_info_can_be_failed(self, a, webapp):
+        node = a.node()
+        data = {"contents": "foo", "failed": "True"}
+        resp = webapp.post("/info/{}".format(node.id), data=data)
+        data = json.loads(resp.data.decode("utf8"))
+        assert data["info"]["failed"] is True
+
+    def test_failed_info_can_attach_to_failed_node(self, db_session, a, webapp):
+        node = a.node()
+        node.fail()
+        # All the tests like this should have commits. This one needs an explicit
+        # one as the first request triggers a rollback rather than a commit.
+        db_session.commit()
+
+        data = {"contents": "foo"}
+        resp = webapp.post("/info/{}".format(node.id), data=data)
+        assert resp.status_code == 403
+
+        data = {"contents": "foo", "failed": "True"}
+        resp = webapp.post("/info/{}".format(node.id), data=data)
+        data = json.loads(resp.data.decode("utf8"))
+        assert data["info"]["failed"] is True
+
     def test_loads_details_json_value(self, a, webapp):
         node = a.node()
         data = {"contents": "foo", "details": '{"key": "value"}'}
