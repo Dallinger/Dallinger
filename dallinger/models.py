@@ -297,10 +297,10 @@ class Question(Base, SharedMixin):
     number = Column(Integer, nullable=False)
 
     #: the text of the question
-    question = Column(String(250), nullable=False)
+    question = Column(Text, nullable=False)
 
     #: the participant's response. Stored as a string.
-    response = Column(String(1000), nullable=False)
+    response = Column(Text, nullable=False)
 
     def __init__(self, participant, question, response, number):
         """Create a question."""

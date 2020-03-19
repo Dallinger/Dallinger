@@ -3,6 +3,9 @@ import mock
 import pytest
 from datetime import datetime
 from dallinger import models
+from dallinger.config import get_config
+
+config = get_config()
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -246,6 +249,31 @@ class TestQuestion(object):
             "/question/{}?question=q&response=r&number=1".format(a.participant().id)
         )
         assert models.Question.query.all()
+
+    def test_excessive_question_text_is_blocked(self, a, webapp, active_config):
+        # The normal max length is 1000
+        resp = webapp.post(
+            "/question/{}?question=q&response={}&number=1".format(
+                a.participant().id, "x" * 1001
+            )
+        )
+        assert resp.status_code == 400
+
+        resp = webapp.post(
+            "/question/{}?question=q&response={}&number=1".format(
+                a.participant().id, "x" * 1000
+            )
+        )
+        assert resp.status_code == 200
+
+        # Override the length to go shorter
+        with active_config.override({"question_max_length": 99}):
+            resp = webapp.post(
+                "/question/{}?question=q&response={}&number=1".format(
+                    a.participant().id, "x" * 100
+                )
+            )
+        assert resp.status_code == 400
 
     def test_nonworking_mturk_participants_accepted_if_debug(
         self, a, webapp, active_config

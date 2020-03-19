@@ -62,6 +62,7 @@ default_keys = (
     ("smtp_password", six.text_type, ["dallinger_email_password"], True),
     ("threads", six.text_type, []),
     ("title", six.text_type, []),
+    ("question_max_length", int, []),
     ("us_only", bool, []),
     ("webdriver_type", six.text_type, []),
     ("webdriver_url", six.text_type, []),
