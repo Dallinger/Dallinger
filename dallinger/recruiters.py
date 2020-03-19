@@ -101,6 +101,12 @@ class Recruiter(object):
             "have been active for too long. No action taken."
         )
 
+    def ping(self):
+        """Called on a schedule, in case any action needs to be taken based on
+        the current state of recruitment.
+        """
+        pass
+
     def rejects_questionnaire_from(self, participant):
         """Recruiters have different circumstances under which experiment
         questionnaires should be accepted or rejected.
@@ -747,15 +753,28 @@ class RedisTally(object):
 
     _key = "num_recruited"
 
-    def __init__(self):
-        redis_conn.set(self._key, 0)
+    def __init__(self, nickname):
+        self.nickname = nickname
+        redis_conn.set("{}_num_recruited".format(self.nickname), 0)
+        redis_conn.set("{}_num_desired".format(self.nickname), 0)
 
     def increment(self, count):
-        redis_conn.incr(self._key, count)
+        redis_conn.incr("{}_num_recruited".format(self.nickname), count)
+
+    def increment_requested(self, count):
+        redis_conn.incr("{}_num_desired".format(self.nickname), count)
 
     @property
     def current(self):
-        return int(redis_conn.get(self._key))
+        return int(redis_conn.get("{}_num_recruited".format(self.nickname)))
+
+    @property
+    def requested(self):
+        return int(redis_conn.get("{}_num_desired".format(self.nickname)))
+
+    @property
+    def shortfall(self):
+        return self.requested - self.current
 
 
 class MTurkLargeRecruiter(MTurkRecruiter):
@@ -764,7 +783,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
     pool_size = 10
 
     def __init__(self, *args, **kwargs):
-        self.counter = kwargs.get("counter", RedisTally())
+        self.counter = kwargs.get("counter", RedisTally(self.nickname))
         super(MTurkLargeRecruiter, self).__init__()
 
     def open_recruitment(self, n=1):
@@ -774,6 +793,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
                 "Tried to open_recruitment on already open recruiter."
             )
         self.counter.increment(n)
+        self.counter.increment_requested(n)
         to_recruit = max(n, self.pool_size)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
@@ -785,6 +805,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
 
         needed = max(0, n - self.remaining_pool)
         self.counter.increment(n)
+        self.counter.increment_requested(n)
         if needed:
             return super(MTurkLargeRecruiter, self).recruit(needed)
 

@@ -847,12 +847,20 @@ class TestRedisTally(object):
     def redis_tally(self):
         from dallinger.recruiters import RedisTally
 
-        return RedisTally()
+        return RedisTally("foo")
 
     def test_that_its_a_counter(self, redis_tally):
         assert redis_tally.current == 0
         redis_tally.increment(3)
         assert redis_tally.current == 3
+
+    def test_shortfall_detection(self, redis_tally):
+        assert redis_tally.current == 0
+        redis_tally.increment_requested(3)
+        redis_tally.increment(1)
+        assert redis_tally.current == 1
+        assert redis_tally.requested == 3
+        assert redis_tally.shortfall == 2
 
 
 @pytest.mark.usefixtures("active_config")
@@ -863,9 +871,13 @@ class TestMTurkLargeRecruiter(object):
         class PrimitiveCounter(object):
 
             _count = 0
+            _requested = 0
 
             def increment(self, count):
                 self._count += count
+
+            def increment_requested(self, count):
+                self._requested += count
 
             @property
             def current(self):
