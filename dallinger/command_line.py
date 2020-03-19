@@ -30,7 +30,7 @@ from dallinger.deployment import _deploy_in_mode
 from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
-from dallinger.deployment import size_on_copy
+from dallinger.deployment import ExperimentFileSource
 from dallinger.notifications import get_messenger
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuInfo
@@ -163,11 +163,14 @@ def verify_directory(verbose=True, max_size_mb=50):
 
     # Check size
     max_size = max_size_mb * mb_to_bytes
-    size = size_on_copy()
+    file_source = ExperimentFileSource(os.getcwd())
+    size = file_source.size
     if size > max_size:
         size_in_mb = round(size / mb_to_bytes)
         log(
-            "✗ {}MB is TOO BIG (greater than {}MB)".format(size_in_mb, max_size_mb),
+            "✗ {}MB is TOO BIG (greater than {}MB)\n\tIncluded files:\n\t{}".format(
+                size_in_mb, max_size_mb, "\n\t".join(file_source.files)
+            ),
             chevrons=False,
             verbose=verbose,
         )

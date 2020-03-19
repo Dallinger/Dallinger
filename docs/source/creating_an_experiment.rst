@@ -279,7 +279,9 @@ There are a few more files in the ``myexperiments.pushbutton`` directory.
 Here is a quick description of each:
 
 - ``.gitignore``. Used by `git` to keep track of which files to ignore
-  when looking for changes in your project.
+  when looking for changes in your project. Files ignored by `git` will
+  also be ignored both when deploying your experiment, and when testing it
+  in debug mode.
 - ``.travis.yml``. Travis is a continuous integration service, which can
   run your experiment's tests each time you push some changes. This is
   the configuration file where this is set up.

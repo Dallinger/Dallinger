@@ -6,6 +6,11 @@
 variable `heroku_python_version`. If not overriddent the default version of 3.6.10 will
 be used.
 
+- If files in the custom experiment directory are excluded by Git (by a local or global
+.gitignore file, $GIT_DIR/info/exclude, etc.), they will not be copied for use in deployment
+or ``dallinger debug`` runs. They will also be excluded from file size checks performed
+automatically during ``debug`` and deployment, and by ``dallinger verify``.
+
 ## [v-5.1.0](https://github.com/dallinger/dallinger/5.1.0) (2019-08-29)
 
 - As MTurk REST notifications are deprecated, the MTurk Recruiter creates an SNS Topic based on the experiment UID, subscribes to it, performs a subscription endpoint confirmation step, then associates the subscription with the HIT in order to receive notifications from MTurk about worker and HIT events

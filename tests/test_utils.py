@@ -102,6 +102,21 @@ class TestGitClient(object):
         git.commit("Test Repo")
         assert b"Test Repo" in subprocess.check_output(["git", "log"])
 
+    def test_files_with_gitignore(self, git):
+        config = {"user.name": "Test User", "user.email": "test@example.com"}
+        with open("one.txt", "w") as one:
+            one.write("one")
+        with open("two.txt", "w") as two:
+            two.write("two")
+        with open(".gitignore", "w") as ignore:
+            ignore.write("two.*")
+        git.init(config=config)
+
+        assert set(git.files()) == {".gitignore", "one.txt"}
+
+    def test_files_on_non_git_repo(self, git):
+        assert git.files() == set()
+
     def test_includes_details_in_exceptions(self, git):
         with pytest.raises(Exception) as ex_info:
             git.push("foo", "bar")

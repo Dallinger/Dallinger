@@ -140,38 +140,120 @@ class TestIsolatedWebbrowser(object):
 
 
 @pytest.mark.usefixtures("in_tempdir")
-class TestExperimentDirectorySizeCheck(object):
+class TestExperimentFilesSource(object):
     @pytest.fixture
-    def size_check(self):
-        from dallinger.deployment import size_on_copy
+    def git(self):
+        from dallinger.utils import GitClient
 
-        return size_on_copy
+        return GitClient()
 
-    def test_includes_files_that_would_be_copied(self, size_check):
-        with open("legit.txt", "w") as f:
+    @pytest.fixture
+    def subject(self):
+        from dallinger.deployment import ExperimentFileSource
+
+        return ExperimentFileSource
+
+    def test_lists_files_valid_for_copying(self, subject):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
             f.write("12345")
 
-        assert size_check(".") == 5
+        source = subject()
 
-    def test_excludes_files_that_would_not_be_copied(self, size_check):
+        assert legit_file in source.files
+
+    def test_excludes_files_that_should_not_be_copied(self, subject):
         with open("illegit.db", "w") as f:
             f.write("12345")
 
-        assert size_check(".") == 0
+        source = subject()
 
-    def test_excludes_directories_that_would_not_be_copied(self, size_check):
+        assert len(source.files) == 0
+
+    def test_excludes_otherwise_valid_files_if_in_gitignore_simple(self, subject, git):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        with open(".gitignore", "w") as f:
+            f.write("*.txt")
+        git.init()
+
+        source = subject()
+
+        assert source.files == {"./.gitignore"}
+
+    def test_excludes_otherwise_valid_files_if_in_gitignore_complex(self, subject, git):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        with open(".gitignore", "w") as f:
+            f.write("**/subdir/*")
+        git.init()
+
+        source = subject()
+
+        assert source.files == {"./.gitignore"}
+
+    def test_size_includes_files_that_would_be_copied(self, subject):
+        with open("legit.txt", "w") as f:
+            f.write("12345")
+
+        source = subject()
+
+        assert source.size == 5
+
+    def test_size_excludes_files_that_would_not_be_copied(self, subject):
+        with open("illegit.db", "w") as f:
+            f.write("12345")
+
+        source = subject()
+
+        assert source.size == 0
+
+    def test_size_excludes_directories_that_would_not_be_copied(self, subject):
         os.mkdir("snapshots")
         with open("snapshots/legit.txt", "w") as f:
             f.write("12345")
 
-        assert size_check(".") == 0
+        source = subject()
 
-    def test_excludes_bad_files_when_in_subdirectories(self, size_check):
+        assert source.size == 0
+
+    def test_size_excludes_bad_files_when_in_subdirectories(self, subject):
         os.mkdir("legit_dir")
         with open("legit_dir/illegit.db", "w") as f:
             f.write("12345")
 
-        assert size_check(".") == 0
+        source = subject()
+
+        assert source.size == 0
+
+    def test_copy_to_copies_to_same_subdirectories(self, subject):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        destination = tempfile.mkdtemp()
+        source = subject()
+
+        source.selective_copy_to(destination)
+
+        assert os.path.isfile(os.path.join(destination, "some/subdir/legit.txt"))
+
+    def test_copy_to_copies_with_explicit_root(self, subject):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        destination = tempfile.mkdtemp()
+        source = subject(os.getcwd())
+
+        source.selective_copy_to(destination)
+
+        assert os.path.isfile(os.path.join(destination, "some/subdir/legit.txt"))
 
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")

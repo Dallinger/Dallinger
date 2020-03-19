@@ -79,7 +79,7 @@ def exclusion_policy():
     """
     patterns = set(
         [
-            os.path.join(".git", "*"),
+            ".git",
             "config.txt",
             "*.db",
             "*.dmg",
@@ -94,23 +94,57 @@ def exclusion_policy():
     return shutil.ignore_patterns(*patterns)
 
 
-def size_on_copy(root="."):
-    """Return the size of the experiment directory in bytes, excluding any
-    files and directories which would be excluded on copy.
+class ExperimentFileSource(object):
+    """Treat an experiment directory as a potential source of files for
+    copying to a temp directory as part of a deployment (debug or otherwise).
     """
-    total_size = 0
-    exclusions = exclusion_policy()
-    for dirpath, dirnames, filenames in os.walk(root, topdown=True):
-        current_exclusions = exclusions(dirpath, os.listdir(dirpath))
-        # Modifying dirnames in-place will prune the subsequent files and
-        # directories visited by os.walk. This is only possible when
-        # topdown = True
-        dirnames[:] = [d for d in dirnames if d not in current_exclusions]
-        legit_files = [f for f in filenames if f not in current_exclusions]
-        for f in legit_files:
-            fp = os.path.join(dirpath, f)
-            total_size += os.path.getsize(fp)
-    return total_size
+
+    def __init__(self, root_dir="."):
+        self.root = root_dir
+        self.git = GitClient()
+
+    @property
+    def files(self):
+        """A Set of all files copyable in the source directory, accounting for
+        exclusions.
+        """
+        return {path for path in self._walk()}
+
+    @property
+    def size(self):
+        """Combined size of all files, accounting for exclusions.
+        """
+        return sum([os.path.getsize(path) for path in self._walk()])
+
+    def selective_copy_to(self, destination):
+        """Write files from the source directory to another directory, skipping
+        files excluded by the general exclusion_policy, plus any files
+        ignored by git configuration.
+        """
+        for path in self.files:
+            subpath = os.path.relpath(path, start=self.root)
+            target_folder = os.path.join(destination, os.path.dirname(subpath))
+            ensure_directory(target_folder)
+            shutil.copy2(path, target_folder)
+
+    def _walk(self):
+        exclusions = exclusion_policy()
+        git_files = set([os.path.join(self.root, f) for f in self.git.files()])
+        for dirpath, dirnames, filenames in os.walk(self.root, topdown=True):
+            current_exclusions = exclusions(dirpath, os.listdir(dirpath))
+            # Modifying dirnames in-place will prune the subsequent files and
+            # directories visited by os.walk. This is only possible when
+            # topdown = True
+            dirnames[:] = [d for d in dirnames if d not in current_exclusions]
+            legit_files = {
+                os.path.join(dirpath, f)
+                for f in filenames
+                if f not in current_exclusions and os.path.join(dirpath, f)
+            }
+            if git_files:
+                legit_files = legit_files.intersection(git_files)
+            for legit in legit_files:
+                yield legit
 
 
 def assemble_experiment_temp_dir(config):
@@ -129,7 +163,7 @@ def assemble_experiment_temp_dir(config):
     dst = os.path.join(tempfile.mkdtemp(), app_id)
 
     # Copy local experiment files, minus some
-    shutil.copytree(os.getcwd(), dst, ignore=exclusion_policy())
+    ExperimentFileSource(os.getcwd()).selective_copy_to(dst)
 
     # Export the loaded configuration
     config.write(filter_sensitive=True, directory=dst)
