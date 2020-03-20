@@ -44,7 +44,7 @@ install:
   - gem install danger
   - gem install danger-commit_lint
   - gem install chandler -v 0.7.0
-  - npm install
+  - yarn --frozen-lockfile
 before_script:
   - bundle exec danger
   - createuser dallinger --createdb
