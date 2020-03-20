@@ -12,6 +12,9 @@
     "uglify-es": "^3.0.28",
     "webpack": "^2.4.1"
   },
+  "engines": {
+    "node": ">= 8.15.0"
+  },
   "scripts": {
     "build": "webpack",
     "dev": "webpack --watch",
