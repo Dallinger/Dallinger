@@ -1,6 +1,7 @@
 language: python
 dist: xenial
 os: linux
+sudo: required
 cache:
   - apt
   - bundler
