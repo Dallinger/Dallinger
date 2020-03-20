@@ -11,6 +11,9 @@ be used.
 or ``dallinger debug`` runs. They will also be excluded from file size checks performed
 automatically during ``debug`` and deployment, and by ``dallinger verify``.
 
+- Add `failed` parameter to the add info route. This requires that all custom `Info` classes respect
+a `failed` keyword argument. 
+
 ## [v-5.1.0](https://github.com/dallinger/dallinger/5.1.0) (2019-08-29)
 
 - As MTurk REST notifications are deprecated, the MTurk Recruiter creates an SNS Topic based on the experiment UID, subscribes to it, performs a subscription endpoint confirmation step, then associates the subscription with the HIT in order to receive notifications from MTurk about worker and HIT events

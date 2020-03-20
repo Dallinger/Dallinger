@@ -73,23 +73,14 @@ class AnimalInfo(Info):
         "head_angle": [5, 80],
     }
 
-    def __init__(self, origin, contents=None):
-        # check the origin hasn't failed
-        if origin.failed:
-            raise ValueError("{} cannot create an info as it has failed".format(origin))
-
-        self.origin = origin
-        self.origin_id = origin.id
-        self.network_id = origin.network_id
-        self.network = origin.network
-
-        if contents is not None:
-            self.contents = contents
-        else:
+    def __init__(self, origin, contents=None, **kwargs):
+        if contents is None:
             data = {}
             for prop, prop_range in self.properties.items():
                 data[prop] = random.uniform(prop_range[0], prop_range[1])
-            self.contents = json.dumps(data)
+            contents = json.dumps(data)
+
+        super(AnimalInfo, self).__init__(origin, contents, **kwargs)
 
     def perturbed_contents(self):
         """Perturb the given animal."""

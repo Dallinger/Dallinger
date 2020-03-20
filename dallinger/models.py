@@ -1449,11 +1449,13 @@ class Info(Base, SharedMixin):
     #: the contents of the info. Must be stored as a String.
     contents = Column(Text(), default=None)
 
-    def __init__(self, origin, contents=None, details=None):
+    def __init__(self, origin, contents=None, details=None, failed=False):
         """Create an info."""
         # check the origin hasn't failed
-        if origin.failed:
-            raise ValueError("{} cannot create an info as it has failed".format(origin))
+        if origin.failed and not failed:
+            raise ValueError(
+                "Only failed Infos can be added to {}, as it has failed".format(origin)
+            )
 
         self.origin = origin
         self.origin_id = origin.id
@@ -1462,6 +1464,8 @@ class Info(Base, SharedMixin):
         self.network = origin.network
         if details:
             self.details = details
+        if failed is not None:
+            self.failed = failed
 
     @validates("contents")
     def _write_once(self, key, value):

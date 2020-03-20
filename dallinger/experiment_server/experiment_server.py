@@ -1175,6 +1175,8 @@ def info_post(node_id):
     info_type = request_parameter(
         parameter="info_type", parameter_type="known_class", default=models.Info
     )
+    failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
+
     for x in [contents, info_type]:
         if type(x) == Response:
             return x
@@ -1186,7 +1188,10 @@ def info_post(node_id):
     exp = Experiment(session)
     try:
         # execute the request
-        info = info_type(origin=node, contents=contents)
+        additional_params = {}
+        if failed:
+            additional_params["failed"] = failed
+        info = info_type(origin=node, contents=contents, **additional_params)
         assign_properties(info)
 
         # ping the experiment
