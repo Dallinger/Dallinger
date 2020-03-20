@@ -31,6 +31,9 @@ addons:
     packages:
     - pandoc
     - enchant
+install:
+  - sudo apt-get --yes install snapd
+  - sudo snap install --classic heroku
 services:
   - redis
 before_install:
@@ -38,8 +41,6 @@ before_install:
   - rvm install 2.6.2
   - pip install --upgrade setuptools pip wheel
 install:
-  - sudo apt-get --yes install snapd
-  - sudo snap install --classic heroku
   - pip install tox==3.1.2
   - gem install danger
   - gem install danger-commit_lint
