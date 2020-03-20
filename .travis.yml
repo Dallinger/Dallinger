@@ -63,7 +63,7 @@ env:
   - secure: 3rnkGugv5Hp71gjwQMUj5tup7/xk94p5IXEh0VItSXTziKn0pBY+yrCzAuIzlylbrl0baLaZOFGEFn2K+Jf+tr9mmN23X+zOUNsIqC4swlLLJx6hzH5AZaRmqzGjURM2gLISUayXGT9flOXyOKzzCGFELJKG9KlVyEOJ4fk04wQ=
 script:
   - tox
-  - npm run test --coverage
+  - yarn run test --coverage
 after_success:
   - bash <(curl -s https://codecov.io/bash)
   - if [ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
