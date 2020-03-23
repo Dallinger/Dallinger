@@ -541,13 +541,13 @@ var dallinger = (function () {
    * @param {string} [name=questionnaire] - optional questionnaire name
    */
   dlgr.submitQuestionnaire = function (name) {
-    var formSerialized = $("form").serializeArray(),
-      spinner = dlgr.BusyForm(),
-      formDict = {},
-      xhr;
-
-    formSerialized.forEach(function (field) {
-      formDict[field.name] = field.value;
+    var inputs = $("form :input");
+    var spinner = dlgr.BusyForm();
+    var formDict = {};
+    $.each(inputs, function(key, input) {
+      if (input.name !== "") {
+        formDict[input.name] = $(input).val();
+      }
     });
 
     xhr = dlgr.post('/question/' + dlgr.identity.participantId, {
