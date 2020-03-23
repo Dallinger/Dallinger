@@ -94,12 +94,18 @@ class TestVerify(object):
         assert v_package() is False
 
     def test_too_big_returns_false(self, v_directory):
-        with mock.patch("dallinger.command_line.size_on_copy") as size:
+        with mock.patch(
+            "dallinger.command_line.ExperimentFileSource.size",
+            new_callable=mock.PropertyMock,
+        ) as size:
             size.return_value = 6000000  # 6 MB, so over the limit
             assert v_directory(max_size_mb=5) is False
 
     def test_under_limit_returns_true(self, v_directory):
-        with mock.patch("dallinger.command_line.size_on_copy") as size:
+        with mock.patch(
+            "dallinger.command_line.ExperimentFileSource.size",
+            new_callable=mock.PropertyMock,
+        ) as size:
             size.return_value = 4000000  # 4 MB, so under the limit
             assert v_directory(max_size_mb=5) is True
 

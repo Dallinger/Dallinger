@@ -140,38 +140,120 @@ class TestIsolatedWebbrowser(object):
 
 
 @pytest.mark.usefixtures("in_tempdir")
-class TestExperimentDirectorySizeCheck(object):
+class TestExperimentFilesSource(object):
     @pytest.fixture
-    def size_check(self):
-        from dallinger.deployment import size_on_copy
+    def git(self):
+        from dallinger.utils import GitClient
 
-        return size_on_copy
+        return GitClient()
 
-    def test_includes_files_that_would_be_copied(self, size_check):
-        with open("legit.txt", "w") as f:
+    @pytest.fixture
+    def subject(self):
+        from dallinger.deployment import ExperimentFileSource
+
+        return ExperimentFileSource
+
+    def test_lists_files_valid_for_copying(self, subject):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
             f.write("12345")
 
-        assert size_check(".") == 5
+        source = subject()
 
-    def test_excludes_files_that_would_not_be_copied(self, size_check):
+        assert legit_file in source.files
+
+    def test_excludes_files_that_should_not_be_copied(self, subject):
         with open("illegit.db", "w") as f:
             f.write("12345")
 
-        assert size_check(".") == 0
+        source = subject()
 
-    def test_excludes_directories_that_would_not_be_copied(self, size_check):
+        assert len(source.files) == 0
+
+    def test_excludes_otherwise_valid_files_if_in_gitignore_simple(self, subject, git):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        with open(".gitignore", "w") as f:
+            f.write("*.txt")
+        git.init()
+
+        source = subject()
+
+        assert source.files == {"./.gitignore"}
+
+    def test_excludes_otherwise_valid_files_if_in_gitignore_complex(self, subject, git):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        with open(".gitignore", "w") as f:
+            f.write("**/subdir/*")
+        git.init()
+
+        source = subject()
+
+        assert source.files == {"./.gitignore"}
+
+    def test_size_includes_files_that_would_be_copied(self, subject):
+        with open("legit.txt", "w") as f:
+            f.write("12345")
+
+        source = subject()
+
+        assert source.size == 5
+
+    def test_size_excludes_files_that_would_not_be_copied(self, subject):
+        with open("illegit.db", "w") as f:
+            f.write("12345")
+
+        source = subject()
+
+        assert source.size == 0
+
+    def test_size_excludes_directories_that_would_not_be_copied(self, subject):
         os.mkdir("snapshots")
         with open("snapshots/legit.txt", "w") as f:
             f.write("12345")
 
-        assert size_check(".") == 0
+        source = subject()
 
-    def test_excludes_bad_files_when_in_subdirectories(self, size_check):
+        assert source.size == 0
+
+    def test_size_excludes_bad_files_when_in_subdirectories(self, subject):
         os.mkdir("legit_dir")
         with open("legit_dir/illegit.db", "w") as f:
             f.write("12345")
 
-        assert size_check(".") == 0
+        source = subject()
+
+        assert source.size == 0
+
+    def test_copy_to_copies_to_same_subdirectories(self, subject):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        destination = tempfile.mkdtemp()
+        source = subject()
+
+        source.selective_copy_to(destination)
+
+        assert os.path.isfile(os.path.join(destination, "some/subdir/legit.txt"))
+
+    def test_copy_to_copies_with_explicit_root(self, subject):
+        legit_file = "./some/subdir/legit.txt"
+        os.makedirs(os.path.dirname(legit_file))
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        destination = tempfile.mkdtemp()
+        source = subject(os.getcwd())
+
+        source.selective_copy_to(destination)
+
+        assert os.path.isfile(os.path.join(destination, "some/subdir/legit.txt"))
 
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
@@ -188,6 +270,7 @@ class TestSetupExperiment(object):
         assert found_in("experiment.py", exp_dir)
         assert not found_in("experiment_id.txt", exp_dir)
         assert not found_in("Procfile", exp_dir)
+        assert not found_in("runtime.txt", exp_dir)
 
         exp_id, dst = setup_experiment(log=mock.Mock())
 
@@ -199,6 +282,7 @@ class TestSetupExperiment(object):
         assert found_in("experiment.py", dst)
         assert found_in("models.py", dst)
         assert found_in("Procfile", dst)
+        assert found_in("runtime.txt", dst)
 
         assert found_in(os.path.join("static", "css", "dallinger.css"), dst)
         assert found_in(os.path.join("static", "scripts", "dallinger2.js"), dst)
@@ -213,6 +297,16 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "error-complete.html"), dst)
         assert found_in(os.path.join("templates", "launch.html"), dst)
         assert found_in(os.path.join("templates", "complete.html"), dst)
+
+    def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
+        active_config.extend({"heroku_python_version": u"2.7.14"})
+
+        exp_id, dst = setup_experiment(log=mock.Mock())
+
+        with open(os.path.join(dst, "runtime.txt"), "r") as file:
+            version = file.read()
+
+        assert version == "python-2.7.14"
 
     def test_setup_procfile_no_clock(self, setup_experiment):
         config = get_config()

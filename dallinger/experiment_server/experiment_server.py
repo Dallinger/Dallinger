@@ -814,6 +814,12 @@ def create_question(participant_id):
             participant=ppt,
         )
 
+    config = get_config()
+    question_max_length = config.get("question_max_length", 1000)
+
+    if len(question) > question_max_length or len(response) > question_max_length:
+        return error_response(error_type="/question POST length too long", status=400)
+
     try:
         # execute the request
         models.Question(
@@ -1169,6 +1175,8 @@ def info_post(node_id):
     info_type = request_parameter(
         parameter="info_type", parameter_type="known_class", default=models.Info
     )
+    failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
+
     for x in [contents, info_type]:
         if type(x) == Response:
             return x
@@ -1180,7 +1188,10 @@ def info_post(node_id):
     exp = Experiment(session)
     try:
         # execute the request
-        info = info_type(origin=node, contents=contents)
+        additional_params = {}
+        if failed:
+            additional_params["failed"] = failed
+        info = info_type(origin=node, contents=contents, **additional_params)
         assign_properties(info)
 
         # ping the experiment

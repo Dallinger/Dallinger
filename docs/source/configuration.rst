@@ -205,6 +205,14 @@ Deployment Configuration
     If the clock process is on, it will perform a series of checks that ensure
     the integrity of the database.
 
+``heroku_python_version`` *unicode*
+    The python version to be used on Heroku deployments. The version specification will
+    be deployed to Heroku in a `runtime.txt` file in accordance with Heroku's deployment
+    API. Note that only the version number should be provided (eg: "2.7.14") and not the
+    "python-" prefix included in the final `runtime.txt` format.
+    See Dallinger's `global_config_defaults.txt` for the current default version.
+    See `Heroku supported runtimes <https://devcenter.heroku.com/articles/python-support#supported-runtimes>`__.
+
 ``heroku_team`` *unicode*
     The name of the Heroku team to which all applications will be assigned.
     This is useful for centralized billing. Note, however, that it will prevent

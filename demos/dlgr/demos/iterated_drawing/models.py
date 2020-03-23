@@ -23,8 +23,8 @@ class DrawingSource(Source):
 
         image_path = os.path.join("static", "stimuli", image)
 
-        uri_encoded_image = "data:image/png;base64," + base64.b64encode(
+        uri_encoded_image = u"data:image/png;base64," + base64.b64encode(
             open(image_path, "rb").read()
-        )
+        ).decode("ascii")
 
         return json.dumps({"image": uri_encoded_image, "sketch": ""})

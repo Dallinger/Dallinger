@@ -2,9 +2,21 @@
 
 ## [v-master](https://github.com/dallinger/dallinger/master) (xxxx-xx-xx)
 
+- Allow control of which python version will be run on Heroku through a new configuration
+variable `heroku_python_version`. If not overriddent the default version of 3.6.10 will
+be used.
+
+- If files in the custom experiment directory are excluded by Git (by a local or global
+.gitignore file, $GIT_DIR/info/exclude, etc.), they will not be copied for use in deployment
+or ``dallinger debug`` runs. They will also be excluded from file size checks performed
+automatically during ``debug`` and deployment, and by ``dallinger verify``.
+
+- Add `failed` parameter to the add info route. This requires that all custom `Info` classes respect
+a `failed` keyword argument. 
+
 ## [v-5.1.0](https://github.com/dallinger/dallinger/5.1.0) (2019-08-29)
 
-- At MTurk REST notifications are deprecated, the MTurk Recruiter creates an SNS Topic based on the experiment UID, subscribes to it, performs a subscription endpoint confirmation step, then associates the subscription with the HIT in order to receive notifications from MTurk about worker and HIT events
+- As MTurk REST notifications are deprecated, the MTurk Recruiter creates an SNS Topic based on the experiment UID, subscribes to it, performs a subscription endpoint confirmation step, then associates the subscription with the HIT in order to receive notifications from MTurk about worker and HIT events
 - MTurk code for registering HITs for REST notification using deprecated/discontinued API removed
 - Dallinger `/notifications` endpoint removed, and replaced by a `/mturk-sns-listener` Flask Blueprint route associated with the MTurk Recruiter
 - Some utility functions moved out of `experiment_server.experiment_server` and into `experiment_server.utils` and `experiment_server.worker_events` to avoid circular dependencies and unwanted import side-effects

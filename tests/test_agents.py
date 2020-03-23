@@ -58,6 +58,17 @@ class TestAgents(object):
         info = a.info(origin=agent, contents="foo")
         assert agent.infos()[0] == info
 
+    def test_can_only_connect_failed_infos_to_failed_node(self, a):
+        net = a.network()
+        agent = a.agent(network=net)
+        agent.fail()
+
+        with raises(ValueError):
+            info = a.info(origin=agent, contents="foo")
+        info = a.info(origin=agent, contents="foo", failed=True)
+        assert agent.infos() == []
+        assert agent.infos(failed=True) == [info]
+
     def test_agent_transmit(self, a):
         net = a.network()
         agent1 = a.replicator(network=net)

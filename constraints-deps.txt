@@ -37,7 +37,7 @@ jupyter-client==5.2.3
 jupyter-console==5.2.0
 jupyter-core==4.4.0
 jupyter==1.0.0
-markupsafe==1.0
+markupsafe==1.1.1
 mccabe==0.6.1
 mistune==0.8.3
 more-itertools==4.3.0
