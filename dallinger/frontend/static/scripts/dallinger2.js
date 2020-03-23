@@ -547,7 +547,7 @@ var dallinger = (function () {
     $.each(inputs, function(key, input) {
       if (input.name !== "") {
         formDict[input.name] = $(input).val();
-      } 
+      }
     });
 
     xhr = dlgr.post('/question/' + dlgr.identity.participantId, {
