@@ -40,7 +40,9 @@ General
 
 ``loglevel`` *unicode*
     A number between 0 and 4 that controls the verbosity of logs, from ``debug``
-    to ``critical``.
+    to ``critical``. Note that ``dallinger debug`` ignores this setting and always
+    runs at 0 (``debug``).
+
 
 ``whimsical`` *boolean*
     What's life without whimsy? Controls whether email notifications sent

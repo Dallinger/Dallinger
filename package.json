@@ -8,9 +8,12 @@
     "browser-sync-webpack-plugin": "^1.1.4",
     "fingerprintjs2": "^1.5.1",
     "jest": "^23.6.0",
-    "jsdoc": "^3.5.5",
+    "jsdoc": "^3.6.3",
     "uglify-es": "^3.0.28",
     "webpack": "^2.4.1"
+  },
+  "engines": {
+    "node": ">= 8.15.0"
   },
   "scripts": {
     "build": "webpack",

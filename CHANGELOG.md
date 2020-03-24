@@ -12,7 +12,10 @@ or ``dallinger debug`` runs. They will also be excluded from file size checks pe
 automatically during ``debug`` and deployment, and by ``dallinger verify``.
 
 - Add `failed` parameter to the add info route. This requires that all custom `Info` classes respect
-a `failed` keyword argument. 
+a `failed` keyword argument.
+
+- Fixed an issue preventing the use of multisect fields in questionnaires, so multiple selections from a multiselect HTML input will now be persisted into the database as an
+array.
 
 ## [v-5.1.0](https://github.com/dallinger/dallinger/5.1.0) (2019-08-29)
 
@@ -136,7 +139,7 @@ a `failed` keyword argument.
 
 - Simplify data export by generating CSV file from the remote database
 
-- Improve stability and reliability of Bot participants 
+- Improve stability and reliability of Bot participants
 
 - `store+json2.min.js` is now included in standard Dallinger JS "bundle"
 
@@ -261,11 +264,11 @@ launched via Heroku through the `sentry` flag.
 - **FEATURE** The `dallinger debug` command now supports the `num_dynos_web`
   configuration parameter, for better performance when under heavy usage.
 
-- **FEATURE** Dallinger experiments may now be packaged as normal Python 
+- **FEATURE** Dallinger experiments may now be packaged as normal Python
   distributions. An example is `dallinger.bartlett1932`.
 
 - **FEATURE** Experiments may now include implementations of computer-controlled
-  participants through the Bot framework. The documentation includes 
+  participants through the Bot framework. The documentation includes
   [instructions on running bots](http://docs.dallinger.io/en/latest/running_bots.html).
   The demos bartlett1932 and chatroom contain example bot implementations.
 
@@ -299,7 +302,7 @@ launched via Heroku through the `sentry` flag.
 - Command line tools now use a full UUID, rather than a short id starting with
   `dlgr-`
 
-- A bug in the chatroom demo was fixed which improves 
+- A bug in the chatroom demo was fixed which improves
   reliability and simplifies the connection to the backend. [\#537](https://github.com/Dallinger/Dallinger/issues/537)
 
 - The fitness parameter of `dallinger.nodes.Agent` is now a

@@ -1,5 +1,5 @@
-Releasing a new version of Dallinger.
-=====================================
+Releasing a new version of Dallinger
+====================================
 
 The Dallinger branch `master` features the latest official release for 3.X.X, and `2.x-maintenance` features the latest official 2.X.X release.
 
