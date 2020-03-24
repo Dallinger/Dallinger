@@ -2,20 +2,17 @@
 
 ## [v-master](https://github.com/dallinger/dallinger/master) (xxxx-xx-xx)
 
+## [v-6.0.0](https://github.com/dallinger/dallinger/6.0.0) (2020-03-24)
+
 - Allow control of which python version will be run on Heroku through a new configuration
 variable `heroku_python_version`. If not overriddent the default version of 3.6.10 will
 be used.
-
 - If files in the custom experiment directory are excluded by Git (by a local or global
 .gitignore file, $GIT_DIR/info/exclude, etc.), they will not be copied for use in deployment
 or ``dallinger debug`` runs. They will also be excluded from file size checks performed
 automatically during ``debug`` and deployment, and by ``dallinger verify``.
-
-- Add `failed` parameter to the add info route. This requires that all custom `Info` classes respect
-a `failed` keyword argument.
-
-- Fixed an issue preventing the use of multisect fields in questionnaires, so multiple selections from a multiselect HTML input will now be persisted into the database as an
-array.
+- Add `failed` parameter to the add info route. This requires that all custom `Info` classes respect a `failed` keyword argument.
+- Fixed an issue preventing the use of multisect fields in questionnaires, so multiple selections from a multiselect HTML input will now be persisted into the database as an array.
 
 ## [v-5.1.0](https://github.com/dallinger/dallinger/5.1.0) (2019-08-29)
 
