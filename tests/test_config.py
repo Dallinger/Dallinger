@@ -219,34 +219,6 @@ worldwide = false
             config.register_extra_parameters()
             assert sys.modules["dallinger_experiment"] is exp_module
 
-    def test_local_base_url(self):
-        from dallinger.utils import get_base_url
-
-        config = get_config()
-        config.ready = True
-        config.set("host", "localhost")
-        config.set("base_port", 5000)
-        config.set("num_dynos_web", 1)
-        assert get_base_url() == "http://localhost:5000"
-
-    def test_remote_base_url(self):
-        from dallinger.utils import get_base_url
-
-        config = get_config()
-        config.ready = True
-        config.set("host", "https://dlgr-bogus.herokuapp.com")
-        config.set("num_dynos_web", 1)
-        assert get_base_url() == "https://dlgr-bogus.herokuapp.com"
-
-    def test_remote_base_url_always_ssl(self):
-        from dallinger.utils import get_base_url
-
-        config = get_config()
-        config.ready = True
-        config.set("host", "http://dlgr-bogus.herokuapp.com")
-        config.set("num_dynos_web", 1)
-        assert get_base_url() == "https://dlgr-bogus.herokuapp.com"
-
     def test_write_omits_sensitive_keys_if_filter_sensitive(self, in_tempdir):
         config = get_config()
         config.set("aws_region", "some region")
