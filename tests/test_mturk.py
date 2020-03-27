@@ -1085,6 +1085,17 @@ class TestMTurkServiceWithFakeConnection(object):
         assert len(hits) == 1
         assert hits[0]["title"] == "HIT Two"
 
+    def test_get_hits_copes_with_no_keywords(self, with_mock):
+        hr1 = fake_hit_response(Title="One")
+        del hr1["HIT"]["Keywords"]
+        responses = fake_list_hits_responses([hr1])
+        with_mock.mturk.configure_mock(**{"list_hits.side_effect": responses})
+
+        hits = list(with_mock.get_hits())
+
+        assert len(hits) == 1
+        assert hits[0]["keywords"] == []
+
     def test_grant_bonus_translates_values_and_calls_wrapped_mturk(self, with_mock):
         with_mock.mturk.configure_mock(
             **{
