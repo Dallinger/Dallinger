@@ -631,6 +631,10 @@ class MTurkService(object):
         return translated
 
     def _translate_hit(self, hit):
+        if "Keywords" in hit:
+            keywords = [w.strip() for w in hit["Keywords"].split(",") if w.strip()]
+        else:
+            keywords = []
         translated = {
             "id": hit["HITId"],
             "type_id": hit["HITTypeId"],
@@ -639,9 +643,7 @@ class MTurkService(object):
             "max_assignments": hit["MaxAssignments"],
             "title": hit["Title"],
             "description": hit["Description"],
-            "keywords": [
-                w.strip() for w in hit.get("Keywords", "").split(",") if w.strip()
-            ],
+            "keywords": keywords,
             "qualification_type_ids": [
                 q["QualificationTypeId"] for q in hit["QualificationRequirements"]
             ],

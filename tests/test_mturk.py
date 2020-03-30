@@ -1086,6 +1086,9 @@ class TestMTurkServiceWithFakeConnection(object):
         assert hits[0]["title"] == "HIT Two"
 
     def test_get_hits_copes_with_no_keywords(self, with_mock):
+        # HITs created directly through the MTurk web UI
+        # may have no Keywords at all, so we need to account for this when
+        # parsing HITs.
         hr1 = fake_hit_response(Title="One")
         del hr1["HIT"]["Keywords"]
         responses = fake_list_hits_responses([hr1])
