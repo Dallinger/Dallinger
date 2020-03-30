@@ -154,7 +154,7 @@ class TestExperimentFilesSource(object):
         return ExperimentFileSource
 
     def test_lists_files_valid_for_copying(self, subject):
-        legit_file = "./some/subdir/legit.txt"
+        legit_file = "./some/subdir/John Doe's file.txt"
         os.makedirs(os.path.dirname(legit_file))
         with open(legit_file, "w") as f:
             f.write("12345")
@@ -232,7 +232,7 @@ class TestExperimentFilesSource(object):
         assert source.size == 0
 
     def test_copy_to_copies_to_same_subdirectories(self, subject):
-        legit_file = "./some/subdir/legit.txt"
+        legit_file = "./some/subdir/John Doe's file.txt"
         os.makedirs(os.path.dirname(legit_file))
         with open(legit_file, "w") as f:
             f.write("12345")
@@ -241,7 +241,9 @@ class TestExperimentFilesSource(object):
 
         source.selective_copy_to(destination)
 
-        assert os.path.isfile(os.path.join(destination, "some/subdir/legit.txt"))
+        assert os.path.isfile(
+            os.path.join(destination, "some/subdir/John Doe's file.txt")
+        )
 
     def test_copy_to_copies_with_explicit_root(self, subject):
         legit_file = "./some/subdir/legit.txt"

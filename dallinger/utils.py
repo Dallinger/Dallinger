@@ -2,7 +2,6 @@ import functools
 import io
 import os
 import random
-import shlex
 import shutil
 import string
 import subprocess
@@ -129,9 +128,10 @@ class GitClient(object):
         cmd = ["git", "ls-files", "--cached", "--others", "--exclude-standard"]
         try:
             raw = check_output(cmd).decode()
-        except Exception as e:
+        except Exception:
             return set()
-        result = set(shlex.split(raw))
+
+        result = {item for item in raw.split("\n") if item}
         return result
 
     def _run(self, cmd):
