@@ -125,7 +125,7 @@ class TestGitClient(object):
         with open("John Doe's (wow!) file.txt", "w") as two:
             two.write("two")
 
-        assert set(git.files()) == {"one.txt", "John Doe's (wow!) file.txt"}
+        assert git.files() == {"one.txt", "John Doe's (wow!) file.txt"}
 
     def test_files_on_non_git_repo(self, git):
         assert git.files() == set()
