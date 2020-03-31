@@ -1,5 +1,6 @@
 import functools
 import io
+import locale
 import os
 import random
 import shutil
@@ -127,7 +128,7 @@ class GitClient(object):
     def files(self):
         cmd = ["git", "ls-files", "--cached", "--others", "--exclude-standard"]
         try:
-            raw = check_output(cmd).decode()
+            raw = check_output(cmd).decode(locale.getpreferredencoding())
         except Exception:
             return set()
 

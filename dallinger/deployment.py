@@ -129,7 +129,7 @@ class ExperimentFileSource(object):
 
     def _walk(self):
         exclusions = exclusion_policy()
-        git_files = set([os.path.join(self.root, f) for f in self.git.files()])
+        git_files = {os.path.join(self.root, f) for f in self.git.files()}
         for dirpath, dirnames, filenames in os.walk(self.root, topdown=True):
             current_exclusions = exclusions(dirpath, os.listdir(dirpath))
             # Modifying dirnames in-place will prune the subsequent files and
