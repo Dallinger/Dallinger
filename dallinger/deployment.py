@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import os
 import pkg_resources
 import re
@@ -11,6 +12,7 @@ import threading
 import time
 import webbrowser
 from six.moves import shlex_quote as quote
+from unicodedata import normalize
 
 from dallinger import data
 from dallinger import db
@@ -128,8 +130,17 @@ class ExperimentFileSource(object):
             shutil.copy2(path, target_folder)
 
     def _walk(self):
+        # The GitClient and os.walk may return different representations of the
+        # same unicode characters, so we use unicodedata.normalize() for
+        # comparisons:
+        # list(name_from_git)
+        # ['å', ' ', 'f', 'i', 'l', 'e', '.', 't', 'x', 't']
+        # list(from_os_walk)
+        # ['a', '̊', ' ', 'f', 'i', 'l', 'e', '.', 't', 'x', 't']
         exclusions = exclusion_policy()
-        git_files = {os.path.join(self.root, f) for f in self.git.files()}
+        git_files = {
+            os.path.join(self.root, normalize("NFC", f)) for f in self.git.files()
+        }
         for dirpath, dirnames, filenames in os.walk(self.root, topdown=True):
             current_exclusions = exclusions(dirpath, os.listdir(dirpath))
             # Modifying dirnames in-place will prune the subsequent files and
@@ -137,7 +148,7 @@ class ExperimentFileSource(object):
             # topdown = True
             dirnames[:] = [d for d in dirnames if d not in current_exclusions]
             legit_files = {
-                os.path.join(dirpath, f)
+                os.path.join(dirpath, normalize("NFC", f))
                 for f in filenames
                 if f not in current_exclusions and os.path.join(dirpath, f)
             }
@@ -445,7 +456,7 @@ def _deploy_in_mode(mode, app, verbose, log):
     config.load()
 
     # Set the mode.
-    config.extend({"mode": mode, "logfile": u"-"})
+    config.extend({"mode": mode, "logfile": "-"})
 
     # Do shared setup.
     deploy_sandbox_shared_setup(log, verbose=verbose, app=app)
@@ -458,7 +469,7 @@ class HerokuLocalDeployment(object):
     dispatch = {}  # Subclass may provide handlers for Heroku process output
 
     def configure(self):
-        self.exp_config.update({"mode": u"debug", "loglevel": 0})
+        self.exp_config.update({"mode": "debug", "loglevel": 0})
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
@@ -624,7 +635,7 @@ class LoaderDeployment(HerokuLocalDeployment):
         self.zip_path = None
 
     def configure(self):
-        self.exp_config.update({"mode": u"debug", "loglevel": 0})
+        self.exp_config.update({"mode": "debug", "loglevel": 0})
 
         self.zip_path = data.find_experiment_export(self.app_id)
         if self.zip_path is None:

@@ -9,6 +9,7 @@ import sys
 import tempfile
 from pytest import raises
 from six.moves import configparser
+from unicodedata import normalize
 
 from dallinger.deployment import new_webbrowser_profile
 from dallinger.config import get_config
@@ -197,6 +198,18 @@ class TestExperimentFilesSource(object):
 
         assert source.files == {"./.gitignore"}
 
+    def test_normalizes_unicode_for_merging_git_inclusions(self, subject, git):
+        legit_file = "".join(
+            [".", "/", "a", "̊", " ", "f", "i", "l", "e", ".", "t", "x", "t"]
+        )
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        git.init()
+
+        source = subject()
+
+        assert source.files == {normalize("NFC", legit_file)}
+
     def test_size_includes_files_that_would_be_copied(self, subject):
         with open("legit.txt", "w") as f:
             f.write("12345")
@@ -256,6 +269,28 @@ class TestExperimentFilesSource(object):
         source.selective_copy_to(destination)
 
         assert os.path.isfile(os.path.join(destination, "some/subdir/legit.txt"))
+
+    def test_copy_to_copies_nonascii_filenames(self, subject):
+        legit_file = "".join(["a", "̊", " ", "f", "i", "l", "e"])
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        destination = tempfile.mkdtemp()
+        source = subject()
+
+        source.selective_copy_to(destination)
+
+        assert os.path.isfile(os.path.join(destination, legit_file))
+
+    def test_copy_to_copies_nonascii_filenames2(self, subject):
+        legit_file = "".join(["å", " ", "f", "i", "l", "e"])
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        destination = tempfile.mkdtemp()
+        source = subject()
+
+        source.selective_copy_to(destination)
+
+        assert os.path.isfile(os.path.join(destination, legit_file))
 
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")

@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import functools
 import io
 import locale
@@ -126,13 +127,13 @@ class GitClient(object):
         return tempdir
 
     def files(self):
-        cmd = ["git", "ls-files", "--cached", "--others", "--exclude-standard"]
+        cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
         try:
             raw = check_output(cmd).decode(locale.getpreferredencoding())
         except Exception:
             return set()
 
-        result = {item for item in raw.split("\n") if item}
+        result = {item for item in raw.split("\0") if item}
         return result
 
     def _run(self, cmd):
