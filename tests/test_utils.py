@@ -1,4 +1,6 @@
+# -*- coding: utf-8 -*-
 import io
+import locale
 import mock
 import pytest
 from datetime import datetime
@@ -122,10 +124,20 @@ class TestGitClient(object):
             one.write("one")
         git.add("--all")
 
-        with open("Jøhn Døé's – fîlé.txt", "w") as two:
+        with open("two.txt", "w") as two:
             two.write("two")
 
-        assert git.files() == {"one.txt", "Jøhn Døé's – fîlé.txt"}
+        assert git.files() == {"one.txt", "two.txt"}
+
+    def test_files_handles_nonascii_filenames(self, git):
+        config = {"user.name": "Test User", "user.email": "test@example.com"}
+        git.init(config=config)
+        filename = b"J\xc3\xb8hn D\xc3\xb8\xc3\xa9's \xe2\x80\x93.txt"
+
+        with open(filename, "w") as two:
+            two.write("blah")
+
+        assert git.files() == {filename.decode(locale.getpreferredencoding())}
 
     def test_files_on_non_git_repo(self, git):
         assert git.files() == set()
