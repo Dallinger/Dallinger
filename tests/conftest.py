@@ -334,12 +334,9 @@ def active_config(stub_config):
 
 @pytest.fixture
 def tempdir():
-    cwd = os.getcwd()
     tmp = tempfile.mkdtemp()
-    os.chdir(tmp)
     yield tmp
 
-    os.chdir(cwd)
     shutil.rmtree(tmp, ignore_errors=True)
 
 
