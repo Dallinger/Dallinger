@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 import os
 import pkg_resources
@@ -148,9 +149,9 @@ class ExperimentFileSource(object):
             # topdown = True
             dirnames[:] = [d for d in dirnames if d not in current_exclusions]
             legit_files = {
-                os.path.join(dirpath, normalize("NFC", f))
+                os.path.join(dirpath, normalize("NFC", six.text_type(f)))
                 for f in filenames
-                if f not in current_exclusions and os.path.join(dirpath, f)
+                if f not in current_exclusions
             }
             if git_files:
                 legit_files = legit_files.intersection(git_files)
