@@ -116,6 +116,45 @@ class SNSService(object):
         return experiment_topics[0]
 
 
+class MTurkQualificationRequirements(object):
+    """Syntactic correctness for MTurk QualificationRequirements
+    """
+
+    @staticmethod
+    def min_approval(percentage):
+        return {
+            "QualificationTypeId": PERCENTAGE_APPROVED_REQUIREMENT_ID,
+            "Comparator": "GreaterThanOrEqualTo",
+            "IntegerValues": [percentage],
+            "RequiredToPreview": True,
+        }
+
+    @staticmethod
+    def restrict_to_countries(countries):
+        return {
+            "QualificationTypeId": LOCALE_REQUIREMENT_ID,
+            "Comparator": "EqualTo",
+            "LocaleValues": [{"Country": country} for country in countries],
+            "RequiredToPreview": True,
+        }
+
+    @staticmethod
+    def must_have(qualification_id):
+        return {
+            "QualificationTypeId": qualification_id,
+            "Comparator": "Exists",
+            "RequiredToPreview": True,
+        }
+
+    @staticmethod
+    def must_not_have(qualification_id):
+        return {
+            "QualificationTypeId": qualification_id,
+            "Comparator": "DoesNotExist",
+            "RequiredToPreview": True,
+        }
+
+
 class MTurkService(object):
     """Facade for Amazon Mechanical Turk services provided via the boto3
        library.
@@ -200,42 +239,6 @@ class MTurkService(object):
         )
 
         return hit_type["HITTypeId"]
-
-    def build_hit_qualifications(self, approve_requirement, restrict_to_usa, blacklist):
-        """Translate restrictions/qualifications to boto Qualifications objects
-
-        @blacklist is a list of names for Qualifications workers must
-        not already hold in order to see and accept the HIT.
-        """
-        quals = [
-            {
-                "QualificationTypeId": PERCENTAGE_APPROVED_REQUIREMENT_ID,
-                "Comparator": "GreaterThanOrEqualTo",
-                "IntegerValues": [approve_requirement],
-                "RequiredToPreview": True,
-            }
-        ]
-        if restrict_to_usa:
-            quals.append(
-                {
-                    "QualificationTypeId": LOCALE_REQUIREMENT_ID,
-                    "Comparator": "EqualTo",
-                    "LocaleValues": [{"Country": "US"}],
-                    "RequiredToPreview": True,
-                }
-            )
-        if blacklist is not None:
-            for item in blacklist:
-                qtype = self.get_qualification_type_by_name(item)
-                if qtype:
-                    quals.append(
-                        {
-                            "QualificationTypeId": qtype["id"],
-                            "Comparator": "DoesNotExist",
-                            "RequiredToPreview": True,
-                        }
-                    )
-        return quals
 
     def create_qualification_type(self, name, description, status="Active"):
         """Create a new qualification Workers can be scored for.
@@ -403,19 +406,14 @@ class MTurkService(object):
         lifetime_days,
         ad_url,
         notification_url,
-        approve_requirement,
         max_assignments,
-        us_only,
-        blacklist=None,
         annotation=None,
+        qualifications=(),
     ):
         """Create the actual HIT and return a dict with its useful properties."""
         frame_height = 600
         mturk_question = self._external_question(ad_url, frame_height)
-        qualifications = self.build_hit_qualifications(
-            approve_requirement, us_only, blacklist
-        )
-        # We need a HIT_Type in order to register for REST notifications
+        # We need a HIT_Type in order to register for notifications
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
         )

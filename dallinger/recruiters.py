@@ -21,6 +21,7 @@ from dallinger.notifications import get_messenger
 from dallinger.notifications import MessengerError
 from dallinger.models import Participant
 from dallinger.models import Recruitment
+from dallinger.mturk import MTurkQualificationRequirements
 from dallinger.mturk import MTurkService
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkServiceException
@@ -506,10 +507,8 @@ class MTurkRecruiter(Recruiter):
             "lifetime_days": self.config.get("lifetime"),
             "ad_url": self.ad_url,
             "notification_url": self.notification_url,
-            "approve_requirement": self.config.get("approve_requirement"),
-            "us_only": self.config.get("us_only"),
-            "blacklist": self._config_to_list("qualification_blacklist"),
             "annotation": self.config.get("id"),
+            "qualifications": self._build_hit_qualifications(),
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
         if self.config.get("mode") == "sandbox":
@@ -671,6 +670,20 @@ class MTurkRecruiter(Recruiter):
         #     )
         # except MTurkServiceException as ex:
         #     logger.exception(str(ex))
+
+    def _build_hit_qualifications(self):
+        quals = []
+        reqs = MTurkQualificationRequirements
+        if self.config.get("approve_requirement") is not None:
+            quals.append(reqs.min_approval(self.config.get("approve_requirement")))
+        if self.config.get("us_only"):
+            quals.append(reqs.restrict_to_countries(["US"]))
+        for item in self._config_to_list("qualification_blacklist"):
+            qtype = self.mturkservice.get_qualification_type_by_name(item)
+            if qtype:
+                quals.append(reqs.must_not_have(qtype["id"]))
+
+        return quals
 
     def _confirm_sns_subscription(self, token, topic):
         self.mturkservice.confirm_subscription(token=token, topic=topic)

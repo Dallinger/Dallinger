@@ -4,6 +4,7 @@ import pytest
 from datetime import datetime
 from dallinger.models import Participant
 from dallinger.experiment import Experiment
+from dallinger.mturk import MTurkQualificationRequirements
 
 
 class TestModuleFunctions(object):
@@ -508,7 +509,6 @@ class TestMTurkRecruiter(object):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url="http://fake-domain/ad?recruiter=mturk",
-            approve_requirement=95,
             description=u"fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -518,9 +518,11 @@ class TestMTurkRecruiter(object):
             notification_url=u"http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title=u"fake experiment title",
-            us_only=True,
-            blacklist=[],
             annotation="some experiment uid",
+            qualifications=[
+                MTurkQualificationRequirements.min_approval(95),
+                MTurkQualificationRequirements.restrict_to_countries(["US"]),
+            ],
         )
 
     def test_open_recruitment_creates_qualifications_for_experiment_app_id(
@@ -563,10 +565,13 @@ class TestMTurkRecruiter(object):
 
     def test_open_recruitment_with_blacklist(self, recruiter):
         recruiter.config.set("qualification_blacklist", u"foo, bar")
+        # Our fake response will always return the same QualifcationType ID
+        recruiter.mturkservice.get_qualification_type_by_name.return_value = {
+            "id": u"fake id"
+        }
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url="http://fake-domain/ad?recruiter=mturk",
-            approve_requirement=95,
             description="fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -576,9 +581,13 @@ class TestMTurkRecruiter(object):
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
-            us_only=True,
-            blacklist=["foo", "bar"],
             annotation="some experiment uid",
+            qualifications=[
+                MTurkQualificationRequirements.min_approval(95),
+                MTurkQualificationRequirements.restrict_to_countries(["US"]),
+                MTurkQualificationRequirements.must_not_have(u"fake id"),
+                MTurkQualificationRequirements.must_not_have(u"fake id"),
+            ],
         )
 
     def test_open_recruitment_raises_error_if_recruitment_in_progress(
@@ -915,7 +924,6 @@ class TestMTurkLargeRecruiter(object):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url="http://fake-domain/ad?recruiter=mturklarge",
-            approve_requirement=95,
             description="fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -925,9 +933,11 @@ class TestMTurkLargeRecruiter(object):
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
-            us_only=True,
-            blacklist=[],
             annotation="some experiment uid",
+            qualifications=[
+                MTurkQualificationRequirements.min_approval(95),
+                MTurkQualificationRequirements.restrict_to_countries(["US"]),
+            ],
         )
 
     def test_open_recruitment_with_more_than_pool_size_uses_requested_count(
@@ -937,7 +947,6 @@ class TestMTurkLargeRecruiter(object):
         recruiter.open_recruitment(n=num_recruits)
         recruiter.mturkservice.create_hit.assert_called_once_with(
             ad_url="http://fake-domain/ad?recruiter=mturklarge",
-            approve_requirement=95,
             description="fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -947,9 +956,11 @@ class TestMTurkLargeRecruiter(object):
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
-            us_only=True,
-            blacklist=[],
             annotation="some experiment uid",
+            qualifications=[
+                MTurkQualificationRequirements.min_approval(95),
+                MTurkQualificationRequirements.restrict_to_countries(["US"]),
+            ],
         )
 
     def test_recruit_draws_on_initial_pool_before_extending_hit(self, recruiter):

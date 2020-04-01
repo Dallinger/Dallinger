@@ -13,6 +13,7 @@ from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import SNSService
 from dallinger.mturk import WorkerLacksQualification
+from dallinger.mturk import MTurkQualificationRequirements
 from dallinger.mturk import RevokedQualification
 from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import generate_random_id
@@ -231,8 +232,6 @@ def standard_hit_config(**kwargs):
     defaults = {
         "experiment_id": "some-experiment-id",
         "ad_url": "https://url-of-ad-route",
-        "approve_requirement": 95,
-        "us_only": True,
         "lifetime_days": 0.0004,  # 34 seconds (30 is minimum)
         "max_assignments": 1,
         "notification_url": "https://url-of-notification-route",
@@ -240,6 +239,10 @@ def standard_hit_config(**kwargs):
         "keywords": ["testkw1", "testkw2"],
         "reward": 0.01,
         "duration_hours": 0.25,
+        "qualifications": [
+            MTurkQualificationRequirements.min_approval(95),
+            MTurkQualificationRequirements.restrict_to_countries(["US"]),
+        ],
     }
     defaults.update(**kwargs)
     # Use fixed description, since this is how we clean up:
@@ -401,8 +404,12 @@ class TestMTurkServiceIntegrationSmokeTest(object):
 
         assert result["score"] == 3
 
+        qualifications = (MTurkQualificationRequirements.must_have(qtype["id"]),)
+
         config = standard_hit_config(
-            max_assignments=2, blacklist=[qtype["name"]], annotation="test-annotation"
+            max_assignments=2,
+            annotation="test-annotation",
+            qualifications=qualifications,
         )
         hit = with_cleanup.create_hit(**config)
         assert hit["status"] == "Assignable"
@@ -478,7 +485,7 @@ class TestMTurkService(object):
             "keywords": ["testkw1", "testkw2"],
             "reward": 0.01,
             "duration_hours": 0.25,
-            "qualifications": mturk.build_hit_qualifications(95, True, None),
+            "qualifications": (),
         }
         hit_type_id = mturk.register_hit_type(**config)
 
@@ -499,7 +506,8 @@ class TestMTurkService(object):
         assert hit["annotation"] == "test-exp-id"
 
     def test_create_hit_with_valid_blacklist(self, with_cleanup, qtype):
-        hit = with_cleanup.create_hit(**standard_hit_config(blacklist=[qtype["name"]]))
+        quals = MTurkQualificationRequirements.must_have(qualification_id=qtype["id"])
+        hit = with_cleanup.create_hit(**standard_hit_config(qualifications=[quals]))
         assert hit["status"] == "Assignable"
 
     def test_extend_hit_with_valid_hit_id(self, with_cleanup):
@@ -837,21 +845,6 @@ class TestMTurkServiceWithFakeConnection(object):
         with pytest.raises(MTurkServiceException):
             service.check_credentials()
 
-    def test_build_hit_qualifications_with_blacklist(self, with_mock):
-        qtypes = fake_list_qualification_types_responses()
-        qtype_id = qtypes[0]["QualificationTypes"][0]["QualificationTypeId"]
-        with_mock.mturk.list_qualification_types.side_effect = qtypes
-        quals = with_mock.build_hit_qualifications(95, False, blacklist=[qtype_id])
-        assert quals[-1]["QualificationTypeId"] == qtype_id
-        assert quals[-1]["Comparator"] == "DoesNotExist"
-
-    def test_build_hit_qualifications_with_region_restriction(self, with_mock):
-        quals = with_mock.build_hit_qualifications(
-            95, restrict_to_usa=True, blacklist=None
-        )
-        assert quals[-1]["Comparator"] == "EqualTo"
-        assert quals[-1]["LocaleValues"] == [{"Country": "US"}]
-
     def test_get_qualification_type_by_name_with_invalid_name_returns_none(
         self, with_mock
     ):
@@ -888,14 +881,13 @@ class TestMTurkServiceWithFakeConnection(object):
         assert with_mock.get_qualification_type_by_name(name)["name"] == name
 
     def test_register_hit_type(self, with_mock):
-        quals = with_mock.build_hit_qualifications(95, True, None)
         config = {
             "title": "Test Title",
             "description": "Test Description",
             "keywords": ["testkw1", "testkw2"],
             "reward": 0.01,
             "duration_hours": 0.25,
-            "qualifications": quals,
+            "qualifications": (),
         }
         with_mock.mturk.configure_mock(
             **{
@@ -915,7 +907,7 @@ class TestMTurkServiceWithFakeConnection(object):
             ),
             Keywords="testkw1,testkw2",
             AutoApprovalDelayInSeconds=0,
-            QualificationRequirements=quals,
+            QualificationRequirements=(),
         )
 
     def test_get_assignment_converts_result(self, with_mock):
