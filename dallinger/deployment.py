@@ -149,12 +149,15 @@ class ExperimentFileSource(object):
             # topdown = True
             dirnames[:] = [d for d in dirnames if d not in current_exclusions]
             legit_files = {
-                os.path.join(dirpath, normalize("NFC", six.text_type(f)))
+                os.path.join(dirpath, f)
                 for f in filenames
                 if f not in current_exclusions
             }
             if git_files:
-                legit_files = legit_files.intersection(git_files)
+                normalized = {
+                    normalize("NFC", six.text_type(f)): f for f in legit_files
+                }
+                legit_files = {v for k, v in normalized.items() if k in git_files}
             for legit in legit_files:
                 yield legit
 

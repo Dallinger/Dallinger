@@ -10,7 +10,6 @@ import sys
 import tempfile
 from pytest import raises
 from six.moves import configparser
-from unicodedata import normalize
 
 from dallinger.deployment import new_webbrowser_profile
 from dallinger.config import get_config
@@ -209,7 +208,7 @@ class TestExperimentFilesSource(object):
 
         source = subject()
 
-        assert source.files == {normalize("NFC", legit_file)}
+        assert source.files == {legit_file}
 
     def test_size_includes_files_that_would_be_copied(self, subject):
         with open("legit.txt", "w") as f:
