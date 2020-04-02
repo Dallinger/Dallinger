@@ -136,6 +136,24 @@ class TestHerokuUtilFunctions(object):
             heroku.sanity_check(stub_config)
         assert excinfo.match("dyno type not compatible")
 
+    def test_sanity_check_raises_on_invalid_web_dyno_combo(self, heroku, stub_config):
+        assert heroku.sanity_check(stub_config) is None
+        stub_config.set("heroku_team", u"my_team")
+        stub_config.set("dyno_type_web", u"free")
+        with pytest.raises(RuntimeError) as excinfo:
+            heroku.sanity_check(stub_config)
+        assert excinfo.match("dyno type not compatible")
+
+    def test_sanity_check_raises_on_invalid_worker_dyno_combo(
+        self, heroku, stub_config
+    ):
+        assert heroku.sanity_check(stub_config) is None
+        stub_config.set("heroku_team", u"my_team")
+        stub_config.set("dyno_type_worker", u"free")
+        with pytest.raises(RuntimeError) as excinfo:
+            heroku.sanity_check(stub_config)
+        assert excinfo.match("dyno type not compatible")
+
     def test_sanity_check_ok_when_optional_keys_absent(self, heroku, stub_config):
         del stub_config.data[0]["heroku_team"]
         assert heroku.sanity_check(stub_config) is None
