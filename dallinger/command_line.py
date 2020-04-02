@@ -514,6 +514,20 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
 
 
 @dallinger.command()
+@click.option("--worker", required=True)
+@click.option("--dollars", required=True, type=int)
+@click.option("--notify", is_flag=True, flag_value=True, help="Notify worker by email")
+@click.option("--sandbox", is_flag=True, flag_value=True, help="Use the MTurk sandbox")
+def credit_turker(worker, dollars, notify, sandbox):
+    """Credit a specific MTurk worker by ID."""
+    where = "MTurk sandbox" if sandbox else "MTurk production"
+    email = " and email them" if notify else ""
+    click.echo(
+        "Would credit worker ID {} ${} in {}{}.".format(worker, dollars, where, email)
+    )
+
+
+@dallinger.command()
 @click.option("--qualification")
 @click.option(
     "--by_name",
