@@ -543,18 +543,23 @@ class Test_handle_launch_data(object):
                 ok=False,
                 json=mock.Mock(return_value={"message": u"msg!"}),
                 raise_for_status=mock.Mock(side_effect=HTTPError),
+                status_code=500,
+                text=u"Failure",
             )
             with pytest.raises(HTTPError):
                 handler("/some-launch-url", error=log, delay=0.05, attempts=3)
 
         log.assert_has_calls(
             [
+                mock.call("Error accessing /launch (500):\nFailure"),
                 mock.call(
                     "Experiment launch failed. Trying again (attempt 2 of 3) in 0.1 seconds ..."
                 ),
+                mock.call("Error accessing /launch (500):\nFailure"),
                 mock.call(
                     "Experiment launch failed. Trying again (attempt 3 of 3) in 0.2 seconds ..."
                 ),
+                mock.call("Error accessing /launch (500):\nFailure"),
                 mock.call("Experiment launch failed, check web dyno logs for details."),
                 mock.call(u"msg!"),
             ]
@@ -684,6 +689,29 @@ class TestDebugServer(object):
                 p.read()
             except IOError:
                 pass
+
+    def test_failure(self, debugger):
+        from requests.exceptions import HTTPError
+
+        with mock.patch("dallinger.deployment.HerokuLocalWrapper"):
+            with mock.patch("dallinger.deployment.requests.post") as mock_post:
+                mock_post.return_value = mock.Mock(
+                    ok=False,
+                    json=mock.Mock(return_value={"message": u"msg!"}),
+                    raise_for_status=mock.Mock(side_effect=HTTPError),
+                    status_code=500,
+                    text=u"Failure",
+                )
+                debugger.run()
+
+        # Only one launch attempt should be made in debug mode
+        debugger.out.error.assert_has_calls(
+            [
+                mock.call("Error accessing /launch (500):\nFailure"),
+                mock.call("Experiment launch failed, check web dyno logs for details."),
+                mock.call(u"msg!"),
+            ]
+        )
 
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
