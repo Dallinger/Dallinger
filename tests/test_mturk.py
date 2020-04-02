@@ -244,6 +244,7 @@ def standard_hit_config(**kwargs):
             MTurkQualificationRequirements.min_approval(95),
             MTurkQualificationRequirements.restrict_to_countries(["US"]),
         ],
+        "do_subscribe": False,
     }
     defaults.update(**kwargs)
     # Use fixed description, since this is how we clean up:
@@ -271,7 +272,7 @@ def with_cleanup(aws_creds, request):
 
     # In tests we do a lot of querying of Qualifications we only just created,
     # so we need a long time-out
-    params = {"region_name": "us-east-1", "max_wait_secs": 60, "subscribe": False}
+    params = {"region_name": "us-east-1", "max_wait_secs": 60}
     params.update(aws_creds)
     service = MTurkService(**params)
     service.sns = mock.Mock(spec=SNSService)
@@ -361,6 +362,12 @@ class TestSNSService(object):
 
         assert topic_arn.endswith(":some-exp")
         assert sns.cancel_subscription("some-exp")
+
+    def test_cancel_nonexistent_subscription_raises(self, sns):
+        from dallinger.mturk import NonExistentSubscription
+
+        with pytest.raises(NonExistentSubscription):
+            sns.cancel_subscription("some-exp")
 
 
 class TestSNSServiceIsolation(object):
@@ -959,7 +966,7 @@ class TestMTurkServiceWithFakeConnection(object):
         assert isinstance(hit["created"], datetime.datetime)
         assert isinstance(hit["expiration"], datetime.datetime)
 
-    def test_create_hit_also_creates_sns_subscription(self, with_mock):
+    def test_create_hit_creates_no_sns_subscription_when_asked_not_to(self, with_mock):
         with_mock.mturk.configure_mock(
             **{
                 "create_hit_type.return_value": fake_hit_type_response(),
@@ -967,7 +974,19 @@ class TestMTurkServiceWithFakeConnection(object):
             }
         )
 
-        with_mock.create_hit(**standard_hit_config())
+        with_mock.create_hit(**standard_hit_config(do_subscribe=False))
+
+        with_mock.sns.create_subscription.assert_not_called()
+
+    def test_create_hit_creates_sns_subscription_when_asked(self, with_mock):
+        with_mock.mturk.configure_mock(
+            **{
+                "create_hit_type.return_value": fake_hit_type_response(),
+                "create_hit_with_hit_type.return_value": fake_hit_response(),
+            }
+        )
+
+        with_mock.create_hit(**standard_hit_config(do_subscribe=True))
 
         with_mock.sns.create_subscription.assert_called_once_with(
             "some-experiment-id", "https://url-of-notification-route"

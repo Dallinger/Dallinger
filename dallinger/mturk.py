@@ -38,6 +38,10 @@ class RevokedQualification(MTurkServiceException):
     """The Qualification has been revoked for this worker."""
 
 
+class NonExistentSubscription(MTurkServiceException):
+    """The SNS subscription does not exist."""
+
+
 class SNSService(object):
     """Handles AWS SNS subscriptions"""
 
@@ -95,6 +99,10 @@ class SNSService(object):
     def cancel_subscription(self, experiment_id):
         logger.warning("Cancelling SNS subscription")
         sns_topic = self._get_sns_topic_for_experiment(experiment_id)
+        if sns_topic is None:
+            raise NonExistentSubscription(
+                "No SNS subscription found for {}".format(experiment_id)
+            )
         self._sns.delete_topic(TopicArn=sns_topic["TopicArn"])
         return True
 
@@ -110,10 +118,13 @@ class SNSService(object):
 
     def _get_sns_topic_for_experiment(self, experiment_id):
         all_topics = self._sns.list_topics()["Topics"]
-        experiment_topics = [
+        experiment_topics = (
             t for t in all_topics if t["TopicArn"].endswith(experiment_id)
-        ]
-        return experiment_topics[0]
+        )
+        try:
+            return next(experiment_topics)
+        except StopIteration:
+            return None
 
 
 class MTurkQuestions(object):
@@ -183,14 +194,12 @@ class MTurkService(object):
         region_name,
         sandbox=True,
         max_wait_secs=0,
-        subscribe=True,
     ):
         self.aws_key = aws_access_key_id
         self.aws_secret = aws_secret_access_key
         self.region_name = region_name
         self.is_sandbox = sandbox
         self.max_wait_secs = max_wait_secs
-        self.do_subscribe = subscribe
 
     @cached_property
     def mturk(self):
@@ -425,6 +434,7 @@ class MTurkService(object):
         max_assignments,
         annotation=None,
         qualifications=(),
+        do_subscribe=True,
     ):
         """Create the actual HIT and return a dict with its useful properties.
         """
@@ -433,7 +443,7 @@ class MTurkService(object):
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
         )
-        if self.do_subscribe:
+        if do_subscribe:
             self._create_notification_subscription(
                 experiment_id, notification_url, hit_type_id
             )
@@ -493,8 +503,11 @@ class MTurkService(object):
 
     def disable_hit(self, hit_id, experiment_id):
         self.expire_hit(hit_id)
-        if self.do_subscribe:
+        try:
             self.sns.cancel_subscription(experiment_id)
+        except NonExistentSubscription:
+            pass
+
         try:
             result = self.mturk.delete_hit(HITId=hit_id)
         except Exception as ex:
