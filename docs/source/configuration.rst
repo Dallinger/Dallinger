@@ -258,14 +258,25 @@ very large difference to how the application behaves.
     more performant on underloaded dynos, so a better heuristic is ``0.25*number_of_bots``.
 
 ``dyno_type``
-    This determines how powerful the heroku dyno that's started is. It applies to both
-    web and worker dyno types. The minimum recommended is ``standard-1x``, which should be
-    sufficient for experiments that do not rely on real-time coordination, such as
-    :doc:`demos/bartlett1932/index`.
-    Experiments that require significant power to process websocket events should consider
-    the higher levels, ``standard-2x``, ``performance-m`` and ``performance-l``. In all but
-    the most intensive experiments, either ``dyno_type`` or ``num_dynos_web`` should be
-    increased, not both.
+    This determines how powerful the heroku dynos started by Dallinger are. It is applied
+    as the default for both web and worker dyno types. The minimum recommended is
+    ``standard-1x``, which should be sufficient for experiments that do not rely on
+    real-time coordination, such as :doc:`demos/bartlett1932/index`. Experiments that
+    require significant power to process websocket events should consider the higher
+    levels, ``standard-2x``, ``performance-m`` and ``performance-l``. In all but the
+    most intensive experiments, either ``dyno_type`` or ``num_dynos_web`` should be
+    increased, not both. See ``dyno_type_web`` and ``dyno_type_worker`` below
+    for information about more specific settings.
+
+``dyno_type_web``
+    This determines how powerful the heroku web dynos are. It applies only to web dynos
+    and will override the default set in ``dyno_type``. See ``dyno_type`` above for details
+    on specific values.
+
+``dyno_type_worker``
+    This determines how powerful the heroku worker dynos are. It applies only to worker
+    dynos and will override the default set in ``dyno_type``.. See ``dyno_type`` above for
+    details on specific values.
 
 ``redis_size``
     A larger value for this increases the number of connections available on the redis dyno.

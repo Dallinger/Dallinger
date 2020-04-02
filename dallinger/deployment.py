@@ -416,8 +416,9 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     git.push(remote="heroku", branch="HEAD:master")
 
     log("Scaling up the dynos...")
-    size = config.get("dyno_type")
+    default_size = config.get("dyno_type")
     for process in ["web", "worker"]:
+        size = config.get("dyno_type_" + process, default_size)
         qty = config.get("num_dynos_" + process)
         heroku_app.scale_up_dyno(process, qty, size)
     if config.get("clock_on"):

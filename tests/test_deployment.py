@@ -457,6 +457,15 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
             ]
         )
 
+    def test_scales_different_dynos(self, dsss, heroku_mock, active_config):
+        active_config.set("dyno_type", u"ignored")
+        active_config.set("dyno_type_web", u"tiny")
+        active_config.set("dyno_type_worker", u"massive")
+        dsss(log=mock.Mock())
+        heroku_mock.scale_up_dyno.assert_has_calls(
+            [mock.call("web", 1, u"tiny"), mock.call("worker", 1, u"massive")]
+        )
+
     def test_calls_launch(self, dsss, heroku_mock, launch):
         log = mock.Mock()
         dsss(log=log)
