@@ -14,6 +14,7 @@ from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import SNSService
 from dallinger.mturk import WorkerLacksQualification
 from dallinger.mturk import MTurkQualificationRequirements
+from dallinger.mturk import MTurkQuestions
 from dallinger.mturk import RevokedQualification
 from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import generate_random_id
@@ -231,13 +232,13 @@ def fake_get_assignment_response():
 def standard_hit_config(**kwargs):
     defaults = {
         "experiment_id": "some-experiment-id",
-        "ad_url": "https://url-of-ad-route",
         "lifetime_days": 0.0004,  # 34 seconds (30 is minimum)
         "max_assignments": 1,
         "notification_url": "https://url-of-notification-route",
         "title": "Test Title",
         "keywords": ["testkw1", "testkw2"],
         "reward": 0.01,
+        "question": MTurkQuestions.external(ad_url="https://url-of-ad-route"),
         "duration_hours": 0.25,
         "qualifications": [
             MTurkQualificationRequirements.min_approval(95),

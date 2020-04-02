@@ -22,6 +22,7 @@ from dallinger.notifications import MessengerError
 from dallinger.models import Participant
 from dallinger.models import Recruitment
 from dallinger.mturk import MTurkQualificationRequirements
+from dallinger.mturk import MTurkQuestions
 from dallinger.mturk import MTurkService
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkServiceException
@@ -505,7 +506,7 @@ class MTurkRecruiter(Recruiter):
             "reward": self.config.get("base_payment"),
             "duration_hours": self.config.get("duration"),
             "lifetime_days": self.config.get("lifetime"),
-            "ad_url": self.ad_url,
+            "question": MTurkQuestions.external(self.ad_url),
             "notification_url": self.notification_url,
             "annotation": self.config.get("id"),
             "qualifications": self._build_hit_qualifications(),

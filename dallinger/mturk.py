@@ -116,6 +116,22 @@ class SNSService(object):
         return experiment_topics[0]
 
 
+class MTurkQuestions(object):
+    """Creates MTurk HIT Question definitions:
+    https://docs.aws.amazon.com/AWSMechTurk/latest/AWSMturkAPI/ApiReference_QuestionAnswerDataArticle.html
+    """
+
+    @staticmethod
+    def external(ad_url, frame_height=600):
+        q = (
+            '<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
+            'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
+            "<ExternalURL>{}</ExternalURL>"
+            "<FrameHeight>{}</FrameHeight></ExternalQuestion>"
+        )
+        return q.format(ad_url, frame_height)
+
+
 class MTurkQualificationRequirements(object):
     """Syntactic correctness for MTurk QualificationRequirements
     """
@@ -404,15 +420,15 @@ class MTurkService(object):
         reward,
         duration_hours,
         lifetime_days,
-        ad_url,
+        question,
         notification_url,
         max_assignments,
         annotation=None,
         qualifications=(),
     ):
-        """Create the actual HIT and return a dict with its useful properties."""
-        frame_height = 600
-        mturk_question = self._external_question(ad_url, frame_height)
+        """Create the actual HIT and return a dict with its useful properties.
+        """
+
         # We need a HIT_Type in order to register for notifications
         hit_type_id = self.register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
@@ -423,7 +439,7 @@ class MTurkService(object):
             )
         params = {
             "HITTypeId": hit_type_id,
-            "Question": mturk_question,
+            "Question": question,
             "LifetimeInSeconds": int(
                 datetime.timedelta(days=lifetime_days).total_seconds()
             ),
@@ -603,15 +619,6 @@ class MTurkService(object):
             },
             Active=True,
         )
-
-    def _external_question(self, url, frame_height):
-        q = (
-            '<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
-            'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
-            "<ExternalURL>{}</ExternalURL>"
-            "<FrameHeight>{}</FrameHeight></ExternalQuestion>"
-        )
-        return q.format(url, frame_height)
 
     def _request_token(self):
         return str(time.time())

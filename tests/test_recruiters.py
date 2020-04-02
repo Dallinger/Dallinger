@@ -5,6 +5,7 @@ from datetime import datetime
 from dallinger.models import Participant
 from dallinger.experiment import Experiment
 from dallinger.mturk import MTurkQualificationRequirements
+from dallinger.mturk import MTurkQuestions
 
 
 class TestModuleFunctions(object):
@@ -508,7 +509,9 @@ class TestMTurkRecruiter(object):
     def test_open_recruitment_single_recruitee_builds_hit(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url="http://fake-domain/ad?recruiter=mturk",
+            question=MTurkQuestions.external(
+                ad_url="http://fake-domain/ad?recruiter=mturk"
+            ),
             description=u"fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -571,7 +574,9 @@ class TestMTurkRecruiter(object):
         }
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url="http://fake-domain/ad?recruiter=mturk",
+            question=MTurkQuestions.external(
+                ad_url="http://fake-domain/ad?recruiter=mturk"
+            ),
             description="fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -923,7 +928,9 @@ class TestMTurkLargeRecruiter(object):
     def test_open_recruitment_single_recruitee_actually_overrecruits(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url="http://fake-domain/ad?recruiter=mturklarge",
+            question=MTurkQuestions.external(
+                ad_url="http://fake-domain/ad?recruiter=mturklarge"
+            ),
             description="fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -946,7 +953,9 @@ class TestMTurkLargeRecruiter(object):
         num_recruits = recruiter.pool_size + 1
         recruiter.open_recruitment(n=num_recruits)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url="http://fake-domain/ad?recruiter=mturklarge",
+            question=MTurkQuestions.external(
+                ad_url="http://fake-domain/ad?recruiter=mturklarge"
+            ),
             description="fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
