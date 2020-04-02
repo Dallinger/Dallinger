@@ -302,6 +302,12 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
         if launch_request.ok:
             return launch_data
 
+        error(
+            "Error accessing /launch ({}):\n{}".format(
+                launch_request.status_code, launch_request.text
+            )
+        )
+
         if remaining_attempt:
             delay = delay * BACKOFF_FACTOR
             next_attempt_count = attempts - (remaining_attempt - 1)
@@ -538,7 +544,7 @@ class DebugDeployment(HerokuLocalDeployment):
         time.sleep(4)
         try:
             result = _handle_launch_data(
-                "{}/launch".format(base_url), error=self.out.error
+                "{}/launch".format(base_url), error=self.out.error, attempts=1
             )
         except Exception:
             # Show output from server
