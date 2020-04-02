@@ -3,6 +3,7 @@
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
 - No longer retry `/launch` route in debug mode. Additional logging for launch retries.
+- Allow setting of separate optional `dyno_type_web` and `dyno_type_worker` parameters.
 
 ## [v-6.0.0](https://github.com/Dallinger/Dallinger/tree/v6.0.0) (2020-03-24)
 
