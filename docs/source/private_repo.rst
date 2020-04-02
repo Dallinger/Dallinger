@@ -34,7 +34,7 @@ If your repository is private then you will need to provide the credentials to a
 We recommend creating a personal access token (PAT) for your GitHub account or equivalent
 with read-only permissions
 (see e.g. the 
-`GitHub documentation <https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line>`
+`GitHub documentation <https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line>`_
 for instructions), 
 and including it in an HTTPS repository link as follows:
 
