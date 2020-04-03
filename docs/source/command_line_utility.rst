@@ -75,6 +75,31 @@ An optional ``--no-scrub`` flag will stop the scrubbing of personally
 identifiable information in the export. The scrubbing of PII is enabled by
 default.
 
+compensate
+~~~~~~~~~~
+
+Compensate a worker a specific amount in US dollars. This is useful if something
+goes wrong with the experiment and you need to pay workers for their wasted
+time. Currently only the ``mturk`` recruiter is supported, and is the default,
+so doesn't need to be specified.
+
+For Mechanical Turk, compensation is acheived by:
+    1. Creating a unique qualification and assigning it to the worker
+    2. Creating a very simple HIT which is only visible to workers with this
+       qualification, using the dollar amount specified in the command as the
+       base payment
+    3. Automatically approving (and this granting base payment) when the HIT
+       is submitted.
+
+Usage:
+    * ``--worker_id`` (required) - The worker's identifier
+    * ``--dollars`` (required) - The amount to pay, in US dollars
+    * ``--sandbox`` (optional flag) - If present, the compensation will be made
+      via the test platform (the MTurk Sandbox)
+    * ``--no_email`` (optional flag) - If present, no email notification will be
+      sent to the worker.
+
+
 qualify
 ^^^^^^^
 
