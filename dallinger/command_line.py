@@ -36,6 +36,7 @@ from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuInfo
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
+from dallinger.recruiters import by_name
 from dallinger.utils import check_call
 from dallinger.utils import generate_random_id
 from dallinger.version import __version__
@@ -514,17 +515,39 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
 
 
 @dallinger.command()
-@click.option("--worker", required=True)
+@click.option("--recruiter", default="mturk", required=True)
+@click.option("--worker_id", required=True)
 @click.option("--dollars", required=True, type=int)
-@click.option("--notify", is_flag=True, flag_value=True, help="Notify worker by email")
 @click.option("--sandbox", is_flag=True, flag_value=True, help="Use the MTurk sandbox")
-def credit_turker(worker, dollars, notify, sandbox):
-    """Credit a specific MTurk worker by ID."""
-    where = "MTurk sandbox" if sandbox else "MTurk production"
-    email = " and email them" if notify else ""
-    click.echo(
-        "Would credit worker ID {} ${} in {}{}.".format(worker, dollars, where, email)
-    )
+@click.option(
+    "--no_email", is_flag=True, flag_value=True, help="Don't notify worker by email"
+)
+def compensate(recruiter, worker_id, dollars, no_email, sandbox):
+    """Credit a specific worker by ID through their recruiter"""
+    out = Output()
+    config = get_config()
+    config.load()
+    mode = "sandbox" if sandbox else "live"
+    do_notify = not no_email
+    no_email_str = " NOT" if no_email else ""
+
+    with config.override({"mode": mode}):
+        rec = by_name(recruiter)
+        if not click.confirm(
+            '\n\nYou are about to pay worker "{}" ${} in "{}"" mode using the "{}" recruiter.\n'
+            "This will{} send an email to each of them from Amazon MTurk. "
+            "Continue?".format(worker_id, dollars, mode, recruiter, no_email_str)
+        ):
+            out.log("Aborting...")
+            return
+
+        result = rec.compensate_worker(
+            worker_id=worker_id, dollars=dollars, notify=do_notify
+        )
+    out.log("HIT Details", delay=0)
+    out.log(tabulate.tabulate(result["hit"].items()), chevrons=False, delay=0)
+    out.log("Qualification Details", delay=0)
+    out.log(tabulate.tabulate(result["qualification"].items()), chevrons=False, delay=0)
 
 
 @dallinger.command()

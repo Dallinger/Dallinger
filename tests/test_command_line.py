@@ -499,6 +499,66 @@ class TestQualify(object):
         assert 'No qualification with name "some qual name" exists.' in result.output
 
 
+class TestCompensateWorker(object):
+
+    DO_IT = "Y\n"
+    DO_NOT_DO_IT = "N\n"
+
+    @pytest.fixture
+    def compensate(self):
+        from dallinger.command_line import compensate
+
+        return compensate
+
+    @pytest.fixture
+    def mturkrecruiter(self):
+        from dallinger.recruiters import MTurkRecruiter
+
+        recruiter = mock.Mock(spec=MTurkRecruiter)
+        recruiter.compensate_worker.return_value = {
+            "hit": {"hit key 1": "hit value 1"},
+            "qualification": {"qualification key 1": "qualification value 1"},
+        }
+        return recruiter
+
+    def test_compensate_with_notification(self, compensate, mturkrecruiter):
+        with mock.patch("dallinger.command_line.by_name") as by_name:
+            by_name.return_value = mturkrecruiter
+            result = CliRunner().invoke(
+                compensate,
+                ["--worker_id", "some worker ID", "--dollars", "5"],
+                input=self.DO_IT,
+            )
+
+        assert result.exit_code == 0
+        mturkrecruiter.compensate_worker.assert_called_once_with(
+            worker_id=u"some worker ID", dollars=5, notify=True
+        )
+
+    def test_compensate_without_notification(self, compensate, mturkrecruiter):
+        with mock.patch("dallinger.command_line.by_name") as by_name:
+            by_name.return_value = mturkrecruiter
+            result = CliRunner().invoke(
+                compensate,
+                ["--worker_id", "some worker ID", "--dollars", "5", "--no_email"],
+                input=self.DO_IT,
+            )
+
+        assert result.exit_code == 0
+        mturkrecruiter.compensate_worker.assert_called_once_with(
+            worker_id=u"some worker ID", dollars=5, notify=False
+        )
+
+    def test_can_be_aborted_cleanly_after_warning(self, compensate, mturkrecruiter):
+        result = CliRunner().invoke(
+            compensate,
+            ["--worker_id", "some worker ID", "--dollars", "5"],
+            input=self.DO_NOT_DO_IT,
+        )
+        assert result.exit_code == 0
+        mturkrecruiter.compensate_worker.assert_not_called()
+
+
 class TestRevoke(object):
 
     DO_IT = "Y\n"
