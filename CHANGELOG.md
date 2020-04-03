@@ -1,7 +1,8 @@
 # Change Log
 
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
-
+- New `dallinger compensate` command: compensate a worker a specific amount in US dollars. This is useful if something goes wrong with the experiment and you need to pay workers for their wasted time.
+- 
 ## [v-6.1.0](https://github.com/Dallinger/Dallinger/tree/v6.0.0) (2020-04-10)
 - No longer retry `/launch` route in debug mode. Additional logging for launch retries.
 - Allow setting of separate optional `dyno_type_web` and `dyno_type_worker` parameters.
