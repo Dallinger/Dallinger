@@ -432,6 +432,31 @@ def requests():
         yield mock_requests
 
 
+@pytest.fixture
+def mturkservice(active_config):
+    from dallinger.mturk import MTurkService
+
+    mturk = mock.create_autospec(
+        MTurkService,
+        aws_key=active_config.get("aws_access_key_id"),
+        aws_secret=active_config.get("aws_secret_access_key"),
+        region_name=active_config.get("aws_region"),
+        is_sandbox=active_config.get("mode") != "live",
+    )
+
+    mturk.check_credentials.return_value = True
+    mturk.create_qualification_type.return_value = {
+        "name": "QualifcationType name",
+        "id": "QualifcationType id",
+    }
+    mturk.create_hit.return_value = {
+        "type_id": "fake type id",
+        "worker_url": "http://the-hit-url",
+    }
+
+    return mturk
+
+
 @pytest.mark.usefixtures("active_config", "requests", "queue")
 class TestMTurkRecruiter(object):
     @pytest.fixture
@@ -442,8 +467,7 @@ class TestMTurkRecruiter(object):
         yield mock_messenger
 
     @pytest.fixture
-    def recruiter(self, active_config, messenger):
-        from dallinger.mturk import MTurkService
+    def recruiter(self, active_config, messenger, mturkservice):
         from dallinger.recruiters import MTurkRecruiter
 
         with mock.patch.multiple(
@@ -451,13 +475,11 @@ class TestMTurkRecruiter(object):
         ) as mocks:
             mocks["get_base_url"].return_value = "http://fake-domain"
             mocks["os"].getenv.return_value = "fake-host-domain"
-            mockservice = mock.create_autospec(MTurkService)
             active_config.extend({"mode": u"sandbox"})
             r = MTurkRecruiter()
             r.messenger = messenger
-            r.mturkservice = mockservice("fake key", "fake secret", "fake_region")
-            r.mturkservice.check_credentials.return_value = True
-            r.mturkservice.create_hit.return_value = {"type_id": "fake type id"}
+            r.mturkservice = mturkservice
+
             return r
 
     def test_instantiation_fails_with_invalid_mode(self, active_config):
@@ -489,9 +511,7 @@ class TestMTurkRecruiter(object):
 
     def test_open_recruitment_returns_urls(self, recruiter):
         url = recruiter.open_recruitment(n=1)["items"][0]
-        assert (
-            url == "https://workersandbox.mturk.com/mturk/preview?groupId=fake type id"
-        )
+        assert url == "http://the-hit-url"
 
     def test_open_recruitment_raises_if_no_external_hit_domain_configured(
         self, recruiter
@@ -888,8 +908,7 @@ class TestMTurkLargeRecruiter(object):
         return PrimitiveCounter()
 
     @pytest.fixture
-    def recruiter(self, active_config, counter):
-        from dallinger.mturk import MTurkService
+    def recruiter(self, active_config, counter, mturkservice):
         from dallinger.recruiters import MTurkLargeRecruiter
 
         with mock.patch.multiple(
@@ -897,12 +916,9 @@ class TestMTurkLargeRecruiter(object):
         ) as mocks:
             mocks["get_base_url"].return_value = "http://fake-domain"
             mocks["os"].getenv.return_value = "fake-host-domain"
-            mockservice = mock.create_autospec(MTurkService)
             active_config.extend({"mode": u"sandbox"})
             r = MTurkLargeRecruiter(counter=counter)
-            r.mturkservice = mockservice("fake key", "fake secret", "fake_region")
-            r.mturkservice.check_credentials.return_value = True
-            r.mturkservice.create_hit.return_value = {"type_id": "fake type id"}
+            r.mturkservice = mturkservice
             r.current_hit_id = mock.Mock(return_value="fake HIT id")
             return r
 

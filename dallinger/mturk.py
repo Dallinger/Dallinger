@@ -461,8 +461,8 @@ class MTurkService(object):
         duration_hours,
         lifetime_days,
         question,
-        notification_url,
         max_assignments,
+        notification_url=None,
         annotation=None,
         qualifications=(),
         do_subscribe=True,
@@ -700,9 +700,18 @@ class MTurkService(object):
             "review_status": hit["HITReviewStatus"],
             "status": hit["HITStatus"],
             "annotation": hit.get("RequesterAnnotation"),
+            "worker_url": self._worker_hit_url(hit["HITTypeId"]),
         }
 
         return translated
+
+    def _worker_hit_url(self, type_id):
+        if self.is_sandbox:
+            url = "https://workersandbox.mturk.com/mturk/preview?groupId={}"
+        else:
+            url = "https://worker.mturk.com/mturk/preview?groupId={}"
+
+        return url.format(type_id)
 
     def _translate_qtype(self, qtype):
         return {

@@ -512,15 +512,10 @@ class MTurkRecruiter(Recruiter):
             "qualifications": self._build_hit_qualifications(),
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
-        if self.config.get("mode") == "sandbox":
-            lookup_url = (
-                "https://workersandbox.mturk.com/mturk/preview?groupId={type_id}"
-            )
-        else:
-            lookup_url = "https://worker.mturk.com/mturk/preview?groupId={type_id}"
+        url = hit_info["worker_url"]
 
         return {
-            "items": [lookup_url.format(**hit_info)],
+            "items": [url],
             "message": "HIT now published to Amazon Mechanical Turk",
         }
 
@@ -671,6 +666,10 @@ class MTurkRecruiter(Recruiter):
         #     )
         # except MTurkServiceException as ex:
         #     logger.exception(str(ex))
+
+    @property
+    def _is_sandbox(self):
+        return self.config.get("mode") == "sandbox"
 
     def _build_hit_qualifications(self):
         quals = []

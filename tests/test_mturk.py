@@ -978,11 +978,22 @@ class TestMTurkServiceWithFakeConnection(object):
 
         hit = with_mock.create_hit(**standard_hit_config())
 
-        assert hit["max_assignments"] == 1
-        assert hit["reward"] == 0.01
-        assert hit["keywords"] == ["testkw1", "testkw2"]
-        assert isinstance(hit["created"], datetime.datetime)
-        assert isinstance(hit["expiration"], datetime.datetime)
+        assert hit == {
+            "annotation": None,
+            "created": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000),
+            "description": "***TEST SUITE HIT***43683",
+            "expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000),
+            "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
+            "keywords": ["testkw1", "testkw2"],
+            "max_assignments": 1,
+            "qualification_type_ids": ["000000000000000000L0", "00000000000000000071"],
+            "review_status": "NotReviewed",
+            "reward": 0.01,
+            "status": "Assignable",
+            "title": "Test Title",
+            "type_id": "3V76OXST9SAE3THKN85FUPK7730050",
+            "worker_url": "https://workersandbox.mturk.com/mturk/preview?groupId=3V76OXST9SAE3THKN85FUPK7730050",
+        }
 
     def test_create_hit_creates_no_sns_subscription_when_asked_not_to(self, with_mock):
         with_mock.mturk.configure_mock(
