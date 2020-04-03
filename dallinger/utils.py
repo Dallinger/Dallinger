@@ -1,8 +1,9 @@
+from __future__ import unicode_literals
 import functools
 import io
+import locale
 import os
 import random
-import shlex
 import shutil
 import string
 import subprocess
@@ -126,12 +127,13 @@ class GitClient(object):
         return tempdir
 
     def files(self):
-        cmd = ["git", "ls-files", "--cached", "--others", "--exclude-standard"]
+        cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
         try:
-            raw = check_output(cmd).decode()
-        except Exception as e:
+            raw = check_output(cmd).decode(locale.getpreferredencoding())
+        except Exception:
             return set()
-        result = set(shlex.split(raw))
+
+        result = {item for item in raw.split("\0") if item}
         return result
 
     def _run(self, cmd):

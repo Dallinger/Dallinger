@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 import mock
 import os
 import pexpect
@@ -87,11 +88,11 @@ def heroku_mock():
 
     instance = mock.Mock(spec=HerokuApp)
     instance.redis_url = "\n"
-    instance.name = u"dlgr-fake-uid"
-    instance.url = u"fake-web-url"
-    instance.db_url = u"fake-db-url"
+    instance.name = "dlgr-fake-uid"
+    instance.url = "fake-web-url"
+    instance.db_url = "fake-db-url"
     with mock.patch("dallinger.deployment.heroku") as heroku_module:
-        heroku_module.auth_token.return_value = u"fake token"
+        heroku_module.auth_token.return_value = "fake token"
         with mock.patch("dallinger.deployment.HerokuApp") as mock_app_class:
             mock_app_class.return_value = instance
             yield instance
@@ -154,7 +155,7 @@ class TestExperimentFilesSource(object):
         return ExperimentFileSource
 
     def test_lists_files_valid_for_copying(self, subject):
-        legit_file = "./some/subdir/legit.txt"
+        legit_file = "./some/subdir/John Doe's file.txt"
         os.makedirs(os.path.dirname(legit_file))
         with open(legit_file, "w") as f:
             f.write("12345")
@@ -197,6 +198,18 @@ class TestExperimentFilesSource(object):
 
         assert source.files == {"./.gitignore"}
 
+    def test_normalizes_unicode_for_merging_git_inclusions(self, subject, git):
+        legit_file = "".join(
+            [".", "/", "a", "̊", " ", "f", "i", "l", "e", ".", "t", "x", "t"]
+        )
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        git.init()
+
+        source = subject()
+
+        assert source.files == {legit_file}
+
     def test_size_includes_files_that_would_be_copied(self, subject):
         with open("legit.txt", "w") as f:
             f.write("12345")
@@ -232,7 +245,7 @@ class TestExperimentFilesSource(object):
         assert source.size == 0
 
     def test_copy_to_copies_to_same_subdirectories(self, subject):
-        legit_file = "./some/subdir/legit.txt"
+        legit_file = "./some/subdir/John Doe's file.txt"
         os.makedirs(os.path.dirname(legit_file))
         with open(legit_file, "w") as f:
             f.write("12345")
@@ -241,7 +254,9 @@ class TestExperimentFilesSource(object):
 
         source.selective_copy_to(destination)
 
-        assert os.path.isfile(os.path.join(destination, "some/subdir/legit.txt"))
+        assert os.path.isfile(
+            os.path.join(destination, "some/subdir/John Doe's file.txt")
+        )
 
     def test_copy_to_copies_with_explicit_root(self, subject):
         legit_file = "./some/subdir/legit.txt"
@@ -254,6 +269,28 @@ class TestExperimentFilesSource(object):
         source.selective_copy_to(destination)
 
         assert os.path.isfile(os.path.join(destination, "some/subdir/legit.txt"))
+
+    def test_copy_to_copies_nonascii_filenames(self, subject):
+        legit_file = "".join(["a", "̊", " ", "f", "i", "l", "e"])
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        destination = tempfile.mkdtemp()
+        source = subject()
+
+        source.selective_copy_to(destination)
+
+        assert os.path.isfile(os.path.join(destination, legit_file))
+
+    def test_copy_to_copies_nonascii_filenames2(self, subject):
+        legit_file = "".join(["å", " ", "f", "i", "l", "e"])
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        destination = tempfile.mkdtemp()
+        source = subject()
+
+        source.selective_copy_to(destination)
+
+        assert os.path.isfile(os.path.join(destination, legit_file))
 
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
@@ -299,7 +336,7 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "complete.html"), dst)
 
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
-        active_config.extend({"heroku_python_version": u"2.7.14"})
+        active_config.extend({"heroku_python_version": "2.7.14"})
 
         exp_id, dst = setup_experiment(log=mock.Mock())
 
@@ -361,9 +398,9 @@ class TestSetupExperiment(object):
 
         config.extend(
             {
-                "a_password": u"secret thing",
-                "something_sensitive": u"hide this",
-                "something_normal": u"show this",
+                "a_password": "secret thing",
+                "something_sensitive": "hide this",
+                "something_normal": "show this",
             }
         )
 
@@ -400,8 +437,8 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         log = mock.Mock()
         result = dsss(log=log)
         assert result == {
-            "app_home": u"fake-web-url",
-            "app_name": u"dlgr-fake-uid",
+            "app_home": "fake-web-url",
+            "app_name": "dlgr-fake-uid",
             "recruitment_msg": "fake\nrecruitment\nlist",
         }
 
@@ -430,11 +467,11 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         dsss(log=mock.Mock())
         heroku_mock.set_multiple.assert_called_once_with(
             auto_recruit=True,
-            aws_access_key_id=u"fake aws key",
-            aws_region=u"us-east-1",
-            aws_secret_access_key=u"fake aws secret",
-            smtp_password=u"fake email password",
-            smtp_username=u"fake email username",
+            aws_access_key_id="fake aws key",
+            aws_region="us-east-1",
+            aws_secret_access_key="fake aws secret",
+            smtp_password="fake email password",
+            smtp_username="fake email username",
             whimsical=True,
         )
 
@@ -451,9 +488,9 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         dsss(log=mock.Mock())
         heroku_mock.scale_up_dyno.assert_has_calls(
             [
-                mock.call("web", 1, u"free"),
-                mock.call("worker", 1, u"free"),
-                mock.call("clock", 1, u"free"),
+                mock.call("web", 1, "free"),
+                mock.call("worker", 1, "free"),
+                mock.call("clock", 1, "free"),
             ]
         )
 
@@ -516,13 +553,13 @@ class Test_deploy_in_mode(object):
             yield mock_dsss
 
     def test_sets_mode_in_config(self, active_config, dim, dsss):
-        dim(u"live", "some app id", verbose=True, log=mock.Mock())
+        dim("live", "some app id", verbose=True, log=mock.Mock())
         dsss.assert_called_once()
-        assert active_config.get("mode") == u"live"
+        assert active_config.get("mode") == "live"
 
     def test_sets_logfile_to_dash_for_some_reason(self, active_config, dim, dsss):
-        dim(u"live", "some app id", verbose=True, log=mock.Mock())
-        assert active_config.get("logfile") == u"-"
+        dim("live", "some app id", verbose=True, log=mock.Mock())
+        assert active_config.get("logfile") == "-"
 
 
 @pytest.mark.usefixtures("bartlett_dir")
@@ -538,10 +575,10 @@ class Test_handle_launch_data(object):
         log = mock.Mock()
         with mock.patch("dallinger.deployment.requests.post") as mock_post:
             result = mock.Mock(
-                ok=True, json=mock.Mock(return_value={"message": u"msg!"})
+                ok=True, json=mock.Mock(return_value={"message": "msg!"})
             )
             mock_post.return_value = result
-            assert handler("/some-launch-url", error=log) == {"message": u"msg!"}
+            assert handler("/some-launch-url", error=log) == {"message": "msg!"}
 
     def test_failure(self, handler):
         from requests.exceptions import HTTPError
@@ -550,7 +587,7 @@ class Test_handle_launch_data(object):
         with mock.patch("dallinger.deployment.requests.post") as mock_post:
             mock_post.return_value = mock.Mock(
                 ok=False,
-                json=mock.Mock(return_value={"message": u"msg!"}),
+                json=mock.Mock(return_value={"message": "msg!"}),
                 raise_for_status=mock.Mock(side_effect=HTTPError),
                 status_code=500,
                 text=u"Failure",
@@ -570,7 +607,7 @@ class Test_handle_launch_data(object):
                 ),
                 mock.call("Error accessing /launch (500):\nFailure"),
                 mock.call("Experiment launch failed, check web dyno logs for details."),
-                mock.call(u"msg!"),
+                mock.call("msg!"),
             ]
         )
 
