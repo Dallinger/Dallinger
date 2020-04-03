@@ -84,6 +84,11 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
+    def compensate_worker(self, *args, **kwargs):
+        """A recruiter may provide a means to directly compensate a worker.
+        """
+        raise NotImplementedError
+
     def reward_bonus(self, assignment_id, amount, reason):
         """Throw an error."""
         raise NotImplementedError
@@ -518,6 +523,37 @@ class MTurkRecruiter(Recruiter):
             "items": [url],
             "message": "HIT now published to Amazon Mechanical Turk",
         }
+
+    def compensate_worker(self, worker_id, dollars, notify=True):
+        """Pay a worker by means of a special HIT that only they can see.
+        """
+        qualification = self.mturkservice.create_qualification_type(
+            name="Dallinger Compensation Qualification - {}".format(
+                generate_random_id()
+            ),
+            description=(
+                "You have received a qualification to allow you to complete a "
+                "compensation HIT from Dallinger for ${}.".format(dollars)
+            ),
+        )
+        qid = qualification["id"]
+        self.mturkservice.assign_qualification(qid, worker_id, 1, notify=notify)
+        hit_request = {
+            "experiment_id": "(compensation only)",
+            "max_assignments": 1,
+            "title": "Dallinger Compensation HIT",
+            "description": "For compenation only; no task required.",
+            "keywords": [],
+            "reward": float(dollars),
+            "duration_hours": 1,
+            "lifetime_days": 3,
+            "question": MTurkQuestions.compensation(sandbox=self._is_sandbox),
+            "qualifications": [MTurkQualificationRequirements.must_have(qid)],
+            "do_subscribe": False,
+        }
+        hit_info = self.mturkservice.create_hit(**hit_request)
+
+        return {"hit": hit_info, "qualification": qualification}
 
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""

@@ -90,6 +90,10 @@ class TestRecruiter(object):
         with pytest.raises(NotImplementedError):
             recruiter.close_recruitment()
 
+    def test_compensate_worker(self, recruiter):
+        with pytest.raises(NotImplementedError):
+            recruiter.compensate_worker()
+
     def test_reward_bonus(self, recruiter):
         with pytest.raises(NotImplementedError):
             recruiter.reward_bonus("any assignment id", 0.01, "You're great!")
@@ -446,8 +450,8 @@ def mturkservice(active_config):
 
     mturk.check_credentials.return_value = True
     mturk.create_qualification_type.return_value = {
-        "name": "QualifcationType name",
-        "id": "QualifcationType id",
+        "name": "QualificationType name",
+        "id": "QualificationType id",
     }
     mturk.create_hit.return_value = {
         "type_id": "fake type id",
@@ -588,7 +592,7 @@ class TestMTurkRecruiter(object):
 
     def test_open_recruitment_with_blacklist(self, recruiter):
         recruiter.config.set("qualification_blacklist", u"foo, bar")
-        # Our fake response will always return the same QualifcationType ID
+        # Our fake response will always return the same QualificationType ID
         recruiter.mturkservice.get_qualification_type_by_name.return_value = {
             "id": u"fake id"
         }
@@ -724,6 +728,20 @@ class TestMTurkRecruiter(object):
         recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
         recruiter.close_recruitment()
         recruiter.mturkservice.expire_hit.assert_called_once_with(fake_hit_id)
+
+    def test_compensate_worker(self, recruiter):
+        result = recruiter.compensate_worker(worker_id="XWZ", dollars=10)
+        assert result == {
+            "hit": {"type_id": "fake type id", "worker_url": "http://the-hit-url"},
+            "qualification": {
+                "name": "QualificationType name",
+                "id": "QualificationType id",
+            },
+        }
+        recruiter.mturkservice.create_qualification_type.assert_called_once()
+        recruiter.mturkservice.assign_qualification.assert_called_once_with(
+            "QualificationType id", "XWZ", 1, notify=True
+        )
 
     def test_notify_completed_assigns_exp_qualification(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id="some worker id")
