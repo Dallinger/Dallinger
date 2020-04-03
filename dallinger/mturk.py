@@ -142,6 +142,37 @@ class MTurkQuestions(object):
         )
         return q.format(ad_url, frame_height)
 
+    @staticmethod
+    def compensation(title="Compensation HIT", sandbox=False, frame_height=600):
+        if sandbox:
+            action = "https://workersandbox.mturk.com/mturk/externalSubmit"
+        else:
+            action = "https://www.mturk.com/mturk/externalSubmit"
+
+        q = (
+            '<HTMLQuestion xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2011-11-11/HTMLQuestion.xsd">'
+            "<HTMLContent><![CDATA[<!DOCTYPE html><html>"
+            "<head>"
+            '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>'
+            '<script type="text/javascript" src="https://s3.amazonaws.com/mturk-public/externalHIT_v1.js"></script>'
+            "</head>"
+            "<body>"
+            '<form name="mturk_form" method="post" id="mturk_form" action="{}">'
+            '<input type="hidden" value="" name="assignmentId" id="assignmentId"/>'
+            "<h1>{}</h1>"
+            "<p>We are sorry that you encountered difficulties with our experiment. "
+            "We will compensate you immediately upon submission of this HIT.</p>"
+            '<input type="hidden" name="some-input-required" value="anything" ></input>'
+            '<input type="submit" id="submitButton" value="Submit" /></p></form>'
+            '<script language="Javascript">turkSetAssignmentID();</script>'
+            "</body></html>]]>"
+            "</HTMLContent>"
+            "<FrameHeight>{}</FrameHeight>"
+            "</HTMLQuestion>"
+        )
+
+        return q.format(action, title, frame_height)
+
 
 class MTurkQualificationRequirements(object):
     """Syntactic correctness for MTurk QualificationRequirements

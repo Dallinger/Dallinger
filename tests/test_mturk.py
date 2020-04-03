@@ -513,10 +513,26 @@ class TestMTurkService(object):
         hit = with_cleanup.create_hit(**standard_hit_config(annotation="test-exp-id"))
         assert hit["annotation"] == "test-exp-id"
 
-    def test_create_hit_with_valid_blacklist(self, with_cleanup, qtype):
-        quals = MTurkQualificationRequirements.must_have(qualification_id=qtype["id"])
-        hit = with_cleanup.create_hit(**standard_hit_config(qualifications=[quals]))
+    def test_create_hit_with_qualification(self, with_cleanup, qtype):
+        qual = MTurkQualificationRequirements.must_not_have(
+            qualification_id=qtype["id"]
+        )
+        hit = with_cleanup.create_hit(**standard_hit_config(qualifications=[qual]))
         assert hit["status"] == "Assignable"
+        assert hit["qualification_type_ids"] == [qtype["id"]]
+
+    def test_create_compensation_hit(self, with_cleanup):
+        # In practice, this would include a qualification assigned to a
+        # single worker.
+        hit = with_cleanup.create_hit(
+            **standard_hit_config(
+                title="Compensation Immediate",
+                lifetime_days=0.1,
+                question=MTurkQuestions.compensation(sandbox=True),
+            )
+        )
+        assert hit["status"] == "Assignable"
+        assert hit["max_assignments"] == 1
 
     def test_extend_hit_with_valid_hit_id(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
@@ -785,7 +801,9 @@ class TestInteractive(object):
         hit = with_cleanup.create_hit(
             **standard_hit_config(
                 title="Dallinger: Blacklist",
-                blacklist=[qtype["name"]],
+                qualifications=[
+                    MTurkQualificationRequirements.must_not_have(qtype["id"])
+                ],
                 lifetime_days=0.25,
             )
         )
