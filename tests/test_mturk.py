@@ -527,7 +527,6 @@ class TestMTurkService(object):
         hit = with_cleanup.create_hit(
             **standard_hit_config(
                 title="Compensation Immediate",
-                lifetime_days=0.1,
                 question=MTurkQuestions.compensation(sandbox=True),
             )
         )
