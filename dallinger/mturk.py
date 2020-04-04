@@ -707,9 +707,9 @@ class MTurkService(object):
 
     def _worker_hit_url(self, type_id):
         if self.is_sandbox:
-            url = "https://workersandbox.mturk.com/mturk/preview?groupId={}"
+            url = "https://workersandbox.mturk.com/projects/{}/tasks"
         else:
-            url = "https://worker.mturk.com/mturk/preview?groupId={}"
+            url = "https://worker.mturk.com/projects/{}/tasks"
 
         return url.format(type_id)
 

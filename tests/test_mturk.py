@@ -991,7 +991,7 @@ class TestMTurkServiceWithFakeConnection(object):
             "status": "Assignable",
             "title": "Test Title",
             "type_id": "3V76OXST9SAE3THKN85FUPK7730050",
-            "worker_url": "https://workersandbox.mturk.com/mturk/preview?groupId=3V76OXST9SAE3THKN85FUPK7730050",
+            "worker_url": "https://workersandbox.mturk.com/projects/3V76OXST9SAE3THKN85FUPK7730050/tasks",
         }
 
     def test_create_hit_creates_no_sns_subscription_when_asked_not_to(self, with_mock):
