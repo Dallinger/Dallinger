@@ -88,7 +88,7 @@ For Mechanical Turk, compensation is acheived by:
     2. Creating a very simple HIT which is only visible to workers with this
        qualification, using the dollar amount specified in the command as the
        base payment
-    3. Automatically approving (and this granting base payment) when the HIT
+    3. Automatically approving (and thus granting base payment) when the HIT
        is submitted.
 
 Usage:
