@@ -486,19 +486,6 @@ class TestMTurkService(object):
         with pytest.raises(MTurkServiceException):
             mturk.check_credentials()
 
-    def test_register_hit_type(self, mturk):
-        config = {
-            "title": "Test Title",
-            "description": "Test Description",
-            "keywords": ["testkw1", "testkw2"],
-            "reward": 0.01,
-            "duration_hours": 0.25,
-            "qualifications": (),
-        }
-        hit_type_id = mturk.register_hit_type(**config)
-
-        assert isinstance(hit_type_id, six.text_type)
-
     def test_create_hit(self, with_cleanup):
         hit = with_cleanup.create_hit(**standard_hit_config())
         assert hit["status"] == "Assignable"
@@ -648,7 +635,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 
     def test_can_update_existing_qualification(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(qtype["id"], worker_id, score=2)
-        with_cleanup.update_qualification_score(qtype["id"], worker_id, score=3)
+        with_cleanup.assign_qualification(qtype["id"], worker_id, score=3)
 
         assert with_cleanup.get_qualification_score(qtype["id"], worker_id) == 3
 
@@ -673,21 +660,6 @@ class TestMTurkServiceWithRequesterAndWorker(object):
         workers = with_cleanup.get_workers_with_qualification(qtype["id"])
 
         assert worker_id in [w["id"] for w in workers]
-
-    def test_set_qualification_score_with_new_qualification(
-        self, with_cleanup, worker_id, qtype
-    ):
-        with_cleanup.set_qualification_score(qtype["id"], worker_id, score=2)
-
-        assert with_cleanup.get_qualification_score(qtype["id"], worker_id) == 2
-
-    def test_set_qualification_score_with_existing_qualification(
-        self, with_cleanup, worker_id, qtype
-    ):
-        with_cleanup.assign_qualification(qtype["id"], worker_id, score=2)
-        with_cleanup.set_qualification_score(qtype["id"], worker_id, score=3)
-
-        assert with_cleanup.get_qualification_score(qtype["id"], worker_id) == 3
 
     def test_get_current_qualification_score(self, with_cleanup, worker_id, qtype):
         with_cleanup.assign_qualification(qtype["id"], worker_id, score=2)
@@ -904,36 +876,6 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.mturk.list_qualification_types.side_effect = qtypes
         name = qtypes[0]["QualificationTypes"][0]["Name"]
         assert with_mock.get_qualification_type_by_name(name)["name"] == name
-
-    def test_register_hit_type(self, with_mock):
-        config = {
-            "title": "Test Title",
-            "description": "Test Description",
-            "keywords": ["testkw1", "testkw2"],
-            "reward": 0.01,
-            "duration_hours": 0.25,
-            "qualifications": (),
-        }
-        with_mock.mturk.configure_mock(
-            **{
-                "get_account_balance.return_value": fake_balance_response(),
-                "create_hit_type.return_value": fake_hit_type_response(),
-            }
-        )
-
-        with_mock.register_hit_type(**config)
-
-        with_mock.mturk.create_hit_type.assert_called_once_with(
-            Title="Test Title",
-            Description="Test Description",
-            Reward="0.01",
-            AssignmentDurationInSeconds=int(
-                datetime.timedelta(hours=0.25).total_seconds()
-            ),
-            Keywords="testkw1,testkw2",
-            AutoApprovalDelayInSeconds=0,
-            QualificationRequirements=(),
-        )
 
     def test_get_assignment_converts_result(self, with_mock):
         fake_response = fake_get_assignment_response()
@@ -1224,30 +1166,6 @@ class TestMTurkServiceWithFakeConnection(object):
             **{"associate_qualification_with_worker.return_value": response_metadata()}
         )
         assert with_mock.assign_qualification("qid", "worker", "score")
-        with_mock.mturk.associate_qualification_with_worker.assert_called_once_with(
-            IntegerValue="score",
-            QualificationTypeId="qid",
-            SendNotification=False,
-            WorkerId="worker",
-        )
-
-    def test_update_qualification_score(self, with_mock):
-        with_mock.mturk.configure_mock(
-            **{"associate_qualification_with_worker.return_value": response_metadata()}
-        )
-        assert with_mock.update_qualification_score("qid", "worker", "score")
-        with_mock.mturk.associate_qualification_with_worker.assert_called_once_with(
-            IntegerValue="score",
-            QualificationTypeId="qid",
-            SendNotification=False,
-            WorkerId="worker",
-        )
-
-    def test_set_qualification_score_forwards_for_bbb(self, with_mock):
-        with_mock.mturk.configure_mock(
-            **{"associate_qualification_with_worker.return_value": response_metadata()}
-        )
-        assert with_mock.set_qualification_score("qid", "worker", "score")
         with_mock.mturk.associate_qualification_with_worker.assert_called_once_with(
             IntegerValue="score",
             QualificationTypeId="qid",

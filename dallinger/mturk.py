@@ -276,26 +276,6 @@ class MTurkService(object):
         """Called by the MTurkRecruiter Flask route"""
         self.sns.confirm_subscription(token=token, topic=topic)
 
-    def register_hit_type(
-        self, title, description, reward, duration_hours, keywords, qualifications
-    ):
-        """Register HIT Type for this HIT and return the type's ID, which
-        is required for creating a HIT.
-        """
-        reward = str(reward)
-        duration_secs = int(datetime.timedelta(hours=duration_hours).total_seconds())
-        hit_type = self.mturk.create_hit_type(
-            Title=title,
-            Description=description,
-            Reward=reward,
-            AssignmentDurationInSeconds=duration_secs,
-            Keywords=",".join(keywords),
-            AutoApprovalDelayInSeconds=0,
-            QualificationRequirements=qualifications,
-        )
-
-        return hit_type["HITTypeId"]
-
     def create_qualification_type(self, name, description, status="Active"):
         """Create a new qualification Workers can be scored for.
         """
@@ -354,10 +334,6 @@ class MTurkService(object):
                 SendNotification=notify,
             )
         )
-
-    # BBB:
-    set_qualification_score = assign_qualification
-    update_qualification_score = assign_qualification
 
     def increment_qualification_score(self, name, worker_id, notify=False):
         """Increment the current qualification score for a worker, on a
@@ -471,7 +447,7 @@ class MTurkService(object):
         """
 
         # We need a HIT_Type in order to register for notifications
-        hit_type_id = self.register_hit_type(
+        hit_type_id = self._register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
         )
         if do_subscribe:
@@ -663,6 +639,26 @@ class MTurkService(object):
             },
             Active=True,
         )
+
+    def _register_hit_type(
+        self, title, description, reward, duration_hours, keywords, qualifications
+    ):
+        """Register HIT Type for this HIT and return the type's ID, which
+        is required for creating a HIT.
+        """
+        reward = str(reward)
+        duration_secs = int(datetime.timedelta(hours=duration_hours).total_seconds())
+        hit_type = self.mturk.create_hit_type(
+            Title=title,
+            Description=description,
+            Reward=reward,
+            AssignmentDurationInSeconds=duration_secs,
+            Keywords=",".join(keywords),
+            AutoApprovalDelayInSeconds=0,
+            QualificationRequirements=qualifications,
+        )
+
+        return hit_type["HITTypeId"]
 
     def _request_token(self):
         return str(time.time())
