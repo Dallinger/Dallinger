@@ -534,7 +534,7 @@ def compensate(recruiter, worker_id, dollars, no_email, sandbox):
     with config.override({"mode": mode}):
         rec = by_name(recruiter)
         if not click.confirm(
-            '\n\nYou are about to pay worker "{}" ${} in "{}"" mode using the "{}" recruiter.\n'
+            '\n\nYou are about to pay worker "{}" ${} in "{}" mode using the "{}" recruiter.\n'
             "This will{} send an email to them from Amazon MTurk. "
             "Continue?".format(worker_id, dollars, mode, recruiter, no_email_str)
         ):
