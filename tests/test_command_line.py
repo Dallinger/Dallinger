@@ -391,7 +391,7 @@ class TestQualify(object):
             ],
         )
         assert result.exit_code == 0
-        mturk.set_qualification_score.assert_called_once_with(
+        mturk.assign_qualification.assert_called_once_with(
             "some qid", "some worker id", qual_value, notify=False
         )
         mturk.get_workers_with_qualification.assert_called_once_with("some qid")
@@ -436,7 +436,7 @@ class TestQualify(object):
             ],
         )
         assert result.exit_code == 0
-        mturk.set_qualification_score.assert_called_once_with(
+        mturk.assign_qualification.assert_called_once_with(
             "some qid", "some worker id", qual_value, notify=True
         )
 
@@ -454,7 +454,7 @@ class TestQualify(object):
             ],
         )
         assert result.exit_code == 0
-        mturk.set_qualification_score.assert_has_calls(
+        mturk.assign_qualification.assert_has_calls(
             [
                 mock.call(u"some qid", u"worker1", 1, notify=False),
                 mock.call(u"some qid", u"worker2", 1, notify=False),
@@ -476,7 +476,7 @@ class TestQualify(object):
             ],
         )
         assert result.exit_code == 0
-        mturk.set_qualification_score.assert_called_once_with(
+        mturk.assign_qualification.assert_called_once_with(
             "some qid", "some worker id", qual_value, notify=False
         )
         mturk.get_workers_with_qualification.assert_called_once_with("some qid")
