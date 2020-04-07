@@ -538,7 +538,7 @@ class DebugDeployment(HerokuLocalDeployment):
         r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
 
-    def __init__(self, output, verbose, bot, proxy_port, exp_config):
+    def __init__(self, output, verbose, bot, proxy_port, exp_config, no_browsers=False):
         self.out = output
         self.verbose = verbose
         self.bot = bot
@@ -547,6 +547,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.original_dir = os.getcwd()
         self.complete = False
         self.status_thread = None
+        self.no_browsers = no_browsers
 
     def configure(self):
         super(DebugDeployment, self).configure()
@@ -585,6 +586,9 @@ class DebugDeployment(HerokuLocalDeployment):
         person doing local debugging).
         """
         self.out.log("new recruitment request!")
+        if self.no_browsers:
+            self.out.log(recruiters.NEW_RECRUIT_LOG_PREFIX + ": " + match.group(1))
+            return
         url = match.group(1)
         if self.proxy_port is not None:
             self.out.log("Using proxy port {}".format(self.proxy_port))
@@ -596,6 +600,8 @@ class DebugDeployment(HerokuLocalDeployment):
 
         Start a thread to check the experiment summary.
         """
+        if self.no_browsers:
+            self.out.log(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
         if self.status_thread is None:
             self.status_thread = threading.Thread(target=self.check_status)
             self.status_thread.start()
