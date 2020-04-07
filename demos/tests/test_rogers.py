@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 
+import os
 import sys
 import random
 import traceback
@@ -31,6 +32,14 @@ def timenow():
     return datetime.now()
 
 
+@pytest.fixture(scope="class")
+def rogers_dir(root):
+    os.chdir("./dlgr/demos/rogers")
+    yield
+    os.chdir(root)
+
+
+@pytest.mark.usefixtures("rogers_dir")
 class TestRogers(object):
     def setup(self):
         from dallinger.config import get_config
