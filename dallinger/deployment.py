@@ -181,7 +181,16 @@ def assemble_experiment_temp_dir(config):
     """
     app_id = config.get("id")
 
-    dst = os.path.join(tempfile.mkdtemp(), app_id)
+    config_dict = config.as_dict()
+    if 'local_debug_folder' in config_dict.keys():
+        dst = config_dict['local_debug_folder']
+    else:
+        dst = os.path.join(tempfile.mkdtemp(), app_id)
+
+    # Make sure to remove any old directories with the same name
+    if os.path.exists(dst):
+        shutil.rmtree(dst)
+
 
     # Copy local experiment files, minus some
     ExperimentFileSource(os.getcwd()).selective_copy_to(dst)
