@@ -5,6 +5,26 @@ import pytest
 pytest_plugins = ["pytest_dallinger"]
 
 
+@pytest.fixture(scope="class", autouse=True)
+def reset_config():
+    yield
+
+    # Make sure dallinger_experiment module isn't kept between tests
+    import sys
+
+    to_delete = []
+    for module in sys.modules:
+        if module.startswith("dallinger_experiment"):
+            to_delete.append(module)
+    for module in to_delete:
+        del sys.modules[module]
+
+    # Make sure extra parameters aren't kept between tests
+    import dallinger.config
+
+    dallinger.config.config = None
+
+
 @pytest.fixture(scope="session", autouse=True)
 def subprocess_coverage():
     # Set env var to trigger starting coverage for subprocesses

@@ -72,26 +72,6 @@ def clear_workers():
     _zap()
 
 
-@pytest.fixture(scope="class", autouse=True)
-def reset_config():
-    yield
-
-    # Make sure dallinger_experiment module isn't kept between tests
-    import sys
-
-    to_delete = []
-    for module in sys.modules:
-        if module.startswith("dallinger_experiment"):
-            to_delete.append(module)
-    for module in to_delete:
-        del sys.modules[module]
-
-    # Make sure extra parameters aren't kept between tests
-    import dallinger.config
-
-    dallinger.config.config = None
-
-
 @pytest.fixture(scope="session")
 def env():
     # Heroku requires a home directory to start up
@@ -201,8 +181,10 @@ def active_config(stub_config):
     """
     from dallinger import config as c
 
+    orig_config = c.config
     c.config = stub_config
-    return c.config
+    yield c.config
+    c.config = orig_config
 
 
 @pytest.fixture
@@ -392,7 +374,6 @@ def debug_experiment(request, env, clear_workers):
 def recruitment_loop(debug_experiment):
     def recruitment_looper():
         timeout = pytest.config.getvalue("recruiter_timeout", 30)
-        participant = 0
         urls = set()
         while True:
             index = debug_experiment.expect(
@@ -411,8 +392,7 @@ def recruitment_loop(debug_experiment):
                 if url in urls:
                     continue
                 urls.add(url)
-                participant += 1
-                yield participant, url
+                yield url
                 time.sleep(5)
 
     yield recruitment_looper()
@@ -440,11 +420,11 @@ def pytest_generate_tests(metafunc):
 @pytest.fixture
 def selenium_recruits(request, recruitment_loop):
     def recruits():
-        for participant, url in recruitment_loop:
+        for url in recruitment_loop:
             driver = DRIVER_MAP.get(request.param, webdriver.PhantomJS)()
             driver.get(url)
             try:
-                yield participant, driver
+                yield driver
             finally:
                 try:
                     driver.quit()
@@ -461,11 +441,11 @@ def bot_recruits(request, active_config, recruitment_loop):
 
     def recruit_bots():
         bot_class = getattr(request.module, "PYTEST_BOT_CLASS", BotBase)
-        for participant, url in recruitment_loop:
+        for url in recruitment_loop:
             bot = bot_class(url)
             try:
                 bot.sign_up()
-                yield participant, bot
+                yield bot
                 if bot.sign_off():
                     bot.complete_experiment("worker_complete")
                 else:

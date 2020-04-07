@@ -17,16 +17,23 @@ class TestBartlett1932(object):
     """Tests for the Bartlett1932 demo class"""
 
     @pytest.fixture
-    def demo(self, db_session):
-        from dallinger.config import get_config
+    def bartlett_config(self, active_config):
+        from dlgr.demos.bartlett1932.experiment import extra_parameters
+
+        extra_parameters()
+        active_config.set("num_participants", 3)
+        yield active_config
+
+    @pytest.fixture
+    def demo(self, db_session, bartlett_config):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932
 
-        get_config().load()
         instance = Bartlett1932(db_session)
         yield instance
 
     @pytest.fixture
     def two_iterations(self):
+        # Sets environment variable for debug sub-process configuration
         os.environ["NUM_PARTICIPANTS"] = "2"
         yield None
         del os.environ["NUM_PARTICIPANTS"]
@@ -36,7 +43,7 @@ class TestBartlett1932(object):
         assert u"experiment" == demo.networks()[0].role
 
     def test_bartlett_selenium(self, two_iterations, bot_recruits):
-        for participant, bot in bot_recruits:
+        for participant, bot in enumerate(bot_recruits):
             driver = bot.driver
             # Wait until story has loaded
             text_el = wait_for_text(driver, "story", "<< loading >>", removed=True)
@@ -45,8 +52,8 @@ class TestBartlett1932(object):
 
             # If we are not the first participant, look for modified text
             # from prior participants
-            if participant > 1:
-                assert "Copy {} of:".format(participant - 1) in text
+            if participant > 0:
+                assert "Copy {} of:".format(participant) in text
 
             # Acknowledge having read the text
             button = wait_until_clickable(driver, "finish-reading")
@@ -56,7 +63,7 @@ class TestBartlett1932(object):
 
             # Enter modified text and submit
             text_input = wait_for_element(driver, "reproduction")
-            text_input.send_keys("Copy {} of: {}".format(participant, text))
+            text_input.send_keys("Copy {} of: {}".format(participant + 1, text))
 
             submit = wait_until_clickable(driver, "submit-response")
             assert submit.tag_name == "button"
