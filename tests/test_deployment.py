@@ -495,12 +495,12 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         )
 
     def test_scales_different_dynos(self, dsss, heroku_mock, active_config):
-        active_config.set("dyno_type", u"ignored")
-        active_config.set("dyno_type_web", u"tiny")
-        active_config.set("dyno_type_worker", u"massive")
+        active_config.set("dyno_type", "ignored")
+        active_config.set("dyno_type_web", "tiny")
+        active_config.set("dyno_type_worker", "massive")
         dsss(log=mock.Mock())
         heroku_mock.scale_up_dyno.assert_has_calls(
-            [mock.call("web", 1, u"tiny"), mock.call("worker", 1, u"massive")]
+            [mock.call("web", 1, "tiny"), mock.call("worker", 1, "massive")]
         )
 
     def test_calls_launch(self, dsss, heroku_mock, launch):
@@ -590,7 +590,7 @@ class Test_handle_launch_data(object):
                 json=mock.Mock(return_value={"message": "msg!"}),
                 raise_for_status=mock.Mock(side_effect=HTTPError),
                 status_code=500,
-                text=u"Failure",
+                text="Failure",
             )
             with pytest.raises(HTTPError):
                 handler("/some-launch-url", error=log, delay=0.05, attempts=3)
@@ -743,10 +743,10 @@ class TestDebugServer(object):
             with mock.patch("dallinger.deployment.requests.post") as mock_post:
                 mock_post.return_value = mock.Mock(
                     ok=False,
-                    json=mock.Mock(return_value={"message": u"msg!"}),
+                    json=mock.Mock(return_value={"message": "msg!"}),
                     raise_for_status=mock.Mock(side_effect=HTTPError),
                     status_code=500,
-                    text=u"Failure",
+                    text="Failure",
                 )
                 debugger.run()
 
@@ -755,7 +755,7 @@ class TestDebugServer(object):
             [
                 mock.call("Error accessing /launch (500):\nFailure"),
                 mock.call("Experiment launch failed, check web dyno logs for details."),
-                mock.call(u"msg!"),
+                mock.call("msg!"),
             ]
         )
 

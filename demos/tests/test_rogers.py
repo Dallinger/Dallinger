@@ -14,7 +14,6 @@ import requests
 import threading
 import time
 
-from dallinger import db
 from dallinger.nodes import Agent, Source
 from dallinger.information import Gene, Meme, State
 from dallinger import models
@@ -41,26 +40,23 @@ def rogers_dir(root):
 
 @pytest.mark.usefixtures("rogers_dir")
 class TestRogers(object):
-    def setup(self):
-        from dallinger.config import get_config
+    @pytest.fixture
+    def rogers_config(self, active_config):
+        from dlgr.demos.rogers.experiment import extra_parameters
 
-        config = get_config()
-        config.load()
-        self.db = db.init_db(drop_all=True)
+        extra_parameters()
+        active_config.set("experiment_repeats", 10)
+        active_config.set("practice_repeats", 0)
+        active_config.set("practice_difficulty", 0.80)
+        active_config.set("difficulties", "0.525, 0.5625, 0.65")
+        active_config.set("catch_difficulty", 0.80)
+        active_config.set("min_acceptable_performance", 0.833333333333333)
+        active_config.set("generation_size", 2)
+        active_config.set("generations", 3)
+        active_config.set("bonus_payment", 1.0)
+        yield active_config
 
-    def teardown(self):
-        self.db.rollback()
-        self.db.close()
-        from dallinger.config import get_config
-
-        config = get_config()
-        config.clear()
-
-    def add(self, *args):
-        self.db.add_all(args)
-        self.db.commit()
-
-    def test_run_rogers(self):
+    def test_run_rogers(self, rogers_config, db_session):
         """
         SIMULATE ROGERS
         """
@@ -73,11 +69,11 @@ class TestRogers(object):
         sys.stdout.flush()
 
         exp_setup_start = timenow()
-        exp = RogersExperiment(self.db)
+        exp = RogersExperiment(db_session)
         exp_setup_stop = timenow()
 
         exp_setup_start2 = timenow()
-        exp = RogersExperiment(self.db)
+        exp = RogersExperiment(db_session)
         exp_setup_stop2 = timenow()
 
         p_ids = []
@@ -124,8 +120,8 @@ class TestRogers(object):
                 hit_id=hit_id,
                 mode="debug",
             )
-            self.db.add(p)
-            self.db.commit()
+            db_session.add(p)
+            db_session.commit()
             p_id = p.id
             p_ids.append(p_id)
             p_start_time = timenow()
@@ -138,9 +134,9 @@ class TestRogers(object):
                 else:
                     agent = exp.create_node(participant=p, network=network)
                     exp.add_node_to_network(node=agent, network=network)
-                    self.db.commit()
+                    db_session.commit()
                     exp.node_post_request(participant=p, node=agent)
-                    self.db.commit()
+                    db_session.commit()
                     assign_stop_time = timenow()
                     assign_time += assign_stop_time - assign_start_time
 
@@ -165,7 +161,7 @@ class TestRogers(object):
                             info = Meme(origin=agent, contents=right_answer)
                         else:
                             info = Meme(origin=agent, contents=wrong_answer)
-                    self.db.commit()
+                    db_session.commit()
                     exp.info_post_request(node=agent, info=info)
                     # print("state: {}, answer: {}, score: {}, fitness {}".format(
                     #     current_state, info.contents, agent.score, agent.fitness))
@@ -188,7 +184,7 @@ class TestRogers(object):
                 for node in participant_nodes:
                     node.fail()
 
-                self.db.commit()
+                db_session.commit()
             else:
                 p.status = "approved"
                 exp.submission_successful(participant=p)
