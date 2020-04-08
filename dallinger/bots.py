@@ -3,6 +3,7 @@
 import json
 import logging
 import random
+import tempfile
 import uuid
 
 from cached_property import cached_property
@@ -89,7 +90,14 @@ class BotBase(object):
         else:
             driver_class = DRIVER_MAP.get(driver_type.lower())
             if driver_class is not None:
-                driver = driver_class()
+                kwargs = {}
+                # Phantom JS needs a new local storage directory for every run
+                if driver_class is webdriver.PhantomJS:
+                    tmpdirname = tempfile.mkdtemp()
+                    kwargs = {
+                        "service_args": ["--local-storage-path={}".format(tmpdirname)],
+                    }
+                driver = driver_class(**kwargs)
 
         if driver is None:
             raise ValueError("Unsupported webdriver_type: {}".format(driver_type))

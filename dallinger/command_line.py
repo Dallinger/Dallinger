@@ -79,9 +79,11 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
 
 
 class Output(object):
-    def __init__(self, log=log, error=error, blather=sys.stdout.write):
+    def __init__(self, log=log, error=error, blather=None):
         self.log = log
         self.error = error
+        if blather is None:
+            blather = sys.stdout.write
         self.blather = blather
 
 
