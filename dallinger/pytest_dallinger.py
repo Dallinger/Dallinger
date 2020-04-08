@@ -425,6 +425,7 @@ def selenium_recruits(request, recruitment_loop):
             driver.get(url)
             try:
                 yield driver
+                driver.get("javascript:window.localStorage.clear();")
             finally:
                 try:
                     driver.quit()
@@ -450,6 +451,7 @@ def bot_recruits(request, active_config, recruitment_loop):
                     bot.complete_experiment("worker_complete")
                 else:
                     bot.complete_experiment("worker_failed")
+                bot.driver.get("javascript:window.localStorage.clear();")
             finally:
                 try:
                     bot.driver.quit()
