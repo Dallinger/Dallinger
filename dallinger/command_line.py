@@ -541,9 +541,19 @@ def compensate(recruiter, worker_id, dollars, no_email, sandbox):
             out.log("Aborting...")
             return
 
-        result = rec.compensate_worker(
-            worker_id=worker_id, dollars=dollars, notify=do_notify
-        )
+        try:
+            result = rec.compensate_worker(
+                worker_id=worker_id, dollars=dollars, notify=do_notify
+            )
+        except Exception as ex:
+            out.error(
+                "Compensation failed. The recruiter reports the following error:\n{}".format(
+                    ex
+                ),
+                delay=0,
+            )
+            return
+
     out.log("HIT Details", delay=0)
     out.log(tabulate.tabulate(result["hit"].items()), chevrons=False, delay=0)
     out.log("Qualification Details", delay=0)

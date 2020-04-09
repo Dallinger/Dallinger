@@ -499,7 +499,7 @@ class TestQualify(object):
         assert 'No qualification with name "some qual name" exists.' in result.output
 
 
-class TestCompensateWorker(object):
+class TestCompensate(object):
 
     DO_IT = "Y\n"
     DO_NOT_DO_IT = "N\n"
@@ -557,6 +557,19 @@ class TestCompensateWorker(object):
         )
         assert result.exit_code == 0
         mturkrecruiter.compensate_worker.assert_not_called()
+
+    def test_traps_errors_and_forwards_message_portion(
+        self, compensate, mturkrecruiter
+    ):
+        with mock.patch("dallinger.command_line.by_name") as by_name:
+            by_name.return_value = mturkrecruiter
+            mturkrecruiter.compensate_worker.side_effect = Exception("Boom!")
+            result = CliRunner().invoke(
+                compensate,
+                ["--worker_id", "some worker ID", "--dollars", "5", "--no_email"],
+                input=self.DO_IT,
+            )
+        assert result.exit_code == 0
 
 
 class TestRevoke(object):
