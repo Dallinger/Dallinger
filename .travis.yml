@@ -16,6 +16,7 @@ jobs:
       - TOXENV=py36
       - PORT=5001
       - base_port=5001
+      - COVERAGE_DEBUG=trace
   - python: 3.6
     env: TOXENV=style
   - python: 3.6
