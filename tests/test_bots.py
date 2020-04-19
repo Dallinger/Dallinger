@@ -17,10 +17,8 @@ class TestBots(object):
         bot = BotBase("http://dallinger.io")
         assert bot
 
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("phantomjs"), reason="--phantomjs was not specified"
-    )
-    def test_bot_using_phantomjs(self):
+    @pytest.mark.slow
+    def test_bot_driver_default_is_phantomjs(self):
         """Create a bot."""
         config.ready = True
         config.extend({"webdriver_type": u"phantomjs"})
