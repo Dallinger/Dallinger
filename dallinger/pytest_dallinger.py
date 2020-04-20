@@ -378,8 +378,8 @@ def recruitment_loop(debug_experiment):
         while True:
             index = debug_experiment.expect(
                 [
-                    r"{}: (.*)$".format(NEW_RECRUIT_LOG_PREFIX),
-                    r"{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
+                    u"{}: (.*)$".format(NEW_RECRUIT_LOG_PREFIX),
+                    u"{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
                 ],
                 timeout=timeout,
             )
@@ -399,9 +399,9 @@ def recruitment_loop(debug_experiment):
 
 
 DRIVER_MAP = {
-    "phantomjs": webdriver.PhantomJS,
-    "firefox": webdriver.Firefox,
-    "chrome": webdriver.Chrome,
+    u"phantomjs": webdriver.PhantomJS,
+    u"firefox": webdriver.Firefox,
+    u"chrome": webdriver.Chrome,
 }
 
 
@@ -437,7 +437,7 @@ def selenium_recruits(request, recruitment_loop):
 
 @pytest.fixture
 def bot_recruits(request, active_config, recruitment_loop):
-    driver_type = request.param or u"phantom_js"
+    driver_type = request.param or u"phantomjs"
     active_config.set(u"webdriver_type", driver_type)
 
     def recruit_bots():
