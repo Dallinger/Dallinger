@@ -641,6 +641,22 @@ class TestDebugServer(object):
             debugger.status_thread.join()
 
     @pytest.fixture
+    def no_browser_debugger(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output,
+            verbose=True,
+            bot=False,
+            proxy_port=None,
+            exp_config={},
+            no_browsers=True,
+        )
+        yield debugger
+        if debugger.status_thread:
+            debugger.status_thread.join()
+
+    @pytest.fixture
     def debugger(self, debugger_unpatched):
         from dallinger.heroku.tools import HerokuLocalWrapper
 
@@ -694,6 +710,12 @@ class TestDebugServer(object):
         )
 
         browser.open.assert_called_once_with("some-fake-url", autoraise=True, new=1)
+
+    def test_new_recruit_no_browser(self, no_browser_debugger, browser):
+        no_browser_debugger.notify(
+            " {} some-fake-url".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+        )
+        browser.open.assert_not_called()
 
     def test_new_recruit_opens_browser_on_proxy_port(
         self, active_config, debugger_unpatched, browser

@@ -7,7 +7,7 @@ from dallinger.pytest_dallinger import wait_until_clickable
 
 @pytest.fixture(scope="class")
 def bartlett_dir(root):
-    os.chdir("./dlgr/demos/bartlett1932")
+    os.chdir(os.path.join(os.path.dirname(__file__), "..", "dlgr/demos/bartlett1932"))
     yield
     os.chdir(root)
 
@@ -42,6 +42,7 @@ class TestBartlett1932(object):
         assert len(demo.networks()) == 1
         assert u"experiment" == demo.networks()[0].role
 
+    @pytest.mark.slow
     def test_bartlett_selenium(self, two_iterations, bot_recruits):
         for participant, bot in enumerate(bot_recruits):
             driver = bot.driver

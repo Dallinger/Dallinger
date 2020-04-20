@@ -33,7 +33,7 @@ def timenow():
 
 @pytest.fixture(scope="class")
 def rogers_dir(root):
-    os.chdir("./dlgr/demos/rogers")
+    os.chdir(os.path.join(os.path.dirname(__file__), "..", "dlgr/demos/rogers"))
     yield
     os.chdir(root)
 

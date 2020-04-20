@@ -9,16 +9,17 @@ config = get_config()
 
 
 class TestBots(object):
-    def test_create_bot(self):
+    def test_create_bot(self, active_config):
         """Create a bot."""
-        config.ready = True
         from dallinger.bots import BotBase
 
         bot = BotBase("http://dallinger.io")
         assert bot
 
     @pytest.mark.slow
-    def test_bot_driver_default_is_phantomjs(self, active_config):
+    def test_bot_using_phantomjs(self, active_config):
+        """Create a bot."""
+        active_config.extend({"webdriver_type": u"phantomjs"})
         from dallinger.bots import BotBase
 
         bot = BotBase("http://dallinger.io")
@@ -28,11 +29,9 @@ class TestBots(object):
     @pytest.mark.skipif(
         not pytest.config.getvalue("firefox"), reason="--firefox was not specified"
     )
-    def test_bot_using_firefox(self):
+    def test_bot_using_firefox(self, active_config):
         """Create a bot."""
-        return
-        config.ready = True
-        config.extend({"webdriver_type": u"firefox"})
+        active_config.extend({"webdriver_type": u"firefox"})
         from dallinger.bots import BotBase
 
         bot = BotBase("http://dallinger.io")
@@ -41,11 +40,9 @@ class TestBots(object):
     @pytest.mark.skipif(
         not pytest.config.getvalue("chrome"), reason="--chrome was not specified"
     )
-    def test_bot_using_chrome(self):
+    def test_bot_using_chrome(self, active_config):
         """Create a bot."""
-        return
-        config.ready = True
-        config.extend({"webdriver_type": u"chrome"})
+        active_config.extend({"webdriver_type": u"chrome"})
         from dallinger.bots import BotBase
 
         bot = BotBase("http://dallinger.io")
@@ -57,10 +54,9 @@ class TestBots(object):
     @pytest.mark.skipif(
         not pytest.config.getvalue("phantomjs"), reason="--phantomjs was not specified"
     )
-    def test_bot_using_webdriver_phantomjs(self):
+    def test_bot_using_webdriver_phantomjs(self, active_config):
         """Create a bot."""
-        config.ready = True
-        config.extend(
+        active_config.extend(
             {
                 "webdriver_type": u"phantomjs",
                 "webdriver_url": pytest.config.getvalue("webdriver").decode("ascii"),
@@ -78,10 +74,9 @@ class TestBots(object):
     @pytest.mark.skipif(
         not pytest.config.getvalue("firefox"), reason="--firefox was not specified"
     )
-    def test_bot_using_webdriver_firefox(self):
+    def test_bot_using_webdriver_firefox(self, active_config):
         """Create a bot."""
-        config.ready = True
-        config.extend(
+        active_config.extend(
             {
                 "webdriver_type": u"firefox",
                 "webdriver_url": pytest.config.getvalue("webdriver").decode("ascii"),
@@ -99,10 +94,9 @@ class TestBots(object):
     @pytest.mark.skipif(
         not pytest.config.getvalue("chrome"), reason="--chrome was not specified"
     )
-    def test_bot_using_webdriver_chrome(self):
+    def test_bot_using_webdriver_chrome(self, active_config):
         """Create a bot."""
-        config.ready = True
-        config.extend(
+        active_config.extend(
             {
                 "webdriver_type": u"chrome",
                 "webdriver_url": pytest.config.getvalue("webdriver").decode("ascii"),
@@ -117,8 +111,7 @@ class TestBots(object):
 
 class TestHighPerformanceBot(object):
     @pytest.fixture
-    def bot(self):
-        config.ready = True
+    def bot(self, active_config):
         from dallinger.bots import HighPerformanceBotBase
 
         bot = HighPerformanceBotBase(
