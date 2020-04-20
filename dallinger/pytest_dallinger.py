@@ -438,7 +438,7 @@ def selenium_recruits(request, recruitment_loop):
 @pytest.fixture
 def bot_recruits(request, active_config, recruitment_loop):
     driver_type = request.param or u"phantom_js"
-    active_config.set("webdriver_type", driver_type)
+    active_config.set(u"webdriver_type", driver_type)
 
     def recruit_bots():
         bot_class = getattr(request.module, "PYTEST_BOT_CLASS", BotBase)
