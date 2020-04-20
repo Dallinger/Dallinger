@@ -357,11 +357,11 @@ def debug_experiment(request, env, clear_workers):
     p.logfile = sys.stdout
 
     try:
-        p.expect_exact("Server is running", timeout=timeout)
+        p.expect_exact(u"Server is running", timeout=timeout)
         yield p
         if request.node.rep_setup.passed and request.node.rep_call.passed:
-            p.expect_exact("Experiment completed", timeout=timeout)
-            p.expect_exact("Local Heroku process terminated", timeout=timeout)
+            p.expect_exact(u"Experiment completed", timeout=timeout)
+            p.expect_exact(u"Local Heroku process terminated", timeout=timeout)
     finally:
         try:
             p.sendcontrol("c")

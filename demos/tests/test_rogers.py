@@ -48,7 +48,7 @@ class TestRogers(object):
         active_config.set("experiment_repeats", 10)
         active_config.set("practice_repeats", 0)
         active_config.set("practice_difficulty", 0.80)
-        active_config.set("difficulties", "0.525, 0.5625, 0.65")
+        active_config.set("difficulties", u"0.525, 0.5625, 0.65")
         active_config.set("catch_difficulty", 0.80)
         active_config.set("min_acceptable_performance", 0.833333333333333)
         active_config.set("generation_size", 2)
