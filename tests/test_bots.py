@@ -17,6 +17,14 @@ class TestBots(object):
         assert bot
 
     @pytest.mark.slow
+    def test_bot_driver_default_is_phantomjs(self, active_config):
+        from dallinger.bots import BotBase
+
+        bot = BotBase("http://dallinger.io")
+        assert isinstance(bot.driver, webdriver.PhantomJS)
+        bot.driver.quit()
+
+    @pytest.mark.slow
     def test_bot_using_phantomjs(self, active_config):
         """Create a bot."""
         active_config.extend({"webdriver_type": u"phantomjs"})
