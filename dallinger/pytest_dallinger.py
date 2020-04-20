@@ -421,11 +421,18 @@ def pytest_generate_tests(metafunc):
 def selenium_recruits(request, recruitment_loop):
     def recruits():
         for url in recruitment_loop:
-            driver = DRIVER_MAP.get(request.param, webdriver.PhantomJS)()
+            kwargs = {}
+            driver_class = DRIVER_MAP.get(request.param, webdriver.PhantomJS)
+            if driver_class is webdriver.PhantomJS:
+                # PhantomJS needs a new local storage for every run
+                tmpdirname = tempfile.mkdtemp()
+                kwargs = {
+                    "service_args": ["--local-storage-path={}".format(tmpdirname)],
+                }
+            driver = driver_class(**kwargs)
             driver.get(url)
             try:
                 yield driver
-                driver.get("javascript:window.localStorage.clear();")
             finally:
                 try:
                     driver.quit()
@@ -451,7 +458,6 @@ def bot_recruits(request, active_config, recruitment_loop):
                     bot.complete_experiment("worker_complete")
                 else:
                     bot.complete_experiment("worker_failed")
-                bot.driver.get("javascript:window.localStorage.clear();")
             finally:
                 try:
                     bot.driver.quit()
