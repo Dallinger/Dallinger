@@ -31,7 +31,7 @@ from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.deployment import ExperimentFileSource
-from dallinger.notifications import get_messenger
+from dallinger.notifications import admin_notifier
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuInfo
 from dallinger.mturk import MTurkService
@@ -120,7 +120,7 @@ def report_idle_after(seconds):
                     ),
                 }
                 log("Reporting problem with idle experiment...")
-                get_messenger(config).send(message)
+                admin_notifier(config).send(**message)
 
             signal.signal(signal.SIGALRM, _handle_timeout)
             signal.alarm(seconds)
@@ -514,28 +514,46 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
         click.echo("{} with value {}".format(count, score))
 
 
+# @dallinger.command()
+# @click.option("--message", required=True)
+# def mail(message):
+#     config = get_config()
+#     config.load()
+#     mailer = SMTPMailer(
+#         config.get("smtp_host"),
+#         config.get("smtp_username"),
+#         config.get("smtp_password"),
+#     )
+#     msg = EmailMessage(
+#         subject="The Subject",
+#         sender="jesse@rasikaconsulting.com",
+#         recipients=["jsnyder@wesleyan.edu", "jesse@jsnyder.email"],
+#         text=message,
+#     )
+
+#     mailer.send(msg)
+
+
 @dallinger.command()
 @click.option("--recruiter", default="mturk", required=True)
 @click.option("--worker_id", required=True)
-@click.option("--dollars", required=True, type=int)
+@click.option("--email")
+@click.option("--dollars", required=True, type=float)
 @click.option("--sandbox", is_flag=True, flag_value=True, help="Use the MTurk sandbox")
-@click.option(
-    "--no_email", is_flag=True, flag_value=True, help="Don't notify worker by email"
-)
-def compensate(recruiter, worker_id, dollars, no_email, sandbox):
+def compensate(recruiter, worker_id, email, dollars, sandbox):
     """Credit a specific worker by ID through their recruiter"""
     out = Output()
     config = get_config()
     config.load()
     mode = "sandbox" if sandbox else "live"
-    do_notify = not no_email
-    no_email_str = " NOT" if no_email else ""
+    do_notify = email is not None
+    no_email_str = "" if email else " NOT"
 
     with config.override({"mode": mode}):
         rec = by_name(recruiter)
         if not click.confirm(
-            '\n\nYou are about to pay worker "{}" ${} in "{}" mode using the "{}" recruiter.\n'
-            "This will{} send an email to them from Amazon MTurk. "
+            '\n\nYou are about to pay worker "{}" ${:.2f} in "{}" mode using the "{}" recruiter.\n'
+            "The worker will{} be notified by email. "
             "Continue?".format(worker_id, dollars, mode, recruiter, no_email_str)
         ):
             out.log("Aborting...")
@@ -543,7 +561,7 @@ def compensate(recruiter, worker_id, dollars, no_email, sandbox):
 
         try:
             result = rec.compensate_worker(
-                worker_id=worker_id, dollars=dollars, notify=do_notify
+                worker_id=worker_id, email=email, dollars=dollars, notify=do_notify
             )
         except Exception as ex:
             out.error(
@@ -558,6 +576,8 @@ def compensate(recruiter, worker_id, dollars, no_email, sandbox):
     out.log(tabulate.tabulate(result["hit"].items()), chevrons=False, delay=0)
     out.log("Qualification Details", delay=0)
     out.log(tabulate.tabulate(result["qualification"].items()), chevrons=False, delay=0)
+    out.log("Worker Notification", delay=0)
+    out.log(tabulate.tabulate(result["email"].items()), chevrons=False, delay=0)
 
 
 @dallinger.command()

@@ -158,7 +158,7 @@ class TestReportAfterIdleDecorator(object):
         def will_time_out():
             sleep(2)
 
-        with mock.patch("dallinger.command_line.get_messenger") as getter:
+        with mock.patch("dallinger.command_line.admin_notifier") as getter:
             mock_messenger = mock.Mock()
             getter.return_value = mock_messenger
             will_time_out()
@@ -516,8 +516,18 @@ class TestCompensate(object):
 
         recruiter = mock.Mock(spec=MTurkRecruiter)
         recruiter.compensate_worker.return_value = {
-            "hit": {"hit key 1": "hit value 1"},
+            "hit": {
+                "title": "HIT Title",
+                "reward": "5.0",
+                "worker_url": "http://example.com/hit",
+            },
             "qualification": {"qualification key 1": "qualification value 1"},
+            "email": {
+                "subject": "The Subject",
+                "sender": "from@example.com",
+                "recipients": ["w@example.com"],
+                "body": "The\nbody",
+            },
         }
         return recruiter
 
@@ -526,13 +536,23 @@ class TestCompensate(object):
             by_name.return_value = mturkrecruiter
             result = CliRunner().invoke(
                 compensate,
-                ["--worker_id", "some worker ID", "--dollars", "5"],
+                [
+                    "--worker_id",
+                    "some worker ID",
+                    "--email",
+                    "worker@example.com",
+                    "--dollars",
+                    "5.00",
+                ],
                 input=self.DO_IT,
             )
 
         assert result.exit_code == 0
         mturkrecruiter.compensate_worker.assert_called_once_with(
-            worker_id=u"some worker ID", dollars=5, notify=True
+            worker_id=u"some worker ID",
+            email="worker@example.com",
+            dollars=5.0,
+            notify=True,
         )
 
     def test_compensate_without_notification(self, compensate, mturkrecruiter):
@@ -540,19 +560,19 @@ class TestCompensate(object):
             by_name.return_value = mturkrecruiter
             result = CliRunner().invoke(
                 compensate,
-                ["--worker_id", "some worker ID", "--dollars", "5", "--no_email"],
+                ["--worker_id", "some worker ID", "--dollars", "5.0"],
                 input=self.DO_IT,
             )
 
         assert result.exit_code == 0
         mturkrecruiter.compensate_worker.assert_called_once_with(
-            worker_id=u"some worker ID", dollars=5, notify=False
+            worker_id=u"some worker ID", email=None, dollars=5.0, notify=False
         )
 
     def test_can_be_aborted_cleanly_after_warning(self, compensate, mturkrecruiter):
         result = CliRunner().invoke(
             compensate,
-            ["--worker_id", "some worker ID", "--dollars", "5"],
+            ["--worker_id", "some worker ID", "--dollars", "5.0"],
             input=self.DO_NOT_DO_IT,
         )
         assert result.exit_code == 0
@@ -566,7 +586,7 @@ class TestCompensate(object):
             mturkrecruiter.compensate_worker.side_effect = Exception("Boom!")
             result = CliRunner().invoke(
                 compensate,
-                ["--worker_id", "some worker ID", "--dollars", "5", "--no_email"],
+                ["--worker_id", "some worker ID", "--dollars", "5.0"],
                 input=self.DO_IT,
             )
         assert result.exit_code == 0

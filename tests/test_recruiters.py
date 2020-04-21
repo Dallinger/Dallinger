@@ -454,6 +454,8 @@ def mturkservice(active_config):
         "id": "QualificationType id",
     }
     mturk.create_hit.return_value = {
+        "title": "Fake HIT Title",
+        "reward": 2.00,
         "type_id": "fake type id",
         "worker_url": "http://the-hit-url",
     }
@@ -464,14 +466,21 @@ def mturkservice(active_config):
 @pytest.mark.usefixtures("active_config", "requests", "queue")
 class TestMTurkRecruiter(object):
     @pytest.fixture
-    def messenger(self):
-        from dallinger.notifications import DebugMessenger
+    def notifies_admin(self):
+        from dallinger.notifications import NotifiesAdminViaLogs
 
-        mock_messenger = mock.create_autospec(DebugMessenger)
-        yield mock_messenger
+        mock_notifies_admin = mock.create_autospec(NotifiesAdminViaLogs)
+        yield mock_notifies_admin
 
     @pytest.fixture
-    def recruiter(self, active_config, messenger, mturkservice):
+    def mailer(self):
+        from dallinger.notifications import SMTPMailer
+
+        mock_mailer = mock.create_autospec(SMTPMailer)
+        yield mock_mailer
+
+    @pytest.fixture
+    def recruiter(self, active_config, notifies_admin, mailer, mturkservice):
         from dallinger.recruiters import MTurkRecruiter
 
         with mock.patch.multiple(
@@ -481,7 +490,8 @@ class TestMTurkRecruiter(object):
             mocks["os"].getenv.return_value = "fake-host-domain"
             active_config.extend({"mode": u"sandbox"})
             r = MTurkRecruiter()
-            r.messenger = messenger
+            r.notifies_admin = notifies_admin
+            r.mailer = mailer
             r.mturkservice = mturkservice
 
             return r
@@ -730,18 +740,27 @@ class TestMTurkRecruiter(object):
         recruiter.mturkservice.expire_hit.assert_called_once_with(fake_hit_id)
 
     def test_compensate_worker(self, recruiter):
-        result = recruiter.compensate_worker(worker_id="XWZ", dollars=10)
+        result = recruiter.compensate_worker(
+            worker_id="XWZ", email="w@example.com", dollars=10
+        )
         assert result == {
-            "hit": {"type_id": "fake type id", "worker_url": "http://the-hit-url"},
+            "hit": {
+                "reward": 2.0,
+                "title": "Fake HIT Title",
+                "type_id": "fake type id",
+                "worker_url": "http://the-hit-url",
+            },
             "qualification": {
                 "name": "QualificationType name",
                 "id": "QualificationType id",
             },
+            "email": {
+                "subject": "Dallinger Compensation HIT",
+                "sender": "test@example.com",
+                "recipients": ["w@example.com"],
+                "body": mock.ANY,  # Avoid overspecification
+            },
         }
-        recruiter.mturkservice.create_qualification_type.assert_called_once()
-        recruiter.mturkservice.assign_qualification.assert_called_once_with(
-            "QualificationType id", "XWZ", 1, notify=True
-        )
 
     def test_notify_completed_assigns_exp_qualification(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id="some worker id")
@@ -837,7 +856,7 @@ class TestMTurkRecruiter(object):
         queue.enqueue.assert_called_once_with(
             worker_function, "AssignmentSubmitted", participants[0].assignment_id, None
         )
-        recruiter.messenger.send.assert_called_once()
+        recruiter.notifies_admin.send.assert_called_once()
 
     def test_notifies_researcher_if_resubmitted(self, a, recruiter):
         recruiter.mturkservice.get_assignment.return_value = {"status": "Submitted"}
@@ -845,7 +864,7 @@ class TestMTurkRecruiter(object):
 
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
-        recruiter.messenger.send.assert_called_once()
+        recruiter.notifies_admin.send.assert_called_once()
 
     def test_shuts_down_recruitment_if_no_status_from_mturk(
         self, a, recruiter, requests
@@ -881,7 +900,7 @@ class TestMTurkRecruiter(object):
 
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
-        recruiter.messenger.send.assert_called_once()
+        recruiter.notifies_admin.send.assert_called_once()
 
     def test_no_assignment_on_mturk_expires_hit(self, a, recruiter):
         recruiter.mturkservice.get_assignment.return_value = {"status": None}

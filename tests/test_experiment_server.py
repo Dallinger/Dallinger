@@ -393,11 +393,11 @@ class TestWorkerComplete(object):
 
 @pytest.fixture
 def mock_messenger():
-    from dallinger.notifications import EmailingMessenger
+    from dallinger.notifications import NotifiesAdminByEmail
 
-    messenger = mock.Mock(spec=EmailingMessenger)
+    messenger = mock.Mock(spec=NotifiesAdminByEmail)
     with mock.patch(
-        "dallinger.experiment_server.experiment_server.get_messenger"
+        "dallinger.experiment_server.experiment_server.admin_notifier"
     ) as get:
         get.return_value = messenger
         yield messenger

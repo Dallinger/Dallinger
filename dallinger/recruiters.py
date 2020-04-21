@@ -17,7 +17,8 @@ from dallinger.experiment_server.utils import success_response
 from dallinger.experiment_server.utils import crossdomain
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
-from dallinger.notifications import get_messenger
+from dallinger.notifications import get_mailer
+from dallinger.notifications import admin_notifier
 from dallinger.notifications import MessengerError
 from dallinger.models import Participant
 from dallinger.models import Recruitment
@@ -456,7 +457,8 @@ class MTurkRecruiter(Recruiter):
             region_name=self.config.get("aws_region"),
             sandbox=self.config.get("mode") != "live",
         )
-        self.messenger = get_messenger(self.config)
+        self.notifies_admin = admin_notifier(self.config)
+        self.mailer = get_mailer(self.config)
         self._validate_config()
 
     def _validate_config(self):
@@ -524,7 +526,7 @@ class MTurkRecruiter(Recruiter):
             "message": "HIT now published to Amazon Mechanical Turk",
         }
 
-    def compensate_worker(self, worker_id, dollars, notify=True):
+    def compensate_worker(self, worker_id, email, dollars, notify=True):
         """Pay a worker by means of a special HIT that only they can see.
         """
         qualification = self.mturkservice.create_qualification_type(
@@ -552,8 +554,24 @@ class MTurkRecruiter(Recruiter):
             "do_subscribe": False,
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
+        if email is not None:
+            message = {
+                "subject": "Dallinger Compensation HIT",
+                "sender": self.config.get("dallinger_email_address"),
+                "recipients": [email],
+                "body": (
+                    "A special compenstation HIT is available for you to complete on MTurk.\n\n"
+                    "Title: {title}\n"
+                    "Reward: ${reward:.2f}\n"
+                    "URL: {worker_url}"
+                ).format(**hit_info),
+            }
 
-        return {"hit": hit_info, "qualification": qualification}
+            self.mailer.send(**message)
+        else:
+            message = {}
+
+        return {"hit": hit_info, "qualification": qualification, "email": message}
 
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
@@ -787,7 +805,7 @@ class MTurkRecruiter(Recruiter):
 
     def _message_researcher(self, message):
         try:
-            self.messenger.send(message)
+            self.notifies_admin.send(message["subject"], message["body"])
         except MessengerError as ex:
             logger.exception(ex)
 

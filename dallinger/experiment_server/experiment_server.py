@@ -21,7 +21,7 @@ from dallinger import experiment
 from dallinger import models
 from dallinger.config import get_config
 from dallinger import recruiters
-from dallinger.notifications import get_messenger
+from dallinger.notifications import admin_notifier
 from dallinger.notifications import MessengerError
 
 from .replay import ReplayBackend
@@ -247,9 +247,9 @@ def handle_error():
         ),
     }
     db.logger.debug("Reporting HIT error...")
-    messenger = get_messenger(config)
+    messenger = admin_notifier(config)
     try:
-        messenger.send(message)
+        messenger.send(**message)
     except MessengerError as ex:
         db.logger.exception(ex)
 
