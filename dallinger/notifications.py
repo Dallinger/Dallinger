@@ -127,19 +127,25 @@ class EmailConfig(object):
     }
 
     def __init__(self, config):
-        # self.config = config
         self.smtp_host = config.get("smtp_host")
         self.smtp_username = config.get("smtp_username", None)
         self.contact_email_on_error = config.get("contact_email_on_error")
         self.smtp_password = config.get("smtp_password", None)
         self.dallinger_email_address = config.get("dallinger_email_address")
 
+    def as_dict(self):
+        cleaned = self.__dict__.copy()
+        password = self.smtp_password
+        if password and password != CONFIG_PLACEHOLDER:
+            cleaned["smtp_password"] = password[:3] + "......" + password[-1]
+
+        return cleaned
+
     def validate(self):
         """Could this config be used to send a real email?"""
         missing = []
         for k in self.mail_config_keys:
             attr = getattr(self, k, False)
-            # attr = self.config.get(k)
             if not attr or attr == CONFIG_PLACEHOLDER:
                 missing.append(k)
         if missing:

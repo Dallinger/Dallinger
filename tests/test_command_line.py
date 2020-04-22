@@ -499,6 +499,34 @@ class TestQualify(object):
         assert 'No qualification with name "some qual name" exists.' in result.output
 
 
+class TestEmailTest(object):
+    @pytest.fixture
+    def email_test(self):
+        from dallinger.command_line import email_test
+
+        return email_test
+
+    @pytest.fixture
+    def mailer(self):
+        from dallinger.notifications import SMTPMailer
+
+        mock_mailer = mock.Mock(spec=SMTPMailer)
+        with mock.patch("dallinger.command_line.SMTPMailer") as klass:
+            klass.return_value = mock_mailer
+            yield mock_mailer
+
+    def test_check_with_good_config(self, email_test, mailer, active_config):
+        result = CliRunner().invoke(email_test,)
+        mailer.send.assert_called_once()
+        assert result.exit_code == 0
+
+    def test_check_with_missing_value(self, email_test, mailer, active_config):
+        active_config.extend({"smtp_username": u"???"})
+        result = CliRunner().invoke(email_test,)
+        mailer.send.assert_not_called()
+        assert result.exit_code == 0
+
+
 class TestCompensate(object):
 
     DO_IT = "Y\n"

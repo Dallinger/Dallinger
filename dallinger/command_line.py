@@ -32,6 +32,9 @@ from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.deployment import ExperimentFileSource
 from dallinger.notifications import admin_notifier
+from dallinger.notifications import SMTPMailer
+from dallinger.notifications import EmailConfig
+from dallinger.notifications import MessengerError
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuInfo
 from dallinger.mturk import MTurkService
@@ -514,24 +517,45 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
         click.echo("{} with value {}".format(count, score))
 
 
-# @dallinger.command()
-# @click.option("--message", required=True)
-# def mail(message):
-#     config = get_config()
-#     config.load()
-#     mailer = SMTPMailer(
-#         config.get("smtp_host"),
-#         config.get("smtp_username"),
-#         config.get("smtp_password"),
-#     )
-#     msg = EmailMessage(
-#         subject="The Subject",
-#         sender="jesse@rasikaconsulting.com",
-#         recipients=["jsnyder@wesleyan.edu", "jesse@jsnyder.email"],
-#         text=message,
-#     )
+@dallinger.command()
+def email_test():
+    """Test email configuration and send a test email."""
+    out = Output()
+    config = get_config()
+    config.load()
+    settings = EmailConfig(config)
+    out.log("Email Config", delay=0)
+    out.log(tabulate.tabulate(settings.as_dict().items()), chevrons=False, delay=0)
+    problems = settings.validate()
+    if problems:
+        out.error(
+            "There are mail configuration problems. Fix these first:\n{}".format(
+                problems
+            )
+        )
+        return
 
-#     mailer.send(msg)
+    else:
+        out.log("✓ email config looks good!")
+    mailer = SMTPMailer(
+        config.get("smtp_host"),
+        config.get("smtp_username"),
+        config.get("smtp_password"),
+    )
+    msg = {
+        "subject": "Test message from Dallinger",
+        "sender": config.get("dallinger_email_address"),
+        "recipients": [config.get("contact_email_on_error")],
+        "body": "This has been a test...",
+    }
+    out.log("Sending a test email from {sender} to {recipients[0]}".format(**msg))
+    try:
+        mailer.send(**msg)
+    except MessengerError:
+        out.error("✗ Message sending failed...")
+        raise
+    else:
+        out.log("✓ Test email sent successfully to {}!".format(msg["recipients"][0]))
 
 
 @dallinger.command()

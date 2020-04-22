@@ -75,6 +75,16 @@ An optional ``--no-scrub`` flag will stop the scrubbing of personally
 identifiable information in the export. The scrubbing of PII is enabled by
 default.
 
+email_test
+~~~~~~~~~~
+
+Validate email settings derived from Dallinger Configuration and send a test
+email if the configuration appears valid.
+
+The test email will use ``dallinger_email_address`` as the sender and
+``contact_email_on_error`` as the recipient.
+
+
 compensate
 ~~~~~~~~~~
 
