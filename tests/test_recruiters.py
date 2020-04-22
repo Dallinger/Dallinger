@@ -467,9 +467,9 @@ def mturkservice(active_config):
 class TestMTurkRecruiter(object):
     @pytest.fixture
     def notifies_admin(self):
-        from dallinger.notifications import NotifiesAdminViaLogs
+        from dallinger.notifications import NotifiesAdmin
 
-        mock_notifies_admin = mock.create_autospec(NotifiesAdminViaLogs)
+        mock_notifies_admin = mock.create_autospec(NotifiesAdmin)
         yield mock_notifies_admin
 
     @pytest.fixture

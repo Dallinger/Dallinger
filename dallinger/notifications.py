@@ -52,9 +52,9 @@ class LoggingMailer(object):
     def __init__(self):
         self._sent = []
 
-    def send(self, subject, sender, recipients, text):
-        msg = "{}:\nSubject: {}\nSender: {}\nRecipients: {}\nBody:\n".format(
-            self.__class__.__name__, subject, sender, ", ".join(recipients), text
+    def send(self, subject, sender, recipients, body):
+        msg = "{}:\nSubject: {}\nSender: {}\nRecipients: {}\nBody:\n{}".format(
+            self.__class__.__name__, subject, sender, ", ".join(recipients), body
         )
 
         logger.info(msg)
@@ -146,31 +146,7 @@ class NotifiesAdmin(object):
         self.toaddr = email_settings.contact_email_on_error
         self.mailer = mailer
 
-
-class NotifiesAdminByEmail(NotifiesAdmin):
-    """Actually sends an email message to the experiment owner.
-    """
-
-    def __init__(self, email_settings, mailer):
-        super(NotifiesAdminByEmail, self).__init__(email_settings, mailer)
-        self.mailer = mailer
-
     def send(self, subject, body):
-        self.mailer.send(subject, self.fromaddr, [self.toaddr], body)
-
-
-class NotifiesAdminViaLogs(NotifiesAdmin):
-    """Used in debug mode.
-
-    Prints the message contents to the log instead of sending an email.
-    """
-
-    def __init__(self, email_settings, mailer):
-        super(NotifiesAdminViaLogs, self).__init__(email_settings, mailer)
-        self._sent = []
-
-    def send(self, subject, body):
-        self._sent.append(": ".join([subject, body]))
         self.mailer.send(subject, self.fromaddr, [self.toaddr], body)
 
 
@@ -181,18 +157,14 @@ def admin_notifier(config):
     version which logs the message instead of attempting to send a real
     email.
     """
-    email_settings = EmailConfig(config)
+    settings = EmailConfig(config)
     if config.get("mode") == "debug":
-        return NotifiesAdminViaLogs(email_settings, LoggingMailer())
-    problems = email_settings.validate()
+        return NotifiesAdmin(settings, LoggingMailer())
+    problems = settings.validate()
     if problems:
         logger.info(problems + " Will log errors instead of emailing them.")
-        return NotifiesAdminViaLogs(email_settings, LoggingMailer())
-    return NotifiesAdminByEmail(
-        email_settings,
-        SMTPMailer(
-            email_settings.smtp_host,
-            email_settings.smtp_username,
-            email_settings.smtp_password,
-        ),
+        return NotifiesAdmin(settings, LoggingMailer())
+    return NotifiesAdmin(
+        settings,
+        SMTPMailer(settings.smtp_host, settings.smtp_username, settings.smtp_password),
     )
