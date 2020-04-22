@@ -79,9 +79,11 @@ def error(msg, delay=0.5, chevrons=True, verbose=True):
 
 
 class Output(object):
-    def __init__(self, log=log, error=error, blather=sys.stdout.write):
+    def __init__(self, log=log, error=error, blather=None):
         self.log = log
         self.error = error
+        if blather is None:
+            blather = sys.stdout.write
         self.blather = blather
 
 
@@ -411,10 +413,17 @@ def get_summary(app):
 @click.option(
     "--proxy", default=None, help="Alternate port when opening browser windows"
 )
+@click.option(
+    "--no-browsers",
+    is_flag=True,
+    flag_value=True,
+    default=False,
+    help="Skip opening browsers",
+)
 @require_exp_directory
-def debug(verbose, bot, proxy, exp_config=None):
+def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
     """Run the experiment locally."""
-    debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config)
+    debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
     log(header, chevrons=False)
     debugger.run()
 
