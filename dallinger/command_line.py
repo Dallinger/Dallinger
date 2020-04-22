@@ -529,7 +529,7 @@ def email_test():
     problems = settings.validate()
     if problems:
         out.error(
-            "There are mail configuration problems. Fix these first:\n{}".format(
+            "✗ There are mail configuration problems. Fix these first:\n{}".format(
                 problems
             )
         )
