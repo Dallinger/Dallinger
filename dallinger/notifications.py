@@ -2,11 +2,7 @@ import logging
 import six
 import smtplib
 from cached_property import cached_property
-
-try:
-    from email.message import EmailMessage as EmailMessage_
-except ImportError:
-    from email.message import Message as EmailMessage_
+from email.mime.text import MIMEText
 
 
 logger = logging.getLogger(__file__)
@@ -34,7 +30,7 @@ class SMTPMailer(object):
         try:
             self.server.starttls()
             self.server.login(self.username, self.password)
-            self.server.send_message(msg)
+            self.server.sendmail(sender, recipients, msg.as_string())
             self.server.quit()
         except smtplib.SMTPException as ex:
             six.raise_from(MessengerError("SMTP error sending HIT error email."), ex)
@@ -44,11 +40,10 @@ class SMTPMailer(object):
         self._sent.append(msg)
 
     def _make_email(self, subject, sender, recipients, body):
-        msg = EmailMessage_()
+        msg = MIMEText(body)
         msg["Subject"] = subject
-        msg["To"] = recipients
+        msg["To"] = ",".join(recipients)
         msg["From"] = sender
-        msg.set_content(body)
 
         return msg
 
