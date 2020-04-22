@@ -18,19 +18,6 @@ class InvalidEmailConfig(ValueError):
     """
 
 
-def EmailMessage(subject, sender, recipients, text):
-    """Factory for making email.message.EmailMessage objects, which have a
-    stupid API.
-    """
-    _message = EmailMessage_()
-    _message["Subject"] = subject
-    _message["To"] = recipients
-    _message["From"] = sender
-    _message.set_content(text)
-
-    return _message
-
-
 class SMTPMailer(object):
     def __init__(self, host, username, password):
         self.host = host
