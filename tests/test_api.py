@@ -46,13 +46,8 @@ class TestAPI(object):
         dataless_uuid = "ed9e7ddd-3e97-452d-9e34-fee5d432258e"
         dallinger.data.register(dataless_uuid, "https://bogus-url.com/something")
 
-        try:
+        with pytest.raises(RuntimeError):
             data = exp.collect(dataless_uuid, recruiter="bots")
-        except RuntimeError:
-            # This is expected for an already registered UUID with no accessible data
-            pass
-        else:
-            pytest.fail("Did not raise RuntimeError for existing UUID")
 
         # In debug mode an unknown UUID fails
         unknown_uuid = "c85d5086-2fa7-4baf-9103-e142b9170cca"
