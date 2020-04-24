@@ -38,6 +38,10 @@ class RevokedQualification(MTurkServiceException):
     """The Qualification has been revoked for this worker."""
 
 
+class NonExistentSubscription(MTurkServiceException):
+    """The SNS subscription does not exist."""
+
+
 class SNSService(object):
     """Handles AWS SNS subscriptions"""
 
@@ -95,6 +99,10 @@ class SNSService(object):
     def cancel_subscription(self, experiment_id):
         logger.warning("Cancelling SNS subscription")
         sns_topic = self._get_sns_topic_for_experiment(experiment_id)
+        if sns_topic is None:
+            raise NonExistentSubscription(
+                "No SNS subscription found for {}".format(experiment_id)
+            )
         self._sns.delete_topic(TopicArn=sns_topic["TopicArn"])
         return True
 
@@ -110,10 +118,99 @@ class SNSService(object):
 
     def _get_sns_topic_for_experiment(self, experiment_id):
         all_topics = self._sns.list_topics()["Topics"]
-        experiment_topics = [
+        experiment_topics = (
             t for t in all_topics if t["TopicArn"].endswith(experiment_id)
-        ]
-        return experiment_topics[0]
+        )
+        try:
+            return next(experiment_topics)
+        except StopIteration:
+            return None
+
+
+class MTurkQuestions(object):
+    """Creates MTurk HIT Question definitions:
+    https://docs.aws.amazon.com/AWSMechTurk/latest/AWSMturkAPI/ApiReference_QuestionAnswerDataArticle.html
+    """
+
+    @staticmethod
+    def external(ad_url, frame_height=600):
+        q = (
+            '<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
+            'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
+            "<ExternalURL>{}</ExternalURL>"
+            "<FrameHeight>{}</FrameHeight></ExternalQuestion>"
+        )
+        return q.format(ad_url, frame_height)
+
+    @staticmethod
+    def compensation(title="Compensation HIT", sandbox=False, frame_height=600):
+        if sandbox:
+            action = "https://workersandbox.mturk.com/mturk/externalSubmit"
+        else:
+            action = "https://www.mturk.com/mturk/externalSubmit"
+
+        q = (
+            '<HTMLQuestion xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2011-11-11/HTMLQuestion.xsd">'
+            "<HTMLContent><![CDATA[<!DOCTYPE html><html>"
+            "<head>"
+            '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>'
+            '<script type="text/javascript" src="https://s3.amazonaws.com/mturk-public/externalHIT_v1.js"></script>'
+            "</head>"
+            "<body>"
+            '<form name="mturk_form" method="post" id="mturk_form" action="{}">'
+            '<input type="hidden" value="" name="assignmentId" id="assignmentId"/>'
+            "<h1>{}</h1>"
+            "<p>We are sorry that you encountered difficulties with our experiment. "
+            "We will compensate you immediately upon submission of this HIT.</p>"
+            '<input type="hidden" name="some-input-required" value="anything" ></input>'
+            '<input type="submit" id="submitButton" value="Submit" /></p></form>'
+            '<script language="Javascript">turkSetAssignmentID();</script>'
+            "</body></html>]]>"
+            "</HTMLContent>"
+            "<FrameHeight>{}</FrameHeight>"
+            "</HTMLQuestion>"
+        )
+
+        return q.format(action, title, frame_height)
+
+
+class MTurkQualificationRequirements(object):
+    """Syntactic correctness for MTurk QualificationRequirements
+    """
+
+    @staticmethod
+    def min_approval(percentage):
+        return {
+            "QualificationTypeId": PERCENTAGE_APPROVED_REQUIREMENT_ID,
+            "Comparator": "GreaterThanOrEqualTo",
+            "IntegerValues": [percentage],
+            "RequiredToPreview": True,
+        }
+
+    @staticmethod
+    def restrict_to_countries(countries):
+        return {
+            "QualificationTypeId": LOCALE_REQUIREMENT_ID,
+            "Comparator": "EqualTo",
+            "LocaleValues": [{"Country": country} for country in countries],
+            "RequiredToPreview": True,
+        }
+
+    @staticmethod
+    def must_have(qualification_id):
+        return {
+            "QualificationTypeId": qualification_id,
+            "Comparator": "Exists",
+            "RequiredToPreview": True,
+        }
+
+    @staticmethod
+    def must_not_have(qualification_id):
+        return {
+            "QualificationTypeId": qualification_id,
+            "Comparator": "DoesNotExist",
+            "RequiredToPreview": True,
+        }
 
 
 class MTurkService(object):
@@ -128,14 +225,12 @@ class MTurkService(object):
         region_name,
         sandbox=True,
         max_wait_secs=0,
-        subscribe=True,
     ):
         self.aws_key = aws_access_key_id
         self.aws_secret = aws_secret_access_key
         self.region_name = region_name
         self.is_sandbox = sandbox
         self.max_wait_secs = max_wait_secs
-        self.do_subscribe = subscribe
 
     @cached_property
     def mturk(self):
@@ -180,62 +275,6 @@ class MTurkService(object):
     def confirm_subscription(self, token, topic):
         """Called by the MTurkRecruiter Flask route"""
         self.sns.confirm_subscription(token=token, topic=topic)
-
-    def register_hit_type(
-        self, title, description, reward, duration_hours, keywords, qualifications
-    ):
-        """Register HIT Type for this HIT and return the type's ID, which
-        is required for creating a HIT.
-        """
-        reward = str(reward)
-        duration_secs = int(datetime.timedelta(hours=duration_hours).total_seconds())
-        hit_type = self.mturk.create_hit_type(
-            Title=title,
-            Description=description,
-            Reward=reward,
-            AssignmentDurationInSeconds=duration_secs,
-            Keywords=",".join(keywords),
-            AutoApprovalDelayInSeconds=0,
-            QualificationRequirements=qualifications,
-        )
-
-        return hit_type["HITTypeId"]
-
-    def build_hit_qualifications(self, approve_requirement, restrict_to_usa, blacklist):
-        """Translate restrictions/qualifications to boto Qualifications objects
-
-        @blacklist is a list of names for Qualifications workers must
-        not already hold in order to see and accept the HIT.
-        """
-        quals = [
-            {
-                "QualificationTypeId": PERCENTAGE_APPROVED_REQUIREMENT_ID,
-                "Comparator": "GreaterThanOrEqualTo",
-                "IntegerValues": [approve_requirement],
-                "RequiredToPreview": True,
-            }
-        ]
-        if restrict_to_usa:
-            quals.append(
-                {
-                    "QualificationTypeId": LOCALE_REQUIREMENT_ID,
-                    "Comparator": "EqualTo",
-                    "LocaleValues": [{"Country": "US"}],
-                    "RequiredToPreview": True,
-                }
-            )
-        if blacklist is not None:
-            for item in blacklist:
-                qtype = self.get_qualification_type_by_name(item)
-                if qtype:
-                    quals.append(
-                        {
-                            "QualificationTypeId": qtype["id"],
-                            "Comparator": "DoesNotExist",
-                            "RequiredToPreview": True,
-                        }
-                    )
-        return quals
 
     def create_qualification_type(self, name, description, status="Active"):
         """Create a new qualification Workers can be scored for.
@@ -295,10 +334,6 @@ class MTurkService(object):
                 SendNotification=notify,
             )
         )
-
-    # BBB:
-    set_qualification_score = assign_qualification
-    update_qualification_score = assign_qualification
 
     def increment_qualification_score(self, name, worker_id, notify=False):
         """Increment the current qualification score for a worker, on a
@@ -401,31 +436,27 @@ class MTurkService(object):
         reward,
         duration_hours,
         lifetime_days,
-        ad_url,
-        notification_url,
-        approve_requirement,
+        question,
         max_assignments,
-        us_only,
-        blacklist=None,
+        notification_url=None,
         annotation=None,
+        qualifications=(),
+        do_subscribe=True,
     ):
-        """Create the actual HIT and return a dict with its useful properties."""
-        frame_height = 600
-        mturk_question = self._external_question(ad_url, frame_height)
-        qualifications = self.build_hit_qualifications(
-            approve_requirement, us_only, blacklist
-        )
-        # We need a HIT_Type in order to register for REST notifications
-        hit_type_id = self.register_hit_type(
+        """Create the actual HIT and return a dict with its useful properties.
+        """
+
+        # We need a HIT_Type in order to register for notifications
+        hit_type_id = self._register_hit_type(
             title, description, reward, duration_hours, keywords, qualifications
         )
-        if self.do_subscribe:
+        if do_subscribe:
             self._create_notification_subscription(
                 experiment_id, notification_url, hit_type_id
             )
         params = {
             "HITTypeId": hit_type_id,
-            "Question": mturk_question,
+            "Question": question,
             "LifetimeInSeconds": int(
                 datetime.timedelta(days=lifetime_days).total_seconds()
             ),
@@ -479,8 +510,11 @@ class MTurkService(object):
 
     def disable_hit(self, hit_id, experiment_id):
         self.expire_hit(hit_id)
-        if self.do_subscribe:
+        try:
             self.sns.cancel_subscription(experiment_id)
+        except NonExistentSubscription:
+            pass
+
         try:
             result = self.mturk.delete_hit(HITId=hit_id)
         except Exception as ex:
@@ -606,14 +640,25 @@ class MTurkService(object):
             Active=True,
         )
 
-    def _external_question(self, url, frame_height):
-        q = (
-            '<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
-            'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
-            "<ExternalURL>{}</ExternalURL>"
-            "<FrameHeight>{}</FrameHeight></ExternalQuestion>"
+    def _register_hit_type(
+        self, title, description, reward, duration_hours, keywords, qualifications
+    ):
+        """Register HIT Type for this HIT and return the type's ID, which
+        is required for creating a HIT.
+        """
+        reward = str(reward)
+        duration_secs = int(datetime.timedelta(hours=duration_hours).total_seconds())
+        hit_type = self.mturk.create_hit_type(
+            Title=title,
+            Description=description,
+            Reward=reward,
+            AssignmentDurationInSeconds=duration_secs,
+            Keywords=",".join(keywords),
+            AutoApprovalDelayInSeconds=0,
+            QualificationRequirements=qualifications,
         )
-        return q.format(url, frame_height)
+
+        return hit_type["HITTypeId"]
 
     def _request_token(self):
         return str(time.time())
@@ -651,9 +696,18 @@ class MTurkService(object):
             "review_status": hit["HITReviewStatus"],
             "status": hit["HITStatus"],
             "annotation": hit.get("RequesterAnnotation"),
+            "worker_url": self._worker_hit_url(hit["HITTypeId"]),
         }
 
         return translated
+
+    def _worker_hit_url(self, type_id):
+        if self.is_sandbox:
+            url = "https://workersandbox.mturk.com/projects/{}/tasks"
+        else:
+            url = "https://worker.mturk.com/projects/{}/tasks"
+
+        return url.format(type_id)
 
     def _translate_qtype(self, qtype):
         return {

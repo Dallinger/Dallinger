@@ -158,7 +158,7 @@ class TestReportAfterIdleDecorator(object):
         def will_time_out():
             sleep(2)
 
-        with mock.patch("dallinger.command_line.get_messenger") as getter:
+        with mock.patch("dallinger.command_line.admin_notifier") as getter:
             mock_messenger = mock.Mock()
             getter.return_value = mock_messenger
             will_time_out()
@@ -391,7 +391,7 @@ class TestQualify(object):
             ],
         )
         assert result.exit_code == 0
-        mturk.set_qualification_score.assert_called_once_with(
+        mturk.assign_qualification.assert_called_once_with(
             "some qid", "some worker id", qual_value, notify=False
         )
         mturk.get_workers_with_qualification.assert_called_once_with("some qid")
@@ -436,7 +436,7 @@ class TestQualify(object):
             ],
         )
         assert result.exit_code == 0
-        mturk.set_qualification_score.assert_called_once_with(
+        mturk.assign_qualification.assert_called_once_with(
             "some qid", "some worker id", qual_value, notify=True
         )
 
@@ -454,7 +454,7 @@ class TestQualify(object):
             ],
         )
         assert result.exit_code == 0
-        mturk.set_qualification_score.assert_has_calls(
+        mturk.assign_qualification.assert_has_calls(
             [
                 mock.call(u"some qid", u"worker1", 1, notify=False),
                 mock.call(u"some qid", u"worker2", 1, notify=False),
@@ -476,7 +476,7 @@ class TestQualify(object):
             ],
         )
         assert result.exit_code == 0
-        mturk.set_qualification_score.assert_called_once_with(
+        mturk.assign_qualification.assert_called_once_with(
             "some qid", "some worker id", qual_value, notify=False
         )
         mturk.get_workers_with_qualification.assert_called_once_with("some qid")
@@ -497,6 +497,127 @@ class TestQualify(object):
         )
         assert result.exit_code == 2
         assert 'No qualification with name "some qual name" exists.' in result.output
+
+
+class TestEmailTest(object):
+    @pytest.fixture
+    def email_test(self):
+        from dallinger.command_line import email_test
+
+        return email_test
+
+    @pytest.fixture
+    def mailer(self):
+        from dallinger.notifications import SMTPMailer
+
+        mock_mailer = mock.Mock(spec=SMTPMailer)
+        with mock.patch("dallinger.command_line.SMTPMailer") as klass:
+            klass.return_value = mock_mailer
+            yield mock_mailer
+
+    def test_check_with_good_config(self, email_test, mailer, active_config):
+        result = CliRunner().invoke(email_test,)
+        mailer.send.assert_called_once()
+        assert result.exit_code == 0
+
+    def test_check_with_missing_value(self, email_test, mailer, active_config):
+        active_config.extend({"smtp_username": u"???"})
+        result = CliRunner().invoke(email_test,)
+        mailer.send.assert_not_called()
+        assert result.exit_code == 0
+
+
+class TestCompensate(object):
+
+    DO_IT = "Y\n"
+    DO_NOT_DO_IT = "N\n"
+
+    @pytest.fixture
+    def compensate(self):
+        from dallinger.command_line import compensate
+
+        return compensate
+
+    @pytest.fixture
+    def mturkrecruiter(self):
+        from dallinger.recruiters import MTurkRecruiter
+
+        recruiter = mock.Mock(spec=MTurkRecruiter)
+        recruiter.compensate_worker.return_value = {
+            "hit": {
+                "title": "HIT Title",
+                "reward": "5.0",
+                "worker_url": "http://example.com/hit",
+            },
+            "qualification": {"qualification key 1": "qualification value 1"},
+            "email": {
+                "subject": "The Subject",
+                "sender": "from@example.com",
+                "recipients": ["w@example.com"],
+                "body": "The\nbody",
+            },
+        }
+        return recruiter
+
+    def test_compensate_with_notification(self, compensate, mturkrecruiter):
+        with mock.patch("dallinger.command_line.by_name") as by_name:
+            by_name.return_value = mturkrecruiter
+            result = CliRunner().invoke(
+                compensate,
+                [
+                    "--worker_id",
+                    "some worker ID",
+                    "--email",
+                    "worker@example.com",
+                    "--dollars",
+                    "5.00",
+                ],
+                input=self.DO_IT,
+            )
+
+        assert result.exit_code == 0
+        mturkrecruiter.compensate_worker.assert_called_once_with(
+            worker_id=u"some worker ID",
+            email="worker@example.com",
+            dollars=5.0,
+            notify=True,
+        )
+
+    def test_compensate_without_notification(self, compensate, mturkrecruiter):
+        with mock.patch("dallinger.command_line.by_name") as by_name:
+            by_name.return_value = mturkrecruiter
+            result = CliRunner().invoke(
+                compensate,
+                ["--worker_id", "some worker ID", "--dollars", "5.0"],
+                input=self.DO_IT,
+            )
+
+        assert result.exit_code == 0
+        mturkrecruiter.compensate_worker.assert_called_once_with(
+            worker_id=u"some worker ID", email=None, dollars=5.0, notify=False
+        )
+
+    def test_can_be_aborted_cleanly_after_warning(self, compensate, mturkrecruiter):
+        result = CliRunner().invoke(
+            compensate,
+            ["--worker_id", "some worker ID", "--dollars", "5.0"],
+            input=self.DO_NOT_DO_IT,
+        )
+        assert result.exit_code == 0
+        mturkrecruiter.compensate_worker.assert_not_called()
+
+    def test_traps_errors_and_forwards_message_portion(
+        self, compensate, mturkrecruiter
+    ):
+        with mock.patch("dallinger.command_line.by_name") as by_name:
+            by_name.return_value = mturkrecruiter
+            mturkrecruiter.compensate_worker.side_effect = Exception("Boom!")
+            result = CliRunner().invoke(
+                compensate,
+                ["--worker_id", "some worker ID", "--dollars", "5.0"],
+                input=self.DO_IT,
+            )
+        assert result.exit_code == 0
 
 
 class TestRevoke(object):

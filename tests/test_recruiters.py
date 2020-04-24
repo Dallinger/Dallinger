@@ -4,6 +4,8 @@ import pytest
 from datetime import datetime
 from dallinger.models import Participant
 from dallinger.experiment import Experiment
+from dallinger.mturk import MTurkQualificationRequirements
+from dallinger.mturk import MTurkQuestions
 
 
 class TestModuleFunctions(object):
@@ -87,6 +89,10 @@ class TestRecruiter(object):
     def test_close_recruitment(self, recruiter):
         with pytest.raises(NotImplementedError):
             recruiter.close_recruitment()
+
+    def test_compensate_worker(self, recruiter):
+        with pytest.raises(NotImplementedError):
+            recruiter.compensate_worker()
 
     def test_reward_bonus(self, recruiter):
         with pytest.raises(NotImplementedError):
@@ -430,18 +436,51 @@ def requests():
         yield mock_requests
 
 
+@pytest.fixture
+def mturkservice(active_config):
+    from dallinger.mturk import MTurkService
+
+    mturk = mock.create_autospec(
+        MTurkService,
+        aws_key=active_config.get("aws_access_key_id"),
+        aws_secret=active_config.get("aws_secret_access_key"),
+        region_name=active_config.get("aws_region"),
+        is_sandbox=active_config.get("mode") != "live",
+    )
+
+    mturk.check_credentials.return_value = True
+    mturk.create_qualification_type.return_value = {
+        "name": "QualificationType name",
+        "id": "QualificationType id",
+    }
+    mturk.create_hit.return_value = {
+        "title": "Fake HIT Title",
+        "reward": 2.00,
+        "type_id": "fake type id",
+        "worker_url": "http://the-hit-url",
+    }
+
+    return mturk
+
+
 @pytest.mark.usefixtures("active_config", "requests", "queue")
 class TestMTurkRecruiter(object):
     @pytest.fixture
-    def messenger(self):
-        from dallinger.notifications import DebugMessenger
+    def notifies_admin(self):
+        from dallinger.notifications import NotifiesAdmin
 
-        mock_messenger = mock.create_autospec(DebugMessenger)
-        yield mock_messenger
+        mock_notifies_admin = mock.create_autospec(NotifiesAdmin)
+        yield mock_notifies_admin
 
     @pytest.fixture
-    def recruiter(self, active_config, messenger):
-        from dallinger.mturk import MTurkService
+    def mailer(self):
+        from dallinger.notifications import SMTPMailer
+
+        mock_mailer = mock.create_autospec(SMTPMailer)
+        yield mock_mailer
+
+    @pytest.fixture
+    def recruiter(self, active_config, notifies_admin, mailer, mturkservice):
         from dallinger.recruiters import MTurkRecruiter
 
         with mock.patch.multiple(
@@ -449,13 +488,12 @@ class TestMTurkRecruiter(object):
         ) as mocks:
             mocks["get_base_url"].return_value = "http://fake-domain"
             mocks["os"].getenv.return_value = "fake-host-domain"
-            mockservice = mock.create_autospec(MTurkService)
             active_config.extend({"mode": u"sandbox"})
             r = MTurkRecruiter()
-            r.messenger = messenger
-            r.mturkservice = mockservice("fake key", "fake secret", "fake_region")
-            r.mturkservice.check_credentials.return_value = True
-            r.mturkservice.create_hit.return_value = {"type_id": "fake type id"}
+            r.notifies_admin = notifies_admin
+            r.mailer = mailer
+            r.mturkservice = mturkservice
+
             return r
 
     def test_instantiation_fails_with_invalid_mode(self, active_config):
@@ -487,9 +525,7 @@ class TestMTurkRecruiter(object):
 
     def test_open_recruitment_returns_urls(self, recruiter):
         url = recruiter.open_recruitment(n=1)["items"][0]
-        assert (
-            url == "https://workersandbox.mturk.com/mturk/preview?groupId=fake type id"
-        )
+        assert url == "http://the-hit-url"
 
     def test_open_recruitment_raises_if_no_external_hit_domain_configured(
         self, recruiter
@@ -507,8 +543,9 @@ class TestMTurkRecruiter(object):
     def test_open_recruitment_single_recruitee_builds_hit(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url="http://fake-domain/ad?recruiter=mturk",
-            approve_requirement=95,
+            question=MTurkQuestions.external(
+                ad_url="http://fake-domain/ad?recruiter=mturk"
+            ),
             description=u"fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -518,9 +555,11 @@ class TestMTurkRecruiter(object):
             notification_url=u"http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title=u"fake experiment title",
-            us_only=True,
-            blacklist=[],
             annotation="some experiment uid",
+            qualifications=[
+                MTurkQualificationRequirements.min_approval(95),
+                MTurkQualificationRequirements.restrict_to_countries(["US"]),
+            ],
         )
 
     def test_open_recruitment_creates_qualifications_for_experiment_app_id(
@@ -563,10 +602,15 @@ class TestMTurkRecruiter(object):
 
     def test_open_recruitment_with_blacklist(self, recruiter):
         recruiter.config.set("qualification_blacklist", u"foo, bar")
+        # Our fake response will always return the same QualificationType ID
+        recruiter.mturkservice.get_qualification_type_by_name.return_value = {
+            "id": u"fake id"
+        }
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url="http://fake-domain/ad?recruiter=mturk",
-            approve_requirement=95,
+            question=MTurkQuestions.external(
+                ad_url="http://fake-domain/ad?recruiter=mturk"
+            ),
             description="fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -576,9 +620,13 @@ class TestMTurkRecruiter(object):
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
-            us_only=True,
-            blacklist=["foo", "bar"],
             annotation="some experiment uid",
+            qualifications=[
+                MTurkQualificationRequirements.min_approval(95),
+                MTurkQualificationRequirements.restrict_to_countries(["US"]),
+                MTurkQualificationRequirements.must_not_have(u"fake id"),
+                MTurkQualificationRequirements.must_not_have(u"fake id"),
+            ],
         )
 
     def test_open_recruitment_raises_error_if_recruitment_in_progress(
@@ -691,6 +739,29 @@ class TestMTurkRecruiter(object):
         recruiter.close_recruitment()
         recruiter.mturkservice.expire_hit.assert_called_once_with(fake_hit_id)
 
+    def test_compensate_worker(self, recruiter):
+        result = recruiter.compensate_worker(
+            worker_id="XWZ", email="w@example.com", dollars=10
+        )
+        assert result == {
+            "hit": {
+                "reward": 2.0,
+                "title": "Fake HIT Title",
+                "type_id": "fake type id",
+                "worker_url": "http://the-hit-url",
+            },
+            "qualification": {
+                "name": "QualificationType name",
+                "id": "QualificationType id",
+            },
+            "email": {
+                "subject": "Dallinger Compensation HIT",
+                "sender": "test@example.com",
+                "recipients": ["w@example.com"],
+                "body": mock.ANY,  # Avoid overspecification
+            },
+        }
+
     def test_notify_completed_assigns_exp_qualification(self, recruiter):
         participant = mock.Mock(spec=Participant, worker_id="some worker id")
         recruiter.notify_completed(participant)
@@ -785,7 +856,7 @@ class TestMTurkRecruiter(object):
         queue.enqueue.assert_called_once_with(
             worker_function, "AssignmentSubmitted", participants[0].assignment_id, None
         )
-        recruiter.messenger.send.assert_called_once()
+        recruiter.notifies_admin.send.assert_called_once()
 
     def test_notifies_researcher_if_resubmitted(self, a, recruiter):
         recruiter.mturkservice.get_assignment.return_value = {"status": "Submitted"}
@@ -793,7 +864,7 @@ class TestMTurkRecruiter(object):
 
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
-        recruiter.messenger.send.assert_called_once()
+        recruiter.notifies_admin.send.assert_called_once()
 
     def test_shuts_down_recruitment_if_no_status_from_mturk(
         self, a, recruiter, requests
@@ -829,7 +900,7 @@ class TestMTurkRecruiter(object):
 
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
-        recruiter.messenger.send.assert_called_once()
+        recruiter.notifies_admin.send.assert_called_once()
 
     def test_no_assignment_on_mturk_expires_hit(self, a, recruiter):
         recruiter.mturkservice.get_assignment.return_value = {"status": None}
@@ -874,8 +945,7 @@ class TestMTurkLargeRecruiter(object):
         return PrimitiveCounter()
 
     @pytest.fixture
-    def recruiter(self, active_config, counter):
-        from dallinger.mturk import MTurkService
+    def recruiter(self, active_config, counter, mturkservice):
         from dallinger.recruiters import MTurkLargeRecruiter
 
         with mock.patch.multiple(
@@ -883,12 +953,9 @@ class TestMTurkLargeRecruiter(object):
         ) as mocks:
             mocks["get_base_url"].return_value = "http://fake-domain"
             mocks["os"].getenv.return_value = "fake-host-domain"
-            mockservice = mock.create_autospec(MTurkService)
             active_config.extend({"mode": u"sandbox"})
             r = MTurkLargeRecruiter(counter=counter)
-            r.mturkservice = mockservice("fake key", "fake secret", "fake_region")
-            r.mturkservice.check_credentials.return_value = True
-            r.mturkservice.create_hit.return_value = {"type_id": "fake type id"}
+            r.mturkservice = mturkservice
             r.current_hit_id = mock.Mock(return_value="fake HIT id")
             return r
 
@@ -914,8 +981,9 @@ class TestMTurkLargeRecruiter(object):
     def test_open_recruitment_single_recruitee_actually_overrecruits(self, recruiter):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url="http://fake-domain/ad?recruiter=mturklarge",
-            approve_requirement=95,
+            question=MTurkQuestions.external(
+                ad_url="http://fake-domain/ad?recruiter=mturklarge"
+            ),
             description="fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -925,9 +993,11 @@ class TestMTurkLargeRecruiter(object):
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
-            us_only=True,
-            blacklist=[],
             annotation="some experiment uid",
+            qualifications=[
+                MTurkQualificationRequirements.min_approval(95),
+                MTurkQualificationRequirements.restrict_to_countries(["US"]),
+            ],
         )
 
     def test_open_recruitment_with_more_than_pool_size_uses_requested_count(
@@ -936,8 +1006,9 @@ class TestMTurkLargeRecruiter(object):
         num_recruits = recruiter.pool_size + 1
         recruiter.open_recruitment(n=num_recruits)
         recruiter.mturkservice.create_hit.assert_called_once_with(
-            ad_url="http://fake-domain/ad?recruiter=mturklarge",
-            approve_requirement=95,
+            question=MTurkQuestions.external(
+                ad_url="http://fake-domain/ad?recruiter=mturklarge"
+            ),
             description="fake HIT description",
             duration_hours=1.0,
             experiment_id="some experiment uid",
@@ -947,9 +1018,11 @@ class TestMTurkLargeRecruiter(object):
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
-            us_only=True,
-            blacklist=[],
             annotation="some experiment uid",
+            qualifications=[
+                MTurkQualificationRequirements.min_approval(95),
+                MTurkQualificationRequirements.restrict_to_countries(["US"]),
+            ],
         )
 
     def test_recruit_draws_on_initial_pool_before_extending_hit(self, recruiter):

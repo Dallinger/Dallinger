@@ -31,11 +31,15 @@ from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.deployment import ExperimentFileSource
-from dallinger.notifications import get_messenger
+from dallinger.notifications import admin_notifier
+from dallinger.notifications import SMTPMailer
+from dallinger.notifications import EmailConfig
+from dallinger.notifications import MessengerError
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuInfo
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
+from dallinger.recruiters import by_name
 from dallinger.utils import check_call
 from dallinger.utils import generate_random_id
 from dallinger.version import __version__
@@ -119,7 +123,7 @@ def report_idle_after(seconds):
                     ),
                 }
                 log("Reporting problem with idle experiment...")
-                get_messenger(config).send(message)
+                admin_notifier(config).send(**message)
 
             signal.signal(signal.SIGALRM, _handle_timeout)
             signal.alarm(seconds)
@@ -501,7 +505,7 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
         )
     )
     for worker in workers:
-        if mturk.set_qualification_score(qid, worker, int(value), notify=notify):
+        if mturk.assign_qualification(qid, worker, int(value), notify=notify):
             click.echo("{} OK".format(worker))
 
     # print out the current set of workers with the qualification
@@ -511,6 +515,93 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
 
     for score, count in Counter([r["score"] for r in results]).items():
         click.echo("{} with value {}".format(count, score))
+
+
+@dallinger.command()
+def email_test():
+    """Test email configuration and send a test email."""
+    out = Output()
+    config = get_config()
+    config.load()
+    settings = EmailConfig(config)
+    out.log("Email Config", delay=0)
+    out.log(tabulate.tabulate(settings.as_dict().items()), chevrons=False, delay=0)
+    problems = settings.validate()
+    if problems:
+        out.error(
+            "✗ There are mail configuration problems. Fix these first:\n{}".format(
+                problems
+            )
+        )
+        return
+
+    else:
+        out.log("✓ email config looks good!")
+    mailer = SMTPMailer(
+        config.get("smtp_host"),
+        config.get("smtp_username"),
+        config.get("smtp_password"),
+    )
+    msg = {
+        "subject": "Test message from Dallinger",
+        "sender": config.get("dallinger_email_address"),
+        "recipients": [config.get("contact_email_on_error")],
+        "body": "This has been a test...",
+    }
+    out.log("Sending a test email from {sender} to {recipients[0]}".format(**msg))
+    try:
+        mailer.send(**msg)
+    except MessengerError:
+        out.error("✗ Message sending failed...")
+        raise
+    else:
+        out.log("✓ Test email sent successfully to {}!".format(msg["recipients"][0]))
+
+
+@dallinger.command()
+@click.option("--recruiter", default="mturk", required=True)
+@click.option("--worker_id", required=True)
+@click.option("--email")
+@click.option("--dollars", required=True, type=float)
+@click.option("--sandbox", is_flag=True, flag_value=True, help="Use the MTurk sandbox")
+def compensate(recruiter, worker_id, email, dollars, sandbox):
+    """Credit a specific worker by ID through their recruiter"""
+    out = Output()
+    config = get_config()
+    config.load()
+    mode = "sandbox" if sandbox else "live"
+    do_notify = email is not None
+    no_email_str = "" if email else " NOT"
+
+    with config.override({"mode": mode}):
+        rec = by_name(recruiter)
+        if not click.confirm(
+            '\n\nYou are about to pay worker "{}" ${:.2f} in "{}" mode using the "{}" recruiter.\n'
+            "The worker will{} be notified by email. "
+            "Continue?".format(worker_id, dollars, mode, recruiter, no_email_str)
+        ):
+            out.log("Aborting...")
+            return
+
+        try:
+            result = rec.compensate_worker(
+                worker_id=worker_id, email=email, dollars=dollars, notify=do_notify
+            )
+        except Exception as ex:
+            out.error(
+                "Compensation failed. The recruiter reports the following error:\n{}".format(
+                    ex
+                ),
+                delay=0,
+            )
+            return
+
+    out.log("HIT Details", delay=0)
+    out.log(tabulate.tabulate(result["hit"].items()), chevrons=False, delay=0)
+    out.log("Qualification Details", delay=0)
+    out.log(tabulate.tabulate(result["qualification"].items()), chevrons=False, delay=0)
+    out.log("Worker Notification", delay=0)
+    out.log(tabulate.tabulate(result["email"].items()), chevrons=False, delay=0)
 
 
 @dallinger.command()

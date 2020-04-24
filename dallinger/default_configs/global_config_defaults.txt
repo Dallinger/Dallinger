@@ -19,6 +19,7 @@ mode = debug
 [Recruiter]
 auto_recruit = False
 assign_qualifications = False
+us_only = False
 
 [Bots]
 webdriver_type = phantomjs
