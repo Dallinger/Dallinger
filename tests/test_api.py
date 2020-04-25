@@ -7,20 +7,14 @@ import pytest
 import dallinger
 
 
-@pytest.mark.slow
+@pytest.fixture
+def exp():
+    from dallinger.experiment import Experiment
+
+    return Experiment()
+
+
 class TestAPI(object):
-    @pytest.fixture
-    def exp(self):
-        from dallinger.experiment import Experiment
-
-        return Experiment()
-
-    @pytest.fixture
-    def bartlett(self):
-        from dallinger.experiments import Bartlett1932
-
-        return Bartlett1932()
-
     def test_uuid(self):
         from dallinger.experiment import Experiment
 
@@ -41,10 +35,12 @@ class TestAPI(object):
         assert exp_uuid1 != exp_uuid2
         assert exp_uuid1 == exp_uuid3
 
-    def test_collect_from_existing_s3_bucket(self, exp):
-        exp = exp
-        existing_s3_uuid = "12345-12345-12345-12345"
-        data = exp.collect(existing_s3_uuid)
+
+@pytest.mark.slow
+class TestDataCollection(object):
+    def test_collect_from_existing_local_file(self, exp, experiment_dir):
+        existing_local_data_uid = "12345678-1234-5678-1234-567812345678"
+        data = exp.collect(existing_local_data_uid)
         assert isinstance(data, dallinger.data.Data)
 
     def test_registered_uuid_will_not_allow_new_data_collection(self, exp):
