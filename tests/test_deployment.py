@@ -597,15 +597,15 @@ class Test_handle_launch_data(object):
 
         log.assert_has_calls(
             [
-                mock.call("Error accessing /launch (500):\nFailure"),
+                mock.call("Error accessing /some-launch-url (500):\nFailure"),
                 mock.call(
                     "Experiment launch failed. Trying again (attempt 2 of 3) in 0.1 seconds ..."
                 ),
-                mock.call("Error accessing /launch (500):\nFailure"),
+                mock.call("Error accessing /some-launch-url (500):\nFailure"),
                 mock.call(
                     "Experiment launch failed. Trying again (attempt 3 of 3) in 0.2 seconds ..."
                 ),
-                mock.call("Error accessing /launch (500):\nFailure"),
+                mock.call("Error accessing /some-launch-url (500):\nFailure"),
                 mock.call("Experiment launch failed, check web dyno logs for details."),
                 mock.call("msg!"),
             ]
@@ -621,7 +621,7 @@ class Test_handle_launch_data(object):
                 handler("/some-launch-url", error=log)
 
         log.assert_called_once_with(
-            "Error parsing response from /launch, check web dyno logs for details: "
+            "Error parsing response from /some-launch-url, check web dyno logs for details: "
             "Big, unexpected problem."
         )
 
@@ -775,7 +775,7 @@ class TestDebugServer(object):
         # Only one launch attempt should be made in debug mode
         debugger.out.error.assert_has_calls(
             [
-                mock.call("Error accessing /launch (500):\nFailure"),
+                mock.call("Error accessing http://0.0.0.0:5000/launch (500):\nFailure"),
                 mock.call("Experiment launch failed, check web dyno logs for details."),
                 mock.call("msg!"),
             ]

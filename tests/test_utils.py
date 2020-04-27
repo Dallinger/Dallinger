@@ -235,6 +235,9 @@ class TestBaseURL(object):
         config.set("num_dynos_web", 1)
         assert subject() == u"https://dlgr-bogus.herokuapp.com"
 
+    @pytest.mark.xfail(
+        reason="HOST aliasing removed to fix https://github.com/Dallinger/Dallinger/issues/2130"
+    )
     def test_os_HOST_environ_used_as_host(self, subject, config):
         with mock.patch("os.environ", {"HOST": u"dlgr-bogus-2.herokuapp.com"}):
             config.load_from_environment()
