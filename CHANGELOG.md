@@ -2,6 +2,9 @@
 
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v-6.2.2](https://github.com/dallinger/dallinger/tree/6.2.2) (2020-04-27)
+- Bugfix: revert change to `HOST` configuration which broke Heroku deployments (see https://github.com/Dallinger/Dallinger/issues/2130)
+
 ## [v-6.2.1](https://github.com/Dallinger/Dallinger/tree/v6.2.1) (2020-04-25)
 - New `dallinger compensate` command: compensate a worker a specific amount in US dollars. This is useful if something goes wrong with the experiment and you need to pay workers for their wasted time.
 - New `dallinger email_test` command: validate and test your email settings quickly and easily.
