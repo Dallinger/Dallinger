@@ -308,8 +308,8 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
             launch_data = launch_request.json()
         except ValueError:
             error(
-                "Error parsing response from /launch, "
-                "check web dyno logs for details: " + launch_request.text
+                "Error parsing response from {}, "
+                "check web dyno logs for details: {}".format(url, launch_request.text)
             )
             raise
 
@@ -318,8 +318,8 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
             return launch_data
 
         error(
-            "Error accessing /launch ({}):\n{}".format(
-                launch_request.status_code, launch_request.text
+            "Error accessing {} ({}):\n{}".format(
+                url, launch_request.status_code, launch_request.text
             )
         )
 
@@ -443,7 +443,9 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
 
     # Launch the experiment.
     log("Launching the experiment on the remote server and starting recruitment...")
-    launch_data = _handle_launch_data("{}/launch".format(heroku_app.url), error=log)
+    launch_url = "{}/launch".format(heroku_app.url)
+    log("Calling {}".format(launch_url), chevrons=False)
+    launch_data = _handle_launch_data(launch_url, error=log)
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,

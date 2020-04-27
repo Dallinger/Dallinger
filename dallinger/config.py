@@ -42,7 +42,7 @@ default_keys = (
     ("heroku_auth_token", six.text_type, [], True),
     ("heroku_python_version", six.text_type, []),
     ("heroku_team", six.text_type, ["team"]),
-    ("host", six.text_type, ["HOST"]),
+    ("host", six.text_type, []),
     ("id", six.text_type, []),
     ("keywords", six.text_type, []),
     ("lifetime", int, []),
