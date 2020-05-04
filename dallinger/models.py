@@ -126,6 +126,7 @@ class Participant(Base, SharedMixin):
 
     #: String representing the current status of the participant, can be:
     #:    - ``working`` - participant is working
+    #:    - ``waiting`` - participant is in waiting room
     #:    - ``submitted`` - participant has submitted their work
     #:    - ``approved`` - their work has been approved and they have been paid
     #:    - ``rejected`` - their work has been rejected
@@ -142,6 +143,7 @@ class Participant(Base, SharedMixin):
     status = Column(
         Enum(
             "working",
+            "waiting",
             "overrecruited",
             "submitted",
             "approved",

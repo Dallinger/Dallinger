@@ -36,7 +36,6 @@ from .utils import (
     ExperimentError,
 )
 
-
 # Initialize the Dallinger database.
 session = db.session
 redis_conn = db.redis_conn
@@ -507,10 +506,15 @@ def summary():
         | (models.Participant.status == "submitted")
         | (models.Participant.status == "approved")
     ).count()
+
+    waiting_count = models.Participant.query.filter(
+        models.Participant.status == "waiting"
+    ).count()
+
     exp = Experiment(session)
     overrecruited = exp.is_overrecruited(nonfailed_count)
     if exp.quorum:
-        quorum = {"q": exp.quorum, "n": nonfailed_count, "overrecruited": overrecruited}
+        quorum = {"q": exp.quorum, "n": waiting_count, "overrecruited": overrecruited}
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
 
     return Response(dumps(state), status=200, mimetype="application/json")
@@ -706,7 +710,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         app.logger.warning(msg.format(duplicate.id))
         q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
 
-    # Count working or beyond participants.
+    # Count working or beyond participants (including new request)
     nonfailed_count = (
         models.Participant.query.filter(
             (models.Participant.status == "working")
@@ -714,8 +718,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
             | (models.Participant.status == "submitted")
             | (models.Participant.status == "approved")
         ).count()
-        + 1
-    )
+    ) + 1
 
     recruiter_name = request.args.get("recruiter", "undefined")
     if not recruiter_name or recruiter_name == "undefined":
@@ -735,19 +738,32 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
     exp = Experiment(session)
 
-    overrecruited = exp.is_overrecruited(nonfailed_count)
-    if overrecruited:
-        participant.status = "overrecruited"
+    # Mark participants in waiting room as overrecruited or waiting
+    if exp.quorum:
+        overrecruited = exp.is_overrecruited(nonfailed_count)
+        participant.status = "overrecruited" if overrecruited else "waiting"
 
     session.add(participant)
     session.flush()  # Make sure we know the id for the new row
     result = {"participant": participant.__json__()}
 
-    # Queue notification to others in waiting room
     if exp.quorum:
-        quorum = {"q": exp.quorum, "n": nonfailed_count, "overrecruited": overrecruited}
+        # Count waiting participants (b/c we flushed, this includes new)
+        waiting = models.Participant.query.filter(
+            models.Participant.status == "waiting"
+        )
+        waiting_count = waiting.count()
+
+        # Queue notification to others in waiting room
+        quorum = {"q": exp.quorum, "n": waiting_count, "overrecruited": overrecruited}
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
         result["quorum"] = quorum
+
+        # Move status from waiting to working once we hit quorum
+        if waiting_count == exp.quorum:
+            result["participant"]["status"] = "working"
+            for p in waiting:
+                p.status = "working"
 
     # return the data
     return success_response(**result)
