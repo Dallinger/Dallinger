@@ -74,7 +74,7 @@ pyzmq==17.1.2
 qtconsole==4.4.1
 redis==3.2.1
 requests==2.21.0
-rq==1.0
+rq==1.4.0
 s3transfer==0.1.13
 scandir==1.9.0
 send2trash==1.5.0
