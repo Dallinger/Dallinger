@@ -11,7 +11,9 @@ import sys
 import tempfile
 import threading
 import time
-import webbrowser
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from six.moves import shlex_quote as quote
 from unicodedata import normalize
 
@@ -30,47 +32,50 @@ from dallinger.utils import get_base_url
 from dallinger.utils import GitClient
 
 config = get_config()
+browsers = []
 
-
-def _make_chrome(path):
-    new_chrome = webbrowser.Chrome()
-    new_chrome.name = path
+def _make_chrome():
     profile_directory = tempfile.mkdtemp()
     with open(os.path.join(profile_directory, "First Run"), "wb") as firstrun:
         # This file existing prevents prompts to make the new profile directory
         # the default
         firstrun.flush()
-    new_chrome.remote_args = webbrowser.Chrome.remote_args + [
-        '--user-data-dir="{}"'.format(profile_directory),
-        "--no-first-run",
-    ]
+    chrome_options = ChromeOptions()
+    chrome_options.add_argument('--user-data-dir="{}"'.format(profile_directory))
+    chrome_options.add_argument("--no-first-run")
+    new_chrome = webdriver.Chrome(chrome_options=chrome_options)
     return new_chrome
 
+def _make_firefox():
+    profile_directory = tempfile.mkdtemp()
+    firefox_options = FirefoxOptions()
+    firefox_options.add_argument('-profile')
+    firefox_options.add_argument(profile_directory)
+    firefox_options.add_argument('-new-instance')
+    firefox_options.add_argument('-no-remote')
+    firefox_options.add_argument('-url')
+    firefox_options.add_argument('%s')
+    new_firefox = webdriver.Firefox(firefox_options=firefox_options)
+    return new_firefox
 
 def new_webbrowser_profile():
     if is_command("google-chrome"):
-        return _make_chrome("google-chrome")
+        webbrowser = _make_chrome()
     elif is_command("firefox"):
-        new_firefox = webbrowser.Mozilla()
-        new_firefox.name = "firefox"
-        profile_directory = tempfile.mkdtemp()
-        new_firefox.remote_args = [
-            "-profile",
-            profile_directory,
-            "-new-instance",
-            "-no-remote",
-            "-url",
-            "%s",
-        ]
-        return new_firefox
+        webbrowser = _make_firefox()
     elif sys.platform == "darwin":
         chrome_path = config.get("chrome-path")
         if os.path.exists(chrome_path):
-            return _make_chrome(chrome_path)
+            webbrowser = _make_chrome()
         else:
-            return webbrowser
+            # Assumption firefox exists
+            webbrowser = _make_firefox()
     else:
-        return webbrowser
+        # Assumption firefox exists
+        webbrowser = _make_firefox()
+
+    browsers.append(webbrowser)
+    return webbrowser
 
 
 def exclusion_policy():
@@ -175,7 +180,17 @@ def assemble_experiment_temp_dir(config):
     Returns the absolute path of the new directory.
     """
     app_id = config.get("id")
-    dst = os.path.join(tempfile.mkdtemp(), app_id)
+
+    config_dict = config.as_dict()
+    if 'local_debug_folder' in config_dict.keys():
+        dst = config_dict['local_debug_folder']
+    else:
+        dst = os.path.join(tempfile.mkdtemp(), app_id)
+
+    # Make sure to remove any old directories with the same name
+    if os.path.exists(dst):
+        shutil.rmtree(dst)
+
 
     # Copy local experiment files, minus some
     ExperimentFileSource(os.getcwd()).selective_copy_to(dst)
@@ -579,6 +594,9 @@ class DebugDeployment(HerokuLocalDeployment):
         return HerokuLocalWrapper.MONITOR_STOP
 
     def cleanup(self):
+        self.out.log("Close all browser windows related to this experiment")
+        for browser in browsers:
+            browser.quit()
         self.out.log("Completed debugging of experiment with id " + self.exp_id)
         self.complete = True
 
@@ -595,7 +613,7 @@ class DebugDeployment(HerokuLocalDeployment):
         if self.proxy_port is not None:
             self.out.log("Using proxy port {}".format(self.proxy_port))
             url = url.replace(str(get_config().get("base_port")), self.proxy_port)
-        new_webbrowser_profile().open(url, new=1, autoraise=True)
+        new_webbrowser_profile().get(url)
 
     def recruitment_closed(self, match):
         """Recruitment is closed.
@@ -695,7 +713,7 @@ class LoaderDeployment(HerokuLocalDeployment):
         """
         self.out.log("replay ready!")
         url = match.group(1)
-        new_webbrowser_profile().open(url, new=1, autoraise=True)
+        new_webbrowser_profile().get(url)
 
     def cleanup(self):
         self.out.log("Terminating dataset load for experiment {}".format(self.exp_id))

@@ -46,6 +46,7 @@ default_keys = (
     ("id", six.text_type, []),
     ("keywords", six.text_type, []),
     ("lifetime", int, []),
+    ("local_debug_folder", six.text_type, ''),
     ("logfile", six.text_type, []),
     ("loglevel", int, []),
     ("mode", six.text_type, []),
