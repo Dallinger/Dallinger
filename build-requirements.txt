@@ -2,7 +2,7 @@
 -c dev-constraints.txt
 alabaster
 bumpversion
-coverage
+coverage==5.1
 coverage_pth
 codecov
 flake8
