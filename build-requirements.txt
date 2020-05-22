@@ -1,7 +1,7 @@
 -r requirements.txt
 -c dev-constraints.txt
 alabaster
-bumpversion
+bumpversion==0.6.0
 coverage
 coverage_pth
 codecov
