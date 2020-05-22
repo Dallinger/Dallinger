@@ -1,6 +1,6 @@
 -r requirements.txt
 -c dev-constraints.txt
-alabaster
+alabaster==0.7.12
 bumpversion
 coverage
 coverage_pth
