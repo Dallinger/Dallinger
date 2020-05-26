@@ -6,7 +6,7 @@ flask-crossdomain==0.1
 flask-sockets==0.2.1
 flask==1.0.2
 future==0.17.1
-gevent==1.4.0
+gevent==20.5.1
 greenlet==0.4.15
 gunicorn==19.9.0
 localconfig==1.1.1
