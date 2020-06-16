@@ -549,15 +549,19 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
 
     def test_sets_app_properties(self, dsss, heroku_mock):
         dsss(log=mock.Mock())
-        heroku_mock.set_multiple.assert_called_once_with(
-            auto_recruit=True,
-            aws_access_key_id="fake aws key",
-            aws_region="us-east-1",
-            aws_secret_access_key="fake aws secret",
-            smtp_password="fake email password",
-            smtp_username="fake email username",
-            whimsical=True,
-        )
+        heroku_mock.set_multiple.assert_called_once()
+        args, kwargs = tuple(heroku_mock.set_multiple.call_args)
+        assert len(args) == 0
+        assert len(kwargs) == 9
+        assert kwargs["auto_recruit"] is True
+        assert kwargs["aws_access_key_id"] == "fake aws key"
+        assert kwargs["aws_region"] == "us-east-1"
+        assert kwargs["aws_secret_access_key"] == "fake aws secret"
+        assert kwargs["smtp_password"] == "fake email password"
+        assert kwargs["smtp_username"] == "fake email username"
+        assert kwargs["whimsical"] is True
+        assert kwargs["DASHBOARD_USER"] == "admin"
+        assert "DASHBOARD_PASSWORD" in kwargs
 
     def test_adds_db_url_to_config(self, dsss, heroku_mock, active_config):
         dsss(log=mock.Mock())
