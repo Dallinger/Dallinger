@@ -11,6 +11,12 @@ import sys
 import tempfile
 import threading
 import time
+
+try:
+    from urllib.parse import urlparse, urlunparse, quote
+except ImportError:
+    from urlparse import urlparse, urlunparse
+    from urllib import quote
 import webbrowser
 from six.moves import shlex_quote as quote
 from unicodedata import normalize
@@ -637,7 +643,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.status_thread = None
         self.no_browsers = no_browsers
         self.environ = {
-            "DASHBOARD_PASSWORD": fake.password(),
+            "DASHBOARD_PASSWORD": fake.password(special_chars=False),
             "DASHBOARD_USER": self.exp_config.get("dashboard_user", "admin"),
         }
 
@@ -699,7 +705,13 @@ class DebugDeployment(HerokuLocalDeployment):
         )
         if not self.no_browsers:
             self.out.log("Opening dashboard")
-            new_webbrowser_profile().open(url, new=1, autoraise=True)
+            parsed = list(urlparse(url))
+            parsed[1] = "{}:{}@{}".format(
+                self.environ.get("DASHBOARD_USER"),
+                self.environ.get("DASHBOARD_PASSWORD"),
+                parsed[1],
+            )
+            new_webbrowser_profile().open(urlunparse(parsed), new=1, autoraise=True)
 
     def recruitment_closed(self, match):
         """Recruitment is closed.
