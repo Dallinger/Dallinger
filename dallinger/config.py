@@ -31,6 +31,7 @@ default_keys = (
     ("contact_email_on_error", six.text_type, []),
     ("chrome-path", six.text_type, []),
     ("dallinger_email_address", six.text_type, []),
+    ("dashboard_user", six.text_type, [], True),
     ("database_size", six.text_type, []),
     ("database_url", six.text_type, [], True),
     ("description", six.text_type, []),

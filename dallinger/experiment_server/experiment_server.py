@@ -7,7 +7,9 @@ from json import loads
 import os
 import re
 
+from faker import Faker
 from flask import abort, Flask, render_template, request, Response, send_from_directory
+from flask_login import LoginManager
 from jinja2 import TemplateNotFound
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
@@ -24,6 +26,7 @@ from dallinger import recruiters
 from dallinger.notifications import admin_notifier
 from dallinger.notifications import MessengerError
 
+from . import dashboard
 from .replay import ReplayBackend
 from .worker_events import worker_function
 from .utils import (
@@ -74,6 +77,14 @@ else:
 # it turns out this is complicated, so for now we always register our
 # primary recruiter's route:
 app.register_blueprint(recruiters.mturk_routes)
+
+# Load dashboard routes and login setup
+app.register_blueprint(dashboard.dashboard)
+login = LoginManager(app)
+login.login_view = "dashboard.login"
+login.user_loader(dashboard.load_user)
+app.config["SECRET_KEY"] = Faker().password()
+app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 
 """Basic routes."""
 

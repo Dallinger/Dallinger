@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+    <head>
+        <title>{% block title %}{{title}} - {{app_id}} Dashboard{% endblock %}</title>
+        {% block replace_stylesheets %}
+          <link rel="stylesheet" href="/static/css/bootstrap.min.css" type="text/css">
+          {% block stylesheets %}
+          {% endblock %}
+        {% endblock %}
+        {% block head %}
+        {% endblock %}
+    </head>
+    <body>
+        {% block navigation %}
+          <nav id="dashboard-navigation">
+            <ul>
+              {% for tab_title, route in config.get('dashboard_tabs',()) %}
+                <li><a href="{{ url_for(route) }}">{{ tab_title }}</a></li>
+              {% endfor %}
+            </ul>
+          </nav>
+        {% endblock %}
+        {% block body %}
+        {% endblock %}
+        <footer>
+          {% block footer %}
+          <a class="btn logout" href="{{ url_for('dashboard.logout') }}">Logout</a>
+          {% endblock %}
+        </footer>
+    </body>
+</html>
