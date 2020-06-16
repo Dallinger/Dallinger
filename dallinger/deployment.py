@@ -516,6 +516,7 @@ class HerokuLocalDeployment(object):
         db.init_db(drop_all=True)
         self.out.log("Starting up the server...")
         config = get_config()
+        environ = None
         if self.environ:
             environ = os.environ.copy()
             environ.update(self.environ)
