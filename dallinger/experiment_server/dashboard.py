@@ -36,7 +36,7 @@ class DashboardTabs(object):
             self.tabs.insert(position, (title, route_name))
 
     def insert_before_route(self, title, route_name, before_route):
-        before_check = frozenset(before_route, "dashboard." + before_route)
+        before_check = frozenset((before_route, "dashboard." + before_route))
         for i, (t, r) in self.tabs:
             if r in before_check:
                 position = i
@@ -46,7 +46,7 @@ class DashboardTabs(object):
         self.insert(position, title, route_name)
 
     def insert_after_route(self, title, route_name, after_route):
-        after_check = frozenset(after_route, "dashboard." + after_route)
+        after_check = frozenset((after_route, "dashboard." + after_route))
         for i, (t, r) in self.tabs:
             if r in after_check:
                 position = i + 1
