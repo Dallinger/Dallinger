@@ -82,8 +82,10 @@ app.register_blueprint(recruiters.mturk_routes)
 app.register_blueprint(dashboard.dashboard)
 login = LoginManager(app)
 login.login_view = "dashboard.login"
+login.request_loader(dashboard.load_user_from_request)
 login.user_loader(dashboard.load_user)
-app.config["SECRET_KEY"] = Faker().password()
+login.unauthorized_handler(dashboard.unauthorized)
+app.config["SECRET_KEY"] = os.urandom(16).hex()
 app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 
 """Basic routes."""
