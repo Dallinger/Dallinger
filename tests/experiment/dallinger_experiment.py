@@ -37,6 +37,18 @@ class TestExperiment(Experiment):
         return config.get("_is_completed", None)
 
 
+class ZSubclassThatSortsLower(TestExperiment):
+    @classmethod
+    def extra_files(cls):
+        return [
+            (os.path.realpath(__file__), "/static/different.txt"),
+            (
+                os.path.join(os.path.dirname(os.path.realpath(__file__)), "templates"),
+                "/static/different",
+            ),
+        ]
+
+
 def extra_parameters():
     config.register("custom_parameter", int, [])
     config.register("_is_completed", bool, [])

@@ -18,6 +18,7 @@ import requests
 import sys
 import time
 import uuid
+import warnings
 
 from sqlalchemy import and_
 from sqlalchemy import create_engine
@@ -936,6 +937,12 @@ class Scrubber(object):
         display(self.widget())
 
 
+def is_experiment_class(cls):
+    return (
+        inspect.isclass(cls) and issubclass(cls, Experiment) and cls is not Experiment
+    )
+
+
 def load():
     """Load the active experiment."""
     initialize_experiment_package(os.getcwd())
@@ -945,12 +952,38 @@ def load():
         except ImportError:
             from dallinger_experiment import dallinger_experiment as experiment
 
-        classes = inspect.getmembers(experiment, inspect.isclass)
-        for name, c in classes:
-            if "Experiment" in c.__bases__[0].__name__:
-                return c
+        classes = inspect.getmembers(experiment, is_experiment_class)
+
+        preferred_class = os.environ.get("EXPERIMENT_CLASS_NAME", None)
+        if preferred_class is not None:
+            try:
+                return dict(classes)[preferred_class]
+            except KeyError:
+                raise ImportError(
+                    "No experiment named {} was found".format(preferred_class)
+                )
+
+        if len(classes) > 1:
+            for name, c in classes:
+                if "Experiment" in c.__bases__[0].__name__:
+                    warnings.warn(
+                        UserWarning(
+                            "More than one potential experiment class found but no EXPERIMENT_CLASS_NAME environment variable. Picking {} from {}.".format(
+                                name, [n for (n, cls) in classes]
+                            )
+                        ),
+                        stacklevel=3,
+                    )
+                    return c
+            raise ImportError(
+                "No direct experiment subclass found in {}".format(
+                    [n for (n, cls) in classes]
+                )
+            )
+        elif len(classes) == 0:
+            raise ImportError("No experiment classes found")
         else:
-            raise ImportError
+            return classes[0][1]
     except ImportError:
         logger.error("Could not import experiment.")
         raise

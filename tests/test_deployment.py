@@ -457,6 +457,54 @@ class TestSetupExperimentAdditional(object):
         # As are ones specified as part of a directory
         assert found_in(os.path.join("static", "copied_templates", "ad.html"), dst)
 
+    @pytest.mark.filterwarnings("error")
+    def test_warning_if_multiple_experiments_found(
+        self, active_config, setup_experiment
+    ):
+        exp_dir = os.getcwd()
+        with pytest.raises(UserWarning) as e:
+            exp_id, dst = setup_experiment(log=mock.Mock())
+        assert "EXPERIMENT_CLASS_NAME" in str(e)
+        assert (
+            "Picking TestExperiment from ['TestExperiment', 'ZSubclassThatSortsLower']"
+            in str(e)
+        )
+
+        # No warning raised if we set the variable
+        try:
+            os.environ["EXPERIMENT_CLASS_NAME"] = "ZSubclassThatSortsLower"
+            exp_id, dst = setup_experiment(log=mock.Mock())
+        finally:
+            del os.environ["EXPERIMENT_CLASS_NAME"]
+
+    def test_additional_files_can_be_included_by_exp_classmethod(
+        self, active_config, setup_experiment
+    ):
+        # Baseline
+        exp_dir = os.getcwd()
+        assert found_in("dallinger_experiment.py", exp_dir)
+        assert not found_in("experiment_id.txt", exp_dir)
+        assert not found_in("Procfile", exp_dir)
+        assert not found_in("runtime.txt", exp_dir)
+
+        try:
+            os.environ["EXPERIMENT_CLASS_NAME"] = "ZSubclassThatSortsLower"
+            exp_id, dst = setup_experiment(log=mock.Mock())
+        finally:
+            del os.environ["EXPERIMENT_CLASS_NAME"]
+
+        # dst should be a temp dir with a cloned experiment for deployment
+        assert exp_dir != dst
+        assert "/tmp" in dst
+
+        assert found_in("experiment_id.txt", dst)
+        assert found_in("dallinger_experiment.py", dst)
+
+        # Files specified individually are copied
+        assert found_in(os.path.join("static", "different.txt"), dst)
+        # As are ones specified as part of a directory
+        assert found_in(os.path.join("static", "different", "ad.html"), dst)
+
 
 @pytest.mark.usefixtures("active_config", "launch", "fake_git", "fake_redis", "faster")
 class TestDeploySandboxSharedSetupNoExternalCalls(object):
