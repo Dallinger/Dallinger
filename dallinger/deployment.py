@@ -666,7 +666,10 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
-                self.open_dashboard()
+                dashboard_url = "{}/dashboard/".format(get_base_url())
+                self.display_dashboard_access_details(dashboard_url)
+                if not self.no_browsers:
+                    self.open_dashboard(dashboard_url)
                 self.heroku = heroku
                 heroku.monitor(listener=self.notify)
 
@@ -692,8 +695,7 @@ class DebugDeployment(HerokuLocalDeployment):
             url = url.replace(str(get_config().get("base_port")), self.proxy_port)
         new_webbrowser_profile().open(url, new=1, autoraise=True)
 
-    def open_dashboard(self):
-        url = "{}/dashboard/".format(get_base_url())
+    def display_dashboard_access_details(self, url):
         self.out.log("Experiment dashboard: {}".format(url))
         self.out.log(
             "Dashboard user: {} password: {}".format(
@@ -701,15 +703,16 @@ class DebugDeployment(HerokuLocalDeployment):
                 self.environ.get("DASHBOARD_PASSWORD"),
             )
         )
-        if not self.no_browsers:
-            self.out.log("Opening dashboard")
-            parsed = list(urlparse(url))
-            parsed[1] = "{}:{}@{}".format(
-                self.environ.get("DASHBOARD_USER"),
-                self.environ.get("DASHBOARD_PASSWORD"),
-                parsed[1],
-            )
-            new_webbrowser_profile().open(urlunparse(parsed), new=1, autoraise=True)
+
+    def open_dashboard(self, url):
+        self.out.log("Opening dashboard")
+        parsed = list(urlparse(url))
+        parsed[1] = "{}:{}@{}".format(
+            self.environ.get("DASHBOARD_USER"),
+            self.environ.get("DASHBOARD_PASSWORD"),
+            parsed[1],
+        )
+        new_webbrowser_profile().open(urlunparse(parsed), new=1, autoraise=True)
 
     def recruitment_closed(self, match):
         """Recruitment is closed.
