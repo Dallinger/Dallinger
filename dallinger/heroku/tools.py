@@ -383,7 +383,7 @@ class HerokuLocalWrapper(object):
 
         def _handle_timeout(signum, frame):
             raise HerokuTimeoutError(
-                "Failed to start after {} seconds.".format(timeout_secs, self._record)
+                "Failed to start after {} seconds.".format(timeout_secs)
             )
 
         if self.is_running:
