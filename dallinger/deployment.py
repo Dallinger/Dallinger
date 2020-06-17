@@ -430,6 +430,13 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         "whimsical": config["whimsical"],
     }
 
+    # Set up the preferred class as an environment variable, if one is set
+    # This is needed before the config is parsed, but we also store it in the
+    # config to make things easier for recording into bundles.
+    preferred_class = config.get("EXPERIMENT_CLASS_NAME", None)
+    if preferred_class:
+        heroku_config["EXPERIMENT_CLASS_NAME"] = preferred_class
+
     heroku_app.set_multiple(**heroku_config)
 
     # Wait for Redis database to be ready.
