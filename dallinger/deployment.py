@@ -456,9 +456,6 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     launch_url = "{}/launch".format(heroku_app.url)
     log("Calling {}".format(launch_url), chevrons=False)
     launch_data = _handle_launch_data(launch_url, error=log)
-    import pdb
-
-    pdb.set_trace()
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
@@ -467,12 +464,13 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     }
     log("Experiment details:")
     log("App home: {}".format(result["app_home"]), chevrons=False)
-    log("Experiment dashboard URL: {}".format(result["dashboard_url"]))
+    log("Experiment dashboard URL: {}".format(result["dashboard_url"]), chevrons=False)
     log(
         "Dashboard user: {} password: {}".format(
             heroku_config.get("DASHBOARD_USER"),
             heroku_config.get("DASHBOARD_PASSWORD"),
-        )
+        ),
+        chevrons=False,
     )
     log("Recruiter info:")
     log(result["recruitment_msg"], chevrons=False)

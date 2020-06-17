@@ -84,7 +84,6 @@ def load_user_from_request(request):
     auth = request.authorization
     logger.info(auth)
     if auth:
-        raise RuntimeError("Boom")
         if auth["username"] != admin_user.id:
             return
         if auth["password"] == admin_user.password:
@@ -145,6 +144,9 @@ def login():
     if current_user.is_authenticated:
         return redirect(next_url)
     form = LoginForm()
+    if not form.is_submitted():
+        return render_template("login.html", title="Sign In", form=form)
+
     if form.validate_on_submit():
         logger.info(">>>> Form validated...")
         if not admin_user.password == form.password.data:
@@ -154,6 +156,7 @@ def login():
         login_user(admin_user, remember=form.remember_me.data)
         flash("You are now logged in!", "success")
         return redirect(next_url)
+    flash("There was a problem with your submission", "danger")
     return render_template("login.html", title="Sign In", form=form)
 
 
