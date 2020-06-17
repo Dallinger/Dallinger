@@ -7,7 +7,6 @@ from json import loads
 import os
 import re
 
-from faker import Faker
 from flask import abort, Flask, render_template, request, Response, send_from_directory
 from flask_login import LoginManager
 from jinja2 import TemplateNotFound

@@ -529,13 +529,24 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     launch_url = "{}/launch".format(heroku_app.url)
     log("Calling {}".format(launch_url), chevrons=False)
     launch_data = _handle_launch_data(launch_url, error=log)
+    import pdb
+
+    pdb.set_trace()
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
+        "dashboard_url": "{}/dashboard/".format(heroku_app.url),
         "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
     log("Experiment details:")
     log("App home: {}".format(result["app_home"]), chevrons=False)
+    log("Experiment dashboard URL: {}".format(result["dashboard_url"]))
+    log(
+        "Dashboard user: {} password: {}".format(
+            heroku_config.get("DASHBOARD_USER"),
+            heroku_config.get("DASHBOARD_PASSWORD"),
+        )
+    )
     log("Recruiter info:")
     log(result["recruitment_msg"], chevrons=False)
 
@@ -706,13 +717,14 @@ class DebugDeployment(HerokuLocalDeployment):
 
     def open_dashboard(self, url):
         self.out.log("Opening dashboard")
-        parsed = list(urlparse(url))
-        parsed[1] = "{}:{}@{}".format(
-            self.environ.get("DASHBOARD_USER"),
-            self.environ.get("DASHBOARD_PASSWORD"),
-            parsed[1],
-        )
-        new_webbrowser_profile().open(urlunparse(parsed), new=1, autoraise=True)
+        new_webbrowser_profile().open(url, new=1, autoraise=True)
+        # parsed = list(urlparse(url))
+        # parsed[1] = "{}:{}@{}".format(
+        #     self.environ.get("DASHBOARD_USER"),
+        #     self.environ.get("DASHBOARD_PASSWORD"),
+        #     parsed[1],
+        # )
+        # new_webbrowser_profile().open(urlunparse(parsed), new=1, autoraise=True)
 
     def recruitment_closed(self, match):
         """Recruitment is closed.

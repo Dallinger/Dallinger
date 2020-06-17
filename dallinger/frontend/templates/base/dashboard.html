@@ -1,6 +1,8 @@
 <!doctype html>
-<html>
+<html lang="en">
     <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
         <title>{% block title %}{{title}} - {{app_id}} Dashboard{% endblock %}</title>
         {% block replace_stylesheets %}
           <link rel="stylesheet" href="/static/css/bootstrap.min.css" type="text/css">
@@ -11,6 +13,7 @@
         {% endblock %}
     </head>
     <body>
+      <div class="container">
         {% block navigation %}
           <nav id="dashboard-navigation">
             <ul>
@@ -20,6 +23,15 @@
             </ul>
           </nav>
         {% endblock %}
+        {% block messages %}
+          {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+              {% for category, message in messages %}
+              <div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
+              {% endfor %}
+          {% endif %}
+        {% endwith %}
+        {% endblock %}
         {% block body %}
         {% endblock %}
         <footer>
@@ -27,5 +39,6 @@
           <a class="btn logout" href="{{ url_for('dashboard.logout') }}">Logout</a>
           {% endblock %}
         </footer>
+      </div>
     </body>
 </html>

@@ -3,6 +3,7 @@ mode = sandbox
 auto_recruit = true
 webdriver_type = phantomjs
 num_participants = 3
+recruiter = cli
 
 [MTurk]
 title = War of the Ghosts
