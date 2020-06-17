@@ -36,7 +36,7 @@ from dallinger.utils import get_base_url
 from dallinger.utils import GitClient
 from faker import Faker
 
-config = get_config()
+
 fake = Faker()
 
 
@@ -72,6 +72,7 @@ def new_webbrowser_profile():
         ]
         return new_firefox
     elif sys.platform == "darwin":
+        config = get_config()
         chrome_path = config.get("chrome-path")
         if os.path.exists(chrome_path):
             return _make_chrome(chrome_path)
