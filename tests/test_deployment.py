@@ -667,6 +667,7 @@ class TestDebugServer(object):
         return debugger
 
     def test_startup(self, debugger):
+        debugger.no_browsers = True
         debugger.run()
         "Server is running" in str(debugger.out.log.call_args_list[0])
 
