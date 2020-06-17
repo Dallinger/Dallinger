@@ -1,3 +1,4 @@
+import logging
 import os
 from faker import Faker
 from flask import Blueprint
@@ -10,6 +11,9 @@ from flask_login import current_user, login_required, login_user, logout_user
 from flask_login import UserMixin
 from flask_login.utils import login_url as make_login_url
 from dallinger.config import get_config
+
+
+logger = logging.getLogger(__name__)
 
 
 class User(UserMixin):
@@ -76,8 +80,11 @@ def load_user(userid):
 
 
 def load_user_from_request(request):
+    logger.info("We're in load_user_from_request")
     auth = request.authorization
+    logger.info(auth)
     if auth:
+        raise RuntimeError("Boom")
         if auth["username"] != admin_user.id:
             return
         if auth["password"] == admin_user.password:
@@ -87,8 +94,8 @@ def load_user_from_request(request):
 
 def unauthorized():
     config = get_config()
-    if config.get("mode") == "debug":
-        abort(401)
+    # if config.get("mode") == "debug":
+    #     abort(401)
 
     redirect_url = make_login_url("dashboard.login", next_url=request.url)
     return redirect(redirect_url)
@@ -134,14 +141,18 @@ def login():
     next_url = (
         next_url if next_url and is_safe_url(next_url) else url_for("dashboard.index")
     )
+    logger.info("We're here")
     if current_user.is_authenticated:
         return redirect(next_url)
     form = LoginForm()
     if form.validate_on_submit():
+        logger.info(">>>> Form validated...")
         if not admin_user.password == form.password.data:
-            flash("Invalid username or password")
+            logger.info("We're even further...")
+            flash("Invalid username or password", "danger")
             return redirect(url_for("dashboard.login"))
         login_user(admin_user, remember=form.remember_me.data)
+        flash("You are now logged in!", "success")
         return redirect(next_url)
     return render_template("login.html", title="Sign In", form=form)
 

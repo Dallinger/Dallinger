@@ -439,6 +439,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         assert result == {
             "app_home": "fake-web-url",
             "app_name": "dlgr-fake-uid",
+            "dashboard_url": "fake-web-url/dashboard/",
             "recruitment_msg": "fake\nrecruitment\nlist",
         }
 
