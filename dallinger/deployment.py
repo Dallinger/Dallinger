@@ -477,7 +477,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
-        "DASHBOARD_PASSWORD": fake.password(),
+        "DASHBOARD_PASSWORD": fake.password(length=20, special_chars=False),
         "DASHBOARD_USER": config.get("dashboard_user", "admin"),
     }
 
