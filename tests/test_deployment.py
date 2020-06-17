@@ -425,6 +425,39 @@ class TestSetupExperiment(object):
                 assert ex_info.match("Boom!")
 
 
+@pytest.mark.usefixtures("experiment_dir", "active_config", "reset_sys_modules")
+class TestSetupExperimentAdditional(object):
+    @pytest.fixture
+    def setup_experiment(self):
+        from dallinger.deployment import setup_experiment as subject
+
+        return subject
+
+    def test_additional_files_can_be_included_by_module_function(
+        self, setup_experiment
+    ):
+        # Baseline
+        exp_dir = os.getcwd()
+        assert found_in("dallinger_experiment.py", exp_dir)
+        assert not found_in("experiment_id.txt", exp_dir)
+        assert not found_in("Procfile", exp_dir)
+        assert not found_in("runtime.txt", exp_dir)
+
+        exp_id, dst = setup_experiment(log=mock.Mock())
+
+        # dst should be a temp dir with a cloned experiment for deployment
+        assert exp_dir != dst
+        assert "/tmp" in dst
+
+        assert found_in("experiment_id.txt", dst)
+        assert found_in("dallinger_experiment.py", dst)
+
+        # Files specified individually are copied
+        assert found_in(os.path.join("static", "expfile.txt"), dst)
+        # As are ones specified as part of a directory
+        assert found_in(os.path.join("static", "copied_templates", "ad.html"), dst)
+
+
 @pytest.mark.usefixtures("active_config", "launch", "fake_git", "fake_redis", "faster")
 class TestDeploySandboxSharedSetupNoExternalCalls(object):
     @pytest.fixture

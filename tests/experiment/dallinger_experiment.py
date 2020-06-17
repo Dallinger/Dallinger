@@ -1,3 +1,5 @@
+import os.path
+
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 
@@ -38,3 +40,13 @@ class TestExperiment(Experiment):
 def extra_parameters():
     config.register("custom_parameter", int, [])
     config.register("_is_completed", bool, [])
+
+
+def extra_files():
+    return [
+        (os.path.realpath(__file__), "/static/expfile.txt"),
+        (
+            os.path.join(os.path.dirname(os.path.realpath(__file__)), "templates"),
+            "/static/copied_templates",
+        ),
+    ]

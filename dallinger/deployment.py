@@ -237,6 +237,31 @@ def assemble_experiment_temp_dir(config):
         src = os.path.join(dallinger_root, "heroku", "Procfile_no_clock")
         shutil.copy(src, os.path.join(dst, "Procfile"))
 
+    from dallinger.config import initialize_experiment_package
+
+    initialize_experiment_package(dst)
+    from dallinger.experiment import load
+
+    exp_class = load()
+    extra_files = getattr(exp_class, "extra_files", None)
+    if extra_files is None:
+        try:
+            from dallinger_experiment.experiment import extra_files
+        except ImportError:
+            try:
+                from dallinger_experiment.dallinger_experiment import extra_files
+            except ImportError:
+                pass
+
+    if extra_files is not None:
+        for src, filename in extra_files():
+            filename = filename.lstrip("/")
+            dst_filepath = os.path.join(dst, filename)
+            if os.path.isdir(src):
+                shutil.copytree(src, dst_filepath)
+            else:
+                shutil.copyfile(src, dst_filepath)
+
     return dst
 
 
