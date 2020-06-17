@@ -464,14 +464,15 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     }
     log("Experiment details:")
     log("App home: {}".format(result["app_home"]), chevrons=False)
-    log("Experiment dashboard URL: {}".format(result["dashboard_url"]), chevrons=False)
+    log("Dashboard URL: {}".format(result["dashboard_url"]), chevrons=False)
     log(
-        "Dashboard user: {} password: {}".format(
-            heroku_config.get("DASHBOARD_USER"),
-            heroku_config.get("DASHBOARD_PASSWORD"),
-        ),
+        "Dashboard user: {}".format(heroku_config.get("DASHBOARD_USER")), chevrons=False
+    )
+    log(
+        "Dashboard password: {}".format(heroku_config.get("DASHBOARD_PASSWORD")),
         chevrons=False,
     )
+
     log("Recruiter info:")
     log(result["recruitment_msg"], chevrons=False)
 
