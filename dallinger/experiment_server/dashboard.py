@@ -80,9 +80,7 @@ def load_user(userid):
 
 
 def load_user_from_request(request):
-    logger.info("We're in load_user_from_request")
     auth = request.authorization
-    logger.info(auth)
     if auth:
         if auth["username"] != admin_user.id:
             return
@@ -140,7 +138,6 @@ def login():
     next_url = (
         next_url if next_url and is_safe_url(next_url) else url_for("dashboard.index")
     )
-    logger.info("We're here")
     if current_user.is_authenticated:
         return redirect(next_url)
     form = LoginForm()
@@ -148,11 +145,10 @@ def login():
         return render_template("login.html", title="Sign In", form=form)
 
     if form.validate_on_submit():
-        logger.info(">>>> Form validated...")
         if not admin_user.password == form.password.data:
-            logger.info("We're even further...")
             flash("Invalid username or password", "danger")
             return redirect(url_for("dashboard.login"))
+
         login_user(admin_user, remember=form.remember_me.data)
         flash("You are now logged in!", "success")
         return redirect(next_url)
