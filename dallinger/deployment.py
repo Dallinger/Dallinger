@@ -11,14 +11,11 @@ import sys
 import tempfile
 import threading
 import time
-
-try:
-    from urllib.parse import urlparse, urlunparse, quote
-except ImportError:
-    from urlparse import urlparse, urlunparse
-    from urllib import quote
 import webbrowser
+
 from six.moves import shlex_quote as quote
+from six.moves.urllib.parse import urlparse
+from six.moves.urllib.parse import urlunparse
 from unicodedata import normalize
 
 from dallinger import data
