@@ -93,8 +93,8 @@ def load_user_from_request(request):
 
 def unauthorized():
     config = get_config()
-    # if config.get("mode") == "debug":
-    #     abort(401)
+    if config.get("mode") == "debug":
+        abort(401)
 
     redirect_url = make_login_url("dashboard.login", next_url=request.url)
     return redirect(redirect_url)
