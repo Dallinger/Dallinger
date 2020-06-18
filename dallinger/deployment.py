@@ -215,6 +215,7 @@ def assemble_experiment_temp_dir(config):
         os.path.join("templates", "waiting.html"),
         os.path.join("templates", "login.html"),
         os.path.join("templates", "dashboard_home.html"),
+        os.path.join("templates", "dashboard_config.html"),
         os.path.join("static", "robots.txt"),
     ]
     frontend_dirs = [os.path.join("templates", "base")]
