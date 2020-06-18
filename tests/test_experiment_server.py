@@ -1860,8 +1860,8 @@ class TestDashboardTabs(object):
             "Second", "dashboard.second", "dashboard.index"
         )
         assert list(dashboard_tabs) == [
-            ("Second", "dashboard.second"),
             ("First", "dashboard.first"),
+            ("Second", "dashboard.second"),
             ("Home", "dashboard.index"),
         ]
 
