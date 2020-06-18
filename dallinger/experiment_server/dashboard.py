@@ -71,7 +71,9 @@ class DashboardTabs(object):
             yield (title, route_name)
 
 
-dashboard_tabs = DashboardTabs([("Home", "dashboard.index")])
+dashboard_tabs = DashboardTabs(
+    [("Home", "dashboard.index"), ("Config", "dashboard.config"),]
+)
 
 
 def load_user(userid):
@@ -168,3 +170,13 @@ def logout():
 @login_required
 def index():
     return render_template("dashboard_home.html", title="Home")
+
+
+@dashboard.route("/config")
+@login_required
+def config():
+    """Displays active experiment configuation"""
+    config = sorted(get_config().as_dict().items())
+    return render_template(
+        "dashboard_config.html", title="Experiment Configuration", configuration=config
+    )

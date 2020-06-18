@@ -8,7 +8,15 @@ from json import loads
 import os
 import re
 
-from flask import abort, Flask, render_template, request, Response, send_from_directory
+from flask import (
+    abort,
+    Flask,
+    render_template,
+    request,
+    Response,
+    send_from_directory,
+    url_for,
+)
 from flask_login import LoginManager
 from jinja2 import TemplateNotFound
 from rq import Queue
@@ -95,7 +103,12 @@ app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 def index():
     """Index route"""
     config = _config()
-    html = "<html><head></head><body><h1>Dallinger Experiment in progress</h1><dl>"
+    html = (
+        "<html><head></head><body><h1>Dallinger Experiment in progress</h1>"
+        "<a href={}>Dashboard</a>"
+        "<dl>".format(url_for("dashboard.index"))
+    )
+
     for item in sorted(config.as_dict().items()):
         html += '<dt style="font-weight:bold;margin-top:15px;">{}</dt><dd>{}</dd>'.format(
             *item
