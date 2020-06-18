@@ -1,3 +1,4 @@
+import codecs
 import json
 import mock
 import pytest
@@ -1907,28 +1908,54 @@ class TestDashboard(object):
         assert load_user("admin") is admin_user
         assert load_user("user") is None
 
-    def load_user_from_request(self):
+    def test_load_user_from_request(self):
         from dallinger.experiment_server.dashboard import admin_user
         from dallinger.experiment_server.dashboard import load_user_from_request
+        from werkzeug.test import create_environ
         from werkzeug.wrappers import Request
 
-        request = Request({})
+        environ = create_environ("/dashboard", "http://localhost/")
+        request = Request(environ)
         assert load_user_from_request(request) is None
 
-        bad_credentials = "user:password".encode("base64").strip()
-        request = Request({"Authorization": "Basic {}".format(bad_credentials)})
+        bad_credentials = (
+            codecs.encode(b"user:password", "base64").strip().decode("ascii")
+        )
+        environ = create_environ(
+            "/dashboard",
+            "http://localhost/",
+            headers={"Authorization": "Basic {}".format(bad_credentials)},
+        )
+        request = Request(environ)
         assert load_user_from_request(request) is None
 
-        bad_password = ("{}:password".format(admin_user.id)).encode("base64").strip()
-        request = Request({"Authorization": "Basic {}".format(bad_password)})
+        bad_password = (
+            codecs.encode(":password".format(admin_user.id).encode("ascii"), "base64")
+            .strip()
+            .decode("ascii")
+        )
+        environ = create_environ(
+            "/dashboard",
+            "http://localhost/",
+            headers={"Authorization": "Basic {}".format(bad_password)},
+        )
+        request = Request(environ)
         assert load_user_from_request(request) is None
 
         good_credentials = (
-            ("{}:{}".format(admin_user.id, admin_user.password))
-            .encode("base64")
+            codecs.encode(
+                "{}:{}".format(admin_user.id, admin_user.password).encode("ascii"),
+                "base64",
+            )
             .strip()
+            .decode("ascii")
         )
-        request = Request({"Authorization": "Basic {}".format(good_credentials)})
+        environ = create_environ(
+            "/dashboard",
+            "http://localhost/",
+            headers={"Authorization": "Basic {}".format(good_credentials)},
+        )
+        request = Request(environ)
         assert load_user_from_request(request) is admin_user
 
     def test_unauthorized_debug_mode(self, active_config):
