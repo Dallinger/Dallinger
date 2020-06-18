@@ -1851,16 +1851,19 @@ class TestDashboardTabs(object):
 
     def test_dashboard_insert_before(self, dashboard_tabs):
         dashboard_tabs.insert_before_route("First", "first", "index")
-        as_list = list(dashboard_tabs)
-        assert as_list[0] == ("First", "dashboard.first")
-        assert as_list[1] == ("Home", "dashboard.index")
+        assert list(dashboard_tabs) == [
+            ("First", "dashboard.first"),
+            ("Home", "dashboard.index"),
+        ]
+
         dashboard_tabs.insert_before_route(
             "Second", "dashboard.second", "dashboard.index"
         )
-        as_list = list(dashboard_tabs)
-        assert as_list[0] == ("First", "dashboard.first")
-        assert as_list[1] == ("Second", "dashboard.second")
-        assert as_list[2] == ("Home", "dashboard.index")
+        assert list(dashboard_tabs) == [
+            ("Second", "dashboard.second"),
+            ("First", "dashboard.first"),
+            ("Home", "dashboard.index"),
+        ]
 
     def test_dashboard_insert_after(self, dashboard_tabs):
         dashboard_tabs.insert_after_route("Last", "last", "index")
