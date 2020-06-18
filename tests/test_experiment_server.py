@@ -2,6 +2,7 @@ import codecs
 import json
 import mock
 import pytest
+import six
 from datetime import datetime
 from dallinger import models
 from dallinger.config import get_config
@@ -1962,7 +1963,7 @@ class TestDashboard(object):
         from werkzeug.exceptions import Unauthorized
         from dallinger.experiment_server.dashboard import unauthorized
 
-        active_config.set("mode", "debug")
+        active_config.set("mode", six.text_type("debug"))
 
         with pytest.raises(Unauthorized):
             unauthorized()
@@ -1970,7 +1971,7 @@ class TestDashboard(object):
     def test_unauthorized_redirects(self, active_config):
         from dallinger.experiment_server.dashboard import unauthorized
 
-        active_config.set("mode", "sandbox")
+        active_config.set("mode", six.text_type("sandbox"))
         with mock.patch("dallinger.experiment_server.dashboard.request"):
             with mock.patch(
                 "dallinger.experiment_server.dashboard.make_login_url"
