@@ -1897,4 +1897,66 @@ class TestDashboardTabs(object):
 
 
 class TestDashboard(object):
-    pass
+    def test_load_user(self):
+        from dallinger.experiment_server.dashboard import admin_user, load_user
+
+        assert admin_user.id == "admin"
+        assert load_user("admin") is admin_user
+        assert load_user("user") is None
+
+    def load_user_from_request(self):
+        from dallinger.experiment_server.dashboard import admin_user
+        from dallinger.experiment_server.dashboard import load_user_from_request
+        from werkzeug.wrappers import Request
+
+        request = Request({})
+        assert load_user_from_request(request) is None
+
+        bad_credentials = "user:password".encode("base64").strip()
+        request = Request({"Authorization": "Basic {}".format(bad_credentials)})
+        assert load_user_from_request(request) is None
+
+        bad_password = ("{}:password".format(admin_user.id)).encode("base64").strip()
+        request = Request({"Authorization": "Basic {}".format(bad_password)})
+        assert load_user_from_request(request) is None
+
+        good_credentials = (
+            ("{}:{}".format(admin_user.id, admin_user.password))
+            .encode("base64")
+            .strip()
+        )
+        request = Request({"Authorization": "Basic {}".format(good_credentials)})
+        assert load_user_from_request(request) is admin_user
+
+    def test_unauthorized_debug_mode(self, active_config):
+        from werkzeug.exceptions import Unauthorized
+        from dallinger.experiment_server.dashboard import unauthorized
+
+        active_config.set("mode", "debug")
+
+        with pytest.raises(Unauthorized):
+            unauthorized()
+
+    def test_unauthorized_redirects(self, active_config):
+        from dallinger.experiment_server.dashboard import unauthorized
+
+        active_config.set("mode", "sandbox")
+        with mock.patch("dallinger.experiment_server.dashboard.request"):
+            with mock.patch(
+                "dallinger.experiment_server.dashboard.make_login_url"
+            ) as make_login_url:
+                response = unauthorized()
+                assert response.status_code == 302
+                assert "<MagicMock name='make_login_url()'" in response.location
+                make_login_url.assert_called_once_with(
+                    "dashboard.login", next_url=mock.ANY
+                )
+
+    def test_safe_url(self):
+        from dallinger.experiment_server.dashboard import is_safe_url
+
+        with mock.patch("dallinger.experiment_server.dashboard.url_for") as url_for:
+            url_for.side_effect = lambda x: "http://localhost"
+            assert is_safe_url("https://evil.org") is False
+            assert is_safe_url("http://localhost/") is True
+            assert is_safe_url("/") is True
