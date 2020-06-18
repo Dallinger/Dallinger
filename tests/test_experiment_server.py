@@ -580,7 +580,6 @@ class TestSimpleGETRoutes(object):
         resp = webapp.get("/")
         assert resp.status_code == 200
         assert b"Dallinger Experiment in progress" in resp.data
-        assert b">id<" in resp.data
 
     def test_favicon(self, webapp):
         resp = webapp.get("/favicon.ico")

@@ -3,4 +3,19 @@
 {% block body %}
 <h1>Welcome!</h1>
 <p>You are logged in as: {{ current_user.get_id() }} </p>
+
+<h2>Experiment Configuration</h2>
+<p>The active <a href="http://docs.dallinger.io/en/latest/configuration.html">configuration</a>,
+    assembled from your configuration files, Dallinger defaults, and any explicit overrides.
+</p>
+<table class="table table-sm table-striped">
+    <thead class="thead-dark">
+        <tr><th>Key</th><th>Active Value</th></tr>
+    </thead>
+    <tbody>
+    {% for key, value in configuration %}
+        <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
 {% endblock %}
