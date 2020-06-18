@@ -1,5 +1,6 @@
 {% extends "base/dashboard.html" %}
 
 {% block body %}
-Welcome User: {{ current_user.get_id() }}
+<h1>Welcome!</h1>
+<p>You are logged in as: {{ current_user.get_id() }} </p>
 {% endblock %}
