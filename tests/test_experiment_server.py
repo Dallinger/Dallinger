@@ -1819,3 +1819,82 @@ class TestNotificationMissing(object):
         runner.participant.end_time = marker
         runner()
         assert runner.participant.end_time is marker
+
+
+class TestDashboardTabs(object):
+    @pytest.fixture
+    def dashboard_tabs(self):
+        from dallinger.experiment_server.dashboard import DashboardTabs
+
+        return DashboardTabs([("Home", "dashboard.index")])
+
+    def test_dashboard_iter(self):
+        from dallinger.experiment_server.dashboard import DashboardTabs
+
+        dashboard_tabs = DashboardTabs(
+            [("Home", "dashboard.index"), ("Second", "dashboard.second")]
+        )
+        as_list = list(dashboard_tabs)
+        assert as_list[0] == ("Home", "dashboard.index")
+        assert as_list[1] == ("Second", "dashboard.second")
+
+    def test_dashboard_insert(self, dashboard_tabs):
+        dashboard_tabs.insert("Next", "next")
+        as_list = list(dashboard_tabs)
+        assert as_list[0] == ("Home", "dashboard.index")
+        assert as_list[1] == ("Next", "dashboard.next")
+        dashboard_tabs.insert("Previous", "dashboard.previous", 1)
+        as_list = list(dashboard_tabs)
+        assert as_list[0] == ("Home", "dashboard.index")
+        assert as_list[1] == ("Previous", "dashboard.previous")
+        assert as_list[2] == ("Next", "dashboard.next")
+
+    def test_dashboard_insert_before(self, dashboard_tabs):
+        dashboard_tabs.insert_before_route("First", "first", "index")
+        as_list = list(dashboard_tabs)
+        assert as_list[0] == ("First", "dashboard.first")
+        assert as_list[1] == ("Home", "dashboard.index")
+        dashboard_tabs.insert_before_route(
+            "Second", "dashboard.second", "dashboard.index"
+        )
+        as_list = list(dashboard_tabs)
+        assert as_list[0] == ("First", "dashboard.first")
+        assert as_list[1] == ("Second", "dashboard.second")
+        assert as_list[2] == ("Home", "dashboard.index")
+
+    def test_dashboard_insert_after(self, dashboard_tabs):
+        dashboard_tabs.insert_after_route("Last", "last", "index")
+        as_list = list(dashboard_tabs)
+        assert as_list[0] == ("Home", "dashboard.index")
+        assert as_list[1] == ("Last", "dashboard.last")
+        dashboard_tabs.insert_after_route(
+            "Second", "dashboard.second", "dashboard.index"
+        )
+        as_list = list(dashboard_tabs)
+        assert as_list[0] == ("Home", "dashboard.index")
+        assert as_list[1] == ("Second", "dashboard.second")
+        assert as_list[2] == ("Last", "dashboard.last")
+
+    def test_dashboard_remove(self, dashboard_tabs):
+        dashboard_tabs.insert("Last", "last")
+        assert len(list(dashboard_tabs)) == 2
+
+        dashboard_tabs.remove("last")
+        as_list = list(dashboard_tabs)
+        assert len(as_list) == 1
+        assert as_list[0] == ("Home", "dashboard.index")
+
+        dashboard_tabs.insert("Last", "last")
+        assert len(list(dashboard_tabs)) == 2
+
+        dashboard_tabs.remove("dashboard.last")
+        as_list = list(dashboard_tabs)
+        assert len(as_list) == 1
+        assert as_list[0] == ("Home", "dashboard.index")
+
+        dashboard_tabs.remove("index")
+        assert len(list(dashboard_tabs)) == 0
+
+
+class TestDashboard(object):
+    pass
