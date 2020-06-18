@@ -16,9 +16,11 @@
       <div class="container">
         {% block navigation %}
           <nav id="dashboard-navigation">
-            <ul>
+            <ul class="nav nav-pills">
               {% for tab_title, route in config.get('dashboard_tabs',()) %}
-                <li><a href="{{ url_for(route) }}">{{ tab_title }}</a></li>
+                <li class="nav-item{{ route == request.endpoint and ' active' or ''}}">
+                  <a class="nav-link" href="{{ url_for(route) }}">{{ tab_title }}</a>
+                </li>
               {% endfor %}
             </ul>
           </nav>
