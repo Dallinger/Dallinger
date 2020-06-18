@@ -262,6 +262,7 @@ def assemble_experiment_temp_dir(config):
     ensure_directory(os.path.join(dst, "static", "scripts"))
     ensure_directory(os.path.join(dst, "static", "css"))
     frontend_files = [
+        os.path.join("static", "css", "dashboard-bootstrap.min.css"),
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
