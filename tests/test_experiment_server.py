@@ -1991,3 +1991,129 @@ class TestDashboard(object):
             assert is_safe_url("https://evil.org") is False
             assert is_safe_url("http://localhost/") is True
             assert is_safe_url("/") is True
+
+
+@pytest.mark.slow
+@pytest.mark.usefixtures("experiment_dir", "db_session")
+class TestDashboardRoutes(object):
+    @pytest.fixture
+    def csrf_token(self, webapp, active_config):
+        active_config.set("mode", six.text_type("sandbox"))
+        # Make a writeable session and copy the csrf token into it
+        from flask_wtf.csrf import generate_csrf
+
+        with webapp.application.test_request_context() as request:
+            with webapp.session_transaction() as sess:
+                token = generate_csrf()
+                sess.update(request.session)
+        yield token
+
+    def test_debug_dashboad_unauthorized(self, webapp, active_config):
+        active_config.set("mode", six.text_type("debug"))
+        resp = webapp.get("/dashboard/")
+        assert resp.status_code == 401
+
+    def test_debug_dashboad_redirects_to_login(self, webapp, active_config):
+        active_config.set("mode", six.text_type("sandbox"))
+        resp = webapp.get("/dashboard/")
+        assert resp.status_code == 302
+        assert resp.location.endswith("/login?next=%2Fdashboard%2F")
+
+    def test_login_redirects_to_next(self, webapp, active_config, csrf_token):
+        from dallinger.experiment_server.dashboard import admin_user
+
+        active_config.set("mode", six.text_type("sandbox"))
+
+        login_resp = webapp.get("/dashboard/login?next=%2Fdashboard%2F")
+        assert login_resp.status_code == 200
+
+        resp = webapp.post(
+            "/dashboard/login",
+            data={
+                "username": admin_user.id,
+                "password": admin_user.password,
+                "next": "/dashboard/something",
+                "submit": "Sign In",
+                "csrf_token": csrf_token,
+            },
+        )
+        assert resp.status_code == 302
+        assert resp.location.endswith("/dashboard/something")
+
+    def test_login_session_retained(self, webapp, csrf_token):
+        from dallinger.experiment_server.dashboard import admin_user
+
+        resp = webapp.post(
+            "/dashboard/login",
+            data={
+                "username": admin_user.id,
+                "password": admin_user.password,
+                "next": "/dashboard",
+                "submit": "Sign In",
+                "csrf_token": csrf_token,
+            },
+        )
+        assert resp.status_code == 302
+
+        resp = webapp.get("/dashboard/")
+        assert resp.status_code == 200
+
+    def test_logout(self, webapp, csrf_token):
+        from dallinger.experiment_server.dashboard import admin_user
+
+        resp = webapp.post(
+            "/dashboard/login",
+            data={
+                "username": admin_user.id,
+                "password": admin_user.password,
+                "next": "/dashboard/",
+                "submit": "Sign In",
+                "csrf_token": csrf_token,
+            },
+        )
+        assert resp.status_code == 302
+
+        resp = webapp.get("/dashboard/")
+        assert resp.status_code == 200
+
+        logout_resp = webapp.get("/dashboard/logout")
+        assert logout_resp.status_code == 302
+
+        loggedout_resp = webapp.get("/dashboard/")
+        assert loggedout_resp.status_code == 302
+        assert loggedout_resp.location.endswith("/dashboard/login?next=%2Fdashboard%2F")
+
+    def test_login_bad_password(self, webapp, csrf_token):
+        from dallinger.experiment_server.dashboard import admin_user
+
+        resp = webapp.post(
+            "/dashboard/login",
+            data={
+                "username": admin_user.id,
+                "password": "badpass",
+                "next": "/dashboard/",
+                "submit": "Sign In",
+                "csrf_token": csrf_token,
+            },
+        )
+        # Redirects to login form
+        assert resp.status_code == 302
+        assert resp.location.endswith("/dashboard/login")
+        login_resp = webapp.get("/dashboard/login")
+        assert "Invalid username or password" in login_resp.data.decode("utf8")
+
+    def test_login_rejects_malicious_urls(self, webapp, csrf_token):
+        from dallinger.experiment_server.dashboard import admin_user
+
+        resp = webapp.post(
+            "/dashboard/login",
+            data={
+                "username": admin_user.id,
+                "password": admin_user.password,
+                "next": "https://evil.org/",
+                "submit": "Sign In",
+                "csrf_token": csrf_token,
+            },
+        )
+        assert resp.status_code == 302
+        assert resp.location.endswith("/dashboard/index")

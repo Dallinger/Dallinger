@@ -135,7 +135,7 @@ def is_safe_url(url):
 
 @dashboard.route("/login", methods=["GET", "POST"])
 def login():
-    next_url = request.args.get("next")
+    next_url = request.form.get("next", request.args.get("next"))
     next_url = (
         next_url if next_url and is_safe_url(next_url) else url_for("dashboard.index")
     )
