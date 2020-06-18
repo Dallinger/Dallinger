@@ -44,26 +44,27 @@ class DashboardTabs(object):
 
     def insert_before_route(self, title, route_name, before_route):
         before_check = frozenset((before_route, "dashboard." + before_route))
-        for i, (t, r) in self.tabs:
+        for i, (t, r) in enumerate(self.tabs):
             if r in before_check:
                 position = i
                 break
         else:
             raise ValueError("Route {} not found".format(before_route))
-        self.insert(position, title, route_name)
+        self.insert(title, route_name, position)
 
     def insert_after_route(self, title, route_name, after_route):
         after_check = frozenset((after_route, "dashboard." + after_route))
-        for i, (t, r) in self.tabs:
+        for i, (t, r) in enumerate(self.tabs):
             if r in after_check:
                 position = i + 1
                 break
         else:
             raise ValueError("Route {} not found".format(after_route))
-        self.insert(position, title, route_name)
+        self.insert(title, route_name, position)
 
     def remove(self, route_name):
-        self.tabs = [t for t in self.tabs if t[1] == route_name]
+        route_check = frozenset((route_name, "dashboard." + route_name))
+        self.tabs = [t for t in self.tabs if t[1] not in route_check]
 
     def __iter__(self):
         for title, route_name in self.tabs:
