@@ -102,18 +102,13 @@ app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 @app.route("/")
 def index():
     """Index route"""
-    config = _config()
     html = (
         "<html><head></head><body><h1>Dallinger Experiment in progress</h1>"
-        "<a href={}>Dashboard</a>"
-        "<dl>".format(url_for("dashboard.index"))
+        "<p><a href={}>Dashboard</a></p></body></html>".format(
+            url_for("dashboard.index")
+        )
     )
 
-    for item in sorted(config.as_dict().items()):
-        html += '<dt style="font-weight:bold;margin-top:15px;">{}</dt><dd>{}</dd>'.format(
-            *item
-        )
-    html += "</dl></body></html>"
     return html
 
 
