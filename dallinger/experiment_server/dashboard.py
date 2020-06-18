@@ -72,7 +72,7 @@ class DashboardTabs(object):
 
 
 dashboard_tabs = DashboardTabs(
-    [("Home", "dashboard.index"), ("Config", "dashboard.config"),]
+    [("Home", "dashboard.index"), ("Config", "dashboard.config")]
 )
 
 
