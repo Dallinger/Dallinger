@@ -47,6 +47,11 @@ class DashboardTab(object):
     def has_children(self):
         return self.children_function is not None
 
+    def __eq__(self, other):
+        return self.__class__ == other.__class__ and all(
+            getattr(self, attr) == getattr(other, attr) for attr in self.__dict__
+        )
+
     def __iter__(self):
         if self.has_children:
             children = self.children_function()
@@ -91,8 +96,8 @@ class DashboardTabs(object):
 
         """
         before_check = frozenset((before_route, "dashboard." + before_route))
-        for i, (t, r) in enumerate(self.tabs):
-            if r in before_check:
+        for i, tab in enumerate(self.tabs):
+            if tab.route_name in before_check:
                 position = i
                 break
         else:
@@ -112,8 +117,8 @@ class DashboardTabs(object):
 
         """
         after_check = frozenset((after_route, "dashboard." + after_route))
-        for i, (t, r) in enumerate(self.tabs):
-            if r in after_check:
+        for i, tab in enumerate(self.tabs):
+            if tab.route_name in after_check:
                 position = i + 1
                 break
         else:
@@ -128,7 +133,7 @@ class DashboardTabs(object):
 
         """
         route_check = frozenset((route_name, "dashboard." + route_name))
-        self.tabs = [t for t in self.tabs if t[1] not in route_check]
+        self.tabs = [t for t in self.tabs if t.route_name not in route_check]
 
     def __iter__(self):
         return iter(self.tabs)
