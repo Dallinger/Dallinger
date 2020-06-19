@@ -16,10 +16,10 @@
       <div class="container">
         {% block navigation %}
           <nav id="dashboard-navigation">
-            <ul class="nav nav-pills">
+            <ul class="nav nav-tabs">
               {% for tab_title, route in config.get('dashboard_tabs',()) %}
-                <li class="nav-item{{ route == request.endpoint and ' active' or ''}}">
-                  <a class="nav-link" href="{{ url_for(route) }}">{{ tab_title }}</a>
+                <li class="nav-item">
+                  <a class="nav-link{{ route == request.endpoint and ' active' or ''}}" href="{{ url_for(route) }}">{{ tab_title }}</a>
                 </li>
               {% endfor %}
             </ul>
@@ -38,7 +38,9 @@
         {% endblock %}
         <footer>
           {% block footer %}
+          {% if not request.headers.get('AUTHORIZATION') %}
           <a class="btn btn-primary logout" href="{{ url_for('dashboard.logout') }}">Logout</a>
+          {% endif %}
           {% endblock %}
         </footer>
       </div>
