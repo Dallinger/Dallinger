@@ -2,10 +2,12 @@
 
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v-6.3.0](https://github.com/dallinger/dallinger/tree/6.3.0) (xxxx-xx-xx)
 - Add `file:/path/to/file` support to configuration system.
 - Add validators to configuration system.
 - Add new `qualification_requirements` config parameter to add explicit MTurk
   qualifications.
+- New, extensible `/dashboard` infrastructure for viewing and manipulating details of the live experiment, protected by a username and password (see http://docs.dallinger.io/en/latest/monitoring_a_live_experiment.html#the-dashboard)
 
 ## [v-6.2.2](https://github.com/dallinger/dallinger/tree/6.2.2) (2020-04-27)
 - Bugfix: revert change to `HOST` configuration which broke Heroku deployments (see https://github.com/Dallinger/Dallinger/issues/2130)
