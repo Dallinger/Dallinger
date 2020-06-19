@@ -1908,39 +1908,70 @@ class TestDashboard(object):
         assert load_user("admin") is admin_user
         assert load_user("user") is None
 
-    def test_load_user_from_request(self):
-        from dallinger.experiment_server.dashboard import admin_user
-        from dallinger.experiment_server.dashboard import load_user_from_request
+    @staticmethod
+    def create_request(*args, **kw):
         from werkzeug.test import create_environ
         from werkzeug.wrappers import Request
 
-        environ = create_environ("/dashboard", "http://localhost/")
+        environ = create_environ(*args, **kw)
         request = Request(environ)
-        assert load_user_from_request(request) is None
+        return request
+
+    def test_load_user_from_empty_request(self):
+        from dallinger.experiment_server.dashboard import load_user_from_request
+
+        assert (
+            load_user_from_request(
+                self.create_request("/dashboard", "http://localhost/")
+            )
+            is None
+        )
+
+    def test_load_user_with_wrong_user(self):
+        from dallinger.experiment_server.dashboard import load_user_from_request
+        from dallinger.experiment_server.dashboard import admin_user
 
         bad_credentials = (
-            codecs.encode(b"user:password", "base64").strip().decode("ascii")
-        )
-        environ = create_environ(
-            "/dashboard",
-            "http://localhost/",
-            headers={"Authorization": "Basic {}".format(bad_credentials)},
-        )
-        request = Request(environ)
-        assert load_user_from_request(request) is None
-
-        bad_password = (
-            codecs.encode(":password".format(admin_user.id).encode("ascii"), "base64")
+            codecs.encode(
+                "user:{}".format(admin_user.password).encode("ascii"), "base64"
+            )
             .strip()
             .decode("ascii")
         )
-        environ = create_environ(
-            "/dashboard",
-            "http://localhost/",
-            headers={"Authorization": "Basic {}".format(bad_password)},
+        assert (
+            load_user_from_request(
+                self.create_request(
+                    "/dashboard",
+                    "http://localhost/",
+                    headers={"Authorization": "Basic {}".format(bad_credentials)},
+                )
+            )
+            is None
         )
-        request = Request(environ)
-        assert load_user_from_request(request) is None
+
+    def test_load_user_with_bad_password(self):
+        from dallinger.experiment_server.dashboard import load_user_from_request
+        from dallinger.experiment_server.dashboard import admin_user
+
+        bad_password = (
+            codecs.encode("{}:password".format(admin_user.id).encode("ascii"), "base64")
+            .strip()
+            .decode("ascii")
+        )
+        assert (
+            load_user_from_request(
+                self.create_request(
+                    "/dashboard",
+                    "http://localhost/",
+                    headers={"Authorization": "Basic {}".format(bad_password)},
+                )
+            )
+            is None
+        )
+
+    def test_load_user_from_request(self):
+        from dallinger.experiment_server.dashboard import load_user_from_request
+        from dallinger.experiment_server.dashboard import admin_user
 
         good_credentials = (
             codecs.encode(
@@ -1950,13 +1981,16 @@ class TestDashboard(object):
             .strip()
             .decode("ascii")
         )
-        environ = create_environ(
-            "/dashboard",
-            "http://localhost/",
-            headers={"Authorization": "Basic {}".format(good_credentials)},
+        assert (
+            load_user_from_request(
+                self.create_request(
+                    "/dashboard",
+                    "http://localhost/",
+                    headers={"Authorization": "Basic {}".format(good_credentials)},
+                )
+            )
+            is admin_user
         )
-        request = Request(environ)
-        assert load_user_from_request(request) is admin_user
 
     def test_unauthorized_debug_mode(self, active_config):
         from werkzeug.exceptions import Unauthorized
@@ -2007,6 +2041,22 @@ class TestDashboardRoutes(object):
                 sess.update(request.session)
         yield token
 
+    @pytest.fixture
+    def logged_in(self, webapp, csrf_token):
+        from dallinger.experiment_server.dashboard import admin_user
+
+        webapp.post(
+            "/dashboard/login",
+            data={
+                "username": admin_user.id,
+                "password": admin_user.password,
+                "next": "/dashboard/something",
+                "submit": "Sign In",
+                "csrf_token": csrf_token,
+            },
+        )
+        yield webapp
+
     def test_debug_dashboad_unauthorized(self, webapp, active_config):
         active_config.set("mode", six.text_type("debug"))
         resp = webapp.get("/dashboard/")
@@ -2017,70 +2067,6 @@ class TestDashboardRoutes(object):
         resp = webapp.get("/dashboard/")
         assert resp.status_code == 302
         assert resp.location.endswith("/login?next=%2Fdashboard%2F")
-
-    def test_login_redirects_to_next(self, webapp, active_config, csrf_token):
-        from dallinger.experiment_server.dashboard import admin_user
-
-        active_config.set("mode", six.text_type("sandbox"))
-
-        login_resp = webapp.get("/dashboard/login?next=%2Fdashboard%2F")
-        assert login_resp.status_code == 200
-
-        resp = webapp.post(
-            "/dashboard/login",
-            data={
-                "username": admin_user.id,
-                "password": admin_user.password,
-                "next": "/dashboard/something",
-                "submit": "Sign In",
-                "csrf_token": csrf_token,
-            },
-        )
-        assert resp.status_code == 302
-        assert resp.location.endswith("/dashboard/something")
-
-    def test_login_session_retained(self, webapp, csrf_token):
-        from dallinger.experiment_server.dashboard import admin_user
-
-        resp = webapp.post(
-            "/dashboard/login",
-            data={
-                "username": admin_user.id,
-                "password": admin_user.password,
-                "next": "/dashboard",
-                "submit": "Sign In",
-                "csrf_token": csrf_token,
-            },
-        )
-        assert resp.status_code == 302
-
-        resp = webapp.get("/dashboard/")
-        assert resp.status_code == 200
-
-    def test_logout(self, webapp, csrf_token):
-        from dallinger.experiment_server.dashboard import admin_user
-
-        resp = webapp.post(
-            "/dashboard/login",
-            data={
-                "username": admin_user.id,
-                "password": admin_user.password,
-                "next": "/dashboard/",
-                "submit": "Sign In",
-                "csrf_token": csrf_token,
-            },
-        )
-        assert resp.status_code == 302
-
-        resp = webapp.get("/dashboard/")
-        assert resp.status_code == 200
-
-        logout_resp = webapp.get("/dashboard/logout")
-        assert logout_resp.status_code == 302
-
-        loggedout_resp = webapp.get("/dashboard/")
-        assert loggedout_resp.status_code == 302
-        assert loggedout_resp.location.endswith("/dashboard/login?next=%2Fdashboard%2F")
 
     def test_login_bad_password(self, webapp, csrf_token):
         from dallinger.experiment_server.dashboard import admin_user
@@ -2101,6 +2087,25 @@ class TestDashboardRoutes(object):
         login_resp = webapp.get("/dashboard/login")
         assert "Invalid username or password" in login_resp.data.decode("utf8")
 
+    def test_login_redirects_to_next(self, webapp, csrf_token):
+        from dallinger.experiment_server.dashboard import admin_user
+
+        login_resp = webapp.get("/dashboard/login?next=%2Fdashboard%2F")
+        assert login_resp.status_code == 200
+
+        resp = webapp.post(
+            "/dashboard/login",
+            data={
+                "username": admin_user.id,
+                "password": admin_user.password,
+                "next": "/dashboard/something",
+                "submit": "Sign In",
+                "csrf_token": csrf_token,
+            },
+        )
+        assert resp.status_code == 302
+        assert resp.location.endswith("/dashboard/something")
+
     def test_login_rejects_malicious_urls(self, webapp, csrf_token):
         from dallinger.experiment_server.dashboard import admin_user
 
@@ -2116,3 +2121,21 @@ class TestDashboardRoutes(object):
         )
         assert resp.status_code == 302
         assert resp.location.endswith("/dashboard/index")
+
+    def test_login_session_retained(self, logged_in):
+        from dallinger.experiment_server.dashboard import admin_user
+
+        resp = logged_in.get("/dashboard/")
+        assert resp.status_code == 200
+        assert "Welcome User: {}".format(admin_user.id) in resp.data.decode("utf8")
+
+    def test_logout(self, logged_in):
+        resp = logged_in.get("/dashboard/")
+        assert resp.status_code == 200
+
+        logout_resp = logged_in.get("/dashboard/logout")
+        assert logout_resp.status_code == 302
+
+        loggedout_resp = logged_in.get("/dashboard/")
+        assert loggedout_resp.status_code == 302
+        assert loggedout_resp.location.endswith("/dashboard/login?next=%2Fdashboard%2F")

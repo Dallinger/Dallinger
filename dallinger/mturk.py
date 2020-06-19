@@ -502,7 +502,7 @@ class MTurkService(object):
             )
         except Exception as ex:
             raise MTurkServiceException(
-                "Failed to extend time until expiration of HIT: {}".format(
+                "Failed to extend time until expiration of HIT: {}\n{}".format(
                     expiration, str(ex)
                 )
             )
