@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from faker import Faker
@@ -109,7 +110,13 @@ class DashboardTabs(object):
             yield (title, route_name)
 
 
-dashboard_tabs = DashboardTabs([("Home", "dashboard.index")])
+dashboard_tabs = DashboardTabs(
+    [
+        ("Home", "dashboard.index"),
+        ("Heroku", "dashboard.heroku"),
+        ("Addons", "dashboard.addons"),
+    ]
+)
 
 
 def load_user(userid):
@@ -210,3 +217,24 @@ def index():
     return render_template(
         "dashboard_home.html", title="Dashboard Home", configuration=config
     )
+
+
+@dashboard.route("/heroku")
+@login_required
+def heroku():
+    config = get_config()
+    dlgr_id = "dlgr-" + config.get("id")[:8]
+    url = "https://dashboard.heroku.com/apps/" + dlgr_id
+    return render_template("dashboard_wrapper.html", title="Heroku", link=True, url=url)
+
+
+@dashboard.route("/addons")
+@login_required
+def addons():
+    config = get_config()
+    details = config.get("infrastructure_debug_details", "{}")
+    details = json.loads(details)
+    addon_type = request.args.get("type")
+    url = details.get(addon_type)["url"]
+    title = addon_type
+    return render_template("dashboard_wrapper.html", title=title, url=url)
