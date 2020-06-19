@@ -111,11 +111,7 @@ class DashboardTabs(object):
 
 
 dashboard_tabs = DashboardTabs(
-    [
-        ("Home", "dashboard.index"),
-        ("Heroku", "dashboard.heroku"),
-        ("Addons", "dashboard.addons"),
-    ]
+    [("Home", "dashboard.index"), ("Heroku", "dashboard.heroku"),]
 )
 
 
@@ -223,18 +219,24 @@ def index():
 @login_required
 def heroku():
     config = get_config()
-    dlgr_id = "dlgr-" + config.get("id")[:8]
-    url = "https://dashboard.heroku.com/apps/" + dlgr_id
-    return render_template("dashboard_wrapper.html", title="Heroku", link=True, url=url)
-
-
-@dashboard.route("/addons")
-@login_required
-def addons():
-    config = get_config()
     details = config.get("infrastructure_debug_details", "{}")
     details = json.loads(details)
+
+    dlgr_id = "dlgr-" + config.get("id")[:8]
+    details["HEROKU"] = {
+        "url": "https://dashboard.heroku.com/apps/" + dlgr_id,
+        "title": "Heroku dashboard",
+        "link": True,
+    }
+
     addon_type = request.args.get("type")
-    url = details.get(addon_type)["url"]
-    title = addon_type
-    return render_template("dashboard_wrapper.html", title=title, url=url)
+    if addon_type is None:
+        addon_type = "HEROKU"
+    pane = details.get(addon_type)
+    return render_template(
+        "dashboard_wrapper.html",
+        panes=details,
+        title=pane["title"],
+        url=pane["url"],
+        link=pane.get("link", False),
+    )

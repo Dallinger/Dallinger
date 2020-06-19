@@ -312,7 +312,7 @@ class HerokuApp(HerokuCommandRunner):
             ).strip()
             addon_info[addon_type] = {
                 "url": url,
-                "title": addon_type,
+                "title": addon_type.title(),
             }
         return addon_info
 
