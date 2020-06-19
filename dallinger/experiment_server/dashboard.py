@@ -71,7 +71,7 @@ class DashboardTabs(object):
             yield (title, route_name)
 
 
-dashboard_tabs = DashboardTabs([("Home", "dashboard.index"),])
+dashboard_tabs = DashboardTabs([("Home", "dashboard.index")])
 
 
 def load_user(userid):
