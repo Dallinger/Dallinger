@@ -265,6 +265,9 @@ def assemble_experiment_temp_dir(config):
     frontend_files = [
         os.path.join("static", "css", "bootstrap.min.css"),
         os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "scripts", "jquery-3.5.1.min.js"),
+        os.path.join("static", "scripts", "popper.min.js"),
+        os.path.join("static", "scripts", "bootstrap.min.js"),
         os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "scripts", "require.js"),
