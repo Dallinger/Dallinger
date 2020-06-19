@@ -35,6 +35,16 @@ class DashboardTabs(object):
         self.tabs = tabs or []
 
     def insert(self, title, route_name, position=None):
+        """Insert a new dashboard tab (optionally at a specific position)
+
+        :param title: Title string to appear in the dashboard HTML
+        :type title: str
+        :param route_name: The registered route name (optionally prefixed with ``dashboard.``)
+        :type route_name: str
+        :param position: The 0-based index where the tab should be inserted. By default tabs will be appended to the end.
+        :type position: int, optional
+
+        """
         if not route_name.startswith("dashboard."):
             route_name = "dashboard." + route_name
         if position is None:
@@ -43,6 +53,17 @@ class DashboardTabs(object):
             self.tabs.insert(position, (title, route_name))
 
     def insert_before_route(self, title, route_name, before_route):
+        """Insert a new dashboard tab before an existing tab by route name
+
+        :param title: Title string to appear in the dashboard HTML
+        :type title: str
+        :param route_name: The registered route name (optionally prefixed with ``dashboard.``)
+        :type route_name: str
+        :param before_route: The route name to insert this tab before.
+        :type before_route: str
+        :raises ValueError: When ``before_route`` is not found in registered tabs
+
+        """
         before_check = frozenset((before_route, "dashboard." + before_route))
         for i, (t, r) in enumerate(self.tabs):
             if r in before_check:
@@ -53,6 +74,17 @@ class DashboardTabs(object):
         self.insert(title, route_name, position)
 
     def insert_after_route(self, title, route_name, after_route):
+        """Insert a new dashboard tab after an existing tab by route name
+
+        :param title: Title string to appear in the dashboard HTML
+        :type title: str
+        :param route_name: The registered route name (optionally prefixed with ``dashboard.``)
+        :type route_name: str
+        :param after_route: The route name to insert this tab after.
+        :type after_route: str
+        :raises ValueError: When ``after_route`` is not found in registered tabs
+
+        """
         after_check = frozenset((after_route, "dashboard." + after_route))
         for i, (t, r) in enumerate(self.tabs):
             if r in after_check:
@@ -63,6 +95,12 @@ class DashboardTabs(object):
         self.insert(title, route_name, position)
 
     def remove(self, route_name):
+        """Remove a tab by route name
+
+        :param route_name: The registered route name (optionally prefixed with ``dashboard.``)
+        :type route_name: str
+
+        """
         route_check = frozenset((route_name, "dashboard." + route_name))
         self.tabs = [t for t in self.tabs if t[1] not in route_check]
 
