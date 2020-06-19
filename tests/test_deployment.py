@@ -356,7 +356,7 @@ class TestSetupExperiment(object):
 
         assert found_in("Procfile", dst)
         with open(os.path.join(dst, "Procfile")) as proc:
-            assert "clock: dallinger_heroku_clock" not in [l.strip() for l in proc]
+            assert "clock: dallinger_heroku_clock" not in [p.strip() for p in proc]
 
     def test_setup_procfile_with_clock(self, setup_experiment):
         config = get_config()
@@ -369,7 +369,7 @@ class TestSetupExperiment(object):
 
         assert found_in("Procfile", dst)
         with open(os.path.join(dst, "Procfile")) as proc:
-            assert "clock: dallinger_heroku_clock" in [l.strip() for l in proc]
+            assert "clock: dallinger_heroku_clock" in [p.strip() for p in proc]
 
     def test_setup_with_custom_dict_config(self, setup_experiment):
         config = get_config()

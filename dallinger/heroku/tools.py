@@ -458,7 +458,7 @@ class HerokuLocalWrapper(object):
                         "There was an error while starting the server. "
                         "Run with --verbose for details."
                     )
-                    self.out.error("Sign of error found in line: ".format(line))
+                    self.out.error("Sign of error found in line: {}".format(line))
                 return False
 
         return False
