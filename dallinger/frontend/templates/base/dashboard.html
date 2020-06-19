@@ -19,6 +19,7 @@
             <ul class="nav nav-tabs">
               {% for tab in config.get('dashboard_tabs',()) %}
                 {% if tab.has_children %}
+                <li class="nav-item">
                   <a class="nav-link dropdown-toggle{{ tab.route_name == request.endpoint and ' active' or ''}}" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">{{ tab.title }}</a>
                   <div class="dropdown-menu">
                     {% for child_tab in tab %}
