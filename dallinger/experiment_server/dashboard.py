@@ -159,6 +159,7 @@ dashboard_tabs = DashboardTabs(
     [
         DashboardTab("Home", "dashboard.index"),
         DashboardTab("Heroku", "dashboard.heroku", heroku_children),
+        DashboardTab("MTurk", "dashboard.mturk"),
     ]
 )
 
@@ -287,4 +288,68 @@ def heroku():
         title=pane["title"],
         url=pane["url"],
         link=pane.get("link", False),
+    )
+
+
+from dallinger import recruiters
+
+
+class FakeMTurkDashboardSource(object):
+
+    data = {
+        "account_balance": "[todo]",
+        "hit_title": "Some Title",
+        "hit_keywords": "kw1, kw2",
+        "hit_base_payment": "$2.99",
+        "hit_description": "The Description...",
+        "hit_creation_time": "Recently...",
+        "hit_expiration_time": "Soon...",
+        "hit_max_assignments": "12",
+    }
+
+    @property
+    def hit_info(self):
+        return self.data
+
+
+class MTurkDashboardSource(object):
+    def __init__(self, recruiter):
+        self._recruiter = recruiter
+        self._mturk = recruiter.mturkservice
+
+    @property
+    def hit_info(self):
+        hit = self._mturk.get_hit(self._recruiter.current_hit_id())
+        data = {
+            "account_balance": "[todo]",
+            "hit_title": hit["title"],
+            "hit_keywords": ", ".join(hit["keywords"]),
+            "hit_base_payment": hit["reward"],
+            "hit_description": hit["description"],
+            "hit_creation_time": hit["created"],
+            "hit_expiration_time": hit["expiration"],
+            "hit_max_assignments": hit["max_assignments"],
+        }
+
+        return data
+
+
+@dashboard.route("/mturk")
+@login_required
+def mturk():
+    config = get_config()
+    recruiter = recruiters.from_config(config)
+    if recruiter.nickname != "mturk":
+        flash(
+            "This experiment does not use the MTurk Recruiter, so we're just pretending",
+            "danger",
+        )
+        helper = FakeMTurkDashboardSource()
+    else:
+        helper = MTurkDashboardSource(recruiter)
+
+    data = helper.hit_info
+
+    return render_template(
+        "dashboard_mturk.html", title="MTurk Dashboard", hit_config=data
     )
