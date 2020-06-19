@@ -1,0 +1,10 @@
+{% extends "base/dashboard.html" %}
+
+{% block body %}
+
+{% if link %}
+    <a href="{{ url }}" class="Btn Btn--primary">Open</a>
+{% else %}
+    <iframe style="width: 100%; height: 80vh;" src="{{ url }}"></iframe>
+{% endif %}
+{% endblock %}
