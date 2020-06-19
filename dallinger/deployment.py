@@ -512,7 +512,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     git.commit("Save URL for database")
     time.sleep(0.25)
 
-    log("Generating dashboard links")
+    log("Generating dashboard links...")
     heroku_addons = heroku_app.addon_parameters()
     config.extend({"infrastructure_debug_details": json.dumps(heroku_addons)})
     config.write()
