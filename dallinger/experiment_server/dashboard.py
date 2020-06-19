@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from six.moves.urllib.parse import urlencode
 from faker import Faker
 from flask import Blueprint
 from flask import abort, flash, redirect, render_template, request, url_for
@@ -29,6 +30,30 @@ admin_user = User(
 )
 
 
+class DashboardTab(object):
+    def __init__(self, title, route_name, children_function=None, params=None):
+        self.title = title
+        self.route_name = route_name
+        self.children_function = children_function
+        self.params = params
+
+    def url(self):
+        url = url_for(self.route_name)
+        if self.params is not None:
+            url += "?" + urlencode(self.params)
+        return url
+
+    @property
+    def has_children(self):
+        return self.children_function is not None
+
+    def __iter__(self):
+        if self.has_children:
+            children = self.children_function()
+            for child in children:
+                yield child
+
+
 class DashboardTabs(object):
     tabs = ()
 
@@ -49,9 +74,9 @@ class DashboardTabs(object):
         if not route_name.startswith("dashboard."):
             route_name = "dashboard." + route_name
         if position is None:
-            self.tabs.append((title, route_name))
+            self.tabs.append(DashboardTab(title, route_name))
         else:
-            self.tabs.insert(position, (title, route_name))
+            self.tabs.insert(position, DashboardTab(title, route_name))
 
     def insert_before_route(self, title, route_name, before_route):
         """Insert a new dashboard tab before an existing tab by route name
@@ -106,12 +131,30 @@ class DashboardTabs(object):
         self.tabs = [t for t in self.tabs if t[1] not in route_check]
 
     def __iter__(self):
-        for title, route_name in self.tabs:
-            yield (title, route_name)
+        return iter(self.tabs)
+
+
+def heroku_children():
+    config = get_config()
+    details = config.get("infrastructure_debug_details", "{}")
+    details = json.loads(details)
+
+    dlgr_id = "dlgr-" + config.get("id")[:8]
+    details["HEROKU"] = {
+        "url": "https://dashboard.heroku.com/apps/" + dlgr_id,
+        "title": "Heroku dashboard",
+        "link": True,
+    }
+
+    for pane_id, pane in details.items():
+        yield DashboardTab(pane["title"], "dashboard.heroku", None, {"type": pane_id})
 
 
 dashboard_tabs = DashboardTabs(
-    [("Home", "dashboard.index"), ("Heroku", "dashboard.heroku"),]
+    [
+        DashboardTab("Home", "dashboard.index"),
+        DashboardTab("Heroku", "dashboard.heroku", heroku_children),
+    ]
 )
 
 
