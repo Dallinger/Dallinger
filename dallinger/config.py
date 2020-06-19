@@ -52,6 +52,7 @@ default_keys = (
     ("heroku_team", six.text_type, ["team"]),
     ("host", six.text_type, []),
     ("id", six.text_type, []),
+    ("infrastructure_debug_details", six.text_type, [], True),
     ("keywords", six.text_type, []),
     ("lifetime", int, []),
     ("logfile", six.text_type, []),

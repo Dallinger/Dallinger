@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+import json
 import os
 import pkg_resources
 import re
@@ -280,6 +281,7 @@ def assemble_experiment_temp_dir(config):
         os.path.join("templates", "waiting.html"),
         os.path.join("templates", "login.html"),
         os.path.join("templates", "dashboard_home.html"),
+        os.path.join("templates", "dashboard_wrapper.html"),
         os.path.join("static", "robots.txt"),
     ]
     frontend_dirs = [os.path.join("templates", "base")]
@@ -508,6 +510,15 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     git.add("config.txt")
     time.sleep(0.25)
     git.commit("Save URL for database")
+    time.sleep(0.25)
+
+    log("Generating dashboard links")
+    heroku_addons = heroku_app.addon_parameters()
+    config.extend({"infrastructure_debug_details": json.dumps(heroku_addons)})
+    config.write()
+    git.add("config.txt")
+    time.sleep(0.25)
+    git.commit("Save URLs for heroku addon management")
     time.sleep(0.25)
 
     # Launch the Heroku app.
