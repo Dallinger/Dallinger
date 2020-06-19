@@ -1,2 +1,1 @@
-#dallinger==6.2.2
--e git://github.com/Dallinger/Dallinger.git@features/dashboard#egg=dallinger
+dallinger==6.2.2
