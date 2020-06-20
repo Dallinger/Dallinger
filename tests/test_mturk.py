@@ -470,6 +470,10 @@ class TestMTurkService(object):
             time.sleep(1)
         return True
 
+    def test_account_balance(self, mturk):
+        balance = mturk.account_balance()
+        assert balance == 10000.0
+
     def test_check_credentials_good_credentials(self, mturk):
         is_authenticated = mturk.check_credentials()
         assert is_authenticated

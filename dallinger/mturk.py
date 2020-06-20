@@ -259,6 +259,10 @@ class MTurkService(object):
             template = u"https://mturk-requester.{}.amazonaws.com"
         return template.format(self.region_name)
 
+    def account_balance(self):
+        response = self.mturk.get_account_balance()
+        return float(response["AvailableBalance"])
+
     def check_credentials(self):
         """Verifies key/secret/host combination by making a balance inquiry"""
         try:
