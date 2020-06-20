@@ -697,6 +697,9 @@ class MTurkService(object):
             "status": hit["HITStatus"],
             "annotation": hit.get("RequesterAnnotation"),
             "worker_url": self._worker_hit_url(hit["HITTypeId"]),
+            "assignments_available": hit["NumberOfAssignmentsAvailable"],
+            "assignments_completed": hit["NumberOfAssignmentsCompleted"],
+            "assignments_pending": hit["NumberOfAssignmentsPending"],
         }
 
         return translated
