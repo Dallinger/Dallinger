@@ -6,6 +6,7 @@ import shutil
 import sys
 import tempfile
 import time
+from jinja2 import FileSystemLoader
 from selenium import webdriver
 from dallinger import information
 from dallinger import models
@@ -139,7 +140,7 @@ def stub_config():
         u"heroku_python_version": u"3.6.10",
         u"heroku_team": u"",
         u"host": u"0.0.0.0",
-        u"id": u"some experiment uid",
+        u"id": u"some-experiment-uid",
         u"keywords": u"kw1, kw2, kw3",
         u"lifetime": 1,
         u"logfile": u"-",
@@ -331,12 +332,25 @@ def a(db_session):
     return ModelFactory(db_session)
 
 
+def uncached_jinja_loader(app):
+    """We want a non-cached template loader so we can load templates from
+    directories which may vary between tests, so override
+    the @locked_cached_property from flask.helpers
+    """
+    if app.template_folder is not None:
+        return FileSystemLoader(os.path.join(app.root_path, app.template_folder))
+
+
 @pytest.fixture
 def webapp(active_config):
     from dallinger.experiment_server import sockets
 
     app = sockets.app
-    app.root_path = os.getcwd()  # look in the right place for test's templates
+    # look in the cwd for test's templates, and make sure the template loader
+    # uses that directory to search for them.
+    app.root_path = os.getcwd()
+    app.jinja_loader = uncached_jinja_loader(app)
+
     app.config.update({"DEBUG": True, "TESTING": True})
     client = app.test_client()
     yield client

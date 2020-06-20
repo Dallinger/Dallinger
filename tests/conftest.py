@@ -40,6 +40,20 @@ def experiment_dir(root):
     os.chdir(root)
 
 
+@pytest.fixture
+def experiment_dir_merged(experiment_dir, active_config):
+    """A temp directory with files from the standard test experiment, merged
+    with standard Dallinger files by the same process that occurs in production.
+    """
+    from dallinger.deployment import assemble_experiment_temp_dir
+
+    current_dir = os.getcwd()
+    destination = assemble_experiment_temp_dir(active_config)
+    os.chdir(destination)
+    yield
+    os.chdir(current_dir)
+
+
 @pytest.fixture(scope="class")
 def bartlett_dir(root):
     os.chdir("demos/dlgr/demos/bartlett1932")
