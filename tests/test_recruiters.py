@@ -548,14 +548,14 @@ class TestMTurkRecruiter(object):
             ),
             description=u"fake HIT description",
             duration_hours=1.0,
-            experiment_id="some experiment uid",
+            experiment_id="some-experiment-uid",
             keywords=[u"kw1", u"kw2", u"kw3"],
             lifetime_days=1,
             max_assignments=1,
             notification_url=u"http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title=u"fake experiment title",
-            annotation="some experiment uid",
+            annotation="some-experiment-uid",
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
                 MTurkQualificationRequirements.restrict_to_countries(["US"]),
@@ -567,7 +567,7 @@ class TestMTurkRecruiter(object):
     ):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_qualification_type.assert_called_once_with(
-            u"some experiment uid", "Experiment-specific qualification"
+            u"some-experiment-uid", "Experiment-specific qualification"
         )
 
     def test_open_recruitment_creates_qualifications_for_exp_with_group_name(
@@ -577,7 +577,7 @@ class TestMTurkRecruiter(object):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_qualification_type.assert_has_calls(
             [
-                mock.call(u"some experiment uid", "Experiment-specific qualification"),
+                mock.call(u"some-experiment-uid", "Experiment-specific qualification"),
                 mock.call(u"some group name", "Experiment group qualification"),
             ],
             any_order=True,
@@ -613,14 +613,14 @@ class TestMTurkRecruiter(object):
             ),
             description="fake HIT description",
             duration_hours=1.0,
-            experiment_id="some experiment uid",
+            experiment_id="some-experiment-uid",
             lifetime_days=1,
             keywords=[u"kw1", u"kw2", u"kw3"],
             max_assignments=1,
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
-            annotation="some experiment uid",
+            annotation="some-experiment-uid",
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
                 MTurkQualificationRequirements.restrict_to_countries(["US"]),
@@ -806,7 +806,7 @@ class TestMTurkRecruiter(object):
         recruiter.notify_completed(participant)
 
         recruiter.mturkservice.increment_qualification_score.assert_called_once_with(
-            "some experiment uid", "some worker id"
+            "some-experiment-uid", "some worker id"
         )
 
     def test_notify_completed_adds_group_qualification_if_group(self, recruiter):
@@ -816,7 +816,7 @@ class TestMTurkRecruiter(object):
 
         recruiter.mturkservice.increment_qualification_score.assert_has_calls(
             [
-                mock.call("some experiment uid", "some worker id"),
+                mock.call("some-experiment-uid", "some worker id"),
                 mock.call("some existing group_name", "some worker id"),
             ],
             any_order=True,
@@ -1025,14 +1025,14 @@ class TestMTurkLargeRecruiter(object):
             ),
             description="fake HIT description",
             duration_hours=1.0,
-            experiment_id="some experiment uid",
+            experiment_id="some-experiment-uid",
             keywords=["kw1", "kw2", "kw3"],
             lifetime_days=1,
             max_assignments=10,
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
-            annotation="some experiment uid",
+            annotation="some-experiment-uid",
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
                 MTurkQualificationRequirements.restrict_to_countries(["US"]),
@@ -1050,14 +1050,14 @@ class TestMTurkLargeRecruiter(object):
             ),
             description="fake HIT description",
             duration_hours=1.0,
-            experiment_id="some experiment uid",
+            experiment_id="some-experiment-uid",
             keywords=["kw1", "kw2", "kw3"],
             lifetime_days=1,
             max_assignments=num_recruits,
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
             title="fake experiment title",
-            annotation="some experiment uid",
+            annotation="some-experiment-uid",
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
                 MTurkQualificationRequirements.restrict_to_countries(["US"]),
