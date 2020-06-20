@@ -921,6 +921,9 @@ class TestMTurkServiceWithFakeConnection(object):
 
         assert hit == {
             "annotation": None,
+            "assignments_available": 1,
+            "assignments_completed": 0,
+            "assignments_pending": 0,
             "created": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000),
             "description": "***TEST SUITE HIT***43683",
             "expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000),
