@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 import codecs
 import mock
 import pytest
-import six
 
 from dallinger.experiment_server.dashboard import DashboardTab
 
@@ -184,7 +185,7 @@ class TestDashboard(object):
         from werkzeug.exceptions import Unauthorized
         from dallinger.experiment_server.dashboard import unauthorized
 
-        active_config.set("mode", six.text_type("debug"))
+        active_config.set("mode", "debug")
 
         with pytest.raises(Unauthorized):
             unauthorized()
@@ -192,7 +193,7 @@ class TestDashboard(object):
     def test_unauthorized_redirects(self, active_config):
         from dallinger.experiment_server.dashboard import unauthorized
 
-        active_config.set("mode", six.text_type("sandbox"))
+        active_config.set("mode", "sandbox")
         with mock.patch("dallinger.experiment_server.dashboard.request"):
             with mock.patch(
                 "dallinger.experiment_server.dashboard.make_login_url"
@@ -214,44 +215,45 @@ class TestDashboard(object):
             assert is_safe_url("/") is True
 
 
+@pytest.fixture
+def csrf_token(webapp, active_config):
+    # active_config.set("mode", "sandbox")
+    # Make a writeable session and copy the csrf token into it
+    from flask_wtf.csrf import generate_csrf
+
+    with webapp.application.test_request_context() as request:
+        with webapp.session_transaction() as sess:
+            token = generate_csrf()
+            sess.update(request.session)
+    yield token
+
+
+@pytest.fixture
+def logged_in(webapp, csrf_token):
+    from dallinger.experiment_server.dashboard import admin_user
+
+    webapp.post(
+        "/dashboard/login",
+        data={
+            "username": admin_user.id,
+            "password": admin_user.password,
+            "next": "/dashboard/something",
+            "submit": "Sign In",
+            "csrf_token": csrf_token,
+        },
+    )
+    yield webapp
+
+
 @pytest.mark.slow
 @pytest.mark.usefixtures("experiment_dir", "db_session")
-class TestDashboardRoutes(object):
-    @pytest.fixture
-    def csrf_token(self, webapp, active_config):
-        active_config.set("mode", six.text_type("sandbox"))
-        # Make a writeable session and copy the csrf token into it
-        from flask_wtf.csrf import generate_csrf
-
-        with webapp.application.test_request_context() as request:
-            with webapp.session_transaction() as sess:
-                token = generate_csrf()
-                sess.update(request.session)
-        yield token
-
-    @pytest.fixture
-    def logged_in(self, webapp, csrf_token):
-        from dallinger.experiment_server.dashboard import admin_user
-
-        webapp.post(
-            "/dashboard/login",
-            data={
-                "username": admin_user.id,
-                "password": admin_user.password,
-                "next": "/dashboard/something",
-                "submit": "Sign In",
-                "csrf_token": csrf_token,
-            },
-        )
-        yield webapp
-
+class TestDashboardCoreRoutes(object):
     def test_debug_dashboad_unauthorized(self, webapp, active_config):
-        active_config.set("mode", six.text_type("debug"))
         resp = webapp.get("/dashboard/")
         assert resp.status_code == 401
 
-    def test_debug_dashboad_redirects_to_login(self, webapp, active_config):
-        active_config.set("mode", six.text_type("sandbox"))
+    def test_nondebug_dashboad_redirects_to_login(self, webapp, active_config):
+        active_config.set("mode", "sandbox")
         resp = webapp.get("/dashboard/")
         assert resp.status_code == 302
         assert resp.location.endswith("/login?next=%2Fdashboard%2F")
@@ -317,7 +319,8 @@ class TestDashboardRoutes(object):
         assert resp.status_code == 200
         assert "Welcome User: {}".format(admin_user.id) in resp.data.decode("utf8")
 
-    def test_logout(self, logged_in):
+    def test_logout(self, active_config, logged_in):
+        active_config.set("mode", "sandbox")
         resp = logged_in.get("/dashboard/")
         assert resp.status_code == 200
 
@@ -327,3 +330,18 @@ class TestDashboardRoutes(object):
         loggedout_resp = logged_in.get("/dashboard/")
         assert loggedout_resp.status_code == 302
         assert loggedout_resp.location.endswith("/dashboard/login?next=%2Fdashboard%2F")
+
+
+@pytest.mark.slow
+@pytest.mark.usefixtures("experiment_dir_merged", "db_session")
+class TestDashboardMTurkRoutes(object):
+    def test_requires_login(self, webapp):
+        assert webapp.get("/dashboard/mturk").status_code == 401
+
+    def test_loads_with_fake_data_in_debug_mode(self, active_config, logged_in):
+        resp = logged_in.get("/dashboard/mturk")
+        assert resp.status_code == 200
+        assert "<h1>MTurk Dashboard</h1>" in resp.data.decode("utf8")
+        import pdb
+
+        pdb.set_trace()

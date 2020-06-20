@@ -292,46 +292,75 @@ def heroku():
 
 
 from dallinger import recruiters
+from datetime import datetime
+
+_fake_dallinger_hit = {
+    "annotation": None,
+    "assignments_available": 1,
+    "assignments_completed": 0,
+    "assignments_pending": 0,
+    "created": datetime(2018, 1, 1, 1, 26, 52, 54000),
+    "description": "***TEST SUITE HIT***43683",
+    "expiration": datetime(2018, 1, 1, 1, 27, 26, 54000),
+    "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
+    "keywords": ["testkw1", "testkw2"],
+    "max_assignments": 1,
+    "qualification_type_ids": ["000000000000000000L0", "00000000000000000071"],
+    "review_status": "NotReviewed",
+    "reward": 0.01,
+    "status": "Assignable",
+    "title": "Test Title",
+    "type_id": "3V76OXST9SAE3THKN85FUPK7730050",
+    "worker_url": "https://workersandbox.mturk.com/projects/3V76OXST9SAE3THKN85FUPK7730050/tasks",
+}
 
 
-class FakeMTurkDashboardSource(object):
+class FakeMTurkDataSource(object):
+    def account_balance(self):
+        return 1234.5
 
-    data = {
-        "account_balance": "[todo]",
-        "hit_title": "Some Title",
-        "hit_keywords": "kw1, kw2",
-        "hit_base_payment": "$2.99",
-        "hit_description": "The Description...",
-        "hit_creation_time": "Recently...",
-        "hit_expiration_time": "Soon...",
-        "hit_max_assignments": "12",
-    }
-
-    @property
-    def hit_info(self):
-        return self.data
+    def current_hit(self):
+        return _fake_dallinger_hit.copy()
 
 
-class MTurkDashboardSource(object):
+class MTurkDataSource(object):
     def __init__(self, recruiter):
         self._recruiter = recruiter
         self._mturk = recruiter.mturkservice
 
+    def account_balance(self):
+        return self._mturk.account_balance()
+
+    def current_hit(self):
+        hit = self._mturk.get_hit(self._recruiter.current_hit_id())
+        return hit
+
+
+class MTurkDashboardInformation(object):
+    def __init__(self, data_source):
+        self._source = data_source
+
     @property
     def hit_info(self):
-        hit = self._mturk.get_hit(self._recruiter.current_hit_id())
+        hit = self._source.current_hit()
         data = {
-            "account_balance": "[todo]",
-            "hit_title": hit["title"],
-            "hit_keywords": ", ".join(hit["keywords"]),
-            "hit_base_payment": hit["reward"],
-            "hit_description": hit["description"],
-            "hit_creation_time": hit["created"],
-            "hit_expiration_time": hit["expiration"],
-            "hit_max_assignments": hit["max_assignments"],
+            "HIT title": hit["title"],
+            "HIT keywords": ", ".join(hit["keywords"]),
+            "HIT base payment": "${:.2f}".format(hit["reward"]),
+            "HIT description": hit["description"],
+            "HIT creation time": hit["created"],
+            "HIT expiration time": hit["expiration"],
+            "HIT max assignments": hit["max_assignments"],
+            "HIT assignments available": hit["assignments_available"],
+            "HIT assignments completed": hit["assignments_completed"],
+            "HIT assignments pending": hit["assignments_pending"],
         }
 
         return data
+
+    @property
+    def account_balance(self):
+        return "${:.2f}".format(self._source.account_balance())
 
 
 @dashboard.route("/mturk")
@@ -341,15 +370,18 @@ def mturk():
     recruiter = recruiters.from_config(config)
     if recruiter.nickname != "mturk":
         flash(
-            "This experiment does not use the MTurk Recruiter, so we're just pretending",
+            "This experiment does not use the MTurk Recruiter. What's shown is fake data!",
             "danger",
         )
-        helper = FakeMTurkDashboardSource()
+        data_source = FakeMTurkDataSource()
     else:
-        helper = MTurkDashboardSource(recruiter)
+        data_source = MTurkDataSource(recruiter)
 
-    data = helper.hit_info
+    helper = MTurkDashboardInformation(data_source)
 
-    return render_template(
-        "dashboard_mturk.html", title="MTurk Dashboard", hit_config=data
-    )
+    data = {
+        "account_balance": helper.account_balance,
+        "hit_info": helper.hit_info,
+    }
+
+    return render_template("dashboard_mturk.html", title="MTurk Dashboard", data=data)
