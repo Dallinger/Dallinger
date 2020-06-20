@@ -3,6 +3,9 @@
 {% block body %}
 <h1>MTurk Dashboard</h1>
 
+<h2>Account Balance</h2>
+{{ data["account_balance"] }}
+
 <h2>Current HIT Information</h2>
 
 <table class="table table-sm table-striped">
@@ -10,7 +13,7 @@
         <tr><th>Key</th><th>Value</th></tr>
     </thead>
     <tbody>
-    {% for key, value in hit_config.items() %}
+    {% for key, value in data["hit_info"].items() %}
         <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
     {% endfor %}
     </tbody>
