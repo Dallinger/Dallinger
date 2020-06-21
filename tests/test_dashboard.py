@@ -245,8 +245,7 @@ def logged_in(webapp, csrf_token):
     yield webapp
 
 
-@pytest.mark.slow
-@pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.usefixtures("experiment_dir_merged")
 class TestDashboardCoreRoutes(object):
     def test_debug_dashboad_unauthorized(self, webapp, active_config):
         resp = webapp.get("/dashboard/")
@@ -332,16 +331,13 @@ class TestDashboardCoreRoutes(object):
         assert loggedout_resp.location.endswith("/dashboard/login?next=%2Fdashboard%2F")
 
 
-@pytest.mark.slow
-@pytest.mark.usefixtures("experiment_dir_merged", "db_session")
+@pytest.mark.usefixtures("experiment_dir_merged")
 class TestDashboardMTurkRoutes(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/mturk").status_code == 401
 
-    def test_loads_with_fake_data_in_debug_mode(self, active_config, logged_in):
+    def test_loads_with_fake_data_in_debug_mode(self, logged_in):
         resp = logged_in.get("/dashboard/mturk")
+
         assert resp.status_code == 200
         assert "<h1>MTurk Dashboard</h1>" in resp.data.decode("utf8")
-        import pdb
-
-        pdb.set_trace()
