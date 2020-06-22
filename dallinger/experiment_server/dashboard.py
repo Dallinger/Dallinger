@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import six
 from six.moves.urllib.parse import urlencode
 from datetime import datetime
 from faker import Faker
@@ -143,7 +144,7 @@ class DashboardTabs(object):
 
 def heroku_children():
     config = get_config()
-    details = config.get("infrastructure_debug_details", "{}")
+    details = config.get("infrastructure_debug_details", six.text_type("{}"))
     details = json.loads(details)
 
     dlgr_id = "dlgr-" + config.get("id")[:8]
@@ -270,7 +271,7 @@ def index():
 @login_required
 def heroku():
     config = get_config()
-    details = config.get("infrastructure_debug_details", "{}")
+    details = config.get("infrastructure_debug_details", six.text_type("{}"))
     details = json.loads(details)
 
     dlgr_id = "dlgr-" + config.get("id")[:8]
