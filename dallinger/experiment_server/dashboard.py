@@ -2,8 +2,8 @@ import json
 import logging
 import os
 import six
-from six.moves.urllib.parse import urlencode
 from datetime import datetime
+from six.moves.urllib.parse import urlencode
 from faker import Faker
 from flask import Blueprint
 from flask import abort, flash, redirect, render_template, request, url_for
@@ -294,39 +294,17 @@ def heroku():
     )
 
 
-_fake_dallinger_hit = {
-    "annotation": None,
-    "assignments_available": 1,
-    "assignments_completed": 0,
-    "assignments_pending": 0,
-    "created": datetime(2018, 1, 1, 1, 26, 52, 54000),
-    "description": "***TEST SUITE HIT***43683",
-    "expiration": datetime(2018, 1, 1, 1, 27, 26, 54000),
-    "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
-    "keywords": ["testkw1", "testkw2"],
-    "max_assignments": 1,
-    "qualification_type_ids": ["000000000000000000L0", "00000000000000000071"],
-    "review_status": "NotReviewed",
-    "reward": 0.01,
-    "status": "Assignable",
-    "title": "Test Title",
-    "type_id": "3V76OXST9SAE3THKN85FUPK7730050",
-    "worker_url": "https://workersandbox.mturk.com/projects/3V76OXST9SAE3THKN85FUPK7730050/tasks",
-}
-
-
-class FakeMTurkDataSource(object):
-    def account_balance(self):
-        return 1234.5
-
-    def current_hit(self):
-        return _fake_dallinger_hit.copy()
+class NotUsingMTurkRecruiter(Exception):
+    """The experiment does not use the MTurk Recruiter"""
 
 
 class MTurkDataSource(object):
     def __init__(self, recruiter):
         self._recruiter = recruiter
-        self._mturk = recruiter.mturkservice
+        try:
+            self._mturk = recruiter.mturkservice
+        except AttributeError:
+            raise NotUsingMTurkRecruiter()
 
     def account_balance(self):
         return self._mturk.account_balance()
@@ -336,6 +314,38 @@ class MTurkDataSource(object):
         return hit
 
 
+_fake_hit_data = {
+    "annotation": None,
+    "assignments_available": 1,
+    "assignments_completed": 0,
+    "assignments_pending": 0,
+    "created": datetime(2018, 1, 1, 1, 26, 52, 54000),
+    "description": "Fake HIT Description",
+    "expiration": datetime(2018, 1, 1, 1, 27, 26, 54000),
+    "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
+    "keywords": ["testkw1", "testkw2"],
+    "max_assignments": 1,
+    "qualification_type_ids": ["000000000000000000L0", "00000000000000000071"],
+    "review_status": "NotReviewed",
+    "reward": 0.01,
+    "status": "Assignable",
+    "title": "Fake HIT Title",
+    "type_id": "3V76OXST9SAE3THKN85FUPK7730050",
+    "worker_url": "https://workersandbox.mturk.com/projects/3V76OXST9SAE3THKN85FUPK7730050/tasks",
+}
+
+
+class FakeMTurkDataSource(object):
+    def __init__(self):
+        self._hit = _fake_hit_data.copy()
+
+    def account_balance(self):
+        return 1234.5
+
+    def current_hit(self):
+        return self._hit
+
+
 class MTurkDashboardInformation(object):
     def __init__(self, data_source):
         self._source = data_source
@@ -343,39 +353,51 @@ class MTurkDashboardInformation(object):
     @property
     def hit_info(self):
         hit = self._source.current_hit()
-        data = {
-            "HIT title": hit["title"],
-            "HIT keywords": ", ".join(hit["keywords"]),
-            "HIT base payment": "${:.2f}".format(hit["reward"]),
-            "HIT description": hit["description"],
-            "HIT creation time": hit["created"],
-            "HIT expiration time": hit["expiration"],
-            "HIT max assignments": hit["max_assignments"],
-            "HIT assignments available": hit["assignments_available"],
-            "HIT assignments completed": hit["assignments_completed"],
-            "HIT assignments pending": hit["assignments_pending"],
-        }
-
-        return data
+        if hit is not None:
+            return {
+                "HIT title": hit["title"],
+                "HIT keywords": ", ".join(hit["keywords"]),
+                "HIT base payment": "${:.2f}".format(hit["reward"]),
+                "HIT description": hit["description"],
+                "HIT creation time": hit["created"],
+                "HIT expiration time": hit["expiration"],
+                "HIT max assignments": hit["max_assignments"],
+                "HIT assignments available": hit["assignments_available"],
+                "HIT assignments completed": hit["assignments_completed"],
+                "HIT assignments pending": hit["assignments_pending"],
+            }
 
     @property
     def account_balance(self):
         return "${:.2f}".format(self._source.account_balance())
 
 
+def mturk_data_source(config):
+    recruiter = recruiters.from_config(config)
+    try:
+        return MTurkDataSource(recruiter)
+    except NotUsingMTurkRecruiter:
+        if config.get("mode") == "debug":
+            flash(
+                "Since you're in debug mode, you're seeing fake data for testing.",
+                "danger",
+            )
+            return FakeMTurkDataSource()
+        else:
+            raise
+
+
 @dashboard.route("/mturk")
 @login_required
 def mturk():
     config = get_config()
-    recruiter = recruiters.from_config(config)
-    if recruiter.nickname != "mturk":
-        flash(
-            "This experiment does not use the MTurk Recruiter. What's shown is fake data!",
-            "danger",
+    try:
+        data_source = mturk_data_source(config)
+    except NotUsingMTurkRecruiter:
+        flash("This experiment does not use the MTurk Recruiter.", "danger")
+        return render_template(
+            "dashboard_mturk.html", title="MTurk Dashboard", data=None
         )
-        data_source = FakeMTurkDataSource()
-    else:
-        data_source = MTurkDataSource(recruiter)
 
     helper = MTurkDashboardInformation(data_source)
 

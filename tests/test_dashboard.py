@@ -334,11 +334,41 @@ class TestDashboardCoreRoutes(object):
 
 @pytest.mark.usefixtures("experiment_dir_merged")
 class TestDashboardMTurkRoutes(object):
+    @pytest.fixture
+    def fake_mturk_data(self):
+        from dallinger.experiment_server.dashboard import FakeMTurkDataSource
+
+        with mock.patch(
+            "dallinger.experiment_server.dashboard.mturk_data_source"
+        ) as factory:
+            fake = FakeMTurkDataSource()
+            factory.return_value = fake
+            yield fake
+
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/mturk").status_code == 401
 
-    def test_loads_with_fake_data_in_debug_mode(self, logged_in):
+    def test_loads_hit_data(self, fake_mturk_data, logged_in):
         resp = logged_in.get("/dashboard/mturk")
 
         assert resp.status_code == 200
-        assert "<h1>MTurk Dashboard</h1>" in resp.data.decode("utf8")
+        assert "<td>Fake HIT Title</td>" in resp.data.decode("utf8")
+
+    def test_explains_if_hit_data_not_yet_available(self, fake_mturk_data, logged_in):
+        fake_mturk_data._hit = None
+        resp = logged_in.get("/dashboard/mturk")
+
+        assert resp.status_code == 200
+        assert (
+            "HIT data not available until first participant joins."
+            in resp.data.decode("utf8")
+        )
+
+    def test_shows_error_if_not_using_mturk_recruiter(self, active_config, logged_in):
+        active_config.extend({"mode": "live", "recruiter": "cli"})
+        resp = logged_in.get("/dashboard/mturk")
+
+        assert resp.status_code == 200
+        assert "This experiment does not use the MTurk Recruiter." in resp.data.decode(
+            "utf8"
+        )
