@@ -198,9 +198,10 @@ class TestDashboard(object):
             with mock.patch(
                 "dallinger.experiment_server.dashboard.make_login_url"
             ) as make_login_url:
+                make_login_url.return_value = "http://www.example.net/login"
                 response = unauthorized()
                 assert response.status_code == 302
-                assert "<MagicMock name='make_login_url()'" in response.location
+                assert response.location == "http://www.example.net/login"
                 make_login_url.assert_called_once_with(
                     "dashboard.login", next_url=mock.ANY
                 )
