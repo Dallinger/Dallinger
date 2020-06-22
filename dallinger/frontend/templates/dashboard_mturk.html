@@ -3,19 +3,30 @@
 {% block body %}
 <h1>MTurk Dashboard</h1>
 
-<h2>Account Balance</h2>
-{{ data["account_balance"] }}
+{% if data %}
 
-<h2>Current HIT Information</h2>
+    <h2>Account Balance</h2>
+    {{ data["account_balance"] }}
 
-<table class="table table-sm table-striped">
-    <thead class="thead-dark">
-        <tr><th>Key</th><th>Value</th></tr>
-    </thead>
-    <tbody>
-    {% for key, value in data["hit_info"].items() %}
-        <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
-    {% endfor %}
-    </tbody>
-</table>
+    <h2>Current HIT Information</h2>
+
+    {% if data["hit_info"] %}
+        <table class="table table-sm table-striped">
+            <thead class="thead-dark">
+                <tr><th>Key</th><th>Value</th></tr>
+            </thead>
+            <tbody>
+            {% for key, value in data["hit_info"].items() %}
+                <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="alert alert-warning">
+            HIT data not available until first participant joins.
+        </div>
+    {% endif %}
+
+{% endif %}
+
 {% endblock %}
