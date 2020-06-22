@@ -470,6 +470,10 @@ class TestMTurkService(object):
             time.sleep(1)
         return True
 
+    def test_account_balance(self, mturk):
+        balance = mturk.account_balance()
+        assert balance == 10000.0
+
     def test_check_credentials_good_credentials(self, mturk):
         is_authenticated = mturk.check_credentials()
         assert is_authenticated
@@ -921,6 +925,9 @@ class TestMTurkServiceWithFakeConnection(object):
 
         assert hit == {
             "annotation": None,
+            "assignments_available": 1,
+            "assignments_completed": 0,
+            "assignments_pending": 0,
             "created": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000),
             "description": "***TEST SUITE HIT***43683",
             "expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000),

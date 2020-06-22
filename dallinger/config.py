@@ -287,7 +287,11 @@ def initialize_experiment_package(path):
     sys.path.insert(0, dirname)
     package = __import__(basename)
     if path not in package.__path__:
-        raise Exception("Package was not imported from the requested path!")
+        raise Exception(
+            "Package was not imported from the requested path! ({} not in {})".format(
+                path, package.__path__
+            )
+        )
     sys.modules["dallinger_experiment"] = package
     package.__package__ = "dallinger_experiment"
     sys.path.pop(0)
