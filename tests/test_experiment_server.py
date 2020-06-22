@@ -13,6 +13,7 @@ config = get_config()
 class TestAppConfiguration(object):
     def test_config_gets_loaded_before_first_request(self, webapp, active_config):
         active_config.clear()
+        active_config.ready = False
         webapp.get("/")
         active_config.load.assert_called_once()
         assert active_config.ready
