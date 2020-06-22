@@ -368,6 +368,7 @@ def webapp(active_config, reset_sys_modules):
     app.config.update({"DEBUG": True, "TESTING": True})
     client = app.test_client()
     yield client
+    app._got_first_request = False
 
 
 @pytest.fixture
