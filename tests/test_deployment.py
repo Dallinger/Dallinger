@@ -457,13 +457,14 @@ class TestSetupExperimentAdditional(object):
         # As are ones specified as part of a directory
         assert found_in(os.path.join("static", "copied_templates", "ad.html"), dst)
 
-    @pytest.mark.filterwarnings("error")
     def test_warning_if_multiple_experiments_found(
         self, active_config, setup_experiment
     ):
-        exp_dir = os.getcwd()
-        with pytest.raises(UserWarning) as e:
-            exp_id, dst = setup_experiment(log=mock.Mock())
+        with mock.patch("warnings.warn") as warn:
+            _, _ = setup_experiment(log=mock.Mock())
+
+        assert len(warn.mock_calls) == 1
+        e = warn.mock_calls[0][1][0]
         assert "EXPERIMENT_CLASS_NAME" in str(e)
         assert (
             "Picking TestExperiment from ['TestExperiment', 'ZSubclassThatSortsLower']"
@@ -473,7 +474,9 @@ class TestSetupExperimentAdditional(object):
         # No warning raised if we set the variable
         try:
             os.environ["EXPERIMENT_CLASS_NAME"] = "ZSubclassThatSortsLower"
-            exp_id, dst = setup_experiment(log=mock.Mock())
+            with mock.patch("warnings.warn") as warn:
+                exp_id, dst = setup_experiment(log=mock.Mock())
+            assert len(warn.mock_calls) == 0
         finally:
             del os.environ["EXPERIMENT_CLASS_NAME"]
 
