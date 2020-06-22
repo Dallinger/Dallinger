@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from six.moves.urllib.parse import urlencode
+from datetime import datetime
 from faker import Faker
 from flask import Blueprint
 from flask import abort, flash, redirect, render_template, request, url_for
@@ -12,6 +13,7 @@ from wtforms.validators import DataRequired, ValidationError
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_login import UserMixin
 from flask_login.utils import login_url as make_login_url
+from dallinger import recruiters
 from dallinger.config import get_config
 
 
@@ -290,9 +292,6 @@ def heroku():
         link=pane.get("link", False),
     )
 
-
-from dallinger import recruiters
-from datetime import datetime
 
 _fake_dallinger_hit = {
     "annotation": None,
