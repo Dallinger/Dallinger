@@ -445,7 +445,10 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
 
     log("Generating dashboard links...")
     heroku_addons = heroku_app.addon_parameters()
-    config.extend({"infrastructure_debug_details": json.dumps(heroku_addons)})
+    heroku_addons = json.dumps(heroku_addons)
+    if six.PY2:
+        heroku_addons = heroku_addons.decode("utf-8")
+    config.extend({"infrastructure_debug_details": heroku_addons})
     config.write()
     git.add("config.txt")
     time.sleep(0.25)
