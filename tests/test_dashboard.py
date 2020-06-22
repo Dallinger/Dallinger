@@ -316,7 +316,7 @@ class TestDashboardCoreRoutes(object):
 
         resp = logged_in.get("/dashboard/")
         assert resp.status_code == 200
-        assert "Welcome User: {}".format(admin_user.id) in resp.data.decode("utf8")
+        assert 'Welcome User: "{}"'.format(admin_user.id) in resp.data.decode("utf8")
 
     def test_logout(self, active_config, logged_in):
         active_config.set("mode", "sandbox")

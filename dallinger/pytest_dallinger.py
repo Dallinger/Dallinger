@@ -48,9 +48,15 @@ def cwd(root):
     os.chdir(root)
 
 
+def is_dallinger_module(key):
+    return key.startswith("dallinger_experiment") or key.startswith(
+        "TEST_EXPERIMENT_UID"
+    )
+
+
 @pytest.fixture
 def reset_sys_modules():
-    to_clear = [k for k in sys.modules if k.startswith("dallinger_experiment")]
+    to_clear = [k for k in sys.modules if is_dallinger_module(k)]
     for key in to_clear:
         del sys.modules[key]
 
@@ -140,7 +146,7 @@ def stub_config():
         u"heroku_python_version": u"3.6.10",
         u"heroku_team": u"",
         u"host": u"0.0.0.0",
-        u"id": u"some-experiment-uid",
+        u"id": u"TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
         u"keywords": u"kw1, kw2, kw3",
         u"lifetime": 1,
         u"logfile": u"-",
@@ -342,7 +348,15 @@ def uncached_jinja_loader(app):
 
 
 @pytest.fixture
-def webapp(active_config):
+def webapp(active_config, reset_sys_modules):
+    """Return a Flask test client.
+
+    The imported app assumes an active Configuration, and will load both the
+    test experiment package and templates from the current directory,
+    so we need to make sure we wipe the slate clean between tests. This means
+    not caching the Flask template search path, and clearing out sys.modules
+    before loading the Flask app.
+    """
     from dallinger.experiment_server import sockets
 
     app = sockets.app
