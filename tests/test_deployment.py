@@ -91,6 +91,7 @@ def heroku_mock():
     instance.name = "dlgr-fake-uid"
     instance.url = "fake-web-url"
     instance.db_url = "fake-db-url"
+    instance.addon_parameters.return_value = {}
     with mock.patch("dallinger.deployment.heroku") as heroku_module:
         heroku_module.auth_token.return_value = "fake token"
         with mock.patch("dallinger.deployment.HerokuApp") as mock_app_class:
