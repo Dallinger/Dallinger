@@ -192,9 +192,11 @@ class ExplicitFileSource(object):
                 if os.path.isdir(src):
                     for dirpath, dirnames, filenames in os.walk(src, topdown=True):
                         for fn in filenames:
+                            dst_fileparts = [dst, filename] + dirnames + [fn]
+                            dst_filepath = os.path.join(*dst_fileparts)
                             yield (
                                 os.path.join(dirpath, fn),
-                                os.path.join(dst, filename, *dirnames, fn),
+                                dst_filepath,
                             )
                 else:
                     dst_filepath = os.path.join(dst, filename)
