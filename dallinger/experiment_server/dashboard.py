@@ -310,8 +310,9 @@ class MTurkDataSource(object):
         return self._mturk.account_balance()
 
     def current_hit(self):
-        hit = self._mturk.get_hit(self._recruiter.current_hit_id())
-        return hit
+        hit_id = self._recruiter.current_hit_id()
+        if hit_id is not None:
+            return self._mturk.get_hit(hit_id)
 
 
 _fake_hit_data = {
