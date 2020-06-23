@@ -356,16 +356,19 @@ class MTurkDashboardInformation(object):
         hit = self._source.current_hit()
         if hit is not None:
             return {
-                "HIT title": hit["title"],
-                "HIT keywords": ", ".join(hit["keywords"]),
-                "HIT base payment": "${:.2f}".format(hit["reward"]),
-                "HIT description": hit["description"],
-                "HIT creation time": hit["created"],
-                "HIT expiration time": hit["expiration"],
-                "HIT max assignments": hit["max_assignments"],
-                "HIT assignments available": hit["assignments_available"],
-                "HIT assignments completed": hit["assignments_completed"],
-                "HIT assignments pending": hit["assignments_pending"],
+                "HIT Id": hit["id"],
+                "Title": hit["title"],
+                "Keywords": ", ".join(hit["keywords"]),
+                "Base payment": "${:.2f}".format(hit["reward"]),
+                "Fescription": hit["description"],
+                "Creation time": hit["created"],
+                "Expiration time": hit["expiration"],
+                "Assignments requested": hit["max_assignments"],
+                "Assignments available": hit["assignments_available"],
+                "Assignments completed": hit["assignments_completed"],
+                "Assignments pending": hit["assignments_pending"],
+                "Assignments remaining": hit["max_assignments"]
+                - hit["assignments_completed"],
             }
 
     @property

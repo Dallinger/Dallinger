@@ -12,14 +12,9 @@
 
     {% if data["hit_info"] %}
         <table class="table table-sm table-striped">
-            <thead class="thead-dark">
-                <tr><th>Key</th><th>Value</th></tr>
-            </thead>
-            <tbody>
-            {% for key, value in data["hit_info"].items() %}
-                <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
-            {% endfor %}
-            </tbody>
+        {% for key, value in data["hit_info"].items() %}
+            <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+        {% endfor %}
         </table>
     {% else %}
         <div class="alert alert-warning">
