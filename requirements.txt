@@ -26,5 +26,6 @@ six
 SQLAlchemy
 sqlalchemy-postgres-copy
 tabulate
+timeago
 ua-parser
 user-agents

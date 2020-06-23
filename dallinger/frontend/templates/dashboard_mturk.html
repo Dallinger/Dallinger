@@ -9,6 +9,10 @@
     {{ data["account_balance"] }}
 
     <h2>Current HIT Information</h2>
+    <p>Last updated {{ data["last_updated"] }}
+        <button type="button" class="btn btn-secondary" onclick="location.reload()">Reload</button>
+    </p>
+
 
     {% if data["hit_info"] %}
         <table class="table table-sm table-striped">
