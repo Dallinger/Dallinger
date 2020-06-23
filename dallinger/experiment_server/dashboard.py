@@ -2,7 +2,9 @@ import json
 import logging
 import os
 import six
+import timeago
 from datetime import datetime
+from datetime import timedelta
 from six.moves.urllib.parse import urlencode
 from faker import Faker
 from flask import Blueprint
@@ -294,6 +296,12 @@ def heroku():
     )
 
 
+def when_with_relative_time(dt):
+    now = datetime.now()
+    formatted = dt.strftime("%a %b %-d")
+    return "{} ({})".format(formatted, timeago.format(dt, now))
+
+
 class NotUsingMTurkRecruiter(Exception):
     """The experiment does not use the MTurk Recruiter"""
 
@@ -320,9 +328,9 @@ _fake_hit_data = {
     "assignments_available": 1,
     "assignments_completed": 0,
     "assignments_pending": 0,
-    "created": datetime(2018, 1, 1, 1, 26, 52, 54000),
+    "created": datetime.now() - timedelta(minutes=10),
     "description": "Fake HIT Description",
-    "expiration": datetime(2018, 1, 1, 1, 27, 26, 54000),
+    "expiration": datetime.now() + timedelta(hours=6),
     "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
     "keywords": ["testkw1", "testkw2"],
     "max_assignments": 1,
@@ -361,19 +369,21 @@ class MTurkDashboardInformation(object):
                 "Keywords": ", ".join(hit["keywords"]),
                 "Base payment": "${:.2f}".format(hit["reward"]),
                 "Fescription": hit["description"],
-                "Creation time": hit["created"],
-                "Expiration time": hit["expiration"],
+                "Creation time": when_with_relative_time(hit["created"]),
+                "Expiration time": when_with_relative_time(hit["expiration"]),
                 "Assignments requested": hit["max_assignments"],
                 "Assignments available": hit["assignments_available"],
                 "Assignments completed": hit["assignments_completed"],
                 "Assignments pending": hit["assignments_pending"],
-                "Assignments remaining": hit["max_assignments"]
-                - hit["assignments_completed"],
             }
 
     @property
     def account_balance(self):
         return "${:.2f}".format(self._source.account_balance())
+
+    @property
+    def last_updated(self):
+        return datetime.now().strftime("%X")
 
 
 def mturk_data_source(config):
@@ -408,6 +418,7 @@ def mturk():
     data = {
         "account_balance": helper.account_balance,
         "hit_info": helper.hit_info,
+        "last_updated": helper.last_updated,
     }
 
     return render_template("dashboard_mturk.html", title="MTurk Dashboard", data=data)
