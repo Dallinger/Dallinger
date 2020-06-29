@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+import json
 import os
 import pkg_resources
 import re
@@ -200,6 +201,9 @@ def assemble_experiment_temp_dir(config):
     frontend_files = [
         os.path.join("static", "css", "bootstrap.min.css"),
         os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "scripts", "jquery-3.5.1.min.js"),
+        os.path.join("static", "scripts", "popper.min.js"),
+        os.path.join("static", "scripts", "bootstrap.min.js"),
         os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "scripts", "require.js"),
@@ -216,6 +220,8 @@ def assemble_experiment_temp_dir(config):
         os.path.join("templates", "waiting.html"),
         os.path.join("templates", "login.html"),
         os.path.join("templates", "dashboard_home.html"),
+        os.path.join("templates", "dashboard_mturk.html"),
+        os.path.join("templates", "dashboard_wrapper.html"),
         os.path.join("static", "robots.txt"),
     ]
     frontend_dirs = [os.path.join("templates", "base")]
@@ -435,6 +441,18 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     git.add("config.txt")
     time.sleep(0.25)
     git.commit("Save URL for database")
+    time.sleep(0.25)
+
+    log("Generating dashboard links...")
+    heroku_addons = heroku_app.addon_parameters()
+    heroku_addons = json.dumps(heroku_addons)
+    if six.PY2:
+        heroku_addons = heroku_addons.decode("utf-8")
+    config.extend({"infrastructure_debug_details": heroku_addons})
+    config.write()
+    git.add("config.txt")
+    time.sleep(0.25)
+    git.commit("Save URLs for heroku addon management")
     time.sleep(0.25)
 
     # Launch the Heroku app.

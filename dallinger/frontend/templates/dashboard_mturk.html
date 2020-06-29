@@ -1,0 +1,31 @@
+{% extends "base/dashboard.html" %}
+
+{% block body %}
+<h1>MTurk Dashboard</h1>
+
+{% if data %}
+
+    <h2>Account Balance</h2>
+    {{ data["account_balance"] }}
+
+    <h2>Current HIT Information</h2>
+    <p>Last updated {{ data["last_updated"] }}
+        <button type="button" class="btn btn-secondary" onclick="location.reload()">Reload</button>
+    </p>
+
+
+    {% if data["hit_info"] %}
+        <table class="table table-sm table-striped">
+        {% for key, value in data["hit_info"].items() %}
+            <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+        {% endfor %}
+        </table>
+    {% else %}
+        <div class="alert alert-warning">
+            HIT data not available until first participant joins.
+        </div>
+    {% endif %}
+
+{% endif %}
+
+{% endblock %}

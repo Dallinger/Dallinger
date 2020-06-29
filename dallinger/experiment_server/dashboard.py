@@ -1,5 +1,11 @@
+import json
 import logging
 import os
+import six
+import timeago
+from datetime import datetime
+from datetime import timedelta
+from six.moves.urllib.parse import urlencode
 from faker import Faker
 from flask import Blueprint
 from flask import abort, flash, redirect, render_template, request, url_for
@@ -10,6 +16,7 @@ from wtforms.validators import DataRequired, ValidationError
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_login import UserMixin
 from flask_login.utils import login_url as make_login_url
+from dallinger import recruiters
 from dallinger.config import get_config
 
 
@@ -26,6 +33,35 @@ admin_user = User(
     userid=os.environ.get("DASHBOARD_USER", "admin"),
     password=os.environ.get("DASHBOARD_PASSWORD") or Faker().password(),
 )
+
+
+class DashboardTab(object):
+    def __init__(self, title, route_name, children_function=None, params=None):
+        self.title = title
+        self.route_name = route_name
+        self.children_function = children_function
+        self.params = params
+
+    def url(self):
+        url = url_for(self.route_name)
+        if self.params is not None:
+            url += "?" + urlencode(self.params)
+        return url
+
+    @property
+    def has_children(self):
+        return self.children_function is not None
+
+    def __eq__(self, other):
+        return self.__class__ == other.__class__ and all(
+            getattr(self, attr) == getattr(other, attr) for attr in self.__dict__
+        )
+
+    def __iter__(self):
+        if self.has_children:
+            children = self.children_function()
+            for child in children:
+                yield child
 
 
 class DashboardTabs(object):
@@ -48,9 +84,9 @@ class DashboardTabs(object):
         if not route_name.startswith("dashboard."):
             route_name = "dashboard." + route_name
         if position is None:
-            self.tabs.append((title, route_name))
+            self.tabs.append(DashboardTab(title, route_name))
         else:
-            self.tabs.insert(position, (title, route_name))
+            self.tabs.insert(position, DashboardTab(title, route_name))
 
     def insert_before_route(self, title, route_name, before_route):
         """Insert a new dashboard tab before an existing tab by route name
@@ -65,8 +101,8 @@ class DashboardTabs(object):
 
         """
         before_check = frozenset((before_route, "dashboard." + before_route))
-        for i, (t, r) in enumerate(self.tabs):
-            if r in before_check:
+        for i, tab in enumerate(self.tabs):
+            if tab.route_name in before_check:
                 position = i
                 break
         else:
@@ -86,8 +122,8 @@ class DashboardTabs(object):
 
         """
         after_check = frozenset((after_route, "dashboard." + after_route))
-        for i, (t, r) in enumerate(self.tabs):
-            if r in after_check:
+        for i, tab in enumerate(self.tabs):
+            if tab.route_name in after_check:
                 position = i + 1
                 break
         else:
@@ -102,14 +138,35 @@ class DashboardTabs(object):
 
         """
         route_check = frozenset((route_name, "dashboard." + route_name))
-        self.tabs = [t for t in self.tabs if t[1] not in route_check]
+        self.tabs = [t for t in self.tabs if t.route_name not in route_check]
 
     def __iter__(self):
-        for title, route_name in self.tabs:
-            yield (title, route_name)
+        return iter(self.tabs)
 
 
-dashboard_tabs = DashboardTabs([("Home", "dashboard.index")])
+def heroku_children():
+    config = get_config()
+    details = config.get("infrastructure_debug_details", six.text_type("{}"))
+    details = json.loads(details)
+
+    dlgr_id = "dlgr-" + config.get("id")[:8]
+    details["HEROKU"] = {
+        "url": "https://dashboard.heroku.com/apps/" + dlgr_id,
+        "title": "Heroku dashboard",
+        "link": True,
+    }
+
+    for pane_id, pane in details.items():
+        yield DashboardTab(pane["title"], "dashboard.heroku", None, {"type": pane_id})
+
+
+dashboard_tabs = DashboardTabs(
+    [
+        DashboardTab("Home", "dashboard.index"),
+        DashboardTab("Heroku", "dashboard.heroku", heroku_children),
+        DashboardTab("MTurk", "dashboard.mturk"),
+    ]
+)
 
 
 def load_user(userid):
@@ -210,3 +267,158 @@ def index():
     return render_template(
         "dashboard_home.html", title="Dashboard Home", configuration=config
     )
+
+
+@dashboard.route("/heroku")
+@login_required
+def heroku():
+    config = get_config()
+    details = config.get("infrastructure_debug_details", six.text_type("{}"))
+    details = json.loads(details)
+
+    dlgr_id = "dlgr-" + config.get("id")[:8]
+    details["HEROKU"] = {
+        "url": "https://dashboard.heroku.com/apps/" + dlgr_id,
+        "title": "Heroku dashboard",
+        "link": True,
+    }
+
+    addon_type = request.args.get("type")
+    if addon_type is None:
+        addon_type = "HEROKU"
+    pane = details.get(addon_type)
+    return render_template(
+        "dashboard_wrapper.html",
+        panes=details,
+        title=pane["title"],
+        url=pane["url"],
+        link=pane.get("link", False),
+    )
+
+
+def when_with_relative_time(dt):
+    now = datetime.now()
+    formatted = dt.strftime("%a %b %-d")
+    return "{} ({})".format(formatted, timeago.format(dt, now))
+
+
+class NotUsingMTurkRecruiter(Exception):
+    """The experiment does not use the MTurk Recruiter"""
+
+
+class MTurkDataSource(object):
+    def __init__(self, recruiter):
+        self._recruiter = recruiter
+        try:
+            self._mturk = recruiter.mturkservice
+        except AttributeError:
+            raise NotUsingMTurkRecruiter()
+
+    def account_balance(self):
+        return self._mturk.account_balance()
+
+    def current_hit(self):
+        hit_id = self._recruiter.current_hit_id()
+        if hit_id is not None:
+            return self._mturk.get_hit(hit_id)
+
+
+_fake_hit_data = {
+    "annotation": None,
+    "assignments_available": 1,
+    "assignments_completed": 0,
+    "assignments_pending": 0,
+    "created": datetime.now() - timedelta(minutes=10),
+    "description": "Fake HIT Description",
+    "expiration": datetime.now() + timedelta(hours=6),
+    "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
+    "keywords": ["testkw1", "testkw2"],
+    "max_assignments": 1,
+    "qualification_type_ids": ["000000000000000000L0", "00000000000000000071"],
+    "review_status": "NotReviewed",
+    "reward": 0.01,
+    "status": "Assignable",
+    "title": "Fake HIT Title",
+    "type_id": "3V76OXST9SAE3THKN85FUPK7730050",
+    "worker_url": "https://workersandbox.mturk.com/projects/3V76OXST9SAE3THKN85FUPK7730050/tasks",
+}
+
+
+class FakeMTurkDataSource(object):
+    def __init__(self):
+        self._hit = _fake_hit_data.copy()
+
+    def account_balance(self):
+        return 1234.5
+
+    def current_hit(self):
+        return self._hit
+
+
+class MTurkDashboardInformation(object):
+    def __init__(self, data_source):
+        self._source = data_source
+
+    @property
+    def hit_info(self):
+        hit = self._source.current_hit()
+        if hit is not None:
+            return {
+                "HIT Id": hit["id"],
+                "Title": hit["title"],
+                "Keywords": ", ".join(hit["keywords"]),
+                "Base payment": "${:.2f}".format(hit["reward"]),
+                "Fescription": hit["description"],
+                "Creation time": when_with_relative_time(hit["created"]),
+                "Expiration time": when_with_relative_time(hit["expiration"]),
+                "Assignments requested": hit["max_assignments"],
+                "Assignments available": hit["assignments_available"],
+                "Assignments completed": hit["assignments_completed"],
+                "Assignments pending": hit["assignments_pending"],
+            }
+
+    @property
+    def account_balance(self):
+        return "${:.2f}".format(self._source.account_balance())
+
+    @property
+    def last_updated(self):
+        return datetime.now().strftime("%X")
+
+
+def mturk_data_source(config):
+    recruiter = recruiters.from_config(config)
+    try:
+        return MTurkDataSource(recruiter)
+    except NotUsingMTurkRecruiter:
+        if config.get("mode") == "debug":
+            flash(
+                "Since you're in debug mode, you're seeing fake data for testing.",
+                "danger",
+            )
+            return FakeMTurkDataSource()
+        else:
+            raise
+
+
+@dashboard.route("/mturk")
+@login_required
+def mturk():
+    config = get_config()
+    try:
+        data_source = mturk_data_source(config)
+    except NotUsingMTurkRecruiter:
+        flash("This experiment does not use the MTurk Recruiter.", "danger")
+        return render_template(
+            "dashboard_mturk.html", title="MTurk Dashboard", data=None
+        )
+
+    helper = MTurkDashboardInformation(data_source)
+
+    data = {
+        "account_balance": helper.account_balance,
+        "hit_info": helper.hit_info,
+        "last_updated": helper.last_updated,
+    }
+
+    return render_template("dashboard_mturk.html", title="MTurk Dashboard", data=data)

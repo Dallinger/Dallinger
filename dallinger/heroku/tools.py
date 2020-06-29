@@ -302,6 +302,20 @@ class HerokuApp(HerokuCommandRunner):
     def _is_sensitive_key(self, key):
         return any([s in key for s in SENSITIVE_KEY_NAMES])
 
+    def addon_parameters(self):
+        addon_listing = self._result(["heroku", "addons", "--app", self.name])
+        addon_types = re.findall("as ([A-Z]+)", addon_listing)
+        addon_info = {}
+        for addon_type in addon_types:
+            url = self._result(
+                ["heroku", "addons:open", "--app", self.name, addon_type, "--show-url"]
+            ).strip()
+            addon_info[addon_type] = {
+                "url": url,
+                "title": addon_type.title(),
+            }
+        return addon_info
+
 
 def app_name(id):
     """Convert a UUID to a valid Heroku app name."""
