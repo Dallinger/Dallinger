@@ -59,6 +59,19 @@ could add the following code to add a "My Experiment" tab to the dashboard:
   dashboard_tabs.insert("My Experiment", "my-experiment")
 
 
+The dashboard also supports nested tab/menus using the ``DashboardTab`` object:
+
+.. code-block:: python
+
+
+  from dallinger.experiment_server.dashboard import dashboard_tabs, DashboardTab
+
+  def child_tabs():
+      return [DashboardTab('Child1', 'child1'), DashboardTab('Child2', 'child2')]
+
+  complex_tab = DashboardTab('Title', 'route_name', child_tabs)
+  dashboard_tabs.insert_tab(complex_tab)
+
 The ``dashboard_tabs`` object supports the following methods for managing the
 available tabs on your experiment's dashboard:
 
@@ -66,11 +79,23 @@ available tabs on your experiment's dashboard:
 
     .. automethod:: insert
 
+    .. automethod:: insert_tab
+
     .. automethod:: insert_before_route
+
+    .. automethod:: insert_tab_before_route
 
     .. automethod:: insert_after_route
 
+    .. automethod:: insert_tab_after_route
+
     .. automethod:: remove
+
+The ``DashboardTab`` object used by the ``insert_tab`` methods provide the following API:
+
+.. autoclass:: DashboardTab
+
+    .. automethod:: __init__
 
 
 Papertrail

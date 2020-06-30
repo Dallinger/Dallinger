@@ -18,13 +18,14 @@ class TestDashboardTabs(object):
         from dallinger.experiment_server.dashboard import DashboardTabs
 
         dashboard_tabs = DashboardTabs(
-            [("Home", "dashboard.index"), ("Second", "dashboard.second")]
+            [DashboardTab("Home", "index"), DashboardTab("Second", "dashboard.second")]
         )
-
-        assert list(dashboard_tabs) == [
-            ("Home", "dashboard.index"),
-            ("Second", "dashboard.second"),
-        ]
+        tab_list = list(dashboard_tabs)
+        assert len(tab_list) == 2
+        assert tab_list[0].title == "Home"
+        assert tab_list[0].route_name == "dashboard.index"
+        assert tab_list[1].title == "Second"
+        assert tab_list[1].route_name == "dashboard.second"
 
     def test_dashboard_insert(self, dashboard_tabs):
         dashboard_tabs.insert("Next", "next")

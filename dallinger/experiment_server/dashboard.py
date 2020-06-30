@@ -37,7 +37,21 @@ admin_user = User(
 
 class DashboardTab(object):
     def __init__(self, title, route_name, children_function=None, params=None):
+        """Creates a new dashboard tab
+
+        :param title: Title string to appear in the dashboard HTML
+        :type title: str
+        :param route_name: The registered route name (optionally prefixed with ``dashboard.``)
+        :type route_name: str
+        :param children_function: A callable that returns an iterable of ``DashboardTab`` to be displayed as children of this tab
+        :type position: function, optional
+        :param params: A mapping of url query string parameters used when generating the route url.
+        :type position: dict, optional
+
+        """
         self.title = title
+        if not route_name.startswith("dashboard."):
+            route_name = "dashboard." + route_name
         self.route_name = route_name
         self.children_function = children_function
         self.params = params
@@ -68,10 +82,10 @@ class DashboardTabs(object):
     tabs = ()
 
     def __init__(self, tabs):
-        self.tabs = tabs or []
+        self.tabs = list(tabs) or []
 
     def insert(self, title, route_name, position=None):
-        """Insert a new dashboard tab (optionally at a specific position)
+        """Creates a new dashboard tab and inserts it (optionally at a specific position)
 
         :param title: Title string to appear in the dashboard HTML
         :type title: str
@@ -81,15 +95,25 @@ class DashboardTabs(object):
         :type position: int, optional
 
         """
-        if not route_name.startswith("dashboard."):
-            route_name = "dashboard." + route_name
+        tab = DashboardTab(title, route_name)
+        self.insert_tab(tab, position)
+
+    def insert_tab(self, tab, position=None):
+        """Insert a new dashboard tab (optionally at a specific position)
+
+        :param tab: DashboardTab instance
+        :type tab: DashboardTab
+        :param position: The 0-based index where the tab should be inserted. By default tabs will be appended to the end.
+        :type position: int, optional
+
+        """
         if position is None:
-            self.tabs.append(DashboardTab(title, route_name))
+            self.tabs.append(tab)
         else:
-            self.tabs.insert(position, DashboardTab(title, route_name))
+            self.tabs.insert(position, tab)
 
     def insert_before_route(self, title, route_name, before_route):
-        """Insert a new dashboard tab before an existing tab by route name
+        """Creates a new dashboard tab and inserts it before an existing tab by route name
 
         :param title: Title string to appear in the dashboard HTML
         :type title: str
@@ -100,17 +124,30 @@ class DashboardTabs(object):
         :raises ValueError: When ``before_route`` is not found in registered tabs
 
         """
+        tab = DashboardTab(title, route_name)
+        self.insert_tab_before_route(tab, before_route)
+
+    def insert_tab_before_route(self, tab, before_route):
+        """Insert a new dashboard tab before an existing tab by route name
+
+        :param tab: DashboardTab instance
+        :type tab: DashboardTab
+        :param before_route: The route name to insert this tab before.
+        :type before_route: str
+        :raises ValueError: When ``before_route`` is not found in registered tabs
+
+        """
         before_check = frozenset((before_route, "dashboard." + before_route))
-        for i, tab in enumerate(self.tabs):
-            if tab.route_name in before_check:
+        for i, cur_tab in enumerate(self.tabs):
+            if cur_tab.route_name in before_check:
                 position = i
                 break
         else:
             raise ValueError("Route {} not found".format(before_route))
-        self.insert(title, route_name, position)
+        self.insert_tab(tab, position)
 
     def insert_after_route(self, title, route_name, after_route):
-        """Insert a new dashboard tab after an existing tab by route name
+        """Creates a new dashboard tab and inserts it after an existing tab by route name
 
         :param title: Title string to appear in the dashboard HTML
         :type title: str
@@ -121,14 +158,27 @@ class DashboardTabs(object):
         :raises ValueError: When ``after_route`` is not found in registered tabs
 
         """
+        tab = DashboardTab(title, route_name)
+        self.insert_tab_after_route(tab, after_route)
+
+    def insert_tab_after_route(self, tab, after_route):
+        """Insert a new dashboard tab after an existing tab by route name
+
+        :param tab: DashboardTab instance
+        :type tab: DashboardTab
+        :param after_route: The route name to insert this tab after.
+        :type after_route: str
+        :raises ValueError: When ``after_route`` is not found in registered tabs
+
+        """
         after_check = frozenset((after_route, "dashboard." + after_route))
-        for i, tab in enumerate(self.tabs):
-            if tab.route_name in after_check:
+        for i, cur_tab in enumerate(self.tabs):
+            if cur_tab.route_name in after_check:
                 position = i + 1
                 break
         else:
             raise ValueError("Route {} not found".format(after_route))
-        self.insert(title, route_name, position)
+        self.insert_tab(tab, position)
 
     def remove(self, route_name):
         """Remove a tab by route name
