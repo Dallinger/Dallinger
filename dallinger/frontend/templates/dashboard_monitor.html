@@ -1,0 +1,45 @@
+{% extends "base/dashboard.html" %}
+
+{% block body %}
+<h1>{{ title }}</h1>
+<div id="monitor-wrapper" class="d-flex justify-content-between align-items-stretch">
+  <aside id="sidebar">
+    <button id="refresh" onclick="window.location.reload();">Refresh</button>
+    <div id="statistics-pane" class="sidebar-pane">
+      <h2>Statistics</h2>
+      {% for pane in panes %}
+        <div class="sub-pane">
+          <h3>{{ pane }}</h3>
+          {{ panes[pane]|safe }}
+        </div>
+      {% endfor %}
+    </div>
+    <div id="settings-pane" class="sidebar-pane">
+      <h2>Settings</h2>
+      <form method="GET">
+        <input name="transformations" type="checkbox" {{ "checked" if request.args.get("transformations") else "" }}/>
+        <label for="transformations">Show transformations</label>
+      </form>
+    </div>
+  </aside>
+  <main class="flex-fill">
+    <section id="graph-pane">
+      <h2>Graph</h2>
+    </section>
+    <section id="details-pane">
+      <h2>Details</h2>
+      <pre>
+      </pre>
+    </section>
+  </main>
+  </div>
+{% endblock %}
+{% block libs %}
+  {{ super() }}
+  <script>
+    $('#settings-pane input').on('change', function() {
+      $(this).parent('form').submit();
+    });
+  </script>
+{% endblock %}
+
