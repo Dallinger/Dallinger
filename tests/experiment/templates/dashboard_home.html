@@ -1,0 +1,5 @@
+{% extends "base/dashboard.html" %}
+
+{% block body %}
+<h1>Welcome User: "{{ current_user.get_id() }}"!</h1>
+{% endblock %}
