@@ -672,7 +672,7 @@ class Experiment(object):
         :param \**kw: arguments passed in from the request
         :returns: An ``OrderedDict()`` mapping panel titles to HTML strings
                   to render in the dashboard sidebar.
-        """
+        """  # noqa
         stats = self.monitoring_statistics(**kw)
         panels = OrderedDict()
         for tab in stats:
@@ -685,7 +685,7 @@ class Experiment(object):
         :param \**kw: arguments passed in from the request
         :returns: An ``OrderedDict()`` mapping panel titles to data structures
                   describing the experiment state.
-        """
+        """  # noqa
         participants = Participant.query
         nodes = Node.query
         infos = Info.query
@@ -710,7 +710,7 @@ class Experiment(object):
         # Count up our networks by role
         network_roles = self.session.query(Network.role, func.count(Network.role))
         network_counts = network_roles.group_by(Network.role).all()
-        failed_networks = network_roles.filter(Network.failed == True)
+        failed_networks = network_roles.filter(Network.failed == True)  # noqa
         failed_counts = dict(failed_networks.group_by(Network.role).all())
         network_stats = {}
         for role, count in network_counts:
