@@ -234,6 +234,22 @@ def struct_to_html(data):
         for i in data:
             parts.append(struct_to_html(i))
     elif isinstance(data, dict):
+        if len(data) == 2 and "count" in data and "failed" in data:
+            if data["count"]:
+                failed = float(data["failed"]) / data["count"] * 100
+            else:
+                failed = 0
+            value = "{} total, {} failed ({:.1f}%)".format(
+                data["count"], data["failed"], failed
+            )
+            if failed == 100:
+                value = '<span class="all-failures">{}</span>'.format(value)
+            elif failed > 0:
+                value = '<span class="some-failures">{}</span>'.format(value)
+            elif data["count"]:
+                value = '<span class="no-failures">{}</span>'.format(value)
+            return value
+
         for k in data:
             item = struct_to_html(data[k])
             parts.append("<li>{}: {}</li>".format(k, item))
