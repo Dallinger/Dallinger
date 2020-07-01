@@ -91,11 +91,27 @@ available tabs on your experiment's dashboard:
 
     .. automethod:: remove
 
-The ``DashboardTab`` object used by the ``insert_tab`` methods provide the following API:
+
+The ``DashboardTab`` object used by the various ``insert_tab`` methods provide
+the following API:
 
 .. autoclass:: DashboardTab
 
     .. automethod:: __init__
+
+
+The dashboard monitoring view can be extended by adding panes to the sidebar or
+extending the existing panes. This can be done customizing the ``monitoring_panels``
+and/or ``monitoring_statistics`` methods of your experiment class:
+
+.. module:: dallinger.experiment
+
+.. autoclass:: Experiment
+   :noindex:
+
+    .. automethod:: monitoring_panels
+
+    .. automethod:: monitoring_statistics
 
 
 Papertrail

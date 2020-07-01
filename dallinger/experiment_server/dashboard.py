@@ -215,6 +215,7 @@ dashboard_tabs = DashboardTabs(
         DashboardTab("Home", "dashboard.index"),
         DashboardTab("Heroku", "dashboard.heroku", heroku_children),
         DashboardTab("MTurk", "dashboard.mturk"),
+        DashboardTab("Monitoring", "dashboard.monitoring"),
     ]
 )
 
@@ -472,3 +473,15 @@ def mturk():
     }
 
     return render_template("dashboard_mturk.html", title="MTurk Dashboard", data=data)
+
+
+@dashboard.route("/monitoring")
+@login_required
+def monitoring():
+    from dallinger.experiment_server.experiment_server import Experiment, session
+
+    exp = Experiment(session)
+    panes = exp.monitoring_panels(**request.args)
+    return render_template(
+        "dashboard_monitor.html", title="Experiment Monitoring", panes=panes
+    )

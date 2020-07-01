@@ -226,3 +226,19 @@ def wrap_subprocess_call(func, wrap_stdout=True):
 check_call = wrap_subprocess_call(subprocess.check_call)
 call = wrap_subprocess_call(subprocess.call)
 check_output = wrap_subprocess_call(subprocess.check_output, wrap_stdout=False)
+
+
+def struct_to_html(data):
+    parts = ["<ul>"]
+    if isinstance(data, (list, tuple)):
+        for i in data:
+            parts.append(struct_to_html(i))
+    elif isinstance(data, dict):
+        for k in data:
+            item = struct_to_html(data[k])
+            parts.append("<li>{}: {}</li>".format(k, item))
+    else:
+        return str(data)
+
+    parts.append("</ul>")
+    return "\n".join(parts)

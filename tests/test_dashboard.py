@@ -373,3 +373,17 @@ class TestDashboardMTurkRoutes(object):
         assert "This experiment does not use the MTurk Recruiter." in resp.data.decode(
             "utf8"
         )
+
+
+@pytest.mark.usefixtures("experiment_dir_merged")
+class TestDashboardMonitorRoute(object):
+    def test_requires_login(self, webapp):
+        assert webapp.get("/dashboard/monitoring").status_code == 401
+
+    def test_has_statistics(self, logged_in):
+        resp = logged_in.get("/dashboard/monitoring")
+
+        assert resp.status_code == 200
+        resp_text = resp.data.decode("utf8")
+        assert "<h3>Participants</h3>" in resp_text
+        assert "<li>working: 0</li>" in resp_text

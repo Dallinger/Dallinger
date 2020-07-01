@@ -1,0 +1,63 @@
+h1 {
+    margin: 20px 0;
+}
+h2 {
+    margin-bottom: 10px;
+}
+.d-flex #sidebar {
+    flex: 0 0 220px;
+    margin-right: 10px;
+}
+.d-flex main {
+    width: auto;
+    max-width: unset !important;
+}
+button#refresh {
+    border: 1px solid black;
+    padding: 10px;
+    width: 100%;
+    text-align: center;
+    font-size: 30px;
+}
+button#refresh:after {
+    content: "\25B6";
+    color: green;
+    padding-left: 15px;
+    font-size: 40px;
+    position: relative;
+    bottom: -5px;
+    line-height: 30px;
+}
+.sidebar-pane h2 {
+    font-size: 22px;
+}
+.sidebar-pane h3 {
+    font-size: 18px;
+}
+.sidebar-pane {
+    background-color: #F6F6F6;
+    margin-top: 10px;
+    padding: 5px 10px;
+}
+.sidebar-pane .sub-pane {
+    background-color: white;
+    border: 1px solid #E6E6E6;
+    padding: 10px;
+    margin-top: 10px;
+}
+.sub-pane ul {
+    padding-left: 20px;
+}
+
+#graph-pane {
+    border: #DDDDDD;
+    padding: 10px;
+    min-height: 400px;
+    width: 100%;
+}
+pre {
+    background-color: #F2F2E9;
+    border: 3px solid #34487E;
+    min-height: 200px;
+    padding: 20px;
+}

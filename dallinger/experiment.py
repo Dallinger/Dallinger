@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 
 from cached_property import cached_property
 from collections import Counter
+from collections import OrderedDict
 from contextlib import contextmanager
 from functools import wraps
 import datetime
@@ -40,6 +41,7 @@ from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
 from dallinger.transformations import Mutation, Replication
+from dallinger.utils import struct_to_html
 
 
 from dallinger.networks import Empty
@@ -663,6 +665,84 @@ class Experiment(object):
         default logic, otherwise should return `True` or `False`.
         """
         return None
+
+    def monitoring_panels(self, **kw):
+        """Provides monitoring dashboard sidebar panels.
+
+        :param \**kw: arguments passed in from the request
+        :returns: An ``OrderedDict()`` mapping panel titles to HTML strings
+                  to render in the dashboard sidebar.
+        """
+        stats = self.monitoring_statistics(**kw)
+        panels = OrderedDict()
+        for tab in stats:
+            panels[tab] = struct_to_html(stats[tab])
+        return panels
+
+    def monitoring_statistics(self, **kw):
+        """The default data used for the monitoring panels
+
+        :param \**kw: arguments passed in from the request
+        :returns: An ``OrderedDict()`` mapping panel titles to data structures
+                  describing the experiment state.
+        """
+        participants = Participant.query
+        nodes = Node.query
+        infos = Info.query
+
+        stats = OrderedDict()
+        stats["Participants"] = OrderedDict(
+            (
+                ("working", participants.filter_by(status="working").count()),
+                ("abandoned", participants.filter_by(status="abandoned").count()),
+                ("returned", participants.filter_by(status="returned").count()),
+                ("approved", participants.filter_by(status="approved").count()),
+            )
+        )
+
+        # Active participants have more than 10 infos
+        active_participants = 0
+        for p in participants:
+            if len(p.infos(failed="all")) > 10:
+                active_participants += 1
+        stats["Participants"]["active"] = active_participants
+
+        # Count up our networks by role
+        network_roles = self.session.query(Network.role, func.count(Network.role))
+        network_counts = network_roles.group_by(Network.role).all()
+        failed_networks = network_roles.filter(Network.failed == True)
+        failed_counts = dict(failed_networks.group_by(Network.role).all())
+        network_stats = {}
+        for role, count in network_counts:
+            network_stats[role] = OrderedDict(
+                (("count", count), ("failed", failed_counts.get(role, 0)),)
+            )
+        stats["Networks"] = network_stats
+
+        stats["Nodes"] = OrderedDict(
+            (
+                ("count", nodes.count()),
+                ("failed", nodes.filter_by(failed=True).count()),
+            )
+        )
+
+        stats["Infos"] = OrderedDict(
+            (
+                ("count", infos.count()),
+                ("failed", infos.filter_by(failed=True).count()),
+            )
+        )
+
+        if kw.get("transformations"):
+            transformations = Transformation.query
+            stats["transformations"] = OrderedDict(
+                (
+                    ("count", transformations.count()),
+                    ("failed", transformations.filter_by(failed=True).count()),
+                )
+            )
+
+        return stats
 
     @property
     def usable_replay_range(self):
