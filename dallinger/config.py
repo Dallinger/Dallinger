@@ -92,6 +92,7 @@ class Configuration(object):
         self.clear()
         self.types = {}
         self.synonyms = {}
+        self.validators = {}
         self.sensitive = set()
         if register_defaults:
             for registration in default_keys:
@@ -126,6 +127,14 @@ class Configuration(object):
                         value=repr(value), key=key, expected_type=expected_type
                     )
                 )
+            for validator in self.validators.get(key, []):
+                try:
+                    validator(value)
+                except ValueError as e:
+                    # Annotate the exception with more info
+                    e.dallinger_config_key = key
+                    e.dallinger_config_value = value
+                    raise e
             normalized_mapping[key] = value
         self.data.extendleft([normalized_mapping])
 
@@ -178,7 +187,7 @@ class Configuration(object):
         # Also, does a sensitive string appear within the key?
         return any(s for s in SENSITIVE_KEY_NAMES if s in key)
 
-    def register(self, key, type_, synonyms=None, sensitive=False):
+    def register(self, key, type_, synonyms=None, sensitive=False, validators=None):
         if synonyms is None:
             synonyms = set()
         if key in self.types:
@@ -188,6 +197,9 @@ class Configuration(object):
         self.types[key] = type_
         for synonym in synonyms:
             self.synonyms[synonym] = key
+
+        if validators:
+            self.validators[key] = validators
 
         if sensitive:
             self.sensitive.add(key)

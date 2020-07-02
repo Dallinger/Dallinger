@@ -90,6 +90,19 @@ class TestConfiguration(object):
         config.extend({"num_participants": 1})
         config.get("num_participants", None)
 
+    def test_setting_value_that_doesnt_validate_fails(self):
+        config = Configuration()
+
+        def is_purple(val):
+            if val != "purple":
+                raise ValueError
+
+        config.register("fave_colour", str, validators=[is_purple])
+        config.ready = True
+        config.set("fave_colour", "purple")
+        with pytest.raises(ValueError):
+            config.set("fave_colour", "red")
+
     def test_setting_by_set(self):
         config = Configuration()
         config.ready = True
