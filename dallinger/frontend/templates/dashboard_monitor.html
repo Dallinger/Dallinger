@@ -43,7 +43,7 @@
     $('#settings-pane input').on('change', function() {
       $(this).parent('form').submit();
     });
-    window.network_structure = JSON.parse('{{ network_structure | safe }}');
+    window.network_structure = {{ network_structure | safe }};
   </script>
   <script src="https://unpkg.com/vis@4.17.0/dist/vis.min.js"></script>
   <script src="/static/scripts/network-monitor.js"></script>

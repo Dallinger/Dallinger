@@ -189,10 +189,11 @@ class Participant(Base, SharedMixin):
             "assignment_id": self.assignment_id,
             "hit_id": self.hit_id,
             "mode": self.mode,
-            "end_time": self.end_time,
+            "end_time": self.end_time.isoformat() if self.end_time else None,
             "base_pay": self.base_pay,
             "bonus": self.bonus,
             "status": self.status,
+            "object_type": "Participant",
         }
 
     def nodes(self, type=None, failed=False):
@@ -341,6 +342,7 @@ class Question(Base, SharedMixin):
             "participant_id": self.participant_id,
             "question": self.question,
             "response": self.response,
+            "object_type": "Question",
         }
 
 
@@ -388,6 +390,7 @@ class Network(Base, SharedMixin):
             "max_size": self.max_size,
             "full": self.full,
             "role": self.role,
+            "object_type": "Network",
         }
 
     """ ###################################
@@ -639,6 +642,7 @@ class Node(Base, SharedMixin):
             "type": self.type,
             "network_id": self.network_id,
             "participant_id": self.participant_id,
+            "object_type": "Node",
         }
 
     """ ###################################
@@ -1388,6 +1392,7 @@ class Vector(Base, SharedMixin):
             "origin_id": self.origin_id,
             "destination_id": self.destination_id,
             "network_id": self.network_id,
+            "object_type": "Vector",
         }
 
     """#######################################
@@ -1489,6 +1494,7 @@ class Info(Base, SharedMixin):
             "origin_id": self.origin_id,
             "network_id": self.network_id,
             "contents": self.contents,
+            "object_type": "Info",
         }
 
     def fail(self):
@@ -1676,8 +1682,11 @@ class Transmission(Base, SharedMixin):
             "destination_id": self.destination_id,
             "info_id": self.info_id,
             "network_id": self.network_id,
-            "receive_time": self.receive_time,
+            "receive_time": self.receive_time.isoformat()
+            if self.receive_time
+            else None,
             "status": self.status,
+            "object_type": "Transmission",
         }
 
     def fail(self):
@@ -1768,6 +1777,7 @@ class Transformation(Base, SharedMixin):
             "info_out_id": self.info_out_id,
             "node_id": self.node_id,
             "network_id": self.network_id,
+            "object_type": "Transformation",
         }
 
     def fail(self):

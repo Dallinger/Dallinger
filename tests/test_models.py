@@ -106,6 +106,7 @@ class TestModels(object):
             "property4": None,
             "property5": None,
             "details": {},
+            "object_type": "Network",
         }
 
         # test nodes()
