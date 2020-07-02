@@ -23,6 +23,11 @@ first among environment variables, then in a ``config.txt`` in the experiment
 directory, and then in the ``.dallingerconfig`` file, using whichever value
 is found first. If the parameter is not found, Dallinger will use the default.
 
+If a value extracted from the environment or a config file it will be converted
+to the correct type. You can also specify a value of ``file:/path/to/file`` to
+use the contents of that file on your local computer.
+
+
 Built-in configuration
 ----------------------
 
@@ -110,6 +115,9 @@ Amazon Mechanical Turk Recruitment
 ``qualification_blacklist`` *unicode - comma seperated*
     Comma-separated list of qualification names. Workers with qualifications in
     this list will be prevented from viewing and accepting the HIT.
+
+``qualification_requirements`` *unicode - JSON formatted*
+    A JSON list of qualification documents to pass to Amazon Mechanical Turk.
 
 ``title`` *unicode*
     The title of the HIT on Amazon Mechanical Turk.
