@@ -26,6 +26,12 @@
         </div>
     {% endif %}
 
+    <h2>AD</h2>
+    <p>Preview of AD page running <a href="{{ data['ad_url'] }}">on Heroku</a>.</p>
+
+    <iframe width="100%" height="600" src="{{  data['ad_url'] }}" />
+
+
 {% endif %}
 
 {% endblock %}

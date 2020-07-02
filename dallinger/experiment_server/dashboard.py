@@ -370,6 +370,9 @@ class MTurkDataSource(object):
     def account_balance(self):
         return self._mturk.account_balance()
 
+    def app_url(self):
+        return self._recruiter.ad_url
+
     def current_hit(self):
         hit_id = self._recruiter.current_hit_id()
         if hit_id is not None:
@@ -404,6 +407,9 @@ class FakeMTurkDataSource(object):
     def account_balance(self):
         return 1234.5
 
+    def app_url(self):
+        return "http://unicodesnowmanforyou.com/"
+
     def current_hit(self):
         return self._hit
 
@@ -411,23 +417,23 @@ class FakeMTurkDataSource(object):
 class MTurkDashboardInformation(object):
     def __init__(self, data_source):
         self._source = data_source
+        self._hit = self._source.current_hit()
 
     @property
     def hit_info(self):
-        hit = self._source.current_hit()
-        if hit is not None:
+        if self._hit is not None:
             return {
-                "HIT Id": hit["id"],
-                "Title": hit["title"],
-                "Keywords": ", ".join(hit["keywords"]),
-                "Base payment": "${:.2f}".format(hit["reward"]),
-                "Fescription": hit["description"],
-                "Creation time": when_with_relative_time(hit["created"]),
-                "Expiration time": when_with_relative_time(hit["expiration"]),
-                "Assignments requested": hit["max_assignments"],
-                "Assignments available": hit["assignments_available"],
-                "Assignments completed": hit["assignments_completed"],
-                "Assignments pending": hit["assignments_pending"],
+                "HIT Id": self._hit["id"],
+                "Title": self._hit["title"],
+                "Keywords": ", ".join(self._hit["keywords"]),
+                "Base payment": "${:.2f}".format(self._hit["reward"]),
+                "Description": self._hit["description"],
+                "Creation time": when_with_relative_time(self._hit["created"]),
+                "Expiration time": when_with_relative_time(self._hit["expiration"]),
+                "Assignments requested": self._hit["max_assignments"],
+                "Assignments available": self._hit["assignments_available"],
+                "Assignments completed": self._hit["assignments_completed"],
+                "Assignments pending": self._hit["assignments_pending"],
             }
 
     @property
@@ -437,6 +443,13 @@ class MTurkDashboardInformation(object):
     @property
     def last_updated(self):
         return datetime.now().strftime("%X")
+
+    @property
+    def ad_url(self):
+        app_url = self._source.app_url()
+        hit_id = self._hit["id"]
+        template = "{}?hitId={}&assignmentId=ASSIGNMENT_ID_NOT_AVAILABLE"
+        return template.format(app_url, hit_id)
 
 
 def mturk_data_source(config):
@@ -470,6 +483,7 @@ def mturk():
 
     data = {
         "account_balance": helper.account_balance,
+        "ad_url": helper.ad_url,
         "hit_info": helper.hit_info,
         "last_updated": helper.last_updated,
     }
