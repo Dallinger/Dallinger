@@ -11,6 +11,7 @@ from flask import Blueprint
 from flask import abort, flash, redirect, render_template, request, url_for
 from flask.wrappers import Response
 from flask_wtf import FlaskForm
+from tzlocal import get_localzone
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, HiddenField
 from wtforms.validators import DataRequired, ValidationError
 from flask_login import current_user, login_required, login_user, logout_user
@@ -349,8 +350,11 @@ def heroku():
     )
 
 
+tz = get_localzone()
+
+
 def when_with_relative_time(dt):
-    now = datetime.now()
+    now = tz.localize(datetime.now())
     formatted = dt.strftime("%a %b %-d")
     return "{} ({})".format(formatted, timeago.format(dt, now))
 
@@ -372,7 +376,7 @@ class MTurkDataSource(object):
 
     def ad_url(self):
         hit_id = self._recruiter.current_hit_id()
-        template = "{}?hitId={}&assignmentId=ASSIGNMENT_ID_NOT_AVAILABLE"
+        template = "{}&assignmentId=ASSIGNMENT_ID_NOT_AVAILABLE&hitId={}"
         if hit_id is not None:
             return template.format(self._recruiter.ad_url, hit_id)
 
@@ -388,9 +392,9 @@ _fake_hit_data = {
     "assignments_available": 1,
     "assignments_completed": 0,
     "assignments_pending": 0,
-    "created": datetime.now() - timedelta(minutes=10),
+    "created": tz.localize(datetime.now() - timedelta(minutes=10)),
     "description": "Fake HIT Description",
-    "expiration": datetime.now() + timedelta(hours=6),
+    "expiration": tz.localize(datetime.now() + timedelta(hours=6)),
     "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
     "keywords": ["testkw1", "testkw2"],
     "max_assignments": 1,
