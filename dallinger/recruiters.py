@@ -475,7 +475,7 @@ class MTurkRecruiter(Recruiter):
         the Mechanical Turk site to submit their HIT, which in turn triggers
         notifications to the /notifications route.
         """
-        if self.config.get("mode") == "sandbox":
+        if self.is_sandbox:
             return "https://workersandbox.mturk.com/mturk/externalSubmit"
         return "https://www.mturk.com/mturk/externalSubmit"
 
@@ -549,7 +549,7 @@ class MTurkRecruiter(Recruiter):
             "reward": float(dollars),
             "duration_hours": 1,
             "lifetime_days": 3,
-            "question": MTurkQuestions.compensation(sandbox=self._is_sandbox),
+            "question": MTurkQuestions.compensation(sandbox=self.is_sandbox),
             "qualifications": [MTurkQualificationRequirements.must_have(qid)],
             "do_subscribe": False,
         }
@@ -722,7 +722,7 @@ class MTurkRecruiter(Recruiter):
         #     logger.exception(str(ex))
 
     @property
-    def _is_sandbox(self):
+    def is_sandbox(self):
         return self.config.get("mode") == "sandbox"
 
     def _build_hit_qualifications(self):

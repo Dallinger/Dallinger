@@ -371,20 +371,37 @@ class MTurkDataSource(object):
         except AttributeError:
             raise NotUsingMTurkRecruiter()
 
+    @property
+    def _mturk_root(self):
+        if self._recruiter.is_sandbox:
+            return "https://requestersandbox.mturk.com"
+        return "https://requester.mturk.com"
+
+    @property
     def account_balance(self):
         return self._mturk.account_balance()
 
+    @property
     def ad_url(self):
         hit_id = self._recruiter.current_hit_id()
         template = "{}&assignmentId=ASSIGNMENT_ID_NOT_AVAILABLE&hitId={}"
         if hit_id is not None:
             return template.format(self._recruiter.ad_url, hit_id)
 
+    @property
     def current_hit(self):
         hit_id = self._recruiter.current_hit_id()
         logger.info("HIT is: {}".format(hit_id))
         if hit_id is not None:
             return self._mturk.get_hit(hit_id)
+
+    @property
+    def requester_url(self):
+        return "{}/manage".format(self._mturk_root)
+
+    @property
+    def qualification_types_url(self):
+        return "{}/qualification_types".format(self._mturk_root)
 
 
 _fake_hit_data = {
@@ -409,17 +426,13 @@ _fake_hit_data = {
 
 
 class FakeMTurkDataSource(object):
+    account_balance = 1234.5
+    ad_url = "http://unicodesnowmanforyou.com/"
+    requester_url = "https://fakerequesterurl.com"
+    qualification_types_url = "https://fakequalificationtypes.com"
+
     def __init__(self):
-        self._hit = _fake_hit_data.copy()
-
-    def account_balance(self):
-        return 1234.5
-
-    def ad_url(self):
-        return "http://unicodesnowmanforyou.com/"
-
-    def current_hit(self):
-        return self._hit
+        self.current_hit = _fake_hit_data.copy()
 
 
 class MTurkDashboardInformation(object):
@@ -428,7 +441,7 @@ class MTurkDashboardInformation(object):
 
     @property
     def hit(self):
-        return self._source.current_hit()
+        return self._source.current_hit
 
     @property
     def hit_info(self):
@@ -450,7 +463,7 @@ class MTurkDashboardInformation(object):
 
     @property
     def account_balance(self):
-        return "${:.2f}".format(self._source.account_balance())
+        return "${:.2f}".format(self._source.account_balance)
 
     @property
     def last_updated(self):
@@ -458,7 +471,15 @@ class MTurkDashboardInformation(object):
 
     @property
     def ad_url(self):
-        return self._source.ad_url()
+        return self._source.ad_url
+
+    @property
+    def requester_url(self):
+        return self._source.requester_url
+
+    @property
+    def qualification_types_url(self):
+        return self._source.qualification_types_url
 
 
 def mturk_data_source(config):
@@ -495,6 +516,8 @@ def mturk():
         "ad_url": helper.ad_url,
         "hit_info": helper.hit_info,
         "last_updated": helper.last_updated,
+        "requester_url": helper.requester_url,
+        "qualification_types_url": helper.qualification_types_url,
     }
 
     return render_template("dashboard_mturk.html", title="MTurk Dashboard", data=data)
