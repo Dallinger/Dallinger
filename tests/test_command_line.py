@@ -225,7 +225,7 @@ class TestDebugCommand(object):
         deployment.assert_called_once()
 
 
-@pytest.mark.usefixtures("bartlett_dir")
+@pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
 @pytest.mark.slow
 class TestSandboxAndDeploy(object):
     @pytest.fixture
