@@ -206,6 +206,7 @@ def assemble_experiment_temp_dir(config):
         os.path.join("static", "scripts", "popper.min.js"),
         os.path.join("static", "scripts", "bootstrap.min.js"),
         os.path.join("static", "scripts", "dallinger2.js"),
+        os.path.join("static", "scripts", "network-monitor.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "scripts", "require.js"),
         os.path.join("static", "scripts", "reconnecting-websocket.js"),

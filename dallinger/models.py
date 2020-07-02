@@ -66,9 +66,13 @@ class SharedMixin(object):
         """Return json description of a participant."""
         model_data = {
             "id": self.id,
-            "creation_time": self.creation_time,
+            "creation_time": self.creation_time.isoformat()
+            if self.creation_time
+            else None,
             "failed": self.failed,
-            "time_of_death": self.time_of_death,
+            "time_of_death": self.time_of_death.isoformat()
+            if self.time_of_death
+            else None,
             "property1": self.property1,
             "property2": self.property2,
             "property3": self.property3,

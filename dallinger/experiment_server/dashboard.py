@@ -482,6 +482,10 @@ def monitoring():
 
     exp = Experiment(session)
     panes = exp.monitoring_panels(**request.args)
+    network_structure = json.dumps(exp.network_structure(**request.args))
     return render_template(
-        "dashboard_monitor.html", title="Experiment Monitoring", panes=panes
+        "dashboard_monitor.html",
+        title="Experiment Monitoring",
+        panes=panes,
+        network_structure=network_structure,
     )
