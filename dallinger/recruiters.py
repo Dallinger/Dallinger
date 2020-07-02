@@ -736,6 +736,11 @@ class MTurkRecruiter(Recruiter):
             qtype = self.mturkservice.get_qualification_type_by_name(item)
             if qtype:
                 quals.append(reqs.must_not_have(qtype["id"]))
+        if self.config.get("qualification_requirements", None) is not None:
+            explicit_qualifications = json.loads(
+                self.config.get("qualification_requirements")
+            )
+            quals.extend(explicit_qualifications)
 
         return quals
 

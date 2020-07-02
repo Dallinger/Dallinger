@@ -54,6 +54,7 @@ default_keys = (
     ("organization_name", six.text_type, []),
     ("port", int, ["PORT"]),
     ("qualification_blacklist", six.text_type, []),
+    ("qualification_requirements", six.text_type, []),
     ("recruiter", six.text_type, []),
     ("recruiters", six.text_type, []),
     ("redis_size", six.text_type, []),
