@@ -374,6 +374,13 @@ class TestDashboardMTurkRoutes(object):
             "utf8"
         )
 
+    def test_includes_expire_command_info(self, fake_mturk_data, logged_in):
+        page = logged_in.get("/dashboard/mturk").data.decode("utf8")
+        assert (
+            'data-content="dallinger expire --sandbox --app TEST_EXPERIMENT_UID"'
+            in page
+        )
+
 
 @pytest.mark.usefixtures("experiment_dir_merged")
 class TestDashboardMonitorRoute(object):

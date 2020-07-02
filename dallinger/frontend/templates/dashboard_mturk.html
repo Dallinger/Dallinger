@@ -1,11 +1,21 @@
 {% extends "base/dashboard.html" %}
 
+{% block stylesheets %}
+<style type="text/css">
+    .popover-body { font-family: monospace; };
+</style>
+{% endblock %}
+
 {% block body %}
 <h1>MTurk Dashboard
 <small class="text-muted" style="float: right">Last updated {{ data["last_updated"] }}
     <button type="button" class="btn btn-primary" onclick="location.reload()">
         Reload
     </button>
+    <button type="button"
+            class="btn btn-danger"
+            data-toggle="popover" title="CLI Command"
+            data-content="{{ data['expire_command'] }}">Expire HIT</button>
 </small>
 </h1>
 {% if data %}
@@ -29,7 +39,7 @@
         </table>
 
         <h3>Preview of AD page running <a href="{{ data['ad_url'] }}">on Heroku</a></h3>
-        <iframe width="100%" height="600" src="{{  data['ad_url'] }}" />
+        <iframe width="100%" height="600" src="{{  data['ad_url'] }}" /></iframe>
     {% else %}
         <div class="alert alert-warning">
             HIT data not available until first participant joins.
@@ -39,4 +49,12 @@
 
 {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+<script type="text/javascript">
+$(function () {
+  $('[data-toggle="popover"]').popover();
+})
+</script>
 {% endblock %}
