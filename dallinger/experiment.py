@@ -36,7 +36,7 @@ from dallinger.data import load as data_load
 from dallinger.data import find_experiment_export
 from dallinger.data import ingest_zip
 from dallinger.db import init_db, db_url
-from dallinger.models import Network, Node, Info, Transformation, Participant
+from dallinger.models import Network, Node, Info, Transformation, Participant, Vector
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
@@ -744,6 +744,31 @@ class Experiment(object):
             )
 
         return stats
+
+    def network_structure(self, **kw):
+        jnodes = [n.__json__() for n in Node.query.all()]
+        jnetworks = [n.__json__() for n in Network.query.all()]
+        jinfos = [n.__json__() for n in Info.query.all()]
+        jparticipants = [n.__json__() for n in Participant.query.all()]
+
+        jvectors = [
+            {
+                "origin_id": v.origin_id,
+                "destination_id": v.destination_id,
+                "id": v.id,
+                "failed": v.failed,
+            }
+            for v in Vector.query.all()
+        ]
+
+        return {
+            "networks": jnetworks,
+            "nodes": jnodes,
+            "vectors": jvectors,
+            "infos": jinfos,
+            "participants": jparticipants,
+            "trans": [],
+        }
 
     @property
     def usable_replay_range(self):

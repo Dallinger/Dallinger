@@ -48,16 +48,18 @@ button#refresh:after {
 .sub-pane ul {
     padding-left: 20px;
 }
-
-#graph-pane {
-    border: #DDDDDD;
-    padding: 10px;
-    min-height: 400px;
+#mynetwork {
     width: 100%;
+    height: 500px;
+    border: 1px solid lightgray;
 }
-pre {
+#element-details {
     background-color: #F2F2E9;
     border: 3px solid #34487E;
     min-height: 200px;
-    padding: 20px;
+    padding: 10px;
+}
+#element-details pre {
+    width: 100%;
+    padding: 10px;
 }
