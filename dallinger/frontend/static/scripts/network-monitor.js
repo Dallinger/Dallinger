@@ -126,14 +126,14 @@
     var i, j, from, to, roles, net, networks_roles, my_role, mclr,
         is_found, roles_colors, clr, rr, gg, bb, count_nodes,
         participant, participant_id, node, msg, mgroup, vector,
-        info, my_node_id, foid_to_infonum, tran, group_fathers,
-        gtitle, min_id, to_min, father;
+        info, my_node_id, tran, group_fathers, gtitle, min_id,
+        to_min, father;
     var nodes = []; // list of all nodes
     var edges = []; // list of all edges
     var list_of_nodes=[]; // list of objects with nodes (not only nodes for example networks)
     var list_of_participants=[]; // list of objects with participants
     var list_of_node_indx=[]; // list of objects with nodes
-    var map_infoid_to_infonum=[]; // map info id  to nodes in the visualization
+    var map_infoid_to_infonum={}; // map info id to nodes in the visualization
 
     /// These lines finds all the roles that involved  in this networks (typically "experiment"/"practice" but this is general)
     roles=[]; // list of unique roles
@@ -251,6 +251,7 @@
         to: list_of_node_indx[to],
         arrows:'to',
         title: ('vector:' + String(vector.id) + ' (' + String(vector.origin_id) + '→' + String(vector.destination_id) + ')'),
+        data: vector,
         color: mclr
       });
     }
@@ -259,7 +260,7 @@
     for (i = 0; i< net_structure.infos.length; i++) {
       info=net_structure.infos[i];
       count_nodes++;
-      foid_to_infonum[info.id]=count_nodes;
+      map_infoid_to_infonum[info.id]=count_nodes;
 
       my_node_id=count_nodes;
       to=my_node_id;
@@ -292,10 +293,10 @@
           from: list_of_node_indx[from],
           to: to,
           dashes:true,
+          data: participant,
           label: "participant: "+ String(participant_id), font: {size:15, color:participant.clr, strokeWidth:0, strokeColor:'yellow',align: 'top'},
           //arrows:'to', dashes:true,
           title: "participant: " + String(participant_id) + '(' + participant.status + ')',
-          data: participant
         });
       } else {
         edges.push({
@@ -464,7 +465,7 @@
       for (var i = 0; i < el_ids.length; i++) {
         var node_id = el_ids[i];
         var node = network.body[el_type.toLowerCase()][node_id];
-        if (node.options.title || node.options.data) {
+        if (node.options.title) {
           if (i == 0) {
             var title_el = document.createElement('h4');
             title_el.textContent = el_type;
@@ -473,6 +474,8 @@
           var sub_title_el = document.createElement('h5');
           sub_title_el.textContent = node.options.title;
           stats.appendChild(sub_title_el);
+        }
+        if (node.options.data) {
           var pre_el = document.createElement('pre');
           pre_el.textContent = JSON.stringify(node.options.data, null, 2);
           stats.appendChild(pre_el);
