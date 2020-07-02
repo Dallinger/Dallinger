@@ -750,6 +750,9 @@ class Experiment(object):
         jnetworks = [n.__json__() for n in Network.query.all()]
         jinfos = [n.__json__() for n in Info.query.all()]
         jparticipants = [n.__json__() for n in Participant.query.all()]
+        jtransformations = []
+        if kw.get("transformations"):
+            jtransformations = [n.__json__() for n in Transformation.query.all()]
 
         jvectors = [
             {
@@ -767,7 +770,7 @@ class Experiment(object):
             "vectors": jvectors,
             "infos": jinfos,
             "participants": jparticipants,
-            "trans": [],
+            "trans": jtransformations,
         }
 
     @property
