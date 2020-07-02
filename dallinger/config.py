@@ -4,6 +4,7 @@ from collections import deque
 from contextlib import contextmanager
 from six.moves import configparser
 import distutils.util
+import json
 import logging
 import os
 import six
@@ -15,6 +16,11 @@ marker = object()
 
 LOCAL_CONFIG = "config.txt"
 SENSITIVE_KEY_NAMES = ("access_id", "access_key", "password", "secret", "token")
+
+
+def is_valid_json(value):
+    json.loads(value)
+
 
 default_keys = (
     ("ad_group", six.text_type, []),
@@ -54,7 +60,7 @@ default_keys = (
     ("organization_name", six.text_type, []),
     ("port", int, ["PORT"]),
     ("qualification_blacklist", six.text_type, []),
-    ("qualification_requirements", six.text_type, []),
+    ("qualification_requirements", six.text_type, [], False, [is_valid_json]),
     ("recruiter", six.text_type, []),
     ("recruiters", six.text_type, []),
     ("redis_size", six.text_type, []),
