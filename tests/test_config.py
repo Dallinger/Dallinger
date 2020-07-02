@@ -58,6 +58,16 @@ class TestConfiguration(object):
         with pytest.raises(TypeError):
             config.extend({"num_participants": "A NUMBER"}, cast_types=True)
 
+    def test_type_casts_follow_file_pointers(self):
+        config = Configuration()
+        config.register("data", str)
+        config.ready = True
+        with NamedTemporaryFile() as data_file:
+            data_file.write("hello".encode("utf-8"))
+            data_file.flush()
+            config.extend({"data": "file:" + data_file.name}, cast_types=True)
+        assert config.get("data") == "hello"
+
     def test_get_before_ready_is_not_possible(self):
         config = Configuration()
         config.register("num_participants", int)

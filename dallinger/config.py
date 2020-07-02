@@ -108,6 +108,11 @@ class Configuration(object):
                 continue
             expected_type = self.types.get(key)
             if cast_types:
+                if isinstance(value, str) and value.startswith("file:"):
+                    # Load this value from a file
+                    _, filename = value.split(":", 1)
+                    with open(filename, "rt", encoding="utf-8") as source_file:
+                        value = source_file.read()
                 try:
                     if expected_type == bool:
                         value = distutils.util.strtobool(value)
