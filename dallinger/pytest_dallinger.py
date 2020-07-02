@@ -321,6 +321,11 @@ def a(db_session):
             # nodes.Source is intended to be abstract
             return self._build(nodes.RandomBinaryStringSource, defaults)
 
+        def transformation(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(models.Transformation, defaults)
+
         def _build(self, klass, attrs):
             # Some of our default values are factories:
             for k, v in attrs.items():

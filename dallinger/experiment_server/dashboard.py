@@ -478,14 +478,27 @@ def mturk():
 @dashboard.route("/monitoring")
 @login_required
 def monitoring():
+    from sqlalchemy import distinct, func
     from dallinger.experiment_server.experiment_server import Experiment, session
+    from dallinger.models import Network
 
     exp = Experiment(session)
-    panes = exp.monitoring_panels(**request.args)
-    network_structure = exp.network_structure(**request.args)
+    panes = exp.monitoring_panels(**request.args.to_dict(flat=False))
+    network_structure = exp.network_structure(**request.args.to_dict(flat=False))
+    net_roles = (
+        session.query(Network.role, func.count(Network.role))
+        .group_by(Network.role)
+        .order_by(Network.role)
+        .all()
+    )
+    net_ids = [
+        i[0] for i in session.query(distinct(Network.id)).order_by(Network.id).all()
+    ]
     return render_template(
         "dashboard_monitor.html",
         title="Experiment Monitoring",
         panes=panes,
         network_structure=json.dumps(network_structure),
+        net_roles=net_roles,
+        net_ids=net_ids,
     )

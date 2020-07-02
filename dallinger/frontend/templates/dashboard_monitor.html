@@ -20,8 +20,36 @@
     <div id="settings-pane" class="sidebar-pane">
       <h2>Settings</h2>
       <form method="GET">
-        <input name="transformations" type="checkbox" {{ "checked" if request.args.get("transformations") else "" }}/>
-        <label for="transformations">Show transformations</label>
+        {% if net_roles|length > 1 %}
+        <fieldset id="network-roles">
+          <legend>Network Roles</legend>
+          {% for val, count in net_roles %}
+          <div class="field">
+            <input id="val-{{ val }}" type="checkbox" name="network_roles" value="{{ val }}" {{ "checked" if (not request.args.get("network_roles") or val in request.args.getlist("network_roles")) else "" }} />
+            <label for="val-{{ val }}">{{ val }} (count: {{ count }})</label>
+          </div>
+          {% endfor %}
+        </fieldset>
+        {% endif %}
+        {% if net_ids|length > 1 %}
+        <fieldset id="network-ids">
+          <legend>Network Ids</legend>
+          {% for val in net_ids %}
+          <div class="field">
+            <input id="val-{{ val }}" type="checkbox" name="network_ids" value="{{ val }}" {{ "checked" if (not request.args.get("network_ids") or val|string in request.args.getlist("network_ids")) else "" }} />
+            <label for="val-{{ val }}">{{ val }}</label>
+          </div>
+          {% endfor %}
+        </fieldset>
+        {% endif %}
+        <div class="field">
+          <input name="collapsed" type="checkbox" {{ "checked" if request.args.get("collapsed") else "" }}/>
+          <label for="transformations">Collapse (networks and sources only)</label>
+        </div>
+        <div class="field">
+          <input name="transformations" type="checkbox" {{ "checked" if request.args.get("transformations") else "" }}/>
+          <label for="transformations">Show transformations</label>
+        </div>
       </form>
     </div>
   </aside>
@@ -41,7 +69,7 @@
   {{ super() }}
   <script>
     $('#settings-pane input').on('change', function() {
-      $(this).parent('form').submit();
+      $(this).parents('form').submit();
     });
     window.network_structure = {{ network_structure | safe }};
   </script>

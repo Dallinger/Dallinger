@@ -11,7 +11,7 @@
           direction: 'UD',
           sortMethod: 'directed',
           edgeMinimization: false, // this is super important as of a bug in the library
-          nodeSpacing: 80, // important due to a bug in the library
+          nodeSpacing: 100, // important due to a bug in the library
           treeSpacing: 200 // important due to a bug in the librarys
         }
       },
