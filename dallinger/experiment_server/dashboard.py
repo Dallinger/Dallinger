@@ -372,8 +372,12 @@ class MTurkDataSource(object):
             raise NotUsingMTurkRecruiter()
 
     @property
+    def is_sandbox(self):
+        return self._recruiter.is_sandbox
+
+    @property
     def _mturk_root(self):
-        if self._recruiter.is_sandbox:
+        if self.is_sandbox:
             return "https://requestersandbox.mturk.com"
         return "https://requester.mturk.com"
 
@@ -430,13 +434,15 @@ class FakeMTurkDataSource(object):
     ad_url = "http://unicodesnowmanforyou.com/"
     requester_url = "https://fakerequesterurl.com"
     qualification_types_url = "https://fakequalificationtypes.com"
+    is_sandbox = True
 
     def __init__(self):
         self.current_hit = _fake_hit_data.copy()
 
 
 class MTurkDashboardInformation(object):
-    def __init__(self, data_source):
+    def __init__(self, config, data_source):
+        self._config = config
         self._source = data_source
 
     @property
@@ -481,6 +487,12 @@ class MTurkDashboardInformation(object):
     def qualification_types_url(self):
         return self._source.qualification_types_url
 
+    @property
+    def expire_command(self):
+        app_id = self._config.get("id")
+        sandbox_option = " --sandbox " if self._source.is_sandbox else ""
+        return "dallinger expire{}--app {}".format(sandbox_option, app_id)
+
 
 def mturk_data_source(config):
     recruiter = recruiters.from_config(config)
@@ -509,7 +521,7 @@ def mturk():
             "dashboard_mturk.html", title="MTurk Dashboard", data=None
         )
 
-    helper = MTurkDashboardInformation(data_source)
+    helper = MTurkDashboardInformation(config, data_source)
 
     data = {
         "account_balance": helper.account_balance,
@@ -518,6 +530,7 @@ def mturk():
         "last_updated": helper.last_updated,
         "requester_url": helper.requester_url,
         "qualification_types_url": helper.qualification_types_url,
+        "expire_command": helper.expire_command,
     }
 
     return render_template("dashboard_mturk.html", title="MTurk Dashboard", data=data)
