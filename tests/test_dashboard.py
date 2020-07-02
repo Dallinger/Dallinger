@@ -387,3 +387,161 @@ class TestDashboardMonitorRoute(object):
         resp_text = resp.data.decode("utf8")
         assert "<h3>Participants</h3>" in resp_text
         assert "<li>working: 0</li>" in resp_text
+        assert "<li>active: 0</li>" in resp_text
+
+    def test_statistics_show_working(self, logged_in, db_session):
+        from dallinger.models import Participant
+
+        participant = Participant(
+            recruiter_id="hotair",
+            worker_id="1",
+            hit_id="1",
+            assignment_id="1",
+            mode="test",
+        )
+        db_session.add(participant)
+
+        resp = logged_in.get("/dashboard/monitoring")
+
+        assert resp.status_code == 200
+        resp_text = resp.data.decode("utf8")
+        assert "<h3>Participants</h3>" in resp_text
+        assert "<li>working: 1</li>" in resp_text
+
+
+@pytest.mark.usefixtures("experiment_dir_merged", "webapp")
+class TestDashboardNetworkStructure(object):
+    @pytest.fixture
+    def multinetwork_experiment(self, a, db_session):
+        from dallinger.experiment_server.experiment_server import Experiment
+        from dallinger.models import Network
+
+        exp = Experiment(db_session)
+
+        network = Network.query.all()[0]
+        network2 = a.network(role="test")
+        a.participant(
+            recruiter_id="hotair",
+            worker_id="1",
+            hit_id="1",
+            assignment_id="1",
+            mode="test",
+        )
+        source = a.source(network=network)
+        source2 = a.source(network=network2)
+        info1 = a.info(origin=source, contents="contents1")
+        info2 = a.info(origin=source, contents="contents2")
+        info3 = a.info(origin=source2, contents="contents3")
+        info4 = a.info(origin=source2, contents="contents3")
+        a.transformation(info_in=info1, info_out=info2)
+        a.transformation(info_in=info3, info_out=info4)
+        yield exp
+
+    def test_network_structure(self, a, db_session):
+        from dallinger.experiment_server.experiment_server import Experiment
+        from dallinger.models import Network
+
+        exp = Experiment(db_session)
+
+        network = Network.query.all()[0]
+
+        network_structure = exp.network_structure()
+        assert len(network_structure["networks"]) == 1
+        assert network_structure["networks"][0]["id"] == network.id
+        assert network_structure["networks"][0]["role"] == network.role
+        assert len(network_structure["nodes"]) == 0
+        assert len(network_structure["vectors"]) == 0
+        assert len(network_structure["infos"]) == 0
+        assert len(network_structure["participants"]) == 0
+        assert len(network_structure["trans"]) == 0
+
+        source = a.source(network=network)
+
+        network_structure = exp.network_structure()
+        assert len(network_structure["nodes"]) == 1
+        assert network_structure["nodes"][0]["type"] == source.type
+
+        # Transformations are not included by default
+        info1 = a.info(origin=source, contents="contents1")
+        info2 = a.info(origin=source, contents="contents2")
+        a.transformation(info_in=info1, info_out=info2)
+
+        network_structure = exp.network_structure()
+        assert len(network_structure["nodes"]) == 1
+        assert len(network_structure["infos"]) == 2
+        assert len(network_structure["trans"]) == 0
+
+        network_structure = exp.network_structure(transformations="on")
+        assert len(network_structure["trans"]) == 1
+
+    def test_network_structure_multinetwork(self, multinetwork_experiment):
+        network_structure = multinetwork_experiment.network_structure(
+            transformations="on"
+        )
+        assert len(network_structure["networks"]) == 2
+        assert len(network_structure["nodes"]) == 2
+        assert len(network_structure["infos"]) == 4
+        assert len(network_structure["participants"]) == 1
+        assert len(network_structure["trans"]) == 2
+
+    def test_network_structure_collapsed(self, multinetwork_experiment):
+        network_structure = multinetwork_experiment.network_structure(
+            transformations="on", collapsed="on"
+        )
+        assert len(network_structure["networks"]) == 2
+        assert len(network_structure["nodes"]) == 2
+        assert len(network_structure["trans"]) == 0
+        assert len(network_structure["infos"]) == 0
+        assert len(network_structure["participants"]) == 0
+
+    def test_network_structure_filter_roles(self, multinetwork_experiment):
+        network_structure = multinetwork_experiment.network_structure(
+            transformations="on", network_roles=["test"]
+        )
+        assert len(network_structure["networks"]) == 1
+        assert network_structure["networks"][0]["id"] == 2
+        assert len(network_structure["nodes"]) == 1
+        assert network_structure["nodes"][0]["id"] == 2
+        assert len(network_structure["infos"]) == 2
+        assert {i["id"] for i in network_structure["infos"]} == {3, 4}
+        assert len(network_structure["participants"]) == 1
+        assert len(network_structure["trans"]) == 1
+        assert network_structure["trans"][0]["id"] == 2
+
+    def test_network_structure_filter_ids(self, multinetwork_experiment):
+        network_structure = multinetwork_experiment.network_structure(
+            transformations="on", network_ids=["1"]
+        )
+        assert len(network_structure["networks"]) == 1
+        assert network_structure["networks"][0]["id"] == 1
+        assert len(network_structure["nodes"]) == 1
+        assert network_structure["nodes"][0]["id"] == 1
+        assert len(network_structure["infos"]) == 2
+        assert {i["id"] for i in network_structure["infos"]} == {1, 2}
+        assert len(network_structure["participants"]) == 1
+        assert len(network_structure["trans"]) == 1
+        assert network_structure["trans"][0]["id"] == 1
+
+    def test_network_structure_filter_multiple(self, multinetwork_experiment):
+        network_structure = multinetwork_experiment.network_structure(
+            transformations="on", network_ids=[2], network_roles=["test"]
+        )
+        assert len(network_structure["networks"]) == 1
+        assert network_structure["networks"][0]["id"] == 2
+        assert len(network_structure["nodes"]) == 1
+        assert network_structure["nodes"][0]["id"] == 2
+        assert len(network_structure["infos"]) == 2
+        assert {i["id"] for i in network_structure["infos"]} == {3, 4}
+        assert len(network_structure["participants"]) == 1
+        assert len(network_structure["trans"]) == 1
+        assert network_structure["trans"][0]["id"] == 2
+
+        # Parameters may yield no results
+        network_structure = multinetwork_experiment.network_structure(
+            transformations="on", network_ids=[1], network_roles=["test"]
+        )
+        assert len(network_structure["networks"]) == 0
+        assert len(network_structure["nodes"]) == 0
+        assert len(network_structure["infos"]) == 0
+        assert len(network_structure["participants"]) == 1
+        assert len(network_structure["trans"]) == 0

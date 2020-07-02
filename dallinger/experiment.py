@@ -22,6 +22,7 @@ import uuid
 
 from sqlalchemy import and_
 from sqlalchemy import create_engine
+from sqlalchemy import distinct
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker, scoped_session
 
@@ -745,23 +746,57 @@ class Experiment(object):
         return stats
 
     def network_structure(self, **kw):
-        jnodes = [n.__json__() for n in Node.query.all()]
-        jnetworks = [n.__json__() for n in Network.query.all()]
-        jinfos = [n.__json__() for n in Info.query.all()]
-        jparticipants = [n.__json__() for n in Participant.query.all()]
-        jtransformations = []
-        if kw.get("transformations"):
-            jtransformations = [n.__json__() for n in Transformation.query.all()]
-
-        jvectors = [
-            {
-                "origin_id": v.origin_id,
-                "destination_id": v.destination_id,
-                "id": v.id,
-                "failed": v.failed,
+        network_ids = {i[0] for i in self.session.query(distinct(Network.id)).all()}
+        if "network_roles" in kw:
+            network_ids = {
+                i[0]
+                for i in self.session.query(distinct(Network.id)).filter(
+                    Network.role.in_(kw["network_roles"])
+                )
             }
-            for v in Vector.query.all()
+        if "network_ids" in kw:
+            network_ids = network_ids.intersection(int(v) for v in kw["network_ids"])
+
+        jnetworks = [
+            n.__json__()
+            for n in Network.query.filter(Network.id.in_(network_ids)).all()
         ]
+        if "collapsed" in kw:
+            # Collapsed view shows Source nodes only
+            jnodes = [
+                n.__json__()
+                for n in Source.query.filter(Node.network_id.in_(network_ids)).all()
+            ]
+            jinfos = jparticipants = jtransformations = jvectors = []
+        else:
+            jnodes = [
+                n.__json__()
+                for n in Node.query.filter(Node.network_id.in_(network_ids)).all()
+            ]
+            jinfos = [
+                n.__json__()
+                for n in Info.query.filter(Info.network_id.in_(network_ids)).all()
+            ]
+            # We don't filter participants because they aren't directly connected to specific networks
+            jparticipants = [n.__json__() for n in Participant.query.all()]
+            jtransformations = []
+            if kw.get("transformations"):
+                jtransformations = [
+                    n.__json__()
+                    for n in Transformation.query.filter(
+                        Transformation.network_id.in_(network_ids)
+                    ).all()
+                ]
+
+            jvectors = [
+                {
+                    "origin_id": v.origin_id,
+                    "destination_id": v.destination_id,
+                    "id": v.id,
+                    "failed": v.failed,
+                }
+                for v in Vector.query.filter(Vector.network_id.in_(network_ids)).all()
+            ]
 
         return {
             "networks": jnetworks,

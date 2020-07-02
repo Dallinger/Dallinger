@@ -34,6 +34,24 @@ button#refresh:after {
 .sidebar-pane h3 {
     font-size: 18px;
 }
+.sidebar-pane fieldset {
+    border: 1px solid #B6B6B6;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+}
+.sidebar-pane legend {
+    font-size: 16px;
+    margin-bottom: 3px;
+}
+.sidebar-pane .field {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+.sidebar-pane .field label {
+    margin-left: 5px;
+    margin-bottom: 0;
+}
 .sidebar-pane {
     background-color: #F6F6F6;
     margin-top: 10px;
