@@ -356,7 +356,7 @@ class TestDashboardMTurkRoutes(object):
         assert "<td>Fake HIT Title</td>" in resp.data.decode("utf8")
 
     def test_explains_if_hit_data_not_yet_available(self, fake_mturk_data, logged_in):
-        fake_mturk_data._hit = None
+        fake_mturk_data.current_hit = None
         resp = logged_in.get("/dashboard/mturk")
 
         assert resp.status_code == 200

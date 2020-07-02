@@ -27,5 +27,6 @@ SQLAlchemy
 sqlalchemy-postgres-copy
 tabulate
 timeago
+tzlocal
 ua-parser
 user-agents
