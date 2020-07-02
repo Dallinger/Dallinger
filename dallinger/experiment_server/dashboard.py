@@ -378,6 +378,7 @@ class MTurkDataSource(object):
 
     def current_hit(self):
         hit_id = self._recruiter.current_hit_id()
+        logger.info("HIT is: {}".format(hit_id))
         if hit_id is not None:
             return self._mturk.get_hit(hit_id)
 
