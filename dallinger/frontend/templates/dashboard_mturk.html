@@ -14,7 +14,8 @@
     </button>
     <button type="button"
             class="btn btn-danger"
-            data-toggle="popover" title="Dallinger CLI Command"
+            id="expire-hit-button"
+            data-toggle="popover"
             data-content="{{ data['expire_command'] }}">Expire HIT</button>
     <button type="button"
             class="btn btn-primary"
@@ -106,21 +107,21 @@
     }
 
     $(function () {
-      $('[data-toggle="popover"]').popover();
-      $("#hit-extension-form").submit(function (event) {
+      $('[data-toggle="popover"]').popover({trigger: "manual"});
+      $("#hit-extension-form").submit(event => {
         buildExtendCommand(event);
         event.preventDefault();
       });
-      $('[data-toggle="popover"]').click(async event => {
-        if (!navigator.clipboard) {
-          // Clipboard API not available
-          return
-        }
-        const text = event.target.dataset.content
+      $('#expire-hit-button').click(async event => {
+        const text = event.target.dataset.content;
         try {
-          await navigator.clipboard.writeText(text)
+          await navigator.clipboard.writeText(text);
+          event.target.dataset.originalTitle = "CLI command copied!";
+          $(event.target).popover("toggle");
         } catch (err) {
-          console.error('Failed to copy!', err)
+          console.error('Failed to copy!', err);
+          event.target.dataset.originalTitle = "CLI command";
+          $(event.target).popover("toggle");
         }
       })
     })
