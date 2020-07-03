@@ -18,6 +18,7 @@ from flask_login import UserMixin
 from flask_login.utils import login_url as make_login_url
 from dallinger import recruiters
 from dallinger.config import get_config
+from .utils import date_handler
 
 
 logger = logging.getLogger(__name__)
@@ -498,7 +499,7 @@ def monitoring():
         "dashboard_monitor.html",
         title="Experiment Monitoring",
         panes=panes,
-        network_structure=json.dumps(network_structure),
+        network_structure=json.dumps(network_structure, default=date_handler),
         net_roles=net_roles,
         net_ids=net_ids,
     )
