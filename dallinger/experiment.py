@@ -808,6 +808,26 @@ class Experiment(object):
             "trans": jtransformations,
         }
 
+    def node_visualization_html(self, object_type, id):
+        """Returns a string with custom HTML visualization for a given object
+        referenced by the object base type and id.
+
+        :param object_type: The base object class name, e.g. ``Network``, ``Node``, ``Info``, ``Participant``, etc.
+        :type object_type: str
+        :param id: The ``id`` of the object
+        :type id: int
+
+        :returns: A valid HTML string to be inserted into the monitoring dashboard
+        """
+        from dallinger import models
+
+        model = getattr(models, object_type, None)
+        if model is not None:
+            obj = self.session.query(model).filter(model.id == id).one()
+            if getattr(obj, "visualization_html", None):
+                return obj.visualization_html
+        return ""
+
     @property
     def usable_replay_range(self):
         """The range of times that represent the active part of the experiment"""

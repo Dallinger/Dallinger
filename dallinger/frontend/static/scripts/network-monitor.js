@@ -479,6 +479,12 @@
           var pre_el = document.createElement('pre');
           pre_el.textContent = JSON.stringify(node.options.data, null, 2);
           stats.appendChild(pre_el);
+          if (node.options.data.id && node.options.data.object_type) {
+            var custom_node = document.createElement('div');
+            custom_node.classList.add('node-details');
+            stats.appendChild(custom_node);
+            $(custom_node).load('/dashboard/node_details/' + node.options.data.object_type + '/' + String(node.options.data.id));
+          }
         }
       }
     };
