@@ -110,6 +110,18 @@
       $("#hit-extension-form").submit(function (event) {
         buildExtendCommand(event);
         event.preventDefault();
+      });
+      $('[data-toggle="popover"]').click(async event => {
+        if (!navigator.clipboard) {
+          // Clipboard API not available
+          return
+        }
+        const text = event.target.dataset.content
+        try {
+          await navigator.clipboard.writeText(text)
+        } catch (err) {
+          console.error('Failed to copy!', err)
+        }
       })
     })
 </script>
