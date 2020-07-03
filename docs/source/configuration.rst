@@ -23,7 +23,7 @@ first among environment variables, then in a ``config.txt`` in the experiment
 directory, and then in the ``.dallingerconfig`` file, using whichever value
 is found first. If the parameter is not found, Dallinger will use the default.
 
-If a value extracted from the environment or a config file it will be converted
+If a value is extracted from the environment or a config file it will be converted
 to the correct type. You can also specify a value of ``file:/path/to/file`` to
 use the contents of that file on your local computer.
 
