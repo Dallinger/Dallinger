@@ -376,6 +376,7 @@ class TestDashboardMTurkRoutes(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
+<<<<<<< HEAD
 class TestDashboardMonitorRoute(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/monitoring").status_code == 401
@@ -555,3 +556,17 @@ class TestDashboardNetworkInfo(object):
         with mock.patch("dallinger.nodes.Source.visualization_html") as node_html:
             custom_html = multinetwork_experiment.node_visualization_html("Node", 1)
             assert custom_html is node_html
+
+
+class TestDashboardLifeCycleRoutes(object):
+    def test_requires_login(self, webapp):
+        assert webapp.get("/dashboard/lifecycle").status_code == 401
+
+    def test_includes_destroy_command(self, active_config, logged_in):
+        resp = logged_in.get("/dashboard/lifecycle")
+
+        app_id = active_config.get("id")
+        assert resp.status_code == 200
+        assert "<pre>dallinger destroy --app {}</pre>".format(
+            app_id
+        ) in resp.data.decode("utf8")
