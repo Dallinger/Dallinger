@@ -410,7 +410,7 @@ class TestDashboardMonitorRoute(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged", "webapp")
-class TestDashboardNetworkStructure(object):
+class TestDashboardNetworkInfo(object):
     @pytest.fixture
     def multinetwork_experiment(self, a, db_session):
         from dallinger.experiment_server.experiment_server import Experiment
@@ -545,3 +545,13 @@ class TestDashboardNetworkStructure(object):
         assert len(network_structure["infos"]) == 0
         assert len(network_structure["participants"]) == 1
         assert len(network_structure["trans"]) == 0
+
+    def test_custom_node_html(self, multinetwork_experiment):
+        custom_html = multinetwork_experiment.node_visualization_html("Info", 1)
+        assert custom_html == ""
+        bogus_content = multinetwork_experiment.node_visualization_html("Bogus", 1)
+        assert bogus_content == ""
+        # The HTML is customized using a property on the model class
+        with mock.patch("dallinger.nodes.Source.visualization_html") as node_html:
+            custom_html = multinetwork_experiment.node_visualization_html("Node", 1)
+            assert custom_html is node_html

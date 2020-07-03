@@ -59,6 +59,11 @@ class SharedMixin(object):
     #: a generic column for storing structured JSON data
     details = Column(JSONB, nullable=False, server_default="{}", default=lambda: {})
 
+    #: HTML string to display in visualizations (e.g. the Network
+    #: Montioring Dashboard). You can override this with a dynamic ``@property``
+    #: on sub-classes.
+    visualization_html = ""
+
     def json_data(self):
         return {}
 

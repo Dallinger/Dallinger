@@ -502,3 +502,13 @@ def monitoring():
         net_roles=net_roles,
         net_ids=net_ids,
     )
+
+
+@dashboard.route("/node_details/<object_type>/<id>")
+@login_required
+def node_details(object_type, id):
+    from dallinger.experiment_server.experiment_server import Experiment, session
+
+    exp = Experiment(session)
+    html_data = exp.node_visualization_html(object_type, id)
+    return Response(html_data, status=200, mimetype="text/html")

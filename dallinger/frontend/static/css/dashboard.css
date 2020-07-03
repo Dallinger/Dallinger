@@ -80,4 +80,11 @@ button#refresh:after {
 #element-details pre {
     width: 100%;
     padding: 10px;
+    margin: 0;
+}
+
+#element-details .node-details {
+    width: 100%;
+    padding: 0 10px;
+    margin: 0 0 10px;
 }
