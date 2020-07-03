@@ -600,8 +600,8 @@ class TestMTurkRecruiter(object):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once()
 
-    def test_open_recruitment_with_blacklist(self, recruiter):
-        recruiter.config.set("qualification_blacklist", u"foo, bar")
+    def test_open_recruitment_with_blocklist(self, recruiter):
+        recruiter.config.set("mturk_qualification_blocklist", u"foo, bar")
         # Our fake response will always return the same QualificationType ID
         recruiter.mturkservice.get_qualification_type_by_name.return_value = {
             "id": u"fake id"
@@ -631,7 +631,7 @@ class TestMTurkRecruiter(object):
 
     def test_open_recruitment_with_explicit_qualifications(self, recruiter):
         recruiter.config.set(
-            "qualification_requirements",
+            "mturk_qualification_requirements",
             u"""
             [
                 {

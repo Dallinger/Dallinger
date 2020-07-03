@@ -112,11 +112,11 @@ Amazon Mechanical Turk Recruitment
 ``group_name`` *unicode*
     Assign a named qualification to workers who complete a HIT.
 
-``qualification_blacklist`` *unicode - comma seperated*
+``mturk_qualification_blocklist`` *unicode - comma seperated*
     Comma-separated list of qualification names. Workers with qualifications in
     this list will be prevented from viewing and accepting the HIT.
 
-``qualification_requirements`` *unicode - JSON formatted*
+``mturk_qualification_requirements`` *unicode - JSON formatted*
     A JSON list of qualification documents to pass to Amazon Mechanical Turk.
 
 ``title`` *unicode*

@@ -732,13 +732,13 @@ class MTurkRecruiter(Recruiter):
             quals.append(reqs.min_approval(self.config.get("approve_requirement")))
         if self.config.get("us_only"):
             quals.append(reqs.restrict_to_countries(["US"]))
-        for item in self._config_to_list("qualification_blacklist"):
+        for item in self._config_to_list("mturk_qualification_blocklist"):
             qtype = self.mturkservice.get_qualification_type_by_name(item)
             if qtype:
                 quals.append(reqs.must_not_have(qtype["id"]))
-        if self.config.get("qualification_requirements", None) is not None:
+        if self.config.get("mturk_qualification_requirements", None) is not None:
             explicit_qualifications = json.loads(
-                self.config.get("qualification_requirements")
+                self.config.get("mturk_qualification_requirements")
             )
             quals.extend(explicit_qualifications)
 
