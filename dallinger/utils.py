@@ -236,15 +236,15 @@ def struct_to_html(data):
     elif isinstance(data, dict):
         if len(data) == 2 and "count" in data and "failed" in data:
             if data["count"]:
-                failed = float(data["failed"]) / data["count"] * 100
+                failed_percentage = float(data["failed"]) / data["count"] * 100
             else:
-                failed = 0
+                failed_percentage = 0
             value = "{} total, {} failed ({:.1f}%)".format(
-                data["count"], data["failed"], failed
+                data["count"], data["failed"], failed_percentage
             )
-            if failed == 100:
+            if failed_percentage == 100:
                 value = '<span class="all-failures">{}</span>'.format(value)
-            elif failed > 0:
+            elif failed_percentage > 0:
                 value = '<span class="some-failures">{}</span>'.format(value)
             elif data["count"]:
                 value = '<span class="no-failures">{}</span>'.format(value)

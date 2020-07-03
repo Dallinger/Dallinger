@@ -36,6 +36,7 @@ from dallinger.data import load as data_load
 from dallinger.data import find_experiment_export
 from dallinger.data import ingest_zip
 from dallinger.db import init_db, db_url
+from dallinger import models
 from dallinger.models import Network, Node, Info, Transformation, Participant, Vector
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
@@ -807,7 +808,7 @@ class Experiment(object):
             "trans": jtransformations,
         }
 
-    def node_visualization_html(self, object_type, id):
+    def node_visualization_html(self, object_type, obj_id):
         """Returns a string with custom HTML visualization for a given object
         referenced by the object base type and id.
 
@@ -818,11 +819,10 @@ class Experiment(object):
 
         :returns: A valid HTML string to be inserted into the monitoring dashboard
         """
-        from dallinger import models
 
         model = getattr(models, object_type, None)
         if model is not None:
-            obj = self.session.query(model).filter(model.id == id).one()
+            obj = self.session.query(model).get(int(obj_id))
             if getattr(obj, "visualization_html", None):
                 return obj.visualization_html
         return ""
