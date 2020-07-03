@@ -97,7 +97,7 @@ class TestModels(object):
             "max_size": 1e6,
             "full": False,
             "role": "default",
-            "creation_time": net.creation_time.isoformat(),
+            "creation_time": net.creation_time,
             "failed": False,
             "time_of_death": None,
             "property1": None,
