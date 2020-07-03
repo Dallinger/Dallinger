@@ -13,9 +13,10 @@
         Reload
     </button>
     <button type="button"
-            class="btn btn-danger"
-            id="expire-hit-button"
+            class="btn btn-danger cli-command"
+            title="Dallinger CLI command copied!"
             data-toggle="popover"
+            data-clipboard-text="{{ data['expire_command'] }}"
             data-content="{{ data['expire_command'] }}">Expire HIT</button>
     <button type="button"
             class="btn btn-primary"
@@ -107,23 +108,15 @@
     }
 
     $(function () {
-      $('[data-toggle="popover"]').popover({trigger: "manual"});
+      // CLI command copy-on-click
+      $('[data-toggle="popover"]').popover();
+      new ClipboardJS('.cli-command');
+
+      // HIT extension
       $("#hit-extension-form").submit(event => {
         buildExtendCommand(event);
         event.preventDefault();
       });
-      $('#expire-hit-button').click(async event => {
-        const text = event.target.dataset.content;
-        try {
-          await navigator.clipboard.writeText(text);
-          event.target.dataset.originalTitle = "CLI command copied!";
-          $(event.target).popover("toggle");
-        } catch (err) {
-          console.error('Failed to copy!', err);
-          event.target.dataset.originalTitle = "CLI command";
-          $(event.target).popover("toggle");
-        }
-      })
     })
 </script>
 {% endblock %}
