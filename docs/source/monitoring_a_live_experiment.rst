@@ -59,7 +59,7 @@ could add the following code to add a "My Experiment" tab to the dashboard:
   dashboard_tabs.insert("My Experiment", "my-experiment")
 
 
-The dashboard also supports nested tab/menus using the :attr:`~dallinger.experiment_server.dashboard.DashboardTabs` object:
+The dashboard also supports nested tab/menus using the :attr:`~dallinger.experiment_server.dashboard.DashboardTab` object:
 
 .. code-block:: python
 
