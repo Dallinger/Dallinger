@@ -217,6 +217,7 @@ dashboard_tabs = DashboardTabs(
         DashboardTab("Heroku", "dashboard.heroku", heroku_children),
         DashboardTab("MTurk", "dashboard.mturk"),
         DashboardTab("Monitoring", "dashboard.monitoring"),
+        DashboardTab("Lifecycle", "dashboard.lifecycle"),
     ]
 )
 
@@ -513,3 +514,17 @@ def node_details(object_type, obj_id):
     exp = Experiment(session)
     html_data = exp.node_visualization_html(object_type, obj_id)
     return Response(html_data, status=200, mimetype="text/html")
+
+
+@dashboard.route("/lifecycle")
+@login_required
+def lifecycle():
+    config = get_config()
+
+    data = {
+        "id": config.get("id"),
+    }
+
+    return render_template(
+        "dashboard_cli.html", title="Experiment lifecycle Dashboard", **data
+    )
