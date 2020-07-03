@@ -71,13 +71,9 @@ class SharedMixin(object):
         """Return json description of a participant."""
         model_data = {
             "id": self.id,
-            "creation_time": self.creation_time.isoformat()
-            if self.creation_time
-            else None,
+            "creation_time": self.creation_time,
             "failed": self.failed,
-            "time_of_death": self.time_of_death.isoformat()
-            if self.time_of_death
-            else None,
+            "time_of_death": self.time_of_death,
             "property1": self.property1,
             "property2": self.property2,
             "property3": self.property3,
@@ -194,7 +190,7 @@ class Participant(Base, SharedMixin):
             "assignment_id": self.assignment_id,
             "hit_id": self.hit_id,
             "mode": self.mode,
-            "end_time": self.end_time.isoformat() if self.end_time else None,
+            "end_time": self.end_time,
             "base_pay": self.base_pay,
             "bonus": self.bonus,
             "status": self.status,
@@ -1687,9 +1683,7 @@ class Transmission(Base, SharedMixin):
             "destination_id": self.destination_id,
             "info_id": self.info_id,
             "network_id": self.network_id,
-            "receive_time": self.receive_time.isoformat()
-            if self.receive_time
-            else None,
+            "receive_time": self.receive_time,
             "status": self.status,
             "object_type": "Transmission",
         }
