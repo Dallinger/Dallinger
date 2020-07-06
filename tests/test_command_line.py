@@ -620,6 +620,79 @@ class TestCompensate(object):
         assert result.exit_code == 0
 
 
+class TestExtendMTurkHIT(object):
+
+    DO_IT = "Y\n"
+    DO_NOT_DO_IT = "N\n"
+
+    @pytest.fixture
+    def extend(self):
+        from dallinger.command_line import extend_mturk_hit
+
+        return extend_mturk_hit
+
+    @pytest.fixture
+    def mturk(self):
+        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
+            mock_instance = mock.Mock()
+            mock_instance.extend_hit.return_value = {
+                "title": "HIT Title",
+                "reward": "5.0",
+                "worker_url": "http://example.com/hit",
+            }
+
+            mock_mturk.return_value = mock_instance
+
+            yield mock_instance
+
+    def test_extends_hit_by_assignments_and_duration(self, extend, mturk):
+        result = CliRunner().invoke(
+            extend,
+            [
+                "--hit_id",
+                "some HIT ID",
+                "--assignments",
+                "3",
+                "--duration_hours",
+                "2.5",
+                "--sandbox",
+            ],
+            input=self.DO_IT,
+        )
+        assert result.exit_code == 0
+        mturk.extend_hit.assert_called_once_with(
+            duration_hours=2.5, hit_id=u"some HIT ID", number=3
+        )
+
+    def test_duration_is_optional(self, extend, mturk):
+        result = CliRunner().invoke(
+            extend,
+            ["--hit_id", "some HIT ID", "--assignments", "3", "--sandbox"],
+            input=self.DO_IT,
+        )
+        assert result.exit_code == 0
+        mturk.extend_hit.assert_called_once_with(
+            duration_hours=None, hit_id=u"some HIT ID", number=3
+        )
+
+    def test_can_be_aborted_cleanly_after_warning(self, extend, mturk):
+        result = CliRunner().invoke(
+            extend,
+            [
+                "--hit_id",
+                "some HIT ID",
+                "--assignments",
+                "3",
+                "--duration_hours",
+                "2.5",
+                "--sandbox",
+            ],
+            input=self.DO_NOT_DO_IT,
+        )
+        assert result.exit_code == 0
+        mturk.extend_hit.assert_not_called()
+
+
 class TestRevoke(object):
 
     DO_IT = "Y\n"

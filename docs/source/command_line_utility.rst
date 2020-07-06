@@ -173,6 +173,18 @@ Expire all MTurk HITs for a dallinger app. A required ``--app <app>``
 parameter specifies the experiment by its id. An optional ``--sandbox``
 flag indicates to look for HITs in the MTurk sandbox.
 
+extend_mturk_hit
+^^^^^^^^^^^^^^^^
+
+Extend an MTurk HIT by a some number of assignments, and optionally, an
+additional number of hours.
+A required ``--hit_id`` parameter should contain
+the MTurk HIT Id, ``--assignments`` should contain the additional number of
+HIT assigments to create. To extend the duration of the HIT, also include
+a ``duration_hours`` parameter, which may be a decimal (``--duration_hours 2.5``
+is acceptable input.) If your HIT is in the MTurk sandbox, you must add a
+``--sandbox`` flag.
+
 apps
 ^^^^
 

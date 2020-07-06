@@ -746,6 +746,48 @@ def expire(app, sandbox, exit=True):
 
 
 @dallinger.command()
+@click.option("--hit_id", required=True)
+@click.option("--assignments", required=True, type=int)
+@click.option("--duration_hours", type=float)
+@click.option(
+    "--sandbox", is_flag=True, flag_value=True, help="HIT is in the MTurk sandbox"
+)
+def extend_mturk_hit(hit_id, assignments, duration_hours, sandbox):
+    """Add assignments, and optionally time, to an existing MTurk HIT."""
+    out = Output()
+    config = get_config()
+    config.load()
+    mode = "sandbox" if sandbox else "live"
+    assignments_presented = "assignments" if assignments > 1 else "assignment"
+    duration_presented = duration_hours or 0.0
+
+    with config.override({"mode": mode}):
+        if not click.confirm(
+            "\n\nYou are about to add {:.1f} hours and {} {} to {} HIT {}.\n"
+            "Continue?".format(
+                duration_presented, assignments, assignments_presented, mode, hit_id
+            )
+        ):
+            out.log("Aborting...")
+            return
+
+        service = _mturk_service_from_config(sandbox)
+        try:
+            hit_info = service.extend_hit(
+                hit_id=hit_id, number=assignments, duration_hours=duration_hours
+            )
+        except MTurkServiceException as ex:
+            out.error(
+                "HIT extension failed with the following error:\n{}".format(ex),
+                delay=0,
+            )
+            return
+
+    out.log("Updated HIT Details", delay=0)
+    out.log(tabulate.tabulate(hit_info.items()), chevrons=False, delay=0)
+
+
+@dallinger.command()
 @click.option("--app", default=None, callback=verify_id, help="Experiment id")
 @click.confirmation_option(prompt="Are you sure you want to destroy the app?")
 @click.option(
