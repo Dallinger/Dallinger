@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 
 from cached_property import cached_property
 from collections import Counter
+from collections import OrderedDict
 from contextlib import contextmanager
 from functools import wraps
 import datetime
@@ -21,6 +22,7 @@ import uuid
 
 from sqlalchemy import and_
 from sqlalchemy import create_engine
+from sqlalchemy import distinct
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker, scoped_session
 
@@ -34,12 +36,14 @@ from dallinger.data import load as data_load
 from dallinger.data import find_experiment_export
 from dallinger.data import ingest_zip
 from dallinger.db import init_db, db_url
-from dallinger.models import Network, Node, Info, Transformation, Participant
+from dallinger import models
+from dallinger.models import Network, Node, Info, Transformation, Participant, Vector
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
 from dallinger.transformations import Mutation, Replication
+from dallinger.utils import struct_to_html
 
 
 from dallinger.networks import Empty
@@ -663,6 +667,165 @@ class Experiment(object):
         default logic, otherwise should return `True` or `False`.
         """
         return None
+
+    def monitoring_panels(self, **kw):
+        """Provides monitoring dashboard sidebar panels.
+
+        :param \**kw: arguments passed in from the request
+        :returns: An ``OrderedDict()`` mapping panel titles to HTML strings
+                  to render in the dashboard sidebar.
+        """  # noqa
+        stats = self.monitoring_statistics(**kw)
+        panels = OrderedDict()
+        for tab in stats:
+            panels[tab] = struct_to_html(stats[tab])
+        return panels
+
+    def monitoring_statistics(self, **kw):
+        """The default data used for the monitoring panels
+
+        :param \**kw: arguments passed in from the request
+        :returns: An ``OrderedDict()`` mapping panel titles to data structures
+                  describing the experiment state.
+        """  # noqa
+        participants = Participant.query
+        nodes = Node.query
+        infos = Info.query
+
+        stats = OrderedDict()
+        stats["Participants"] = OrderedDict(
+            (
+                ("working", participants.filter_by(status="working").count()),
+                ("abandoned", participants.filter_by(status="abandoned").count()),
+                ("returned", participants.filter_by(status="returned").count()),
+                ("approved", participants.filter_by(status="approved").count()),
+            )
+        )
+
+        # Active participants have more than 10 infos
+        active_participants = 0
+        for p in participants:
+            if len(p.infos(failed="all")) > 10:
+                active_participants += 1
+        stats["Participants"]["active"] = active_participants
+
+        # Count up our networks by role
+        network_roles = self.session.query(Network.role, func.count(Network.role))
+        network_counts = network_roles.group_by(Network.role).all()
+        failed_networks = network_roles.filter(Network.failed == True)  # noqa
+        failed_counts = dict(failed_networks.group_by(Network.role).all())
+        network_stats = {}
+        for role, count in network_counts:
+            network_stats[role] = OrderedDict(
+                (("count", count), ("failed", failed_counts.get(role, 0)),)
+            )
+        stats["Networks"] = network_stats
+
+        stats["Nodes"] = OrderedDict(
+            (
+                ("count", nodes.count()),
+                ("failed", nodes.filter_by(failed=True).count()),
+            )
+        )
+
+        stats["Infos"] = OrderedDict(
+            (
+                ("count", infos.count()),
+                ("failed", infos.filter_by(failed=True).count()),
+            )
+        )
+
+        if kw.get("transformations"):
+            transformations = Transformation.query
+            stats["transformations"] = OrderedDict(
+                (
+                    ("count", transformations.count()),
+                    ("failed", transformations.filter_by(failed=True).count()),
+                )
+            )
+
+        return stats
+
+    def network_structure(self, **kw):
+        network_ids = {i[0] for i in self.session.query(distinct(Network.id)).all()}
+        if "network_roles" in kw:
+            network_ids = {
+                i[0]
+                for i in self.session.query(distinct(Network.id)).filter(
+                    Network.role.in_(kw["network_roles"])
+                )
+            }
+        if "network_ids" in kw:
+            network_ids = network_ids.intersection(int(v) for v in kw["network_ids"])
+
+        jnetworks = [
+            n.__json__()
+            for n in Network.query.filter(Network.id.in_(network_ids)).all()
+        ]
+        if "collapsed" in kw:
+            # Collapsed view shows Source nodes only
+            jnodes = [
+                n.__json__()
+                for n in Source.query.filter(Node.network_id.in_(network_ids)).all()
+            ]
+            jinfos = jparticipants = jtransformations = jvectors = []
+        else:
+            jnodes = [
+                n.__json__()
+                for n in Node.query.filter(Node.network_id.in_(network_ids)).all()
+            ]
+            jinfos = [
+                n.__json__()
+                for n in Info.query.filter(Info.network_id.in_(network_ids)).all()
+            ]
+            # We don't filter participants because they aren't directly connected to specific networks
+            jparticipants = [n.__json__() for n in Participant.query.all()]
+            jtransformations = []
+            if kw.get("transformations"):
+                jtransformations = [
+                    n.__json__()
+                    for n in Transformation.query.filter(
+                        Transformation.network_id.in_(network_ids)
+                    ).all()
+                ]
+
+            jvectors = [
+                {
+                    "origin_id": v.origin_id,
+                    "destination_id": v.destination_id,
+                    "id": v.id,
+                    "failed": v.failed,
+                }
+                for v in Vector.query.filter(Vector.network_id.in_(network_ids)).all()
+            ]
+
+        return {
+            "networks": jnetworks,
+            "nodes": jnodes,
+            "vectors": jvectors,
+            "infos": jinfos,
+            "participants": jparticipants,
+            "trans": jtransformations,
+        }
+
+    def node_visualization_html(self, object_type, obj_id):
+        """Returns a string with custom HTML visualization for a given object
+        referenced by the object base type and id.
+
+        :param object_type: The base object class name, e.g. ``Network``, ``Node``, ``Info``, ``Participant``, etc.
+        :type object_type: str
+        :param id: The ``id`` of the object
+        :type id: int
+
+        :returns: A valid HTML string to be inserted into the monitoring dashboard
+        """
+
+        model = getattr(models, object_type, None)
+        if model is not None:
+            obj = self.session.query(model).get(int(obj_id))
+            if getattr(obj, "visualization_html", None):
+                return obj.visualization_html
+        return ""
 
     @property
     def usable_replay_range(self):

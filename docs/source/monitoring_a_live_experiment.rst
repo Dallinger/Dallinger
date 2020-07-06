@@ -59,7 +59,7 @@ could add the following code to add a "My Experiment" tab to the dashboard:
   dashboard_tabs.insert("My Experiment", "my-experiment")
 
 
-The dashboard also supports nested tab/menus using the ``DashboardTab`` object:
+The dashboard also supports nested tab/menus using the :attr:`~dallinger.experiment_server.dashboard.DashboardTab` object:
 
 .. code-block:: python
 
@@ -91,11 +91,33 @@ available tabs on your experiment's dashboard:
 
     .. automethod:: remove
 
-The ``DashboardTab`` object used by the ``insert_tab`` methods provide the following API:
+
+The :attr:`~dallinger.experiment_server.dashboard.DashboardTab` object used by the various ``insert_tab*`` methods provide the following API:
 
 .. autoclass:: DashboardTab
 
     .. automethod:: __init__
+
+
+The dashboard monitoring view can be extended by adding panes to the sidebar or
+extending the existing panes. This can be done customizing the
+:attr:`~dallinger.experiment.Experiment.monitoring_panels` and/or
+:attr:`~dallinger.experiment.Experiment.monitoring_statistics` methods of
+your experiment class. Additionally, you can customize the display of the selected
+nodes customizing the :attr:`~dallinger.experiment.Experiment.node_visualization_html`
+method, or the :attr:`~dallinger.models.SharedMixin.visualization_html` property on your
+model class:
+
+.. module:: dallinger.experiment
+
+.. autoclass:: Experiment
+   :noindex:
+
+    .. automethod:: monitoring_panels
+
+    .. automethod:: monitoring_statistics
+
+    .. automethod:: node_visualization_html
 
 
 Papertrail

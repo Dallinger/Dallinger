@@ -18,6 +18,7 @@ from flask_login import UserMixin
 from flask_login.utils import login_url as make_login_url
 from dallinger import recruiters
 from dallinger.config import get_config
+from .utils import date_handler
 
 
 logger = logging.getLogger(__name__)
@@ -215,6 +216,7 @@ dashboard_tabs = DashboardTabs(
         DashboardTab("Home", "dashboard.index"),
         DashboardTab("Heroku", "dashboard.heroku", heroku_children),
         DashboardTab("MTurk", "dashboard.mturk"),
+        DashboardTab("Monitoring", "dashboard.monitoring"),
     ]
 )
 
@@ -472,3 +474,42 @@ def mturk():
     }
 
     return render_template("dashboard_mturk.html", title="MTurk Dashboard", data=data)
+
+
+@dashboard.route("/monitoring")
+@login_required
+def monitoring():
+    from sqlalchemy import distinct, func
+    from dallinger.experiment_server.experiment_server import Experiment, session
+    from dallinger.models import Network
+
+    exp = Experiment(session)
+    panes = exp.monitoring_panels(**request.args.to_dict(flat=False))
+    network_structure = exp.network_structure(**request.args.to_dict(flat=False))
+    net_roles = (
+        session.query(Network.role, func.count(Network.role))
+        .group_by(Network.role)
+        .order_by(Network.role)
+        .all()
+    )
+    net_ids = [
+        i[0] for i in session.query(distinct(Network.id)).order_by(Network.id).all()
+    ]
+    return render_template(
+        "dashboard_monitor.html",
+        title="Experiment Monitoring",
+        panes=panes,
+        network_structure=json.dumps(network_structure, default=date_handler),
+        net_roles=net_roles,
+        net_ids=net_ids,
+    )
+
+
+@dashboard.route("/node_details/<object_type>/<obj_id>")
+@login_required
+def node_details(object_type, obj_id):
+    from dallinger.experiment_server.experiment_server import Experiment, session
+
+    exp = Experiment(session)
+    html_data = exp.node_visualization_html(object_type, obj_id)
+    return Response(html_data, status=200, mimetype="text/html")
