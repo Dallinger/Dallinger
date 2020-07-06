@@ -152,7 +152,7 @@
 
       extensionCB.on("success", e => {
         $("#extension-command").text(e.text);
-        $("#extension-result").toggleClass("invisible");
+        $("#extension-result").removeClass("invisible");
       })
 
       $("#extend-hit-cancel").click(event => {
