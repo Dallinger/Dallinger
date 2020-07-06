@@ -468,6 +468,16 @@ class MTurkDashboardInformation(object):
             }
 
     @property
+    def hit_expiration_isoformat(self):
+        hit = self.hit
+        if hit is not None:
+            return self.hit["expiration"].strftime("%Y-%m-%dT%H:%M")
+
+    @property
+    def is_sandbox(self):
+        return self._source.is_sandbox
+
+    @property
     def account_balance(self):
         return "${:.2f}".format(self._source.account_balance)
 
@@ -527,8 +537,10 @@ def mturk():
         "account_balance": helper.account_balance,
         "ad_url": helper.ad_url,
         "hit_info": helper.hit_info,
+        "hit_expiration": helper.hit_expiration_isoformat,
         "last_updated": helper.last_updated,
         "requester_url": helper.requester_url,
+        "is_sandbox": helper.is_sandbox,
         "qualification_types_url": helper.qualification_types_url,
         "expire_command": helper.expire_command,
     }
