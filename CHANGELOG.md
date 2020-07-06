@@ -2,6 +2,11 @@
 
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+- Add `file:/path/to/file` support to configuration system.
+- Add validators to configuration system.
+- Add new `qualification_requirements` config parameter to add explicit MTurk
+  qualifications.
+
 ## [v-6.2.2](https://github.com/dallinger/dallinger/tree/6.2.2) (2020-04-27)
 - Bugfix: revert change to `HOST` configuration which broke Heroku deployments (see https://github.com/Dallinger/Dallinger/issues/2130)
 

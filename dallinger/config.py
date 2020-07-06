@@ -4,6 +4,7 @@ from collections import deque
 from contextlib import contextmanager
 from six.moves import configparser
 import distutils.util
+import json
 import logging
 import os
 import six
@@ -15,6 +16,11 @@ marker = object()
 
 LOCAL_CONFIG = "config.txt"
 SENSITIVE_KEY_NAMES = ("access_id", "access_key", "password", "secret", "token")
+
+
+def is_valid_json(value):
+    json.loads(value)
+
 
 default_keys = (
     ("ad_group", six.text_type, []),
@@ -53,7 +59,8 @@ default_keys = (
     ("num_dynos_worker", int, []),
     ("organization_name", six.text_type, []),
     ("port", int, ["PORT"]),
-    ("qualification_blacklist", six.text_type, []),
+    ("mturk_qualification_blocklist", six.text_type, ["qualification_blacklist"]),
+    ("mturk_qualification_requirements", six.text_type, [], False, [is_valid_json]),
     ("recruiter", six.text_type, []),
     ("recruiters", six.text_type, []),
     ("redis_size", six.text_type, []),
@@ -91,6 +98,7 @@ class Configuration(object):
         self.clear()
         self.types = {}
         self.synonyms = {}
+        self.validators = {}
         self.sensitive = set()
         if register_defaults:
             for registration in default_keys:
@@ -108,6 +116,11 @@ class Configuration(object):
                 continue
             expected_type = self.types.get(key)
             if cast_types:
+                if isinstance(value, str) and value.startswith("file:"):
+                    # Load this value from a file
+                    _, filename = value.split(":", 1)
+                    with open(filename, "rt", encoding="utf-8") as source_file:
+                        value = source_file.read()
                 try:
                     if expected_type == bool:
                         value = distutils.util.strtobool(value)
@@ -120,6 +133,14 @@ class Configuration(object):
                         value=repr(value), key=key, expected_type=expected_type
                     )
                 )
+            for validator in self.validators.get(key, []):
+                try:
+                    validator(value)
+                except ValueError as e:
+                    # Annotate the exception with more info
+                    e.dallinger_config_key = key
+                    e.dallinger_config_value = value
+                    raise e
             normalized_mapping[key] = value
         self.data.extendleft([normalized_mapping])
 
@@ -172,7 +193,7 @@ class Configuration(object):
         # Also, does a sensitive string appear within the key?
         return any(s for s in SENSITIVE_KEY_NAMES if s in key)
 
-    def register(self, key, type_, synonyms=None, sensitive=False):
+    def register(self, key, type_, synonyms=None, sensitive=False, validators=None):
         if synonyms is None:
             synonyms = set()
         if key in self.types:
@@ -182,6 +203,9 @@ class Configuration(object):
         self.types[key] = type_
         for synonym in synonyms:
             self.synonyms[synonym] = key
+
+        if validators:
+            self.validators[key] = validators
 
         if sensitive:
             self.sensitive.add(key)

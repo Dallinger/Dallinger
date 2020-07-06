@@ -600,8 +600,8 @@ class TestMTurkRecruiter(object):
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once()
 
-    def test_open_recruitment_with_blacklist(self, recruiter):
-        recruiter.config.set("qualification_blacklist", u"foo, bar")
+    def test_open_recruitment_with_blocklist(self, recruiter):
+        recruiter.config.set("mturk_qualification_blocklist", u"foo, bar")
         # Our fake response will always return the same QualificationType ID
         recruiter.mturkservice.get_qualification_type_by_name.return_value = {
             "id": u"fake id"
@@ -626,6 +626,45 @@ class TestMTurkRecruiter(object):
                 MTurkQualificationRequirements.restrict_to_countries(["US"]),
                 MTurkQualificationRequirements.must_not_have(u"fake id"),
                 MTurkQualificationRequirements.must_not_have(u"fake id"),
+            ],
+        )
+
+    def test_open_recruitment_with_explicit_qualifications(self, recruiter):
+        recruiter.config.set(
+            "mturk_qualification_requirements",
+            u"""
+            [
+                {
+                    "QualificationTypeId":"789RVWYBAZW00EXAMPLE",
+                    "Comparator":"In",
+                    "IntegerValues":[10, 20, 30]
+                }
+            ]
+            """,
+        )
+        recruiter.open_recruitment(n=1)
+        recruiter.mturkservice.create_hit.assert_called_once_with(
+            question=MTurkQuestions.external(
+                ad_url="http://fake-domain/ad?recruiter=mturk"
+            ),
+            description="fake HIT description",
+            duration_hours=1.0,
+            experiment_id="some experiment uid",
+            lifetime_days=1,
+            keywords=[u"kw1", u"kw2", u"kw3"],
+            max_assignments=1,
+            notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
+            reward=0.01,
+            title="fake experiment title",
+            annotation="some experiment uid",
+            qualifications=[
+                MTurkQualificationRequirements.min_approval(95),
+                MTurkQualificationRequirements.restrict_to_countries(["US"]),
+                {
+                    "QualificationTypeId": "789RVWYBAZW00EXAMPLE",
+                    "Comparator": "In",
+                    "IntegerValues": [10, 20, 30],
+                },
             ],
         )
 

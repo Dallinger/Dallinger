@@ -735,7 +735,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 )
 @pytest.mark.slow
 class TestInteractive(object):
-    def test_worker_can_see_hit_when_blacklist_not_in_qualifications(
+    def test_worker_can_see_hit_when_blocklist_not_in_qualifications(
         self, with_cleanup, worker_id, qtype
     ):
         with_cleanup.assign_qualification(qtype["id"], worker_id, score=1)
@@ -747,7 +747,7 @@ class TestInteractive(object):
         input("Any key to continue...")
 
         hit = with_cleanup.create_hit(
-            **standard_hit_config(title="Dallinger: No Blacklist", lifetime_days=0.25)
+            **standard_hit_config(title="Dallinger: No Blocklist", lifetime_days=0.25)
         )
 
         print(
@@ -757,7 +757,7 @@ class TestInteractive(object):
         )
         input("Any key to continue...")
 
-    def test_worker_cannot_see_hit_when_blacklist_in_qualifications(
+    def test_worker_cannot_see_hit_when_blocklist_in_qualifications(
         self, with_cleanup, worker_id, qtype
     ):
         with_cleanup.assign_qualification(qtype["id"], worker_id, score=1)
@@ -771,7 +771,7 @@ class TestInteractive(object):
 
         hit = with_cleanup.create_hit(
             **standard_hit_config(
-                title="Dallinger: Blacklist",
+                title="Dallinger: Blocklist",
                 qualifications=[
                     MTurkQualificationRequirements.must_not_have(qtype["id"])
                 ],

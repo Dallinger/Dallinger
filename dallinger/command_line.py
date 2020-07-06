@@ -246,7 +246,20 @@ def verify_config(verbose=True):
     ok = True
     config = get_config()
     if not config.ready:
-        config.load()
+        try:
+            config.load()
+        except ValueError as e:
+            config_key = getattr(e, "dallinger_config_key", None)
+            if config_key is not None:
+                message = "Configuration for {} is invalid: ".format(config_key)
+            else:
+                message = "Configuration is invalid: "
+            log("✗ " + message + str(e), delay=0, chevrons=False, verbose=verbose)
+
+            config_value = getattr(e, "dallinger_config_value", None)
+            if verbose and config_value:
+                log("  Value supplied was " + config_value, chevrons=False)
+            return False
     # Check base_payment is correct
     try:
         base_pay = config.get("base_payment")
@@ -333,12 +346,16 @@ def require_exp_directory(f):
     """Decorator to verify that a command is run inside a valid Dallinger
     experiment directory.
     """
-    error = "The current directory is not a valid Dallinger experiment."
+    error_one = "The current directory is not a valid Dallinger experiment."
+    error_two = "There are problems with the current experiment. Please check with dallinger verify."
 
     @wraps(f)
     def wrapper(**kwargs):
-        if not verify_directory(kwargs.get("verbose")):
-            raise click.UsageError(error)
+        try:
+            if not verify_package(kwargs.get("verbose")):
+                raise click.UsageError(error_one)
+        except ValueError:
+            raise click.UsageError(error_two)
         return f(**kwargs)
 
     return wrapper

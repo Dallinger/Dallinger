@@ -14,3 +14,7 @@ Here, ``'n'`` is a string with the name of the parameter, ``int`` is its type,
 ``False`` is a boolean signifying that this configuration parameter is not
 sensitive and can be saved in plain text. Once defined in this way, a
 parameter can be used anywhere that built-in parameters are used.
+
+An optional ``validators`` parameter can also be passed, which must be either
+None or a list of callables that take a single argument (the value of the config)
+and may raise a ``ValueError`` describing why the value is invalid.

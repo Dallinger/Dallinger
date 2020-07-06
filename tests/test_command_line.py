@@ -185,7 +185,7 @@ class TestHeader(object):
         assert dallinger.version.__version__ in dallinger.command_line.header
 
 
-@pytest.mark.usefixtures("bartlett_dir")
+@pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
 class TestDebugCommand(object):
     @pytest.fixture
     def debug(self):
@@ -200,21 +200,32 @@ class TestDebugCommand(object):
 
     def test_fails_if_run_outside_experiment_dir(self, debug, deployment):
         exp_dir = os.getcwd()
-        os.chdir("..")
-        result = CliRunner().invoke(debug, [])
-        os.chdir(exp_dir)
+        try:
+            os.chdir("..")
+            result = CliRunner().invoke(debug, [])
+        finally:
+            os.chdir(exp_dir)
 
         deployment.assert_not_called()
         assert result.exit_code == 2
         assert "directory is not a valid Dallinger experiment" in result.output
 
+    def test_bad_config_prevents_deployment(self, debug, deployment, active_config):
+        with mock.patch("dallinger.command_line.verify_config") as verify_config:
+            verify_config.side_effect = ValueError()
+            returned = CliRunner().invoke(debug, [])
+        assert (
+            "There are problems with the current experiment. Please check with dallinger verify."
+            in returned.output
+        )
+        deployment.assert_not_called()
+
     def test_creates_debug_deployment(self, debug, deployment):
         CliRunner().invoke(debug, [])
-
         deployment.assert_called_once()
 
 
-@pytest.mark.usefixtures("bartlett_dir")
+@pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
 @pytest.mark.slow
 class TestSandboxAndDeploy(object):
     @pytest.fixture
