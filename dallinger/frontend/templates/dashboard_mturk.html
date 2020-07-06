@@ -128,10 +128,11 @@
         const newDate = Date.parse($("#new-expiration").val());
         const hoursDiff = (newDate - originalDate) / (10000 * 360);
         const newAssignments = $("#additional-assignments").val();
-        const assignmentOption = newAssignments !== "0" ? " --assignments " + newAssignments : ""
-        const sandbox = isSandbox ? " --sandbox" : "";
+        const assignmentOption = " --assignments " + newAssignments
+        const durationOption = hoursDiff > 0 ? " --duration_hours " + hoursDiff : ""
+        const sandboxOption = isSandbox ? " --sandbox" : "";
 
-        const command = "dallinger extend_mturk_hit --hit_id " + HITId + assignmentOption + " --duration_hours " + hoursDiff + sandbox;
+        const command = "dallinger extend_mturk_hit --hit_id " + HITId + assignmentOption + durationOption + sandboxOption;
 
         return command;
     }
