@@ -376,7 +376,6 @@ class TestDashboardMTurkRoutes(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
-<<<<<<< HEAD
 class TestDashboardMonitorRoute(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/monitoring").status_code == 401
