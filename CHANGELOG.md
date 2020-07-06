@@ -8,6 +8,7 @@
 - Add new `qualification_requirements` config parameter to add explicit MTurk
   qualifications.
 - New, extensible `/dashboard` infrastructure for viewing and manipulating details of the live experiment, protected by a username and password (see http://docs.dallinger.io/en/latest/monitoring_a_live_experiment.html#the-dashboard)
+- New `dallinger extend_mtuk_hit` command: extend an existing MTurk HIT by adding assignments, and optionally, additional time before expiration.
 
 ## [v-6.2.2](https://github.com/dallinger/dallinger/tree/6.2.2) (2020-04-27)
 - Bugfix: revert change to `HOST` configuration which broke Heroku deployments (see https://github.com/Dallinger/Dallinger/issues/2130)
