@@ -115,24 +115,34 @@
 
 {% block scripts %}
 <script type="text/javascript">
-    {% if data["hit_info"] %}
-    const HITId = "{{ data['hit_info']['HIT Id'] }}";
-    const isSandbox = {{ data['is_sandbox']|tojson  }};
-    {% else %}
-    const HITId = "";
-    const isSandbox = true;
-    {% endif %}
+
+    function templateGlobals() {
+      // Values inscribed by Jinja2 when this template is rendered.
+      {% if data["hit_info"] %}
+        const HITId = "{{ data['hit_info']['HIT Id'] }}";
+        const isSandbox = {{ data['is_sandbox']|tojson  }};
+      {% else %}
+        const HITId = "";
+        const isSandbox = true;
+      {% endif %}
+
+      return {
+        HITId: HITId,
+        isSandbox: isSandbox
+      }
+    }
 
     function buildExtendCommand(event) {
+        const globals = templateGlobals();
         const originalDate = Date.parse($("#original-expiration").val());
         const newDate = Date.parse($("#new-expiration").val());
         const hoursDiff = (newDate - originalDate) / (10000 * 360);
         const newAssignments = $("#additional-assignments").val();
         const assignmentOption = " --assignments " + newAssignments
         const durationOption = hoursDiff > 0 ? " --duration_hours " + hoursDiff : ""
-        const sandboxOption = isSandbox ? " --sandbox" : "";
+        const sandboxOption = globals.isSandbox ? " --sandbox" : "";
 
-        const command = "dallinger extend_mturk_hit --hit_id " + HITId + assignmentOption + durationOption + sandboxOption;
+        const command = "dallinger extend_mturk_hit --hit_id " + globals.HITId + assignmentOption + durationOption + sandboxOption;
 
         return command;
     }
