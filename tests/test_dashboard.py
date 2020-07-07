@@ -557,6 +557,7 @@ class TestDashboardNetworkInfo(object):
             assert custom_html is node_html
 
 
+@pytest.mark.usefixtures("experiment_dir_merged")
 class TestDashboardLifeCycleRoutes(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/lifecycle").status_code == 401
