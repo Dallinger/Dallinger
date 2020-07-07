@@ -48,6 +48,6 @@ def launch():
         config.load()
 
     # Import the experiment.
-    exp = dallinger.experiment.load()
+    dallinger.experiment.load()
 
     scheduler.start()
