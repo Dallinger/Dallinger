@@ -13,7 +13,6 @@ from dallinger.config import Configuration
 from dallinger.config import get_config, LOCAL_CONFIG
 
 
-# @pytest.mark.usefixtures("experiment_dir")
 class TestConfigurationUnitTests(object):
     def test_register_new_variable(self):
         config = Configuration()
@@ -60,7 +59,7 @@ class TestConfigurationUnitTests(object):
 
     def test_type_casts_follow_file_pointers(self):
         config = Configuration()
-        config.register("data", str)
+        config.register("data", six.text_type)
         config.ready = True
         with NamedTemporaryFile() as data_file:
             data_file.write("hello".encode("utf-8"))
@@ -97,7 +96,7 @@ class TestConfigurationUnitTests(object):
             if val != "purple":
                 raise ValueError
 
-        config.register("fave_colour", str, validators=[is_purple])
+        config.register("fave_colour", six.text_type, validators=[is_purple])
         config.ready = True
         config.set("fave_colour", "purple")
         with pytest.raises(ValueError):
