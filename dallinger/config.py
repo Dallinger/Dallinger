@@ -119,7 +119,7 @@ class Configuration(object):
                 continue
             expected_type = self.types.get(key)
             if cast_types:
-                if isinstance(value, str) and value.startswith("file:"):
+                if isinstance(value, six.text_type) and value.startswith("file:"):
                     # Load this value from a file
                     _, filename = value.split(":", 1)
                     with open(filename, "rt", encoding="utf-8") as source_file:
@@ -228,7 +228,7 @@ class Configuration(object):
             for k, v in layer.items():
                 if filter_sensitive and self.is_sensitive(k):
                     continue
-                parser.set("Parameters", k, str(v))
+                parser.set("Parameters", k, six.text_type(v))
 
         directory = directory or os.getcwd()
         destination = os.path.join(directory, LOCAL_CONFIG)
