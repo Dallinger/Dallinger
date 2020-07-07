@@ -40,6 +40,7 @@ tests/config.py
 .coverage.*
 node_modules/*
 Gemfile.lock
+.python-version
 .ruby-version
 package-lock.json
 pip-selfcheck.json
