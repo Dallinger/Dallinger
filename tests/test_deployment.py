@@ -768,19 +768,13 @@ class TestDebugServer(object):
                 debugger.run()
 
     def test_new_participant(self, debugger_unpatched):
-        from dallinger.config import get_config
-
         debugger = debugger_unpatched
-        get_config().load()
         debugger.new_recruit = mock.Mock(return_value=None)
         assert not debugger.new_recruit.called
         debugger.notify(" New participant requested: http://example.com")
         assert debugger.new_recruit.called
 
     def test_recruitment_closed(self, debugger_unpatched):
-        from dallinger.config import get_config
-
-        get_config().load()
         debugger = debugger_unpatched
         debugger.new_recruit = mock.Mock(return_value=None)
         debugger.heroku = mock.Mock()

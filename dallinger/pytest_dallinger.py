@@ -54,7 +54,7 @@ def is_dallinger_module(key):
     )
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def reset_sys_modules():
     to_clear = [k for k in sys.modules if is_dallinger_module(k)]
     for key in to_clear:
