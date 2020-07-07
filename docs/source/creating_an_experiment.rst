@@ -542,6 +542,10 @@ very simple experiment, we don't have a lot of custom code here,
 other than setting up initial values for our custom parameters in
 the `configure` method.
 
+It's best to limit yourself to one experiment subclass, but if this
+isn't possible, you can set the EXPERIMENT_CLASS_NAME environment
+variable to choose which is being used.
+
 If you had a class defined somewhere else representing some objects
 in your experiment, the place to initialize an instance would be the
 `__init__` method, which is called by Python on experiment

@@ -10,9 +10,6 @@ from dallinger.models import Participant
 from dallinger.utils import ParticipationTime
 
 
-# Import the experiment.
-exp = dallinger.experiment.load()
-
 scheduler = BlockingScheduler()
 
 
@@ -49,4 +46,8 @@ def launch():
     config = dallinger.config.get_config()
     if not config.ready:
         config.load()
+
+    # Import the experiment.
+    exp = dallinger.experiment.load()
+
     scheduler.start()

@@ -162,6 +162,70 @@ class ExperimentFileSource(object):
                 yield legit
 
 
+class ExplicitFileSource(object):
+    """Add files that are explicitly requested by the experimenter with a hook function.
+    """
+
+    def __init__(self, root_dir="."):
+        self.root = root_dir
+
+    def _get_mapping(self, dst):
+        from dallinger.config import initialize_experiment_package
+
+        initialize_experiment_package(dst)
+        from dallinger.experiment import load
+
+        exp_class = load()
+        extra_files = getattr(exp_class, "extra_files", None)
+        if extra_files is None:
+            try:
+                from dallinger_experiment.experiment import extra_files
+            except ImportError:
+                try:
+                    from dallinger_experiment.dallinger_experiment import extra_files
+                except ImportError:
+                    pass
+
+        if extra_files is not None:
+            for src, filename in extra_files():
+                filename = filename.lstrip("/")
+                if os.path.isdir(src):
+                    for dirpath, dirnames, filenames in os.walk(src, topdown=True):
+                        for fn in filenames:
+                            dst_fileparts = [dst, filename] + dirnames + [fn]
+                            dst_filepath = os.path.join(*dst_fileparts)
+                            yield (
+                                os.path.join(dirpath, fn),
+                                dst_filepath,
+                            )
+                else:
+                    dst_filepath = os.path.join(dst, filename)
+                    yield (src, dst_filepath)
+
+    @property
+    def files(self):
+        """A Set of all files copyable in the source directory, accounting for
+        exclusions.
+        """
+        return {src for (src, dst) in self._get_mapping("")}
+
+    @property
+    def size(self):
+        """Combined size of all files, accounting for exclusions.
+        """
+        return sum([os.path.getsize(path) for path in self.files])
+
+    def selective_copy_to(self, destination):
+        """Write files from the source directory to another directory, skipping
+        files excluded by the general exclusion_policy, plus any files
+        ignored by git configuration.
+        """
+        for from_path, to_path in self._get_mapping(destination):
+            target_folder = os.path.dirname(to_path)
+            ensure_directory(target_folder)
+            shutil.copyfile(from_path, to_path)
+
+
 def assemble_experiment_temp_dir(config):
     """Create a temp directory from which to run an experiment.
     The new directory will include:
@@ -236,6 +300,8 @@ def assemble_experiment_temp_dir(config):
         # If the clock process has been disabled, overwrite the Procfile:
         src = os.path.join(dallinger_root, "heroku", "Procfile_no_clock")
         shutil.copy(src, os.path.join(dst, "Procfile"))
+
+    ExplicitFileSource(os.getcwd()).selective_copy_to(dst)
 
     return dst
 
@@ -404,6 +470,13 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
     }
+
+    # Set up the preferred class as an environment variable, if one is set
+    # This is needed before the config is parsed, but we also store it in the
+    # config to make things easier for recording into bundles.
+    preferred_class = config.get("EXPERIMENT_CLASS_NAME", None)
+    if preferred_class:
+        heroku_config["EXPERIMENT_CLASS_NAME"] = preferred_class
 
     heroku_app.set_multiple(**heroku_config)
 
