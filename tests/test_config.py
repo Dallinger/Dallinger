@@ -13,8 +13,7 @@ from dallinger.config import Configuration
 from dallinger.config import get_config, LOCAL_CONFIG
 
 
-@pytest.mark.usefixtures("experiment_dir")
-class TestConfiguration(object):
+class TestConfigurationUnitTests(object):
     def test_register_new_variable(self):
         config = Configuration()
         config.register("num_participants", int)
@@ -60,7 +59,7 @@ class TestConfiguration(object):
 
     def test_type_casts_follow_file_pointers(self):
         config = Configuration()
-        config.register("data", str)
+        config.register("data", six.text_type)
         config.ready = True
         with NamedTemporaryFile() as data_file:
             data_file.write("hello".encode("utf-8"))
@@ -97,7 +96,7 @@ class TestConfiguration(object):
             if val != "purple":
                 raise ValueError
 
-        config.register("fave_colour", str, validators=[is_purple])
+        config.register("fave_colour", six.text_type, validators=[is_purple])
         config.ready = True
         config.set("fave_colour", "purple")
         with pytest.raises(ValueError):
@@ -204,6 +203,9 @@ worldwide = false
         config.ready = True
         assert config.get("num_participants") == 1
 
+
+@pytest.mark.usefixtures("experiment_dir_merged")
+class TestConfigurationIntegrationTests(object):
     @pytest.mark.slow
     def test_experiment_defined_parameters(self):
         try:
@@ -231,11 +233,10 @@ worldwide = false
         config.register_extra_parameters()
         config.load_from_file(LOCAL_CONFIG)
 
-    def test_custom_experiment_module_set_and_retained(self):
+    def test_custom_experiment_module_set_and_retained(self, reset_config):
         config = get_config()
-        with mock.patch.dict("sys.modules", dallinger_experiment=None):
-            config.register_extra_parameters()
-            assert sys.modules["dallinger_experiment"] is not None
+        config.register_extra_parameters()
+        assert sys.modules["dallinger_experiment"] is not None
         exp_module = mock.Mock()
         with mock.patch.dict("sys.modules", dallinger_experiment=exp_module):
             config.clear()

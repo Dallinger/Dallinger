@@ -59,6 +59,11 @@ class SharedMixin(object):
     #: a generic column for storing structured JSON data
     details = Column(JSONB, nullable=False, server_default="{}", default=lambda: {})
 
+    #: HTML string to display in visualizations (e.g. the Network
+    #: Montioring Dashboard). You can override this with a dynamic ``@property``
+    #: on sub-classes.
+    visualization_html = ""
+
     def json_data(self):
         return {}
 
@@ -189,6 +194,7 @@ class Participant(Base, SharedMixin):
             "base_pay": self.base_pay,
             "bonus": self.bonus,
             "status": self.status,
+            "object_type": "Participant",
         }
 
     def nodes(self, type=None, failed=False):
@@ -337,6 +343,7 @@ class Question(Base, SharedMixin):
             "participant_id": self.participant_id,
             "question": self.question,
             "response": self.response,
+            "object_type": "Question",
         }
 
 
@@ -384,6 +391,7 @@ class Network(Base, SharedMixin):
             "max_size": self.max_size,
             "full": self.full,
             "role": self.role,
+            "object_type": "Network",
         }
 
     """ ###################################
@@ -635,6 +643,7 @@ class Node(Base, SharedMixin):
             "type": self.type,
             "network_id": self.network_id,
             "participant_id": self.participant_id,
+            "object_type": "Node",
         }
 
     """ ###################################
@@ -1384,6 +1393,7 @@ class Vector(Base, SharedMixin):
             "origin_id": self.origin_id,
             "destination_id": self.destination_id,
             "network_id": self.network_id,
+            "object_type": "Vector",
         }
 
     """#######################################
@@ -1485,6 +1495,7 @@ class Info(Base, SharedMixin):
             "origin_id": self.origin_id,
             "network_id": self.network_id,
             "contents": self.contents,
+            "object_type": "Info",
         }
 
     def fail(self):
@@ -1674,6 +1685,7 @@ class Transmission(Base, SharedMixin):
             "network_id": self.network_id,
             "receive_time": self.receive_time,
             "status": self.status,
+            "object_type": "Transmission",
         }
 
     def fail(self):
@@ -1764,6 +1776,7 @@ class Transformation(Base, SharedMixin):
             "info_out_id": self.info_out_id,
             "node_id": self.node_id,
             "network_id": self.network_id,
+            "object_type": "Transformation",
         }
 
     def fail(self):

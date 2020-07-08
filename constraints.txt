@@ -2,8 +2,11 @@ apscheduler==3.6.0
 boto3==1.9.80
 cached-property==1.5.1
 click==6.7
+faker==3.0.1
 flask-crossdomain==0.1
+flask-login==0.5.0
 flask-sockets==0.2.1
+Flask-WTF==0.14.3
 flask==1.0.2
 future==0.17.1
 gevent==1.4.0
@@ -21,5 +24,6 @@ six==1.12.0
 sqlalchemy-postgres-copy==0.5.0
 sqlalchemy==1.3.1
 tabulate==0.8.3
+timeago==1.0.14
 ua-parser==0.8.0
 user-agents==1.1.0

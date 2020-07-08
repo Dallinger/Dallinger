@@ -9,16 +9,6 @@ pytest_plugins = ["pytest_dallinger"]
 def reset_config():
     yield
 
-    # Make sure dallinger_experiment module isn't kept between tests
-    import sys
-
-    to_delete = []
-    for module in sys.modules:
-        if module.startswith("dallinger_experiment"):
-            to_delete.append(module)
-    for module in to_delete:
-        del sys.modules[module]
-
     # Make sure extra parameters aren't kept between tests
     import dallinger.config
 
@@ -38,6 +28,20 @@ def experiment_dir(root):
     os.chdir("tests/experiment")
     yield
     os.chdir(root)
+
+
+@pytest.fixture
+def experiment_dir_merged(experiment_dir, active_config):
+    """A temp directory with files from the standard test experiment, merged
+    with standard Dallinger files by the same process that occurs in production.
+    """
+    from dallinger.deployment import assemble_experiment_temp_dir
+
+    current_dir = os.getcwd()
+    destination = assemble_experiment_temp_dir(active_config)
+    os.chdir(destination)
+    yield
+    os.chdir(current_dir)
 
 
 @pytest.fixture(scope="class")

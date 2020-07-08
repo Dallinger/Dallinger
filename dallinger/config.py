@@ -4,6 +4,7 @@ from collections import deque
 from contextlib import contextmanager
 from six.moves import configparser
 import distutils.util
+import io
 import json
 import logging
 import os
@@ -37,6 +38,7 @@ default_keys = (
     ("contact_email_on_error", six.text_type, []),
     ("chrome-path", six.text_type, []),
     ("dallinger_email_address", six.text_type, []),
+    ("dashboard_user", six.text_type, [], True),
     ("database_size", six.text_type, []),
     ("database_url", six.text_type, [], True),
     ("description", six.text_type, []),
@@ -51,6 +53,7 @@ default_keys = (
     ("heroku_team", six.text_type, ["team"]),
     ("host", six.text_type, []),
     ("id", six.text_type, []),
+    ("infrastructure_debug_details", six.text_type, [], False),
     ("keywords", six.text_type, []),
     ("lifetime", int, []),
     ("logfile", six.text_type, []),
@@ -117,10 +120,10 @@ class Configuration(object):
                 continue
             expected_type = self.types.get(key)
             if cast_types:
-                if isinstance(value, str) and value.startswith("file:"):
+                if isinstance(value, six.text_type) and value.startswith("file:"):
                     # Load this value from a file
                     _, filename = value.split(":", 1)
-                    with open(filename, "rt", encoding="utf-8") as source_file:
+                    with io.open(filename, "rt", encoding="utf-8") as source_file:
                         value = source_file.read()
                 try:
                     if expected_type == bool:
@@ -226,7 +229,7 @@ class Configuration(object):
             for k, v in layer.items():
                 if filter_sensitive and self.is_sensitive(k):
                     continue
-                parser.set("Parameters", k, str(v))
+                parser.set("Parameters", k, six.text_type(v))
 
         directory = directory or os.getcwd()
         destination = os.path.join(directory, LOCAL_CONFIG)
@@ -310,7 +313,11 @@ def initialize_experiment_package(path):
     sys.path.insert(0, dirname)
     package = __import__(basename)
     if path not in package.__path__:
-        raise Exception("Package was not imported from the requested path!")
+        raise Exception(
+            "Package was not imported from the requested path! ({} not in {})".format(
+                path, package.__path__
+            )
+        )
     sys.modules["dallinger_experiment"] = package
     package.__package__ = "dallinger_experiment"
     sys.path.pop(0)

@@ -6,6 +6,7 @@ import shutil
 import sys
 import tempfile
 import time
+from jinja2 import FileSystemLoader
 from selenium import webdriver
 from dallinger import information
 from dallinger import models
@@ -47,9 +48,15 @@ def cwd(root):
     os.chdir(root)
 
 
-@pytest.fixture
+def is_dallinger_module(key):
+    return key.startswith("dallinger_experiment") or key.startswith(
+        "TEST_EXPERIMENT_UID"
+    )
+
+
+@pytest.fixture(autouse=True)
 def reset_sys_modules():
-    to_clear = [k for k in sys.modules if k.startswith("dallinger_experiment")]
+    to_clear = [k for k in sys.modules if is_dallinger_module(k)]
     for key in to_clear:
         del sys.modules[key]
 
@@ -139,7 +146,7 @@ def stub_config():
         u"heroku_python_version": u"3.6.10",
         u"heroku_team": u"",
         u"host": u"0.0.0.0",
-        u"id": u"some experiment uid",
+        u"id": u"TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
         u"keywords": u"kw1, kw2, kw3",
         u"lifetime": 1,
         u"logfile": u"-",
@@ -314,6 +321,11 @@ def a(db_session):
             # nodes.Source is intended to be abstract
             return self._build(nodes.RandomBinaryStringSource, defaults)
 
+        def transformation(self, **kw):
+            defaults = {}
+            defaults.update(kw)
+            return self._build(models.Transformation, defaults)
+
         def _build(self, klass, attrs):
             # Some of our default values are factories:
             for k, v in attrs.items():
@@ -331,15 +343,37 @@ def a(db_session):
     return ModelFactory(db_session)
 
 
+def uncached_jinja_loader(app):
+    """We want a non-cached template loader so we can load templates from
+    directories which may vary between tests, so override
+    the @locked_cached_property from flask.helpers
+    """
+    if app.template_folder is not None:
+        return FileSystemLoader(os.path.join(app.root_path, app.template_folder))
+
+
 @pytest.fixture
-def webapp(active_config):
+def webapp(active_config, reset_sys_modules):
+    """Return a Flask test client.
+
+    The imported app assumes an active Configuration, and will load both the
+    test experiment package and templates from the current directory,
+    so we need to make sure we wipe the slate clean between tests. This means
+    not caching the Flask template search path, and clearing out sys.modules
+    before loading the Flask app.
+    """
     from dallinger.experiment_server import sockets
 
     app = sockets.app
-    app.root_path = os.getcwd()  # look in the right place for test's templates
+    # look in the cwd for test's templates, and make sure the template loader
+    # uses that directory to search for them.
+    app.root_path = os.getcwd()
+    app.jinja_loader = uncached_jinja_loader(app)
+
     app.config.update({"DEBUG": True, "TESTING": True})
     client = app.test_client()
     yield client
+    app._got_first_request = False
 
 
 @pytest.fixture

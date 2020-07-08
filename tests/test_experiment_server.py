@@ -13,6 +13,7 @@ config = get_config()
 class TestAppConfiguration(object):
     def test_config_gets_loaded_before_first_request(self, webapp, active_config):
         active_config.clear()
+        active_config.ready = False
         webapp.get("/")
         active_config.load.assert_called_once()
         assert active_config.ready
@@ -578,7 +579,6 @@ class TestSimpleGETRoutes(object):
         resp = webapp.get("/")
         assert resp.status_code == 200
         assert b"Dallinger Experiment in progress" in resp.data
-        assert b">id<" in resp.data
 
     def test_favicon(self, webapp):
         resp = webapp.get("/favicon.ico")

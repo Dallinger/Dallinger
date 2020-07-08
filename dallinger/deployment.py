@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+import json
 import os
 import pkg_resources
 import re
@@ -12,7 +13,10 @@ import tempfile
 import threading
 import time
 import webbrowser
+
 from six.moves import shlex_quote as quote
+from six.moves.urllib.parse import urlparse
+from six.moves.urllib.parse import urlunparse
 from unicodedata import normalize
 
 from dallinger import data
@@ -28,8 +32,10 @@ from dallinger.utils import dallinger_package_path
 from dallinger.utils import ensure_directory
 from dallinger.utils import get_base_url
 from dallinger.utils import GitClient
+from faker import Faker
 
-config = get_config()
+
+fake = Faker()
 
 
 def _make_chrome(path):
@@ -64,6 +70,7 @@ def new_webbrowser_profile():
         ]
         return new_firefox
     elif sys.platform == "darwin":
+        config = get_config()
         chrome_path = config.get("chrome-path")
         if os.path.exists(chrome_path):
             return _make_chrome(chrome_path)
@@ -256,8 +263,15 @@ def assemble_experiment_temp_dir(config):
     ensure_directory(os.path.join(dst, "static", "scripts"))
     ensure_directory(os.path.join(dst, "static", "css"))
     frontend_files = [
+        os.path.join("static", "css", "bootstrap.min.css"),
         os.path.join("static", "css", "dallinger.css"),
+        os.path.join("static", "css", "dashboard.css"),
+        os.path.join("static", "scripts", "jquery-3.5.1.min.js"),
+        os.path.join("static", "scripts", "popper.min.js"),
+        os.path.join("static", "scripts", "bootstrap.min.js"),
+        os.path.join("static", "scripts", "clipboard.min.js"),
         os.path.join("static", "scripts", "dallinger2.js"),
+        os.path.join("static", "scripts", "network-monitor.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "scripts", "require.js"),
         os.path.join("static", "scripts", "reconnecting-websocket.js"),
@@ -271,6 +285,12 @@ def assemble_experiment_temp_dir(config):
         os.path.join("templates", "questionnaire.html"),
         os.path.join("templates", "thanks.html"),
         os.path.join("templates", "waiting.html"),
+        os.path.join("templates", "login.html"),
+        os.path.join("templates", "dashboard_cli.html"),
+        os.path.join("templates", "dashboard_home.html"),
+        os.path.join("templates", "dashboard_monitor.html"),
+        os.path.join("templates", "dashboard_mturk.html"),
+        os.path.join("templates", "dashboard_wrapper.html"),
         os.path.join("static", "robots.txt"),
     ]
     frontend_dirs = [os.path.join("templates", "base")]
@@ -469,6 +489,8 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
+        "DASHBOARD_PASSWORD": fake.password(length=20, special_chars=False),
+        "DASHBOARD_USER": config.get("dashboard_user", "admin"),
     }
 
     # Set up the preferred class as an environment variable, if one is set
@@ -499,6 +521,18 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     git.commit("Save URL for database")
     time.sleep(0.25)
 
+    log("Generating dashboard links...")
+    heroku_addons = heroku_app.addon_parameters()
+    heroku_addons = json.dumps(heroku_addons)
+    if six.PY2:
+        heroku_addons = heroku_addons.decode("utf-8")
+    config.extend({"infrastructure_debug_details": heroku_addons})
+    config.write()
+    git.add("config.txt")
+    time.sleep(0.25)
+    git.commit("Save URLs for heroku addon management")
+    time.sleep(0.25)
+
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
     git.push(remote="heroku", branch="HEAD:master")
@@ -522,10 +556,20 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
+        "dashboard_url": "{}/dashboard/".format(heroku_app.url),
         "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
     log("Experiment details:")
     log("App home: {}".format(result["app_home"]), chevrons=False)
+    log("Dashboard URL: {}".format(result["dashboard_url"]), chevrons=False)
+    log(
+        "Dashboard user: {}".format(heroku_config.get("DASHBOARD_USER")), chevrons=False
+    )
+    log(
+        "Dashboard password: {}".format(heroku_config.get("DASHBOARD_PASSWORD")),
+        chevrons=False,
+    )
+
     log("Recruiter info:")
     log(result["recruitment_msg"], chevrons=False)
 
@@ -553,6 +597,7 @@ class HerokuLocalDeployment(object):
     exp_id = None
     tmp_dir = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output
+    environ = None
 
     def configure(self):
         self.exp_config.update({"mode": "debug", "loglevel": 0})
@@ -582,7 +627,13 @@ class HerokuLocalDeployment(object):
         db.init_db(drop_all=True)
         self.out.log("Starting up the server...")
         config = get_config()
-        with HerokuLocalWrapper(config, self.out, verbose=self.verbose) as wrapper:
+        environ = None
+        if self.environ:
+            environ = os.environ.copy()
+            environ.update(self.environ)
+        with HerokuLocalWrapper(
+            config, self.out, verbose=self.verbose, env=environ
+        ) as wrapper:
             try:
                 self.execute(wrapper)
             except KeyboardInterrupt:
@@ -623,6 +674,10 @@ class DebugDeployment(HerokuLocalDeployment):
         self.complete = False
         self.status_thread = None
         self.no_browsers = no_browsers
+        self.environ = {
+            "DASHBOARD_PASSWORD": fake.password(special_chars=False),
+            "DASHBOARD_USER": self.exp_config.get("dashboard_user", "admin"),
+        }
 
     def configure(self):
         super(DebugDeployment, self).configure()
@@ -645,6 +700,10 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
+                dashboard_url = "{}/dashboard/".format(get_base_url())
+                self.display_dashboard_access_details(dashboard_url)
+                if not self.no_browsers:
+                    self.open_dashboard(dashboard_url)
                 self.heroku = heroku
                 heroku.monitor(listener=self.notify)
 
@@ -669,6 +728,26 @@ class DebugDeployment(HerokuLocalDeployment):
             self.out.log("Using proxy port {}".format(self.proxy_port))
             url = url.replace(str(get_config().get("base_port")), self.proxy_port)
         new_webbrowser_profile().open(url, new=1, autoraise=True)
+
+    def display_dashboard_access_details(self, url):
+        self.out.log("Experiment dashboard: {}".format(url))
+        self.out.log(
+            "Dashboard user: {} password: {}".format(
+                self.environ.get("DASHBOARD_USER"),
+                self.environ.get("DASHBOARD_PASSWORD"),
+            )
+        )
+
+    def open_dashboard(self, url):
+        self.out.log("Opening dashboard")
+        # new_webbrowser_profile().open(url, new=1, autoraise=True)
+        parsed = list(urlparse(url))
+        parsed[1] = "{}:{}@{}".format(
+            self.environ.get("DASHBOARD_USER"),
+            self.environ.get("DASHBOARD_PASSWORD"),
+            parsed[1],
+        )
+        new_webbrowser_profile().open(urlunparse(parsed), new=1, autoraise=True)
 
     def recruitment_closed(self, match):
         """Recruitment is closed.

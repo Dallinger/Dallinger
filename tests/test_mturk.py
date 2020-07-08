@@ -8,6 +8,7 @@ import socket
 import time
 from botocore.exceptions import ClientError
 from hashlib import sha1
+from tzlocal import get_localzone
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
@@ -105,13 +106,16 @@ def fake_hit_type_response():
 
 
 def fake_hit_response(**kwargs):
+    tz = get_localzone()
     canned_response = {
         u"HIT": {
             u"AssignmentDurationInSeconds": 900,
             u"AutoApprovalDelayInSeconds": 0,
-            u"CreationTime": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000),
+            u"CreationTime": tz.localize(
+                datetime.datetime(2018, 1, 1, 1, 26, 52, 54000)
+            ),
             u"Description": u"***TEST SUITE HIT***43683",
-            u"Expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000),
+            u"Expiration": tz.localize(datetime.datetime(2018, 1, 1, 1, 27, 26, 54000)),
             u"HITGroupId": u"36IAL8HYPYM1MDNBSTAEZW89WH74RJ",
             u"HITId": u"3X7837UUADRXYCA1K7JAJLKC66DJ60",
             u"HITReviewStatus": u"NotReviewed",
@@ -161,9 +165,10 @@ def fake_list_hits_responses(hits=None):
 
 
 def fake_worker_qualification_response():
+    tz = get_localzone()
     canned_response = {
         u"Qualification": {
-            u"GrantTime": datetime.datetime(2018, 1, 1),
+            u"GrantTime": tz.localize(datetime.datetime(2018, 1, 1)),
             u"IntegerValue": 2,
             u"QualificationTypeId": six.text_type(generate_random_id(size=32)),
             u"Status": u"Granted",
@@ -185,10 +190,11 @@ def fake_list_worker_qualification_responses(quals=None):
 
 
 def fake_qualification_type_response():
+    tz = get_localzone()
     canned_response = {
         u"QualificationType": {
             u"AutoGranted": False,
-            u"CreationTime": datetime.datetime(2018, 1, 1),
+            u"CreationTime": tz.localize(datetime.datetime(2018, 1, 1)),
             u"Description": u"***TEST SUITE QUALIFICATION***",
             u"IsRequestable": True,
             u"Name": u"Test Qualification",
@@ -209,6 +215,7 @@ def fake_list_qualification_types_responses(qtypes=None):
 
 
 def fake_get_assignment_response():
+    tz = get_localzone()
     hit = fake_hit_response()["HIT"]
     return {
         "Assignment": {
@@ -216,12 +223,12 @@ def fake_get_assignment_response():
             "WorkerId": "FAKE_WORKER_ID",
             "HITId": hit["HITId"],
             "AssignmentStatus": "Approved",
-            "AutoApprovalTime": datetime.datetime(2018, 1, 1),
-            "AcceptTime": datetime.datetime(2018, 1, 1),
-            "SubmitTime": datetime.datetime(2018, 1, 1),
-            "ApprovalTime": datetime.datetime(2018, 1, 1),
-            "RejectionTime": datetime.datetime(2018, 1, 1),
-            "Deadline": datetime.datetime(2018, 1, 1),
+            "AutoApprovalTime": tz.localize(datetime.datetime(2018, 1, 1)),
+            "AcceptTime": tz.localize(datetime.datetime(2018, 1, 1)),
+            "SubmitTime": tz.localize(datetime.datetime(2018, 1, 1)),
+            "ApprovalTime": tz.localize(datetime.datetime(2018, 1, 1)),
+            "RejectionTime": tz.localize(datetime.datetime(2018, 1, 1)),
+            "Deadline": tz.localize(datetime.datetime(2018, 1, 1)),
             "Answer": "",
             "RequesterFeedback": "",
         },
@@ -469,6 +476,10 @@ class TestMTurkService(object):
         ):
             time.sleep(1)
         return True
+
+    def test_account_balance(self, mturk):
+        balance = mturk.account_balance()
+        assert balance == 10000.0
 
     def test_check_credentials_good_credentials(self, mturk):
         is_authenticated = mturk.check_credentials()
@@ -910,6 +921,7 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.mturk.create_hit_with_hit_type.assert_called_once()
 
     def test_create_hit_translates_response_back_from_mturk(self, with_mock):
+        tz = get_localzone()
         with_mock.mturk.configure_mock(
             **{
                 "create_hit_type.return_value": fake_hit_type_response(),
@@ -921,9 +933,12 @@ class TestMTurkServiceWithFakeConnection(object):
 
         assert hit == {
             "annotation": None,
-            "created": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000),
+            "assignments_available": 1,
+            "assignments_completed": 0,
+            "assignments_pending": 0,
+            "created": tz.localize(datetime.datetime(2018, 1, 1, 1, 26, 52, 54000)),
             "description": "***TEST SUITE HIT***43683",
-            "expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000),
+            "expiration": tz.localize(datetime.datetime(2018, 1, 1, 1, 27, 26, 54000)),
             "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
             "keywords": ["testkw1", "testkw2"],
             "max_assignments": 1,

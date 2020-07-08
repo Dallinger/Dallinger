@@ -91,6 +91,7 @@ def heroku_mock():
     instance.name = "dlgr-fake-uid"
     instance.url = "fake-web-url"
     instance.db_url = "fake-db-url"
+    instance.addon_parameters.return_value = {}
     with mock.patch("dallinger.deployment.heroku") as heroku_module:
         heroku_module.auth_token.return_value = "fake token"
         with mock.patch("dallinger.deployment.HerokuApp") as mock_app_class:
@@ -356,7 +357,7 @@ class TestSetupExperiment(object):
 
         assert found_in("Procfile", dst)
         with open(os.path.join(dst, "Procfile")) as proc:
-            assert "clock: dallinger_heroku_clock" not in [l.strip() for l in proc]
+            assert "clock: dallinger_heroku_clock" not in [p.strip() for p in proc]
 
     def test_setup_procfile_with_clock(self, setup_experiment):
         config = get_config()
@@ -369,7 +370,7 @@ class TestSetupExperiment(object):
 
         assert found_in("Procfile", dst)
         with open(os.path.join(dst, "Procfile")) as proc:
-            assert "clock: dallinger_heroku_clock" in [l.strip() for l in proc]
+            assert "clock: dallinger_heroku_clock" in [p.strip() for p in proc]
 
     def test_setup_with_custom_dict_config(self, setup_experiment):
         config = get_config()
@@ -523,6 +524,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         assert result == {
             "app_home": "fake-web-url",
             "app_name": "dlgr-fake-uid",
+            "dashboard_url": "fake-web-url/dashboard/",
             "recruitment_msg": "fake\nrecruitment\nlist",
         }
 
@@ -554,6 +556,8 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
             aws_access_key_id="fake aws key",
             aws_region="us-east-1",
             aws_secret_access_key="fake aws secret",
+            DASHBOARD_USER="admin",
+            DASHBOARD_PASSWORD=mock.ANY,  # password is random
             smtp_password="fake email password",
             smtp_username="fake email username",
             whimsical=True,
@@ -749,6 +753,7 @@ class TestDebugServer(object):
         return debugger
 
     def test_startup(self, debugger):
+        debugger.no_browsers = True
         debugger.run()
         "Server is running" in str(debugger.out.log.call_args_list[0])
 
@@ -763,19 +768,13 @@ class TestDebugServer(object):
                 debugger.run()
 
     def test_new_participant(self, debugger_unpatched):
-        from dallinger.config import get_config
-
         debugger = debugger_unpatched
-        get_config().load()
         debugger.new_recruit = mock.Mock(return_value=None)
         assert not debugger.new_recruit.called
         debugger.notify(" New participant requested: http://example.com")
         assert debugger.new_recruit.called
 
     def test_recruitment_closed(self, debugger_unpatched):
-        from dallinger.config import get_config
-
-        get_config().load()
         debugger = debugger_unpatched
         debugger.new_recruit = mock.Mock(return_value=None)
         debugger.heroku = mock.Mock()

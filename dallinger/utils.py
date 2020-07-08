@@ -226,3 +226,35 @@ def wrap_subprocess_call(func, wrap_stdout=True):
 check_call = wrap_subprocess_call(subprocess.check_call)
 call = wrap_subprocess_call(subprocess.call)
 check_output = wrap_subprocess_call(subprocess.check_output, wrap_stdout=False)
+
+
+def struct_to_html(data):
+    parts = ["<ul>"]
+    if isinstance(data, (list, tuple)):
+        for i in data:
+            parts.append(struct_to_html(i))
+    elif isinstance(data, dict):
+        if len(data) == 2 and "count" in data and "failed" in data:
+            if data["count"]:
+                failed_percentage = float(data["failed"]) / data["count"] * 100
+            else:
+                failed_percentage = 0
+            value = "{} total, {} failed ({:.1f}%)".format(
+                data["count"], data["failed"], failed_percentage
+            )
+            if failed_percentage == 100:
+                value = '<span class="all-failures">{}</span>'.format(value)
+            elif failed_percentage > 0:
+                value = '<span class="some-failures">{}</span>'.format(value)
+            elif data["count"]:
+                value = '<span class="no-failures">{}</span>'.format(value)
+            return value
+
+        for k in data:
+            item = struct_to_html(data[k])
+            parts.append("<li>{}: {}</li>".format(k, item))
+    else:
+        return str(data)
+
+    parts.append("</ul>")
+    return "\n".join(parts)
