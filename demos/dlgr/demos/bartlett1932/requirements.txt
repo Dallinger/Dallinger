@@ -1,2 +1,2 @@
-#dallinger==6.2.2
+#dallinger==6.3.0
 -e git://github.com/Dallinger/Dallinger.git@feature/2188-dashboard-wrapper#egg=dallinger
