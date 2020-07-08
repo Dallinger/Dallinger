@@ -4,6 +4,7 @@ from collections import deque
 from contextlib import contextmanager
 from six.moves import configparser
 import distutils.util
+import io
 import json
 import logging
 import os
@@ -122,7 +123,7 @@ class Configuration(object):
                 if isinstance(value, six.text_type) and value.startswith("file:"):
                     # Load this value from a file
                     _, filename = value.split(":", 1)
-                    with open(filename, "rt", encoding="utf-8") as source_file:
+                    with io.open(filename, "rt", encoding="utf-8") as source_file:
                         value = source_file.read()
                 try:
                     if expected_type == bool:
