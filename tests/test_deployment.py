@@ -297,7 +297,7 @@ class TestExperimentFilesSource(object):
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
 class TestSetupExperiment(object):
     @pytest.fixture
-    def setup_experiment(self):
+    def setup_experiment(self, env):
         from dallinger.deployment import setup_experiment as subject
 
         return subject

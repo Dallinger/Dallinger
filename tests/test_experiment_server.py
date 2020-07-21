@@ -57,11 +57,9 @@ class TestAppConfiguration(object):
                 assert server.options["workers"] == u"2"
 
     def test_flask_secret_loaded_from_environ(self, webapp):
-        import os
-
-        os.environ["FLASK_SECRET_KEY"] = "A TEST SECRET KEY"
-        webapp.get("/")
-        assert webapp.application.config["SECRET_KEY"] == "A TEST SECRET KEY"
+        with mock.patch("os.environ", {"FLASK_SECRET_KEY": "A TEST SECRET KEY"}):
+            webapp.get("/")
+            assert webapp.application.config["SECRET_KEY"] == "A TEST SECRET KEY"
 
 
 @pytest.mark.usefixtures("experiment_dir")

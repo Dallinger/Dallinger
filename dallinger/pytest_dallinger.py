@@ -84,19 +84,17 @@ def env():
     # Heroku requires a home directory to start up
     # We create a fake one using tempfile and set it into the
     # environment to handle sandboxes on CI servers
-    environ_orig = os.environ.copy()
-    running_on_ci = environ_orig.get("CI", False)
-    have_home_dir = environ_orig.get("HOME", False)
-    if not running_on_ci and have_home_dir:
-        yield environ_orig
-    else:
-        fake_home = tempfile.mkdtemp()
-        environ_patched = environ_orig.copy()
-        environ_patched.update({"HOME": fake_home})
-        os.environ = environ_patched
-        yield environ_patched
-        os.environ = environ_orig
-        shutil.rmtree(fake_home, ignore_errors=True)
+    with mock.patch("os.environ", os.environ.copy()) as environ_patched:
+        running_on_ci = environ_patched.get("CI", False)
+        have_home_dir = environ_patched.get("HOME", False)
+        environ_patched.update({"FLASK_SECRET_KEY": "A TERRIBLE SECRET"})
+        if not running_on_ci and have_home_dir:
+            yield environ_patched
+        else:
+            fake_home = tempfile.mkdtemp()
+            environ_patched.update({"HOME": fake_home})
+            yield environ_patched
+            shutil.rmtree(fake_home, ignore_errors=True)
 
 
 @pytest.fixture
@@ -353,7 +351,7 @@ def uncached_jinja_loader(app):
 
 
 @pytest.fixture
-def webapp(active_config, reset_sys_modules):
+def webapp(active_config, reset_sys_modules, env):
     """Return a Flask test client.
 
     The imported app assumes an active Configuration, and will load both the

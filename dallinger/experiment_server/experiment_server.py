@@ -60,9 +60,7 @@ app = Flask("Experiment_Server")
 
 @app.before_first_request
 def _config():
-    app.config["SECRET_KEY"] = os.environ.get(
-        "FLASK_SECRET_KEY", "THIS IS A BAD SECRET"
-    )
+    app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
     config = get_config()
     if not config.ready:
         config.load()
