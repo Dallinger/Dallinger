@@ -60,6 +60,9 @@ app = Flask("Experiment_Server")
 
 @app.before_first_request
 def _config():
+    app.config["SECRET_KEY"] = os.environ.get(
+        "FLASK_SECRET_KEY", "THIS IS A BAD SECRET"
+    )
     config = get_config()
     if not config.ready:
         config.load()
@@ -92,7 +95,6 @@ login.login_view = "dashboard.login"
 login.request_loader(dashboard.load_user_from_request)
 login.user_loader(dashboard.load_user)
 login.unauthorized_handler(dashboard.unauthorized)
-app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
 app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 
 """Basic routes."""

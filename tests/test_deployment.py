@@ -558,6 +558,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
             aws_secret_access_key="fake aws secret",
             DASHBOARD_USER="admin",
             DASHBOARD_PASSWORD=mock.ANY,  # password is random
+            FLASK_SECRET_KEY=mock.ANY,  # password is random
             smtp_password="fake email password",
             smtp_username="fake email username",
             whimsical=True,
