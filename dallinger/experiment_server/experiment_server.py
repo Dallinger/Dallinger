@@ -1,6 +1,5 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
-import codecs
 from datetime import datetime
 import gevent
 from json import dumps
@@ -61,6 +60,7 @@ app = Flask("Experiment_Server")
 
 @app.before_first_request
 def _config():
+    app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
     config = get_config()
     if not config.ready:
         config.load()
@@ -93,7 +93,6 @@ login.login_view = "dashboard.login"
 login.request_loader(dashboard.load_user_from_request)
 login.user_loader(dashboard.load_user)
 login.unauthorized_handler(dashboard.unauthorized)
-app.config["SECRET_KEY"] = codecs.encode(os.urandom(16), "hex")
 app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 
 """Basic routes."""

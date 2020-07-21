@@ -56,6 +56,11 @@ class TestAppConfiguration(object):
                 server.load_user_config()
                 assert server.options["workers"] == u"2"
 
+    def test_flask_secret_loaded_from_environ(self, webapp):
+        with mock.patch("os.environ", {"FLASK_SECRET_KEY": "A TEST SECRET KEY"}):
+            webapp.get("/")
+            assert webapp.application.config["SECRET_KEY"] == "A TEST SECRET KEY"
+
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
