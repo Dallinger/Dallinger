@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+import codecs
 import json
 import os
 import pkg_resources
@@ -491,6 +492,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         "whimsical": config["whimsical"],
         "DASHBOARD_PASSWORD": fake.password(length=20, special_chars=False),
         "DASHBOARD_USER": config.get("dashboard_user", "admin"),
+        "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex"),
     }
 
     # Set up the preferred class as an environment variable, if one is set
@@ -677,6 +679,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.environ = {
             "DASHBOARD_PASSWORD": fake.password(special_chars=False),
             "DASHBOARD_USER": self.exp_config.get("dashboard_user", "admin"),
+            "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex"),
         }
 
     def configure(self):
