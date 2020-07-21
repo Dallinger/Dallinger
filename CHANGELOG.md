@@ -2,6 +2,11 @@
 
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v-6.3.1](https://github.com/dallinger/dallinger/tree/6.3.1) (2020-07-21)
+- Bugfix: Dashboard authentication now works with multiple web processes and dynos
+- Bugfix: Correct accidental change to Dallinger version used in Bartlett1932 demo
+- Update webdriver call to avoid deprecation warning
+
 ## [v-6.3.0](https://github.com/dallinger/dallinger/tree/6.3.0) (2020-07-08)
 - Add `file:/path/to/file` support to configuration system.
 - Add validators to configuration system.
