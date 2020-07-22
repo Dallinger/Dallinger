@@ -649,7 +649,7 @@ def prep_datatables_options(table_data):
             display_key = key + "_display"
             value = row[key]
             row[display_key] = "<code>{}</code>".format(
-                json.dumps(value, default=date_handler, indent=True)
+                json.dumps(value, default=date_handler)
             )
 
             if isinstance(row[key], (list, dict)):
@@ -662,6 +662,9 @@ def prep_datatables_options(table_data):
             if isinstance(row[key], dict):
                 # Make sure SearchPanes can show dict values reasonably
                 row[key] = json.dumps(value, default=date_handler)
+                row[display_key] = "<code>{}</code>".format(
+                    json.dumps(value, default=date_handler, indent=True)
+                )
                 col["searchPanes"] = {
                     "orthogonal": {
                         "display": "filter",

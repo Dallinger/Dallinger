@@ -662,7 +662,7 @@ class TestDashboardDatabase(object):
         row0 = datatables_options["data"][0]
         assert len(row0) == 2
         assert row0["col1"] == [1, 2, "three"]
-        assert row0["col1_display"] == '<code>[\n 1,\n 2,\n "three"\n]</code>'
+        assert row0["col1_display"] == '<code>[1, 2, "three"]</code>'
 
         col_info = datatables_options["columns"][0]
         assert col_info["name"] == "col1"
@@ -708,7 +708,7 @@ class TestDashboardDatabase(object):
 
         row0 = datatables_options["data"][0]
         assert row0["col1"] == [1, 2, "three"]
-        assert row0["col1_display"] == '<code>[\n 1,\n 2,\n "three"\n]</code>'
+        assert row0["col1_display"] == '<code>[1, 2, "three"]</code>'
 
         row1 = datatables_options["data"][1]
         assert len(row1) == 2
