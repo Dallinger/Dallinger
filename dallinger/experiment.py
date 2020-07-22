@@ -841,7 +841,7 @@ class Experiment(object):
                   arbitrary keyword arguments. Should contain ``data`` and ``columns`` keys
                   at least, with ``columns`` containing data for all fields on all returned
                   objects.
-        """
+        """  # noqa
         rows = []
         found_columns = set()
         columns = []

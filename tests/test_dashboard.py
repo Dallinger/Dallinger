@@ -603,8 +603,9 @@ class TestDashboardDatabase(object):
         assert table["data"][0]["id"] == network.id
         assert table["data"][0]["role"] == network.role
         assert len(table["columns"]) == 15
-        assert table["columns"][0]["data"] == "id"
-        assert table["columns"][0]["name"] == "id"
+        for col in table["columns"]:
+            assert len(col) == 2
+            assert col["data"] == col["name"]
 
         source = a.source(network=network)
 
@@ -613,8 +614,9 @@ class TestDashboardDatabase(object):
         assert table["data"][0]["id"] == source.id
         assert table["data"][0]["type"] == source.type
         assert len(table["columns"]) == 14
-        assert table["columns"][0]["data"] == "id"
-        assert table["columns"][0]["name"] == "id"
+        for col in table["columns"]:
+            assert len(col) == 2
+            assert col["data"] == col["name"]
 
     def test_prep_table_config_renders_dicts(self):
         import json
