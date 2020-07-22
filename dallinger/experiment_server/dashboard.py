@@ -633,13 +633,13 @@ TABLE_DEFAULTS = {
 }
 
 
-def prep_table_config(config):
+def prep_datatables_options(table_data):
     """Attempts to generate a reasonable a DataTables config"""
-    table_config = deepcopy(TABLE_DEFAULTS)
-    table_config.update(deepcopy(config))
+    datatables_options = deepcopy(TABLE_DEFAULTS)
+    datatables_options.update(deepcopy(table_data))
     # Display objects and arrays in useful ways
-    for row in table_config.get("data", []):
-        for col in table_config.get("columns", []):
+    for row in datatables_options.get("data", []):
+        for col in datatables_options.get("columns", []):
             data = col["data"]
             if isinstance(data, dict):
                 key = data.get("_")
@@ -682,7 +682,7 @@ def prep_table_config(config):
                     }
                     col["searchPanes"] = {"orthogonal": "sp"}
 
-    return table_config
+    return datatables_options
 
 
 @dashboard.route("/database")
@@ -695,15 +695,19 @@ def database():
     model_type = request.args.get("model_type")
     if model_type:
         title = "Database View: {}s".format(model_type)
-    table_config = prep_table_config(exp.table_data(**request.args.to_dict(flat=False)))
+    datatables_options = prep_datatables_options(
+        exp.table_data(**request.args.to_dict(flat=False))
+    )
     columns = [
         c.get("name") or c["data"]
-        for c in table_config.get("columns", [])
+        for c in datatables_options.get("columns", [])
         if c.get("data")
     ]
     return render_template(
         "dashboard_database.html",
         title=title,
         columns=columns,
-        table_config=json.dumps(table_config, default=date_handler, indent=True),
+        datatables_options=json.dumps(
+            datatables_options, default=date_handler, indent=True
+        ),
     )

@@ -109,9 +109,11 @@ method, or the :attr:`~dallinger.models.SharedMixin.visualization_html` property
 model class.
 
 The dashboard database view can be customized by customizing the
-:attr:`~dallinger.models.SharedMixin.json_data` method on your model classes to add/modify
-data provided by each model to dashboard views, or by modifying the DataTables data returned
-by the :attr:`~dallinger.experiment.Experiment.table_data` method in your ``Experiment`` class.
+:attr:`~dallinger.models.SharedMixin.json_data` method on your model classes to
+add/modify data provided by each model to the dashboard views, or by modifying
+the DataTables data returned by the
+:attr:`~dallinger.experiment.Experiment.table_data` method in your
+``Experiment`` class.
 
 .. module:: dallinger.experiment
 

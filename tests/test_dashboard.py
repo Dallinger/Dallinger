@@ -602,10 +602,13 @@ class TestDashboardDatabase(object):
         assert len(table["data"]) == 1
         assert table["data"][0]["id"] == network.id
         assert table["data"][0]["role"] == network.role
-        assert len(table["columns"]) == 15
+        assert len(table["columns"]) > 2
         for col in table["columns"]:
-            assert len(col) == 2
-            assert col["data"] == col["name"]
+            if col["data"] == "role":
+                assert col == {"data": "role", "name": "role"}
+                break
+        else:
+            raise KeyError("'role' not in Network columns")
 
         source = a.source(network=network)
 
@@ -613,29 +616,28 @@ class TestDashboardDatabase(object):
         assert len(table["data"]) == 1
         assert table["data"][0]["id"] == source.id
         assert table["data"][0]["type"] == source.type
-        assert len(table["columns"]) == 14
+        assert len(table["columns"]) > 2
         for col in table["columns"]:
-            assert len(col) == 2
-            assert col["data"] == col["name"]
+            if col["data"] == "id":
+                assert col == {"data": "id", "name": "id"}
+                break
+        else:
+            raise KeyError("'id' not in Node columns")
 
-    def test_prep_table_config_renders_dicts(self):
-        import json
-        from dallinger.experiment_server.dashboard import prep_table_config
+    def test_prep_datatables_options_renders_dicts(self):
+        from dallinger.experiment_server.dashboard import prep_datatables_options
 
         table_data = {
             "data": [{"col1": {"something": "else"}}],
             "columns": [{"data": "col1", "name": "col1"}],
         }
-        table_config = prep_table_config(table_data)
-        row0 = table_config["data"][0]
-        orig0 = table_data["data"][0]
+        datatables_options = prep_datatables_options(table_data)
+        row0 = datatables_options["data"][0]
         assert len(row0) == 2
-        assert row0["col1"] == json.dumps(orig0["col1"])
-        assert row0["col1_display"] == "<code>{}</code>".format(
-            json.dumps(orig0["col1"], indent=True)
-        )
+        assert row0["col1"] == '{"something": "else"}'
+        assert row0["col1_display"] == '<code>{\n "something": "else"\n}</code>'
 
-        col_info = table_config["columns"][0]
+        col_info = datatables_options["columns"][0]
         assert col_info["name"] == "col1"
         assert col_info["data"] == {
             "_": "col1",
@@ -649,24 +651,20 @@ class TestDashboardDatabase(object):
             "type": "type",
         }
 
-    def test_prep_table_config_renders_lists(self):
-        import json
-        from dallinger.experiment_server.dashboard import prep_table_config
+    def test_prep_datatables_options_renders_lists(self):
+        from dallinger.experiment_server.dashboard import prep_datatables_options
 
         table_data = {
             "data": [{"col1": [1, 2, "three"]}],
             "columns": [{"data": "col1", "name": "col1"}],
         }
-        table_config = prep_table_config(table_data)
-        row0 = table_config["data"][0]
-        orig0 = table_data["data"][0]
+        datatables_options = prep_datatables_options(table_data)
+        row0 = datatables_options["data"][0]
         assert len(row0) == 2
-        assert row0["col1"] == orig0["col1"]
-        assert row0["col1_display"] == "<code>{}</code>".format(
-            json.dumps(orig0["col1"], indent=True)
-        )
+        assert row0["col1"] == [1, 2, "three"]
+        assert row0["col1_display"] == '<code>[\n 1,\n 2,\n "three"\n]</code>'
 
-        col_info = table_config["columns"][0]
+        col_info = datatables_options["columns"][0]
         assert col_info["name"] == "col1"
         assert col_info["data"] == {
             "_": "col1",
@@ -679,9 +677,8 @@ class TestDashboardDatabase(object):
         }
         assert col_info["searchPanes"]["orthogonal"] == "sp"
 
-    def test_prep_table_config_renders_mixed(self):
-        import json
-        from dallinger.experiment_server.dashboard import prep_table_config
+    def test_prep_datatables_options_renders_mixed(self):
+        from dallinger.experiment_server.dashboard import prep_datatables_options
 
         # Mixed data all gets treated as JSON
         table_data = {
@@ -692,9 +689,9 @@ class TestDashboardDatabase(object):
             ],
             "columns": [{"data": "col1", "name": "col1"}],
         }
-        table_config = prep_table_config(table_data)
+        datatables_options = prep_datatables_options(table_data)
 
-        col_info = table_config["columns"][0]
+        col_info = datatables_options["columns"][0]
         assert col_info["name"] == "col1"
         assert col_info.get("render") is None
         assert col_info["data"] == {
@@ -709,24 +706,17 @@ class TestDashboardDatabase(object):
             "type": "type",
         }
 
-        row0 = table_config["data"][0]
-        orig0 = table_data["data"][0]
-        assert len(row0) == 2
-        assert row0["col1"] == orig0["col1"]
-        assert row0["col1_display"] == "<code>{}</code>".format(
-            json.dumps(orig0["col1"], indent=True)
-        )
+        row0 = datatables_options["data"][0]
+        assert row0["col1"] == [1, 2, "three"]
+        assert row0["col1_display"] == '<code>[\n 1,\n 2,\n "three"\n]</code>'
 
-        row1 = table_config["data"][1]
-        orig1 = table_data["data"][1]
+        row1 = datatables_options["data"][1]
         assert len(row1) == 2
-        # Dict value gets JSON rendered
-        assert row1["col1"] == json.dumps(orig1["col1"])
-        assert row1["col1_display"] == "<code>{}</code>".format(
-            json.dumps(orig1["col1"], indent=True)
-        )
+        # Dict values get JSON serialized so SearchPanes can process them
+        assert row1["col1"] == '{"a": "b"}'
+        assert row1["col1_display"] == '<code>{\n "a": "b"\n}</code>'
 
-        row2 = table_config["data"][2]
+        row2 = datatables_options["data"][2]
         assert len(row1) == 2
         assert row2["col1"] == "String 3"
         assert row2["col1_display"] == '<code>"String 3"</code>'
