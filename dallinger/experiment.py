@@ -828,6 +828,31 @@ class Experiment(object):
                 return obj.visualization_html
         return ""
 
+    def table_data(self, **kw):
+        rows = []
+        found_columns = set()
+        columns = []
+        for model_type in kw.get("model_type", ["Participant"]):
+            model = getattr(models, model_type, None)
+            for obj in model.query.order_by(model.id).all():
+                data = obj.__json__()
+                rows.append(data)
+                for key in data:
+                    if key not in found_columns:
+                        columns.append({"name": key, "data": key})
+                        found_columns.add(key)
+
+        # Make sure every row has an entry for every column
+        for col in found_columns:
+            for row in rows:
+                if col not in row:
+                    row[col] = None
+
+        return {
+            "data": rows,
+            "columns": columns,
+        }
+
     @property
     def usable_replay_range(self):
         """The range of times that represent the active part of the experiment"""

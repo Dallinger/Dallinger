@@ -209,7 +209,26 @@ def heroku_children():
     }
 
     for pane_id, pane in details.items():
-        yield DashboardTab(pane["title"], "dashboard.heroku", None, {"type": pane_id})
+        yield DashboardTab(
+            pane["title"], "dashboard.heroku", None, {"model_type": pane_id}
+        )
+
+
+BROWSEABLE_MODELS = [
+    "Participant",
+    "Node",
+    "Info",
+    "Network",
+    "Transformation",
+    "Transmission",
+]
+
+
+def database_children():
+    for model_type in BROWSEABLE_MODELS:
+        yield DashboardTab(
+            model_type + "s", "dashboard.database", None, {"model_type": model_type}
+        )
 
 
 dashboard_tabs = DashboardTabs(
@@ -219,6 +238,7 @@ dashboard_tabs = DashboardTabs(
         DashboardTab("MTurk", "dashboard.mturk"),
         DashboardTab("Monitoring", "dashboard.monitoring"),
         DashboardTab("Lifecycle", "dashboard.lifecycle"),
+        DashboardTab("Database", "dashboard.database", database_children),
     ]
 )
 
@@ -598,4 +618,73 @@ def lifecycle():
 
     return render_template(
         "dashboard_cli.html", title="Experiment lifecycle Dashboard", **data
+    )
+
+
+TABLE_DEFAULTS = {
+    "dom": "frtilpP",
+    "ordering": True,
+    "searching": True,
+    "select": True,
+    "paging": True,
+    "lengthChange": True,
+    "searchPanes": {"threshold": 0.99},
+}
+
+
+@dashboard.route("/database")
+@login_required
+def database():
+    from dallinger.experiment_server.experiment_server import Experiment, session
+
+    exp = Experiment(session)
+    model_type = request.args.get("model_type")
+    if model_type:
+        title = "Database View: {}s".format(model_type)
+    else:
+        title = "Database View"
+    table_config = TABLE_DEFAULTS.copy()
+    table_config.update(exp.table_data(**request.args.to_dict(flat=False)))
+    columns = [
+        c.get("name") or c["data"]
+        for c in table_config.get("columns", [])
+        if c.get("data")
+    ]
+    # Display objects and arrays in useful ways
+    for row in table_config.get("data", []):
+        for col in table_config.get("columns", []):
+            key = col["data"]
+            if isinstance(key, dict):
+                key = key.get("_")
+            if isinstance(row[key], dict):
+                display_key = key + "_display"
+                value = row[key]
+                row[display_key] = "<code>{}</code>".format(
+                    json.dumps(value, default=date_handler, indent=True)
+                )
+                row[key] = json.dumps(value, default=date_handler)
+                col["data"] = {
+                    "_": key,
+                    "filter": key,
+                    "display": display_key,
+                }
+                col["searchPanes"] = {
+                    "orthogonal": {
+                        "display": "filter",
+                        "sort": "filter",
+                        "search": "filter",
+                        "type": "type",
+                    }
+                }
+            if isinstance(row[key], list) and not isinstance(col["data"], dict):
+                col["data"] = {
+                    "_": "{}[, ]".format(key),
+                    "sp": key,
+                }
+                col["searchPanes"] = {"orthogonal": "sp"}
+    return render_template(
+        "dashboard_database.html",
+        title=title,
+        columns=columns,
+        table_config=json.dumps(table_config, default=date_handler, indent=True),
     )
