@@ -3,6 +3,7 @@ import logging
 import os
 import six
 import timeago
+from copy import deepcopy
 from datetime import datetime
 from datetime import timedelta
 from six.moves.urllib.parse import urlencode
@@ -632,42 +633,35 @@ TABLE_DEFAULTS = {
 }
 
 
-@dashboard.route("/database")
-@login_required
-def database():
-    from dallinger.experiment_server.experiment_server import Experiment, session
-
-    exp = Experiment(session)
-    model_type = request.args.get("model_type")
-    if model_type:
-        title = "Database View: {}s".format(model_type)
-    else:
-        title = "Database View"
-    table_config = TABLE_DEFAULTS.copy()
-    table_config.update(exp.table_data(**request.args.to_dict(flat=False)))
-    columns = [
-        c.get("name") or c["data"]
-        for c in table_config.get("columns", [])
-        if c.get("data")
-    ]
+def prep_table_config(config):
+    """Attempts to generate a reasonable a DataTables config"""
+    table_config = deepcopy(TABLE_DEFAULTS)
+    table_config.update(deepcopy(config))
     # Display objects and arrays in useful ways
     for row in table_config.get("data", []):
         for col in table_config.get("columns", []):
-            key = col["data"]
-            if isinstance(key, dict):
-                key = key.get("_")
-            if isinstance(row[key], dict):
-                display_key = key + "_display"
-                value = row[key]
-                row[display_key] = "<code>{}</code>".format(
-                    json.dumps(value, default=date_handler, indent=True)
-                )
-                row[key] = json.dumps(value, default=date_handler)
+            data = col["data"]
+            if isinstance(data, dict):
+                key = data.get("_")
+            else:
+                key = data
+
+            display_key = key + "_display"
+            value = row[key]
+            row[display_key] = "<code>{}</code>".format(
+                json.dumps(value, default=date_handler, indent=True)
+            )
+
+            if isinstance(row[key], (list, dict)):
                 col["data"] = {
                     "_": key,
                     "filter": key,
                     "display": display_key,
                 }
+
+            if isinstance(row[key], dict):
+                # Make sure SearchPanes can show dict values reasonably
+                row[key] = json.dumps(value, default=date_handler)
                 col["searchPanes"] = {
                     "orthogonal": {
                         "display": "filter",
@@ -676,12 +670,37 @@ def database():
                         "type": "type",
                     }
                 }
-            if isinstance(row[key], list) and not isinstance(col["data"], dict):
-                col["data"] = {
-                    "_": "{}[, ]".format(key),
-                    "sp": key,
-                }
-                col["searchPanes"] = {"orthogonal": "sp"}
+                if "render" in col:
+                    del col["render"]
+            elif isinstance(row[key], list):
+                # If the column is all list values allow them to be
+                # filtered separately
+                if not col.get("searchPanes", {}).get("orthogonal"):
+                    col["render"] = {
+                        "_": "{}[, ]".format(key),
+                        "sp": key,
+                    }
+                    col["searchPanes"] = {"orthogonal": "sp"}
+
+    return table_config
+
+
+@dashboard.route("/database")
+@login_required
+def database():
+    from dallinger.experiment_server.experiment_server import Experiment, session
+
+    title = "Database View"
+    exp = Experiment(session)
+    model_type = request.args.get("model_type")
+    if model_type:
+        title = "Database View: {}s".format(model_type)
+    table_config = prep_table_config(exp.table_data(**request.args.to_dict(flat=False)))
+    columns = [
+        c.get("name") or c["data"]
+        for c in table_config.get("columns", [])
+        if c.get("data")
+    ]
     return render_template(
         "dashboard_database.html",
         title=title,

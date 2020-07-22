@@ -159,7 +159,7 @@ class TestDashboard(object):
             is None
         )
 
-    def test_load_user_from_request(self):
+    def test_load_user_from_request(self, env):
         from dallinger.experiment_server.dashboard import load_user_from_request
         from dallinger.experiment_server.dashboard import admin_user
 
@@ -182,7 +182,7 @@ class TestDashboard(object):
             is admin_user
         )
 
-    def test_unauthorized_debug_mode(self, active_config):
+    def test_unauthorized_debug_mode(self, active_config, env):
         from werkzeug.exceptions import Unauthorized
         from dallinger.experiment_server.dashboard import unauthorized
 
@@ -191,7 +191,7 @@ class TestDashboard(object):
         with pytest.raises(Unauthorized):
             unauthorized()
 
-    def test_unauthorized_redirects(self, active_config):
+    def test_unauthorized_redirects(self, active_config, env):
         from dallinger.experiment_server.dashboard import unauthorized
 
         active_config.set("mode", "sandbox")
@@ -577,3 +577,154 @@ class TestDashboardLifeCycleRoutes(object):
         assert "<pre>dallinger destroy --app {}</pre>".format(
             app_id
         ) in resp.data.decode("utf8")
+
+
+@pytest.mark.usefixtures("experiment_dir_merged")
+class TestDashboardDatabase(object):
+    def test_requires_login(self, webapp):
+        assert webapp.get("/dashboard/database").status_code == 401
+
+    def test_includes_destroy_command(self, active_config, logged_in):
+        resp = logged_in.get("/dashboard/database?model_type=Network")
+
+        assert resp.status_code == 200
+        assert "<h1>Database View: Networks</h1>" in resp.data.decode("utf8")
+
+    def test_table_data(self, a, db_session):
+        from dallinger.experiment_server.experiment_server import Experiment
+        from dallinger.models import Network
+
+        exp = Experiment(db_session)
+
+        network = Network.query.all()[0]
+
+        table = exp.table_data(model_type=["Network"])
+        assert len(table["data"]) == 1
+        assert table["data"][0]["id"] == network.id
+        assert table["data"][0]["role"] == network.role
+        assert len(table["columns"]) == 15
+        assert table["columns"][0]["data"] == "id"
+        assert table["columns"][0]["name"] == "id"
+
+        source = a.source(network=network)
+
+        table = exp.table_data(model_type="Node")
+        assert len(table["data"]) == 1
+        assert table["data"][0]["id"] == source.id
+        assert table["data"][0]["type"] == source.type
+        assert len(table["columns"]) == 14
+        assert table["columns"][0]["data"] == "id"
+        assert table["columns"][0]["name"] == "id"
+
+    def test_prep_table_config_renders_dicts(self):
+        import json
+        from dallinger.experiment_server.dashboard import prep_table_config
+
+        table_data = {
+            "data": [{"col1": {"something": "else"}}],
+            "columns": [{"data": "col1", "name": "col1"}],
+        }
+        table_config = prep_table_config(table_data)
+        row0 = table_config["data"][0]
+        orig0 = table_data["data"][0]
+        assert len(row0) == 2
+        assert row0["col1"] == json.dumps(orig0["col1"])
+        assert row0["col1_display"] == "<code>{}</code>".format(
+            json.dumps(orig0["col1"], indent=True)
+        )
+
+        col_info = table_config["columns"][0]
+        assert col_info["name"] == "col1"
+        assert col_info["data"] == {
+            "_": "col1",
+            "filter": "col1",
+            "display": "col1_display",
+        }
+        assert col_info["searchPanes"]["orthogonal"] == {
+            "display": "filter",
+            "sort": "filter",
+            "search": "filter",
+            "type": "type",
+        }
+
+    def test_prep_table_config_renders_lists(self):
+        import json
+        from dallinger.experiment_server.dashboard import prep_table_config
+
+        table_data = {
+            "data": [{"col1": [1, 2, "three"]}],
+            "columns": [{"data": "col1", "name": "col1"}],
+        }
+        table_config = prep_table_config(table_data)
+        row0 = table_config["data"][0]
+        orig0 = table_data["data"][0]
+        assert len(row0) == 2
+        assert row0["col1"] == orig0["col1"]
+        assert row0["col1_display"] == "<code>{}</code>".format(
+            json.dumps(orig0["col1"], indent=True)
+        )
+
+        col_info = table_config["columns"][0]
+        assert col_info["name"] == "col1"
+        assert col_info["data"] == {
+            "_": "col1",
+            "filter": "col1",
+            "display": "col1_display",
+        }
+        assert col_info["render"] == {
+            "_": "col1[, ]",
+            "sp": "col1",
+        }
+        assert col_info["searchPanes"]["orthogonal"] == "sp"
+
+    def test_prep_table_config_renders_mixed(self):
+        import json
+        from dallinger.experiment_server.dashboard import prep_table_config
+
+        # Mixed data all gets treated as JSON
+        table_data = {
+            "data": [
+                {"col1": [1, 2, "three"]},
+                {"col1": {"a": "b"}},
+                {"col1": "String 3"},
+            ],
+            "columns": [{"data": "col1", "name": "col1"}],
+        }
+        table_config = prep_table_config(table_data)
+
+        col_info = table_config["columns"][0]
+        assert col_info["name"] == "col1"
+        assert col_info.get("render") is None
+        assert col_info["data"] == {
+            "_": "col1",
+            "filter": "col1",
+            "display": "col1_display",
+        }
+        assert col_info["searchPanes"]["orthogonal"] == {
+            "display": "filter",
+            "sort": "filter",
+            "search": "filter",
+            "type": "type",
+        }
+
+        row0 = table_config["data"][0]
+        orig0 = table_data["data"][0]
+        assert len(row0) == 2
+        assert row0["col1"] == orig0["col1"]
+        assert row0["col1_display"] == "<code>{}</code>".format(
+            json.dumps(orig0["col1"], indent=True)
+        )
+
+        row1 = table_config["data"][1]
+        orig1 = table_data["data"][1]
+        assert len(row1) == 2
+        # Dict value gets JSON rendered
+        assert row1["col1"] == json.dumps(orig1["col1"])
+        assert row1["col1_display"] == "<code>{}</code>".format(
+            json.dumps(orig1["col1"], indent=True)
+        )
+
+        row2 = table_config["data"][2]
+        assert len(row1) == 2
+        assert row2["col1"] == "String 3"
+        assert row2["col1_display"] == '<code>"String 3"</code>'
