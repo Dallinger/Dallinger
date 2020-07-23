@@ -581,6 +581,24 @@ class TestDashboardLifeCycleRoutes(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
+class TestDashboardHerokuRoutes(object):
+    def test_requires_login(self, webapp):
+        assert webapp.get("/dashboard/heroku").status_code == 401
+
+    def test_includes_subtabs(self, active_config, logged_in):
+        resp = logged_in.get("/dashboard/heroku")
+
+        assert 'href="/dashboard/heroku?type=HEROKU"' in resp.data.decode("utf8")
+
+    def test_metrics_url(self, active_config, logged_in):
+        from dallinger.heroku.tools import HerokuApp
+
+        heroku_app = HerokuApp(active_config.get("heroku_app_id_root"))
+        resp = logged_in.get("/dashboard/heroku?type=METRICS")
+        assert heroku_app.dashboard_metrics_url in resp.data.decode("utf8")
+
+
+@pytest.mark.usefixtures("experiment_dir_merged")
 class TestDashboardDatabase(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/database").status_code == 401

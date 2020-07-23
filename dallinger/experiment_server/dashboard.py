@@ -19,6 +19,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from flask_login import UserMixin
 from flask_login.utils import login_url as make_login_url
 from dallinger import recruiters
+from dallinger.heroku.tools import HerokuApp
 from dallinger.config import get_config
 from .utils import date_handler
 
@@ -202,17 +203,20 @@ def heroku_children():
     details = config.get("infrastructure_debug_details", six.text_type("{}"))
     details = json.loads(details)
 
-    dlgr_id = "dlgr-" + config.get("id")[:8]
+    heroku_app = HerokuApp(config.get("heroku_app_id_root"))
     details["HEROKU"] = {
-        "url": "https://dashboard.heroku.com/apps/" + dlgr_id,
+        "url": heroku_app.dashboard_url,
         "title": "Heroku dashboard",
+        "link": True,
+    }
+    details["METRICS"] = {
+        "url": heroku_app.dashboard_metrics_url,
+        "title": "Heroku metrics",
         "link": True,
     }
 
     for pane_id, pane in details.items():
-        yield DashboardTab(
-            pane["title"], "dashboard.heroku", None, {"model_type": pane_id}
-        )
+        yield DashboardTab(pane["title"], "dashboard.heroku", None, {"type": pane_id})
 
 
 BROWSEABLE_MODELS = [
@@ -351,10 +355,15 @@ def heroku():
     details = config.get("infrastructure_debug_details", six.text_type("{}"))
     details = json.loads(details)
 
-    dlgr_id = "dlgr-" + config.get("id")[:8]
+    heroku_app = HerokuApp(config.get("heroku_app_id_root"))
     details["HEROKU"] = {
-        "url": "https://dashboard.heroku.com/apps/" + dlgr_id,
+        "url": heroku_app.dashboard_url,
         "title": "Heroku dashboard",
+        "link": True,
+    }
+    details["METRICS"] = {
+        "url": heroku_app.dashboard_metrics_url,
+        "title": "Heroku metrics",
         "link": True,
     }
 

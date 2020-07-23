@@ -205,6 +205,12 @@ class TestHerokuApp(object):
     def test_dashboard_url(self, app):
         assert app.dashboard_url == u"https://dashboard.heroku.com/apps/dlgr-fake-uid"
 
+    def test_dashboard_metrics_url(self, app):
+        assert (
+            app.dashboard_metrics_url
+            == u"https://dashboard.heroku.com/apps/dlgr-fake-uid/metrics"
+        )
+
     def test_bootstrap_creates_app_with_team(self, app, check_call, check_output):
         check_output.return_value = "test@example.com"
         app.team = "some-team"

@@ -153,6 +153,10 @@ class HerokuApp(HerokuCommandRunner):
         return "https://dashboard.heroku.com/apps/{}".format(self.name)
 
     @property
+    def dashboard_metrics_url(self):
+        return "{}/metrics".format(self.dashboard_url)
+
+    @property
     def db_uri(self):
         """The connection URL for the remote database. For example:
         postgres://some-long-uid@ec2-52-7-232-59.compute-1.amazonaws.com:5432/d5fou154it1nvt
