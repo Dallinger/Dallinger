@@ -613,10 +613,7 @@ def node_details(object_type, obj_id):
 def lifecycle():
     config = get_config()
 
-    data = {
-        "heroku_app_id": config.get("heroku_app_id_root"),
-        "sandbox_flag": " --sandbox" if config.get("mode") == "sandbox" else "",
-    }
+    data = {"heroku_app_id": config.get("heroku_app_id_root")}
 
     return render_template(
         "dashboard_cli.html", title="Experiment lifecycle Dashboard", **data
