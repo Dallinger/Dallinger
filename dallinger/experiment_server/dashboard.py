@@ -615,6 +615,7 @@ def lifecycle():
 
     data = {
         "heroku_app_id": config.get("heroku_app_id_root"),
+        "sandbox_flag": " --sandbox" if config.get("mode") == "sandbox" else "",
     }
 
     return render_template(
