@@ -72,19 +72,32 @@ button#refresh:after {
     border: 1px solid lightgray;
 }
 #element-details {
+    box-sizing: border-box;
     background-color: #F2F2E9;
     border: 3px solid #34487E;
     min-height: 200px;
     padding: 10px;
+    width: 100%
 }
 #element-details pre {
+    box-sizing: border-box;
     width: 100%;
+    max-width: 100%;
+    overflow: scroll;
     padding: 10px;
     margin: 0;
+    white-space: pre-wrap;
 }
 
 #element-details .node-details {
+    box-sizing: border-box;
     width: 100%;
     padding: 0 10px;
     margin: 0 0 10px;
+}
+
+#logout {
+    position: absolute;
+    top: 1px;
+    right: 10px;
 }
