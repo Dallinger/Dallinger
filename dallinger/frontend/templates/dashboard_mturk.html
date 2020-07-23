@@ -35,8 +35,12 @@
     <h2>General</h2>
     <div class="row">
       <div class="col-sm">Account Balance: {{ data["account_balance"] }}</div>
-      <div class="col-sm"><a href="{{ data['requester_url'] }}">Requester Account</a></div>
-      <div class="col-sm"><a href="{{ data['qualification_types_url'] }}">Qualification Types</a></div>
+      <div class="col-sm">
+        <a href="{{ data['requester_url'] }}" target="_blank" rel="noreferrer noopener">Requester Account</a>
+      </div>
+      <div class="col-sm">
+        <a href="{{ data['qualification_types_url'] }}" target="_blank" rel="noreferrer noopener">Qualification Types</a>
+      </div>
     </div>
 
 
