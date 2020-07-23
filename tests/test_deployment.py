@@ -8,6 +8,7 @@ import pytest
 import six
 import sys
 import tempfile
+import uuid
 from pytest import raises
 from six.moves import configparser
 
@@ -301,6 +302,33 @@ class TestSetupExperiment(object):
         from dallinger.deployment import setup_experiment as subject
 
         return subject
+
+    def test_generates_exp_and_app_uid_if_none_provided(self, setup_experiment):
+        exp_id, dst = setup_experiment(log=mock.Mock())
+
+        assert isinstance(uuid.UUID(exp_id, version=4), uuid.UUID)
+
+    def test_generated_uid_saved_to_config(self, active_config, setup_experiment):
+        exp_id, dst = setup_experiment(log=mock.Mock())
+
+        assert active_config.get("id") == exp_id
+
+    def test_uses_provided_app_uid(self, setup_experiment):
+        exp_id, dst = setup_experiment(log=mock.Mock(), app="my-custom-app-id")
+
+        assert exp_id == "my-custom-app-id"
+
+    def test_saves_provided_app_uid_to_config(self, active_config, setup_experiment):
+        exp_id, dst = setup_experiment(log=mock.Mock(), app="my-custom-app-id")
+
+        assert "my-custom-app-id" == active_config.get("heroku_app_id_root")
+
+    def test_still_saves_uuid_in_addition_to_custom_app_id(
+        self, active_config, setup_experiment
+    ):
+        exp_id, dst = setup_experiment(log=mock.Mock(), app="my-custom-app-id")
+
+        assert isinstance(uuid.UUID(active_config.get("id"), version=4), uuid.UUID)
 
     def test_setup_creates_new_experiment(self, setup_experiment):
         # Baseline

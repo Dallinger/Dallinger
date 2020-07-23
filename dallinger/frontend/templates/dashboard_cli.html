@@ -4,13 +4,13 @@
 <h1>Experiment lifecycle dashboard</h1>
 
     <h2>Shut down experiment</h2>
-    
-    <pre>dallinger destroy --app {{ id }}</pre><button class="copy-button">Copy</button>
+
+    <pre>dallinger destroy --app {{ heroku_app_id }}</pre><button class="copy-button">Copy</button>
 
     <h2>Export data</h2>
-    <pre>dallinger export --app {{ id }}</pre><button class="copy-button">Copy</button>
+    <pre>dallinger export --app {{ heroku_app_id }}</pre><button class="copy-button">Copy</button>
 
-    
+
     <script>
         function copy_text (source) {
             var copied = false;
@@ -20,7 +20,7 @@
             textarea.style.left = '-1000000px';
             document.body.appendChild(textarea);
             textarea.select()
-            
+
             try {
                 var successful = document.execCommand('copy');
                 copied = true;

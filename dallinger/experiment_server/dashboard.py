@@ -614,7 +614,7 @@ def lifecycle():
     config = get_config()
 
     data = {
-        "id": config.get("id"),
+        "heroku_app_id": config.get("heroku_app_id_root"),
     }
 
     return render_template(
