@@ -1,6 +1,7 @@
 # Change Log
 
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
+- New customizable database dashboard for viewing live experiment data.
 
 ## [v-6.3.1](https://github.com/dallinger/dallinger/tree/6.3.1) (2020-07-21)
 - Bugfix: Dashboard authentication now works with multiple web processes and dynos

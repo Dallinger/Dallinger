@@ -65,6 +65,13 @@ class SharedMixin(object):
     visualization_html = ""
 
     def json_data(self):
+        """Returns a JSON serializable ``dict`` (``datetime`` values allowed)
+        to describe this object. This method can be overridden by sub-classes
+        to extend the default model data used for display in the Dashboard
+        Network Monitor and Database views.
+
+        :returns: ``dict`` with JSON serializable data
+        """
         return {}
 
     def __json__(self):

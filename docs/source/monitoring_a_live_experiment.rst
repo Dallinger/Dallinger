@@ -106,7 +106,14 @@ extending the existing panes. This can be done customizing the
 your experiment class. Additionally, you can customize the display of the selected
 nodes customizing the :attr:`~dallinger.experiment.Experiment.node_visualization_html`
 method, or the :attr:`~dallinger.models.SharedMixin.visualization_html` property on your
-model class:
+model class.
+
+The dashboard database view can be customized by customizing the
+:attr:`~dallinger.models.SharedMixin.json_data` method on your model classes to
+add/modify data provided by each model to the dashboard views, or by modifying
+the DataTables data returned by the
+:attr:`~dallinger.experiment.Experiment.table_data` method in your
+``Experiment`` class.
 
 .. module:: dallinger.experiment
 
@@ -118,6 +125,8 @@ model class:
     .. automethod:: monitoring_statistics
 
     .. automethod:: node_visualization_html
+
+    .. automethod:: table_data
 
 
 Papertrail

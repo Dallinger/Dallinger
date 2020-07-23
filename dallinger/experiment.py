@@ -828,6 +828,48 @@ class Experiment(object):
                 return obj.visualization_html
         return ""
 
+    def table_data(self, **kw):
+        """Generates DataTablesJS data and configuration for the experiment. The data
+        is compiled from the models' ``__json__`` methods, and can be customized by either
+        overriding this method or using the ``json_data`` method on the model to return
+        additional serializable data.
+
+        :param \**kw: arguments passed in from the request. The ``model_type`` parameter
+                      takes a ``str`` or iterable and queries all objects of those types,
+                      ordered by ``id``.
+        :returns: Returns a a ``dict`` with DataTablesJS data and configuration, filters using
+                  arbitrary keyword arguments. Should contain ``data`` and ``columns`` keys
+                  at least, with ``columns`` containing data for all fields on all returned
+                  objects.
+        """  # noqa
+        rows = []
+        found_columns = set()
+        columns = []
+        model_types = kw.get("model_type", ["Participant"])
+        if hasattr(model_types, "strip"):
+            model_types = [model_types]
+
+        for model_type in model_types:
+            model = getattr(models, model_type, None)
+            for obj in model.query.order_by(model.id).all():
+                data = obj.__json__()
+                rows.append(data)
+                for key in data:
+                    if key not in found_columns:
+                        columns.append({"name": key, "data": key})
+                        found_columns.add(key)
+
+        # Make sure every row has an entry for every column
+        for col in found_columns:
+            for row in rows:
+                if col not in row:
+                    row[col] = None
+
+        return {
+            "data": rows,
+            "columns": columns,
+        }
+
     @property
     def usable_replay_range(self):
         """The range of times that represent the active part of the experiment"""

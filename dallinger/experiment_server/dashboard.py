@@ -3,6 +3,7 @@ import logging
 import os
 import six
 import timeago
+from copy import deepcopy
 from datetime import datetime
 from datetime import timedelta
 from six.moves.urllib.parse import urlencode
@@ -209,7 +210,26 @@ def heroku_children():
     }
 
     for pane_id, pane in details.items():
-        yield DashboardTab(pane["title"], "dashboard.heroku", None, {"type": pane_id})
+        yield DashboardTab(
+            pane["title"], "dashboard.heroku", None, {"model_type": pane_id}
+        )
+
+
+BROWSEABLE_MODELS = [
+    "Participant",
+    "Node",
+    "Info",
+    "Network",
+    "Transformation",
+    "Transmission",
+]
+
+
+def database_children():
+    for model_type in BROWSEABLE_MODELS:
+        yield DashboardTab(
+            model_type + "s", "dashboard.database", None, {"model_type": model_type}
+        )
 
 
 dashboard_tabs = DashboardTabs(
@@ -219,6 +239,7 @@ dashboard_tabs = DashboardTabs(
         DashboardTab("MTurk", "dashboard.mturk"),
         DashboardTab("Monitoring", "dashboard.monitoring"),
         DashboardTab("Lifecycle", "dashboard.lifecycle"),
+        DashboardTab("Database", "dashboard.database", database_children),
     ]
 )
 
@@ -598,4 +619,98 @@ def lifecycle():
 
     return render_template(
         "dashboard_cli.html", title="Experiment lifecycle Dashboard", **data
+    )
+
+
+TABLE_DEFAULTS = {
+    "dom": "frtilpP",
+    "ordering": True,
+    "searching": True,
+    "select": True,
+    "paging": True,
+    "lengthChange": True,
+    "searchPanes": {"threshold": 0.99},
+}
+
+
+def prep_datatables_options(table_data):
+    """Attempts to generate a reasonable a DataTables config"""
+    datatables_options = deepcopy(TABLE_DEFAULTS)
+    datatables_options.update(deepcopy(table_data))
+    # Display objects and arrays in useful ways
+    for row in datatables_options.get("data", []):
+        for col in datatables_options.get("columns", []):
+            data = col["data"]
+            if isinstance(data, dict):
+                key = data.get("_")
+            else:
+                key = data
+
+            display_key = key + "_display"
+            value = row[key]
+            row[display_key] = "<code>{}</code>".format(
+                json.dumps(value, default=date_handler)
+            )
+
+            if isinstance(row[key], (list, dict)):
+                col["data"] = {
+                    "_": key,
+                    "filter": key,
+                    "display": display_key,
+                }
+
+            if isinstance(row[key], dict):
+                # Make sure SearchPanes can show dict values reasonably
+                row[key] = json.dumps(value, default=date_handler)
+                row[display_key] = "<code>{}</code>".format(
+                    json.dumps(value, default=date_handler, indent=True)
+                )
+                col["searchPanes"] = {
+                    "orthogonal": {
+                        "display": "filter",
+                        "sort": "filter",
+                        "search": "filter",
+                        "type": "type",
+                    }
+                }
+                if "render" in col:
+                    del col["render"]
+            elif isinstance(row[key], list):
+                # If the column is all list values allow them to be
+                # filtered separately
+                if not col.get("searchPanes", {}).get("orthogonal"):
+                    col["render"] = {
+                        "_": "{}[, ]".format(key),
+                        "sp": key,
+                    }
+                    col["searchPanes"] = {"orthogonal": "sp"}
+
+    return datatables_options
+
+
+@dashboard.route("/database")
+@login_required
+def database():
+    from dallinger.experiment_server.experiment_server import Experiment, session
+
+    title = "Database View"
+    exp = Experiment(session)
+    model_type = request.args.get("model_type")
+    if model_type:
+        title = "Database View: {}s".format(model_type)
+    datatables_options = prep_datatables_options(
+        exp.table_data(**request.args.to_dict(flat=False))
+    )
+    columns = [
+        c.get("name") or c["data"]
+        for c in datatables_options.get("columns", [])
+        if c.get("data")
+    ]
+    return render_template(
+        "dashboard_database.html",
+        title=title,
+        columns=columns,
+        datatables_options=json.dumps(
+            datatables_options, default=date_handler, indent=True
+        ),
     )
