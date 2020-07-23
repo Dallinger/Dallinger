@@ -36,6 +36,9 @@
               {% endfor %}
             </ul>
           </nav>
+          {% if not request.headers.get('AUTHORIZATION') %}
+          <a id="logout" class="btn btn-primary" href="{{ url_for('dashboard.logout') }}">Logout</a>
+          {% endif %}
         {% endblock %}
         {% block messages %}
           {% with messages = get_flashed_messages(with_categories=true) %}
@@ -50,9 +53,6 @@
         {% endblock %}
         <footer>
           {% block footer %}
-          {% if not request.headers.get('AUTHORIZATION') %}
-          <a class="btn btn-primary logout" href="{{ url_for('dashboard.logout') }}">Logout</a>
-          {% endif %}
           {% endblock %}
         </footer>
       </div>
