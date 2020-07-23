@@ -127,7 +127,7 @@
         is_found, roles_colors, clr, rr, gg, bb, count_nodes,
         participant, participant_id, node, msg, mgroup, vector,
         info, my_node_id, tran, group_fathers, gtitle, min_id,
-        to_min, father;
+        to_min, father, from_node, node_viz;
     var nodes = []; // list of all nodes
     var edges = []; // list of all edges
     var list_of_nodes=[]; // list of objects with nodes (not only nodes for example networks)
@@ -265,29 +265,42 @@
       my_node_id=count_nodes;
       to=my_node_id;
       from=info.origin_id;
-      participant_id=list_of_nodes[from].participant_id;
-      participant={};
-      if (participant_id==null) {
+      from_node=list_of_nodes[from];
+      node_viz=nodes[list_of_node_indx[from] - 1];
+      participant_id=from_node.participant_id || info.participant_id || null;
+      if (participant_id === null) {
+        participant={};
         participant_id=0;
         participant.clr='black';
         participant='<empty>';
       } else {
         participant=list_of_participants[participant_id];
       }
+      if (participant_id !== 0 && node_viz.color !== 'red' && participant_id !== from_node.participant_id) {
+        if (from_node.participant_id === null) {
+          node_viz.color = participant.clr;
+        } else {
+          node_viz.color = 'black';
+        }
+      }
       if (info.failed) {
         mgroup='failed_infos';
+        clr = 'red';
       } else {
         mgroup='good_infos';
+        clr = participant.clr;
       }
+
       nodes.push({
         id: my_node_id,
         label: "info:"+ String(info.id), dashes:true,
         title: "info: " + info.type + ':' + String(info.id),
         group: mgroup,
+        icon: {color: clr},
         font: {align: 'inside'},
         data: info
-
       });
+
       if (participant_id>0) {
         edges.push({
           from: list_of_node_indx[from],
