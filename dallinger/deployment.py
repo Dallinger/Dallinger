@@ -439,12 +439,14 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         config.load()
     heroku.sanity_check(config)
 
-    (id, tmp) = setup_experiment(log, debug=False, app=app, exp_config=exp_config)
+    (public_app_id, tmp) = setup_experiment(
+        log, debug=False, app=app, exp_config=exp_config
+    )
 
     # Register the experiment using all configured registration services.
     if config.get("mode") == "live":
         log("Registering the experiment on configured services...")
-        registration.register(id, snapshot=None)
+        registration.register(public_app_id, snapshot=None)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -460,12 +462,12 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     git = GitClient(output=out)
     git.init()
     git.add("--all")
-    git.commit('"Experiment {}"'.format(id))
+    git.commit('"Experiment {}"'.format(public_app_id))
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
     team = config.get("heroku_team", None)
-    heroku_app = HerokuApp(dallinger_uid=id, output=out, team=team)
+    heroku_app = HerokuApp(dallinger_uid=public_app_id, output=out, team=team)
     heroku_app.bootstrap()
     heroku_app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
 
@@ -579,7 +581,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     # Return to the branch whence we came.
     os.chdir(cwd)
 
-    log("Completed deployment of experiment " + id + ".")
+    log("Completed deployment of experiment " + public_app_id + ".")
     return result
 
 
