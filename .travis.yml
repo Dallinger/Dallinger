@@ -39,6 +39,7 @@ services:
 before_install:
   - rm -rf ~/.local/share/heroku
   - rvm install 2.6.2
+  - nvm install 10
   - pip install --upgrade setuptools pip wheel
 install:
   - pip install tox==3.1.2
