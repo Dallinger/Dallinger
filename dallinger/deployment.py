@@ -246,8 +246,8 @@ def assemble_experiment_temp_dir(config):
 
     Returns the absolute path of the new directory.
     """
-    app_id = config.get("id")
-    dst = os.path.join(tempfile.mkdtemp(), app_id)
+    exp_id = config.get("id")
+    dst = os.path.join(tempfile.mkdtemp(), exp_id)
 
     # Copy local experiment files, minus some
     ExperimentFileSource(os.getcwd()).selective_copy_to(dst)
@@ -257,7 +257,7 @@ def assemble_experiment_temp_dir(config):
 
     # Save the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
-        file.write(app_id)
+        file.write(exp_id)
 
     # Copy Dallinger files
     dallinger_root = dallinger_package_path()
@@ -354,13 +354,8 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
 
-    generated_uid = public_id = Experiment.make_uuid(app)
-
-    # If the user provided an app name, use it everywhere that's user-facing.
-    if app:
-        public_id = str(app)
-
-    log("Experiment id is " + public_id + "")
+    experiment_uid = heroku_app_id = Experiment.make_uuid(app)
+    log("Experiment UID: {}".format(experiment_uid))
 
     # Load and update the config
     config = get_config()
@@ -368,8 +363,20 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
         config.load()  #
     if exp_config:
         config.extend(exp_config)
-    config.extend({"id": six.text_type(generated_uid)})
 
+    # If the user provided an app name, store it. We'll use it as the basis for
+    # the Heroku app ID. We still have a fair amount of ambiguity around what
+    # this value actually represents (it's not used as _only_ the Heroku app ID).
+    if app:
+        heroku_app_id = str(app)
+        log("Using custom Heroku ID root: {}".format(heroku_app_id))
+
+    config.extend(
+        {
+            "id": six.text_type(experiment_uid),
+            "heroku_app_id_root": six.text_type(heroku_app_id),
+        }
+    )
     temp_dir = assemble_experiment_temp_dir(config)
     log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
@@ -377,10 +384,12 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     if not debug:
         log("Freezing the experiment package...")
         shutil.make_archive(
-            os.path.join(os.getcwd(), "snapshots", public_id + "-code"), "zip", temp_dir
+            os.path.join(os.getcwd(), "snapshots", heroku_app_id + "-code"),
+            "zip",
+            temp_dir,
         )
 
-    return (public_id, temp_dir)
+    return (heroku_app_id, temp_dir)
 
 
 INITIAL_DELAY = 5
@@ -438,13 +447,14 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     if not config.ready:
         config.load()
     heroku.sanity_check(config)
-
-    (id, tmp) = setup_experiment(log, debug=False, app=app, exp_config=exp_config)
+    (heroku_app_id, tmp) = setup_experiment(
+        log, debug=False, app=app, exp_config=exp_config
+    )
 
     # Register the experiment using all configured registration services.
     if config.get("mode") == "live":
         log("Registering the experiment on configured services...")
-        registration.register(id, snapshot=None)
+        registration.register(heroku_app_id, snapshot=None)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -460,12 +470,12 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     git = GitClient(output=out)
     git.init()
     git.add("--all")
-    git.commit('"Experiment {}"'.format(id))
+    git.commit('"Experiment {}"'.format(heroku_app_id))
 
     # Initialize the app on Heroku.
     log("Initializing app on Heroku...")
     team = config.get("heroku_team", None)
-    heroku_app = HerokuApp(dallinger_uid=id, output=out, team=team)
+    heroku_app = HerokuApp(dallinger_uid=heroku_app_id, output=out, team=team)
     heroku_app.bootstrap()
     heroku_app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
 
@@ -579,7 +589,11 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     # Return to the branch whence we came.
     os.chdir(cwd)
 
-    log("Completed deployment of experiment " + id + ".")
+    log(
+        "Completed Heroku deployment of experiment ID {} using app ID {}.".format(
+            config.get("id"), heroku_app_id
+        )
+    )
     return result
 
 

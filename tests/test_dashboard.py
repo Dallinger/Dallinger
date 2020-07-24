@@ -572,7 +572,8 @@ class TestDashboardLifeCycleRoutes(object):
     def test_includes_destroy_command(self, active_config, logged_in):
         resp = logged_in.get("/dashboard/lifecycle")
 
-        app_id = active_config.get("id")
+        app_id = active_config.get("heroku_app_id_root")
+
         assert resp.status_code == 200
         assert "<pre>dallinger destroy --app {}</pre>".format(
             app_id

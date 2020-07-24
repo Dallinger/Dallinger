@@ -764,7 +764,7 @@ class MTurkRecruiter(Recruiter):
         return status
 
     def _disable_autorecruit(self):
-        heroku_app = heroku_tools.HerokuApp(self.config.get("id"))
+        heroku_app = heroku_tools.HerokuApp(self.config.get("heroku_app_id_root"))
         args = json.dumps({"auto_recruit": "false"})
         headers = heroku_tools.request_headers(self.config.get("heroku_auth_token"))
         requests.patch(heroku_app.config_url, data=args, headers=headers)

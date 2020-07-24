@@ -48,6 +48,7 @@ default_keys = (
     ("dyno_type_worker", six.text_type, []),
     ("EXPERIMENT_CLASS_NAME", six.text_type, []),
     ("group_name", six.text_type, []),
+    ("heroku_app_id_root", six.text_type, []),
     ("heroku_auth_token", six.text_type, [], True),
     ("heroku_python_version", six.text_type, []),
     ("heroku_team", six.text_type, ["team"]),
