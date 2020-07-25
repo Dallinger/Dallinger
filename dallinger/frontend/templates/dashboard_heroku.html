@@ -1,0 +1,14 @@
+{% extends "base/dashboard.html" %}
+
+{% block body %}
+<h1>Heroku Dashboard</h1>
+
+<p>External Links to Heroku Services<p>
+<ul>
+    {% for link in links %}
+        <li>
+            <a href="{{ link['url'] }}" target="_blank" rel="noreferrer noopener">{{ link['title'] }}</a>
+        </li>
+    {% endfor %}
+</ul>
+{% endblock %}
