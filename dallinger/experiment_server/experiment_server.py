@@ -60,10 +60,15 @@ app = Flask("Experiment_Server")
 
 @app.before_first_request
 def _config():
-    app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
+    app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
     config = get_config()
     if not config.ready:
         config.load()
+    if config.get("dashboard_password", None):
+        app.config["ADMIN_USER"] = dashboard.User(
+            userid=config.get("dashboard_user", "admin"),
+            password=config.get("dashboard_password"),
+        )
 
     return config
 

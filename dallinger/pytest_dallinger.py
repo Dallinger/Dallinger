@@ -136,6 +136,7 @@ def stub_config():
         u"dallinger_email_address": u"test@example.com",
         u"database_size": u"standard-0",
         u"redis_size": u"premium-0",
+        u"dashboard_user": u"admin",
         u"database_url": u"postgresql://postgres@localhost/dallinger",
         u"description": u"fake HIT description",
         u"duration": 1.0,
@@ -191,6 +192,14 @@ def active_config(stub_config):
     c.config = stub_config
     yield c.config
     c.config = orig_config
+
+
+@pytest.fixture
+def dashboard_config(active_config):
+    active_config.extend(
+        {"dashboard_user": u"admin", "dashboard_password": u"DUMBPASSWORD"}
+    )
+    return active_config
 
 
 @pytest.fixture

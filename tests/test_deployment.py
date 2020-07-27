@@ -39,12 +39,18 @@ def browser():
 
 
 @pytest.fixture
-def faster(tempdir):
+def faster(tempdir, active_config):
     with mock.patch.multiple(
         "dallinger.deployment", time=mock.DEFAULT, setup_experiment=mock.DEFAULT
     ) as mocks:
         mocks["setup_experiment"].return_value = ("fake-uid", tempdir)
-
+        # setup_experiment normally sets the dashboard credentials if unset
+        active_config.extend(
+            {
+                "dashboard_user": six.text_type("admin"),
+                "dashboard_password": six.text_type("DUMBPASSWORD"),
+            }
+        )
         yield mocks
 
 
@@ -330,6 +336,14 @@ class TestSetupExperiment(object):
 
         assert isinstance(uuid.UUID(active_config.get("id"), version=4), uuid.UUID)
 
+    def test_dashboard_credentials_saved_to_config(
+        self, active_config, setup_experiment
+    ):
+        exp_id, dst = setup_experiment(log=mock.Mock())
+
+        assert active_config.get("dashboard_user") == six.text_type("admin")
+        assert active_config.get("dashboard_password") == mock.ANY
+
     def test_setup_creates_new_experiment(self, setup_experiment):
         # Baseline
         exp_dir = os.getcwd()
@@ -584,8 +598,6 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
             aws_access_key_id="fake aws key",
             aws_region="us-east-1",
             aws_secret_access_key="fake aws secret",
-            DASHBOARD_USER="admin",
-            DASHBOARD_PASSWORD=mock.ANY,  # password is random
             FLASK_SECRET_KEY=mock.ANY,  # password is random
             smtp_password="fake email password",
             smtp_username="fake email username",

@@ -18,7 +18,7 @@ class TestAppConfiguration(object):
         active_config.load.assert_called_once()
         assert active_config.ready
 
-    def test_debug_mode_puts_flask_in_debug_mode(self, webapp, active_config):
+    def test_debug_mode_puts_flask_in_debug_mode(self, webapp):
         webapp.application.debug = False
         from dallinger.experiment_server.gunicorn import StandaloneServer
 
