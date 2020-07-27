@@ -4,47 +4,24 @@
 <h1>Experiment lifecycle dashboard</h1>
 
     <h2>Shut down experiment</h2>
-
-    <pre>dallinger destroy --app {{ heroku_app_id }}{{ sandbox_flag }}</pre>
-    <button class="copy-button">Copy</button>
+    <pre id="destroy-command">dallinger destroy --app {{ heroku_app_id }}</pre>
+    <button class="copy-button btn btn-primary"
+            data-clipboard-target="#destroy-command"
+            data-toggle="popover">Copy</button>
 
     <h2>Export data</h2>
-    <pre>dallinger export --app {{ heroku_app_id }}</pre>
-    <button class="copy-button">Copy</button>
+    <pre id="export-command">dallinger export --app {{ heroku_app_id }}</pre>
+    <button class="copy-button btn btn-primary"
+            data-clipboard-target="#export-command"
+            data-toggle="popover">Copy</button>
 
-
-    <script>
-        function copy_text (source) {
-            var copied = false;
-            const textarea = document.createElement('textarea');
-            textarea.value = source;
-            textarea.style.position = 'absolute';
-            textarea.style.left = '-1000000px';
-            document.body.appendChild(textarea);
-            textarea.select()
-
-            try {
-                var successful = document.execCommand('copy');
-                copied = true;
-            } catch(err) {
-                copied = false;
-            }
-            textarea.remove()
-            return copied;
-        }
-
-        document.querySelectorAll('.copy-button').forEach(item => {
-            item.addEventListener('click', event => {
-                event.preventDefault();
-                var to_copy = event.target.previousSibling.textContent;
-
-                if (copy_text(to_copy)) {
-                    alert("Copied to clipboard.");
-                } else {
-                    alert("Copy failed.")
-                }
-            })
-        });
-    </script>
 {% endblock %}
 
+{% block scripts %}
+
+<script>
+    clipboard = new ClipboardJS('.copy-button');
+    $('[data-toggle="popover"]').popover({content: "Dallinger CLI command copied!"});
+</script>
+
+{% endblock %}
