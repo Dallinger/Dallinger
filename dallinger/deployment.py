@@ -507,7 +507,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
-        "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex"),
+        "FLASK_SECRET_KEY": str(codecs.encode(os.urandom(16), "hex")),
     }
 
     # Set up the preferred class as an environment variable, if one is set
@@ -694,7 +694,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.status_thread = None
         self.no_browsers = no_browsers
         self.environ = {
-            "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex"),
+            "FLASK_SECRET_KEY": str(codecs.encode(os.urandom(16), "hex")),
         }
 
     def configure(self):
