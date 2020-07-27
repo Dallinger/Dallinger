@@ -223,8 +223,14 @@ class TestBaseURL(object):
         yield instance
         config.config = None
 
-    def test_local_base_url(self, subject, config):
-        config.set("host", u"localhost")
+    def test_base_url_uses_environment(self, subject, config):
+        config.set("host", u"127.0.0.1")
+        config.set("base_port", 5000)
+        config.set("num_dynos_web", 1)
+        assert subject() == u"http://127.0.0.1:5000"
+
+    def test_local_base_url_converts(self, subject, config):
+        config.set("host", u"0.0.0.0")
         config.set("base_port", 5000)
         config.set("num_dynos_web", 1)
         assert subject() == u"http://localhost:5000"
