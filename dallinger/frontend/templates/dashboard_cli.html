@@ -1,5 +1,11 @@
 {% extends "base/dashboard.html" %}
 
+{% block stylesheets %}
+<style type="text/css">
+    .copy-button { margin-bottom: 2.5rem }
+</style>
+{% endblock %}
+
 {% block body %}
 <h1>Experiment lifecycle dashboard</h1>
 
@@ -10,10 +16,18 @@
             data-toggle="popover">Copy</button>
 
     <h2>Export data</h2>
+    <div>Scrub personally identifyable information</div>
     <pre id="export-command">dallinger export --app {{ heroku_app_id }}</pre>
     <button class="copy-button btn btn-primary"
             data-clipboard-target="#export-command"
             data-toggle="popover">Copy</button>
+
+    <div>No scrubbing</div>
+    <pre id="export-noscrub-command">dallinger export --no-scrub --app {{ heroku_app_id }}</pre>
+    <button class="copy-button btn btn-primary"
+            data-clipboard-target="#export-noscrub-command"
+            data-toggle="popover">Copy</button>
+
 
 {% endblock %}
 
