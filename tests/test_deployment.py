@@ -46,7 +46,10 @@ def faster(tempdir, active_config):
         mocks["setup_experiment"].return_value = ("fake-uid", tempdir)
         # setup_experiment normally sets the dashboard credentials if unset
         active_config.extend(
-            {"dashboard_user": "admin", "dashboard_password": "DUMBPASSWORD",}
+            {
+                "dashboard_user": six.text_type("admin"),
+                "dashboard_password": six.text_type("DUMBPASSWORD"),
+            }
         )
         yield mocks
 
@@ -338,7 +341,7 @@ class TestSetupExperiment(object):
     ):
         exp_id, dst = setup_experiment(log=mock.Mock())
 
-        assert active_config.get("dashboard_user") == "admin"
+        assert active_config.get("dashboard_user") == six.text_type("admin")
         assert active_config.get("dashboard_password") == mock.ANY
 
     def test_setup_creates_new_experiment(self, setup_experiment):

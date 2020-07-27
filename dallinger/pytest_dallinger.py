@@ -196,7 +196,7 @@ def active_config(stub_config):
 @pytest.fixture
 def dashboard_config(active_config):
     active_config.extend(
-        {"dashboard_user": "admin", "dashboard_password": "DUMBPASSWORD"}
+        {"dashboard_user": u"admin", "dashboard_password": u"DUMBPASSWORD"}
     )
     return active_config
 
