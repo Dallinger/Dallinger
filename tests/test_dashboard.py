@@ -91,10 +91,21 @@ class TestDashboardTabs(object):
 
 
 class TestDashboard(object):
-    def test_load_user(self):
-        from dallinger.experiment_server.dashboard import admin_user, load_user
+    @pytest.fixture
+    def admin_user(self):
+        from dallinger.experiment_server.dashboard import User
 
-        assert admin_user.id == "admin"
+        with mock.patch("dallinger.experiment_server.dashboard.current_app") as app:
+            admin_user = User("admin", "DUMBPASSWORD")
+            app.config = {
+                "ADMIN_USER": admin_user,
+                "SECRET_KEY": "FLASK_SECRET",
+            }
+            yield admin_user
+
+    def test_load_user(self, admin_user):
+        from dallinger.experiment_server.dashboard import load_user
+
         assert load_user("admin") is admin_user
         assert load_user("user") is None
 
@@ -107,7 +118,7 @@ class TestDashboard(object):
         request = Request(environ)
         return request
 
-    def test_load_user_from_empty_request(self):
+    def test_load_user_from_empty_request(self, admin_user):
         from dallinger.experiment_server.dashboard import load_user_from_request
 
         assert (
@@ -117,9 +128,8 @@ class TestDashboard(object):
             is None
         )
 
-    def test_load_user_with_wrong_user(self):
+    def test_load_user_with_wrong_user(self, admin_user):
         from dallinger.experiment_server.dashboard import load_user_from_request
-        from dallinger.experiment_server.dashboard import admin_user
 
         bad_credentials = (
             codecs.encode(
@@ -139,14 +149,11 @@ class TestDashboard(object):
             is None
         )
 
-    def test_load_user_with_bad_password(self):
+    def test_load_user_with_bad_password(self, admin_user):
         from dallinger.experiment_server.dashboard import load_user_from_request
-        from dallinger.experiment_server.dashboard import admin_user
 
         bad_password = (
-            codecs.encode("{}:password".format(admin_user.id).encode("ascii"), "base64")
-            .strip()
-            .decode("ascii")
+            codecs.encode(b"admin:password", "base64").strip().decode("ascii")
         )
         assert (
             load_user_from_request(
@@ -159,9 +166,8 @@ class TestDashboard(object):
             is None
         )
 
-    def test_load_user_from_request(self, env):
+    def test_load_user_from_request(self, env, admin_user):
         from dallinger.experiment_server.dashboard import load_user_from_request
-        from dallinger.experiment_server.dashboard import admin_user
 
         good_credentials = (
             codecs.encode(
@@ -218,7 +224,7 @@ class TestDashboard(object):
 
 
 @pytest.fixture
-def csrf_token(webapp, active_config):
+def csrf_token(webapp, dashboard_config):
     # active_config.set("mode", "sandbox")
     # Make a writeable session and copy the csrf token into it
     from flask_wtf.csrf import generate_csrf
@@ -232,8 +238,7 @@ def csrf_token(webapp, active_config):
 
 @pytest.fixture
 def logged_in(webapp, csrf_token):
-    from dallinger.experiment_server.dashboard import admin_user
-
+    admin_user = webapp.application.config["ADMIN_USER"]
     webapp.post(
         "/dashboard/login",
         data={
@@ -249,7 +254,7 @@ def logged_in(webapp, csrf_token):
 
 @pytest.mark.usefixtures("experiment_dir_merged")
 class TestDashboardCoreRoutes(object):
-    def test_debug_dashboad_unauthorized(self, webapp, active_config):
+    def test_debug_dashboad_unauthorized(self, webapp):
         resp = webapp.get("/dashboard/")
         assert resp.status_code == 401
 
@@ -260,12 +265,11 @@ class TestDashboardCoreRoutes(object):
         assert resp.location.endswith("/login?next=%2Fdashboard%2F")
 
     def test_login_bad_password(self, webapp, csrf_token):
-        from dallinger.experiment_server.dashboard import admin_user
 
         resp = webapp.post(
             "/dashboard/login",
             data={
-                "username": admin_user.id,
+                "username": "admin",
                 "password": "badpass",
                 "next": "/dashboard/",
                 "submit": "Sign In",
@@ -279,8 +283,7 @@ class TestDashboardCoreRoutes(object):
         assert "Invalid username or password" in login_resp.data.decode("utf8")
 
     def test_login_redirects_to_next(self, webapp, csrf_token):
-        from dallinger.experiment_server.dashboard import admin_user
-
+        admin_user = webapp.application.config["ADMIN_USER"]
         login_resp = webapp.get("/dashboard/login?next=%2Fdashboard%2F")
         assert login_resp.status_code == 200
 
@@ -298,7 +301,7 @@ class TestDashboardCoreRoutes(object):
         assert resp.location.endswith("/dashboard/something")
 
     def test_login_rejects_malicious_urls(self, webapp, csrf_token):
-        from dallinger.experiment_server.dashboard import admin_user
+        admin_user = webapp.application.config["ADMIN_USER"]
 
         resp = webapp.post(
             "/dashboard/login",
@@ -314,11 +317,10 @@ class TestDashboardCoreRoutes(object):
         assert resp.location.endswith("/dashboard/index")
 
     def test_login_session_retained(self, logged_in):
-        from dallinger.experiment_server.dashboard import admin_user
 
         resp = logged_in.get("/dashboard/")
         assert resp.status_code == 200
-        assert 'Welcome User: "{}"'.format(admin_user.id) in resp.data.decode("utf8")
+        assert 'Welcome User: "admin"' in resp.data.decode("utf8")
 
     def test_logout(self, active_config, logged_in):
         active_config.set("mode", "sandbox")
@@ -382,7 +384,7 @@ class TestDashboardMTurkRoutes(object):
         )
 
 
-@pytest.mark.usefixtures("experiment_dir_merged")
+@pytest.mark.usefixtures("experiment_dir_merged", "db_session")
 class TestDashboardMonitorRoute(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/monitoring").status_code == 401

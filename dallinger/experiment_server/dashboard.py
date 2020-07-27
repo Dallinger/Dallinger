@@ -1,14 +1,13 @@
 import json
 import logging
-import os
 import six
 import timeago
 from copy import deepcopy
 from datetime import datetime
 from datetime import timedelta
 from six.moves.urllib.parse import urlencode
-from faker import Faker
 from flask import Blueprint
+from flask import current_app
 from flask import abort, flash, redirect, render_template, request, url_for
 from flask.wrappers import Response
 from flask_wtf import FlaskForm
@@ -31,12 +30,6 @@ class User(UserMixin):
     def __init__(self, userid, password):
         self.id = userid
         self.password = password
-
-
-admin_user = User(
-    userid=os.environ.get("DASHBOARD_USER", "admin"),
-    password=os.environ.get("DASHBOARD_PASSWORD") or Faker().password(),
-)
 
 
 class DashboardTab(object):
@@ -228,12 +221,14 @@ dashboard_tabs = DashboardTabs(
 
 
 def load_user(userid):
+    admin_user = current_app.config.get("ADMIN_USER")
     if userid != admin_user.id:
         return
     return admin_user
 
 
 def load_user_from_request(request):
+    admin_user = current_app.config.get("ADMIN_USER")
     auth = request.authorization
     if auth:
         if auth["username"] != admin_user.id:
@@ -263,6 +258,7 @@ def custom_401(error):
 
 
 def validate_username(form, field):
+    admin_user = current_app.config.get("ADMIN_USER")
     if field.data != admin_user.id:
         raise ValidationError("Unknown user")
 
@@ -299,6 +295,7 @@ def login():
         return render_template("login.html", title="Sign In", form=form)
 
     if form.validate_on_submit():
+        admin_user = current_app.config.get("ADMIN_USER")
         if not admin_user.password == form.password.data:
             flash("Invalid username or password", "danger")
             return redirect(url_for("dashboard.login"))

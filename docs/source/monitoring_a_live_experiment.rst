@@ -34,9 +34,11 @@ commandline output when launching an experiment using ``dallinger debug``,
 ``dallinger sandbox``, or ``dallinger deploy``.
 
 When running under ``dallinger debug`` a browser window should open with the
-dashboard already logged in. When running on Heroku, the dashboard username
-and password can also be found in the heroku configuration parameters
-``DASHBOARD_USER`` and ``DASHBOARD_PASSWORD``.
+dashboard already logged in. The dashboard username and password can also be
+found in the ``dashboard_user`` and ``dashboard_password`` configuration
+parameters in the deployed ``config.txt`` configuration file. By default the
+user is named ``admin`` and the password is generated randomly, but the user
+name and password can be specified using configuration files.
 
 
 Customizing the Dashboard

@@ -48,11 +48,18 @@ General
     to ``critical``. Note that ``dallinger debug`` ignores this setting and always
     runs at 0 (``debug``).
 
-
 ``whimsical`` *boolean*
     What's life without whimsy? Controls whether email notifications sent
     regarding various experiment errors are whimsical in tone, or more
     matter-of-fact.
+
+``dashboard_password`` *unicode*
+    An optional password for accessing the Dallinger Dashboard interface. If not
+    specified, a random password will be generated.
+
+``dashboard_user`` *unicode*
+    An optional login name for accessing the Dallinger Dashboard interface. If not
+    specified ``admin`` will be used.
 
 
 Recruitment (General)

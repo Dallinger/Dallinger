@@ -64,6 +64,11 @@ def _config():
     config = get_config()
     if not config.ready:
         config.load()
+    if config.get("dashboard_password", None):
+        app.config["ADMIN_USER"] = dashboard.User(
+            userid=config.get("dashboard_user", "admin"),
+            password=config.get("dashboard_password"),
+        )
 
     return config
 

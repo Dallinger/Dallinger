@@ -194,6 +194,14 @@ def active_config(stub_config):
 
 
 @pytest.fixture
+def dashboard_config(active_config):
+    active_config.extend(
+        {"dashboard_user": "admin", "dashboard_password": "DUMBPASSWORD"}
+    )
+    return active_config
+
+
+@pytest.fixture
 def db_session():
     import dallinger.db
 

@@ -377,6 +377,12 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
             "heroku_app_id_root": six.text_type(heroku_app_id),
         }
     )
+
+    if not config.get("dashboard_password", None):
+        config.set("dashboard_password", fake.password(length=20, special_chars=False))
+    if not config.get("dashboard_user", None):
+        config.set("dashboard_user", "admin")
+
     temp_dir = assemble_experiment_temp_dir(config)
     log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
@@ -501,8 +507,6 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
-        "DASHBOARD_PASSWORD": fake.password(length=20, special_chars=False),
-        "DASHBOARD_USER": config.get("dashboard_user", "admin"),
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex"),
     }
 
@@ -575,11 +579,9 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     log("Experiment details:")
     log("App home: {}".format(result["app_home"]), chevrons=False)
     log("Dashboard URL: {}".format(result["dashboard_url"]), chevrons=False)
+    log("Dashboard user: {}".format(config.get("dashboard_user")), chevrons=False)
     log(
-        "Dashboard user: {}".format(heroku_config.get("DASHBOARD_USER")), chevrons=False
-    )
-    log(
-        "Dashboard password: {}".format(heroku_config.get("DASHBOARD_PASSWORD")),
+        "Dashboard password: {}".format(config.get("dashboard_password")),
         chevrons=False,
     )
 
@@ -632,7 +634,7 @@ class HerokuLocalDeployment(object):
         if logfile and logfile != "-":
             logfile = os.path.join(self.original_dir, logfile)
             config.extend({"logfile": logfile})
-            config.write()
+        config.write()
 
     def run(self):
         """Set up the environment, get a HerokuLocalWrapper instance, and pass
@@ -692,8 +694,6 @@ class DebugDeployment(HerokuLocalDeployment):
         self.status_thread = None
         self.no_browsers = no_browsers
         self.environ = {
-            "DASHBOARD_PASSWORD": fake.password(special_chars=False),
-            "DASHBOARD_USER": self.exp_config.get("dashboard_user", "admin"),
             "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex"),
         }
 
@@ -748,22 +748,20 @@ class DebugDeployment(HerokuLocalDeployment):
         new_webbrowser_profile().open(url, new=1, autoraise=True)
 
     def display_dashboard_access_details(self, url):
+        config = get_config()
         self.out.log("Experiment dashboard: {}".format(url))
         self.out.log(
             "Dashboard user: {} password: {}".format(
-                self.environ.get("DASHBOARD_USER"),
-                self.environ.get("DASHBOARD_PASSWORD"),
+                config.get("dashboard_user"), config.get("dashboard_password"),
             )
         )
 
     def open_dashboard(self, url):
+        config = get_config()
         self.out.log("Opening dashboard")
-        # new_webbrowser_profile().open(url, new=1, autoraise=True)
         parsed = list(urlparse(url))
         parsed[1] = "{}:{}@{}".format(
-            self.environ.get("DASHBOARD_USER"),
-            self.environ.get("DASHBOARD_PASSWORD"),
-            parsed[1],
+            config.get("dashboard_user"), config.get("dashboard_password"), parsed[1],
         )
         new_webbrowser_profile().open(urlunparse(parsed), new=1, autoraise=True)
 
