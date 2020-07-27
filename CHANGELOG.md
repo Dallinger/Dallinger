@@ -1,6 +1,7 @@
 # Change Log
 
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
+- Bugfix: Fixes for Dashboard monitor layout and color issues.
 - New customizable database dashboard for viewing live experiment data.
 - Use localhost as hostname when running in debug mode by default.
 
