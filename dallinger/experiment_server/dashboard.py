@@ -334,16 +334,23 @@ def heroku():
     standard dashboard links.
     """
     config = get_config()
+    if config.get("mode") == "debug":
+        flash(
+            "This experiment is running in debug mode and is not deployed to Heroku",
+            "warning",
+        )
+        return render_template("dashboard_heroku.html", links=[])
+
+    heroku_app = HerokuApp(config.get("heroku_app_id_root"))
+    links = [
+        {"url": heroku_app.dashboard_url, "title": "Heroku dashboard"},
+        {"url": heroku_app.dashboard_metrics_url, "title": "Heroku metrics"},
+    ]
     details = json.loads(
         config.get("infrastructure_debug_details", six.text_type("{}"))
     )
-    links = [{"title": v["title"].title(), "url": v["url"]} for v in details.values()]
-    heroku_app = HerokuApp(config.get("heroku_app_id_root"))
     links.extend(
-        [
-            {"url": heroku_app.dashboard_url, "title": "Heroku dashboard"},
-            {"url": heroku_app.dashboard_metrics_url, "title": "Heroku metrics"},
-        ]
+        [{"title": v["title"].title(), "url": v["url"]} for v in details.values()]
     )
 
     return render_template("dashboard_heroku.html", links=links)

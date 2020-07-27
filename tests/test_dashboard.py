@@ -586,19 +586,23 @@ class TestDashboardHerokuRoutes(object):
         assert webapp.get("/dashboard/heroku").status_code == 401
 
     def test_renders_links_for_heroku_services(self, active_config, logged_in):
+        from dallinger.heroku.tools import HerokuApp
+
         details = '{"REDIS": {"url": "https://redis-url", "title": "REDIS"}}'
         active_config.set("infrastructure_debug_details", details)
+        active_config.set("mode", "sandbox")
+        heroku_app = HerokuApp(active_config.get("heroku_app_id_root"))
 
         resp = logged_in.get("/dashboard/heroku")
 
         assert '<a href="https://redis-url"' in resp.data.decode("utf8")
+        assert '<a href="{}"'.format(
+            heroku_app.dashboard_metrics_url
+        ) in resp.data.decode("utf8")
 
-    def test_other_dashboard_urls_included(self, active_config, logged_in):
-        from dallinger.heroku.tools import HerokuApp
-
-        heroku_app = HerokuApp(active_config.get("heroku_app_id_root"))
+    def test_shows_no_links_when_not_deployed_to_heroku(self, active_config, logged_in):
         resp = logged_in.get("/dashboard/heroku")
-        assert heroku_app.dashboard_metrics_url in resp.data.decode("utf8")
+        assert '<a href="https://redis-url"' not in resp.data.decode("utf8")
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")

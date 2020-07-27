@@ -3,6 +3,7 @@
 {% block body %}
 <h1>Heroku Dashboard</h1>
 
+{% if links %}
 <p>External Links to Heroku Services<p>
 <ul>
     {% for link in links %}
@@ -11,4 +12,6 @@
         </li>
     {% endfor %}
 </ul>
+{% endif %}
+
 {% endblock %}
