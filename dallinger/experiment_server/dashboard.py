@@ -19,6 +19,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from flask_login import UserMixin
 from flask_login.utils import login_url as make_login_url
 from dallinger import recruiters
+from dallinger.heroku.tools import HerokuApp
 from dallinger.config import get_config
 from .utils import date_handler
 
@@ -197,24 +198,6 @@ class DashboardTabs(object):
         return iter(self.tabs)
 
 
-def heroku_children():
-    config = get_config()
-    details = config.get("infrastructure_debug_details", six.text_type("{}"))
-    details = json.loads(details)
-
-    dlgr_id = "dlgr-" + config.get("id")[:8]
-    details["HEROKU"] = {
-        "url": "https://dashboard.heroku.com/apps/" + dlgr_id,
-        "title": "Heroku dashboard",
-        "link": True,
-    }
-
-    for pane_id, pane in details.items():
-        yield DashboardTab(
-            pane["title"], "dashboard.heroku", None, {"model_type": pane_id}
-        )
-
-
 BROWSEABLE_MODELS = [
     "Participant",
     "Node",
@@ -235,7 +218,7 @@ def database_children():
 dashboard_tabs = DashboardTabs(
     [
         DashboardTab("Home", "dashboard.index"),
-        DashboardTab("Heroku", "dashboard.heroku", heroku_children),
+        DashboardTab("Heroku", "dashboard.heroku"),
         DashboardTab("MTurk", "dashboard.mturk"),
         DashboardTab("Monitoring", "dashboard.monitoring"),
         DashboardTab("Lifecycle", "dashboard.lifecycle"),
@@ -347,28 +330,30 @@ def index():
 @dashboard.route("/heroku")
 @login_required
 def heroku():
+    """Assemble links from Heroku add-on info, stored in config, plus some
+    standard dashboard links.
+    """
     config = get_config()
-    details = config.get("infrastructure_debug_details", six.text_type("{}"))
-    details = json.loads(details)
+    if config.get("mode") == "debug":
+        flash(
+            "This experiment is running in debug mode and is not deployed to Heroku",
+            "warning",
+        )
+        return render_template("dashboard_heroku.html", links=[])
 
-    dlgr_id = "dlgr-" + config.get("id")[:8]
-    details["HEROKU"] = {
-        "url": "https://dashboard.heroku.com/apps/" + dlgr_id,
-        "title": "Heroku dashboard",
-        "link": True,
-    }
-
-    addon_type = request.args.get("type")
-    if addon_type is None:
-        addon_type = "HEROKU"
-    pane = details.get(addon_type)
-    return render_template(
-        "dashboard_wrapper.html",
-        panes=details,
-        title=pane["title"],
-        url=pane["url"],
-        link=pane.get("link", False),
+    heroku_app = HerokuApp(config.get("heroku_app_id_root"))
+    links = [
+        {"url": heroku_app.dashboard_url, "title": "Heroku dashboard"},
+        {"url": heroku_app.dashboard_metrics_url, "title": "Heroku metrics"},
+    ]
+    details = json.loads(
+        config.get("infrastructure_debug_details", six.text_type("{}"))
     )
+    links.extend(
+        [{"title": v["title"].title(), "url": v["url"]} for v in details.values()]
+    )
+
+    return render_template("dashboard_heroku.html", links=links)
 
 
 tz = get_localzone()
