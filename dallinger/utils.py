@@ -17,6 +17,9 @@ from dallinger.config import get_config
 def get_base_url():
     config = get_config()
     host = os.getenv("HOST", config.get("host"))
+    if host == "0.0.0.0":
+        host = "localhost"
+
     if "herokuapp.com" in host:
         if host.startswith("https://"):
             base_url = host

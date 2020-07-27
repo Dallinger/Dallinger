@@ -887,7 +887,9 @@ class TestDebugServer(object):
         # Only one launch attempt should be made in debug mode
         debugger.out.error.assert_has_calls(
             [
-                mock.call("Error accessing http://0.0.0.0:5000/launch (500):\nFailure"),
+                mock.call(
+                    "Error accessing http://localhost:5000/launch (500):\nFailure"
+                ),
                 mock.call("Experiment launch failed, check web dyno logs for details."),
                 mock.call("msg!"),
             ]
@@ -948,7 +950,7 @@ class TestLoad(object):
                 mock.call("Starting up the server..."),
                 mock.call("Ingesting dataset from some_experiment_id-data.zip..."),
                 mock.call(
-                    "Server is running on http://0.0.0.0:{}. Press Ctrl+C to exit.".format(
+                    "Server is running on http://localhost:{}. Press Ctrl+C to exit.".format(
                         os.environ.get("base_port", 5000)
                     )
                 ),
@@ -972,7 +974,7 @@ class TestLoad(object):
                 mock.call("Starting up the server..."),
                 mock.call("Ingesting dataset from some_experiment_id-data.zip..."),
                 mock.call(
-                    "Server is running on http://0.0.0.0:{}. Press Ctrl+C to exit.".format(
+                    "Server is running on http://localhost:{}. Press Ctrl+C to exit.".format(
                         os.environ.get("base_port", 5000)
                     )
                 ),
