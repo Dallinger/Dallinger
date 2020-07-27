@@ -380,8 +380,6 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
 
     if not config.get("dashboard_password", None):
         config.set("dashboard_password", fake.password(length=20, special_chars=False))
-    if not config.get("dashboard_user", None):
-        config.set("dashboard_user", "admin")
 
     temp_dir = assemble_experiment_temp_dir(config)
     log("Deployment temp directory: {}".format(temp_dir), chevrons=False)

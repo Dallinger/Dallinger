@@ -136,6 +136,7 @@ def stub_config():
         u"dallinger_email_address": u"test@example.com",
         u"database_size": u"standard-0",
         u"redis_size": u"premium-0",
+        u"dashboard_user": u"admin",
         u"database_url": u"postgresql://postgres@localhost/dallinger",
         u"description": u"fake HIT description",
         u"duration": 1.0,
