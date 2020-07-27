@@ -577,9 +577,7 @@ class TestDashboardLifeCycleRoutes(object):
         app_id = active_config.get("heroku_app_id_root")
 
         assert resp.status_code == 200
-        assert "<pre>dallinger destroy --app {}</pre>".format(
-            app_id
-        ) in resp.data.decode("utf8")
+        assert "dallinger destroy --app {}".format(app_id) in resp.data.decode("utf8")
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
