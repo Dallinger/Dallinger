@@ -606,7 +606,7 @@ def lifecycle():
     }
 
     return render_template(
-        "dashboard_cli.html", title="Experiment lifecycle Dashboard", **data
+        "dashboard_lifecycle.html", title="Experiment lifecycle Dashboard", **data
     )
 
 
