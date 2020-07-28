@@ -6,7 +6,7 @@ import multiprocessing
 import os
 from dallinger.config import get_config
 import logging
-from werkzeug.contrib.fixers import ProxyFix
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 logger = logging.getLogger(__file__)
 
