@@ -514,8 +514,8 @@ def mturk_data_source(config):
     except NotUsingMTurkRecruiter:
         if config.get("mode") == "debug":
             flash(
-                "Since you're in debug mode, you're seeing fake data for testing.",
-                "danger",
+                "Debug mode: Fake MTurk information provided for testing only.",
+                "warning",
             )
             return FakeMTurkDataSource()
         else:
@@ -595,7 +595,15 @@ def node_details(object_type, obj_id):
 def lifecycle():
     config = get_config()
 
-    data = {"heroku_app_id": config.get("heroku_app_id_root")}
+    try:
+        mturk = MTurkDashboardInformation(config, mturk_data_source(config))
+    except NotUsingMTurkRecruiter:
+        mturk = None
+
+    data = {
+        "heroku_app_id": config.get("heroku_app_id_root"),
+        "expire_command": mturk.expire_command if mturk else None,
+    }
 
     return render_template(
         "dashboard_cli.html", title="Experiment lifecycle Dashboard", **data
