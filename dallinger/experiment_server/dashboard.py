@@ -503,7 +503,7 @@ class MTurkDashboardInformation(object):
     @property
     def expire_command(self):
         app_id = self._config.get("id")
-        sandbox_option = " --sandbox " if self._source.is_sandbox else ""
+        sandbox_option = " --sandbox " if self._source.is_sandbox else " "
         return "dallinger expire{}--app {}".format(sandbox_option, app_id)
 
 
