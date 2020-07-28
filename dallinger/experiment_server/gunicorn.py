@@ -6,6 +6,7 @@ import multiprocessing
 import os
 from dallinger.config import get_config
 import logging
+from werkzeug.contrib.fixers import ProxyFix
 
 logger = logging.getLogger(__file__)
 
@@ -52,8 +53,11 @@ class StandaloneServer(Application):
     def load(self):
         """Return our application to be run."""
         app = util.import_app("dallinger.experiment_server.sockets:app")
+        app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
         if self.options.get("mode") == "debug":
             app.debug = True
+        else:
+            app = ProxyFix(app)
         return app
 
     def load_user_config(self):
