@@ -37,6 +37,38 @@ class TestAppConfiguration(object):
             StandaloneServer().load()
         assert not webapp.application.debug
 
+    def test_debug_mode_no_proxyfix(self, webapp, active_config):
+        active_config.extend({"mode": u"debug"})
+        from dallinger.experiment_server.gunicorn import StandaloneServer
+
+        with mock.patch("sys.argv", ["gunicorn"]):
+            with mock.patch(
+                "dallinger.experiment_server.gunicorn.ProxyFix"
+            ) as ProxyFix:
+                StandaloneServer().load()
+                ProxyFix.assert_not_called()
+
+    def test_production_mode_load_wraps_proxyfix(self, webapp, active_config):
+        active_config.extend({"mode": u"production"})
+        from dallinger.experiment_server.gunicorn import StandaloneServer
+
+        with mock.patch("sys.argv", ["gunicorn"]):
+            with mock.patch(
+                "dallinger.experiment_server.gunicorn.ProxyFix"
+            ) as ProxyFix:
+                StandaloneServer().load()
+                ProxyFix.called_once_with(webapp.application)
+
+    def test_load_sets_flask_secret_from_env(self, webapp, active_config, env):
+        webapp.application.debug = False
+        from dallinger.experiment_server.gunicorn import StandaloneServer
+
+        env["FLASK_SECRET_KEY"] = "A BAD SECRET KEY"
+        with mock.patch("sys.argv", ["gunicorn"]):
+            StandaloneServer().load()
+        assert webapp.application.secret_key == "A BAD SECRET KEY"
+        assert webapp.application.config["SECRET_KEY"] == "A BAD SECRET KEY"
+
     def test_gunicorn_worker_config(self, webapp, active_config):
         with mock.patch("multiprocessing.cpu_count") as cpu_count:
             active_config.extend({"threads": u"auto"})
