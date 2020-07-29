@@ -287,7 +287,7 @@ def assemble_experiment_temp_dir(config):
         os.path.join("templates", "thanks.html"),
         os.path.join("templates", "waiting.html"),
         os.path.join("templates", "login.html"),
-        os.path.join("templates", "dashboard_cli.html"),
+        os.path.join("templates", "dashboard_lifecycle.html"),
         os.path.join("templates", "dashboard_database.html"),
         os.path.join("templates", "dashboard_heroku.html"),
         os.path.join("templates", "dashboard_home.html"),
