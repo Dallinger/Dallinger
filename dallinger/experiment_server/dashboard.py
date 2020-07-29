@@ -600,9 +600,11 @@ def lifecycle():
     except NotUsingMTurkRecruiter:
         mturk = None
 
+    sandbox_option = " --sandbox " if config.get("mode") == "sandbox" else " "
     data = {
         "heroku_app_id": config.get("heroku_app_id_root"),
         "expire_command": mturk.expire_command if mturk else None,
+        "sandbox_option": sandbox_option,
     }
 
     return render_template(
