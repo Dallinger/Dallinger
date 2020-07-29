@@ -11,7 +11,7 @@
 <h1>Experiment Lifecycle</h1>
 
     <h2>Shut down experiment</h2>
-    <pre id="destroy-command">dallinger destroy --app{{ sandbox_option }}{{ heroku_app_id }}</pre>
+    <pre id="destroy-command">dallinger destroy{{ sandbox_option }}--app {{ heroku_app_id }}</pre>
     <button class="copy-button btn btn-primary"
             data-clipboard-target="#destroy-command"
             data-toggle="popover">Copy</button>
