@@ -1,8 +1,10 @@
 # Change Log
-
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
-- Bugfix: Fixes for Dashboard monitor layout and color issues.
-- New customizable database dashboard for viewing live experiment data.
+
+## [v-6.4.0](https://github.com/dallinger/dallinger/tree/6.4.0) (2020-08003)
+- Bugfix: Fixes for Dashboard monitor layout and color issues
+- New customizable database dashboard for viewing live experiment data
+- Fixes and enhancements to the Lifecycle and Heroku dashboards
 - Use localhost as hostname when running in debug mode by default.
 - Dashboard credentials can now be set using configuration parameters.
 
