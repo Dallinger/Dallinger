@@ -77,6 +77,8 @@ these explicitly:
 
 .. js:autofunction:: dallinger.createParticipant
 
+.. js:autofunction:: dallinger.loadParticipant
+
 .. js:autofunction:: dallinger.hasAdBlocker
 
 .. js:autofunction:: dallinger.submitAssignment

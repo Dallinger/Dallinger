@@ -792,6 +792,27 @@ def get_participant(participant_id):
     return success_response(participant=ppt.__json__())
 
 
+@app.route("/participant", methods=["POST"])
+def load_participant():
+    """Get the participant with an assignment id provided in the request.
+    Delegates to :func:`~dallinger.experiments.Experiment.load_participant`.
+    """
+    assignment_id = request_parameter("assignment_id", optional=True)
+    if assignment_id is None:
+        return error_response(
+            error_type="/participant GET: no participant found", status=403
+        )
+    exp = Experiment(session)
+    ppt = exp.load_participant(assignment_id)
+    if ppt is None:
+        return error_response(
+            error_type="/participant GET: no participant found", status=403
+        )
+
+    # return the data
+    return success_response(participant=ppt.__json__())
+
+
 @app.route("/network/<network_id>", methods=["GET"])
 def get_network(network_id):
     """Get the network with the given id."""

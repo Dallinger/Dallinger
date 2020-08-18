@@ -46,3 +46,7 @@ class TestExperimentBaseClass(object):
     def test_not_overrecruited_if_waiting_equal_to_quorum(self, exp):
         exp.quorum = 1
         assert not exp.is_overrecruited(waiting_count=1)
+
+    def test_load_participant(self, exp, a):
+        p = a.participant()
+        assert exp.load_participant(p.assignment_id) == p

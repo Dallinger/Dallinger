@@ -26,6 +26,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import distinct
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 
 from dallinger import recruiters
 from dallinger.config import get_config, LOCAL_CONFIG
@@ -302,6 +303,21 @@ class Experiment(object):
 
         """
         network.add_node(node)
+
+    def load_participant(self, assignment_id):
+        """Returns a participant object looked up by assignment_id.
+
+        Intended to allow a user to resume a session in a running experiment.
+
+        :param assignment_id: the recruiter Assignment Id
+        :type assignment_id: str
+        :returns: A ``Participant`` instance or ``None`` if there is not a
+                  single matching participant.
+        """
+        try:
+            return Participant.query.filter_by(assignment_id=assignment_id).one()
+        except (NoResultFound, MultipleResultsFound):
+            return None
 
     def data_check(self, participant):
         """Check that the data are acceptable.
