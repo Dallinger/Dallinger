@@ -398,7 +398,7 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
 
 INITIAL_DELAY = 1
 BACKOFF_FACTOR = 2
-MAX_ATTEMPTS = 4
+MAX_ATTEMPTS = 6
 
 
 def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
