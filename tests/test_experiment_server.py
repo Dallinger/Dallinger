@@ -752,6 +752,17 @@ class TestParticipantCreateRoute(object):
 
             yield mock_class
 
+    def test_create_participant_calls_experiment_method(self, a, webapp):
+        p = a.participant()
+        with mock.patch(
+            "dallinger.experiment.Experiment.create_participant"
+        ) as create_participant:
+            create_participant.side_effect = lambda *args: p
+            webapp.post("/participant/1/1/1/debug")
+            create_participant.assert_called_once_with(
+                "1", "1", "1", "debug", None, None
+            )
+
     def test_creates_participant_if_worker_id_unique(self, webapp):
         worker_id = "1"
         hit_id = "1"

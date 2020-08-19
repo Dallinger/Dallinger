@@ -233,7 +233,8 @@ Returns a JSON description of the requested participant as
     POST /participant/<worker_id>/<hit_id>/<assignment_id>/<mode>
 
 Create a participant. Returns a JSON description of the participant as
-``participant``.
+``participant``. Delegates participant creation to
+:func:`~dallinger.experiment.Experiment.create_participant`
 
 ::
 
