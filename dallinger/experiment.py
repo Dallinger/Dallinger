@@ -82,6 +82,7 @@ class Experiment(object):
     channel = None
     exp_config = None
     replay_path = "/"
+    participant_class = Participant
 
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
@@ -303,6 +304,31 @@ class Experiment(object):
 
         """
         network.add_node(node)
+
+    def create_participant(
+        self,
+        worker_id,
+        hit_id,
+        assignment_id,
+        mode,
+        recruiter_name=None,
+        fingerprint_hash=None,
+    ):
+        if not recruiter_name:
+            recruiter = self.recruiter
+            if recruiter:
+                recruiter_name = recruiter.nickname
+
+        participant = self.participant_class(
+            recruiter_id=recruiter_name,
+            worker_id=worker_id,
+            assignment_id=assignment_id,
+            hit_id=hit_id,
+            mode=mode,
+            fingerprint_hash=fingerprint_hash,
+        )
+        self.session.add(participant)
+        return participant
 
     def load_participant(self, assignment_id):
         """Returns a participant object looked up by assignment_id.

@@ -740,13 +740,14 @@ class TestParticipantByAssignmentRoute(object):
 @pytest.mark.slow
 class TestParticipantCreateRoute(object):
     @pytest.fixture
-    def overrecruited(self):
+    def overrecruited(self, a):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
             mock_exp.is_overrecruited.return_value = True
             mock_exp.quorum = 50
+            mock_exp.create_participant.return_value = a.participant()
             mock_class.return_value = mock_exp
 
             yield mock_class
