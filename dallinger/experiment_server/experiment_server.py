@@ -800,13 +800,13 @@ def load_participant():
     assignment_id = request_parameter("assignment_id", optional=True)
     if assignment_id is None:
         return error_response(
-            error_type="/participant GET: no participant found", status=403
+            error_type="/participant POST: no participant found", status=403
         )
     exp = Experiment(session)
     ppt = exp.load_participant(assignment_id)
     if ppt is None:
         return error_response(
-            error_type="/participant GET: no participant found", status=403
+            error_type="/participant POST: no participant found", status=403
         )
 
     # return the data
