@@ -396,7 +396,7 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     return (heroku_app_id, temp_dir)
 
 
-INITIAL_DELAY = 5
+INITIAL_DELAY = 1
 BACKOFF_FACTOR = 2
 MAX_ATTEMPTS = 4
 
@@ -642,12 +642,12 @@ class HerokuLocalDeployment(object):
         self.setup()
         self.update_dir()
         db.init_db(drop_all=True)
-        self.out.log("Starting up the server...")
         config = get_config()
         environ = None
         if self.environ:
             environ = os.environ.copy()
             environ.update(self.environ)
+        self.out.log("Starting up the Heroku Local server...")
         with HerokuLocalWrapper(
             config, self.out, verbose=self.verbose, env=environ
         ) as wrapper:
@@ -704,7 +704,6 @@ class DebugDeployment(HerokuLocalDeployment):
         base_url = get_base_url()
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
-        time.sleep(4)
         try:
             result = _handle_launch_data(
                 "{}/launch".format(base_url), error=self.out.error, attempts=1
