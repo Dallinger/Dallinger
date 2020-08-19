@@ -959,7 +959,7 @@ class TestLoad(object):
 
         loader.out.log.assert_has_calls(
             [
-                mock.call("Starting up the server..."),
+                mock.call("Starting up the Heroku Local server..."),
                 mock.call("Ingesting dataset from some_experiment_id-data.zip..."),
                 mock.call(
                     "Server is running on http://localhost:{}. Press Ctrl+C to exit.".format(
@@ -983,7 +983,7 @@ class TestLoad(object):
 
         replay_loader.out.log.assert_has_calls(
             [
-                mock.call("Starting up the server..."),
+                mock.call("Starting up the Heroku Local server..."),
                 mock.call("Ingesting dataset from some_experiment_id-data.zip..."),
                 mock.call(
                     "Server is running on http://localhost:{}. Press Ctrl+C to exit.".format(
