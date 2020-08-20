@@ -9,11 +9,9 @@ import redis
 import requests
 import shutil
 import six
-import sys
 import tempfile
 import threading
 import time
-import webbrowser
 
 from six.moves import shlex_quote as quote
 from six.moves.urllib.parse import urlparse
@@ -25,60 +23,18 @@ from dallinger import db
 from dallinger import heroku
 from dallinger import recruiters
 from dallinger import registration
-from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.utils import dallinger_package_path
 from dallinger.utils import ensure_directory
 from dallinger.utils import get_base_url
+from dallinger.utils import open_browser
 from dallinger.utils import GitClient
 from faker import Faker
 
 
 fake = Faker()
-
-
-def _make_chrome(path):
-    new_chrome = webbrowser.Chrome()
-    new_chrome.name = path
-    profile_directory = tempfile.mkdtemp()
-    with open(os.path.join(profile_directory, "First Run"), "wb") as firstrun:
-        # This file existing prevents prompts to make the new profile directory
-        # the default
-        firstrun.flush()
-    new_chrome.remote_args = webbrowser.Chrome.remote_args + [
-        '--user-data-dir="{}"'.format(profile_directory),
-        "--no-first-run",
-    ]
-    return new_chrome
-
-
-def new_webbrowser_profile():
-    if is_command("google-chrome"):
-        return _make_chrome("google-chrome")
-    elif is_command("firefox"):
-        new_firefox = webbrowser.Mozilla()
-        new_firefox.name = "firefox"
-        profile_directory = tempfile.mkdtemp()
-        new_firefox.remote_args = [
-            "-profile",
-            profile_directory,
-            "-new-instance",
-            "-no-remote",
-            "-url",
-            "%s",
-        ]
-        return new_firefox
-    elif sys.platform == "darwin":
-        config = get_config()
-        chrome_path = config.get("chrome-path")
-        if os.path.exists(chrome_path):
-            return _make_chrome(chrome_path)
-        else:
-            return webbrowser
-    else:
-        return webbrowser
 
 
 def exclusion_policy():
@@ -396,9 +352,9 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     return (heroku_app_id, temp_dir)
 
 
-INITIAL_DELAY = 5
+INITIAL_DELAY = 1
 BACKOFF_FACTOR = 2
-MAX_ATTEMPTS = 4
+MAX_ATTEMPTS = 6
 
 
 def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
@@ -642,12 +598,12 @@ class HerokuLocalDeployment(object):
         self.setup()
         self.update_dir()
         db.init_db(drop_all=True)
-        self.out.log("Starting up the server...")
         config = get_config()
         environ = None
         if self.environ:
             environ = os.environ.copy()
             environ.update(self.environ)
+        self.out.log("Starting up the Heroku Local server...")
         with HerokuLocalWrapper(
             config, self.out, verbose=self.verbose, env=environ
         ) as wrapper:
@@ -704,7 +660,6 @@ class DebugDeployment(HerokuLocalDeployment):
         base_url = get_base_url()
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
-        time.sleep(4)
         try:
             result = _handle_launch_data(
                 "{}/launch".format(base_url), error=self.out.error, attempts=1
@@ -721,6 +676,9 @@ class DebugDeployment(HerokuLocalDeployment):
                 if not self.no_browsers:
                     self.open_dashboard(dashboard_url)
                 self.heroku = heroku
+                self.out.log(
+                    "Monitoring the Heroku Local server for recruitment or completion..."
+                )
                 heroku.monitor(listener=self.notify)
 
     def launch_request_complete(self, match):
@@ -743,7 +701,7 @@ class DebugDeployment(HerokuLocalDeployment):
         if self.proxy_port is not None:
             self.out.log("Using proxy port {}".format(self.proxy_port))
             url = url.replace(str(get_config().get("base_port")), self.proxy_port)
-        new_webbrowser_profile().open(url, new=1, autoraise=True)
+        open_browser(url)
 
     def display_dashboard_access_details(self, url):
         config = get_config()
@@ -761,7 +719,7 @@ class DebugDeployment(HerokuLocalDeployment):
         parsed[1] = "{}:{}@{}".format(
             config.get("dashboard_user"), config.get("dashboard_password"), parsed[1],
         )
-        new_webbrowser_profile().open(urlunparse(parsed), new=1, autoraise=True)
+        open_browser(urlunparse(parsed))
 
     def recruitment_closed(self, match):
         """Recruitment is closed.
@@ -861,7 +819,7 @@ class LoaderDeployment(HerokuLocalDeployment):
         """
         self.out.log("replay ready!")
         url = match.group(1)
-        new_webbrowser_profile().open(url, new=1, autoraise=True)
+        open_browser(url)
 
     def cleanup(self):
         self.out.log("Terminating dataset load for experiment {}".format(self.exp_id))

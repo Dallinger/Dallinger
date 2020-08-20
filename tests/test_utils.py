@@ -3,6 +3,7 @@ import io
 import locale
 import mock
 import pytest
+import tempfile
 from datetime import datetime
 from datetime import timedelta
 from dallinger import utils, config
@@ -250,3 +251,45 @@ class TestBaseURL(object):
         config.set("base_port", 80)
         config.set("num_dynos_web", 1)
         assert subject() == u"https://dlgr-bogus-2.herokuapp.com"
+
+
+class TestIsolatedWebbrowser(object):
+    def test_chrome_isolation(self):
+        import webbrowser
+
+        with mock.patch("dallinger.utils.is_command") as is_command:
+            is_command.side_effect = lambda s: s == "google-chrome"
+            isolated = utils._new_webbrowser_profile()
+        assert isinstance(isolated, webbrowser.Chrome)
+        assert isolated.remote_args[:2] == [r"%action", r"%s"]
+        assert isolated.remote_args[-2].startswith(
+            '--user-data-dir="{}'.format(tempfile.gettempdir())
+        )
+        assert isolated.remote_args[-1] == r"--no-first-run"
+
+    def test_firefox_isolation(self):
+        import webbrowser
+
+        with mock.patch("dallinger.utils.is_command") as is_command:
+            is_command.side_effect = lambda s: s == "firefox"
+            isolated = utils._new_webbrowser_profile()
+        assert isinstance(isolated, webbrowser.Mozilla)
+        assert isolated.remote_args[0] == "-profile"
+        assert isolated.remote_args[1].startswith(tempfile.gettempdir())
+        assert isolated.remote_args[2:] == [
+            "-new-instance",
+            "-no-remote",
+            "-url",
+            r"%s",
+        ]
+
+    def test_fallback_isolation(self):
+        import webbrowser
+
+        with mock.patch.multiple(
+            "dallinger.utils", is_command=mock.DEFAULT, sys=mock.DEFAULT
+        ) as patches:
+            patches["is_command"].return_value = False
+            patches["sys"].platform = 'anything but "darwin"'
+            isolated = utils._new_webbrowser_profile()
+        assert isolated == webbrowser
