@@ -62,24 +62,22 @@ header = r"""
 )
 
 
-def log(msg, delay=0.5, chevrons=True, verbose=True):
+def log(msg, chevrons=True, verbose=True):
     """Log a message to stdout."""
     if verbose:
         if chevrons:
             click.echo("\n❯❯ " + msg)
         else:
             click.echo(msg)
-        time.sleep(delay)
 
 
-def error(msg, delay=0.5, chevrons=True, verbose=True):
+def error(msg, chevrons=True, verbose=True):
     """Log a message to stdout."""
     if verbose:
         if chevrons:
             click.secho("\n❯❯ " + msg, err=True, fg="red")
         else:
             click.secho(msg, err=True, fg="red")
-        time.sleep(delay)
 
 
 class Output(object):
@@ -216,22 +214,17 @@ def verify_experiment_module(verbose):
     if len(exps) == 0:
         log(
             "✗ experiment.py does not define an experiment class.",
-            delay=0,
             chevrons=False,
             verbose=verbose,
         )
         ok = False
     elif len(exps) == 1:
         log(
-            "✓ experiment.py defines 1 experiment",
-            delay=0,
-            chevrons=False,
-            verbose=verbose,
+            "✓ experiment.py defines 1 experiment", chevrons=False, verbose=verbose,
         )
     else:
         log(
             "✗ experiment.py defines more than one experiment class.",
-            delay=0,
             chevrons=False,
             verbose=verbose,
         )
@@ -254,7 +247,7 @@ def verify_config(verbose=True):
                 message = "Configuration for {} is invalid: ".format(config_key)
             else:
                 message = "Configuration is invalid: "
-            log("✗ " + message + str(e), delay=0, chevrons=False, verbose=verbose)
+            log("✗ " + message + str(e), chevrons=False, verbose=verbose)
 
             config_value = getattr(e, "dallinger_config_value", None)
             if verbose and config_value:
@@ -264,14 +257,13 @@ def verify_config(verbose=True):
     try:
         base_pay = config.get("base_payment")
     except KeyError:
-        log("✗ No value for base_pay.", delay=0, chevrons=False, verbose=verbose)
+        log("✗ No value for base_pay.", chevrons=False, verbose=verbose)
     else:
         dollarFormat = "{:.2f}".format(base_pay)
 
         if base_pay <= 0:
             log(
                 "✗ base_payment must be positive value in config.txt.",
-                delay=0,
                 chevrons=False,
                 verbose=verbose,
             )
@@ -281,7 +273,6 @@ def verify_config(verbose=True):
             log(
                 "✗ base_payment must be in [dollars].[cents] format in config.txt. Try changing "
                 "{0} to {1}.".format(base_pay, dollarFormat),
-                delay=0,
                 chevrons=False,
                 verbose=verbose,
             )
@@ -314,14 +305,13 @@ def verify_no_conflicts(verbose=True):
         if os.path.exists(f):
             log(
                 "✗ {} OVERWRITES shared frontend files inserted at run-time".format(f),
-                delay=0,
                 chevrons=False,
                 verbose=verbose,
             )
             conflicts = True
 
     if not conflicts:
-        log("✓ no file conflicts", delay=0, chevrons=False, verbose=verbose)
+        log("✓ no file conflicts", chevrons=False, verbose=verbose)
 
     return True
 
@@ -541,8 +531,8 @@ def email_test():
     config = get_config()
     config.load()
     settings = EmailConfig(config)
-    out.log("Email Config", delay=0)
-    out.log(tabulate.tabulate(settings.as_dict().items()), chevrons=False, delay=0)
+    out.log("Email Config")
+    out.log(tabulate.tabulate(settings.as_dict().items()), chevrons=False)
     problems = settings.validate()
     if problems:
         out.error(
@@ -609,16 +599,15 @@ def compensate(recruiter, worker_id, email, dollars, sandbox):
                 "Compensation failed. The recruiter reports the following error:\n{}".format(
                     ex
                 ),
-                delay=0,
             )
             return
 
-    out.log("HIT Details", delay=0)
-    out.log(tabulate.tabulate(result["hit"].items()), chevrons=False, delay=0)
-    out.log("Qualification Details", delay=0)
-    out.log(tabulate.tabulate(result["qualification"].items()), chevrons=False, delay=0)
-    out.log("Worker Notification", delay=0)
-    out.log(tabulate.tabulate(result["email"].items()), chevrons=False, delay=0)
+    out.log("HIT Details")
+    out.log(tabulate.tabulate(result["hit"].items()), chevrons=False)
+    out.log("Qualification Details")
+    out.log(tabulate.tabulate(result["qualification"].items()), chevrons=False)
+    out.log("Worker Notification")
+    out.log(tabulate.tabulate(result["email"].items()), chevrons=False)
 
 
 @dallinger.command()
@@ -794,14 +783,11 @@ def extend_mturk_hit(hit_id, assignments, duration_hours, sandbox):
                 hit_id=hit_id, number=assignments, duration_hours=duration_hours
             )
         except MTurkServiceException as ex:
-            out.error(
-                "HIT extension failed with the following error:\n{}".format(ex),
-                delay=0,
-            )
+            out.error("HIT extension failed with the following error:\n{}".format(ex),)
             return
 
-    out.log("Updated HIT Details", delay=0)
-    out.log(tabulate.tabulate(hit_info.items()), chevrons=False, delay=0)
+    out.log("Updated HIT Details")
+    out.log(tabulate.tabulate(hit_info.items()), chevrons=False)
 
 
 @dallinger.command()
@@ -959,15 +945,13 @@ def verify():
     """Verify that app is compatible with Dallinger."""
     verbose = True
     log(
-        "Verifying current directory as a Dallinger experiment...",
-        delay=0,
-        verbose=verbose,
+        "Verifying current directory as a Dallinger experiment...", verbose=verbose,
     )
     ok = verify_package(verbose=verbose)
     if ok:
-        log("✓ Everything looks good!", delay=0, verbose=verbose)
+        log("✓ Everything looks good!", verbose=verbose)
     else:
-        log("☹ Some problems were found.", delay=0, verbose=verbose)
+        log("☹ Some problems were found.", verbose=verbose)
 
 
 @dallinger.command()

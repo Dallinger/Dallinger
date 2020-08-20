@@ -9,9 +9,11 @@ import string
 import subprocess
 import sys
 import tempfile
+import webbrowser
 from pkg_resources import get_distribution
 
 from dallinger.config import get_config
+from dallinger.compat import is_command
 
 
 def get_base_url():
@@ -229,6 +231,53 @@ def wrap_subprocess_call(func, wrap_stdout=True):
 check_call = wrap_subprocess_call(subprocess.check_call)
 call = wrap_subprocess_call(subprocess.call)
 check_output = wrap_subprocess_call(subprocess.check_output, wrap_stdout=False)
+
+
+def open_browser(url):
+    """Open a browser with a fresh profile"""
+    _new_webbrowser_profile().open(url, new=1, autoraise=True)
+
+
+def _make_chrome(path):
+    new_chrome = webbrowser.Chrome()
+    new_chrome.name = path
+    profile_directory = tempfile.mkdtemp()
+    with open(os.path.join(profile_directory, "First Run"), "wb") as firstrun:
+        # This file existing prevents prompts to make the new profile directory
+        # the default
+        firstrun.flush()
+    new_chrome.remote_args = webbrowser.Chrome.remote_args + [
+        '--user-data-dir="{}"'.format(profile_directory),
+        "--no-first-run",
+    ]
+    return new_chrome
+
+
+def _new_webbrowser_profile():
+    if is_command("google-chrome"):
+        return _make_chrome("google-chrome")
+    elif is_command("firefox"):
+        new_firefox = webbrowser.Mozilla()
+        new_firefox.name = "firefox"
+        profile_directory = tempfile.mkdtemp()
+        new_firefox.remote_args = [
+            "-profile",
+            profile_directory,
+            "-new-instance",
+            "-no-remote",
+            "-url",
+            "%s",
+        ]
+        return new_firefox
+    elif sys.platform == "darwin":
+        config = get_config()
+        chrome_path = config.get("chrome-path")
+        if os.path.exists(chrome_path):
+            return _make_chrome(chrome_path)
+        else:
+            return webbrowser
+    else:
+        return webbrowser
 
 
 def struct_to_html(data):
