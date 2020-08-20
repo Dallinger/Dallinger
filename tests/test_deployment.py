@@ -12,7 +12,6 @@ import uuid
 from pytest import raises
 from six.moves import configparser
 
-from dallinger.deployment import new_webbrowser_profile
 from dallinger.config import get_config
 from dallinger import recruiters
 
@@ -30,12 +29,8 @@ def output():
 
 @pytest.fixture
 def browser():
-    import webbrowser
-
-    mock_browser = mock.Mock(spec=webbrowser)
-    with mock.patch("dallinger.deployment.new_webbrowser_profile") as get_browser:
-        get_browser.return_value = mock_browser
-        yield mock_browser
+    with mock.patch("dallinger.deployment.open_browser") as open_browser:
+        yield open_browser
 
 
 @pytest.fixture
@@ -104,48 +99,6 @@ def heroku_mock():
         with mock.patch("dallinger.deployment.HerokuApp") as mock_app_class:
             mock_app_class.return_value = instance
             yield instance
-
-
-class TestIsolatedWebbrowser(object):
-    def test_chrome_isolation(self):
-        import webbrowser
-
-        with mock.patch("dallinger.deployment.is_command") as is_command:
-            is_command.side_effect = lambda s: s == "google-chrome"
-            isolated = new_webbrowser_profile()
-        assert isinstance(isolated, webbrowser.Chrome)
-        assert isolated.remote_args[:2] == [r"%action", r"%s"]
-        assert isolated.remote_args[-2].startswith(
-            '--user-data-dir="{}'.format(tempfile.gettempdir())
-        )
-        assert isolated.remote_args[-1] == r"--no-first-run"
-
-    def test_firefox_isolation(self):
-        import webbrowser
-
-        with mock.patch("dallinger.deployment.is_command") as is_command:
-            is_command.side_effect = lambda s: s == "firefox"
-            isolated = new_webbrowser_profile()
-        assert isinstance(isolated, webbrowser.Mozilla)
-        assert isolated.remote_args[0] == "-profile"
-        assert isolated.remote_args[1].startswith(tempfile.gettempdir())
-        assert isolated.remote_args[2:] == [
-            "-new-instance",
-            "-no-remote",
-            "-url",
-            r"%s",
-        ]
-
-    def test_fallback_isolation(self):
-        import webbrowser
-
-        with mock.patch.multiple(
-            "dallinger.deployment", is_command=mock.DEFAULT, sys=mock.DEFAULT
-        ) as patches:
-            patches["is_command"].return_value = False
-            patches["sys"].platform = 'anything but "darwin"'
-            isolated = new_webbrowser_profile()
-        assert isolated == webbrowser
 
 
 @pytest.mark.usefixtures("in_tempdir")
@@ -833,13 +786,13 @@ class TestDebugServer(object):
             " {} some-fake-url".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
         )
 
-        browser.open.assert_called_once_with("some-fake-url", autoraise=True, new=1)
+        browser.assert_called_once_with("some-fake-url")
 
     def test_new_recruit_no_browser(self, no_browser_debugger, browser):
         no_browser_debugger.notify(
             " {} some-fake-url".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
         )
-        browser.open.assert_not_called()
+        browser.assert_not_called()
 
     def test_new_recruit_opens_browser_on_proxy_port(
         self, active_config, debugger_unpatched, browser
@@ -850,16 +803,14 @@ class TestDebugServer(object):
                 recruiters.NEW_RECRUIT_LOG_PREFIX, active_config.get("base_port")
             )
         )
-        browser.open.assert_called_once_with(
-            "some-fake-url:2222", autoraise=True, new=1
-        )
+        browser.assert_called_once_with("some-fake-url:2222")
 
     def test_new_recruit_not_triggered_if_quoted(self, debugger_unpatched, browser):
         debugger_unpatched.notify(
             ' "{}" some-fake-url'.format(recruiters.NEW_RECRUIT_LOG_PREFIX)
         )
 
-        browser.open.assert_not_called()
+        browser.assert_not_called()
 
     @pytest.mark.skipif(
         not pytest.config.getvalue("runbot"), reason="--runbot was specified"
