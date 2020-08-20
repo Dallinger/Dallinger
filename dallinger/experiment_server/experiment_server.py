@@ -742,35 +742,28 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
         + 1
     )
 
-    recruiter_name = request.args.get("recruiter", "undefined")
-    if not recruiter_name or recruiter_name == "undefined":
-        recruiter = recruiters.from_config(_config())
-        if recruiter:
-            recruiter_name = recruiter.nickname
+    recruiter_name = request.args.get("recruiter")
 
     # Create the new participant.
-    participant = models.Participant(
-        recruiter_id=recruiter_name,
-        worker_id=worker_id,
-        assignment_id=assignment_id,
-        hit_id=hit_id,
-        mode=mode,
-        fingerprint_hash=fingerprint_hash,
+    exp = Experiment(session)
+    participant = exp.create_participant(
+        worker_id, hit_id, assignment_id, mode, recruiter_name, fingerprint_hash
     )
 
-    exp = Experiment(session)
-
+    session.flush()
     overrecruited = exp.is_overrecruited(nonfailed_count)
     if overrecruited:
         participant.status = "overrecruited"
 
-    session.add(participant)
-    session.flush()  # Make sure we know the id for the new row
     result = {"participant": participant.__json__()}
 
     # Queue notification to others in waiting room
     if exp.quorum:
-        quorum = {"q": exp.quorum, "n": nonfailed_count, "overrecruited": overrecruited}
+        quorum = {
+            "q": exp.quorum,
+            "n": nonfailed_count,
+            "overrecruited": participant.status == "overrecruited",
+        }
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
         result["quorum"] = quorum
 

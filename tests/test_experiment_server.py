@@ -740,16 +740,28 @@ class TestParticipantByAssignmentRoute(object):
 @pytest.mark.slow
 class TestParticipantCreateRoute(object):
     @pytest.fixture
-    def overrecruited(self):
+    def overrecruited(self, a):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
             mock_exp.is_overrecruited.return_value = True
             mock_exp.quorum = 50
+            mock_exp.create_participant.return_value = a.participant()
             mock_class.return_value = mock_exp
 
             yield mock_class
+
+    def test_create_participant_calls_experiment_method(self, a, webapp):
+        p = a.participant()
+        with mock.patch(
+            "dallinger.experiment.Experiment.create_participant"
+        ) as create_participant:
+            create_participant.side_effect = lambda *args: p
+            webapp.post("/participant/1/1/1/debug")
+            create_participant.assert_called_once_with(
+                "1", "1", "1", "debug", None, None
+            )
 
     def test_creates_participant_if_worker_id_unique(self, webapp):
         worker_id = "1"

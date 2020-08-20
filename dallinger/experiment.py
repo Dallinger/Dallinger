@@ -83,6 +83,11 @@ class Experiment(object):
     exp_config = None
     replay_path = "/"
 
+    #: Constructor for Participant objects. Callable returning an instance of
+    #: :attr:`~dallinger.models.Participant` or a sub-class. Used by
+    #: :func:`~dallinger.experiment.Experiment.create_participant`.
+    participant_constructor = Participant
+
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
 
@@ -303,6 +308,47 @@ class Experiment(object):
 
         """
         network.add_node(node)
+
+    def create_participant(
+        self,
+        worker_id,
+        hit_id,
+        assignment_id,
+        mode,
+        recruiter_name=None,
+        fingerprint_hash=None,
+    ):
+        """Creates and returns a new participant object. Uses
+        :attr:`~dallinger.experiment.Experiment.participant_constructor` as the
+        constructor.
+
+        :param worker_id: the recruiter Worker Id
+        :type worker_id: str
+        :param hit_id: the recruiter HIT Id
+        :type hit_id: str
+        :param assignment_id: the recruiter Assignment Id
+        :type assignment_id: str
+        :param mode: the application mode
+        :type mode: str
+        :param recruiter_name: the recruiter name
+        :type recruiter_name: str
+        :returns: A :attr:`~dallinger.models.Participant` instance
+        """
+        if not recruiter_name:
+            recruiter = self.recruiter
+            if recruiter:
+                recruiter_name = recruiter.nickname
+
+        participant = self.participant_constructor(
+            recruiter_id=recruiter_name,
+            worker_id=worker_id,
+            assignment_id=assignment_id,
+            hit_id=hit_id,
+            mode=mode,
+            fingerprint_hash=fingerprint_hash,
+        )
+        self.session.add(participant)
+        return participant
 
     def load_participant(self, assignment_id):
         """Returns a participant object looked up by assignment_id.

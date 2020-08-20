@@ -3,6 +3,9 @@
 - New `dallinger.loadParticipant` function to load participant data into the browser
   based on an `assignmentId`
 - Performance improvement: `dallinger debug` now starts up in about half the time
+- Delegates participant creation to Experiment `create_participant` method and
+  `participant_constructor` attribute to allow experiments to specify custom
+  Participant classes.
 
 ## [v-6.4.0](https://github.com/dallinger/dallinger/tree/6.4.0) (2020-08003)
 - Bugfix: Fixes for Dashboard monitor layout and color issues

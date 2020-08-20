@@ -36,6 +36,9 @@ what to do with the database when the server receives requests from outside.
   .. autoinstanceattribute:: known_classes
     :annotation:
 
+  .. autoinstanceattribute:: participant_constructor
+    :annotation:
+
   .. autoinstanceattribute:: public_properties
     :annotation:
 
@@ -63,7 +66,7 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: create_node
 
-  .. automethod:: load_participant
+  .. automethod:: create_participant
 
   .. automethod:: data_check
 
@@ -82,6 +85,8 @@ what to do with the database when the server receives requests from outside.
   .. automethod:: is_complete
 
   .. automethod:: is_overrecruited
+
+  .. automethod:: load_participant
 
   .. automethod:: log
 
