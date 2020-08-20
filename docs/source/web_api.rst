@@ -237,6 +237,13 @@ Create a participant. Returns a JSON description of the participant as
 
 ::
 
+    POST /participant
+
+Loads a participant from a running experiment by ``assignment_id`` and
+returns a JSON description. ``assignment_id`` should be passed as data.
+
+::
+
     POST /question/<participant_id>
 
 Create a question. ``question``, ``response`` and ``question_id`` should

@@ -1,5 +1,7 @@
 # Change Log
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
+- New `dallinger.loadParticipant` function to load participant data into the browser
+  based on an `assignmentId`
 - Performance improvement: `dallinger debug` now starts up in about half the time
 
 ## [v-6.4.0](https://github.com/dallinger/dallinger/tree/6.4.0) (2020-08003)

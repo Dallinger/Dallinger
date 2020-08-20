@@ -63,6 +63,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: create_node
 
+  .. automethod:: load_participant
+
   .. automethod:: data_check
 
   .. automethod:: data_check_failed
