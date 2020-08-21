@@ -488,9 +488,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     config.extend({"database_url": heroku_app.db_url})
     config.write()
     git.add("config.txt")
-    time.sleep(0.25)
     git.commit("Save URL for database")
-    time.sleep(0.25)
 
     log("Generating dashboard links...")
     heroku_addons = heroku_app.addon_parameters()
@@ -500,9 +498,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     config.extend({"infrastructure_debug_details": heroku_addons})
     config.write()
     git.add("config.txt")
-    time.sleep(0.25)
     git.commit("Save URLs for heroku addon management")
-    time.sleep(0.25)
 
     # Launch the Heroku app.
     log("Pushing code to Heroku...")
@@ -516,8 +512,6 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         heroku_app.scale_up_dyno(process, qty, size)
     if config.get("clock_on"):
         heroku_app.scale_up_dyno("clock", 1, size)
-
-    time.sleep(8)
 
     # Launch the experiment.
     log("Launching the experiment on the remote server and starting recruitment...")
