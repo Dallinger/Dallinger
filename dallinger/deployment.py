@@ -396,7 +396,9 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
     launch_request.raise_for_status()
 
 
-def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
+def deploy_sandbox_shared_setup(
+    log, verbose=True, app=None, exp_config=None, postlaunch_actions=None
+):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
         out = None
@@ -524,6 +526,11 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
         "dashboard_url": "{}/dashboard/".format(heroku_app.url),
         "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
+
+    if postlaunch_actions is not None:
+        for task in postlaunch_actions:
+            task(heroku_app, config, launch_data)
+
     log("Experiment details:")
     log("App home: {}".format(result["app_home"]), chevrons=False)
     log("Dashboard URL: {}".format(result["dashboard_url"]), chevrons=False)
@@ -547,7 +554,7 @@ def deploy_sandbox_shared_setup(log, verbose=True, app=None, exp_config=None):
     return result
 
 
-def _deploy_in_mode(mode, app, verbose, log):
+def _deploy_in_mode(mode, app, verbose, log, postlaunch_actions):
     # Load configuration.
     config = get_config()
     config.load()
@@ -556,7 +563,9 @@ def _deploy_in_mode(mode, app, verbose, log):
     config.extend({"mode": mode, "logfile": "-"})
 
     # Do shared setup.
-    deploy_sandbox_shared_setup(log, verbose=verbose, app=app)
+    deploy_sandbox_shared_setup(
+        log, verbose=verbose, app=app, postlaunch_actions=postlaunch_actions
+    )
 
 
 class HerokuLocalDeployment(object):

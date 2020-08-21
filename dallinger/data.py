@@ -269,6 +269,15 @@ def export(id, local=False, scrub_pii=False):
     return path_to_data
 
 
+def bootstrap_db_from_zip(zip_path, engine):
+    """Given a path to a zip archive created with `export()`, first empty the
+    database, then recreate it based on the data stored in the included .csv
+    files.
+    """
+    db.init_db(drop_all=True, bind=engine)
+    ingest_zip(zip_path, engine=engine)
+
+
 def ingest_zip(path, engine=None):
     """Given a path to a zip file created with `export()`, recreate the
     database with the data stored in the included .csv files.

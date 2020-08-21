@@ -53,6 +53,10 @@ Consult the developer guide for more information.
 """
 
 
+def create_db_engine(db_url, pool_size=1000):
+    return create_engine(db_url, pool_size=pool_size)
+
+
 def check_connection():
     """Test that postgres is running and that we can connect using the
     configured URI.
