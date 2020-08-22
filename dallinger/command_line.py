@@ -471,14 +471,10 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
             )
         postlaunch.append(postlaunch_db_bootstrapper(archive_path, log))
 
-    # Load configuration.
     config = get_config()
     config.load()
-
-    # Set the mode.
     config.extend({"mode": mode, "logfile": "-"})
 
-    # Do shared setup.
     deploy_sandbox_shared_setup(
         log=log, verbose=verbose, app=app, postlaunch_actions=postlaunch
     )
