@@ -67,7 +67,7 @@
           $copyBox.text(e.text);
           $copyResult.removeClass("invisible");
         });
-        commandCB.on("failure", e => {
+        commandCB.on("error", e => {
           $copyResult.removeClass("invisible");
           $copyResult.find('> strong').text('Could not copy command to clibpoard!');
           $copyResult.removeClass('alert-success').addClass('alert-warning');
