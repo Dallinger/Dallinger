@@ -20,7 +20,7 @@ from flask_login.utils import login_url as make_login_url
 from dallinger import recruiters
 from dallinger.heroku.tools import HerokuApp
 from dallinger.config import get_config
-from .utils import date_handler
+from .utils import date_handler, error_response, success_response
 
 
 logger = logging.getLogger(__name__)
@@ -613,13 +613,20 @@ def lifecycle():
 
 
 TABLE_DEFAULTS = {
-    "dom": "frtilpP",
+    "dom": "frtilBpP",
     "ordering": True,
     "searching": True,
     "select": True,
     "paging": True,
     "lengthChange": True,
     "searchPanes": {"threshold": 0.99},
+    "buttons": [
+        {
+            "extend": "collection",
+            "text": "export",
+            "buttons": ["export_json", "csvHtml5", "print",],
+        },
+    ],
 }
 
 
@@ -696,11 +703,61 @@ def database():
         for c in datatables_options.get("columns", [])
         if c.get("data")
     ]
+
+    # Extend with custom actions
+    actions = {
+        "extend": "collection",
+        "text": "actions",
+        "buttons": [],
+    }
+    buttons = actions["buttons"]
+
+    exp_actions = exp.dashboard_database_actions()
+    for action in exp_actions:
+        buttons.append(
+            {
+                "extend": "route_action",
+                "text": action["title"],
+                "route_name": action["name"],
+            }
+        )
+
+    is_sandbox = getattr(recruiters.from_config(get_config()), "is_sandbox", None)
+    if is_sandbox is not None:
+        buttons.append("compensate")
+
+    if len(buttons):
+        datatables_options["buttons"].append(actions)
+
     return render_template(
         "dashboard_database.html",
         title=title,
         columns=columns,
+        is_sandbox=is_sandbox,
         datatables_options=json.dumps(
             datatables_options, default=date_handler, indent=True
         ),
     )
+
+
+@dashboard.route("/database/action/<route_name>", methods=["POST"])
+@login_required
+def database_action(route_name):
+    from dallinger.experiment_server.experiment_server import Experiment, session
+
+    data = request.json
+    exp = Experiment(session)
+    if route_name not in {a["name"] for a in exp.dashboard_database_actions()}:
+        return error_response(
+            error_text="Access to {} not allowed".format(route_name), status=403
+        )
+    route_func = getattr(exp, route_name, None)
+    if route_func is None:
+        return error_response(
+            error_text="Method {} not found".format(route_name), status=404
+        )
+    result = route_func(data)
+    session.commit()
+    if result.get("message"):
+        flash(result["message"], "success")
+    return success_response(**result)

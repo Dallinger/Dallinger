@@ -252,6 +252,15 @@ def logged_in(webapp, csrf_token):
     yield webapp
 
 
+@pytest.fixture
+def mock_renderer(logged_in):
+    with mock.patch(
+        "dallinger.experiment_server.dashboard.render_template"
+    ) as renderer:
+        renderer.return_value = ""
+        yield logged_in, renderer
+
+
 @pytest.mark.usefixtures("experiment_dir_merged")
 class TestDashboardCoreRoutes(object):
     def test_debug_dashboad_unauthorized(self, webapp):
@@ -621,7 +630,7 @@ class TestDashboardDatabase(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/database").status_code == 401
 
-    def test_includes_destroy_command(self, active_config, logged_in):
+    def test_render(self, active_config, logged_in):
         resp = logged_in.get("/dashboard/database?model_type=Network")
 
         assert resp.status_code == 200
@@ -660,6 +669,15 @@ class TestDashboardDatabase(object):
                 break
         else:
             raise KeyError("'id' not in Node columns")
+
+        p = a.participant()
+        table = exp.table_data(model_type="Participant")
+        assert len(table["data"]) == 1
+        assert table["data"][0]["id"] == p.id
+        assert table["data"][0]["type"] == p.type
+        assert table["data"][0]["worker_id"] == p.worker_id
+        assert table["data"][0]["recruiter"] == p.recruiter_id
+        assert len(table["columns"]) == len(table["data"][0])
 
     def test_prep_datatables_options_renders_dicts(self):
         from dallinger.experiment_server.dashboard import prep_datatables_options
@@ -757,3 +775,136 @@ class TestDashboardDatabase(object):
         assert len(row1) == 2
         assert row2["col1"] == "String 3"
         assert row2["col1_display"] == '<code>"String 3"</code>'
+
+    def test_database_output(self, a, active_config, mock_renderer):
+        import json
+
+        webapp, renderer = mock_renderer
+        p = a.participant()
+        webapp.get("/dashboard/database?model_type=Participant")
+        renderer.assert_called_once()
+        render_args = renderer.call_args[1]
+        dt_options = json.loads(render_args["datatables_options"])
+        # We have two sets of buttons, exports and actions
+        exports = dt_options["buttons"][0]
+        actions = dt_options["buttons"][1]
+        assert actions["text"] == "actions"
+        assert exports["text"] == "export"
+        # We are using a recruiter where compensation isn't possible
+        assert render_args["is_sandbox"] is None
+        assert "compensate" not in dt_options["buttons"][1]["buttons"]
+        # We have one route based action
+        assert actions["buttons"][0] == {
+            "extend": "route_action",
+            "text": "Fail Selected",
+            "route_name": "dashboard_fail",
+        }
+        # We have a custom JSON export action
+        assert "export_json" in exports["buttons"]
+
+        # Let's look at the data
+        data = dt_options["data"]
+        assert len(data) == 1
+        participant_data = data[0]
+        assert participant_data["id"] == p.id
+        assert participant_data["object_type"] == "Participant"
+        assert participant_data["assignment_id"] == p.assignment_id
+
+    def test_actions_with_mturk(self, a, active_config, mock_renderer):
+        webapp, renderer = mock_renderer
+        active_config.extend({"mode": "live", "recruiter": "mturk"})
+        webapp.get("/dashboard/database?model_type=Participant")
+        render_args = renderer.call_args[1]
+        assert render_args["is_sandbox"] is False
+
+        active_config.extend({"mode": "sandbox", "recruiter": "mturk"})
+        webapp.get("/dashboard/database?model_type=Participant")
+        render_args = renderer.call_args[1]
+        assert render_args["is_sandbox"] is True
+
+    def test_output_with_custom_actions(self, a, active_config, mock_renderer):
+        import json
+
+        webapp, renderer = mock_renderer
+        with mock.patch(
+            "dallinger.experiment.Experiment.dashboard_database_actions"
+        ) as actions:
+            actions.return_value = [
+                {"name": "special_action", "title": "Special Action"}
+            ]
+            webapp.get("/dashboard/database?model_type=Participant")
+            render_args = renderer.call_args[1]
+            dt_options = json.loads(render_args["datatables_options"])
+            actions = dt_options["buttons"][1]
+            assert actions["buttons"] == [
+                {
+                    "extend": "route_action",
+                    "text": "Special Action",
+                    "route_name": "special_action",
+                }
+            ]
+
+
+@pytest.mark.usefixtures("experiment_dir_merged")
+class TestDashboardDatabaseActions(object):
+    def test_action_routes_require_login(self, webapp):
+        assert (
+            webapp.post("/dashboard/database/action/dashboard_fail").status_code == 401
+        )
+
+    def test_disallowed_action(self, logged_in):
+        resp = logged_in.post("/dashboard/database/action/evil_action")
+        resp.status_code == 403
+        assert resp.json["status"] == "error"
+        assert "Access to evil_action not allowed" in resp.json["html"]
+
+    def test_missing_action(self, logged_in):
+        with mock.patch(
+            "dallinger.experiment.Experiment.dashboard_database_actions"
+        ) as actions:
+            actions.return_value = [
+                {"name": "missing_action", "title": "Missing Action"}
+            ]
+            resp = logged_in.post("/dashboard/database/action/missing_action")
+            resp.status_code == 404
+            assert resp.json["status"] == "error"
+            assert "Method missing_action not found" in resp.json["html"]
+
+    def test_custom_action(self, logged_in):
+        from dallinger.experiment import Experiment
+
+        with mock.patch.object(Experiment, "dashboard_database_actions") as actions:
+            actions.return_value = [
+                {"name": "custom_test_action", "title": "Custom Action"}
+            ]
+            Experiment.custom_test_action = mock.Mock("Custom Action")
+            Experiment.custom_test_action.return_value = {"message": "Way to go!"}
+            resp = logged_in.post(
+                "/dashboard/database/action/custom_test_action", json=[]
+            )
+            del Experiment.custom_test_action
+        resp.status_code == 200
+        assert resp.json == {"status": "success", "message": "Way to go!"}
+
+    def test_fail_route(self, logged_in):
+        resp = logged_in.post(
+            "/dashboard/database/action/dashboard_fail",
+            json=[{"id": 1, "object_type": "Participant"}],
+        )
+        resp.status_code == 200
+        assert resp.json == {"status": "success", "message": "No nodes found to fail"}
+
+    def test_fail_route_fails_participant(self, logged_in, a, db_session):
+        p = a.participant()
+        p_id = p.id
+        assert p.failed is False
+        resp = logged_in.post(
+            "/dashboard/database/action/dashboard_fail",
+            json=[{"id": p_id, "object_type": "Participant"}],
+        )
+        resp.status_code == 200
+        assert resp.json == {"status": "success", "message": "Failed 1 Participants"}
+        from dallinger.models import Participant
+
+        p = db_session.query(Participant).get(p_id)
+        assert p.failed is True

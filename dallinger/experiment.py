@@ -899,7 +899,7 @@ class Experiment(object):
         :param \**kw: arguments passed in from the request. The ``model_type`` parameter
                       takes a ``str`` or iterable and queries all objects of those types,
                       ordered by ``id``.
-        :returns: Returns a a ``dict`` with DataTablesJS data and configuration, filters using
+        :returns: Returns a ``dict`` with DataTablesJS data and configuration, filters using
                   arbitrary keyword arguments. Should contain ``data`` and ``columns`` keys
                   at least, with ``columns`` containing data for all fields on all returned
                   objects.
@@ -915,6 +915,10 @@ class Experiment(object):
             model = getattr(models, model_type, None)
             for obj in model.query.order_by(model.id).all():
                 data = obj.__json__()
+                # Add participant worker_id to data, we normally leave it out of
+                # JSON renderings
+                if model_type == "Participant":
+                    data["worker_id"] = obj.worker_id
                 rows.append(data)
                 for key in data:
                     if key not in found_columns:
@@ -930,6 +934,51 @@ class Experiment(object):
         return {
             "data": rows,
             "columns": columns,
+        }
+
+    def dashboard_database_actions(self):
+        """Returns a sequence of custom actions for the database dashboard. Each action
+           must have a ``title`` and a ``name`` corresponding to a method on the
+           experiment class.
+
+           The named methods should take a single ``data`` argument
+           which will be a list of dicts representing the datatables rendering of
+           a Dallinger model object. The named methods should return a ``dict``
+           containing a ``"message"`` which will be displayed in the dashboard.
+
+           Returns a single action referencing the
+           :func:`~dallinger.experiment.Experiment.dashboard_fail`
+           method by default.
+        """
+        return [{"name": "dashboard_fail", "title": "Fail Selected"}]
+
+    def dashboard_fail(self, data):
+        """Marks matching non-failed items as failed. Items are looked up by
+        ``id`` and ``object_type`` (e.g. ``"Participant"``).
+
+        :param data: A list of dicts representing model items to be marked as failed.
+                     Each must have an ``id`` and an ``object_type``
+        :type object_type: list
+
+        :returns: Returns a ``dict`` with a ``"message"`` string indicating how
+                  many items were successfully marked as failed.
+        """
+        counts = {}
+        for entry in data:
+            obj_id = entry.get("id")
+            object_type = entry.get("object_type")
+            model = getattr(models, object_type, None)
+            if model is not None:
+                obj = self.session.query(model).get(int(obj_id))
+                if obj is not None and not obj.failed:
+                    obj.fail()
+                    counts[object_type] = counts.get(object_type, 0) + 1
+        if not counts:
+            return {"message": "No nodes found to fail"}
+        return {
+            "message": "Failed {}".format(
+                ", ".join("{} {}s".format(c, t) for t, c in counts.items())
+            )
         }
 
     @property

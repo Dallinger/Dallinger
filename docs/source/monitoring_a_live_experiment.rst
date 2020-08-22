@@ -130,6 +130,16 @@ the DataTables data returned by the
 
     .. automethod:: table_data
 
+    .. automethod:: dashboard_database_actions
+       :noindex:
+
+You may also add new actions to the dashboard database view by adding additional
+``title`` and ``name`` pairs to the
+:func:`~dallinger.experiment.Experiment.dashboard_database_actions` output along
+with corresponding methods that process submitted data. The
+:func:`~dallinger.experiment.Experiment.dashboard_fail` method is an example of
+such an action.
+
 
 Papertrail
 ----------

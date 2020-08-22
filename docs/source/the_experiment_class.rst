@@ -68,6 +68,10 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: create_participant
 
+  .. automethod:: dashboard_database_actions
+
+  .. automethod:: dashboard_fail
+
   .. automethod:: data_check
 
   .. automethod:: data_check_failed
