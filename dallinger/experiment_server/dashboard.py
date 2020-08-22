@@ -624,7 +624,7 @@ TABLE_DEFAULTS = {
         {
             "extend": "collection",
             "text": "export",
-            "buttons": ["export_json", "csvHtml5", "print",],
+            "buttons": ["export_json", "csvHtml5", "print"],
         },
     ],
 }
