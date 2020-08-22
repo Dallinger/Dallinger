@@ -36,8 +36,8 @@
     };
 
     $(function () {
-      var globals = templateGlobals();
-      var flashMessage = function (msg, level) {
+      const globals = templateGlobals();
+      const flashMessage = function (msg, level) {
         level = level ? level : 'info';
         const $message = $('<div />').addClass('alert')
           .addClass('alert-' + level).attr('role', 'alert').text(msg);
@@ -46,11 +46,11 @@
           scrollTop: $message.offset().top
         }, 500);
       };
-      var eraseMessages = function() {
+      const eraseMessages = function() {
         $('div.alert, #copy-container').remove();
       }
 
-      var copyBox = function(command) {
+      const copyBox = function(command) {
         const $copyContainer = $('<div id="copy-container"/>');
         const $copyButton = $('<button type="button" id="copy-command-button">Copy CLI command to clipboard</button>');
         const $copyResult = $('<div id="copy-result" class="alert alert-success invisible"><strong>Dallinger CLI command copied to clipboard!</strong></div');
@@ -82,7 +82,7 @@
           const data = dt.buttons.exportData();
           const body = data.body;
           const header = data.header;
-          var data_export = [];
+          const data_export = [];
           var i, j, row, item;
           for (i = 0; i < body.length; i++) {
             row = body[i];
@@ -107,13 +107,14 @@
         text: 'Route Based Action',
         route_name: null,
         action: function (e, dt, node, config) {
-          var that = this, selected_rows = [], i;
+          const that = this;
+          const selected_rows = [];
           eraseMessages();
           if (!config.route_name) {
             return;
           }
           const selected = dt.rows( { selected: true } ).data();
-          for (i = 0; i < selected.length; i++) {
+          for (var i = 0; i < selected.length; i++) {
             selected_rows.push(selected[i]);
           }
           if (selected_rows.length) {
