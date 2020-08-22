@@ -107,6 +107,7 @@
         text: 'Route Based Action',
         route_name: null,
         action: function (e, dt, node, config) {
+          var confirm;
           const that = this;
           const selected_rows = [];
           eraseMessages();
@@ -119,6 +120,14 @@
           }
           if (selected_rows.length) {
             this.processing(true);
+            confirm = window.confirm(
+              'Are you sure you want to "' + config.text + '" on ' + selected_rows.length + ' items'
+            );
+            if (!confirm) {
+              this.processing(false);
+              flashMessage('Action cancelled', 'info');
+              return
+            }
             $.ajax({
               url: '/dashboard/database/action/' + config.route_name,
               data: JSON.stringify(selected_rows),

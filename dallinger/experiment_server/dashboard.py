@@ -623,7 +623,7 @@ TABLE_DEFAULTS = {
     "buttons": [
         {
             "extend": "collection",
-            "text": "export",
+            "text": "Export",
             "buttons": ["export_json", "csvHtml5", "print"],
         },
     ],
@@ -707,7 +707,7 @@ def database():
     # Extend with custom actions
     actions = {
         "extend": "collection",
-        "text": "actions",
+        "text": "Actions",
         "buttons": [],
     }
     buttons = actions["buttons"]

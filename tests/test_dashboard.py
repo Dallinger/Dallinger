@@ -788,8 +788,8 @@ class TestDashboardDatabase(object):
         # We have two sets of buttons, exports and actions
         exports = dt_options["buttons"][0]
         actions = dt_options["buttons"][1]
-        assert actions["text"] == "actions"
-        assert exports["text"] == "export"
+        assert actions["text"] == "Actions"
+        assert exports["text"] == "Export"
         # We are using a recruiter where compensation isn't possible
         assert render_args["is_sandbox"] is None
         assert "compensate" not in dt_options["buttons"][1]["buttons"]
