@@ -554,20 +554,6 @@ def deploy_sandbox_shared_setup(
     return result
 
 
-def _deploy_in_mode(mode, app, verbose, log, postlaunch_actions):
-    # Load configuration.
-    config = get_config()
-    config.load()
-
-    # Set the mode.
-    config.extend({"mode": mode, "logfile": "-"})
-
-    # Do shared setup.
-    deploy_sandbox_shared_setup(
-        log, verbose=verbose, app=app, postlaunch_actions=postlaunch_actions
-    )
-
-
 class HerokuLocalDeployment(object):
 
     exp_id = None

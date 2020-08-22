@@ -225,8 +225,7 @@ class TestDebugCommand(object):
         deployment.assert_called_once()
 
 
-@pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
-@pytest.mark.slow
+@pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
 class TestSandboxAndDeploy(object):
     @pytest.fixture
     def sandbox(self):
@@ -241,53 +240,63 @@ class TestSandboxAndDeploy(object):
         return deploy
 
     @pytest.fixture
-    def deploy_in_mode(self):
-        with mock.patch("dallinger.command_line._deploy_in_mode") as mock_dim:
-            yield mock_dim
+    def dsss(self):
+        with mock.patch(
+            "dallinger.command_line.deploy_sandbox_shared_setup"
+        ) as mock_dsss:
+            yield mock_dsss
 
-    def test_sandbox_fails_if_run_outside_experiment_dir(self, sandbox, deploy_in_mode):
+    def test_fails_if_run_outside_experiment_dir(self, sandbox, dsss):
         exp_dir = os.getcwd()
         os.chdir("..")
         result = CliRunner().invoke(sandbox, [])
         os.chdir(exp_dir)
 
-        deploy_in_mode.assert_not_called()
+        dsss.assert_not_called()
         assert result.exit_code == 2
         assert "directory is not a valid Dallinger experiment" in result.output
 
-    def test_sandbox_with_app_id(self, sandbox, deploy_in_mode):
+    def test_uses_specified_app_id(self, sandbox, dsss):
         CliRunner().invoke(sandbox, ["--verbose", "--app", "some app id"])
-        deploy_in_mode.assert_called_once_with(
-            "sandbox", app="some app id", verbose=True, log=mock.ANY
+        dsss.assert_called_once_with(
+            app="some app id", verbose=True, log=mock.ANY, postlaunch_actions=[]
         )
 
-    def test_sandbox_with_no_app_id(self, sandbox, deploy_in_mode):
+    def test_works_with_no_app_id(self, sandbox, dsss):
         CliRunner().invoke(sandbox, ["--verbose"])
-        deploy_in_mode.assert_called_once_with(
-            "sandbox", app=None, verbose=True, log=mock.ANY
+        dsss.assert_called_once_with(
+            app=None, verbose=True, log=mock.ANY, postlaunch_actions=[]
         )
 
-    def test_sandbox_with_invalid_app_id(self, sandbox, deploy_in_mode):
+    def test_sandbox_puts_mode_in_config(self, sandbox, active_config, dsss):
+        CliRunner().invoke(sandbox, ["--verbose"])
+        assert active_config.get("mode") == "sandbox"
+
+    def test_deploy_puts_mode_in_config(self, deploy, active_config, dsss):
+        CliRunner().invoke(deploy, ["--verbose"])
+        assert active_config.get("mode") == "live"
+
+    def test_sets_logfile_to_dash_for_some_reason(self, sandbox, active_config, dsss):
+        CliRunner().invoke(sandbox, ["--verbose"])
+        assert active_config.get("logfile") == "-"
+
+    def test_rejects_invalid_app_id(self, sandbox, dsss):
         result = CliRunner().invoke(sandbox, ["--verbose", "--app", "dlgr-some app id"])
-        deploy_in_mode.assert_not_called()
+        dsss.assert_not_called()
         assert result.exit_code == -1
         assert "The --app parameter requires the full UUID" in str(result.exception)
 
-    def test_deploy_with_app_id(self, deploy, deploy_in_mode):
-        CliRunner().invoke(deploy, ["--verbose", "--app", "some app id"])
-        deploy_in_mode.assert_called_once_with(
-            "live", app="some app id", verbose=True, log=mock.ANY
+    def test_accepts_valid_archive_path(self, sandbox, tempdir, dsss):
+        CliRunner().invoke(sandbox, ["--verbose", "--archive", tempdir])
+
+        dsss.assert_called_once_with(
+            app=None, verbose=True, log=mock.ANY, postlaunch_actions=[mock.ANY]
         )
 
-    def test_deploy_fails_if_run_outside_experiment_dir(self, deploy, deploy_in_mode):
-        exp_dir = os.getcwd()
-        os.chdir("..")
-        result = CliRunner().invoke(deploy, [])
-        os.chdir(exp_dir)
+    def test_rejects_invalid_archive_path(self, sandbox, dsss):
+        CliRunner().invoke(sandbox, ["--verbose", "--archive", "nonexistent/path"])
 
-        deploy_in_mode.assert_not_called()
-        assert result.exit_code == 2
-        assert "directory is not a valid Dallinger experiment" in result.output
+        dsss.assert_not_called()
 
 
 class TestLoad(object):

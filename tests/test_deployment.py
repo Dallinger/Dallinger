@@ -619,31 +619,6 @@ class TestDeploySandboxSharedSetupFullSystem(object):
         assert app_name.startswith("dlgr")
 
 
-@pytest.mark.usefixtures("active_config")
-class Test_deploy_in_mode(object):
-    @pytest.fixture
-    def dim(self):
-        from dallinger.deployment import _deploy_in_mode
-
-        return _deploy_in_mode
-
-    @pytest.fixture
-    def dsss(self):
-        with mock.patch(
-            "dallinger.deployment.deploy_sandbox_shared_setup"
-        ) as mock_dsss:
-            yield mock_dsss
-
-    def test_sets_mode_in_config(self, active_config, dim, dsss):
-        dim("live", "some app id", verbose=True, log=mock.Mock())
-        dsss.assert_called_once()
-        assert active_config.get("mode") == "live"
-
-    def test_sets_logfile_to_dash_for_some_reason(self, active_config, dim, dsss):
-        dim("live", "some app id", verbose=True, log=mock.Mock())
-        assert active_config.get("logfile") == "-"
-
-
 @pytest.mark.usefixtures("bartlett_dir")
 @pytest.mark.slow
 class Test_handle_launch_data(object):

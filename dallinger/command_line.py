@@ -26,7 +26,7 @@ from dallinger.config import get_config
 from dallinger.config import initialize_experiment_package
 from dallinger import data
 from dallinger import db
-from dallinger.deployment import _deploy_in_mode
+from dallinger.deployment import deploy_sandbox_shared_setup
 from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
@@ -457,16 +457,10 @@ def postlaunch_db_bootstrapper(zip_path, log):
     return bootstrap_db
 
 
-@dallinger.command()
-@click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
-@click.option("--app", default=None, help="Experiment id")
-@click.option("--archive", help="Optional path to an experiment archive")
-@require_exp_directory
-@report_idle_after(21600)
-def sandbox(verbose, app, archive):
-    """Deploy app using Heroku to the MTurk Sandbox."""
+def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
     if app:
         verify_id(None, None, app)
+
     log(header, chevrons=False)
     postlaunch = []
     if archive:
@@ -476,33 +470,40 @@ def sandbox(verbose, app, archive):
                 'Experiment archive "{}" does not exist.'.format(archive_path)
             )
         postlaunch.append(postlaunch_db_bootstrapper(archive_path, log))
-    _deploy_in_mode(
-        "sandbox", app=app, verbose=verbose, log=log, postlaunch_actions=postlaunch
+
+    # Load configuration.
+    config = get_config()
+    config.load()
+
+    # Set the mode.
+    config.extend({"mode": mode, "logfile": "-"})
+
+    # Do shared setup.
+    deploy_sandbox_shared_setup(
+        log=log, verbose=verbose, app=app, postlaunch_actions=postlaunch
     )
+
+
+@dallinger.command()
+@click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
+@click.option("--app", default=None, help="Experiment id")
+@click.option("--archive", default=None, help="Optional path to an experiment archive")
+@require_exp_directory
+@report_idle_after(21600)
+def sandbox(verbose, app, archive):
+    """Deploy app using Heroku to the MTurk Sandbox."""
+    _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app, archive=archive)
 
 
 @dallinger.command()
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="ID of the deployed experiment")
-@click.option("--archive", help="Optional path to an experiment archive")
+@click.option("--archive", default=None, help="Optional path to an experiment archive")
 @require_exp_directory
 @report_idle_after(21600)
 def deploy(verbose, app, archive):
     """Deploy app using Heroku to MTurk."""
-    if app:
-        verify_id(None, None, app)
-    log(header, chevrons=False)
-    postlaunch = []
-    if archive:
-        archive_path = os.path.abspath(archive)
-        if not os.path.exists(archive_path):
-            raise click.BadParameter(
-                'Experiment archive "{}" does not exist.'.format(archive_path)
-            )
-        postlaunch.append(postlaunch_db_bootstrapper(archive_path, log))
-    _deploy_in_mode(
-        "live", app=app, verbose=verbose, log=log, postlaunch_actions=postlaunch
-    )
+    _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app, archive=archive)
 
 
 @dallinger.command()
