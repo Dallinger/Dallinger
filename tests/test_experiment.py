@@ -97,7 +97,7 @@ class TestExperimentBaseClass(object):
             {"id": n2.id, "object_type": "Node"},
         ]
         result = exp_with_session.dashboard_fail(data)
-        assert result == {"message": "Failed 2 Participants, 1 Nodes"}
+        assert result == {"message": "Failed 1 Nodes, 2 Participants"}
         assert p.failed is True
         assert p2.failed is True
         assert n.failed is True

@@ -977,7 +977,7 @@ class Experiment(object):
             return {"message": "No nodes found to fail"}
         return {
             "message": "Failed {}".format(
-                ", ".join("{} {}s".format(c, t) for t, c in counts.items())
+                ", ".join("{} {}s".format(c, t) for t, c in sorted(counts.items()))
             )
         }
 
