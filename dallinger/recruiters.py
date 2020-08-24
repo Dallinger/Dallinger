@@ -681,8 +681,17 @@ class MTurkRecruiter(Recruiter):
 
     @property
     def is_in_progress(self):
-        # Has this recruiter resulted in any participants?
-        return bool(Participant.query.filter_by(recruiter_id=self.nickname).first())
+        """Does an MTurk HIT for the current experiment ID already exist?"""
+        experiment_id = self.config.get("id")
+        hits = self.mturkservice.get_hits(
+            hit_filter=lambda h: h["annotation"] == experiment_id
+        )
+        try:
+            next(hits)
+        except StopIteration:
+            return False
+        else:
+            return True
 
     @property
     def qualification_active(self):
