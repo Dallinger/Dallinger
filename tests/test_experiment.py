@@ -79,3 +79,26 @@ class TestExperimentBaseClass(object):
     def test_load_participant(self, exp, a):
         p = a.participant()
         assert exp.load_participant(p.assignment_id) == p
+
+    def test_dashboard_fail(self, exp_with_session, a):
+        p = a.participant()
+        p2 = a.participant()
+        n = a.node()
+        n2 = a.node()
+        n.fail()
+        assert p.failed is False
+        assert p2.failed is False
+        assert n.failed is True
+        assert n2.failed is False
+        data = [
+            {"id": p.id, "object_type": "Participant"},
+            {"id": p2.id, "object_type": "Participant"},
+            {"id": n.id, "object_type": "Node"},
+            {"id": n2.id, "object_type": "Node"},
+        ]
+        result = exp_with_session.dashboard_fail(data)
+        assert result == {"message": "Failed 1 Nodes, 2 Participants"}
+        assert p.failed is True
+        assert p2.failed is True
+        assert n.failed is True
+        assert n2.failed is True
