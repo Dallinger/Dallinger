@@ -174,8 +174,8 @@
             flashMessage('No rows selected', 'danger');
             return;
           }
-          const dollars = window.prompt("How much would additional compensation would you like to give to these participants (in US dollars)?", "0.00")
-          if (!dollars || !parseFloat(dollars)) {
+          const dollars = Number(window.prompt("How much would additional compensation would you like to give to these participants (in US dollars)?", "0.00"));
+          if (!dollars || dollars < 0) {
             flashMessage('You must enter a valid number for the compensation amount.')
             return;
           }
