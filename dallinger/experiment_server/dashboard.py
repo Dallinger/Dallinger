@@ -723,8 +723,10 @@ def database():
         )
 
     is_sandbox = getattr(recruiters.from_config(get_config()), "is_sandbox", None)
-    if is_sandbox is not None:
+    if is_sandbox is True or is_sandbox is False:
         buttons.append("compensate")
+    else:
+        is_sandbox = None
 
     if len(buttons):
         datatables_options["buttons"].append(actions)
