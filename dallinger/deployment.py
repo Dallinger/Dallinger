@@ -515,6 +515,10 @@ def deploy_sandbox_shared_setup(
     if config.get("clock_on"):
         heroku_app.scale_up_dyno("clock", 1, size)
 
+    if postlaunch_actions is not None:
+        for task in postlaunch_actions:
+            task(heroku_app, config)
+
     # Launch the experiment.
     log("Launching the experiment on the remote server and starting recruitment...")
     launch_url = "{}/launch".format(heroku_app.url)
@@ -526,10 +530,6 @@ def deploy_sandbox_shared_setup(
         "dashboard_url": "{}/dashboard/".format(heroku_app.url),
         "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
-
-    if postlaunch_actions is not None:
-        for task in postlaunch_actions:
-            task(heroku_app, config, launch_data)
 
     log("Experiment details:")
     log("App home: {}".format(result["app_home"]), chevrons=False)

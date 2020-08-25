@@ -698,14 +698,18 @@ class MTurkRecruiter(Recruiter):
         return bool(self.config.get("assign_qualifications"))
 
     def current_hit_id(self):
-        any_participant_record = (
-            Participant.query.with_entities(Participant.hit_id)
-            .filter_by(recruiter_id=self.nickname)
-            .first()
+        """Return the most recent HIT with our experiment ID
+        in the annotation, if any such HITs exist.
+        """
+        experiment_id = self.config.get("id")
+        hits = list(
+            self.mturkservice.get_hits(
+                hit_filter=lambda h: h["annotation"] == experiment_id
+            )
         )
-
-        if any_participant_record is not None:
-            return str(any_participant_record.hit_id)
+        if not hits:
+            return None
+        return sorted(hits, key=lambda k: k["created"])[-1]
 
     def approve_hit(self, assignment_id):
         try:

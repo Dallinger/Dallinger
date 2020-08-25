@@ -448,7 +448,7 @@ def _mturk_service_from_config(sandbox):
 
 
 def postlaunch_db_bootstrapper(zip_path, log):
-    def bootstrap_db(heroku_app, config, launch_data):
+    def bootstrap_db(heroku_app, config):
         # Pre-populate the database if an archive was given
         log("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
         engine = db.create_db_engine(heroku_app.db_url)
