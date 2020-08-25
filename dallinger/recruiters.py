@@ -20,7 +20,6 @@ from dallinger.heroku import tools as heroku_tools
 from dallinger.notifications import get_mailer
 from dallinger.notifications import admin_notifier
 from dallinger.notifications import MessengerError
-from dallinger.models import Participant
 from dallinger.models import Recruitment
 from dallinger.mturk import MTurkQualificationRequirements
 from dallinger.mturk import MTurkQuestions

@@ -987,7 +987,7 @@ class TestMTurkLargeRecruiter(object):
             active_config.extend({"mode": u"sandbox"})
             r = MTurkLargeRecruiter(counter=counter)
             r.mturkservice = mturkservice
-            r.current_hit_id = mock.Mock(return_value="fake HIT id")
+            # r.current_hit_id = mock.Mock(return_value="fake HIT id")
             return r
 
     def test_open_recruitment_raises_error_if_experiment_in_progress(
@@ -1056,26 +1056,30 @@ class TestMTurkLargeRecruiter(object):
             ],
         )
 
-    def test_recruit_draws_on_initial_pool_before_extending_hit(self, recruiter):
+    def test_recruit_draws_on_initial_pool_before_extending_hit(
+        self, fake_hit, recruiter
+    ):
         recruiter.open_recruitment(n=recruiter.pool_size - 1)
         recruiter.recruit(n=1)
 
         recruiter.mturkservice.extend_hit.assert_not_called()
-
+        recruiter.mturkservice.get_hits.return_value = iter([fake_hit])
         recruiter.recruit(n=1)
 
         recruiter.mturkservice.extend_hit.assert_called_once_with(
-            "fake HIT id", duration_hours=1.0, number=1
+            fake_hit["id"], duration_hours=1.0, number=1
         )
 
     def test_recruits_more_immediately_if_initial_recruitment_exceeds_pool_size(
-        self, recruiter
+        self, fake_hit, recruiter
     ):
         recruiter.open_recruitment(n=recruiter.pool_size + 1)
+        recruiter.mturkservice.get_hits.return_value = iter([fake_hit])
+
         recruiter.recruit(n=5)
 
         recruiter.mturkservice.extend_hit.assert_called_once_with(
-            "fake HIT id", duration_hours=1.0, number=5
+            fake_hit["id"], duration_hours=1.0, number=5
         )
 
     def test_recruit_auto_recruit_off_does_not_extend_hit(self, recruiter):
