@@ -765,13 +765,6 @@ class Experiment(object):
             )
         )
 
-        # Active participants have more than 10 infos
-        active_participants = 0
-        for p in participants:
-            if len(p.infos(failed="all")) > 10:
-                active_participants += 1
-        stats["Participants"]["active"] = active_participants
-
         # Count up our networks by role
         network_roles = self.session.query(Network.role, func.count(Network.role))
         network_counts = network_roles.group_by(Network.role).all()

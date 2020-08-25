@@ -405,7 +405,6 @@ class TestDashboardMonitorRoute(object):
         resp_text = resp.data.decode("utf8")
         assert "<h3>Participants</h3>" in resp_text
         assert "<li>working: 0</li>" in resp_text
-        assert "<li>active: 0</li>" in resp_text
 
     def test_statistics_show_working(self, logged_in, db_session):
         from dallinger.models import Participant
