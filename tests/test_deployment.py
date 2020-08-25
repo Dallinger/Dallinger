@@ -598,14 +598,12 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
 
         heroku.sanity_check.assert_called_once_with(active_config)
 
-    def test_runs_postlaunch_actions(self, dsss, heroku_mock, active_config):
+    def test_runs_prelaunch_actions(self, dsss, heroku_mock, active_config):
         log = mock.Mock()
         action = mock.Mock()
-        dsss(log=log, postlaunch_actions=[action])
+        dsss(log=log, prelaunch_actions=[action])
 
-        action.assert_called_once_with(
-            heroku_mock, active_config, {"recruitment_msg": "fake\nrecruitment\nlist"}
-        )
+        action.assert_called_once_with(heroku_mock, active_config)
 
 
 @pytest.mark.skipif(

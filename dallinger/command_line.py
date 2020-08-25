@@ -447,7 +447,7 @@ def _mturk_service_from_config(sandbox):
     )
 
 
-def postlaunch_db_bootstrapper(zip_path, log):
+def prelaunch_db_bootstrapper(zip_path, log):
     def bootstrap_db(heroku_app, config):
         # Pre-populate the database if an archive was given
         log("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
@@ -462,21 +462,21 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
         verify_id(None, None, app)
 
     log(header, chevrons=False)
-    postlaunch = []
+    prelaunch = []
     if archive:
         archive_path = os.path.abspath(archive)
         if not os.path.exists(archive_path):
             raise click.BadParameter(
                 'Experiment archive "{}" does not exist.'.format(archive_path)
             )
-        postlaunch.append(postlaunch_db_bootstrapper(archive_path, log))
+        prelaunch.append(prelaunch_db_bootstrapper(archive_path, log))
 
     config = get_config()
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
     deploy_sandbox_shared_setup(
-        log=log, verbose=verbose, app=app, postlaunch_actions=postlaunch
+        log=log, verbose=verbose, app=app, prelaunch_actions=prelaunch
     )
 
 

@@ -259,13 +259,13 @@ class TestSandboxAndDeploy(object):
     def test_uses_specified_app_id(self, sandbox, dsss):
         CliRunner().invoke(sandbox, ["--verbose", "--app", "some app id"])
         dsss.assert_called_once_with(
-            app="some app id", verbose=True, log=mock.ANY, postlaunch_actions=[]
+            app="some app id", verbose=True, log=mock.ANY, prelaunch_actions=[]
         )
 
     def test_works_with_no_app_id(self, sandbox, dsss):
         CliRunner().invoke(sandbox, ["--verbose"])
         dsss.assert_called_once_with(
-            app=None, verbose=True, log=mock.ANY, postlaunch_actions=[]
+            app=None, verbose=True, log=mock.ANY, prelaunch_actions=[]
         )
 
     def test_sandbox_puts_mode_in_config(self, sandbox, active_config, dsss):
@@ -290,7 +290,7 @@ class TestSandboxAndDeploy(object):
         CliRunner().invoke(sandbox, ["--verbose", "--archive", tempdir])
 
         dsss.assert_called_once_with(
-            app=None, verbose=True, log=mock.ANY, postlaunch_actions=[mock.ANY]
+            app=None, verbose=True, log=mock.ANY, prelaunch_actions=[mock.ANY]
         )
 
     def test_rejects_invalid_archive_path(self, sandbox, dsss):

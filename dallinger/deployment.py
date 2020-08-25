@@ -397,7 +397,7 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
 
 
 def deploy_sandbox_shared_setup(
-    log, verbose=True, app=None, exp_config=None, postlaunch_actions=None
+    log, verbose=True, app=None, exp_config=None, prelaunch_actions=None
 ):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
@@ -515,8 +515,8 @@ def deploy_sandbox_shared_setup(
     if config.get("clock_on"):
         heroku_app.scale_up_dyno("clock", 1, size)
 
-    if postlaunch_actions is not None:
-        for task in postlaunch_actions:
+    if prelaunch_actions is not None:
+        for task in prelaunch_actions:
             task(heroku_app, config)
 
     # Launch the experiment.
