@@ -8,6 +8,8 @@
   Participant classes.
 - Add extensible actions to the dashboard database view.
 - Disable global S3 experiment registration by default.
+- Provide a new `--archive` option to `dallinger deploy` and `dallinger sandbox` which makes it possible to start an experiment run with the database populated from an experiment archive created with `dallinger export`
+
 
 ## [v-6.4.0](https://github.com/dallinger/dallinger/tree/6.4.0) (2020-08003)
 - Bugfix: Fixes for Dashboard monitor layout and color issues

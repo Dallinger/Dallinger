@@ -38,10 +38,13 @@ specify an alternative port when opening browser windows.
 sandbox
 ^^^^^^^
 
-Runs the experiment on MTurk's sandbox using Heroku as a server. An optional
-``--verbose`` flag prints more detailed logs to the command line. An optional
-``--app <app>`` parameter specifies the experiment id, if not specified, a new
+Runs the experiment on MTurk's sandbox using Heroku as a server.
+An optional ``--verbose`` flag prints more detailed logs to the command line.
+An optional ``--app <app>`` parameter specifies the experiment id. If not specified, a new
 unique experiment experiment id is automatically generated.
+An optional ``--archive <relative file path>`` parameter specifies an experiment archive
+(previously created with ``dallinger export``) from which to pre-populate the database
+before starting recruitment.
 
 deploy
 ^^^^^^
@@ -51,6 +54,9 @@ Runs the experiment live on MTurk using Heroku as a server. An optional
 ``--bot`` flag forces the bot recruiter to be used, rather than the configured
 recruiter. An optional ``--app <app>`` parameter specifies the experiment id,
 if not specified, a new unique experiment id is automatically generated.
+An optional ``--archive <relative file path>`` parameter specifies an experiment archive
+(previously created with ``dallinger export``) from which to pre-populate the database
+before starting recruitment.
 
 logs
 ^^^^
