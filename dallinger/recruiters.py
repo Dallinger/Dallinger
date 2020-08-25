@@ -698,7 +698,7 @@ class MTurkRecruiter(Recruiter):
         return bool(self.config.get("assign_qualifications"))
 
     def current_hit_id(self):
-        """Return the most recent HIT with our experiment ID
+        """Return the ID of the most recent HIT with our experiment ID
         in the annotation, if any such HITs exist.
         """
         experiment_id = self.config.get("id")
@@ -709,7 +709,9 @@ class MTurkRecruiter(Recruiter):
         )
         if not hits:
             return None
-        return sorted(hits, key=lambda k: k["created"])[-1]
+
+        most_recent = sorted(hits, key=lambda k: k["created"])[-1]
+        return most_recent["id"]
 
     def approve_hit(self, assignment_id):
         try:
