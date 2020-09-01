@@ -685,12 +685,9 @@ class MTurkRecruiter(Recruiter):
         hits = self.mturkservice.get_hits(
             hit_filter=lambda h: h["annotation"] == experiment_id
         )
-        try:
-            next(hits)
-        except StopIteration:
-            return False
-        else:
+        for _ in hits:
             return True
+        return False
 
     @property
     def qualification_active(self):
