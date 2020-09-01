@@ -699,6 +699,14 @@ class TestMTurkRecruiter(object):
     def test_current_hit_id_with_no_active_experiment(self, recruiter):
         assert recruiter.current_hit_id() is None
 
+    def test_current_hit_id_with_multiple_hits_uses_most_recent(
+        self, fake_hit, recruiter
+    ):
+        newer_hit = fake_hit.copy()
+        newer_hit["created"] = get_localzone().localize(datetime.now())
+        recruiter.mturkservice.get_hits.return_value = iter([fake_hit, newer_hit])
+        assert recruiter.current_hit_id() == newer_hit["id"]
+
     def test_recruit_auto_recruit_on_recruits_for_current_hit(
         self, fake_hit, recruiter
     ):

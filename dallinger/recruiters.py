@@ -706,8 +706,20 @@ class MTurkRecruiter(Recruiter):
         if not hits:
             return None
 
-        most_recent = sorted(hits, key=lambda k: k["created"])[-1]
-        return most_recent["id"]
+        if len(hits) == 1:
+            return hits[0]["id"]
+
+        # This is unlikely, but we might have more than one HIT if one was created
+        # directly via the MTurk UI.
+        hit_ids = [h["id"] for h in sorted(hits, key=lambda k: k["created"])]
+        most_recent = hit_ids[-1]
+        logger.warn(
+            "More than one HIT found annotated with experiment ID {}: ({}). "
+            "Using {}, as it is the most recently created.".format(
+                experiment_id, ", ".join(hit_ids), most_recent
+            )
+        )
+        return most_recent
 
     def approve_hit(self, assignment_id):
         try:
