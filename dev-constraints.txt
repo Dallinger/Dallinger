@@ -14,3 +14,4 @@ sphinx-js==2.7
 sphinx==1.7.9
 sphinxcontrib-spelling==4.2.0
 tox==3.2.1
+virtualenv==20.0.31
