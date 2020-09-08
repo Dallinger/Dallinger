@@ -6,7 +6,6 @@ from datetime import datetime
 import io
 import mock
 import os
-import requests
 import tempfile
 import uuid
 import shutil
