@@ -135,6 +135,7 @@ def stub_config():
         u"contact_email_on_error": u"error_contact@test.com",
         u"dallinger_email_address": u"test@example.com",
         u"database_size": u"standard-0",
+        u"enable_global_experiment_registry": False,
         u"redis_size": u"premium-0",
         u"dashboard_user": u"admin",
         u"database_url": u"postgresql://postgres@localhost/dallinger",

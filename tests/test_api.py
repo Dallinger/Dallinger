@@ -1,4 +1,5 @@
 """Test python experiment API"""
+import mock
 import random
 from uuid import UUID
 
@@ -36,7 +37,6 @@ class TestAPI(object):
         assert exp_uuid1 == exp_uuid3
 
 
-@pytest.mark.slow
 class TestDataCollection(object):
     def test_collect_from_existing_local_file(self, exp, experiment_dir):
         existing_local_data_uid = "12345678-1234-5678-1234-567812345678"
@@ -44,18 +44,22 @@ class TestDataCollection(object):
         assert isinstance(data, dallinger.data.Data)
 
     def test_registered_uuid_will_not_allow_new_data_collection(self, exp):
-        dataless_uuid = "ed9e7ddd-3e97-452d-9e34-fee5d432258e"
-        dallinger.data.register(dataless_uuid, "https://bogus-url.com/something")
-
-        with pytest.raises(RuntimeError):
-            exp.collect(dataless_uuid, recruiter="bots")
+        exp_uuid = "ed9e7ddd-3e97-452d-9e34-fee5d432258e"
+        with mock.patch("dallinger.experiment.is_registered") as is_registered:
+            is_registered.return_value = True
+            with pytest.raises(RuntimeError):
+                exp.collect(exp_uuid, recruiter="bots")
 
     def test_unregistered_uuid_will_not_allow_new_data_collection_in_debug(self, exp):
         unknown_uuid = "c85d5086-2fa7-4baf-9103-e142b9170cca"
-        with pytest.raises(RuntimeError):
-            exp.collect(unknown_uuid, mode="debug", recruiter="bots")
+        with mock.patch("dallinger.experiment.is_registered") as is_registered:
+            is_registered.return_value = False
+            with pytest.raises(RuntimeError):
+                exp.collect(unknown_uuid, mode="debug", recruiter="bots")
 
     def test_collect_requires_valid_uuid(self, exp):
         existing_uuid = "totally-bogus-id"
-        with pytest.raises(ValueError):
-            exp.collect(existing_uuid, recruiter="bots")
+        with mock.patch("dallinger.experiment.is_registered") as is_registered:
+            is_registered.return_value = False
+            with pytest.raises(ValueError):
+                exp.collect(existing_uuid, recruiter="bots")

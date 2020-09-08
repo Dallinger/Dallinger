@@ -84,6 +84,8 @@ def find_experiment_export(app_id):
     buckets = [user_s3_bucket(), dallinger_s3_bucket()]
 
     for bucket in buckets:
+        if bucket is None:
+            continue
         try:
             bucket.download_file(data_filename, path_to_data)
         except botocore.exceptions.ClientError:
@@ -139,6 +141,8 @@ def registration_key(id):
 def register(id, url=None):
     """Register a UUID key in the global S3 bucket."""
     bucket = registration_s3_bucket()
+    if bucket is None:
+        return
     key = registration_key(id)
     obj = bucket.Object(key)
     obj.put(Body=url or "missing")
@@ -148,6 +152,8 @@ def register(id, url=None):
 def is_registered(id):
     """Check if a UUID is already registered"""
     bucket = registration_s3_bucket()
+    if bucket is None:
+        return False
     key = registration_key(id)
     found_keys = set(obj.key for obj in bucket.objects.filter(Prefix=key))
     return key in found_keys
@@ -355,7 +361,10 @@ def user_s3_bucket(canonical_user_id=None):
     """Get the user's S3 bucket."""
     s3 = _s3_resource()
     if not canonical_user_id:
-        canonical_user_id = _get_canonical_aws_user_id(s3)
+        try:
+            canonical_user_id = _get_canonical_aws_user_id(s3)
+        except botocore.exceptions.ClientError:
+            return None
 
     s3_bucket_name = "dallinger-{}".format(
         hashlib.sha256(canonical_user_id.encode("utf8")).hexdigest()[0:8]
@@ -372,8 +381,13 @@ def dallinger_s3_bucket():
 
 def registration_s3_bucket():
     """The public write-only `dallinger-registration` S3 bucket."""
-    s3 = _s3_resource(dallinger_region=True)
-    return s3.Bucket("dallinger-registrations")
+    config = get_config()
+    if not config.ready:
+        config.load()
+
+    if config.get("enable_global_experiment_registry", False):
+        s3 = _s3_resource(dallinger_region=True)
+        return s3.Bucket("dallinger-registrations")
 
 
 def _s3_resource(dallinger_region=False):
