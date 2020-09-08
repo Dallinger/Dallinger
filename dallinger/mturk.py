@@ -290,6 +290,8 @@ class MTurkService(object):
         except Exception as ex:
             if "already created a QualificationType with this name" in str(ex):
                 raise DuplicateQualificationNameError(str(ex))
+            else:
+                raise
 
         return self._translate_qtype(response["QualificationType"])
 
