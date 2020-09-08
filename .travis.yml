@@ -44,7 +44,7 @@ before_install:
   - nvm install 10  # OS node version became incompatible in 7/2020, so now we choose explicitly
   - pip install --upgrade pip wheel
 install:
-  - pip install setuptools\<50.0
+  - pip install "setuptools<50.0"  # setuptools 50.0.3 caused errors creating a virtualenv
   - pip install tox==3.1.2
   - gem install danger
   - gem install danger-commit_lint
