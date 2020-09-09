@@ -4,8 +4,8 @@ from collections import OrderedDict
 import csv
 from datetime import datetime
 import io
+import mock
 import os
-import requests
 import tempfile
 import uuid
 import shutil
@@ -50,27 +50,45 @@ class TestDataS3Integration(object):
         bucket = dallinger.data.user_s3_bucket()
         assert bucket
 
+    @pytest.mark.skip
     def test_data_loading(self):
         data = dallinger.data.load("3b9c2aeb-0eb7-4432-803e-bc437e17b3bb")
         assert data
         assert data.networks.csv
 
-    def test_register_id(self):
+    def test_register_id_disabled(self, active_config):
         new_uuid = "12345-12345-12345-12345"
         url = dallinger.data.register(new_uuid, "http://original-url.com/value")
+        assert url is None
 
-        # The registration creates a new file in the dallinger-registrations bucket
-        assert url.startswith("https://dallinger-registrations.")
-        assert new_uuid in url
+    def test_register_id(self, active_config):
+        new_uuid = "12345-12345-12345-12345"
+        active_config.set("enable_global_experiment_registry", True)
+        with mock.patch("dallinger.data.boto3") as boto:
+            s3 = boto.resource = mock.Mock()
+            s3.return_value = s3
+            s3_bucket = s3.Bucket = mock.Mock()
+            s3_bucket.return_value = s3_bucket
+            s3_bucket.name = "my-fake-registrations"
+            s3_object = s3_bucket.Object = mock.Mock()
+            s3_object.return_value = s3_object
+            s3_objects = s3_bucket.objects = mock.Mock()
+            s3_filter = s3_objects.filter = mock.Mock()
+            s3_filter.return_value = []
+            url = dallinger.data.register(new_uuid, "http://original-url.com/value")
 
-        # These files should be inaccessible to make it impossible to use the bucket
-        # as a file repository
-        res = requests.get(url)
-        assert res.status_code == 403
+            s3.assert_called_once()
+            s3_bucket.assert_called_once_with("dallinger-registrations")
+            s3_object.assert_called_once_with(new_uuid + ".reg")
+            s3_object.put.assert_called_once_with(Body="http://original-url.com/value")
 
-        # We should be able to check that the UUID is registered
-        assert dallinger.data.is_registered(new_uuid) is True
-        assert dallinger.data.is_registered("bogus-uuid-value") is False
+            # The registration creates a new file in the dallinger-registrations bucket
+            assert url.startswith("https://my-fake-registrations.")
+            assert new_uuid in url
+
+            # We should be able to check that the UUID is registered
+            assert dallinger.data.is_registered(new_uuid) is False
+            assert s3_filter.called_once_with(Prefix=new_uuid)
 
 
 class TestDataLocally(object):

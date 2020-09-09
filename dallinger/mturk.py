@@ -98,12 +98,12 @@ class SNSService(object):
 
     def cancel_subscription(self, experiment_id):
         logger.warning("Cancelling SNS subscription")
-        sns_topic = self._get_sns_topic_for_experiment(experiment_id)
-        if sns_topic is None:
+        topic_id = self._get_sns_topic_for_experiment(experiment_id)
+        if topic_id is None:
             raise NonExistentSubscription(
                 "No SNS subscription found for {}".format(experiment_id)
             )
-        self._sns.delete_topic(TopicArn=sns_topic["TopicArn"])
+        self._sns.delete_topic(TopicArn=topic_id)
         return True
 
     def _awaiting_confirmation(self, subscription):
@@ -117,14 +117,30 @@ class SNSService(object):
         return status == "true"
 
     def _get_sns_topic_for_experiment(self, experiment_id):
-        all_topics = self._sns.list_topics()["Topics"]
         experiment_topics = (
-            t for t in all_topics if t["TopicArn"].endswith(experiment_id)
+            t for t in self._all_topics() if t.endswith(":" + experiment_id)
         )
         try:
             return next(experiment_topics)
         except StopIteration:
             return None
+
+    def _all_topics(self):
+        done = False
+        next_token = None
+        while not done:
+            if next_token is not None:
+                response = self._sns.list_topics(NextToken=next_token)
+            else:
+                response = self._sns.list_topics()
+
+            if response:
+                for t in response["Topics"]:
+                    yield t["TopicArn"]
+            if "NextToken" in response:
+                next_token = response["NextToken"]
+            else:
+                done = True
 
 
 class MTurkQuestions(object):
@@ -290,6 +306,8 @@ class MTurkService(object):
         except Exception as ex:
             if "already created a QualificationType with this name" in str(ex):
                 raise DuplicateQualificationNameError(str(ex))
+            else:
+                raise
 
         return self._translate_qtype(response["QualificationType"])
 

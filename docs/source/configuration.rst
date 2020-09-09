@@ -61,6 +61,11 @@ General
     An optional login name for accessing the Dallinger Dashboard interface. If not
     specified ``admin`` will be used.
 
+``enable_global_experiment_registry`` *boolean*
+    Enable a global experiment id registration. When enabled, the ``collect`` API
+    check this registry to see if an experiment has already been run and reject
+    re-running an experiment if it has been.
+
 
 Recruitment (General)
 ~~~~~~~~~~~~~~~~~~~~~

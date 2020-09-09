@@ -7,6 +7,7 @@
   `participant_constructor` attribute to allow experiments to specify custom
   Participant classes.
 - Add extensible actions to the dashboard database view.
+- Disable global S3 experiment registration by default.
 
 ## [v-6.4.0](https://github.com/dallinger/dallinger/tree/6.4.0) (2020-08003)
 - Bugfix: Fixes for Dashboard monitor layout and color issues
