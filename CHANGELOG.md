@@ -1,5 +1,7 @@
 # Change Log
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
+
+## [v-6.5.0](https://github.com/dallinger/dallinger/tree/6.5.0) (2020-09-09)
 - New `dallinger.loadParticipant` function to load participant data into the browser
   based on an `assignmentId`
 - Performance improvement: `dallinger debug` now starts up in about half the time
@@ -11,7 +13,7 @@
 - Provide a new `--archive` option to `dallinger deploy` and `dallinger sandbox` which makes it possible to start an experiment run with the database populated from an experiment archive created with `dallinger export`
 
 
-## [v-6.4.0](https://github.com/dallinger/dallinger/tree/6.4.0) (2020-08003)
+## [v-6.4.0](https://github.com/dallinger/dallinger/tree/6.4.0) (2020-08-03)
 - Bugfix: Fixes for Dashboard monitor layout and color issues
 - New customizable database dashboard for viewing live experiment data
 - Fixes and enhancements to the Lifecycle and Heroku dashboards
