@@ -25,8 +25,8 @@ from rq import Worker, Connection
 from dallinger.config import get_config
 from dallinger.config import initialize_experiment_package
 from dallinger import data
-from dallinger.db import redis_conn
-from dallinger.deployment import _deploy_in_mode
+from dallinger import db
+from dallinger.deployment import deploy_sandbox_shared_setup
 from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
@@ -447,30 +447,59 @@ def _mturk_service_from_config(sandbox):
     )
 
 
+def prelaunch_db_bootstrapper(zip_path, log):
+    def bootstrap_db(heroku_app, config):
+        # Pre-populate the database if an archive was given
+        log("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
+        engine = db.create_db_engine(heroku_app.db_url)
+        data.bootstrap_db_from_zip(zip_path, engine)
+
+    return bootstrap_db
+
+
+def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
+    if app:
+        verify_id(None, None, app)
+
+    log(header, chevrons=False)
+    prelaunch = []
+    if archive:
+        archive_path = os.path.abspath(archive)
+        if not os.path.exists(archive_path):
+            raise click.BadParameter(
+                'Experiment archive "{}" does not exist.'.format(archive_path)
+            )
+        prelaunch.append(prelaunch_db_bootstrapper(archive_path, log))
+
+    config = get_config()
+    config.load()
+    config.extend({"mode": mode, "logfile": "-"})
+
+    deploy_sandbox_shared_setup(
+        log=log, verbose=verbose, app=app, prelaunch_actions=prelaunch
+    )
+
+
 @dallinger.command()
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="Experiment id")
+@click.option("--archive", default=None, help="Optional path to an experiment archive")
 @require_exp_directory
 @report_idle_after(21600)
-def sandbox(verbose, app):
+def sandbox(verbose, app, archive):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    if app:
-        verify_id(None, None, app)
-    log(header, chevrons=False)
-    _deploy_in_mode("sandbox", app=app, verbose=verbose, log=log)
+    _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app, archive=archive)
 
 
 @dallinger.command()
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="ID of the deployed experiment")
+@click.option("--archive", default=None, help="Optional path to an experiment archive")
 @require_exp_directory
 @report_idle_after(21600)
-def deploy(verbose, app):
+def deploy(verbose, app, archive):
     """Deploy app using Heroku to MTurk."""
-    if app:
-        verify_id(None, None, app)
-    log(header, chevrons=False)
-    _deploy_in_mode("live", app=app, verbose=verbose, log=log)
+    _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app, archive=archive)
 
 
 @dallinger.command()
@@ -955,7 +984,7 @@ def verify():
 def rq_worker():
     """Start an rq worker in the context of dallinger."""
     setup_experiment(log)
-    with Connection(redis_conn):
+    with Connection(db.redis_conn):
         # right now we care about low queue for bots
         worker = Worker("low")
         worker.work()

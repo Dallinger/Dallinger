@@ -269,6 +269,15 @@ def export(id, local=False, scrub_pii=False):
     return path_to_data
 
 
+def bootstrap_db_from_zip(zip_path, engine):
+    """Given a path to a zip archive created with `export()`, first empty the
+    database, then recreate it based on the data stored in the included .csv
+    files.
+    """
+    db.init_db(drop_all=True, bind=engine)
+    ingest_zip(zip_path, engine=engine)
+
+
 def ingest_zip(path, engine=None):
     """Given a path to a zip file created with `export()`, recreate the
     database with the data stored in the included .csv files.
@@ -296,13 +305,11 @@ def ingest_zip(path, engine=None):
             ingest_to_model(file, model, engine)
 
 
-def fix_autoincrement(table_name):
+def fix_autoincrement(engine, table_name):
     """Auto-increment pointers are not updated when IDs are set explicitly,
     so we manually update the pointer so subsequent inserts work correctly.
     """
-    db.engine.execute(
-        "select setval('{0}_id_seq', max(id)) from {0}".format(table_name)
-    )
+    engine.execute("select setval('{0}_id_seq', max(id)) from {0}".format(table_name))
 
 
 def ingest_to_model(file, model, engine=None):
@@ -316,7 +323,7 @@ def ingest_to_model(file, model, engine=None):
     postgres_copy.copy_from(
         file, model, engine, columns=columns, format="csv", HEADER=False
     )
-    fix_autoincrement(model.__table__.name)
+    fix_autoincrement(engine, model.__table__.name)
 
 
 def archive_data(id, src, dst):

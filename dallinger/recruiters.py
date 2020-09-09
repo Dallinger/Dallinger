@@ -20,7 +20,6 @@ from dallinger.heroku import tools as heroku_tools
 from dallinger.notifications import get_mailer
 from dallinger.notifications import admin_notifier
 from dallinger.notifications import MessengerError
-from dallinger.models import Participant
 from dallinger.models import Recruitment
 from dallinger.mturk import MTurkQualificationRequirements
 from dallinger.mturk import MTurkQuestions
@@ -681,22 +680,46 @@ class MTurkRecruiter(Recruiter):
 
     @property
     def is_in_progress(self):
-        # Has this recruiter resulted in any participants?
-        return bool(Participant.query.filter_by(recruiter_id=self.nickname).first())
+        """Does an MTurk HIT for the current experiment ID already exist?"""
+        experiment_id = self.config.get("id")
+        hits = self.mturkservice.get_hits(
+            hit_filter=lambda h: h["annotation"] == experiment_id
+        )
+        for _ in hits:
+            return True
+        return False
 
     @property
     def qualification_active(self):
         return bool(self.config.get("assign_qualifications"))
 
     def current_hit_id(self):
-        any_participant_record = (
-            Participant.query.with_entities(Participant.hit_id)
-            .filter_by(recruiter_id=self.nickname)
-            .first()
+        """Return the ID of the most recent HIT with our experiment ID
+        in the annotation, if any such HITs exist.
+        """
+        experiment_id = self.config.get("id")
+        hits = list(
+            self.mturkservice.get_hits(
+                hit_filter=lambda h: h["annotation"] == experiment_id
+            )
         )
+        if not hits:
+            return None
 
-        if any_participant_record is not None:
-            return str(any_participant_record.hit_id)
+        if len(hits) == 1:
+            return hits[0]["id"]
+
+        # This is unlikely, but we might have more than one HIT if one was created
+        # directly via the MTurk UI.
+        hit_ids = [h["id"] for h in sorted(hits, key=lambda k: k["created"])]
+        most_recent = hit_ids[-1]
+        logger.warn(
+            "More than one HIT found annotated with experiment ID {}: ({}). "
+            "Using {}, as it is the most recently created.".format(
+                experiment_id, ", ".join(hit_ids), most_recent
+            )
+        )
+        return most_recent
 
     def approve_hit(self, assignment_id):
         try:
