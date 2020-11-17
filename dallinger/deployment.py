@@ -480,7 +480,7 @@ def deploy_sandbox_shared_setup(
     ready = False
     while not ready:
         try:
-            r = redis.from_url(heroku_app.redis_url)
+            r = redis.from_url(url=heroku_app.redis_url, ssl_cert_reqs="none")
             r.set("foo", "bar")
             ready = True
         except (ValueError, redis.exceptions.ConnectionError):

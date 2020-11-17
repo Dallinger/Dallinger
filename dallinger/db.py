@@ -31,7 +31,7 @@ Base = declarative_base()
 Base.query = session.query_property()
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-redis_conn = redis.from_url(redis_url)
+redis_conn = redis.from_url(url=redis_url, ssl_cert_reqs="none")
 
 db_user_warning = """
 *********************************************************
