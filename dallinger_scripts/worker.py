@@ -28,7 +28,9 @@ def main():
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     # Specify queue class for improved performance with gevent.
     # see http://carsonip.me/posts/10x-faster-python-gevent-redis-connection-pool/
-    redis_pool = BlockingConnectionPool.from_url(redis_url, queue_class=LifoQueue)
+    redis_pool = BlockingConnectionPool.from_url(
+        url=redis_url, ssl_cert_reqs="none", queue_class=LifoQueue
+    )
     redis_conn = StrictRedis(connection_pool=redis_pool)
 
     with Connection(redis_conn):
