@@ -477,15 +477,17 @@ def deploy_sandbox_shared_setup(
     heroku_app.set_multiple(**heroku_config)
 
     # Wait for Redis database to be ready.
-    log("Waiting for Redis...")
+    log("Waiting for Redis...", nl=False)
     ready = False
     while not ready:
         try:
             r = connect_to_redis(url=heroku_app.redis_url)
             r.set("foo", "bar")
             ready = True
+            log("\n✓ connected at {}".format(heroku_app.redis_url), chevrons=False)
         except (ValueError, redis.exceptions.ConnectionError):
             time.sleep(2)
+            log(".", chevrons=False, nl=False)
 
     log("Saving the URL of the postgres database...")
     config.extend({"database_url": heroku_app.db_url})

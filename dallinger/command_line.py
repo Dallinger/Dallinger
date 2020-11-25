@@ -62,13 +62,13 @@ header = r"""
 )
 
 
-def log(msg, chevrons=True, verbose=True):
+def log(msg, chevrons=True, verbose=True, **kw):
     """Log a message to stdout."""
     if verbose:
         if chevrons:
-            click.echo("\n❯❯ " + msg)
+            click.echo("\n❯❯ " + msg, **kw)
         else:
-            click.echo(msg)
+            click.echo(msg, **kw)
 
 
 def error(msg, chevrons=True, verbose=True):
