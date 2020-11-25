@@ -859,7 +859,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
     pool_size = 10
 
     def __init__(self, *args, **kwargs):
-        self.counter = kwargs.get("counter", RedisTally())
+        self.counter = kwargs.get("counter") or RedisTally()
         super(MTurkLargeRecruiter, self).__init__()
 
     def open_recruitment(self, n=1):
