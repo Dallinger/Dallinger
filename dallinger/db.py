@@ -5,7 +5,6 @@ from functools import wraps
 import logging
 import os
 import psycopg2
-import redis
 import sys
 import time
 import random
@@ -18,6 +17,8 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
 
+from dallinger.utils import connect_to_redis
+
 
 logger = logging.getLogger("dallinger.db")
 
@@ -29,9 +30,7 @@ session = scoped_session(session_factory)
 
 Base = declarative_base()
 Base.query = session.query_property()
-
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-redis_conn = redis.from_url(url=redis_url, ssl_cert_reqs="none")
+redis_conn = connect_to_redis()
 
 db_user_warning = """
 *********************************************************

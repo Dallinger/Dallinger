@@ -26,6 +26,7 @@ from dallinger import registration
 from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
+from dallinger.utils import connect_to_redis
 from dallinger.utils import dallinger_package_path
 from dallinger.utils import ensure_directory
 from dallinger.utils import get_base_url
@@ -480,7 +481,7 @@ def deploy_sandbox_shared_setup(
     ready = False
     while not ready:
         try:
-            r = redis.from_url(url=heroku_app.redis_url, ssl_cert_reqs="none")
+            r = connect_to_redis(url=heroku_app.redis_url)
             r.set("foo", "bar")
             ready = True
         except (ValueError, redis.exceptions.ConnectionError):

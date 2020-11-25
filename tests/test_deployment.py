@@ -65,8 +65,8 @@ def fake_git():
 @pytest.fixture
 def fake_redis():
     mock_connection = mock.Mock(name="fake redis connection")
-    with mock.patch("dallinger.deployment.redis") as redis_module:
-        redis_module.from_url.return_value = mock_connection
+    with mock.patch("dallinger.deployment.connect_to_redis") as connect:
+        connect.return_value = mock_connection
         yield mock_connection
 
 
