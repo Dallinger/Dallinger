@@ -18,6 +18,35 @@ from dallinger.config import SENSITIVE_KEY_NAMES
 from dallinger.utils import check_call, check_output
 
 
+def app_name(experiment_uuid):
+    """Convert a UUID to a valid Heroku app name."""
+    return "dlgr-" + experiment_uuid[:8]
+
+
+def auth_token():
+    """A Heroku authenication token."""
+    return check_output(["heroku", "auth:token"]).rstrip().decode("utf8")
+
+
+def log_in():
+    """Ensure that the user is logged in to Heroku."""
+    try:
+        check_output(["heroku", "auth:whoami"])
+    except Exception:
+        raise Exception("You are not logged into Heroku.")
+
+
+def request_headers(auth_token):
+    """Return request headers using the provided authorization token."""
+    headers = {
+        "Accept": "application/vnd.heroku+json; version=3",
+        "Content-Type": "application/json",
+        "Authorization": "Bearer {}".format(auth_token),
+    }
+
+    return headers
+
+
 class HerokuCommandRunner(object):
     """Heroku command runner base class"""
 
@@ -107,7 +136,7 @@ class HerokuApp(HerokuCommandRunner):
 
     @property
     def name(self):
-        return "dlgr-" + self.dallinger_uid[0:8]
+        return app_name(self.dallinger_uid)
 
     @property
     def url(self):
@@ -319,35 +348,6 @@ class HerokuApp(HerokuCommandRunner):
                 "title": addon_type.title(),
             }
         return addon_info
-
-
-def app_name(id):
-    """Convert a UUID to a valid Heroku app name."""
-    return "dlgr-" + id[0:8]
-
-
-def auth_token():
-    """A Heroku authenication token."""
-    return check_output(["heroku", "auth:token"]).rstrip().decode("utf8")
-
-
-def log_in():
-    """Ensure that the user is logged in to Heroku."""
-    try:
-        check_output(["heroku", "auth:whoami"])
-    except Exception:
-        raise Exception("You are not logged into Heroku.")
-
-
-def request_headers(auth_token):
-    """Return request headers using the provided authorization token."""
-    headers = {
-        "Accept": "application/vnd.heroku+json; version=3",
-        "Content-Type": "application/json",
-        "Authorization": "Bearer {}".format(auth_token),
-    }
-
-    return headers
 
 
 class HerokuStartupError(RuntimeError):

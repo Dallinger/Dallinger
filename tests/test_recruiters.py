@@ -564,7 +564,7 @@ class TestMTurkRecruiter(object):
             max_assignments=1,
             notification_url=u"http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
-            title=u"fake experiment title",
+            title=u"fake experiment title (dlgr-TEST_EXP)",
             annotation="TEST_EXPERIMENT_UID",
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
@@ -629,7 +629,7 @@ class TestMTurkRecruiter(object):
             max_assignments=1,
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
-            title="fake experiment title",
+            title="fake experiment title (dlgr-TEST_EXP)",
             annotation="TEST_EXPERIMENT_UID",
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
@@ -665,7 +665,7 @@ class TestMTurkRecruiter(object):
             max_assignments=1,
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
-            title="fake experiment title",
+            title="fake experiment title (dlgr-TEST_EXP)",
             annotation="TEST_EXPERIMENT_UID",
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
@@ -1031,7 +1031,7 @@ class TestMTurkLargeRecruiter(object):
             max_assignments=10,
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
-            title="fake experiment title",
+            title="fake experiment title (dlgr-TEST_EXP)",
             annotation="TEST_EXPERIMENT_UID",
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
@@ -1056,7 +1056,7 @@ class TestMTurkLargeRecruiter(object):
             max_assignments=num_recruits,
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
-            title="fake experiment title",
+            title="fake experiment title (dlgr-TEST_EXP)",
             annotation="TEST_EXPERIMENT_UID",
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
