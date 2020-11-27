@@ -112,8 +112,8 @@ Usage:
     * ``--dollars`` (required) - The amount to pay, in US dollars
     * ``--sandbox`` (optional flag) - If present, the compensation will be made
       via the test platform (the MTurk Sandbox)
-    * ``--no_email`` (optional flag) - If present, no email notification will be
-      sent to the worker.
+    * ``--email`` (optional) - An email address, which if present, will be
+      used to notify the worker that they've been compensated
 
 
 qualify
