@@ -506,7 +506,9 @@ class MTurkRecruiter(Recruiter):
         hit_request = {
             "experiment_id": self.config.get("id"),
             "max_assignments": n,
-            "title": self.config.get("title"),
+            "title": "{} ({})".format(
+                self.config.get("title"), heroku_tools.app_name(self.config.get("id"))
+            ),
             "description": self.config.get("description"),
             "keywords": self._config_to_list("keywords"),
             "reward": self.config.get("base_payment"),
