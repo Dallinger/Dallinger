@@ -198,6 +198,7 @@ BROWSEABLE_MODELS = [
     "Network",
     "Transformation",
     "Transmission",
+    "Question",
 ]
 
 
