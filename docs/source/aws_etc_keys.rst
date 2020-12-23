@@ -58,10 +58,17 @@ successfully used AWS.
 
 If you are not the primary user of your AWS account, or are part of a working
 group that shares the account, the recommended way to create the access keys is
-by creating AIM users and generating keys for them. If someone else manages
+by creating IAM users and generating keys for them. If someone else manages
 the AWS account, ask them to generate the user and keys for you. If you need
 to manage the users and keys by yourself, `follow these instructions
 <https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html>`__.
+
+If you are using an IAM user instead of an AWS root account, then you will
+need to ensure the IAM user has been granted the following permissions::
+
+    AmazonS3FullAccess
+    AmazonMechanicalTurkFullAccess
+    AmazonSNSFullAccess
 
 After you have generated and saved your AWS access keys, fill in the following
 lines of ``.dallingerconfig``, replacing ``???`` with your keys:
