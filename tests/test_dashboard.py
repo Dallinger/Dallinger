@@ -715,7 +715,7 @@ class TestDashboardDatabase(object):
         datatables_options = prep_datatables_options(table_data)
         row0 = datatables_options["data"][0]
         assert len(row0) == 2
-        assert row0["col1"] == [1, 2, "three"]
+        assert row0["col1"] == '[1, 2, "three"]'
         assert row0["col1_display"] == '<code>[1, 2, "three"]</code>'
 
         col_info = datatables_options["columns"][0]
@@ -725,11 +725,12 @@ class TestDashboardDatabase(object):
             "filter": "col1",
             "display": "col1_display",
         }
-        assert col_info["render"] == {
-            "_": "col1[, ]",
-            "sp": "col1",
+        assert col_info["searchPanes"]["orthogonal"] == {
+            "display": "filter",
+            "sort": "filter",
+            "search": "filter",
+            "type": "type",
         }
-        assert col_info["searchPanes"]["orthogonal"] == "sp"
 
     def test_prep_datatables_options_renders_mixed(self):
         from dallinger.experiment_server.dashboard import prep_datatables_options
@@ -761,7 +762,7 @@ class TestDashboardDatabase(object):
         }
 
         row0 = datatables_options["data"][0]
-        assert row0["col1"] == [1, 2, "three"]
+        assert row0["col1"] == '[1, 2, "three"]'
         assert row0["col1_display"] == '<code>[1, 2, "three"]</code>'
 
         row1 = datatables_options["data"][1]
