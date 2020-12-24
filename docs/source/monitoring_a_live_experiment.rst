@@ -108,7 +108,10 @@ extending the existing panes. This can be done customizing the
 your experiment class. Additionally, you can customize the display of the selected
 nodes customizing the :attr:`~dallinger.experiment.Experiment.node_visualization_html`
 method, or the :attr:`~dallinger.models.SharedMixin.visualization_html` property on your
-model class.
+model class. Finally, the layout of the visualization can be configured by customizing the
+:attr:`~dallinger.experiment.Experiment.node_visualization_options` method to return
+a dictionary of
+`vis.js configuration options <https://visjs.github.io/vis-network/docs/network/#options>`__.
 
 The dashboard database view can be customized by customizing the
 :attr:`~dallinger.models.SharedMixin.json_data` method on your model classes to
@@ -127,6 +130,8 @@ the DataTables data returned by the
     .. automethod:: monitoring_statistics
 
     .. automethod:: node_visualization_html
+
+    .. automethod:: node_visualization_options
 
     .. automethod:: table_data
 

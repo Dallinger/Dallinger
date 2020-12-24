@@ -561,6 +561,7 @@ def monitoring():
     exp = Experiment(session)
     panes = exp.monitoring_panels(**request.args.to_dict(flat=False))
     network_structure = exp.network_structure(**request.args.to_dict(flat=False))
+    vis_options = exp.node_visualization_options()
     net_roles = (
         session.query(Network.role, func.count(Network.role))
         .group_by(Network.role)
@@ -577,6 +578,7 @@ def monitoring():
         network_structure=json.dumps(network_structure, default=date_handler),
         net_roles=net_roles,
         net_ids=net_ids,
+        vis_options=json.dumps(vis_options),
     )
 
 

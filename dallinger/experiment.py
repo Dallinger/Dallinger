@@ -864,6 +864,14 @@ class Experiment(object):
             "trans": jtransformations,
         }
 
+    def node_visualization_options(self):
+        """Provides custom vis.js configuration options for the
+        Network Monitoring Dashboard.
+
+        :returns: A dict with `vis.js option values <https://visjs.github.io/vis-network/docs/network/#options>`__
+        """
+        return {}
+
     def node_visualization_html(self, object_type, obj_id):
         """Returns a string with custom HTML visualization for a given object
         referenced by the object base type and id.

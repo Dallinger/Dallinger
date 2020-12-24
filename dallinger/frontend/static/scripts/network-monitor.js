@@ -1,6 +1,8 @@
 (function () {
+  var template_globals = templateGlobals();
   var network = null;
-  var net_structure = window.network_structure || {}; // this  is a container for all the data coming from the route
+  var net_structure = template_globals.network_structure || {}; // this  is a container for all the data coming from the route
+  var vis_options = template_globals.vis_options || {}; // This is a set of overrides for the vis options
 
   /// set display options and groups: this will modify the way the network show up.
   function getOptions() {
@@ -11,7 +13,7 @@
           direction: 'UD',
           sortMethod: 'directed',
           edgeMinimization: false, // this is super important as of a bug in the library
-          nodeSpacing: 100, // important due to a bug in the library
+          nodeSpacing: 200, // important due to a bug in the library
           treeSpacing: 200 // important due to a bug in the librarys
         }
       },
@@ -117,6 +119,8 @@
         }
       }
     };
+    // Merge custom and default options
+    Object.assign(options, vis_options);
     return options;
   }
 
@@ -127,7 +131,7 @@
         is_found, roles_colors, clr, rr, gg, bb, count_nodes,
         participant, participant_id, node, msg, mgroup, vector,
         info, my_node_id, tran, group_fathers, gtitle, min_id,
-        to_min, father, from_node, node_viz;
+        to_min, father, from_node, node_viz, experiment_node;
     var nodes = []; // list of all nodes
     var edges = []; // list of all edges
     var list_of_nodes=[]; // list of objects with nodes (not only nodes for example networks)
@@ -184,7 +188,22 @@
     }
 
     // preperation to push to the graph all nodes from the data
-    count_nodes=0;
+    experiment_node = {
+      id: 0,
+      label: 'Experiment',
+      title: 'Experiment',
+      group: 'group_experiment',
+      font: {align: 'inside'},
+      icon: {
+        face: 'FontAwesome',
+        code: '\uf0c2',
+        size: 120,
+        color: roles_colors[0]
+      }
+    };
+    nodes.push(experiment_node);
+
+    count_nodes=1;
     for (i = 0; i< net_structure.nodes.length; i++) {
       node=net_structure.nodes[i];
       count_nodes++; // count the nodes
@@ -376,8 +395,15 @@
         }
       });
       group_fathers[j]=my_node_id;
+      // Connect group fathers to experiment node
+      edges.push({
+        from: 0,
+        to: my_node_id,
+        dashes:true,
+        color: 'black',
+        title: 'Experiment to Group ' + String(j)
+      });
     }
-
 
     //connect network to correct source (or father)
     for (i = 0; i< net_structure.networks.length; i++) {
