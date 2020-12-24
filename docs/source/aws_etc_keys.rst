@@ -70,7 +70,7 @@ need to ensure the IAM user is granted the following permissions::
     AmazonMechanicalTurkFullAccess
     AmazonSNSFullAccess
 
-You may want to assign these permissinons by creating a Dallinger Group in
+You may want to assign these permissions by creating a Dallinger Group in
 the IAM console and assigning users to it.
 
 .. figure:: _static/Dallinger\ AWS\ Group.png
