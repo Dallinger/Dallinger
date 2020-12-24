@@ -192,13 +192,13 @@ class DashboardTabs(object):
 
 
 BROWSEABLE_MODELS = [
-    "Participant",
-    "Node",
     "Info",
     "Network",
+    "Node",
+    "Participant",
+    "Question",
     "Transformation",
     "Transmission",
-    "Question",
 ]
 
 
