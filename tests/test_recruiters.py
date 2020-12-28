@@ -420,6 +420,21 @@ class TestSNSListenerRoute(object):
         )
 
 
+class TestRedisStore(object):
+    @pytest.fixture
+    def redis_store(self):
+        from dallinger.recruiters import RedisStore
+
+        rs = RedisStore()
+        yield rs
+        rs.clear()
+
+    def test_that_its_a_store(self, redis_store):
+        assert redis_store.get("some key") is None
+        redis_store.set("some key", "some value")
+        assert redis_store.get("some key") == "some value"
+
+
 @pytest.fixture
 def queue():
     from rq import Queue
@@ -473,6 +488,26 @@ def mturkservice(active_config, fake_hit):
     return mturk
 
 
+@pytest.fixture
+def hit_id_store():
+    # We don't want to depend on redis in tests.
+    # This class replicates the interface or our RedisStore for tests.
+    class PrimitiveHITIDStore(object):
+        def __init__(self):
+            self._store = {}
+
+        def set(self, key, value):
+            self._store[key] = value
+
+        def get(self, key):
+            return self._store.get(key)
+
+        def clear(self):
+            self._store = {}
+
+    return PrimitiveHITIDStore()
+
+
 @pytest.mark.usefixtures("active_config", "requests", "queue")
 class TestMTurkRecruiter(object):
     @pytest.fixture
@@ -490,7 +525,9 @@ class TestMTurkRecruiter(object):
         yield mock_mailer
 
     @pytest.fixture
-    def recruiter(self, active_config, notifies_admin, mailer, mturkservice):
+    def recruiter(
+        self, active_config, notifies_admin, mailer, mturkservice, hit_id_store
+    ):
         from dallinger.recruiters import MTurkRecruiter
 
         with mock.patch.multiple(
@@ -499,7 +536,7 @@ class TestMTurkRecruiter(object):
             mocks["get_base_url"].return_value = "http://fake-domain"
             mocks["os"].getenv.return_value = "fake-host-domain"
             active_config.extend({"mode": u"sandbox"})
-            r = MTurkRecruiter()
+            r = MTurkRecruiter(store=hit_id_store)
             r.notifies_admin = notifies_admin
             r.mailer = mailer
             r.mturkservice = mturkservice
@@ -678,39 +715,29 @@ class TestMTurkRecruiter(object):
             ],
         )
 
-    def test_open_recruitment_raises_error_if_hit_exists_for_current_experiment(
+    def test_open_recruitment_raises_error_if_hit_already_in_progress(
         self, fake_hit, recruiter
     ):
         from dallinger.recruiters import MTurkRecruiterException
 
-        recruiter.mturkservice.get_hits.return_value = iter([fake_hit])
+        recruiter.open_recruitment()
         with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment()
-
-        recruiter.mturkservice.check_credentials.assert_not_called()
 
     def test_supresses_assignment_submitted(self, recruiter):
         assert recruiter.submitted_event() is None
 
-    def test_current_hit_id_with_active_experiment(self, fake_hit, recruiter):
-        recruiter.mturkservice.get_hits.return_value = iter([fake_hit])
+    def test_current_hit_id_with_active_experiment(self, recruiter, fake_hit):
+        recruiter.open_recruitment()
         assert recruiter.current_hit_id() == fake_hit["id"]
 
     def test_current_hit_id_with_no_active_experiment(self, recruiter):
         assert recruiter.current_hit_id() is None
 
-    def test_current_hit_id_with_multiple_hits_uses_most_recent(
-        self, fake_hit, recruiter
-    ):
-        newer_hit = fake_hit.copy()
-        newer_hit["created"] = get_localzone().localize(datetime.now())
-        recruiter.mturkservice.get_hits.return_value = iter([fake_hit, newer_hit])
-        assert recruiter.current_hit_id() == newer_hit["id"]
-
     def test_recruit_auto_recruit_on_recruits_for_current_hit(
         self, fake_hit, recruiter
     ):
-        recruiter.mturkservice.get_hits.return_value = iter([fake_hit])
+        recruiter.open_recruitment()
         recruiter.recruit()
 
         recruiter.mturkservice.extend_hit.assert_called_once_with(
@@ -719,13 +746,12 @@ class TestMTurkRecruiter(object):
 
     def test_recruit_auto_recruit_off_does_not_extend_hit(self, fake_hit, recruiter):
         recruiter.config["auto_recruit"] = False
-        recruiter.mturkservice.get_hits.return_value = iter([fake_hit])
+        recruiter.open_recruitment()
         recruiter.recruit()
 
         assert not recruiter.mturkservice.extend_hit.called
 
     def test_recruit_no_current_hit_does_not_extend_hit(self, recruiter):
-        recruiter.current_hit_id = mock.Mock(return_value=None)
         recruiter.recruit()
 
         assert not recruiter.mturkservice.extend_hit.called
@@ -733,8 +759,7 @@ class TestMTurkRecruiter(object):
     def test_recruit_extend_hit_error_is_logged_politely(self, recruiter):
         from dallinger.mturk import MTurkServiceException
 
-        fake_hit_id = "fake HIT id"
-        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.open_recruitment()
         recruiter.mturkservice.extend_hit.side_effect = MTurkServiceException("Boom!")
         with mock.patch("dallinger.recruiters.logger") as mock_logger:
             recruiter.recruit()
@@ -779,7 +804,7 @@ class TestMTurkRecruiter(object):
     @pytest.mark.xfail
     def test_close_recruitment(self, recruiter):
         fake_hit_id = "fake HIT id"
-        recruiter.current_hit_id = mock.Mock(return_value=fake_hit_id)
+        recruiter.open_recruitment()
         recruiter.close_recruitment()
         recruiter.mturkservice.expire_hit.assert_called_once_with(fake_hit_id)
 
@@ -984,7 +1009,7 @@ class TestMTurkLargeRecruiter(object):
         return PrimitiveCounter()
 
     @pytest.fixture
-    def recruiter(self, active_config, counter, mturkservice):
+    def recruiter(self, active_config, counter, mturkservice, hit_id_store):
         from dallinger.recruiters import MTurkLargeRecruiter
 
         with mock.patch.multiple(
@@ -993,9 +1018,8 @@ class TestMTurkLargeRecruiter(object):
             mocks["get_base_url"].return_value = "http://fake-domain"
             mocks["os"].getenv.return_value = "fake-host-domain"
             active_config.extend({"mode": u"sandbox"})
-            r = MTurkLargeRecruiter(counter=counter)
+            r = MTurkLargeRecruiter(counter=counter, store=hit_id_store)
             r.mturkservice = mturkservice
-            # r.current_hit_id = mock.Mock(return_value="fake HIT id")
             return r
 
     def test_open_recruitment_raises_error_if_experiment_in_progress(
@@ -1003,11 +1027,9 @@ class TestMTurkLargeRecruiter(object):
     ):
         from dallinger.recruiters import MTurkRecruiterException
 
-        recruiter.mturkservice.get_hits.return_value = iter([fake_hit])
+        recruiter.open_recruitment()
         with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment()
-
-        recruiter.mturkservice.check_credentials.assert_not_called()
 
     def test_open_recruitment_ignores_participants_from_other_recruiters(
         self, a, recruiter
@@ -1071,7 +1093,6 @@ class TestMTurkLargeRecruiter(object):
         recruiter.recruit(n=1)
 
         recruiter.mturkservice.extend_hit.assert_not_called()
-        recruiter.mturkservice.get_hits.return_value = iter([fake_hit])
         recruiter.recruit(n=1)
 
         recruiter.mturkservice.extend_hit.assert_called_once_with(
@@ -1082,7 +1103,6 @@ class TestMTurkLargeRecruiter(object):
         self, fake_hit, recruiter
     ):
         recruiter.open_recruitment(n=recruiter.pool_size + 1)
-        recruiter.mturkservice.get_hits.return_value = iter([fake_hit])
 
         recruiter.recruit(n=5)
 

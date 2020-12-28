@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import requests
+import six
 
 from rq import Queue
 from sqlalchemy import func
@@ -434,6 +435,36 @@ def mturk_recruiter_notify():
     return success_response()
 
 
+class RedisStore(object):
+    """A wrapper around redis, to handle value decoding on retrieval,
+    and easy cleanup of all managed keys via a prefix applied to all
+    stored key/value pairs.
+    """
+
+    def __init__(self):
+        self._redis = redis_conn
+        self._prefix = self.__class__.__name__
+
+    def set(self, key, value):
+        """Add a prefix to the key, then store the key/value pair in redis."""
+        self._redis.set(self._prefixed(key), value)
+
+    def get(self, key):
+        """Retrieve the value from redis and decode it."""
+        raw = self._redis.get(self._prefixed(key))
+        if raw is not None:
+            return raw.decode("utf-8")
+
+    def clear(self):
+        """Remove any key that starts with our prefix."""
+        for key in self._redis.keys():
+            if key.startswith(six.binary_type(self._prefix, "utf-8")):
+                self._redis.delete(key)
+
+    def _prefixed(self, key):
+        return "{}:{}".format(self._prefix, key)
+
+
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
@@ -443,7 +474,7 @@ class MTurkRecruiter(Recruiter):
     experiment_qualification_desc = "Experiment-specific qualification"
     group_qualification_desc = "Experiment group qualification"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(MTurkRecruiter, self).__init__()
         self.config = get_config()
         base_url = get_base_url()
@@ -458,6 +489,7 @@ class MTurkRecruiter(Recruiter):
         )
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
+        self.store = kwargs.get("store") or RedisStore()
         self._validate_config()
 
     def _validate_config(self):
@@ -520,6 +552,7 @@ class MTurkRecruiter(Recruiter):
             "qualifications": self._build_hit_qualifications(),
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
+        self._record_current_hit_id(hit_info["id"])
         url = hit_info["worker_url"]
 
         return {
@@ -683,45 +716,17 @@ class MTurkRecruiter(Recruiter):
     @property
     def is_in_progress(self):
         """Does an MTurk HIT for the current experiment ID already exist?"""
-        experiment_id = self.config.get("id")
-        hits = self.mturkservice.get_hits(
-            hit_filter=lambda h: h["annotation"] == experiment_id
-        )
-        for _ in hits:
-            return True
-        return False
+        return self.current_hit_id() is not None
 
     @property
     def qualification_active(self):
         return bool(self.config.get("assign_qualifications"))
 
     def current_hit_id(self):
-        """Return the ID of the most recent HIT with our experiment ID
-        in the annotation, if any such HITs exist.
+        """Return the ID of the HIT associated with the active experiment ID
+        if any such HIT exists.
         """
-        experiment_id = self.config.get("id")
-        hits = list(
-            self.mturkservice.get_hits(
-                hit_filter=lambda h: h["annotation"] == experiment_id
-            )
-        )
-        if not hits:
-            return None
-
-        if len(hits) == 1:
-            return hits[0]["id"]
-
-        # This is unlikely, but we might have more than one HIT if one was created
-        # directly via the MTurk UI.
-        hit_ids = [h["id"] for h in sorted(hits, key=lambda k: k["created"])]
-        most_recent = hit_ids[-1]
-        logger.warn(
-            "More than one HIT found annotated with experiment ID {}: ({}). "
-            "Using {}, as it is the most recently created.".format(
-                experiment_id, ", ".join(hit_ids), most_recent
-            )
-        )
-        return most_recent
+        return self.store.get(self.hit_id_storage_key)
 
     def approve_hit(self, assignment_id):
         try:
@@ -750,6 +755,11 @@ class MTurkRecruiter(Recruiter):
     def is_sandbox(self):
         return self.config.get("mode") == "sandbox"
 
+    @property
+    def hit_id_storage_key(self):
+        experiment_id = self.config.get("id")
+        return "{}:{}".format(self.__class__.__name__, experiment_id)
+
     def _build_hit_qualifications(self):
         quals = []
         reqs = MTurkQualificationRequirements
@@ -768,6 +778,9 @@ class MTurkRecruiter(Recruiter):
             quals.extend(explicit_qualifications)
 
         return quals
+
+    def _record_current_hit_id(self, hit_id):
+        self.store.set(self.hit_id_storage_key, hit_id)
 
     def _confirm_sns_subscription(self, token, topic):
         self.mturkservice.confirm_subscription(token=token, topic=topic)
@@ -862,7 +875,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
 
     def __init__(self, *args, **kwargs):
         self.counter = kwargs.get("counter") or RedisTally()
-        super(MTurkLargeRecruiter, self).__init__()
+        super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
 
     def open_recruitment(self, n=1):
         logger.info("Opening MTurkLarge recruitment for {} participants".format(n))
