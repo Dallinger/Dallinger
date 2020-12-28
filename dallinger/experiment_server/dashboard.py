@@ -656,13 +656,6 @@ def prep_datatables_options(table_data):
                     "filter": key,
                     "display": display_key,
                 }
-
-            if isinstance(row[key], dict):
-                # Make sure SearchPanes can show dict values reasonably
-                row[key] = json.dumps(value, default=date_handler)
-                row[display_key] = "<code>{}</code>".format(
-                    json.dumps(value, default=date_handler, indent=True)
-                )
                 col["searchPanes"] = {
                     "orthogonal": {
                         "display": "filter",
@@ -673,15 +666,17 @@ def prep_datatables_options(table_data):
                 }
                 if "render" in col:
                     del col["render"]
+
+            if isinstance(row[key], dict):
+                # Make sure SearchPanes can show dict values reasonably
+                row[key] = json.dumps(value, default=date_handler)
+                # Add indentation
+                row[display_key] = "<code>{}</code>".format(
+                    json.dumps(value, default=date_handler, indent=True)
+                )
             elif isinstance(row[key], list):
-                # If the column is all list values allow them to be
-                # filtered separately
-                if not col.get("searchPanes", {}).get("orthogonal"):
-                    col["render"] = {
-                        "_": "{}[, ]".format(key),
-                        "sp": key,
-                    }
-                    col["searchPanes"] = {"orthogonal": "sp"}
+                # Make sure SearchPanes can show list values reasonably
+                row[key] = json.dumps(value, default=date_handler)
 
     return datatables_options
 
