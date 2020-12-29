@@ -1,4 +1,5 @@
 """Recruiters manage the flow of participants to the experiment."""
+from __future__ import unicode_literals
 
 import flask
 import json
@@ -6,7 +7,6 @@ import logging
 import os
 import re
 import requests
-import six
 
 from rq import Queue
 from sqlalchemy import func
@@ -458,7 +458,8 @@ class RedisStore(object):
     def clear(self):
         """Remove any key that starts with our prefix."""
         for key in self._redis.keys():
-            if key.startswith(six.binary_type(self._prefix, "utf-8")):
+            key_decoded = key.decode("utf-8")
+            if key_decoded.startswith(self._prefix):
                 self._redis.delete(key)
 
     def _prefixed(self, key):
