@@ -774,7 +774,57 @@ class TestDashboardDatabase(object):
         row2 = datatables_options["data"][2]
         assert len(row1) == 2
         assert row2["col1"] == "String 3"
-        assert row2["col1_display"] == '<code>"String 3"</code>'
+        assert row2["col1_display"] == "String 3"
+
+    def test_prep_datatables_options_escapes_html(self):
+        from dallinger.experiment_server.dashboard import prep_datatables_options
+
+        # Mixed data all gets treated as JSON
+        table_data = {
+            "data": [
+                {"col1": [1, 2, "<span>three</span>"]},
+                {"col1": {"<blink>a</blink>": "</td></tr></tbody></table>b"}},
+                {"col1": "<script>alert();</script>"},
+            ],
+            "columns": [{"data": "col1", "name": "col1"}],
+        }
+        datatables_options = prep_datatables_options(table_data)
+
+        col_info = datatables_options["columns"][0]
+        assert col_info["name"] == "col1"
+        assert col_info.get("render") is None
+        assert col_info["data"] == {
+            "_": "col1",
+            "filter": "col1",
+            "display": "col1_display",
+        }
+        assert col_info["searchPanes"]["orthogonal"] == {
+            "display": "filter",
+            "sort": "filter",
+            "search": "filter",
+            "type": "type",
+        }
+
+        row0 = datatables_options["data"][0]
+        assert row0["col1"] == '[1, 2, "<span>three</span>"]'
+        assert (
+            row0["col1_display"]
+            == '<code>[1, 2, "&lt;span&gt;three&lt;/span&gt;"]</code>'
+        )
+
+        row1 = datatables_options["data"][1]
+        assert len(row1) == 2
+        # Dict values get JSON serialized so SearchPanes can process them
+        assert row1["col1"] == '{"<blink>a</blink>": "</td></tr></tbody></table>b"}'
+        assert (
+            row1["col1_display"]
+            == '<code>{\n "&lt;blink&gt;a&lt;/blink&gt;": "&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;b"\n}</code>'
+        )
+
+        row2 = datatables_options["data"][2]
+        assert len(row1) == 2
+        assert row2["col1"] == "<script>alert();</script>"
+        assert row2["col1_display"] == "&lt;script&gt;alert();&lt;/script&gt;"
 
     def test_database_output(self, a, active_config, mock_renderer):
         import json
