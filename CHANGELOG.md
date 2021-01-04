@@ -1,7 +1,7 @@
 # Change Log
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
-## [v-6.6.0](https://github.com/dallinger/dallinger/tree/6.6.0) (2020-09-09)
+## [v-6.6.0](https://github.com/dallinger/dallinger/tree/6.6.0) (2021-01-04)
 - Bugfix: Escape HTML stored in DB records for display in the Database Dashboard
 - Bugfix: Support display of JSON lists in Database Dashboard
 - Bugfix: Store the current MTurk HIT ID in redis to avoid errors on the MTurk Dashboard for accounts with many HITs
