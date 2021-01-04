@@ -1,6 +1,6 @@
 {% extends "base/dashboard.html" %}
 {% block stylesheets %}
-  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css"/>
+  <script src="https://use.fontawesome.com/ffb1fe552d.js"></script>
   <link href="https://unpkg.com/vis@4.17.0/dist/vis-network.min.css" rel="stylesheet" type="text/css"/>
 {% endblock %}
 {% block body %}
@@ -71,7 +71,15 @@
     $('#settings-pane input').on('change', function() {
       $(this).parents('form').submit();
     });
-    window.network_structure = {{ network_structure | safe }};
+    window.templateGlobals = function () {
+      // Values inscribed by Jinja2 when this template is rendered.
+      const network_structure = {{ network_structure | safe }};
+      const vis_options = {{ vis_options | safe }};
+      return {
+        network_structure: network_structure,
+        vis_options: vis_options
+      };
+    };
   </script>
   <script src="https://unpkg.com/vis@4.17.0/dist/vis.min.js"></script>
   <script src="/static/scripts/network-monitor.js"></script>

@@ -425,6 +425,17 @@ class TestDashboardMonitorRoute(object):
         assert "<h3>Participants</h3>" in resp_text
         assert "<li>working: 1</li>" in resp_text
 
+    def test_custom_vis_options(self, logged_in):
+        # The HTML is customized using a property on the model class
+        with mock.patch(
+            "dallinger.experiment.Experiment.node_visualization_options"
+        ) as vis_options:
+            vis_options.return_value = {"custom_vis_option": 3}
+            resp = logged_in.get("/dashboard/monitoring")
+            assert resp.status_code == 200
+            resp_text = resp.data.decode("utf8")
+            assert '"custom_vis_option": 3' in resp_text
+
 
 @pytest.mark.usefixtures("experiment_dir_merged", "webapp")
 class TestDashboardNetworkInfo(object):

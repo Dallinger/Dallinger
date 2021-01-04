@@ -4,6 +4,9 @@ h1 {
 h2 {
     margin-bottom: 10px;
 }
+.d-flex {
+    display: flex;
+}
 .d-flex #sidebar {
     flex: 0 0 220px;
     margin-right: 10px;
