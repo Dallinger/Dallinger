@@ -181,9 +181,8 @@ class ExplicitFileSource(object):
         return sum([os.path.getsize(path) for path in self.files])
 
     def selective_copy_to(self, destination):
-        """Write files from the source directory to another directory, skipping
-        files excluded by the general exclusion_policy, plus any files
-        ignored by git configuration.
+        """Write files declared in extra_files from the source directory
+        to another directory.
         """
         for from_path, to_path in self._get_mapping(destination):
             target_folder = os.path.dirname(to_path)
