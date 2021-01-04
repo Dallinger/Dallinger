@@ -1,6 +1,24 @@
 # Change Log
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v-6.6.0](https://github.com/dallinger/dallinger/tree/6.6.0) (2020-09-09)
+- Bugfix: Escape HTML stored in DB records for display in the Database Dashboard
+- Bugfix: Support display of JSON lists in Database Dashboard
+- Bugfix: Store the current MTurk HIT ID in redis to avoid errors on the MTurk Dashboard for accounts with many HITs
+- Bugfix: Support deployment on Heroku using Redis version 6 by opting out of certificate validation
+- Bugfixes and enhancements to the Network Monitoring Dashboard:
+    - Font Awesome icons are displayed properly on load
+    - Column layout is displayed correctly
+    - A new top level Experiment node is added to the visualization to aid in grouping. All network roles (under which Networks are grouped) are connected to the Experiment node.
+    - A new experiment method node_visualization_options is available returning a dictionary of values that will be injected into the vis.js options configuration for experiment specific layout/visualization tweaks.
+    - The default node spacing has been increased
+    - Documentation updates
+- Question records now viewable via the Database Dashboard
+- Document AWS IAM permissions required to run experiments with the MTurk recruiter
+- Add short version of app ID to MTurk HIT title, so the title is unique across multiple experiment runs
+- Fix documentation of `dallinger compensate` CLI command
+
+
 ## [v-6.5.0](https://github.com/dallinger/dallinger/tree/6.5.0) (2020-09-09)
 - New `dallinger.loadParticipant` function to load participant data into the browser
   based on an `assignmentId`
