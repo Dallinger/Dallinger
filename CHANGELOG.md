@@ -1,7 +1,7 @@
 # Change Log
 ## [v-master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
-## [v-6.6.0](https://github.com/dallinger/dallinger/tree/6.6.0) (2021-01-04)
+## [v-6.6.0](https://github.com/dallinger/dallinger/tree/v6.6.0) (2021-01-04)
 - Bugfix: Escape HTML stored in DB records for display in the Database Dashboard
 - Bugfix: Support display of JSON lists in Database Dashboard
 - Bugfix: Store the current MTurk HIT ID in redis to avoid errors on the MTurk Dashboard for accounts with many HITs
@@ -19,7 +19,7 @@
 - Fix documentation of `dallinger compensate` CLI command
 
 
-## [v-6.5.0](https://github.com/dallinger/dallinger/tree/6.5.0) (2020-09-09)
+## [v-6.5.0](https://github.com/dallinger/dallinger/tree/v6.5.0) (2020-09-09)
 - New `dallinger.loadParticipant` function to load participant data into the browser
   based on an `assignmentId`
 - Performance improvement: `dallinger debug` now starts up in about half the time
@@ -31,19 +31,19 @@
 - Provide a new `--archive` option to `dallinger deploy` and `dallinger sandbox` which makes it possible to start an experiment run with the database populated from an experiment archive created with `dallinger export`
 
 
-## [v-6.4.0](https://github.com/dallinger/dallinger/tree/6.4.0) (2020-08-03)
+## [v-6.4.0](https://github.com/dallinger/dallinger/tree/v6.4.0) (2020-08-03)
 - Bugfix: Fixes for Dashboard monitor layout and color issues
 - New customizable database dashboard for viewing live experiment data
 - Fixes and enhancements to the Lifecycle and Heroku dashboards
 - Use localhost as hostname when running in debug mode by default.
 - Dashboard credentials can now be set using configuration parameters.
 
-## [v-6.3.1](https://github.com/dallinger/dallinger/tree/6.3.1) (2020-07-21)
+## [v-6.3.1](https://github.com/dallinger/dallinger/tree/v6.3.1) (2020-07-21)
 - Bugfix: Dashboard authentication now works with multiple web processes and dynos
 - Bugfix: Correct accidental change to Dallinger version used in Bartlett1932 demo
 - Update webdriver call to avoid deprecation warning
 
-## [v-6.3.0](https://github.com/dallinger/dallinger/tree/6.3.0) (2020-07-08)
+## [v-6.3.0](https://github.com/dallinger/dallinger/tree/v6.3.0) (2020-07-08)
 - Add `file:/path/to/file` support to configuration system.
 - Add validators to configuration system.
 - Add new `qualification_requirements` config parameter to add explicit MTurk
@@ -51,7 +51,7 @@
 - New, extensible `/dashboard` infrastructure for viewing and manipulating details of the live experiment, protected by a username and password (see http://docs.dallinger.io/en/latest/monitoring_a_live_experiment.html#the-dashboard)
 - New `dallinger extend_mtuk_hit` command: extend an existing MTurk HIT by adding assignments, and optionally, additional time before expiration.
 
-## [v-6.2.2](https://github.com/dallinger/dallinger/tree/6.2.2) (2020-04-27)
+## [v-6.2.2](https://github.com/dallinger/dallinger/tree/v6.2.2) (2020-04-27)
 - Bugfix: revert change to `HOST` configuration which broke Heroku deployments (see https://github.com/Dallinger/Dallinger/issues/2130)
 
 ## [v-6.2.1](https://github.com/Dallinger/Dallinger/tree/v6.2.1) (2020-04-25)
@@ -86,7 +86,7 @@ automatically during ``debug`` and deployment, and by ``dallinger verify``.
 - `notification_url` removed as a config key
 - Event resubmissions by MTurkRecruiter no longer call a Flask route to initiate processing, and instead enqueue the tasks directly
 
-## [v-5.0.7](https://github.com/dallinger/dallinger/5.0.7) (2019-03-29)
+## [v-5.0.7](https://github.com/dallinger/dallinger/v5.0.7) (2019-03-29)
 
 - Improve persistence of participant attributes in `dallinger.identity`, so that these keys and values do not need to be passed between pages as URL parameters in order to preserve them
 - Check the total size of the experiment files that will be copied and deployed, and abort if this exceeds 50MB, to avoid making potentially many copies of large files over repeated experiment runs
