@@ -230,8 +230,7 @@ class TestConfigurationIntegrationTests(object):
         config = get_config()
         config.register_extra_parameters()
         config.load_from_file(LOCAL_CONFIG)
-        # Failse with _reset()
-        config.clear()
+        config._reset(register_defaults=True)
         config.register_extra_parameters()
         config.load_from_file(LOCAL_CONFIG)
 

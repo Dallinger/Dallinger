@@ -146,9 +146,9 @@ class Experiment(object):
 
         # Register custom configs only once
         config = get_config()
-        if not getattr(config, "_experiemnt_params_loaded", False):
+        if not getattr(config, "_experiment_params_loaded", False):
             self.extra_parameters()
-            config._experiemnt_params_loaded = True
+            config._experiment_params_loaded = True
 
         if session:
             self.configure()
@@ -1021,7 +1021,7 @@ class Experiment(object):
 
             try:
                 extra_parameters()
-                extra_parameters.loaded = True
+                config._module_params_loaded = True
             except KeyError:
                 pass
         except ImportError:
@@ -1087,11 +1087,6 @@ class Experiment(object):
         self.import_session.close()
         session.rollback()
         session.close()
-        # Remove marker preventing experiment config variables being reloaded
-        try:
-            del module.extra_parameters.loaded
-        except AttributeError:
-            pass
         config._reset(register_defaults=True)
         del sys.modules["dallinger_experiment"]
 
