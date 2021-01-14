@@ -13,7 +13,8 @@ custom Experiment class:
         config = get_config()
         config.register('n', int, [], False)
 
-Alternatively you can define an ``extra_parameters`` function in your ``experiment.py`` file:
+Additionally you can define an ``extra_parameters`` function in your ``experiment.py``
+file, and both will be respected:
 
 ::
 
