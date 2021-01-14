@@ -216,8 +216,10 @@ class TestConfigurationIntegrationTests(object):
             python.sendline("config = experiment_server._config()")
             python.sendline("print(config.types)")
             if six.PY3:
+                python.expect_exact("custom_parameter2': <class 'bool'>")
                 python.expect_exact("custom_parameter': <class 'int'>")
             else:
+                python.expect_exact("custom_parameter2': <type 'bool'>")
                 python.expect_exact("custom_parameter': <type 'int'>")
         finally:
             python.sendcontrol("d")

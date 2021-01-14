@@ -90,6 +90,7 @@ default_keys = (
 class Configuration(object):
 
     SUPPORTED_TYPES = {six.binary_type, six.text_type, int, float, bool}
+    _experiemnt_params_loaded = False
 
     def __init__(self):
         self._reset()
@@ -269,6 +270,17 @@ class Configuration(object):
     def register_extra_parameters(self):
         initialize_experiment_package(os.getcwd())
         extra_parameters = None
+
+        # Import and instantiate the experiment class if available
+        # This will run any experiment specific parameter registrations
+        from dallinger.experiment import load
+
+        try:
+            exp_klass = load()
+            exp_klass()
+        except ImportError:
+            pass
+
         try:
             from dallinger_experiment.experiment import extra_parameters
         except ImportError:
