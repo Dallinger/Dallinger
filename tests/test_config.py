@@ -5,7 +5,6 @@ import os
 import sys
 from tempfile import NamedTemporaryFile
 
-import pexpect
 import pytest
 import six
 
