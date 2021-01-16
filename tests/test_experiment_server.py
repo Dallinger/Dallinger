@@ -227,7 +227,7 @@ class TestQuestion(object):
     def test_custom_route(self, a, webapp, active_config):
         resp = webapp.get("/custom_route")
         assert resp.status_code == 200
-        assert b"A custom route." in resp.data
+        assert b"A custom route for TestExperiment." in resp.data
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")

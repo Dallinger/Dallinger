@@ -88,9 +88,16 @@ else:
 
 # Register extra_routes defined on experiment class
 try:
-    exp_class = experiment.load()
-    if getattr(exp_class, "experiment_routes", None) is not None:
-        app.register_blueprint(exp_class.experiment_routes)
+    exp_klass = experiment.load()
+    bp = exp_klass.experiment_routes
+    routes = experiment.EXPERIMENT_ROUTE_REGISTRATIONS
+    for rule in routes:
+        route = routes[rule]
+        route_func = getattr(exp_klass, route["func_name"], None)
+        if route_func is not None:
+            bp.route(rule, *route["args"], **route["kwargs"])(route_func)
+    if routes:
+        app.register_blueprint(bp)
 except ImportError:
     pass
 

@@ -45,9 +45,10 @@ class TestExperiment(Experiment):
         return True
 
     @experiment_route("/custom_route")
-    def custom_route():
+    @classmethod
+    def custom_route(cls):
         """Get all the drawings."""
-        return "A custom route."
+        return "A custom route for {}.".format(cls.__name__)
 
 
 class ZSubclassThatSortsLower(TestExperiment):

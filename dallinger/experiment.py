@@ -89,9 +89,13 @@ class Experiment(object):
     #: :func:`~dallinger.experiment.Experiment.create_participant`.
     participant_constructor = Participant
 
-    #: Flask Blueprint for experiment. Functions should be registered as Flask routes
-    #: using the :func:`~dallinger.experiment.experiment_route` decorator. Route
-    #: functions can be defined at the module level or in the class.
+    #: Flask Blueprint for experiment. Functions and methods on the class
+    #: should be registered as Flask routes using the
+    #: :func:`~dallinger.experiment.experiment_route` decorator. Route
+    #: function scan not be instance methods and should either be
+    #: plain functions or classmethods. You can also register route functions
+    #: at the module level using the standard `route` decorator on this
+    #: Blueprint.
     experiment_routes = Blueprint(
         "experiment_routes",
         __name__,
@@ -1478,24 +1482,28 @@ def scheduled_task(trigger, **kwargs):
     return decorate
 
 
+EXPERIMENT_ROUTE_REGISTRATIONS = {}
+
+
 def experiment_route(rule, *args, **kwargs):
-    """Works identically to Flask Blueprint `route` decorator called on the
-    :attr:`Experiment.experiment_routes` Blueprint, but includes checks to
-    ensure the rule hasn't already been registered.
+    """Register experiemnt functions or classmethod as routes on the
+    :attr:`Experiment.experiment_routes` Blueprint. This decorator defers
+    registration of the routes until experiment server setup to
+    allow routes to be overriden.
     """
-    try:
-        klass = load(initialize=False)
-    except ImportError:
-        klass = Experiment
-    bp = klass.experiment_routes
-    if getattr(klass, "_registered_routes", None) is None:
-        klass._registered_routes = set()
-    registered_routes = klass._registered_routes
-    if rule in registered_routes:
+    registered_routes = EXPERIMENT_ROUTE_REGISTRATIONS
+    route = {
+        "args": args,
+        "kwargs": kwargs,
+    }
 
-        def new_func(func):
-            return func
+    def new_func(func):
+        # Check `__func__` in case we have a classmethod or staticmethod
+        base_func = getattr(func, "__func__", func)
+        name = getattr(base_func, "__name__", None)
+        if name is not None:
+            route["func_name"] = name
+            registered_routes[rule] = route
+        return func
 
-        return new_func
-    registered_routes.add(rule)
-    return bp.route(rule, *args, **kwargs)
+    return new_func
