@@ -1387,34 +1387,16 @@ class Scrubber(object):
         display(self.widget())
 
 
-REGISTERED_ROUTES = set()
-
-
-def experiment_route(rule, *args, **kwargs):
-    """Works identically to Flask Blueprint `route` decorator called on the
-    :attr:`Experiment.experiment_routes` Blueprint, but includes checks to
-    ensure the rule hasn't already been registered.
-    """
-    bp = Experiment.experiment_routes
-    if rule in REGISTERED_ROUTES:
-
-        def new_func(func):
-            return func
-
-        return new_func
-    REGISTERED_ROUTES.add(rule)
-    return bp.route(rule, *args, **kwargs)
-
-
 def is_experiment_class(cls):
     return (
         inspect.isclass(cls) and issubclass(cls, Experiment) and cls is not Experiment
     )
 
 
-def load():
+def load(initialize=True):
     """Load the active experiment."""
-    initialize_experiment_package(os.getcwd())
+    if initialize:
+        initialize_experiment_package(os.getcwd())
     try:
         try:
             from dallinger_experiment import experiment
@@ -1494,3 +1476,26 @@ def scheduled_task(trigger, **kwargs):
         return func
 
     return decorate
+
+
+def experiment_route(rule, *args, **kwargs):
+    """Works identically to Flask Blueprint `route` decorator called on the
+    :attr:`Experiment.experiment_routes` Blueprint, but includes checks to
+    ensure the rule hasn't already been registered.
+    """
+    try:
+        klass = load(initialize=False)
+    except ImportError:
+        klass = Experiment
+    bp = klass.experiment_routes
+    if getattr(klass, "_registered_routes", None) is None:
+        klass._registered_routes = set()
+    registered_routes = klass._registered_routes
+    if rule in registered_routes:
+
+        def new_func(func):
+            return func
+
+        return new_func
+    registered_routes.add(rule)
+    return bp.route(rule, *args, **kwargs)
