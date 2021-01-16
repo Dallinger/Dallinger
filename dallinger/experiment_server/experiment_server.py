@@ -86,6 +86,14 @@ except ImportError:
 else:
     app.register_blueprint(extra_routes)
 
+# Register extra_routes defined on experiment class
+try:
+    exp_class = experiment.load()
+    if getattr(exp_class, "experiment_routes", None) is not None:
+        app.register_blueprint(exp_class.experiment_routes)
+except ImportError:
+    pass
+
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
 # it turns out this is complicated, so for now we always register our
 # primary recruiter's route:

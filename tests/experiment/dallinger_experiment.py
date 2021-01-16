@@ -1,7 +1,7 @@
 import os.path
 
 from dallinger.config import get_config
-from dallinger.experiment import Experiment
+from dallinger.experiment import Experiment, experiment_route
 
 
 class TestExperiment(Experiment):
@@ -43,6 +43,11 @@ class TestExperiment(Experiment):
     @classmethod
     def test_task(cls):
         return True
+
+    @experiment_route("/custom_route")
+    def custom_route():
+        """Get all the drawings."""
+        return "A custom route."
 
 
 class ZSubclassThatSortsLower(TestExperiment):

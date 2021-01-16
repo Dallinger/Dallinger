@@ -3,14 +3,14 @@ import random
 import time
 from operator import attrgetter
 
-from flask import Blueprint, Response
+from flask import Response
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
 from dallinger.bots import BotBase
-from dallinger.experiment import Experiment
+from dallinger.experiment import Experiment, experiment_route
 from dallinger import db
 from dallinger.networks import Chain
 
@@ -71,34 +71,28 @@ class MCMCP(Experiment):
         infos = participant.infos()
         return len([info for info in infos if info.chosen]) * 2 == len(infos)
 
+    @experiment_route("/choice/<int:node_id>/<int:choice>", methods=["POST"])
+    def choice(node_id, choice):
+        from .models import Agent
 
-extra_routes = Blueprint(
-    "extra_routes", __name__, template_folder="templates", static_folder="static"
-)
+        try:
+            exp = MCMCP(db.session)
+            node = Agent.query.get(node_id)
+            infos = node.infos()
 
+            if choice == 0:
+                info = max(infos, key=attrgetter("id"))
+            elif choice == 1:
+                info = min(infos, key=attrgetter("id"))
+            else:
+                raise ValueError("Choice must be 1 or 0")
 
-@extra_routes.route("/choice/<int:node_id>/<int:choice>", methods=["POST"])
-def choice(node_id, choice):
-    from .models import Agent
+            info.chosen = True
+            exp.save()
 
-    try:
-        exp = MCMCP(db.session)
-        node = Agent.query.get(node_id)
-        infos = node.infos()
-
-        if choice == 0:
-            info = max(infos, key=attrgetter("id"))
-        elif choice == 1:
-            info = min(infos, key=attrgetter("id"))
-        else:
-            raise ValueError("Choice must be 1 or 0")
-
-        info.chosen = True
-        exp.save()
-
-        return Response(status=200, mimetype="application/json")
-    except Exception:
-        return Response(status=403, mimetype="application/json")
+            return Response(status=200, mimetype="application/json")
+        except Exception:
+            return Response(status=403, mimetype="application/json")
 
 
 class Bot(BotBase):

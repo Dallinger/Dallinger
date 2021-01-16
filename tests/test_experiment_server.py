@@ -224,6 +224,11 @@ class TestQuestion(object):
         )
         assert models.Question.query.all()
 
+    def test_custom_route(self, a, webapp, active_config):
+        resp = webapp.get("/custom_route")
+        assert resp.status_code == 200
+        assert b"A custom route." in resp.data
+
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow

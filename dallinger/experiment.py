@@ -21,6 +21,7 @@ import time
 import uuid
 import warnings
 
+from flask import Blueprint
 from sqlalchemy import and_
 from sqlalchemy import create_engine
 from sqlalchemy import distinct
@@ -87,6 +88,16 @@ class Experiment(object):
     #: :attr:`~dallinger.models.Participant` or a sub-class. Used by
     #: :func:`~dallinger.experiment.Experiment.create_participant`.
     participant_constructor = Participant
+
+    #: Flask Blueprint for experiment. Functions should be registered as Flask routes
+    #: using the :func:`~dallinger.experiment.experiment_route` decorator. Route
+    #: functions can be defined at the module level or in the class.
+    experiment_routes = Blueprint(
+        "experiment_routes",
+        __name__,
+        template_folder="templates",
+        static_folder="static",
+    )
 
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
@@ -1374,6 +1385,25 @@ class Scrubber(object):
 
         self.build_widget()
         display(self.widget())
+
+
+REGISTERED_ROUTES = set()
+
+
+def experiment_route(rule, *args, **kwargs):
+    """Works identically to Flask Blueprint `route` decorator called on the
+    :attr:`Experiment.experiment_routes` Blueprint, but includes checks to
+    ensure the rule hasn't already been registered.
+    """
+    bp = Experiment.experiment_routes
+    if rule in REGISTERED_ROUTES:
+
+        def new_func(func):
+            return func
+
+        return new_func
+    REGISTERED_ROUTES.add(rule)
+    return bp.route(rule, *args, **kwargs)
 
 
 def is_experiment_class(cls):
