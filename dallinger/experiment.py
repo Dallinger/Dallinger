@@ -144,12 +144,6 @@ class Experiment(object):
             # Guard against subclasses replacing this with a @property
             self.public_properties = {}
 
-        # Register custom configs only once
-        config = get_config()
-        if not getattr(config, "_experiment_params_loaded", False):
-            self.extra_parameters()
-            config._experiment_params_loaded = True
-
         if session:
             self.configure()
 
@@ -167,10 +161,11 @@ class Experiment(object):
         else:
             self.widget = module.ExperimentWidget(self)
 
-    def extra_parameters(self):
-        """Override this method to register new config variables. It is called
-        exactly once during config load or experiment initialization.
-        See :ref:`Extra Configuration <extra-configuration>` for an example.
+    @classmethod
+    def extra_parameters(cls):
+        """Override this classmethod to register new config variables. It is
+        called during config load. See
+        :ref:`Extra Configuration <extra-configuration>` for an example.
         """
         pass
 

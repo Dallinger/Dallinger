@@ -21,7 +21,8 @@ class TestExperiment(Experiment):
         if session:
             self.setup()
 
-    def extra_parameters(self):
+    @classmethod
+    def extra_parameters(cls):
         config = get_config()
         config.register("custom_parameter2", bool, [])
 

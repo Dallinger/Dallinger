@@ -35,7 +35,8 @@ class Bartlett1932(Experiment):
         if session:
             self.setup()
 
-    def extra_parameters(self):
+    @classmethod
+    def extra_parameters(cls):
         config = get_config()
         config.register("num_participants", int)
 

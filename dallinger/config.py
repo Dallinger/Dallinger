@@ -280,9 +280,12 @@ class Configuration(object):
 
         try:
             exp_klass = load()
-            exp_klass()
         except ImportError:
-            pass
+            exp_klass = None
+        exp_params = getattr(exp_klass, "extra_parameters", None)
+        if exp_params is not None and not self._experiment_params_loaded:
+            exp_params()
+            self._experiment_params_loaded = True
 
         try:
             from dallinger_experiment.experiment import extra_parameters
