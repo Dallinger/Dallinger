@@ -9,7 +9,7 @@ flask-sockets==0.2.1
 Flask-WTF==0.14.3
 flask==1.0.2
 future==0.17.1
-gevent==1.4.0
+gevent==21.1.1
 greenlet==0.4.15
 gunicorn==19.9.0
 localconfig==1.1.1
