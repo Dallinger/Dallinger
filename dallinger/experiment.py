@@ -1486,7 +1486,7 @@ EXPERIMENT_ROUTE_REGISTRATIONS = {}
 
 
 def experiment_route(rule, *args, **kwargs):
-    """Register experiemnt functions or classmethod as routes on the
+    """Register experiment functions or classmethod as routes on the
     :attr:`Experiment.experiment_routes` Blueprint. This decorator defers
     registration of the routes until experiment server setup to
     allow routes to be overriden.
