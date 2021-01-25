@@ -5,6 +5,7 @@ import os
 import sys
 from tempfile import NamedTemporaryFile
 
+import pexpect
 import pytest
 import six
 
@@ -205,24 +206,30 @@ worldwide = false
 
 @pytest.mark.usefixtures("experiment_dir_merged")
 class TestConfigurationIntegrationTests(object):
+    @pytest.mark.slow
     def test_experiment_defined_parameters(self):
-        config = get_config()
-        config.register_extra_parameters()
-        config.load_from_file(LOCAL_CONFIG)
-        # From custom module function
-        assert "custom_parameter" in config.types
-        # From custom experiment instance method
-        assert "custom_parameter2" in config.types
-
-        assert config.types["custom_parameter"] is int
-        assert config.types["custom_parameter2"] is bool
+        try:
+            python = pexpect.spawn("python", encoding="utf-8")
+            python.read_nonblocking(10000)
+            python.setecho(False)
+            python.sendline("from dallinger.experiment_server import experiment_server")
+            python.sendline("config = experiment_server._config()")
+            python.sendline("print(config.types)")
+            if six.PY3:
+                python.expect_exact("custom_parameter': <class 'int'>")
+            else:
+                python.expect_exact("custom_parameter': <type 'int'>")
+        finally:
+            python.sendcontrol("d")
+            python.read()
 
     def test_reload_config(self):
         # replicate the experiment API runner config loading
         config = get_config()
         config.register_extra_parameters()
         config.load_from_file(LOCAL_CONFIG)
-        config._reset(register_defaults=True)
+        # Failse with _reset()
+        config.clear()
         config.register_extra_parameters()
         config.load_from_file(LOCAL_CONFIG)
 
