@@ -1,9 +1,10 @@
 from dallinger import processes, networks, nodes, models
 from dallinger.nodes import Agent
 
+import pytest
+
 
 class TestProcesses(object):
-
     def test_random_walk_from_source(self, db_session):
 
         net = models.Network()
@@ -20,7 +21,8 @@ class TestProcesses(object):
         source = nodes.RandomBinaryStringSource(network=net)
 
         from operator import attrgetter
-        source.connect(whom=min(net.nodes(type=Agent), key=attrgetter('creation_time')))
+
+        source.connect(whom=min(net.nodes(type=Agent), key=attrgetter("creation_time")))
         source.create_information()
 
         processes.random_walk(net)
@@ -38,6 +40,7 @@ class TestProcesses(object):
 
         assert msg == agent3.infos()[0].contents
 
+    @pytest.mark.slow
     def test_moran_process_cultural(self, db_session):
 
         # Create a fully-connected network.
@@ -72,19 +75,21 @@ class TestProcesses(object):
 
         # Ensure that the process had reached fixation.
         from operator import attrgetter
+
         assert (
-            max(agent1.infos(), key=attrgetter('creation_time')).contents ==
-            max(agent2.infos(), key=attrgetter('creation_time')).contents
+            max(agent1.infos(), key=attrgetter("creation_time")).contents
+            == max(agent2.infos(), key=attrgetter("creation_time")).contents
         )
         assert (
-            max(agent2.infos(), key=attrgetter('creation_time')).contents ==
-            max(agent3.infos(), key=attrgetter('creation_time')).contents
+            max(agent2.infos(), key=attrgetter("creation_time")).contents
+            == max(agent3.infos(), key=attrgetter("creation_time")).contents
         )
         assert (
-            max(agent3.infos(), key=attrgetter('creation_time')).contents ==
-            max(agent1.infos(), key=attrgetter('creation_time')).contents
+            max(agent3.infos(), key=attrgetter("creation_time")).contents
+            == max(agent1.infos(), key=attrgetter("creation_time")).contents
         )
 
+    @pytest.mark.slow
     def test_moran_process_sexual(self, db_session):
 
         # Create a fully-connected network.

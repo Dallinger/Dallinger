@@ -2,7 +2,6 @@ from dallinger import nodes, models
 
 
 class TestSources(object):
-
     def add(self, session, *args):
         session.add_all(args)
         session.commit()

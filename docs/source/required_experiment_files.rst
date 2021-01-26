@@ -53,3 +53,24 @@ name. The files are as follows:
    required for dallinger2.js to work.
 -  dallinger.css - this contains several css classes that are used in the
    demos.
+
+Custom files
+^^^^^^^^^^^^
+
+You can specify files from outside the experiment directory that should
+be merged in using the `extra_files` function. This is a module-level
+function in the `experiment.py` file that returns a sequence of source
+and destination tuples. The source can be either a file or a directory.
+
+For example:
+
+.. code-block:: python
+
+    def extra_files():
+        return [
+            ("/home/user/stimulus.txt", "/static/stimulus.txt"),
+            ("/home/user/stimuluses", "/static/stimuluses"),
+        ]
+
+You can also provide this as a class method on the
+:py:class:`~dallinger.experiment.Experiment` class.

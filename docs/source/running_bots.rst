@@ -4,8 +4,10 @@ Running bots as participants
 Dallinger supports running simulated experiments using bots
 that participate in the experiment automatically.
 
-Not all experiments will have bots available; the :doc:`demos/bartlett1932/index`
-and :doc:`demos/chatroom/index` demos are the only built-in experiments that do.
+.. note::
+
+    Not all experiments will have bots available.
+    The :doc:`demos/bartlett1932/index` demo does have bots available.
 
 
 Running an experiment locally with bots
@@ -24,11 +26,13 @@ You may also set the configuration value ``recruiter='bots'`` in local or global
 configurations, as an environment variable or as a keyword argument to
 :py:meth:`~dallinger.experiments.Experiment.run`.
 
-Note: Bots are run by worker processes. If the experiment recruits many bots
-at the same time, you may need to increase the ``num_dynos_worker`` config setting
-to run additional worker processes. Each worker process can run up to 20 bots
-(though if the bots are implemented using selenium to run a real browser,
-you'll probably hit resource limits before that).
+.. note::
+
+    Bots are run by worker processes. If the experiment recruits many bots
+    at the same time, you may need to increase the ``num_dynos_worker`` config setting
+    to run additional worker processes. Each worker process can run up to 20 bots
+    (though if the bots are implemented using selenium to run a real browser,
+    you'll probably hit resource limits before that).
 
 
 Running an experiment with a mix of bots and real participants
@@ -55,9 +59,9 @@ To start the experiment with this configuration, run::
 
 
 Running a single bot
-********************
+~~~~~~~~~~~~~~~~~~~~
 
 If you want to run a single bot as part of an ongoing experiment, you can use
 the :ref:`bot <dallinger-bot>` command. This is useful for testing a single
-bot's behavior as part of a longer-running experiment, and allows easy access 
+bot's behavior as part of a longer-running experiment, and allows easy access
 to the Python pdb debugger.

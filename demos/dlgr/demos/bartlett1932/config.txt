@@ -2,6 +2,7 @@
 mode = sandbox
 auto_recruit = true
 webdriver_type = phantomjs
+num_participants = 3
 
 [MTurk]
 title = War of the Ghosts
@@ -19,13 +20,13 @@ browser_exclude_rule = MSIE, mobile, tablet
 
 [Database]
 database_url = postgresql://postgres@localhost/dallinger
-database_size = standard-0
+database_size = hobby-dev
 
 [Server]
-dyno_type = free
+dyno_type = hobby
 num_dynos_web = 1
 num_dynos_worker = 1
+redis_size = hobby-dev
 host = 0.0.0.0
-notification_url = None
 clock_on = false
 logfile = -

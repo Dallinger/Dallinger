@@ -19,7 +19,7 @@ management & direction:
     Aaron Culich
     Carlos de la Guardia
     Cris Ewing
-    Monica Gates
+    Vael Gates
     David Glick
     Tom Griffiths
     Jessica Hamrick

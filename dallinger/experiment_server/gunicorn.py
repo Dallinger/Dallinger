@@ -6,15 +6,16 @@ import multiprocessing
 import os
 from dallinger.config import get_config
 import logging
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 logger = logging.getLogger(__file__)
 
-WORKER_CLASS = 'geventwebsocket.gunicorn.workers.GeventWebSocketWorker'
+WORKER_CLASS = "geventwebsocket.gunicorn.workers.GeventWebSocketWorker"
 
 
 def when_ready(arbiter):
     # Signal to parent process that server has started
-    logger.warn('Ready.')
+    logger.warning("Ready.")
 
 
 class StandaloneServer(Application):
@@ -36,7 +37,7 @@ class StandaloneServer(Application):
     @property
     def port(self):
         """Heroku sets the port its running on as an environment variable"""
-        return os.environ.get('PORT')
+        return os.environ.get("PORT")
 
     def init(self, *args):
         """init method
@@ -52,32 +53,35 @@ class StandaloneServer(Application):
     def load(self):
         """Return our application to be run."""
         app = util.import_app("dallinger.experiment_server.sockets:app")
-        if self.options.get('mode') == 'debug':
+        app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
+        if self.options.get("mode") == "debug":
             app.debug = True
+        else:
+            app = ProxyFix(app)
         return app
 
     def load_user_config(self):
         config = get_config()
         workers = config.get("threads")
         if workers == "auto":
-            multiplier = config.get("worker_multiplier", 1.5)
+            multiplier = config.get("worker_multiplier")
             workers = str(int(round(multiprocessing.cpu_count() * multiplier)) + 1)
 
         host = config.get("host")
         mode = config.get("mode")
         bind_address = "{}:{}".format(host, self.port)
         self.options = {
-            'bind': bind_address,
-            'workers': workers,
-            'worker_class': WORKER_CLASS,
-            'loglevels': self.loglevels,
-            'loglevel': self.loglevels[config.get("loglevel")],
-            'errorlog': '-',
-            'accesslog': '-',
-            'mode': mode,
-            'proc_name': 'dallinger_experiment_server',
-            'limit_request_line': '0',
-            'when_ready': when_ready,
+            "bind": bind_address,
+            "workers": workers,
+            "worker_class": WORKER_CLASS,
+            "loglevels": self.loglevels,
+            "loglevel": self.loglevels[config.get("loglevel")],
+            "errorlog": "-",
+            "accesslog": "-",
+            "mode": mode,
+            "proc_name": "dallinger_experiment_server",
+            "limit_request_line": "0",
+            "when_ready": when_ready,
         }
 
 
@@ -89,22 +93,22 @@ def launch():
         logging.INFO,
         logging.WARNING,
         logging.ERROR,
-        logging.CRITICAL
+        logging.CRITICAL,
     ]
-    LOG_LEVEL = LOG_LEVELS[config.get('loglevel')]
-    logging.basicConfig(format='%(asctime)s %(message)s', level=LOG_LEVEL)
+    LOG_LEVEL = LOG_LEVELS[config.get("loglevel")]
+    logging.basicConfig(format="%(asctime)s %(message)s", level=LOG_LEVEL)
 
     # Avoid duplicate logging to stderr
-    error_logger = logging.getLogger('gunicorn.error')
+    error_logger = logging.getLogger("gunicorn.error")
     error_logger.propagate = False
-    access_logger = logging.getLogger('gunicorn.access')
+    access_logger = logging.getLogger("gunicorn.access")
     access_logger.propagate = False
 
     # Set up logging to file
     # (We're not using gunicorn's errorlog and accesslog settings
     # for this because it redirects stdout and stderr)
-    logfile = config.get('logfile')
-    if config.get('logfile') != '-':
+    logfile = config.get("logfile")
+    if config.get("logfile") != "-":
         handler = logging.FileHandler(logfile)
         error_logger.addHandler(handler)
         access_logger.addHandler(handler)

@@ -1,15 +1,10 @@
-"""Bartlett's trasmission chain experiment from Remembering (1932)."""
+"""The Sheep Market."""
 
 from dallinger.networks import Empty
 from dallinger.experiment import Experiment
 from dallinger.models import Info
 from jinja2 import TemplateNotFound
-from flask import (
-    abort,
-    Blueprint,
-    jsonify,
-    render_template
-)
+from flask import abort, Blueprint, jsonify, render_template
 import json
 
 
@@ -24,23 +19,21 @@ class SheepMarket(Experiment):
         """
         super(SheepMarket, self).__init__(session)
         self.experiment_repeats = 1
-        self.initial_recruitment = 10000
+        self.initial_recruitment_size = 2
         if session:
             self.setup()
 
     def create_network(self):
         """Return a new network."""
-        return Empty(max_size=10000)
+        return Empty(max_size=2)
 
 
 extra_routes = Blueprint(
-    'extra_routes',
-    __name__,
-    template_folder='templates',
-    static_folder='static')
+    "extra_routes", __name__, template_folder="templates", static_folder="static"
+)
 
 
-@extra_routes.route('/drawings')
+@extra_routes.route("/drawings")
 def getdrawings():
     """Get all the drawings."""
     infos = Info.query.all()
@@ -48,10 +41,10 @@ def getdrawings():
     return jsonify(drawings=sketches)
 
 
-@extra_routes.route('/gallery')
+@extra_routes.route("/gallery")
 def viewdrawings():
     """Render the gallery."""
     try:
-        return render_template('gallery.html')
+        return render_template("gallery.html")
     except TemplateNotFound:
         abort(404)

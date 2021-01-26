@@ -3,6 +3,7 @@
 import json
 import logging
 import random
+import tempfile
 import uuid
 
 from cached_property import cached_property
@@ -14,8 +15,20 @@ from selenium.webdriver.support.ui import WebDriverWait
 from six.moves import urllib
 import gevent
 import requests
+from requests.exceptions import RequestException
 
 logger = logging.getLogger(__file__)
+
+DRIVER_MAP = {
+    "phantomjs": webdriver.PhantomJS,
+    "firefox": webdriver.Firefox,
+    "chrome": webdriver.Chrome,
+}
+CAPABILITY_MAP = {
+    "phantomjs": webdriver.DesiredCapabilities.PHANTOMJS,
+    "firefox": webdriver.DesiredCapabilities.FIREFOX,
+    "chrome": webdriver.DesiredCapabilities.CHROME,
+}
 
 
 class BotBase(object):
@@ -25,7 +38,9 @@ class BotBase(object):
     using a real browser.
     """
 
-    def __init__(self, URL, assignment_id='', worker_id='', participant_id='', hit_id=''):
+    def __init__(
+        self, URL, assignment_id="", worker_id="", participant_id="", hit_id=""
+    ):
         if not URL:
             return
         logger.info("Creating bot with URL: %s." % URL)
@@ -34,57 +49,59 @@ class BotBase(object):
         parts = urllib.parse.urlparse(URL)
         query = urllib.parse.parse_qs(parts.query)
         if not assignment_id:
-            assignment_id = query.get('assignment_id', [''])[0]
+            assignment_id = query.get("assignment_id", [""])[0]
         if not participant_id:
-            participant_id = query.get('participant_id', [''])[0]
+            participant_id = query.get("participant_id", [""])[0]
         if not hit_id:
-            hit_id = query.get('hit_id', [''])[0]
+            hit_id = query.get("hit_id", [""])[0]
         self.assignment_id = assignment_id
         if not worker_id:
-            worker_id = query.get('worker_id', [''])[0]
+            worker_id = query.get("worker_id", [""])[0]
         self.participant_id = participant_id
         self.hit_id = hit_id
         self.worker_id = worker_id
-        self.unique_id = worker_id + ':' + assignment_id
+        self.unique_id = worker_id + ":" + assignment_id
 
     def log(self, msg):
-        logger.info('{}: {}'.format(self.participant_id, msg))
+        logger.info("{}: {}".format(self.participant_id, msg))
 
     @cached_property
     def driver(self):
         """Returns a Selenium WebDriver instance of the type requested in the
         configuration."""
         from dallinger.config import get_config
+
         config = get_config()
         if not config.ready:
             config.load()
-        driver_url = config.get('webdriver_url', None)
-        driver_type = config.get('webdriver_type', 'phantomjs').lower()
+        driver_url = config.get("webdriver_url", None)
+        driver_type = config.get("webdriver_type")
+        driver = None
 
         if driver_url:
-            capabilities = {}
-            if driver_type == 'firefox':
-                capabilities = webdriver.DesiredCapabilities.FIREFOX
-            elif driver_type == 'chrome':
-                capabilities = webdriver.DesiredCapabilities.CHROME
-            elif driver_type == 'phantomjs':
-                capabilities = webdriver.DesiredCapabilities.PHANTOMJS
-            else:
+            capabilities = CAPABILITY_MAP.get(driver_type.lower())
+            if capabilities is None:
                 raise ValueError(
-                    'Unsupported remote webdriver_type: {}'.format(driver_type))
+                    "Unsupported remote webdriver_type: {}".format(driver_type)
+                )
             driver = webdriver.Remote(
-                desired_capabilities=capabilities,
-                command_executor=driver_url
+                desired_capabilities=capabilities, command_executor=driver_url
             )
-        elif driver_type == 'phantomjs':
-            driver = webdriver.PhantomJS()
-        elif driver_type == 'firefox':
-            driver = webdriver.Firefox()
-        elif driver_type == 'chrome':
-            driver = webdriver.Chrome()
         else:
-            raise ValueError(
-                'Unsupported webdriver_type: {}'.format(driver_type))
+            driver_class = DRIVER_MAP.get(driver_type.lower())
+            if driver_class is not None:
+                kwargs = {}
+                # Phantom JS needs a new local storage directory for every run
+                if driver_class is webdriver.PhantomJS:
+                    tmpdirname = tempfile.mkdtemp()
+                    kwargs = {
+                        "service_args": ["--local-storage-path={}".format(tmpdirname)],
+                    }
+                driver = driver_class(**kwargs)
+
+        if driver is None:
+            raise ValueError("Unsupported webdriver_type: {}".format(driver_type))
+
         driver.set_window_size(1024, 768)
         logger.info("Created {} webdriver.".format(driver_type))
         return driver
@@ -99,20 +116,22 @@ class BotBase(object):
             self.driver.get(self.URL)
             logger.info("Loaded ad page.")
             begin = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.CLASS_NAME, 'btn-primary')))
+                EC.element_to_be_clickable((By.CLASS_NAME, "btn-primary"))
+            )
             begin.click()
             logger.info("Clicked begin experiment button.")
-            WebDriverWait(self.driver, 10).until(
-                lambda d: len(d.window_handles) == 2)
-            self.driver.switch_to_window(self.driver.window_handles[-1])
+            WebDriverWait(self.driver, 10).until(lambda d: len(d.window_handles) == 2)
+            self.driver.switch_to.window(self.driver.window_handles[-1])
             self.driver.set_window_size(1024, 768)
             logger.info("Switched to experiment popup.")
             consent = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, 'consent')))
+                EC.element_to_be_clickable((By.ID, "consent"))
+            )
             consent.click()
             logger.info("Clicked consent button.")
             participate = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.CLASS_NAME, 'btn-success')))
+                EC.element_to_be_clickable((By.CLASS_NAME, "btn-success"))
+            )
             participate.click()
             logger.info("Clicked start button.")
             return True
@@ -134,10 +153,10 @@ class BotBase(object):
         Answers the questions in the base questionnaire.
         """
         logger.info("Complete questionnaire.")
-        difficulty = self.driver.find_element_by_id('difficulty')
-        difficulty.value = '4'
-        engagement = self.driver.find_element_by_id('engagement')
-        engagement.value = '3'
+        difficulty = self.driver.find_element_by_id("difficulty")
+        difficulty.value = "4"
+        engagement = self.driver.find_element_by_id("engagement")
+        engagement.value = "3"
 
     def sign_off(self):
         """Submit questionnaire and finish.
@@ -148,11 +167,12 @@ class BotBase(object):
         try:
             logger.info("Bot player signing off.")
             feedback = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.ID, 'submit-questionnaire')))
+                EC.presence_of_element_located((By.ID, "submit-questionnaire"))
+            )
             self.complete_questionnaire()
             feedback.click()
             logger.info("Clicked submit questionnaire button.")
-            self.driver.switch_to_window(self.driver.window_handles[0])
+            self.driver.switch_to.window(self.driver.window_handles[0])
             self.driver.set_window_size(1024, 768)
             logger.info("Switched back to initial window.")
             return True
@@ -166,11 +186,8 @@ class BotBase(object):
         """
         url = self.driver.current_url
         p = urllib.parse.urlparse(url)
-        complete_url = '%s://%s/%s?participant_id=%s'
-        complete_url = complete_url % (p.scheme,
-                                       p.netloc,
-                                       status,
-                                       self.participant_id)
+        complete_url = "%s://%s/%s?participant_id=%s"
+        complete_url = complete_url % (p.scheme, p.netloc, status, self.participant_id)
         self.driver.get(complete_url)
         logger.info("Forced call to %s: %s" % (status, complete_url))
 
@@ -181,9 +198,9 @@ class BotBase(object):
             self.sign_up()
             self.participate()
             if self.sign_off():
-                self.complete_experiment('worker_complete')
+                self.complete_experiment("worker_complete")
             else:
-                self.complete_experiment('worker_failed')
+                self.complete_experiment("worker_failed")
         finally:
             self.driver.quit()
 
@@ -201,7 +218,7 @@ class HighPerformanceBotBase(BotBase):
     @property
     def host(self):
         parsed = urllib.parse.urlparse(self.URL)
-        return urllib.parse.urlunparse([parsed.scheme, parsed.netloc, '', '', '', ''])
+        return urllib.parse.urlunparse([parsed.scheme, parsed.netloc, "", "", "", ""])
 
     def run_experiment(self):
         """Runs the phases of interacting with the experiment
@@ -210,29 +227,36 @@ class HighPerformanceBotBase(BotBase):
         self.sign_up()
         self.participate()
         if self.sign_off():
-            self.complete_experiment('worker_complete')
+            self.complete_experiment("worker_complete")
         else:
-            self.complete_experiment('worker_failed')
+            self.complete_experiment("worker_failed")
 
     def sign_up(self):
         """Signs up a participant for the experiment.
 
         This is done using a POST request to the /participant/ endpoint.
         """
-        self.log('Bot player signing up.')
+        self.log("Bot player signing up.")
         self.subscribe_to_quorum_channel()
         while True:
             url = (
                 "{host}/participant/{self.worker_id}/"
                 "{self.hit_id}/{self.assignment_id}/"
-                "debug?fingerprint_hash={hash}".format(
+                "debug?fingerprint_hash={hash}&recruiter=bots:{bot_name}".format(
                     host=self.host,
                     self=self,
-                    hash=uuid.uuid4().hex
+                    hash=uuid.uuid4().hex,
+                    bot_name=self.__class__.__name__,
                 )
             )
-            result = requests.post(url)
-            if result.status_code == 500 or result.json()['status'] == 'error':
+            try:
+                result = requests.post(url)
+                result.raise_for_status()
+            except RequestException:
+                self.stochastic_sleep()
+                continue
+
+            if result.json()["status"] == "error":
                 self.stochastic_sleep()
                 continue
 
@@ -244,25 +268,8 @@ class HighPerformanceBotBase(BotBase):
 
         This is done using a POST request to the /question/ endpoint.
         """
-        self.log('Bot player signing off.')
-        while True:
-            question_responses = {"engagement": 4, "difficulty": 3}
-            data = {
-                'question': 'questionnaire',
-                'number': 1,
-                'response': json.dumps(question_responses),
-            }
-            url = (
-                "{host}/question/{self.participant_id}".format(
-                    host=self.host,
-                    self=self,
-                )
-            )
-            result = requests.post(url, data=data)
-            if result.status_code == 500:
-                self.stochastic_sleep()
-                continue
-            return True
+        self.log("Bot player signing off.")
+        return self.complete_questionnaire()
 
     def complete_experiment(self, status):
         """Record worker completion status to the experiment server.
@@ -270,17 +277,15 @@ class HighPerformanceBotBase(BotBase):
         This is done using a GET request to the /worker_complete
         or /worker_failed endpoints.
         """
-        self.log('Bot player completing experiment. Status: {}'.format(status))
+        self.log("Bot player completing experiment. Status: {}".format(status))
         while True:
-            url = (
-                "{host}/{status}?participant_id={participant_id}".format(
-                    host=self.host,
-                    participant_id=self.participant_id,
-                    status=status
-                )
+            url = "{host}/{status}?participant_id={participant_id}".format(
+                host=self.host, participant_id=self.participant_id, status=status
             )
-            result = requests.get(url)
-            if result.status_code == 500:
+            try:
+                result = requests.get(url)
+                result.raise_for_status()
+            except RequestException:
                 self.stochastic_sleep()
                 continue
             return result
@@ -294,9 +299,36 @@ class HighPerformanceBotBase(BotBase):
         before creating Partipant objects.
         """
         from dallinger.experiment_server.sockets import chat_backend
+
         self.log("Bot subscribing to quorum channel.")
-        chat_backend.subscribe(self, 'quorum')
+        chat_backend.subscribe(self, "quorum")
 
     def on_signup(self, data):
         """Take any needed action on response from /participant call."""
-        self.participant_id = data['participant']['id']
+        self.participant_id = data["participant"]["id"]
+
+    @property
+    def question_responses(self):
+        return {"engagement": 4, "difficulty": 3}
+
+    def complete_questionnaire(self):
+        """Complete the standard debriefing form.
+
+        Answers the questions in the base questionnaire.
+        """
+        while True:
+            data = {
+                "question": "questionnaire",
+                "number": 1,
+                "response": json.dumps(self.question_responses),
+            }
+            url = "{host}/question/{self.participant_id}".format(
+                host=self.host, self=self
+            )
+            try:
+                result = requests.post(url, data=data)
+                result.raise_for_status()
+            except RequestException:
+                self.stochastic_sleep()
+                continue
+            return True

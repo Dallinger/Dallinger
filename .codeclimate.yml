@@ -1,32 +1,62 @@
----
-engines:
-  csslint:
-    enabled: true
-  duplication:
+version: "2"
+checks:
+  argument-count:
     enabled: true
     config:
-      languages:
-      - ruby
-      - javascript
-      - python
-      - php
-    exclude_paths:
-      - "tests/*"
+      threshold: 4
+  complex-logic:
+    enabled: true
+    config:
+      threshold: 4
+  file-lines:
+    enabled: true
+    config:
+      threshold: 750
+  method-complexity:
+    enabled: true
+    config:
+      threshold: 5
+  method-count:
+    enabled: true
+    config:
+      threshold: 20
+  method-lines:
+    enabled: true
+    config:
+      threshold: 25
+  nested-control-flow:
+    enabled: true
+    config:
+      threshold: 4
+  return-statements:
+    enabled: true
+    config:
+      threshold: 4
+  similar-code:
+    enabled: true
+    exclude_patterns:
+    - "demos/**"
+    config:
+      threshold: #language-specific defaults. overrides affect all languages.
+  identical-code:
+    enabled: true
+    exclude_patterns:
+    - "demos/**"
+    config:
+      threshold: #language-specific defaults. overrides affect all languages.
+plugins:
   eslint:
     enabled: true
   fixme:
     enabled: true
   radon:
     enabled: true
-ratings:
-  paths:
-  - "**.css"
-  - "**.inc"
-  - "**.js"
-  - "**.jsx"
-  - "**.module"
-  - "**.php"
-  - "**.py"
-  - "**.rb"
-exclude_paths:
+exclude_patterns:
+- "**/node_modules/"
 - "**/*min.js"
+- "scripts/"
+- "**/tests/"
+- ".cache/"
+- ".eggs/"
+- "**/rq_gevent_worker.py"
+

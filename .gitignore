@@ -6,12 +6,15 @@
 /.coverage*
 /coverage.xml
 /cover/
+/coverage/*
 *.egg-info/
 *.db-journal
-demos/*/data/*
+demos/**/data/*
 **/snapshots/*
+**/__pycache__/*
 docs/source/demos
 docs/source/_static/*.zip
+durations.txt
 .env
 .idea
 .pytest_cache
@@ -37,5 +40,7 @@ tests/config.py
 .coverage.*
 node_modules/*
 Gemfile.lock
+.python-version
 .ruby-version
+package-lock.json
 pip-selfcheck.json

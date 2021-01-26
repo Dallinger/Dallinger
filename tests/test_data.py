@@ -4,8 +4,8 @@ from collections import OrderedDict
 import csv
 from datetime import datetime
 import io
+import mock
 import os
-import requests
 import tempfile
 import uuid
 import shutil
@@ -17,25 +17,89 @@ import pytest
 
 import dallinger
 from dallinger.compat import open_for_csv
-from dallinger.config import get_config
 from dallinger.utils import generate_random_id
 
 
 @pytest.fixture
 def zip_path():
-    return os.path.join(
-        "tests",
-        "datasets",
-        "test_export.zip"
-    )
+    return os.path.join("tests", "datasets", "test_export.zip")
 
 
-class TestData(object):
+@pytest.mark.slow
+class TestDataS3Integration(object):
+    """Tests that interact with the network and S3, and are slow as a result.
+    """
+
+    def test_connection_to_s3(self):
+        s3 = dallinger.data._s3_resource()
+        assert s3
+
+    def test_user_s3_bucket_first_time(self):
+        bucket = dallinger.data.user_s3_bucket(canonical_user_id=generate_random_id())
+        assert bucket
+        bucket.delete()
+
+    def test_user_s3_bucket_thrice(self):
+        id = generate_random_id()
+        for i in range(3):
+            bucket = dallinger.data.user_s3_bucket(canonical_user_id=id)
+            assert bucket
+        bucket.delete()
+
+    def test_user_s3_bucket_no_id_provided(self):
+        bucket = dallinger.data.user_s3_bucket()
+        assert bucket
+
+    @pytest.mark.skip
+    def test_data_loading(self):
+        data = dallinger.data.load("3b9c2aeb-0eb7-4432-803e-bc437e17b3bb")
+        assert data
+        assert data.networks.csv
+
+    def test_register_id_disabled(self, active_config):
+        new_uuid = "12345-12345-12345-12345"
+        url = dallinger.data.register(new_uuid, "http://original-url.com/value")
+        assert url is None
+
+    def test_register_id(self, active_config):
+        new_uuid = "12345-12345-12345-12345"
+        active_config.set("enable_global_experiment_registry", True)
+        with mock.patch("dallinger.data.boto3") as boto:
+            s3 = boto.resource = mock.Mock()
+            s3.return_value = s3
+            s3_bucket = s3.Bucket = mock.Mock()
+            s3_bucket.return_value = s3_bucket
+            s3_bucket.name = "my-fake-registrations"
+            s3_object = s3_bucket.Object = mock.Mock()
+            s3_object.return_value = s3_object
+            s3_objects = s3_bucket.objects = mock.Mock()
+            s3_filter = s3_objects.filter = mock.Mock()
+            s3_filter.return_value = []
+            url = dallinger.data.register(new_uuid, "http://original-url.com/value")
+
+            s3.assert_called_once()
+            s3_bucket.assert_called_once_with("dallinger-registrations")
+            s3_object.assert_called_once_with(new_uuid + ".reg")
+            s3_object.put.assert_called_once_with(Body="http://original-url.com/value")
+
+            # The registration creates a new file in the dallinger-registrations bucket
+            assert url.startswith("https://my-fake-registrations.")
+            assert new_uuid in url
+
+            # We should be able to check that the UUID is registered
+            assert dallinger.data.is_registered(new_uuid) is False
+            assert s3_filter.called_once_with(Prefix=new_uuid)
+
+
+class TestDataLocally(object):
+    """Tests that interact with local data only, and are relatively fast to
+    execute.
+    """
 
     @pytest.fixture
     def cleanup(self):
         yield
-        shutil.rmtree('data')
+        shutil.rmtree("data")
 
     @pytest.fixture
     def export(self, cleanup):
@@ -43,42 +107,10 @@ class TestData(object):
         return path
 
     data_path = os.path.join(
-        "tests",
-        "datasets",
-        "12eee6c6-f37f-4963-b684-da585acd77f1-data.zip"
+        "tests", "datasets", "12eee6c6-f37f-4963-b684-da585acd77f1-data.zip"
     )
 
-    config = get_config()
-
-    bartlett_export = os.path.join(
-        "tests",
-        "datasets",
-        "bartlett_bots.zip"
-    )
-
-    def test_connection_to_s3(self):
-        s3 = dallinger.data._s3_resource()
-        assert s3
-
-    def test_user_s3_bucket_first_time(self):
-        bucket = dallinger.data.user_s3_bucket(
-            canonical_user_id=generate_random_id(),
-        )
-        assert bucket
-        bucket.delete()
-
-    def test_user_s3_bucket_thrice(self):
-        id = generate_random_id()
-        for i in range(3):
-            bucket = dallinger.data.user_s3_bucket(
-                canonical_user_id=id,
-            )
-            assert bucket
-        bucket.delete()
-
-    def test_user_s3_bucket_no_id_provided(self):
-        bucket = dallinger.data.user_s3_bucket()
-        assert bucket
+    bartlett_export = os.path.join("tests", "datasets", "bartlett_bots.zip")
 
     def test_dataset_creation(self):
         """Load a dataset."""
@@ -122,11 +154,6 @@ class TestData(object):
         data = dallinger.data.Data(self.data_path)
         assert type(data.networks.df) is pd.DataFrame
 
-    def test_data_loading(self):
-        data = dallinger.data.load("3b9c2aeb-0eb7-4432-803e-bc437e17b3bb")
-        assert data
-        assert data.networks.csv
-
     def test_local_data_loading(self):
         local_data_id = "77777-77777-77777-77777"
         dallinger.data.export(local_data_id, local=True)
@@ -149,8 +176,8 @@ class TestData(object):
         dallinger.data.copy_db_to_csv("dallinger", export_dir)
         network_table_path = os.path.join(export_dir, "network.csv")
         assert os.path.isfile(network_table_path)
-        with open_for_csv(network_table_path, 'r') as f:
-            reader = csv.reader(f, delimiter=',')
+        with open_for_csv(network_table_path, "r") as f:
+            reader = csv.reader(f, delimiter=",")
             header = next(reader)
             assert "creation_time" in header
 
@@ -159,7 +186,7 @@ class TestData(object):
 
     def test_export_directory_format(self, export):
         archive = ZipFile(export)
-        assert 'data/info.csv' in archive.namelist()
+        assert "data/info.csv" in archive.namelist()
 
     def test_export_compatible_with_data(self, export):
         assert dallinger.data.Data(export)
@@ -167,35 +194,18 @@ class TestData(object):
     def test_scrub_pii(self):
         path_to_data = os.path.join("tests", "datasets", "pii")
         dallinger.data._scrub_participant_table(path_to_data)
-        with open_for_csv(os.path.join(path_to_data, "participant.csv"), 'r') as f:
-            reader = csv.reader(f, delimiter=',')
+        with open_for_csv(os.path.join(path_to_data, "participant.csv"), "r") as f:
+            reader = csv.reader(f, delimiter=",")
             next(reader)  # Skip the header
             for row in reader:
                 assert "PII" not in row
 
-    def test_register_id(self):
-        new_uuid = "12345-12345-12345-12345"
-        url = dallinger.data.register(new_uuid, 'http://original-url.com/value')
-
-        # The registration creates a new file in the dallinger-registrations bucket
-        assert url.startswith('https://dallinger-registrations.')
-        assert new_uuid in url
-
-        # These files should be inaccessible to make it impossible to use the bucket
-        # as a file repository
-        res = requests.get(url)
-        assert res.status_code == 403
-
-        # We should be able to check that the UUID is registered
-        assert dallinger.data.is_registered(new_uuid) is True
-        assert dallinger.data.is_registered('bogus-uuid-value') is False
-
     def test_scrub_pii_preserves_participants(self, db_session, zip_path, cleanup):
         dallinger.data.ingest_zip(zip_path)
         assert len(dallinger.models.Participant.query.all()) == 4
-        path = dallinger.data.export('test_export', local=True, scrub_pii=True)
-        p_file = ZipFile(path).open('data/participant.csv')
-        p_file = io.TextIOWrapper(p_file, encoding='utf8', newline='')
+        path = dallinger.data.export("test_export", local=True, scrub_pii=True)
+        p_file = ZipFile(path).open("data/participant.csv")
+        p_file = io.TextIOWrapper(p_file, encoding="utf8", newline="")
         assert len(p_file.readlines()) == 5  # 4 Participants + header row
 
     def test_copy_db_to_csv_includes_participant_data(self, db_session):
@@ -204,8 +214,8 @@ class TestData(object):
         dallinger.data.copy_db_to_csv("dallinger", export_dir, scrub_pii=False)
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
-        with open_for_csv(participant_table_path, 'r') as f:
-            reader = csv.reader(f, delimiter=',')
+        with open_for_csv(participant_table_path, "r") as f:
+            reader = csv.reader(f, delimiter=",")
             header = next(reader)
             row1 = next(reader)
             assert row1[header.index("worker_id")] == "SM6DMD"
@@ -216,39 +226,38 @@ class TestData(object):
         dallinger.data.copy_db_to_csv("dallinger", export_dir, scrub_pii=True)
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
-        with open_for_csv(participant_table_path, 'r') as f:
-            reader = csv.reader(f, delimiter=',')
+        with open_for_csv(participant_table_path, "r") as f:
+            reader = csv.reader(f, delimiter=",")
             header = next(reader)
             row1 = next(reader)
             assert row1[header.index("worker_id")] == "1"
 
 
 class TestImport(object):
-
     @pytest.fixture
     def network_file(self):
-        data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
-1,2001-01-01 09:46:40.133536,,,,,,f,,fully-connected,4,f,experiment'''
+        data = u"""id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
+1,2001-01-01 09:46:40.133536,,,,,,f,,fully-connected,4,f,experiment"""
         f = io.StringIO(initial_value=data)
         return f
 
     @pytest.fixture
     def missing_column_required(self):
         """Test participant table without worker_id column"""
-        data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,worker_id,\
+        data = u"""id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,worker_id,\
 assignment_id,unique_id,hit_id,mode,end_time,base_pay,bonus,status
 1,2001-01-01 09:46:40.133536,,,,,,f,,participant,,8,8:36V4Q8R5ZLTJWMX0SFF0G6R67PCQMI,\
-3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,,,returned'''
+3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,,,returned"""
         f = io.StringIO(initial_value=data)
         return f
 
     @pytest.fixture
     def missing_column_not_required(self):
         """Test participant table without fingerprint_hash column"""
-        data = u'''id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,worker_id,\
+        data = u"""id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,worker_id,\
 assignment_id,unique_id,hit_id,mode,end_time,base_pay,bonus,status
 1,2001-01-01 09:46:40.133536,,,,,,f,,participant,8,36V4Q8R5ZLTJWMX0SFF0G6R67PCQMI,8:36V4Q8R5ZLTJWM\
-X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,,,returned'''
+X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,,,returned"""
         f = io.StringIO(initial_value=data)
         return f
 
@@ -258,9 +267,9 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
         networks = dallinger.models.Network.query.all()
         assert len(networks) == 1
         network = networks[0]
-        assert network.type == 'fully-connected'
+        assert network.type == "fully-connected"
         assert network.creation_time == datetime(2001, 1, 1, 9, 46, 40, 133536)
-        assert network.role == 'experiment'
+        assert network.role == "experiment"
 
     def test_ingest_to_model_allows_subsequent_insert(self, db_session, network_file):
         dallinger.data.ingest_to_model(network_file, dallinger.models.Network)
@@ -274,10 +283,14 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
 
     def test_missing_column_required(self, db_session, missing_column_required):
         with pytest.raises(psycopg2.IntegrityError):
-            dallinger.data.ingest_to_model(missing_column_required, dallinger.models.Participant)
+            dallinger.data.ingest_to_model(
+                missing_column_required, dallinger.models.Participant
+            )
 
     def test_missing_column_not_required(self, db_session, missing_column_not_required):
-        dallinger.data.ingest_to_model(missing_column_not_required, dallinger.models.Participant)
+        dallinger.data.ingest_to_model(
+            missing_column_not_required, dallinger.models.Participant
+        )
 
         participant = dallinger.models.Participant.query.all()
         assert len(participant) == 1
@@ -289,7 +302,7 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
 
         networks = dallinger.models.Network.query.all()
         assert len(networks) == 1
-        assert networks[0].type == 'chain'
+        assert networks[0].type == "chain"
 
     def test_ingest_zip_recreates_participants(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
@@ -297,7 +310,7 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
         participants = dallinger.models.Participant.query.all()
         assert len(participants) == 4
         for p in participants:
-            assert p.status == 'approved'
+            assert p.status == "approved"
 
     def test_ingest_zip_recreates_nodes(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
@@ -309,7 +322,7 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
         infos = dallinger.models.Info.query.all()
         assert len(infos) == 5
         for info in infos:
-            assert info.contents.startswith(u'One night two young men')
+            assert info.contents.startswith(u"One night two young men")
 
     def test_ingest_zip_recreates_notifications(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
@@ -322,7 +335,7 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
         p1_questions = model.query.filter_by(participant_id=1).all()
         for q in p1_questions:
             if q.response:
-                assert q.response == u'5'
+                assert q.response == u"5"
 
     def test_ingest_zip_recreates_vectors(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)

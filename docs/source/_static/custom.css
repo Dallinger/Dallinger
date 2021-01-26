@@ -1,0 +1,28 @@
+/* ============= RTD THEME CUSTOMIZATIONS ======================= */
+
+div.wy-nav-content {
+    max-width: none !important;
+}
+
+.wy-side-nav-search > div.version {
+    color: rgba(255,255,255,0.8);
+}
+
+.wy-nav-side {
+    color: #678be0;
+}
+
+/* Hide toctree captions in the content */
+.toctree-wrapper.compound .caption .caption-text {
+    display: none;
+}
+
+.highlight pre {
+    background: #eee;
+}
+
+#installation .toctree-wrapper ul li,
+#developer-installation .toctree-wrapper ul li {
+    list-style: none;
+    margin-left: 0px;
+}

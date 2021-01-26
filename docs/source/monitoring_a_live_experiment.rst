@@ -23,6 +23,129 @@ status code, as well as the overall yield:
 
     Yield: 64.00%
 
+
+The Dashboard
+-------------
+
+The Dallinger experiment server provides a dashboard view for experiment
+administrators to monitor running experiments. The dasboard can be found at
+``/dashboard``, and requires login credentials that are provided by the
+commandline output when launching an experiment using ``dallinger debug``,
+``dallinger sandbox``, or ``dallinger deploy``.
+
+When running under ``dallinger debug`` a browser window should open with the
+dashboard already logged in. The dashboard username and password can also be
+found in the ``dashboard_user`` and ``dashboard_password`` configuration
+parameters in the deployed ``config.txt`` configuration file. By default the
+user is named ``admin`` and the password is generated randomly, but the user
+name and password can be specified using configuration files.
+
+
+Customizing the Dashboard
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. module:: dallinger.experiment_server.dashboard
+
+You can add custom tabs to the Dallinger Dashboard by adding and registering
+new `Flask routes <https://flask.palletsprojects.com/en/1.1.x/quickstart/#routing>`__ on the ``dashboard`` `Blueprint <https://flask.palletsprojects.com/en/1.1.x/tutorial/views/>`__, and resgistering the view as a ``dashboard_tab``. For example in your ``experiment.py`` you
+could add the following code to add a "My Experiment" tab to the dashboard:
+
+.. code-block:: python
+
+  from dallinger.experiment_server.dashboard import dashboard, dashboard_tabs
+
+  @dashboard.route("my-experiment")
+  def my_experiment():
+    return "Hello, World. This is some information about My Experiment"
+
+  dashboard_tabs.insert("My Experiment", "my-experiment")
+
+
+The dashboard also supports nested tab/menus using the :attr:`~dallinger.experiment_server.dashboard.DashboardTab` object:
+
+.. code-block:: python
+
+
+  from dallinger.experiment_server.dashboard import dashboard_tabs, DashboardTab
+
+  def child_tabs():
+      return [DashboardTab('Child1', 'child1'), DashboardTab('Child2', 'child2')]
+
+  complex_tab = DashboardTab('Title', 'route_name', child_tabs)
+  dashboard_tabs.insert_tab(complex_tab)
+
+The ``dashboard_tabs`` object supports the following methods for managing the
+available tabs on your experiment's dashboard:
+
+.. autoclass:: DashboardTabs
+
+    .. automethod:: insert
+
+    .. automethod:: insert_tab
+
+    .. automethod:: insert_before_route
+
+    .. automethod:: insert_tab_before_route
+
+    .. automethod:: insert_after_route
+
+    .. automethod:: insert_tab_after_route
+
+    .. automethod:: remove
+
+
+The :attr:`~dallinger.experiment_server.dashboard.DashboardTab` object used by the various ``insert_tab*`` methods provide the following API:
+
+.. autoclass:: DashboardTab
+
+    .. automethod:: __init__
+
+
+The dashboard monitoring view can be extended by adding panes to the sidebar or
+extending the existing panes. This can be done customizing the
+:attr:`~dallinger.experiment.Experiment.monitoring_panels` and/or
+:attr:`~dallinger.experiment.Experiment.monitoring_statistics` methods of
+your experiment class. Additionally, you can customize the display of the selected
+nodes customizing the :attr:`~dallinger.experiment.Experiment.node_visualization_html`
+method, or the :attr:`~dallinger.models.SharedMixin.visualization_html` property on your
+model class. Finally, the layout of the visualization can be configured by customizing the
+:attr:`~dallinger.experiment.Experiment.node_visualization_options` method to return
+a dictionary of
+`vis.js configuration options <https://visjs.github.io/vis-network/docs/network/#options>`__.
+
+The dashboard database view can be customized by customizing the
+:attr:`~dallinger.models.SharedMixin.json_data` method on your model classes to
+add/modify data provided by each model to the dashboard views, or by modifying
+the DataTables data returned by the
+:attr:`~dallinger.experiment.Experiment.table_data` method in your
+``Experiment`` class.
+
+.. module:: dallinger.experiment
+
+.. autoclass:: Experiment
+   :noindex:
+
+    .. automethod:: monitoring_panels
+
+    .. automethod:: monitoring_statistics
+
+    .. automethod:: node_visualization_html
+
+    .. automethod:: node_visualization_options
+
+    .. automethod:: table_data
+
+    .. automethod:: dashboard_database_actions
+       :noindex:
+
+You may also add new actions to the dashboard database view by adding additional
+``title`` and ``name`` pairs to the
+:func:`~dallinger.experiment.Experiment.dashboard_database_actions` output along
+with corresponding methods that process submitted data. The
+:func:`~dallinger.experiment.Experiment.dashboard_fail` method is an example of
+such an action.
+
+
 Papertrail
 ----------
 

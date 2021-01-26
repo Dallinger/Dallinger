@@ -69,6 +69,9 @@ must be passed as data. ``info_type`` can be passed as data and will
 cause the info to be of the specified type. Also calls experiment method
 ``info_post_request(node, info)``.
 
+If the specified node is failed then this will fail unless ``failed`` is
+also passed with the value True. This will create a failed Info on the node.
+
 ::
 
     POST /launch
@@ -160,9 +163,9 @@ passing a class name will pass the class. Note that if the class you
 are specifying is a custom class it will need to be added to the
 dictionary of known\_classes in your experiment code.
 
-You may also pass the values property1, property2, property3,
-property4 and property5. If passed this will fill in the relevant
-values of the transmissions created with the values you specified.
+You may also pass the values property1, property2, property3, property4,
+property5 and details. If passed this will fill in the relevant values of the
+transmissions created with the values you specified.
 
 The transmitting node and a list of created transmissions are sent to
 experiment method ``transmission_post_request(node, transmissions)``.
@@ -230,7 +233,15 @@ Returns a JSON description of the requested participant as
     POST /participant/<worker_id>/<hit_id>/<assignment_id>/<mode>
 
 Create a participant. Returns a JSON description of the participant as
-``participant``.
+``participant``. Delegates participant creation to
+:func:`~dallinger.experiment.Experiment.create_participant`
+
+::
+
+    POST /participant
+
+Loads a participant from a running experiment by ``assignment_id`` and
+returns a JSON description. ``assignment_id`` should be passed as data.
 
 ::
 

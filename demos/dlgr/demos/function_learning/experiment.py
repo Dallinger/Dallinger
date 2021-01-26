@@ -19,6 +19,7 @@ class FunctionLearning(Experiment):
         """
         super(FunctionLearning, self).__init__(session)
         from . import models
+
         self.models = models
         self.experiment_repeats = 1
         if session:
@@ -38,7 +39,7 @@ class FunctionLearning(Experiment):
 
     def create_network(self):
         """Create a new network."""
-        return Chain(max_size=3)
+        return Chain(max_size=2)
 
     def add_node_to_network(self, node, network):
         """When an agent is created, add it to the network and take a step."""

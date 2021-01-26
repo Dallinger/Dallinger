@@ -1,0 +1,199 @@
+{% extends "base/dashboard.html" %}
+{% block stylesheets %}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/bs4/dt-1.10.21/b-1.6.3/b-html5-1.6.3/b-print-1.6.3/fh-3.1.7/r-2.2.5/sp-1.1.1/sl-1.3.1/datatables.min.css"/>
+<style type="text/css">
+  #copy-result { margin-top: 2em; }
+  #copy-command { font-family: monospace; }
+  #copy-command-button { display: inline-block; overflow: hidden; height: 0; width: 0; border: none;}
+</style>
+{% endblock %}
+{% block body %}
+<h1>{{ title }}</h1>
+<main id="database-wrapper">
+  <table id="database-table" class="table table-striped table-bordered table-hover">
+    <thead>
+      <tr>
+        {% for col in columns %}
+        <th>{{ col }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+  </table>
+</main>
+{% endblock %}
+{% block libs %}
+  {{ super() }}
+  <script type="text/javascript" src="https://cdn.datatables.net/v/bs4/dt-1.10.21/b-1.6.3/b-html5-1.6.3/b-print-1.6.3/fh-3.1.7/r-2.2.5/sp-1.1.1/sl-1.3.1/datatables.min.js"></script>
+  <script>
+    function templateGlobals() {
+      // Values inscribed by Jinja2 when this template is rendered.
+      const datatablesOptions = {{ datatables_options | safe }};
+      const isSandbox = {{ is_sandbox | tojson  }};
+      return {
+        datatablesOptions: datatablesOptions,
+        isSandbox: isSandbox
+      }
+    };
+
+    $(function () {
+      const globals = templateGlobals();
+      const flashMessage = function (msg, level) {
+        level = level ? level : 'info';
+        const $message = $('<div />').addClass('alert')
+          .addClass('alert-' + level).attr('role', 'alert').text(msg);
+        $message.insertAfter($('h1'));
+        $([document.documentElement, document.body]).animate({
+          scrollTop: $message.offset().top
+        }, 500);
+      };
+      const eraseMessages = function() {
+        $('div.alert, #copy-container').remove();
+      }
+
+      const copyBox = function(command) {
+        const $copyContainer = $('<div id="copy-container"/>');
+        const $copyButton = $('<button type="button" id="copy-command-button">Copy CLI command to clipboard</button>');
+        const $copyResult = $('<div id="copy-result" class="alert alert-success invisible"><strong>Dallinger CLI command copied to clipboard!</strong></div');
+        const $copyBox = $('<div id="copy-command"></div>');
+
+        $copyContainer.append($copyButton).append($copyResult);
+        $copyResult.append($copyBox)
+        $copyContainer.insertAfter($('.dt-buttons'));
+
+        const commandCB = new ClipboardJS('#copy-command-button', {
+          text: trigger => {return command;}
+        });
+        commandCB.on("success", e => {
+          $copyBox.text(e.text);
+          $copyResult.removeClass("invisible");
+        });
+        commandCB.on("error", e => {
+          $copyResult.removeClass("invisible");
+          $copyResult.find('> strong').text('Could not copy command to clibpoard!');
+          $copyResult.removeClass('alert-success').addClass('alert-warning');
+        });
+        window.setTimeout(function () {
+          $copyButton.click();
+        }, 100);
+      };
+
+      $.fn.dataTable.ext.buttons.export_json = {
+        text: 'Download as JSON',
+        action: function (e, dt, node, config) {
+          this.processing(true);
+          const data = dt.buttons.exportData();
+          const body = data.body;
+          const header = data.header;
+          const data_export = [];
+          var i, j, row, item;
+          for (i = 0; i < body.length; i++) {
+            row = body[i];
+            item = {};
+            for (j = 0; j < header.length; j++) {
+              var value = row[j];
+              if (value === "") {
+                value = null;
+              }
+              item[header[j]] = value;
+            }
+            data_export.push(item);
+          }
+          $.fn.dataTable.fileSave(
+              new Blob([JSON.stringify(data_export, null, 4)]),
+              'dallinger-export.json'
+          );
+          this.processing(false);
+        }
+      };
+      $.fn.dataTable.ext.buttons.route_action = {
+        text: 'Route Based Action',
+        route_name: null,
+        action: function (e, dt, node, config) {
+          var confirm;
+          const that = this;
+          const selected_rows = [];
+          eraseMessages();
+          if (!config.route_name) {
+            return;
+          }
+          const selected = dt.rows( { selected: true } ).data();
+          for (var i = 0; i < selected.length; i++) {
+            selected_rows.push(selected[i]);
+          }
+          if (selected_rows.length) {
+            this.processing(true);
+            confirm = window.confirm(
+              'Are you sure you want to "' + config.text + '" on ' + selected_rows.length + ' items'
+            );
+            if (!confirm) {
+              this.processing(false);
+              flashMessage('Action cancelled', 'info');
+              return
+            }
+            $.ajax({
+              url: '/dashboard/database/action/' + config.route_name,
+              data: JSON.stringify(selected_rows),
+              method: 'POST',
+              dataType: 'json',
+              contentType: "application/json"
+            }).done(function (data) {
+              that.processing(false);
+              location.reload();
+            }).fail(function (data) {
+              that.processing(false);
+              flashMessage('Error response from server, check logs for details.', 'danger');
+            });
+          } else {
+            flashMessage('No rows selected', 'danger');
+          }
+        }
+      };
+
+      function buildCompensateCommand(participant, dollarAmount) {
+        const sandboxOption = globals.isSandbox ? " --sandbox" : "";
+        const command = "dallinger compensate --recruiter " + participant.recruiter + " --worker_id " + participant.worker_id + " --dollars " + dollarAmount + sandboxOption;
+        return command;
+      }
+
+      $.fn.dataTable.ext.buttons.compensate = {
+        text: 'Compensate Command',
+        avaliable: function (dt, config) {
+          const rows = dt.rows().data();
+          var i, row;
+          for (i = 0; i < rows.length; i++) {
+            row = rows[i];
+            if (row.object_type === 'Participant') {
+              return true;
+            }
+          }
+          return false;
+        },
+        action: function (e, dt, node, config) {
+          eraseMessages();
+          var commands = [], i, participant;
+          const selected = dt.rows( { selected: true } ).data();
+          if (selected.length == 0) {
+            flashMessage('No rows selected', 'danger');
+            return;
+          }
+          const dollars = Number(window.prompt("How much would additional compensation would you like to give to these participants (in US dollars)?", "0.00"));
+          if (!dollars || dollars < 0) {
+            flashMessage('You must enter a valid number for the compensation amount.')
+            return;
+          }
+          for (i = 0; i < selected.length; i++) {
+            participant = selected[i];
+            if (participant.object_type !== 'Participant') {
+              flashMessage('Non-participants found in selection, please correct.', 'danger');
+              return;
+            }
+            commands.push(buildCompensateCommand(participant, dollars));
+          }
+          copyBox(commands.join('; '));
+        }
+      };
+      $('#database-table').DataTable(globals.datatablesOptions);
+    });
+  </script>
+
+{% endblock %}

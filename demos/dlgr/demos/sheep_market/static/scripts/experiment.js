@@ -18,8 +18,14 @@ create_agent = function() {
       pen.width(2);
       $("#editor").width(300).height(300);
     })
-    .fail(function () {
-      dallinger.goToPage('questionnaire');
+    .fail(function (rejection) {
+      // A 403 is our signal that it's time to go to the questionnaire
+      if (rejection.status === 403) {
+        dallinger.allowExit();
+        dallinger.goToPage('questionnaire');
+      } else {
+        dallinger.error(rejection);
+      }
     });
 };
 

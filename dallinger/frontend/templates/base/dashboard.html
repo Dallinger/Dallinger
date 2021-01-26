@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <title>{% block title %}{{title}} - {{app_id}} Dashboard{% endblock %}</title>
+        {% block replace_stylesheets %}
+          <link rel="stylesheet" href="/static/css/bootstrap.min.css" type="text/css">
+          <link rel="stylesheet" href="/static/css/dashboard.css" type="text/css">
+          {% block stylesheets %}
+          {% endblock %}
+        {% endblock %}
+        {% block head %}
+        {% endblock %}
+    </head>
+    <body>
+      <div class="container">
+        {% block navigation %}
+          <nav id="dashboard-navigation">
+            <ul class="nav nav-tabs">
+              {% for tab in config.get('dashboard_tabs',()) %}
+                {% if tab.has_children %}
+                <li class="nav-item">
+                  <a class="nav-link dropdown-toggle{{ tab.route_name == request.endpoint and ' active' or ''}}" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">{{ tab.title }}</a>
+                  <div class="dropdown-menu">
+                    {% for child_tab in tab %}
+                      <a class="dropdown-item" href="{{ child_tab.url() }}">{{ child_tab.title }}</a>
+                    {% endfor %}
+                  </div>
+                </li>
+                {% else %}
+                  <li class="nav-item">
+                    <a class="nav-link{{ tab.route_name == request.endpoint and ' active' or ''}}" href="{{ tab.url() }}">{{ tab.title }}</a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </nav>
+          {% if not request.headers.get('AUTHORIZATION') %}
+          <a id="logout" class="btn btn-primary" href="{{ url_for('dashboard.logout') }}">Logout</a>
+          {% endif %}
+        {% endblock %}
+        {% block messages %}
+          {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+              {% for category, message in messages %}
+              <div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
+              {% endfor %}
+          {% endif %}
+        {% endwith %}
+        {% endblock %}
+        {% block body %}
+        {% endblock %}
+        <footer>
+          {% block footer %}
+          {% endblock %}
+        </footer>
+      </div>
+      {% block libs %}
+      <script src="/static/scripts/jquery-3.5.1.min.js"></script>
+      <script src="/static/scripts/popper.min.js"></script>
+      <script src="/static/scripts/bootstrap.min.js"></script>
+      <script src="/static/scripts/clipboard.min.js"></script>
+      {% endblock %}
+      {% block scripts %}
+      {% endblock %}
+    </body>
+</html>
+

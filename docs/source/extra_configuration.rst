@@ -1,8 +1,20 @@
+.. _extra-configuration:
+
 Extra Configuration
 ===================
 
-To create a new experiment-specific configuration variable, define
-``extra_parameters`` in your ``experiment.py`` file:
+To create a new experiment-specific configuration variable, you can override
+the :attr:`~dallinger.experiment.Experiment.extra_parameters` method on your
+custom Experiment class:
+
+::
+
+    def extra_parameters(self):
+        config = get_config()
+        config.register('n', int, [], False)
+
+Additionally you can define an ``extra_parameters`` function in your ``experiment.py``
+file, and both will be respected:
 
 ::
 
@@ -14,3 +26,7 @@ Here, ``'n'`` is a string with the name of the parameter, ``int`` is its type,
 ``False`` is a boolean signifying that this configuration parameter is not
 sensitive and can be saved in plain text. Once defined in this way, a
 parameter can be used anywhere that built-in parameters are used.
+
+An optional ``validators`` parameter can also be passed, which must be either
+None or a list of callables that take a single argument (the value of the config)
+and may raise a ``ValueError`` describing why the value is invalid.

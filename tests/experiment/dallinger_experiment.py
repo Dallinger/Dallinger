@@ -1,7 +1,7 @@
+import os.path
+
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
-
-config = get_config()
 
 
 class TestExperiment(Experiment):
@@ -21,21 +21,48 @@ class TestExperiment(Experiment):
         if session:
             self.setup()
 
+    def extra_parameters(self):
+        config = get_config()
+        config.register("custom_parameter2", bool, [])
+
     @property
     def public_properties(self):
-        return {
-            'exists': True,
-        }
+        return {"exists": True}
 
     def create_network(self):
         """Return a new network."""
         from dallinger.networks import Star
+
         return Star(max_size=2)
 
     def is_complete(self):
-        return config.get('_is_completed', None)
+        config = get_config()
+        return config.get("_is_completed", None)
+
+
+class ZSubclassThatSortsLower(TestExperiment):
+    @classmethod
+    def extra_files(cls):
+        return [
+            (os.path.realpath(__file__), "/static/different.txt"),
+            (
+                os.path.join(os.path.dirname(os.path.realpath(__file__)), "templates"),
+                "/static/different",
+            ),
+        ]
 
 
 def extra_parameters():
-    config.register('custom_parameter', int, [])
-    config.register('_is_completed', bool, [])
+    config = get_config()
+    config.register("custom_parameter", int, [])
+    config.register("_is_completed", bool, [])
+
+
+def extra_files():
+    return [
+        (os.path.realpath(__file__), "/static/expfile.txt"),
+        (
+            os.path.join(os.path.dirname(os.path.realpath(__file__)), "templates"),
+            "/static/copied_templates",
+        ),
+    ]

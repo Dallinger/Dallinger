@@ -110,8 +110,8 @@ Common Sandbox Error
 If you get this from the sandbox, this usually means there's a deeper issue that requires `dallinger logs --app XXXXXX.` Usually this could be a requirements.txt file error (missing dependency or reference to an incorrect branch).
 
 
-Changes to Some Dallinger Files not Taking Effect on Experiments
-----------------------------------------------------------------
+Combining Dallinger core development and running experiments
+------------------------------------------------------------
 
 A common pitfall while doing development on the dallinger codebase while also
 working on external experiments which include dallinger as a dependency: you
@@ -159,4 +159,4 @@ contents of your active virtual environment's site-packages folder. In
 The contents of this file will include the path to the working copy that's
 active. If you instead see a directory tree with actual dallinger files, you can
 restore "editable mode" by re-running the installation steps for dallinger from
-the "Developer Installation" documentation.
+the :doc:`developing_dallinger_setup_guide` documentation.

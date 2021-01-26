@@ -1,0 +1,87 @@
+{% extends "base/dashboard.html" %}
+{% block stylesheets %}
+  <script src="https://use.fontawesome.com/ffb1fe552d.js"></script>
+  <link href="https://unpkg.com/vis@4.17.0/dist/vis-network.min.css" rel="stylesheet" type="text/css"/>
+{% endblock %}
+{% block body %}
+<h1>{{ title }}</h1>
+<div id="monitor-wrapper" class="d-flex justify-content-between align-items-stretch">
+  <aside id="sidebar">
+    <button id="refresh" onclick="window.location.reload();">Refresh</button>
+    <div id="statistics-pane" class="sidebar-pane">
+      <h2>Statistics</h2>
+      {% for pane in panes %}
+        <div class="sub-pane">
+          <h3>{{ pane }}</h3>
+          {{ panes[pane]|safe }}
+        </div>
+      {% endfor %}
+    </div>
+    <div id="settings-pane" class="sidebar-pane">
+      <h2>Settings</h2>
+      <form method="GET">
+        {% if net_roles|length > 1 %}
+        <fieldset id="network-roles">
+          <legend>Network Roles</legend>
+          {% for val, count in net_roles %}
+          <div class="field">
+            <input id="val-{{ val }}" type="checkbox" name="network_roles" value="{{ val }}" {{ "checked" if (not request.args.get("network_roles") or val in request.args.getlist("network_roles")) else "" }} />
+            <label for="val-{{ val }}">{{ val }} (count: {{ count }})</label>
+          </div>
+          {% endfor %}
+        </fieldset>
+        {% endif %}
+        {% if net_ids|length > 1 %}
+        <fieldset id="network-ids">
+          <legend>Network Ids</legend>
+          {% for val in net_ids %}
+          <div class="field">
+            <input id="val-{{ val }}" type="checkbox" name="network_ids" value="{{ val }}" {{ "checked" if (not request.args.get("network_ids") or val|string in request.args.getlist("network_ids")) else "" }} />
+            <label for="val-{{ val }}">{{ val }}</label>
+          </div>
+          {% endfor %}
+        </fieldset>
+        {% endif %}
+        <div class="field">
+          <input name="collapsed" type="checkbox" {{ "checked" if request.args.get("collapsed") else "" }}/>
+          <label for="transformations">Collapse (networks and sources only)</label>
+        </div>
+        <div class="field">
+          <input name="transformations" type="checkbox" {{ "checked" if request.args.get("transformations") else "" }}/>
+          <label for="transformations">Show transformations</label>
+        </div>
+      </form>
+    </div>
+  </aside>
+  <main class="flex-fill">
+    <section id="mynetwork">
+      <h2>Graph</h2>
+    </section>
+    <section id="details-pane">
+      <h2>Details</h2>
+      <div id="element-details">
+      </div>
+    </section>
+  </main>
+  </div>
+{% endblock %}
+{% block libs %}
+  {{ super() }}
+  <script>
+    $('#settings-pane input').on('change', function() {
+      $(this).parents('form').submit();
+    });
+    window.templateGlobals = function () {
+      // Values inscribed by Jinja2 when this template is rendered.
+      const network_structure = {{ network_structure | safe }};
+      const vis_options = {{ vis_options | safe }};
+      return {
+        network_structure: network_structure,
+        vis_options: vis_options
+      };
+    };
+  </script>
+  <script src="https://unpkg.com/vis@4.17.0/dist/vis.min.js"></script>
+  <script src="/static/scripts/network-monitor.js"></script>
+
+{% endblock %}

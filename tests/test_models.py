@@ -6,14 +6,14 @@ import six
 import sys
 from datetime import datetime
 from dallinger import models, nodes
-from pytest import raises
+from pytest import raises, mark
 from dallinger.nodes import Agent, Source
 from dallinger.information import Gene
 from dallinger.transformations import Mutation
 
 
+@mark.slow
 class TestModels(object):
-
     def add(self, session, *args):
         session.add_all(args)
         session.commit()
@@ -36,8 +36,12 @@ class TestModels(object):
 
         # create a participant
         participant = models.Participant(
-            recruiter_id='hotair', worker_id=str(1), hit_id=str(1),
-            assignment_id=str(1), mode="test")
+            recruiter_id="hotair",
+            worker_id=str(1),
+            hit_id=str(1),
+            assignment_id=str(1),
+            mode="test",
+        )
         db_session.add(participant)
         db_session.commit()
 
@@ -69,6 +73,7 @@ class TestModels(object):
         assert net.property3 is None
         assert net.property4 is None
         assert net.property5 is None
+        assert net.details == {}
         assert net.failed is False
         assert net.time_of_death is None
         assert net.type == "network"
@@ -99,7 +104,9 @@ class TestModels(object):
             "property2": None,
             "property3": None,
             "property4": None,
-            "property5": None
+            "property5": None,
+            "details": {},
+            "object_type": "Network",
         }
 
         # test nodes()
@@ -403,10 +410,8 @@ class TestModels(object):
         vector2 = models.Vector(origin=node2, destination=node1)
         self.add(db_session, node1, node2, vector1, vector2)
 
-        assert (repr(vector1).split("-") ==
-                ["Vector", str(node1.id), str(node2.id)])
-        assert (repr(vector2).split("-") ==
-                ["Vector", str(node2.id), str(node1.id)])
+        assert repr(vector1).split("-") == ["Vector", str(node1.id), str(node2.id)]
+        assert repr(vector2).split("-") == ["Vector", str(node2.id), str(node1.id)]
 
     ##################################################################
     # Info
@@ -543,7 +548,7 @@ class TestModels(object):
 
         with raises(ValueError) as excinfo:
             agent1.transmit(what=None, to_whom=agent2)
-            assert excinfo.match('cannot transmit to {}'.format(agent2))
+            assert excinfo.match("cannot transmit to {}".format(agent2))
 
     def test_transmission_repr(self, db_session):
         net = models.Network()
@@ -559,8 +564,7 @@ class TestModels(object):
         transmission = node1.transmissions()[0]
         node1.vectors()[0]
 
-        assert (repr(transmission).split("-") ==
-                ["Transmission", str(transmission.id)])
+        assert repr(transmission).split("-") == ["Transmission", str(transmission.id)]
 
     def test_node_incoming_transmissions(self, db_session):
         net = models.Network()
@@ -662,14 +666,26 @@ class TestModels(object):
         self.add(db_session, node)
         assert node.creation_time is not None
 
+    def test_details(self, db_session):
+        net = models.Network()
+        db_session.add(net)
+        node = models.Node(network=net)
+        node.details = {"my_data": [1, 2, 3]}
+        self.add(db_session, node)
+        assert tuple(node.details["my_data"]) == (1, 2, 3)
+
     ##################################################################
     # Participant
     ##################################################################
 
     def test_create_participant(self, db_session):
         participant = models.Participant(
-            recruiter_id='hotair', worker_id=str(1), hit_id=str(1),
-            assignment_id=str(1), mode="test")
+            recruiter_id="hotair",
+            worker_id=str(1),
+            hit_id=str(1),
+            assignment_id=str(1),
+            mode="test",
+        )
         db_session.add(participant)
         db_session.commit()
 
@@ -680,14 +696,19 @@ class TestModels(object):
         net = models.Network()
         db_session.add(net)
         participant = models.Participant(
-            recruiter_id='hotair', worker_id=str(1), hit_id=str(1),
-            assignment_id=str(1), mode="test")
+            recruiter_id="hotair",
+            worker_id=str(1),
+            hit_id=str(1),
+            assignment_id=str(1),
+            mode="test",
+        )
         db_session.add(participant)
         db_session.commit()
         node = models.Node(network=net, participant=participant)
         db_session.add(node)
         question = models.Question(
-            participant=participant, number=1, question="what?", response="???")
+            participant=participant, number=1, question="what?", response="???"
+        )
         db_session.add(question)
 
         assert len(participant.nodes()) == 1
@@ -704,11 +725,20 @@ class TestModels(object):
 
     def test_participant_json(self, db_session):
         participant = models.Participant(
-            recruiter_id='hotair', worker_id=str(1), hit_id=str(1),
-            assignment_id=str(1), mode="test")
+            recruiter_id="hotair",
+            worker_id=str(1),
+            hit_id=str(1),
+            assignment_id=str(1),
+            mode="test",
+        )
+        participant.details = {"data": "something"}
         db_session.add(participant)
         db_session.commit()
 
+        participant_json = participant.__json__()
+        assert "details" in participant_json
+        assert participant_json["details"].get("data") == "something"
+
         # make sure private data is not in there
-        assert 'unique_id' not in participant.__json__()
-        assert 'worker_id' not in participant.__json__()
+        assert "unique_id" not in participant_json
+        assert "worker_id" not in participant_json

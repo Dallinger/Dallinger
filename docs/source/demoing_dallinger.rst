@@ -6,23 +6,29 @@ First, make sure you have Dallinger installed:
 -  :doc:`installing_dallinger_for_users`
 -  :doc:`developing_dallinger_setup_guide`
 
-To test out Dallinger, we'll run a demo experiment in debug mode.
-Navigate to the bartlett1932 directory, found in::
+To test out Dallinger, we'll run a demo experiment in "debug" mode.
 
-    /Dallinger/demos/dlgr/demos/bartlett1932
+.. note::
 
-and run
+    Running the demo in "sandbox" mode as opposed to "debug" mode will require a Heroku account.
+    More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
+
+You can read more about this experiment here:
+`Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932/index.html>`__.
+
+The experiment files can be found `here <https://dallinger.readthedocs.io/en/latest/_static/bartlett1932.zip>`__. Extract them to a location of your choice, then from there, navigate to the `bartlett1932` directory and run:
 
 ::
 
-    dallinger debug
+    dallinger debug --verbose
 
-You can read more about this experiment here:
-`Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932/index.html>`__
 
-You can also run the demo from another location in which case follow the link above to download and unzip the experiment files.
-Then run Dallinger in debug mode from within that demo directory. Make sure that the dallinger virtualenv is enabled
-so that the dallinger command is available to you from outside the core dallinger directory structure.
+If applicable, make sure that your virtualenv is enabled so that the ``dallinger`` command is available to you.
+All Dallinger command options are explained in the :doc:`Command-line Utility" <command_line_utility>` section.
+
+.. note::
+
+    In the command above, we use the "--verbose" option to show more detailed logs in the terminal. This is a good best practice when creating and running your own experiments and gives more insight into errors when they occur.
 
 You will see some output as Dallinger loads. When it is finished, you will
 see something that looks like:

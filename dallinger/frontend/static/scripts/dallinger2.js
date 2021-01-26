@@ -48,6 +48,26 @@ var dallinger = (function () {
     }
   };
 
+  dlgr.storage = {
+    available: typeof store !== 'undefined',
+    _storage: store,
+    set: function (key, value) {
+      if (this._isUndefined(value)) {
+        return;
+      }
+      this._storage.set(key, value);
+    },
+    get: function (key) {
+      return this._storage.get(key);
+    },
+    all: function () {
+      return this._storage.getAll();
+    },
+    _isUndefined: function (value) {
+      return typeof value === 'undefined';
+    }
+  };
+
   /**
    * ``dallinger.identity`` provides information about the participant.
    * It has the following string properties:
@@ -67,12 +87,32 @@ var dallinger = (function () {
    * @namespace
    */
   dlgr.identity = {
-    recruiter: dlgr.getUrlParameter('recruiter'),
-    hitId: dlgr.getUrlParameter('hit_id'),
-    workerId: dlgr.getUrlParameter('worker_id'),
-    assignmentId: dlgr.getUrlParameter('assignment_id'),
-    mode: dlgr.getUrlParameter('mode'),
-    participantId: dlgr.getUrlParameter('participant_id')
+    get recruiter() { return dlgr.storage.get("recruiter"); },
+    set recruiter(value) { dlgr.storage.set("recruiter", value); },
+    get hitId() { return  dlgr.storage.get("hit_id"); },
+    set hitId(value) {  dlgr.storage.set("hit_id", value); },
+    get workerId() { return  dlgr.storage.get('worker_id'); },
+    set workerId(value) {  dlgr.storage.set('worker_id', value); },
+    get assignmentId() { return  dlgr.storage.get('assignment_id'); },
+    set assignmentId(value) {  dlgr.storage.set('assignment_id', value); },
+    get mode() { return  dlgr.storage.get('mode'); },
+    set mode(value) {  dlgr.storage.set('mode', value); },
+    get participantId() { return dlgr.storage.get('participant_id'); },
+    set participantId(value) { dlgr.storage.set('participant_id', value); },
+    get fingerprintHash() { return dlgr.storage.get('fingerprint_hash'); },
+    set fingerprintHash(value) { dlgr.storage.set('fingerprint_hash', value);},
+
+    initialize: function () {
+      this.recruiter = dlgr.getUrlParameter('recruiter');
+      this.hitId = dlgr.getUrlParameter('hit_id');
+      this.workerId = dlgr.getUrlParameter('worker_id');
+      this.assignmentId = dlgr.getUrlParameter('assignment_id');
+      this.mode = dlgr.getUrlParameter('mode');
+      var _self = this;
+      new Fingerprint2().get(function(result){
+        _self.fingerprintHash = result;
+      });
+    }
   };
 
   dlgr.BusyForm = (function () {
@@ -193,26 +233,6 @@ var dallinger = (function () {
     }
   };
 
-  var get_hit_params = function() {
-    // check if the local store is available, and if so, use it.
-    var data = {};
-    if (typeof store !== "undefined") {
-      data.recruiter = store.get("recruiter");
-      data.worker_id = store.get("worker_id");
-      data.hit_id = store.get("hit_id");
-      data.assignment_id = store.get("assignment_id");
-      data.mode = store.get("mode");
-      data.fingerprint_hash = store.get("fingerprint_hash");
-    } else {
-      data.recruiter = dlgr.identity.recruiter;
-      data.worker_id = dlgr.identity.worker_id;
-      data.hit_id = dlgr.identity.hit_id;
-      data.assignment_id = dlgr.identity.assignment_id;
-      data.mode = dlgr.identity.mode;
-    }
-    return data;
-  };
-
   // AJAX helpers
   var ajax = function (method, route, data) {
     var deferred = $.Deferred();
@@ -296,7 +316,16 @@ var dallinger = (function () {
    */
   dlgr.error = function (rejection) {
     // Render an error form for a rejected deferred returned by an ajax() call.
-    var $form, hit_params;
+    var hit_params = {
+          'recruiter': dlgr.identity.recruiter,
+          'mode': dlgr.identity.mode,
+          'hit_id': dlgr.identity.hitId,
+          'worker_id': dlgr.identity.workerId,
+          'assignment_id': dlgr.identity.assignmentId,
+          'fingerprint_hash': dlgr.identity.fingerprintHash,
+        },
+        $form;
+
     console.log("Calling dallinger.error()");
 
     if (rejection.html) {
@@ -310,7 +339,6 @@ var dallinger = (function () {
       add_hidden_input($form, 'participant_id', rejection.data.participant_id);
     }
     add_hidden_input($form, 'request_data', rejection.requestJSON);
-    hit_params = get_hit_params();
     for (var prop in hit_params) {
       if (hit_params.hasOwnProperty(prop)) add_hidden_input($form, prop, hit_params[prop]);
     }
@@ -335,10 +363,6 @@ var dallinger = (function () {
   dlgr.submitAssignment = function() {
     var deferred = $.Deferred();
     dlgr.get('/participant/' + dlgr.identity.participantId).done(function (resp) {
-      dlgr.identity.mode = resp.participant.mode;
-      dlgr.identity.hitId = resp.participant.hit_id;
-      dlgr.identity.assignmentId = resp.participant.assignment_id;
-      dlgr.identity.workerId = resp.participant.worker_id;
       dlgr.get('/worker_complete', {
         'participant_id': dlgr.identity.participantId
       }).done(function () {
@@ -368,25 +392,9 @@ var dallinger = (function () {
    */
   dlgr.createParticipant = function() {
     var deferred = $.Deferred(),
-      fingerprint_hash,
-      url,
-      hit_params;
-    if (dlgr.missingFingerprint()) {
-      window.alert(
-        'An ad blocker is preventing this experiment from ' +
-        'loading. Please disable it and reload the page.'
-      );
-      return;
-    }
-    new Fingerprint2().get(function(result){
-      fingerprint_hash = result;
-      store.set("fingerprint_hash", fingerprint_hash);
-    });
-
-    hit_params = get_hit_params();
-    url = "/participant/" + hit_params.worker_id + "/" + hit_params.hit_id +
-      "/" + hit_params.assignment_id + "/" + hit_params.mode + "?fingerprint_hash=" +
-      (hit_params.fingerprint_hash || fingerprint_hash) + '&recruiter=' + hit_params.recruiter;
+        url = "/participant/" + dlgr.identity.workerId + "/" + dlgr.identity.hitId +
+          "/" + dlgr.identity.assignmentId + "/" + dlgr.identity.mode + "?fingerprint_hash=" +
+          (dlgr.identity.fingerprintHash) + '&recruiter=' + dlgr.identity.recruiter;
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();
@@ -413,6 +421,38 @@ var dallinger = (function () {
             // no quorum; resolve immediately
             deferred.resolve();
           }
+        });
+      });
+    }
+    return deferred;
+  };
+
+  /**
+   * Load an existing `Participant` into the dlgr.identity by making a ``POST``
+   * request to the experiment `/participant` route with an ``assignment_id``.
+   *
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   */
+  dlgr.loadParticipant = function(assignment_id) {
+    var deferred = $.Deferred(),
+        url = '/participant';
+
+    if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
+      deferred.resolve();
+    } else {
+      $(function () {
+        $('.btn-success').prop('disabled', true);
+        dlgr.post(url, {assignment_id: assignment_id}).done(function (resp) {
+          console.log(resp);
+          $('.btn-success').prop('disabled', false);
+          dlgr.identity.participantId = resp.participant.id;
+          dlgr.identity.recruiter = resp.participant.recruiter_id;
+          dlgr.identity.hitId = resp.participant.hit_id;
+          dlgr.identity.workerId = resp.participant.worker_id;
+          dlgr.identity.assignmentId = assignment_id;
+          dlgr.identity.mode = resp.participant.mode;
+          dlgr.identity.fingerprintHash = resp.participant.fingerprint_hash;
+          deferred.resolve();
         });
       });
     }
@@ -533,13 +573,13 @@ var dallinger = (function () {
    * @param {string} [name=questionnaire] - optional questionnaire name
    */
   dlgr.submitQuestionnaire = function (name) {
-    var formSerialized = $("form").serializeArray(),
-      spinner = dlgr.BusyForm(),
-      formDict = {},
-      xhr;
-
-    formSerialized.forEach(function (field) {
-      formDict[field.name] = field.value;
+    var inputs = $("form :input");
+    var spinner = dlgr.BusyForm();
+    var formDict = {};
+    $.each(inputs, function(key, input) {
+      if (input.name !== "") {
+        formDict[input.name] = $(input).val();
+      }
     });
 
     xhr = dlgr.post('/question/' + dlgr.identity.participantId, {
@@ -611,6 +651,25 @@ var dallinger = (function () {
     }, 100);
   };
 
+  var _initialize = function () {
+    if (dlgr.missingFingerprint()) {
+      window.alert(
+        'An ad blocker is preventing this experiment from ' +
+        'loading. Please disable it and reload the page.'
+      );
+      return;
+    }
+    dlgr.identity.initialize();
+  };
+
+  _initialize();
+
   return dlgr;
 }());
 
+
+try {
+  module.exports.dallinger = dallinger;
+} catch (err) {
+  // We aren't being loaded from a node context, no need to export
+}

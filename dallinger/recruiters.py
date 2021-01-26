@@ -1,36 +1,50 @@
 """Recruiters manage the flow of participants to the experiment."""
+from __future__ import unicode_literals
 
+import flask
+import json
 import logging
 import os
 import re
+import requests
 
 from rq import Queue
 from sqlalchemy import func
 
 from dallinger.config import get_config
+from dallinger.db import redis_conn
 from dallinger.db import session
-from dallinger.heroku.worker import conn
-from dallinger.models import Participant
+from dallinger.experiment_server.utils import success_response
+from dallinger.experiment_server.utils import crossdomain
+from dallinger.experiment_server.worker_events import worker_function
+from dallinger.heroku import tools as heroku_tools
+from dallinger.notifications import get_mailer
+from dallinger.notifications import admin_notifier
+from dallinger.notifications import MessengerError
 from dallinger.models import Recruitment
+from dallinger.mturk import MTurkQualificationRequirements
+from dallinger.mturk import MTurkQuestions
 from dallinger.mturk import MTurkService
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
+from dallinger.utils import ParticipationTime
+
 
 logger = logging.getLogger(__file__)
 
 
-def _get_queue():
+def _get_queue(name="default"):
     # Connect to Redis Queue
-    return Queue('low', connection=conn)
+    return Queue(name, connection=redis_conn)
 
 
 # These are constants because other components may listen for these
 # messages in logs:
-NEW_RECRUIT_LOG_PREFIX = 'New participant requested:'
-CLOSE_RECRUITMENT_LOG_PREFIX = 'Close recruitment.'
+NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
+CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
 
 
 class Recruiter(object):
@@ -71,6 +85,11 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
+    def compensate_worker(self, *args, **kwargs):
+        """A recruiter may provide a means to directly compensate a worker.
+        """
+        raise NotImplementedError
+
     def reward_bonus(self, assignment_id, amount, reason):
         """Throw an error."""
         raise NotImplementedError
@@ -80,6 +99,15 @@ class Recruiter(object):
         has completed an experiment they joined.
         """
         pass
+
+    def notify_duration_exceeded(self, participants, reference_time):
+        """Some participants have been working beyond the defined duration of
+        the experiment.
+        """
+        logger.warning(
+            "Received notification that some participants "
+            "have been active for too long. No action taken."
+        )
 
     def rejects_questionnaire_from(self, participant):
         """Recruiters have different circumstances under which experiment
@@ -96,7 +124,7 @@ class Recruiter(object):
         an assignment is submitted. If no event should be processed,
         return None.
         """
-        return 'AssignmentSubmitted'
+        return "AssignmentSubmitted"
 
 
 class CLIRecruiter(Recruiter):
@@ -104,7 +132,7 @@ class CLIRecruiter(Recruiter):
     assigment.
     """
 
-    nickname = 'cli'
+    nickname = "cli"
 
     def __init__(self):
         super(CLIRecruiter, self).__init__()
@@ -114,22 +142,20 @@ class CLIRecruiter(Recruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening recruitment.")
+        logger.info("Opening CLI recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = (
             'Search for "{}" in the logs for subsequent recruitment URLs.\n'
-            'Open the logs for this experiment with '
+            "Open the logs for this experiment with "
             '"dallinger logs --app {}"'.format(
-                NEW_RECRUIT_LOG_PREFIX, self.config.get('id')
+                NEW_RECRUIT_LOG_PREFIX, self.config.get("id")
             )
         )
-        return {
-            'items': recruitments,
-            'message': message
-        }
+        return {"items": recruitments, "message": message}
 
     def recruit(self, n=1):
         """Generate experiemnt URLs and print them to the console."""
+        logger.info("Recruiting {} CLI participants".format(n))
         urls = []
         template = "{}/ad?recruiter={}&assignmentId={}&hitId={}&workerId={}&mode={}"
         for i in range(n):
@@ -139,33 +165,32 @@ class CLIRecruiter(Recruiter):
                 generate_random_id(),
                 generate_random_id(),
                 generate_random_id(),
-                self._get_mode()
+                self._get_mode(),
             )
-            logger.info('{} {}'.format(NEW_RECRUIT_LOG_PREFIX, ad_url))
+            logger.info("{} {}".format(NEW_RECRUIT_LOG_PREFIX, ad_url))
             urls.append(ad_url)
 
         return urls
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " cli")
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
-        logger.info(
-            "Assignment {} has been marked for approval".format(assignment_id)
-        )
+        logger.info("Assignment {} has been marked for approval".format(assignment_id))
         return True
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Print out bonus info for the assignment"""
         logger.info(
             'Award ${} for assignment {}, with reason "{}"'.format(
-                amount, assignment_id, reason)
+                amount, assignment_id, reason
+            )
         )
 
     def _get_mode(self):
-        return self.config.get('mode')
+        return self.config.get("mode")
 
 
 class HotAirRecruiter(CLIRecruiter):
@@ -175,20 +200,17 @@ class HotAirRecruiter(CLIRecruiter):
     - Prints experiment /ad URLs to the console
     """
 
-    nickname = 'hotair'
+    nickname = "hotair"
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiemnt logs.
         """
-        logger.info("Opening recruitment.")
+        logger.info("Opening HotAir recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = "Recruitment requests will open browser windows automatically."
 
-        return {
-            'items': recruitments,
-            'message': message
-        }
+        return {"items": recruitments, "message": message}
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Logging-only, Hot Air implementation"""
@@ -199,23 +221,22 @@ class HotAirRecruiter(CLIRecruiter):
 
     def _get_mode(self):
         # Ignore config settings and always use debug mode
-        return 'debug'
+        return "debug"
 
 
 class SimulatedRecruiter(Recruiter):
     """A recruiter that recruits simulated participants."""
 
-    nickname = 'sim'
+    nickname = "sim"
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
-        return {
-            'items': self.recruit(n),
-            'message': 'Simulated recruitment only'
-        }
+        logger.info("Opening Sim recruitment for {} participants".format(n))
+        return {"items": self.recruit(n), "message": "Simulated recruitment only"}
 
     def recruit(self, n=1):
         """Recruit n participants."""
+        logger.info("Recruiting {} Sim participants".format(n))
         return []
 
     def close_recruitment(self):
@@ -223,37 +244,258 @@ class SimulatedRecruiter(Recruiter):
         pass
 
 
+mturk_resubmit_whimsical = """Dearest Friend,
+
+I am writing to let you know that at {s.when}, during my regular (and thoroughly
+enjoyable) perousal of the most charming participant data table, I happened to
+notice that assignment {s.assignment_id} has been taking longer than we were
+expecting. I recall you had suggested {s.allowed_minutes:.0f} minutes as an upper
+limit for what was an acceptable length of time for each assignement, however
+this assignment had been underway for a shocking {s.active_minutes:.0f} minutes, a
+full {s.excess_minutes:.0f} minutes over your allowance. I immediately dispatched a
+telegram to our mutual friends at AWS and they were able to assure me that
+although the notification had failed to be correctly processed, the assignment
+had in fact been completed. Rather than trouble you, I dealt with this myself
+and I can assure you there is no immediate cause for concern. Nonetheless, for
+my own peace of mind, I would appreciate you taking the time to look into this
+matter at your earliest convenience.
+
+I remain your faithful and obedient servant,
+
+William H. Dallinger
+
+P.S. Please do not respond to this message, I am busy with other matters.
+"""
+
+
+mturk_resubmit = """Dear experimenter,
+
+This is an automated email from Dallinger. You are receiving this email because
+the Dallinger platform has discovered evidence that a notification from Amazon
+Web Services failed to arrive at the server. Dallinger has automatically
+contacted AWS and has determined the dropped notification was a submitted
+notification (i.e. the participant has finished the experiment). This is a non-
+fatal error and so Dallinger has auto-corrected the problem. Nonetheless you may
+wish to check the database.
+
+Best,
+The Dallinger dev. team.
+
+Error details:
+Assignment: {s.assignment_id}
+Allowed time: {s.allowed_minutes:.0f} minute(s)
+Time since participant started: {s.active_minutes:.0f}
+"""
+
+
+mturk_cancelled_hit_whimsical = """Dearest Friend,
+
+I am afraid I write to you with most grave tidings. At {s.when}, during a
+routine check of the usually most delightful participant data table, I happened
+to notice that assignment {s.assignment_id} has been taking longer than we were
+expecting. I recall you had suggested {s.allowed_minutes:.0f} minutes as an upper
+limit for what was an acceptable length of time for each assignment, however
+this assignment had been underway for a shocking {s.active_minutes:.0f} minutes, a
+full {s.excess_minutes:.0f} minutes over your allowance. I immediately dispatched a
+telegram to our mutual friends at AWS and they infact informed me that they had
+already sent us a notification which we must have failed to process, implying
+that the assignment had not been successfully completed. Of course when the
+seriousness of this scenario dawned on me I had to depend on my trusting walking
+stick for support: without the notification I didn't know to remove the old
+assignment's data from the tables and AWS will have already sent their
+replacement, meaning that the tables may already be in a most unsound state!
+
+I am sorry to trouble you with this, however, I do not know how to proceed so
+rather than trying to remedy the scenario myself, I have instead temporarily
+ceased operations by expiring the HIT with the fellows at AWS and have
+refrained from posting any further invitations myself. Once you see fit I
+would be most appreciative if you could attend to this issue with the caution,
+sensitivity and intelligence for which I know you so well.
+
+I remain your faithful and
+obedient servant,
+William H. Dallinger
+
+P.S. Please do not respond to this
+message, I am busy with other matters.
+"""
+
+cancelled_hit = """Dear experimenter,
+
+This is an automated email from Dallinger. You are receiving this email because
+the Dallinger platform has discovered evidence that a notification from Amazon
+Web Services failed to arrive at the server. Dallinger has automatically
+contacted AWS and has determined the dropped notification was an
+abandoned/returned notification (i.e. the participant had returned the
+experiment or had run out of time). This is a serious error and so Dallinger has
+paused the experiment - expiring the HIT on MTurk and setting auto_recruit to
+false. Participants currently playing will be able to finish, however no further
+participants will be recruited until you do so manually. We strongly suggest you
+use the details below to check the database to make sure the missing
+notification has not caused additional problems before resuming. If you are
+receiving a lot of these emails this suggests something is wrong with your
+experiment code.
+
+Best,
+
+The Dallinger dev. team.
+
+Error details:
+Assignment: {s.assignment_id}
+
+Allowed time (minutes): {s.allowed_minutes:.0f}
+Time since participant started: {s.active_minutes:.0f}
+"""
+
+
+class MTurkHITMessages(object):
+    @staticmethod
+    def by_flavor(summary, whimsical):
+        if whimsical:
+            return WhimsicalMTurkHITMessages(summary)
+        return MTurkHITMessages(summary)
+
+    _templates = {
+        "resubmitted": {
+            "subject": "Dallinger automated email - minor error.",
+            "template": mturk_resubmit,
+        },
+        "cancelled": {
+            "subject": "Dallinger automated email - major error.",
+            "template": cancelled_hit,
+        },
+    }
+
+    def __init__(self, summary):
+        self.summary = summary
+
+    def resubmitted_msg(self):
+        return self._build("resubmitted")
+
+    def hit_cancelled_msg(self):
+        return self._build("cancelled")
+
+    def _build(self, category):
+        data = self._templates[category]
+        return {
+            "body": data["template"].format(s=self.summary),
+            "subject": data["subject"],
+        }
+
+
+class WhimsicalMTurkHITMessages(MTurkHITMessages):
+
+    _templates = {
+        "resubmitted": {
+            "subject": "A matter of minor concern.",
+            "template": mturk_resubmit_whimsical,
+        },
+        "cancelled": {
+            "subject": "Most troubling news.",
+            "template": mturk_cancelled_hit_whimsical,
+        },
+    }
+
+
 class MTurkRecruiterException(Exception):
     """Custom exception for MTurkRecruiter"""
+
+
+mturk_routes = flask.Blueprint("mturk_recruiter", __name__)
+
+
+@mturk_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
+@crossdomain(origin="*")
+def mturk_recruiter_notify():
+    """Listens for:
+        1. AWS SNS subscription confirmation request
+        2. SNS subcription messages, which forward MTurk notifications
+    """
+    recruiter = MTurkRecruiter()
+    logger.warning("Raw notification body: {}".format(flask.request.get_data()))
+    content = json.loads(flask.request.get_data())
+    message_type = content.get("Type")
+    # 1. SNS subscription confirmation request
+    if message_type == "SubscriptionConfirmation":
+        logger.warning("Received a SubscriptionConfirmation message from AWS.")
+        token = content.get("Token")
+        topic = content.get("TopicArn")
+        recruiter._confirm_sns_subscription(token=token, topic=topic)
+
+    # 2. MTurk Worker event
+    elif message_type == "Notification":
+        logger.warning("Received an Event Notification from AWS.")
+        message = json.loads(content.get("Message"))
+        events = message["Events"]
+        recruiter._report_event_notification(events)
+
+    else:
+        logger.warning("Unknown SNS notification type: {}".format(message_type))
+
+    return success_response()
+
+
+class RedisStore(object):
+    """A wrapper around redis, to handle value decoding on retrieval,
+    and easy cleanup of all managed keys via a prefix applied to all
+    stored key/value pairs.
+    """
+
+    def __init__(self):
+        self._redis = redis_conn
+        self._prefix = self.__class__.__name__
+
+    def set(self, key, value):
+        """Add a prefix to the key, then store the key/value pair in redis."""
+        self._redis.set(self._prefixed(key), value)
+
+    def get(self, key):
+        """Retrieve the value from redis and decode it."""
+        raw = self._redis.get(self._prefixed(key))
+        if raw is not None:
+            return raw.decode("utf-8")
+
+    def clear(self):
+        """Remove any key that starts with our prefix."""
+        for key in self._redis.keys():
+            key_decoded = key.decode("utf-8")
+            if key_decoded.startswith(self._prefix):
+                self._redis.delete(key)
+
+    def _prefixed(self, key):
+        return "{}:{}".format(self._prefix, key)
 
 
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
-    nickname = 'mturk'
+    nickname = "mturk"
+    extra_routes = mturk_routes
 
-    experiment_qualification_desc = 'Experiment-specific qualification'
-    group_qualification_desc = 'Experiment group qualification'
+    experiment_qualification_desc = "Experiment-specific qualification"
+    group_qualification_desc = "Experiment group qualification"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(MTurkRecruiter, self).__init__()
         self.config = get_config()
-        self.ad_url = '{}/ad?recruiter={}'.format(
-            get_base_url(),
-            self.nickname,
-        )
-        self.hit_domain = os.getenv('HOST')
+        base_url = get_base_url()
+        self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
+        self.notification_url = "{}/mturk-sns-listener".format(base_url)
+        self.hit_domain = os.getenv("HOST")
         self.mturkservice = MTurkService(
-            self.config.get('aws_access_key_id'),
-            self.config.get('aws_secret_access_key'),
-            self.config.get('aws_region'),
-            self.config.get('mode') != "live"
+            aws_access_key_id=self.config.get("aws_access_key_id"),
+            aws_secret_access_key=self.config.get("aws_secret_access_key"),
+            region_name=self.config.get("aws_region"),
+            sandbox=self.config.get("mode") != "live",
         )
+        self.notifies_admin = admin_notifier(self.config)
+        self.mailer = get_mailer(self.config)
+        self.store = kwargs.get("store") or RedisStore()
         self._validate_config()
 
     def _validate_config(self):
-        mode = self.config.get('mode')
-        if mode not in ('sandbox', 'live'):
+        mode = self.config.get("mode")
+        if mode not in ("sandbox", "live"):
             raise MTurkRecruiterException(
                 '"{}" is not a valid mode for MTurk recruitment. '
                 'The value of "mode" must be either "sandbox" or "live"'.format(mode)
@@ -265,14 +507,14 @@ class MTurkRecruiter(Recruiter):
         the Mechanical Turk site to submit their HIT, which in turn triggers
         notifications to the /notifications route.
         """
-        if self.config.get('mode') == "sandbox":
+        if self.is_sandbox:
             return "https://workersandbox.mturk.com/mturk/externalSubmit"
         return "https://www.mturk.com/mturk/externalSubmit"
 
     @property
     def qualifications(self):
-        quals = {self.config.get('id'): self.experiment_qualification_desc}
-        group_name = self.config.get('group_name', None)
+        quals = {self.config.get("id"): self.experiment_qualification_desc}
+        group_name = self.config.get("group_name", None)
         if group_name:
             quals[group_name] = self.group_qualification_desc
 
@@ -280,60 +522,107 @@ class MTurkRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
+        logger.info("Opening MTurk recruitment for {} participants".format(n))
         if self.is_in_progress:
-            # Already started... do nothing.
-            return None
+            raise MTurkRecruiterException(
+                "Tried to open_recruitment on already open recruiter."
+            )
 
         if self.hit_domain is None:
             raise MTurkRecruiterException("Can't run a HIT from localhost")
 
         self.mturkservice.check_credentials()
 
-        if self.config.get('assign_qualifications'):
+        if self.config.get("assign_qualifications"):
             self._create_mturk_qualifications()
 
         hit_request = {
-            'max_assignments': n,
-            'title': self.config.get('title'),
-            'description': self.config.get('description'),
-            'keywords': self._config_to_list('keywords'),
-            'reward': self.config.get('base_payment'),
-            'duration_hours': self.config.get('duration'),
-            'lifetime_days': self.config.get('lifetime'),
-            'ad_url': self.ad_url,
-            'notification_url': self.config.get('notification_url'),
-            'approve_requirement': self.config.get('approve_requirement'),
-            'us_only': self.config.get('us_only'),
-            'blacklist': self._config_to_list('qualification_blacklist'),
-            'annotation': self.config.get('id'),
+            "experiment_id": self.config.get("id"),
+            "max_assignments": n,
+            "title": "{} ({})".format(
+                self.config.get("title"), heroku_tools.app_name(self.config.get("id"))
+            ),
+            "description": self.config.get("description"),
+            "keywords": self._config_to_list("keywords"),
+            "reward": self.config.get("base_payment"),
+            "duration_hours": self.config.get("duration"),
+            "lifetime_days": self.config.get("lifetime"),
+            "question": MTurkQuestions.external(self.ad_url),
+            "notification_url": self.notification_url,
+            "annotation": self.config.get("id"),
+            "qualifications": self._build_hit_qualifications(),
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
-        if self.config.get('mode') == "sandbox":
-            lookup_url = "https://workersandbox.mturk.com/mturk/preview?groupId={type_id}"
-        else:
-            lookup_url = "https://worker.mturk.com/mturk/preview?groupId={type_id}"
+        self._record_current_hit_id(hit_info["id"])
+        url = hit_info["worker_url"]
 
         return {
-            'items': [lookup_url.format(**hit_info), ],
-            'message': 'HIT now published to Amazon Mechanical Turk'
+            "items": [url],
+            "message": "HIT now published to Amazon Mechanical Turk",
         }
+
+    def compensate_worker(self, worker_id, email, dollars, notify=True):
+        """Pay a worker by means of a special HIT that only they can see.
+        """
+        qualification = self.mturkservice.create_qualification_type(
+            name="Dallinger Compensation Qualification - {}".format(
+                generate_random_id()
+            ),
+            description=(
+                "You have received a qualification to allow you to complete a "
+                "compensation HIT from Dallinger for ${}.".format(dollars)
+            ),
+        )
+        qid = qualification["id"]
+        self.mturkservice.assign_qualification(qid, worker_id, 1, notify=notify)
+        hit_request = {
+            "experiment_id": "(compensation only)",
+            "max_assignments": 1,
+            "title": "Dallinger Compensation HIT",
+            "description": "For compenation only; no task required.",
+            "keywords": [],
+            "reward": float(dollars),
+            "duration_hours": 1,
+            "lifetime_days": 3,
+            "question": MTurkQuestions.compensation(sandbox=self.is_sandbox),
+            "qualifications": [MTurkQualificationRequirements.must_have(qid)],
+            "do_subscribe": False,
+        }
+        hit_info = self.mturkservice.create_hit(**hit_request)
+        if email is not None:
+            message = {
+                "subject": "Dallinger Compensation HIT",
+                "sender": self.config.get("dallinger_email_address"),
+                "recipients": [email],
+                "body": (
+                    "A special compenstation HIT is available for you to complete on MTurk.\n\n"
+                    "Title: {title}\n"
+                    "Reward: ${reward:.2f}\n"
+                    "URL: {worker_url}"
+                ).format(**hit_info),
+            }
+
+            self.mailer.send(**message)
+        else:
+            message = {}
+
+        return {"hit": hit_info, "qualification": qualification, "email": message}
 
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
-        if not self.config.get('auto_recruit', False):
-            logger.info('auto_recruit is False: recruitment suppressed')
+        logger.info("Recruiting {} MTurk participants".format(n))
+        if not self.config.get("auto_recruit"):
+            logger.info("auto_recruit is False: recruitment suppressed")
             return
 
         hit_id = self.current_hit_id()
         if hit_id is None:
-            logger.info('no HIT in progress: recruitment aborted')
+            logger.info("no HIT in progress: recruitment aborted")
             return
 
         try:
             return self.mturkservice.extend_hit(
-                hit_id,
-                number=n,
-                duration_hours=self.config.get('duration')
+                hit_id, number=n, duration_hours=self.config.get("duration")
             )
         except MTurkServiceException as ex:
             logger.exception(str(ex))
@@ -346,17 +635,56 @@ class MTurkRecruiter(Recruiter):
         haven't actually completed the experiment. This allows them to remain
         eligible for future runs.
         """
-        if participant.status == 'overrecruited' or not self.qualification_active:
+        if participant.status == "overrecruited" or not self.qualification_active:
             return
 
         worker_id = participant.worker_id
 
         for name in self.qualifications:
             try:
-                self.mturkservice.increment_qualification_score(
-                    name, worker_id
-                )
+                self.mturkservice.increment_qualification_score(name, worker_id)
             except QualificationNotFoundException as ex:
+                logger.exception(ex)
+
+    def notify_duration_exceeded(self, participants, reference_time):
+        """The participant has exceed the maximum time for the activity,
+        defined in the "duration" config value. We need find out the assignment
+        status on MTurk and act based on this.
+        """
+        unsubmitted = []
+        for participant in participants:
+            summary = ParticipationTime(participant, reference_time, self.config)
+            status = self._mturk_status_for(participant)
+
+            if status == "Approved":
+                participant.status = "approved"
+                session.commit()
+            elif status == "Rejected":
+                participant.status = "rejected"
+                session.commit()
+            elif status == "Submitted":
+                self._resend_submitted_rest_notification_for(participant)
+                self._message_researcher(self._resubmitted_msg(summary))
+                logger.warning(
+                    "Error - submitted notification for participant {} missed. "
+                    "A replacement notification was created and sent, "
+                    "but proceed with caution.".format(participant.id)
+                )
+            else:
+                self._send_notification_missing_rest_notification_for(participant)
+                unsubmitted.append(summary)
+
+        if unsubmitted:
+            self._disable_autorecruit()
+            self.close_recruitment()
+            pick_one = unsubmitted[0]
+            # message the researcher about the one of the participants:
+            self._message_researcher(self._cancelled_msg(pick_one))
+            # Attempt to force-expire the hit via boto. It's possible
+            # that the HIT won't exist if the HIT has been deleted manually.
+            try:
+                self.mturkservice.expire_hit(pick_one.participant.hit_id)
+            except MTurkServiceException as ex:
                 logger.exception(ex)
 
     def rejects_questionnaire_from(self, participant):
@@ -388,18 +716,18 @@ class MTurkRecruiter(Recruiter):
 
     @property
     def is_in_progress(self):
-        return bool(Participant.query.first())
+        """Does an MTurk HIT for the current experiment ID already exist?"""
+        return self.current_hit_id() is not None
 
     @property
     def qualification_active(self):
-        return bool(self.config.get('assign_qualifications', False))
+        return bool(self.config.get("assign_qualifications"))
 
     def current_hit_id(self):
-        any_participant_record = Participant.query.with_entities(
-            Participant.hit_id).first()
-
-        if any_participant_record is not None:
-            return str(any_participant_record.hit_id)
+        """Return the ID of the HIT associated with the active experiment ID
+        if any such HIT exists.
+        """
+        return self.store.get(self.hit_id_storage_key)
 
     def approve_hit(self, assignment_id):
         try:
@@ -414,7 +742,7 @@ class MTurkRecruiter(Recruiter):
         expire_hit rather than the disable_hit API call. This allows people
         who have already picked up the hit to complete it as normal.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " mturk")
         # We are not expiring the hit currently as notifications are failing
         # TODO: Reinstate this
         # try:
@@ -424,11 +752,81 @@ class MTurkRecruiter(Recruiter):
         # except MTurkServiceException as ex:
         #     logger.exception(str(ex))
 
+    @property
+    def is_sandbox(self):
+        return self.config.get("mode") == "sandbox"
+
+    @property
+    def hit_id_storage_key(self):
+        experiment_id = self.config.get("id")
+        return "{}:{}".format(self.__class__.__name__, experiment_id)
+
+    def _build_hit_qualifications(self):
+        quals = []
+        reqs = MTurkQualificationRequirements
+        if self.config.get("approve_requirement") is not None:
+            quals.append(reqs.min_approval(self.config.get("approve_requirement")))
+        if self.config.get("us_only"):
+            quals.append(reqs.restrict_to_countries(["US"]))
+        for item in self._config_to_list("mturk_qualification_blocklist"):
+            qtype = self.mturkservice.get_qualification_type_by_name(item)
+            if qtype:
+                quals.append(reqs.must_not_have(qtype["id"]))
+        if self.config.get("mturk_qualification_requirements", None) is not None:
+            explicit_qualifications = json.loads(
+                self.config.get("mturk_qualification_requirements")
+            )
+            quals.extend(explicit_qualifications)
+
+        return quals
+
+    def _record_current_hit_id(self, hit_id):
+        self.store.set(self.hit_id_storage_key, hit_id)
+
+    def _confirm_sns_subscription(self, token, topic):
+        self.mturkservice.confirm_subscription(token=token, topic=topic)
+
+    def _report_event_notification(self, events):
+        q = _get_queue()
+        for event in events:
+            event_type = event.get("EventType")
+            assignment_id = event.get("AssignmentId")
+            participant_id = None
+            q.enqueue(worker_function, event_type, assignment_id, participant_id)
+
+    def _mturk_status_for(self, participant):
+        try:
+            assignment = self.mturkservice.get_assignment(participant.assignment_id)
+            status = assignment["status"]
+        except Exception:
+            status = None
+        return status
+
+    def _disable_autorecruit(self):
+        heroku_app = heroku_tools.HerokuApp(self.config.get("heroku_app_id_root"))
+        args = json.dumps({"auto_recruit": "false"})
+        headers = heroku_tools.request_headers(self.config.get("heroku_auth_token"))
+        requests.patch(heroku_app.config_url, data=args, headers=headers)
+
+    def _resend_submitted_rest_notification_for(self, participant):
+        q = _get_queue()
+        q.enqueue(
+            worker_function, "AssignmentSubmitted", participant.assignment_id, None
+        )
+
+    def _send_notification_missing_rest_notification_for(self, participant):
+        q = _get_queue()
+        q.enqueue(
+            worker_function, "NotificationMissing", participant.assignment_id, None
+        )
+
     def _config_to_list(self, key):
         # At some point we'll support lists, so all service code supports them,
         # but the config system only supports strings for now, so we convert:
-        as_string = self.config.get(key, '')
-        return [item.strip() for item in as_string.split(',') if item.strip()]
+        as_string = self.config.get(key, None)
+        if as_string is None:
+            return []
+        return [item.strip() for item in as_string.split(",") if item.strip()]
 
     def _create_mturk_qualifications(self):
         """Create MTurk Qualification for experiment ID, and for group_name
@@ -441,45 +839,76 @@ class MTurkRecruiter(Recruiter):
             except DuplicateQualificationNameError:
                 pass
 
+    def _resubmitted_msg(self, summary):
+        templates = MTurkHITMessages.by_flavor(summary, self.config.get("whimsical"))
+        return templates.resubmitted_msg()
+
+    def _cancelled_msg(self, summary):
+        templates = MTurkHITMessages.by_flavor(summary, self.config.get("whimsical"))
+        return templates.hit_cancelled_msg()
+
+    def _message_researcher(self, message):
+        try:
+            self.notifies_admin.send(message["subject"], message["body"])
+        except MessengerError as ex:
+            logger.exception(ex)
+
+
+class RedisTally(object):
+
+    _key = "num_recruited"
+
+    def __init__(self):
+        redis_conn.set(self._key, 0)
+
+    def increment(self, count):
+        redis_conn.incr(self._key, count)
+
+    @property
+    def current(self):
+        return int(redis_conn.get(self._key))
+
 
 class MTurkLargeRecruiter(MTurkRecruiter):
 
-    nickname = 'mturklarge'
+    nickname = "mturklarge"
+    pool_size = 10
 
     def __init__(self, *args, **kwargs):
-        conn.set('num_recruited', 0)
+        self.counter = kwargs.get("counter") or RedisTally()
         super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
 
     def open_recruitment(self, n=1):
+        logger.info("Opening MTurkLarge recruitment for {} participants".format(n))
         if self.is_in_progress:
-            # Already started... do nothing.
-            return None
-        conn.incr('num_recruited', n)
-        to_recruit = max(n, 10)
+            raise MTurkRecruiterException(
+                "Tried to open_recruitment on already open recruiter."
+            )
+        self.counter.increment(n)
+        to_recruit = max(n, self.pool_size)
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
     def recruit(self, n=1):
-        if not self.config.get('auto_recruit', False):
-            logger.info('auto_recruit is False: recruitment suppressed')
+        logger.info("Recruiting {} MTurkLarge participants".format(n))
+        if not self.config.get("auto_recruit"):
+            logger.info("auto_recruit is False: recruitment suppressed")
             return
-        to_recruit = n
-        if int(conn.get('num_recruited')) < 10:
-            num_recruited = conn.incr('num_recruited', n)
-            logger.info('Recruited participant from preallocated pool')
-            if num_recruited > 10:
-                to_recruit = num_recruited - 10
-            else:
-                to_recruit = 0
-        else:
-            conn.incr('num_recruited', n)
-        if to_recruit:
-            return super(MTurkLargeRecruiter, self).recruit(to_recruit)
+
+        needed = max(0, n - self.remaining_pool)
+        self.counter.increment(n)
+        if needed:
+            return super(MTurkLargeRecruiter, self).recruit(needed)
+
+    @property
+    def remaining_pool(self):
+        return max(0, self.pool_size - self.counter.current)
 
 
 class BotRecruiter(Recruiter):
     """Recruit bot participants using a queue"""
 
-    nickname = 'bots'
+    nickname = "bots"
+    _timeout = "1h"
 
     def __init__(self):
         super(BotRecruiter, self).__init__()
@@ -487,31 +916,34 @@ class BotRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
-        logger.info("Open recruitment.")
+        logger.info("Opening Bot recruitment for {} participants".format(n))
         factory = self._get_bot_factory()
-        bot_class_name = factory('', '', '').__class__.__name__
+        bot_class_name = factory("", "", "").__class__.__name__
         return {
-            'items': self.recruit(n),
-            'message': 'Bot recruitment started using {}'.format(bot_class_name)
+            "items": self.recruit(n),
+            "message": "Bot recruitment started using {}".format(bot_class_name),
         }
 
     def recruit(self, n=1):
         """Recruit n new participant bots to the queue"""
+        logger.info("Recruiting {} Bot participants".format(n))
         factory = self._get_bot_factory()
         urls = []
-        q = _get_queue()
+        q = _get_queue(name="low")
         for _ in range(n):
             base_url = get_base_url()
             worker = generate_random_id()
             hit = generate_random_id()
             assignment = generate_random_id()
-            ad_parameters = 'recruiter=bots&assignmentId={}&hitId={}&workerId={}&mode=sandbox'
-            ad_parameters = ad_parameters.format(assignment, hit, worker)
-            url = '{}/ad?{}'.format(base_url, ad_parameters)
+            ad_parameters = (
+                "recruiter={}&assignmentId={}&hitId={}&workerId={}&mode=sandbox"
+            )
+            ad_parameters = ad_parameters.format(self.nickname, assignment, hit, worker)
+            url = "{}/ad?{}".format(base_url, ad_parameters)
             urls.append(url)
             bot = factory(url, assignment_id=assignment, worker_id=worker, hit_id=hit)
-            job = q.enqueue(bot.run_experiment, timeout=60 * 20)
-            logger.warn("Created job {} for url {}.".format(job.id, url))
+            job = q.enqueue(bot.run_experiment, timeout=self._timeout)
+            logger.warning("Created job {} for url {}.".format(job.id, url))
 
         return urls
 
@@ -523,29 +955,36 @@ class BotRecruiter(Recruiter):
 
         This does nothing at this time.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " bot")
+
+    def notify_duration_exceeded(self, participants, reference_time):
+        """The bot participant has been working longer than the time defined in
+        the "duration" config value.
+        """
+        for participant in participants:
+            participant.status = "rejected"
+            session.commit()
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Logging only. These are bots."""
-        logger.info(
-            "Bots don't get bonuses. Sorry, bots."
-        )
+        logger.info("Bots don't get bonuses. Sorry, bots.")
 
     def submitted_event(self):
-        return 'BotAssignmentSubmitted'
+        return "BotAssignmentSubmitted"
 
     def _get_bot_factory(self):
         # Must be imported at run-time
         from dallinger_experiment.experiment import Bot
+
         return Bot
 
 
 class MultiRecruiter(Recruiter):
 
-    nickname = 'multi'
+    nickname = "multi"
 
     # recruiter spec e.g. recruiters = bots: 5, mturk: 1
-    SPEC_RE = re.compile(r'(\w+):\s*(\d+)')
+    SPEC_RE = re.compile(r"(\w+):\s*(\d+)")
 
     def __init__(self):
         super(MultiRecruiter, self).__init__()
@@ -557,76 +996,89 @@ class MultiRecruiter(Recruiter):
         Example: recruiters = bots: 5, mturk: 1
         """
         recruiters = []
-        spec = get_config().get('recruiters')
+        spec = get_config().get("recruiters")
         for match in self.SPEC_RE.finditer(spec):
             name = match.group(1)
             count = int(match.group(2))
             recruiters.append((name, count))
         return recruiters
 
-    def pick_recruiter(self):
-        """Pick the next recruiter to use.
+    def recruiters(self, n=1):
+        """Iterator that provides recruiters along with the participant
+        count to be recruited for up to `n` participants.
 
         We use the `Recruitment` table in the db to keep track of
         how many recruitments have been requested using each recruiter.
         We'll use the first one from the specification that
         hasn't already reached its quota.
         """
-        counts = dict(
-            session.query(
-                Recruitment.recruiter_id,
-                func.count(Recruitment.id)
-            ).group_by(Recruitment.recruiter_id).all()
-        )
-
-        for recruiter_id, target_count in self.spec:
-            count = counts.get(recruiter_id, 0)
-            if count >= target_count:
-                # This recruiter quota was reached;
-                # move on to the next one.
-                counts[recruiter_id] = count - target_count
-                continue
-            else:
-                # Quota is still available; let's use it.
-                break
-        else:
-            raise Exception(
-                'Reached quota for all recruiters. '
-                'Not sure which one to use now.'
+        recruit_count = 0
+        while recruit_count <= n:
+            counts = dict(
+                session.query(Recruitment.recruiter_id, func.count(Recruitment.id))
+                .group_by(Recruitment.recruiter_id)
+                .all()
             )
+            for recruiter_id, target_count in self.spec:
+                remaining = 0
+                count = counts.get(recruiter_id, 0)
+                if count >= target_count:
+                    # This recruiter quota was reached;
+                    # move on to the next one.
+                    counts[recruiter_id] = count - target_count
+                    continue
+                else:
+                    # Quota is still available; let's use it.
+                    remaining = target_count - count
+                    break
+            else:
+                return
 
-        # record the recruitment
-        session.add(Recruitment(recruiter_id=recruiter_id))
+            num_recruits = min(n - recruit_count, remaining)
+            # record the recruitments and commit
+            for i in range(num_recruits):
+                session.add(Recruitment(recruiter_id=recruiter_id))
+            session.commit()
 
-        # return an instance of the recruiter
-        return by_name(recruiter_id)
+            recruit_count += num_recruits
+            yield by_name(recruiter_id), num_recruits
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list.
         """
-        logger.info("Opening recruitment.")
+        logger.info("Multi recruitment running for {} participants".format(n))
         recruitments = []
         messages = {}
-        for i in range(n):
-            recruiter = self.pick_recruiter()
+        remaining = n
+        for recruiter, count in self.recruiters(n):
+            if not count:
+                break
             if recruiter.nickname in messages:
-                result = recruiter.recruit(1)
+                result = recruiter.recruit(count)
                 recruitments.extend(result)
             else:
-                result = recruiter.open_recruitment(1)
-                recruitments.extend(result['items'])
-                messages[recruiter.nickname] = result['message']
-        return {
-            'items': recruitments,
-            'message': '\n'.join(messages.values())
-        }
+                result = recruiter.open_recruitment(count)
+                recruitments.extend(result["items"])
+                messages[recruiter.nickname] = result["message"]
+
+            remaining -= count
+            if remaining <= 0:
+                break
+
+        logger.info(
+            (
+                "Multi-recruited {} out of {} participants, " "using {} recruiters."
+            ).format(n - remaining, n, len(messages))
+        )
+
+        return {"items": recruitments, "message": "\n".join(messages.values())}
 
     def recruit(self, n=1):
-        urls = []
-        for i in range(n):
-            recruiter = self.pick_recruiter()
-            urls.extend(recruiter.recruit(1))
-        return urls
+        """For multi recruitment recruit and open_recruitment
+        have the same logic. We may need to open recruitment on any of our
+        sub-recruiters at any point in recruitment.
+        """
+        return self.open_recruitment(n)["items"]
 
     def close_recruitment(self):
         for name in set(name for name, count in self.spec):
@@ -649,12 +1101,12 @@ def from_config(config):
     the bot recruiter, which can be used in debug mode)
     and the MTurkRecruiter in other modes.
     """
-    debug_mode = config.get('mode', None) == 'debug'
-    name = config.get('recruiter', None)
+    debug_mode = config.get("mode") == "debug"
+    name = config.get("recruiter", None)
     recruiter = None
 
     # Special case 1: Don't use a configured recruiter in replay mode
-    if config.get('replay', None):
+    if config.get("replay"):
         return HotAirRecruiter()
 
     if name is not None:

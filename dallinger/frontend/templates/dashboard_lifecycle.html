@@ -1,0 +1,50 @@
+{% extends "base/dashboard.html" %}
+
+{% block stylesheets %}
+<style type="text/css">
+    .copy-button { margin-bottom: 2rem }
+    pre { margin-bottom: .5rem; }
+</style>
+{% endblock %}
+
+{% block body %}
+<h1>Experiment Lifecycle</h1>
+
+    <h2>Shut down experiment</h2>
+    <pre id="destroy-command">dallinger destroy{{ sandbox_option }}--app {{ heroku_app_id }}</pre>
+    <button class="copy-button btn btn-primary"
+            data-clipboard-target="#destroy-command"
+            data-toggle="popover">Copy</button>
+
+    {% if expire_command %}
+    <h2>Expire MTurk HIT</h2>
+    <pre id="expire-command">{{ expire_command }}</pre>
+    <button class="copy-button btn btn-primary"
+            data-clipboard-target="#expire-command"
+            data-toggle="popover">Copy</button>
+    {% endif %}
+
+    <h2>Export data</h2>
+    <h3 class="font-weight-lighter">Scrub personally identifyable information</h3>
+    <pre id="export-command">dallinger export --app {{ heroku_app_id }}</pre>
+    <button class="copy-button btn btn-primary"
+            data-clipboard-target="#export-command"
+            data-toggle="popover">Copy</button>
+
+    <h3 class="font-weight-lighter text-danger">No scrubbing &ndash; PII will be retained.</h3>
+    <pre id="export-noscrub-command">dallinger export --no-scrub --app {{ heroku_app_id }}</pre>
+    <button class="copy-button btn btn-primary"
+            data-clipboard-target="#export-noscrub-command"
+            data-toggle="popover">Copy</button>
+
+
+{% endblock %}
+
+{% block scripts %}
+
+<script>
+    clipboard = new ClipboardJS('.copy-button');
+    $('[data-toggle="popover"]').popover({content: "Dallinger CLI command copied!"});
+</script>
+
+{% endblock %}

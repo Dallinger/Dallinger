@@ -1,3 +1,6 @@
-# Networked chatroom-based coordination game
+# Networked chatroom
 
-This is a networked coordination game where players broadcast messages to each other and try to make the same decision as others.
+This is a networked chatroom where players broadcast messages to each other.
+
+Note that this demo has an additional dependency on the ``nltk`` library.  
+You will need to run: ``pip install -r requirements.txt`` from the experiment directory before running the demo.

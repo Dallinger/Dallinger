@@ -8,10 +8,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from dallinger.bots import BotBase
+from dallinger.config import get_config
 from dallinger.networks import Chain
 from dallinger.experiment import Experiment
 
-from . import models
 
 logger = logging.getLogger(__file__)
 
@@ -27,11 +27,21 @@ class Bartlett1932(Experiment):
         Finally, setup() is called.
         """
         super(Bartlett1932, self).__init__(session)
+        from . import models  # Import at runtime to avoid SQLAlchemy warnings
+
         self.models = models
         self.experiment_repeats = 1
         self.initial_recruitment_size = 1
         if session:
             self.setup()
+
+    def extra_parameters(self):
+        config = get_config()
+        config.register("num_participants", int)
+
+    def configure(self):
+        config = get_config()
+        self.num_participants = config.get("num_participants")
 
     def setup(self):
         """Setup the networks.
@@ -48,7 +58,7 @@ class Bartlett1932(Experiment):
 
     def create_network(self):
         """Return a new network."""
-        return Chain(max_size=5)
+        return Chain(max_size=self.num_participants)
 
     def add_node_to_network(self, node, network):
         """Add node to the chain and receive transmissions."""
@@ -75,17 +85,20 @@ class Bot(BotBase):
         try:
             logger.info("Entering participate method")
             ready = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, 'finish-reading')))
-            stimulus = self.driver.find_element_by_id('stimulus')
-            story = stimulus.find_element_by_id('story')
+                EC.element_to_be_clickable((By.ID, "finish-reading"))
+            )
+            stimulus = self.driver.find_element_by_id("stimulus")
+            story = stimulus.find_element_by_id("story")
             story_text = story.text
             logger.info("Stimulus text:")
             logger.info(story_text)
             ready.click()
             submit = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, 'submit-response')))
+                EC.element_to_be_clickable((By.ID, "submit-response"))
+            )
             textarea = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, 'reproduction')))
+                EC.element_to_be_clickable((By.ID, "reproduction"))
+            )
             textarea.clear()
             text = self.transform_text(story_text)
             logger.info("Transformed text:")

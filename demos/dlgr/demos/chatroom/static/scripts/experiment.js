@@ -1,47 +1,8 @@
+/*globals $, dallinger */
 var my_node_id;
 
-$(document).ready(function() {
-
-  // Print the consent form.
-  $("#print-consent").click(function() {
-    window.print();
-  });
-
-  // Consent to the experiment.
-  $("#consent").click(function() {
-    store.set("recruiter", dallinger.getUrlParameter("recruiter"));
-    store.set("hit_id", dallinger.getUrlParameter("hit_id"));
-    store.set("worker_id", dallinger.getUrlParameter("worker_id"));
-    store.set("assignment_id", dallinger.getUrlParameter("assignment_id"));
-    store.set("mode", dallinger.getUrlParameter("mode"));
-
-    window.location.href = '/instructions';
-  });
-
-  // Consent to the experiment.
-  $("#no-consent").click(function() {
-    self.close();
-  });
-
-  // Proceed to the waiting room.
-  $("#go-to-waiting-room").click(function() {
-    window.location.href = '/waiting';
-  });
-
-  // Send a message.
-  $("#send-message").click(function() {
-    send_message();
-  });
-
-  // Leave the chatroom.
-  $("#leave-chat").click(function() {
-    leave_chatroom();
-  });
-
-});
-
 // Create the agent.
-create_agent = function () {
+var create_agent = function () {
   dallinger.createAgent()
     .done(function (resp) {
       my_node_id = resp.node.id;
@@ -53,12 +14,18 @@ create_agent = function () {
       $("#reproduction").focus();
       get_transmissions(my_node_id);
     })
-    .fail(function () {
-      dallinger.goToPage("questionnaire");
+    .fail(function (rejection) {
+      // A 403 is our signal that it's time to go to the questionnaire
+      if (rejection.status === 403) {
+        dallinger.allowExit();
+        dallinger.goToPage('questionnaire');
+      } else {
+        dallinger.error(rejection);
+      }
     });
 };
 
-get_transmissions = function (my_node_id) {
+var get_transmissions = function (my_node_id) {
   dallinger.getTransmissions(my_node_id, { status: 'pending' })
     .done(function (resp) {
       console.log(resp);
@@ -71,7 +38,7 @@ get_transmissions = function (my_node_id) {
     });
 };
 
-display_info = function(info_id) {
+var display_info = function(info_id) {
   dallinger.getInfo(my_node_id, info_id)
     .done(function (resp) {
       console.log(resp.info.contents);
@@ -79,7 +46,7 @@ display_info = function(info_id) {
     });
 };
 
-send_message = function() {
+var send_message = function() {
   $("#send-message").addClass("disabled");
   $("#send-message").html("Sending...");
 
@@ -98,7 +65,7 @@ send_message = function() {
   });
 };
 
-leave_chatroom = function() {
+var leave_chatroom = function() {
   dallinger.goToPage("questionnaire");
 };
 
@@ -108,4 +75,23 @@ $(document).keypress(function (e) {
     $("#send-message").click();
     return false;
   }
+});
+
+$(document).ready(function() {
+
+  // Send a message.
+  $("#send-message").click(function() {
+    send_message();
+  });
+
+  // Leave the chatroom.
+  $("#leave-chat").click(function() {
+    leave_chatroom();
+  });
+
+  // Proceed to the waiting room.
+  $("#go-to-waiting-room").click(function() {
+      dallinger.goToPage("waiting");
+  });
+
 });

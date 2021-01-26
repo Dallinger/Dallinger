@@ -5,9 +5,9 @@ from sqlalchemy import Float, Integer
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast
 
-from dallinger import transformations
+from dallinger.models import Transformation
 from dallinger.information import Gene, Meme, State
-from dallinger.nodes import Agent, Environment, Source
+from dallinger.nodes import Agent, Source
 
 
 class LearningGene(Gene):
@@ -16,8 +16,11 @@ class LearningGene(Gene):
     __mapper_args__ = {"polymorphic_identity": "learning_gene"}
 
     def _mutated_contents(self):
-        alleles = ["social", "asocial"]
-        return random.choice([a for a in alleles if a != self.contents])
+        # Toggle between the two possibilities
+        if self.contents == "social":
+            return "asocial"
+        else:
+            return "social"
 
 
 class RogersSource(Source):
@@ -25,15 +28,16 @@ class RogersSource(Source):
 
     __mapper_args__ = {"polymorphic_identity": "rogers_source"}
 
-    def create_information(self):
-        """Create a new learning gene."""
-        if len(self.infos()) == 0:
-            LearningGene(
-                origin=self,
-                contents="asocial")
+    def _info_type(self):
+        """Create a learning gene by default."""
+        return LearningGene
+
+    def _contents(self):
+        """Contents of created Infos is 'asocial' by default."""
+        return "asocial"
 
     def _what(self):
-        """Transmit a learning gene by default."""
+        """Transmit the first learning gene by default."""
         return self.infos(type=LearningGene)[0]
 
 
@@ -90,16 +94,19 @@ class RogersAgent(Agent):
     def calculate_fitness(self):
         """Calculcate your fitness."""
         if self.fitness is not None:
-            raise Exception("You are calculating the fitness of agent {}, "
-                            .format(self.id) +
-                            "but they already have a fitness")
-        infos = self.infos()
+            raise Exception(
+                "You are calculating the fitness of agent {}, ".format(self.id)
+                + "but they already have a fitness"
+            )
 
-        said_blue = ([i for i in infos if
-                      isinstance(i, Meme)][0].contents == "blue")
+        said_blue = self.infos(type=Meme)[0].contents == "blue"
+
         proportion = float(
-            max(State.query.filter_by(network_id=self.network_id).all(),
-                key=attrgetter('creation_time')).contents)
+            max(
+                self.network.nodes(type=RogersEnvironment)[0].infos(),
+                key=attrgetter("id"),
+            ).contents
+        )
         self.proportion = proportion
         is_blue = proportion > 0.5
 
@@ -108,9 +115,8 @@ class RogersAgent(Agent):
         else:
             self.score = 0
 
-        is_asocial = [
-            i for i in infos if isinstance(i, LearningGene)
-        ][0].contents == "asocial"
+        is_asocial = self.infos(type=LearningGene)[0].contents == "asocial"
+
         e = 2
         b = 1
         c = 0.3 * b
@@ -120,48 +126,60 @@ class RogersAgent(Agent):
 
     def update(self, infos):
         """Process received infos."""
-        for info_in in infos:
-            if isinstance(info_in, LearningGene):
-                if random.random() < 0.10:
-                    self.mutate(info_in)
-                else:
-                    self.replicate(info_in)
+        genes = [i for i in infos if isinstance(i, LearningGene)]
+        for gene in genes:
+            if (
+                self.network.role == "experiment"
+                and self.generation > 0
+                and random.random() < 0.10
+            ):
+                self.mutate(gene)
+            else:
+                self.replicate(gene)
 
     def _what(self):
         return self.infos(type=LearningGene)[0]
 
 
-class RogersAgentFounder(RogersAgent):
-    """The Rogers Agent Founder.
-
-    It is like Rogers Agent except it cannot mutate.
-    """
-
-    __mapper_args__ = {"polymorphic_identity": "rogers_agent_founder"}
-
-    def update(self, infos):
-        """Process received infos."""
-        for info in infos:
-            if isinstance(info, LearningGene):
-                self.replicate(info)
-
-
-class RogersEnvironment(Environment):
+class RogersEnvironment(Source):
     """The Rogers environment."""
 
     __mapper_args__ = {"polymorphic_identity": "rogers_environment"}
 
-    def create_state(self, proportion):
-        """Create an environmental state."""
+    @hybrid_property
+    def proportion(self):
+        """Convert property1 to propoertion."""
+        return float(self.property1)
+
+    @proportion.setter
+    def proportion(self, proportion):
+        """Make proportion settable."""
+        self.property1 = repr(proportion)
+
+    @proportion.expression
+    def proportion(self):
+        """Make proportion queryable."""
+        return cast(self.property1, Float)
+
+    def _info_type(self):
+        """By default create States."""
+        return State
+
+    def _contents(self):
+        """Contents of created infos is either propirtion or 1-proportion by default."""
         if random.random() < 0.5:
-            proportion = 1 - proportion
-        State(origin=self, contents=proportion)
+            return self.proportion
+        else:
+            return 1 - self.proportion
+
+    def _what(self):
+        """By default transmit the most recent state """
+        return max(self.infos(type=State), key=attrgetter("id"))
 
     def step(self):
         """Prompt the environment to change."""
-        current_state = max(self.infos(type=State),
-                            key=attrgetter('creation_time'))
+        current_state = max(self.infos(type=State), key=attrgetter("id"))
         current_contents = float(current_state.contents)
         new_contents = 1 - current_contents
         info_out = State(origin=self, contents=new_contents)
-        transformations.Mutation(info_in=current_state, info_out=info_out)
+        Transformation(info_in=current_state, info_out=info_out)

@@ -5,9 +5,7 @@ import random
 class WarOfTheGhostsSource(Source):
     """A Source that reads in a random story from a file and transmits it."""
 
-    __mapper_args__ = {
-        "polymorphic_identity": "war_of_the_ghosts_source"
-    }
+    __mapper_args__ = {"polymorphic_identity": "war_of_the_ghosts_source"}
 
     def _contents(self):
         """Define the contents of new Infos.
@@ -22,7 +20,7 @@ class WarOfTheGhostsSource(Source):
             "raid.md",
             "species.md",
             "tennis.md",
-            "vagabond.md"
+            "vagabond.md",
         ]
         story = random.choice(stories)
         with open("static/stimuli/{}".format(story), "r") as f:

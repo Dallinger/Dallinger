@@ -39,7 +39,7 @@ Amazon Web Services API Keys
 There are two ways to get API keys for Amazon Web Services. If you are the only
 user in your AWS account, the simplest thing to do is generate root user access
 keys, by `following these instructions
-<http://docs.aws.amazon.com/general/latest/gr/managing-aws-access-keys.html>`__.
+<https://docs.aws.amazon.com/general/latest/gr/managing-aws-access-keys.html>`__.
 You might be presented a dialog box with options to continue to security
 credentials, or get started with IAM users. If you are the only user, or you
 are otherwise certain that this is what you want to do (see the following note),
@@ -58,10 +58,25 @@ successfully used AWS.
 
 If you are not the primary user of your AWS account, or are part of a working
 group that shares the account, the recommended way to create the access keys is
-by creating AIM users and generating keys for them. If someone else manages
+by creating IAM users and generating keys for them. If someone else manages
 the AWS account, ask them to generate the user and keys for you. If you need
 to manage the users and keys by yourself, `follow these instructions
-<https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html>`__.
+<https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html>`__.
+
+If you are using an IAM user instead of an AWS root account, then you will
+need to ensure the IAM user is granted the following permissions::
+
+    AmazonS3FullAccess
+    AmazonMechanicalTurkFullAccess
+    AmazonSNSFullAccess
+
+You may want to assign these permissions by creating a Dallinger Group in
+the IAM console and assigning users to it.
+
+.. figure:: _static/Dallinger\ AWS\ Group.png
+   :alt: Dallinger IAM Group
+
+   Example Dallinger IAM Group
 
 After you have generated and saved your AWS access keys, fill in the following
 lines of ``.dallingerconfig``, replacing ``???`` with your keys:
@@ -92,7 +107,7 @@ Next, sign up for a `Heroku <https://www.heroku.com/>`__ account.
 
 You should see an interface that looks something like the following:
 
-.. figure:: http://note.io/11c7tkL
+.. figure:: _static/heroku.jpg
    :alt: This is the interface with the Heroku app
 
    This is the interface with the Heroku app

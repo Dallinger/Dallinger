@@ -63,7 +63,7 @@ methods to facilitate handling asynchronous responses once they've completed:
       callbacks to handle successes, failures, and progress updates.
 
 The fail_callback function will be passed a `dallinger.AjaxRejection` object which
-includes detailted information about the error. Unexpected errors should be handled
+includes detailed information about the error. Unexpected errors should be handled
 by calling the :func:`dallinger.error` method with the `AjaxRejection` object.
 
 
@@ -76,6 +76,8 @@ If you are writing a highly customized experiment, you may need to use
 these explicitly:
 
 .. js:autofunction:: dallinger.createParticipant
+
+.. js:autofunction:: dallinger.loadParticipant
 
 .. js:autofunction:: dallinger.hasAdBlocker
 

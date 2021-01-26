@@ -47,9 +47,13 @@
     </div>
 {% endblock %}
 
-{% block scripts %}
+{% block libs %}
+    {{ super() }}
     <script src="/static/scripts/markdown.min.js" type="text/javascript"> </script>
     <script src="/static/scripts/experiment.js" type="text/javascript"> </script>
+{% endblock %}
+
+{% block scripts %}
     <script>
         create_agent();
     </script>

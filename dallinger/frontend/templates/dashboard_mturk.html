@@ -1,0 +1,181 @@
+{% extends "base/dashboard.html" %}
+
+{% block stylesheets %}
+<style type="text/css">
+    .popover-body { font-family: monospace; }
+    #extension-result { margin-top: 2em; }
+    #extension-command { font-family: monospace; }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="row">
+<h1 class="col-sm">MTurk Dashboard</h1>
+<div class="text-muted col-sm" style="text-align: right;">Last updated {{ data["last_updated"] }}
+    <button type="button" class="btn btn-secondary" onclick="location.reload()">
+        Reload
+    </button>
+    <button type="button"
+            class="btn btn-danger cli-command"
+            title="Dallinger CLI command copied!"
+            data-toggle="popover"
+            data-clipboard-text="{{ data['expire_command'] }}"
+            data-content="{{ data['expire_command'] }}">Expire HIT</button>
+    {% if data["hit_info"] %}
+    <button type="button"
+            class="btn btn-primary"
+            data-toggle="modal" data-target="#hit-extension-modal">Extend HIT</button>
+    {% endif %}
+</div>
+</div>
+
+
+{% if data %}
+
+    <h2>General</h2>
+    <div class="row">
+      <div class="col-sm">Account Balance: {{ data["account_balance"] }}</div>
+      <div class="col-sm">
+        <a href="{{ data['requester_url'] }}" target="_blank" rel="noreferrer noopener">Requester Account</a>
+      </div>
+      <div class="col-sm">
+        <a href="{{ data['qualification_types_url'] }}" target="_blank" rel="noreferrer noopener">Qualification Types</a>
+      </div>
+    </div>
+
+
+    <h2>Current HIT Information</h2>
+
+    {% if data["hit_info"] %}
+        <table class="table table-sm table-striped">
+        {% for key, value in data["hit_info"].items() %}
+            <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+
+        {% endfor %}
+        </table>
+
+        <h3>Preview of AD page running <a href="{{ data['ad_url'] }}">on Heroku</a></h3>
+        <iframe width="100%" height="600" src="{{  data['ad_url'] }}" /></iframe>
+    {% else %}
+        <div class="alert alert-warning">
+            HIT data not available until first participant joins.
+        </div>
+    {% endif %}
+
+
+{% endif %}
+
+<!-- HIT Extension Modal -->
+<div class="modal fade"
+     id="hit-extension-modal"
+     data-backdrop="static"
+     data-keyboard="false"
+     tabindex="-1"
+     role="dialog"
+     aria-labelledby="hit-extension-form-label"
+     aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="hit-extension-form-label">Update MTurk HIT Expiration and Assignments</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="hit-extension-form">
+          <div class="form-group">
+            <input type="hidden"
+                   id="original-expiration"
+                   name="original-expiration"
+                   value="{{ data['hit_expiration'] }}" />
+            <label for="new-expiration">Extend until:</label>
+            <input type="datetime-local"
+                   id="new-expiration"
+                   class="form-control"
+                   value="{{ data['hit_expiration'] }}"
+                   name="new-expiration">
+
+            <label for="additional-assignments">Additional assignments:</label>
+            <input type="number"
+                   id="additional-assignments"
+                   class="form-control"
+                   value="0"
+                   name="additional-assignments">
+
+          </div>
+          <button type="button" id="extend-hit-cancel" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="button" id="extend-hit-button" class="btn btn-primary">Copy CLI command to clipboard</button>
+          <div id="extension-result" class="alert alert-success invisible"><strong>Dallinger CLI command copied!</strong>
+            <div id="extension-command"></div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script type="text/javascript">
+
+    function templateGlobals() {
+      // Values inscribed by Jinja2 when this template is rendered.
+      {% if data["hit_info"] %}
+        const HITId = "{{ data['hit_info']['HIT Id'] }}";
+        const isSandbox = {{ data['is_sandbox']|tojson  }};
+      {% else %}
+        const HITId = "";
+        const isSandbox = true;
+      {% endif %}
+
+      return {
+        HITId: HITId,
+        isSandbox: isSandbox
+      }
+    }
+
+    function buildExtendCommand(event) {
+        const globals = templateGlobals();
+        const originalDate = Date.parse($("#original-expiration").val());
+        const newDate = Date.parse($("#new-expiration").val());
+        const hoursDiff = (newDate - originalDate) / (10000 * 360);
+        const newAssignments = $("#additional-assignments").val();
+        const assignmentOption = " --assignments " + newAssignments
+        const durationOption = hoursDiff > 0 ? " --duration_hours " + hoursDiff : ""
+        const sandboxOption = globals.isSandbox ? " --sandbox" : "";
+
+        const command = "dallinger extend_mturk_hit --hit_id " + globals.HITId + assignmentOption + durationOption + sandboxOption;
+
+        return command;
+    }
+
+    $(function () {
+      // Expire command
+      $('[data-toggle="popover"]').popover();
+
+      // HIT extension command
+      new ClipboardJS('.cli-command');
+      const extensionCB = new ClipboardJS('#extend-hit-button', {
+        text: trigger => {
+          return buildExtendCommand(trigger);
+        },
+        container: document.getElementById("hit-extension-modal")
+      });
+
+      extensionCB.on("success", e => {
+        $("#extension-command").text(e.text);
+        $("#extension-result").removeClass("invisible");
+      })
+
+      $("#extend-hit-cancel").click(event => {
+        $("#additional-assignments").val("0");
+        $("#new-expiration").val($("#original-expiration").val());
+        $("#extension-command").text("");
+        $("#extension-result").addClass("invisible");
+      })
+
+    })
+</script>
+{% endblock %}

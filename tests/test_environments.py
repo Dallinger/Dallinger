@@ -2,18 +2,20 @@ from dallinger import nodes, information, models
 
 
 class TestEnvironments(object):
-
     def test_create_environment(self, db_session):
         """Create an environment"""
         net = models.Network()
         db_session.add(net)
         environment = nodes.Environment(network=net)
-        information.State(origin=environment, contents="foo")
         db_session.commit()
-
         assert isinstance(environment.id, int)
         assert environment.type == "environment"
         assert environment.creation_time
+        assert environment.state() is None
+
+        information.State(origin=environment, contents="foo")
+        db_session.commit()
+
         assert environment.state().contents == "foo"
 
     def test_create_environment_get_observed(self, db_session):
@@ -39,4 +41,4 @@ class TestEnvironments(object):
 
         state = environment.state()
 
-        assert state.contents == u'some content'
+        assert state.contents == u"some content"
