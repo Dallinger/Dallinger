@@ -269,6 +269,16 @@ def a(db_session):
             defaults.update(kw)
             return self._build(models.Network, defaults)
 
+        def question(self, **kw):
+            defaults = {
+                "participant": self.participant,
+                "question": "A question...",
+                "response": "A question response...",
+                "number": 1,
+            }
+            defaults.update(kw)
+            return self._build(models.Question, defaults)
+
         def burst(self, **kw):
             defaults = {}
             defaults.update(kw)

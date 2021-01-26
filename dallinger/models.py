@@ -53,6 +53,11 @@ class SharedMixin(object):
     #: usually failed to indicate something has gone wrong.
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
+    #: an optional reason the object was failed. If the object is failed as
+    #: part of a cascading failure triggered from another object, the chain
+    #: of objects will be captured in this field.
+    failed_reason = Column(Text, nullable=True, default=None)
+
     #: the time at which failing occurred
     time_of_death = Column(DateTime, default=None)
 
@@ -80,6 +85,7 @@ class SharedMixin(object):
             "id": self.id,
             "creation_time": self.creation_time,
             "failed": self.failed,
+            "failed_reason": self.failed_reason,
             "time_of_death": self.time_of_death,
             "property1": self.property1,
             "property2": self.property2,
@@ -91,6 +97,20 @@ class SharedMixin(object):
         # Add any model specific data to the base data
         model_data.update(self.json_data())
         return model_data
+
+    def _wrap_failed_reason(self, reason):
+        """Represent cascading failures as a string for storage in the
+        ``failed_reason`` field.
+        If ``fail()`` was passed a reason argument, this will appear
+        first, followed by a sequence of class+ID identifiers:
+
+            'Too many bananas in the network!->Network1->Node1->Vector1'
+        """
+        existing_reason = reason if reason is not None else ""
+        wrapped_reason = "{}->{}{}".format(
+            existing_reason, self.__class__.__name__, self.id
+        )
+        return wrapped_reason
 
 
 class Participant(Base, SharedMixin):
@@ -259,7 +279,7 @@ class Participant(Base, SharedMixin):
             infos.extend(n.infos(type=type, failed=failed))
         return infos
 
-    def fail(self):
+    def fail(self, reason=None):
         """Fail a participant.
 
         Set :attr:`~dallinger.models.SharedMixin.failed` to ``True`` and
@@ -271,13 +291,15 @@ class Participant(Base, SharedMixin):
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
+            self.failed_reason = reason
             self.time_of_death = timenow()
+            wrapped_reason = self._wrap_failed_reason(reason)
 
             for n in self.nodes():
-                n.fail()
+                n.fail(reason=wrapped_reason)
 
             for q in self.questions():
-                q.fail()
+                q.fail(reason=wrapped_reason)
 
     @property
     def recruiter(self):
@@ -329,7 +351,7 @@ class Question(Base, SharedMixin):
         self.question = question
         self.response = response
 
-    def fail(self):
+    def fail(self, reason=None):
         """Fail a question.
 
         Set :attr:`~dallinger.models.SharedMixin.failed` to True and
@@ -340,6 +362,7 @@ class Question(Base, SharedMixin):
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
+            self.failed_reason = reason
             self.time_of_death = timenow()
 
     def json_data(self):
@@ -554,16 +577,18 @@ class Network(Base, SharedMixin):
         """Add the node to the network."""
         raise NotImplementedError
 
-    def fail(self):
+    def fail(self, reason=None):
         """Fail an entire network."""
         if self.failed is True:
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
+            self.failed_reason = reason
             self.time_of_death = timenow()
+            wrapped_reason = self._wrap_failed_reason(reason)
 
             for n in self.nodes():
-                n.fail()
+                n.fail(reason=wrapped_reason)
 
     def calculate_full(self):
         """Set whether the network is full."""
@@ -1057,7 +1082,7 @@ class Node(Base, SharedMixin):
     Methods that make nodes do things
     ################################### """
 
-    def fail(self):
+    def fail(self, reason=None):
         """
         Fail a node, setting its status to "failed".
 
@@ -1075,17 +1100,19 @@ class Node(Base, SharedMixin):
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
+            self.failed_reason = reason
             self.time_of_death = timenow()
             self.network.calculate_full()
+            wrapped_reason = self._wrap_failed_reason(reason)
 
             for v in self.vectors():
-                v.fail()
+                v.fail(reason=wrapped_reason)
             for i in self.infos():
-                i.fail()
+                i.fail(reason=wrapped_reason)
             for t in self.transmissions(direction="all"):
-                t.fail()
+                t.fail(reason=wrapped_reason)
             for t in self.transformations():
-                t.fail()
+                t.fail(reason=wrapped_reason)
 
     def connect(self, whom, direction="to"):
         """Create a vector from self to/from whom.
@@ -1429,16 +1456,18 @@ class Vector(Base, SharedMixin):
     # Methods that make Vectors do things #
     ####################################"""
 
-    def fail(self):
+    def fail(self, reason=None):
         """Fail a vector."""
         if self.failed is True:
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
+            self.failed_reason = reason
             self.time_of_death = timenow()
+            wrapped_reason = self._wrap_failed_reason(reason)
 
             for t in self.transmissions():
-                t.fail()
+                t.fail(reason=wrapped_reason)
 
 
 class Info(Base, SharedMixin):
@@ -1505,7 +1534,7 @@ class Info(Base, SharedMixin):
             "object_type": "Info",
         }
 
-    def fail(self):
+    def fail(self, reason=None):
         """Fail an info.
 
         Set info.failed to True and :attr:`~dallinger.models.Info.time_of_death`
@@ -1516,12 +1545,14 @@ class Info(Base, SharedMixin):
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
+            self.failed_reason = reason
             self.time_of_death = timenow()
+            wrapped_reason = self._wrap_failed_reason(reason)
 
             for t in self.transmissions():
-                t.fail()
+                t.fail(reason=wrapped_reason)
             for t in self.transformations():
-                t.fail()
+                t.fail(reason=wrapped_reason)
 
     def transmissions(self, status="all"):
         """Get all the transmissions of this info.
@@ -1695,12 +1726,13 @@ class Transmission(Base, SharedMixin):
             "object_type": "Transmission",
         }
 
-    def fail(self):
+    def fail(self, reason=None):
         """Fail a transmission."""
         if self.failed is True:
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
+            self.failed_reason = reason
             self.time_of_death = timenow()
 
 
@@ -1786,12 +1818,13 @@ class Transformation(Base, SharedMixin):
             "object_type": "Transformation",
         }
 
-    def fail(self):
+    def fail(self, reason=None):
         """Fail a transformation."""
         if self.failed is True:
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))
         else:
             self.failed = True
+            self.failed_reason = reason
             self.time_of_death = timenow()
 
 
