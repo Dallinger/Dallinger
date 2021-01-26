@@ -99,6 +99,7 @@ class TestModels(object):
             "role": "default",
             "creation_time": net.creation_time,
             "failed": False,
+            "failed_reason": None,
             "time_of_death": None,
             "property1": None,
             "property2": None,
@@ -722,6 +723,18 @@ class TestModels(object):
         assert len(participant.nodes(failed=True)) == 1
         assert len(participant.questions()) == 1
         assert participant.questions()[0].failed is True
+
+    def test_fail_participant_captures_cascade_in_failure_reason(self, a):
+        net = a.network()
+        participant = a.participant()
+        node = a.node(network=net, participant=participant)
+        question = a.question(participant=participant)
+
+        participant.fail("Boom!")
+
+        assert participant.failed_reason == "Boom!"
+        assert node.failed_reason == "Boom!->Participant1"
+        assert question.failed_reason == "Boom!->Participant1"
 
     def test_participant_json(self, db_session):
         participant = models.Participant(
