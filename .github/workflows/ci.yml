@@ -62,6 +62,7 @@ jobs:
             ${{ runner.os }}-
       - name: Install dependencies
         run: |
+          pip install --upgrade pip wheel
           pip install -r build-requirements.txt
       - name: Before Tox
         run: |
