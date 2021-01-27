@@ -141,6 +141,8 @@ class SharedMixin(object):
             wrapped_reason = self._wrap_failed_reason(reason)
 
             for obj in self.failure_cascade_iter:
+                # For backwards compatibility with custom subclasses
+                # that do not expect to receive a "reason" argument:
                 try:
                     obj.fail(reason=wrapped_reason)
                 except TypeError:
