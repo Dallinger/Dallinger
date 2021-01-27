@@ -64,7 +64,7 @@ psycopg2-binary==2.8.6
 ptyprocess==0.6.0
 py==1.5.4
 pyenchant==2.0.0
-pyflakes==2.0.0
+pyflakes==2.2.0
 pygments==2.2.0
 pyparsing==2.2.0
 python-dateutil==2.7.3
