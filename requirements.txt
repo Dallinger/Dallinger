@@ -1,4 +1,3 @@
--c constraints-deps.txt
 -c constraints.txt
 APScheduler
 cached-property
