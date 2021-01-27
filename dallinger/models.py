@@ -78,6 +78,16 @@ class SharedMixin(object):
         a list of functions (typically bound instance methods) which will be
         called in order to retrieve additional objects on which to call
         ``fail()``.
+
+        Example:
+        The following implentation would cause ``fail()`` to be called on each
+        value returned by ``self.nodes()``, and then on each value returned by
+        ``self.questions()``:
+
+        >>> @property
+        >>> def failure_cascade(self):
+        >>>     return [self.nodes, self.questions]
+
         """
         return []
 
@@ -139,7 +149,7 @@ class SharedMixin(object):
                 yield obj
 
     def fail(self, reason=None):
-        """Fail an entity in the Network (or the Network itself).
+        """Fail this object, and potentially its related objects.
 
         Set :attr:`~dallinger.models.SharedMixin.failed` to ``True`` and
         :attr:`~dallinger.models.SharedMixin.time_of_death` to now.
@@ -147,9 +157,8 @@ class SharedMixin(object):
         If a `reason` argument is passed, this will be stored in
         :attr:`~dallinger.models.SharedMixin.failed_reason`.
 
-        Failure will then be propagated to related objects returned
-        by the methods returned by the concrete subclass's `failure_cascade`
-        property.
+        Failure will then be propagated to related objects as defined by
+        the `failure_cascade` property.
         """
         if self.failed is True:
             raise AttributeError("Cannot fail {} - it has already failed.".format(self))

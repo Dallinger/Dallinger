@@ -30,6 +30,9 @@ and another :class:`Info`. A :class:`Question` is a survey response created by a
 SharedMixin
 -----------
 
+Columns
+~~~~~~~
+
 All Dallinger classes inherit from a ``SharedMixin`` which provides multiple
 columns that are common across tables:
 
@@ -60,11 +63,22 @@ columns that are common across tables:
 .. autoattribute:: dallinger.models.SharedMixin.failed
     :annotation:
 
+.. autoattribute:: dallinger.models.SharedMixin.failed_reason
+    :annotation:
+
 .. autoattribute:: dallinger.models.SharedMixin.time_of_death
     :annotation:
 
+Dynamic Properties and Methods
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Properties, attributes and methods inherited by subclasses, and which
+can be overridden:
+
 .. autoattribute:: dallinger.models.SharedMixin.visualization_html
     :annotation:
+
+.. autoattribute:: dallinger.models.SharedMixin.failure_cascade
 
 .. automethod:: dallinger.models.SharedMixin.json_data
 
