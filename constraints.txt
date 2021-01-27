@@ -13,7 +13,7 @@ gevent==21.1.2
 greenlet==1.0.0
 gunicorn==20.0.4
 localconfig==1.1.3
--e https://github.com/blaze/odo.git#egg=odo
+-e git@github.com:blaze/odo.git#egg=odo
 pexpect==4.8.0
 psutil==5.8.0
 psycopg2-binary==2.8.6
