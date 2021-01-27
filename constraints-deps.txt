@@ -71,7 +71,7 @@ pytz==2018.5
 pyyaml==3.13
 pyzmq==17.1.2
 qtconsole==4.4.1
-s3transfer==0.1.13
+s3transfer==0.3.4
 scandir==1.9.0
 send2trash==1.5.0
 simplegeneric==0.8.1
