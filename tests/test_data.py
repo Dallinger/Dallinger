@@ -27,8 +27,7 @@ def zip_path():
 
 @pytest.mark.slow
 class TestDataS3Integration(object):
-    """Tests that interact with the network and S3, and are slow as a result.
-    """
+    """Tests that interact with the network and S3, and are slow as a result."""
 
     def test_connection_to_s3(self):
         s3 = dallinger.data._s3_resource()

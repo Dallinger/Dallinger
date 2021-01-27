@@ -191,8 +191,7 @@ class MTurkQuestions(object):
 
 
 class MTurkQualificationRequirements(object):
-    """Syntactic correctness for MTurk QualificationRequirements
-    """
+    """Syntactic correctness for MTurk QualificationRequirements"""
 
     @staticmethod
     def min_approval(percentage):
@@ -231,7 +230,7 @@ class MTurkQualificationRequirements(object):
 
 class MTurkService(object):
     """Facade for Amazon Mechanical Turk services provided via the boto3
-       library.
+    library.
     """
 
     def __init__(
@@ -297,8 +296,7 @@ class MTurkService(object):
         self.sns.confirm_subscription(token=token, topic=topic)
 
     def create_qualification_type(self, name, description, status="Active"):
-        """Create a new qualification Workers can be scored for.
-        """
+        """Create a new qualification Workers can be scored for."""
         try:
             response = self.mturk.create_qualification_type(
                 Name=name, Description=description, QualificationTypeStatus=status
@@ -377,8 +375,7 @@ class MTurkService(object):
         )
 
     def get_qualification_score(self, qualification_id, worker_id):
-        """Return a worker's qualification score as an iteger.
-        """
+        """Return a worker's qualification score as an iteger."""
         try:
             response = self.mturk.get_qualification_score(
                 QualificationTypeId=qualification_id, WorkerId=worker_id
@@ -465,8 +462,7 @@ class MTurkService(object):
         qualifications=(),
         do_subscribe=True,
     ):
-        """Create the actual HIT and return a dict with its useful properties.
-        """
+        """Create the actual HIT and return a dict with its useful properties."""
 
         # We need a HIT_Type in order to register for notifications
         hit_type_id = self._register_hit_type(
@@ -610,8 +606,7 @@ class MTurkService(object):
             raise MTurkServiceException(error)
 
     def get_assignment(self, assignment_id):
-        """Get an assignment by ID and reformat the response.
-        """
+        """Get an assignment by ID and reformat the response."""
         try:
             response = self.mturk.get_assignment(AssignmentId=assignment_id)
         except ClientError as ex:

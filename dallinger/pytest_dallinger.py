@@ -218,14 +218,14 @@ def db_session():
 
 @pytest.fixture
 def a(db_session):
-    """ Provides a standard way of building model objects in tests.
+    """Provides a standard way of building model objects in tests.
 
-        def test_using_all_defaults(self, a):
-            assert a.info()
+    def test_using_all_defaults(self, a):
+        assert a.info()
 
-        def test_with_participant_node(self, a):
-            participant = a.participant(worker_id=42)
-            info = a.info(origin=a.node(participant=participant))
+    def test_with_participant_node(self, a):
+        participant = a.participant(worker_id=42)
+        info = a.info(origin=a.node(participant=participant))
     """
 
     class ModelFactory(object):

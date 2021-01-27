@@ -157,8 +157,7 @@ class Client(object):
 
 @sockets.route("/chat")
 def chat(ws):
-    """Relay chat messages to and from clients.
-    """
+    """Relay chat messages to and from clients."""
     lag_tolerance_secs = float(request.args.get("tolerance", 0.1))
     client = Client(ws, lag_tolerance_secs=lag_tolerance_secs)
     client.subscribe(request.args.get("channel"))

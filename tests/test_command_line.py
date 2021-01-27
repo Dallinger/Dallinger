@@ -536,13 +536,17 @@ class TestEmailTest(object):
             yield mock_mailer
 
     def test_check_with_good_config(self, email_test, mailer, active_config):
-        result = CliRunner().invoke(email_test,)
+        result = CliRunner().invoke(
+            email_test,
+        )
         mailer.send.assert_called_once()
         assert result.exit_code == 0
 
     def test_check_with_missing_value(self, email_test, mailer, active_config):
         active_config.extend({"smtp_username": u"???"})
-        result = CliRunner().invoke(email_test,)
+        result = CliRunner().invoke(
+            email_test,
+        )
         mailer.send.assert_not_called()
         assert result.exit_code == 0
 

@@ -120,16 +120,14 @@ class ExperimentError(Exception):
 
 
 class ValidatesBrowser(object):
-    """Checks if participant's browser has been excluded via the Configuration.
-    """
+    """Checks if participant's browser has been excluded via the Configuration."""
 
     def __init__(self, config):
         self.config = config
 
     @property
     def exclusions(self):
-        """Return list of browser exclusion rules defined in the Configuration.
-        """
+        """Return list of browser exclusion rules defined in the Configuration."""
         exclusion_rules = [
             r.strip()
             for r in self.config.get("browser_exclude_rule", "").split(",")
@@ -138,8 +136,7 @@ class ValidatesBrowser(object):
         return exclusion_rules
 
     def is_supported(self, user_agent_string):
-        """Check user agent against configured exclusions.
-        """
+        """Check user agent against configured exclusions."""
         user_agent_obj = user_agents.parse(user_agent_string)
         browser_ok = True
         for rule in self.exclusions:

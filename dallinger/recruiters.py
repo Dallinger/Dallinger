@@ -86,8 +86,7 @@ class Recruiter(object):
         raise NotImplementedError
 
     def compensate_worker(self, *args, **kwargs):
-        """A recruiter may provide a means to directly compensate a worker.
-        """
+        """A recruiter may provide a means to directly compensate a worker."""
         raise NotImplementedError
 
     def reward_bonus(self, assignment_id, amount, reason):
@@ -408,8 +407,8 @@ mturk_routes = flask.Blueprint("mturk_recruiter", __name__)
 @crossdomain(origin="*")
 def mturk_recruiter_notify():
     """Listens for:
-        1. AWS SNS subscription confirmation request
-        2. SNS subcription messages, which forward MTurk notifications
+    1. AWS SNS subscription confirmation request
+    2. SNS subcription messages, which forward MTurk notifications
     """
     recruiter = MTurkRecruiter()
     logger.warning("Raw notification body: {}".format(flask.request.get_data()))
@@ -562,8 +561,7 @@ class MTurkRecruiter(Recruiter):
         }
 
     def compensate_worker(self, worker_id, email, dollars, notify=True):
-        """Pay a worker by means of a special HIT that only they can see.
-        """
+        """Pay a worker by means of a special HIT that only they can see."""
         qualification = self.mturkservice.create_qualification_type(
             name="Dallinger Compensation Qualification - {}".format(
                 generate_random_id()
@@ -1044,8 +1042,7 @@ class MultiRecruiter(Recruiter):
             yield by_name(recruiter_id), num_recruits
 
     def open_recruitment(self, n=1):
-        """Return initial experiment URL list.
-        """
+        """Return initial experiment URL list."""
         logger.info("Multi recruitment running for {} participants".format(n))
         recruitments = []
         messages = {}

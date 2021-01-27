@@ -428,8 +428,7 @@ class HerokuLocalWrapper(object):
         return self._process is not None
 
     def stop(self, signal=None):
-        """Stop the heroku local subprocess and all of its children.
-        """
+        """Stop the heroku local subprocess and all of its children."""
         signal = signal or self.int_signal
         self.out.log("Cleaning up local Heroku process...")
         if self._process is None:
@@ -446,8 +445,7 @@ class HerokuLocalWrapper(object):
             self._process = None
 
     def monitor(self, listener):
-        """Relay the stream to listener until told to stop.
-        """
+        """Relay the stream to listener until told to stop."""
         for line in self._stream():
             self._record.append(line)
             if self.verbose:
