@@ -77,7 +77,7 @@ class TestNetworks(object):
         transmission = node1.transmissions()[0]
         vector = node1.vectors()[0]
 
-        net.fail("Boom!")
+        net.fail(reason="Boom!")
 
         assert net.failed_reason == "Boom!"
         assert node1.failed_reason == "Boom!->Network1"
