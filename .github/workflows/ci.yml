@@ -1,0 +1,74 @@
+name: continuous-integration
+on: [push]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8, 3.9]
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+      postgres:
+        image: postgres:10
+        env:
+          POSTGRES_USER: dallinger
+          POSTGRES_PASSWORD: dallinger
+          POSTGRES_DB: dallinger
+    steps:
+      - name: Check out Dallinger repository
+        uses: actions/checkout@v2
+      - name: Install Ubuntu packages
+        run: sudo apt-get --yes install pandoc enchant snapd
+      - name: Install snap packages
+        run: sudo snap install --classic heroku
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '11.0.0'
+      - name: NVM
+          run: |
+            nvm install 2.6.2
+            nvm install 10
+            yarn --frozen-lockfile --ignore-engines
+      - name: Set up Ruby
+        uses: actions/setup-ruby@v1
+        with:
+          node-version: 2.6
+      - name: Ruby dependencies
+        run: |
+          gem install danger
+          gem install danger-commit_lint
+          gem install chandler -v 0.7.0
+      - name: Yarn
+          run: yarn --frozen-lockfile --ignore-engines
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Cache pip
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('build-requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+            ${{ runner.os }}-
+      - name: Install dependencies
+        run: |
+          pip install -r build-requirements.txt
+      - name: Before Tox
+        run: |
+          bundle exec danger
+      - name: Run Tox
+        env:
+          DATABASE_URL: postgresql://dallinger@localhost/dallinger
+          PORT: 5000
+          base_port: 5000
+          threads: 1
+        run: |
+          tox
