@@ -113,10 +113,14 @@ class SharedMixin(object):
         return wrapped_reason
 
     @property
-    def failure_cascade_iter(self):
-        """Query and return each type of related object which needs to be failed
-        before moving on to the next type. This ensures that retrived objects
-        have not already been fail()-ed by some previous cascading call.
+    def _failure_cascade_iter(self):
+        """Lazily query and return each type of related object which needs to be
+        failed before moving on to the next type. This ensures that retrived
+        objects have not already been fail()-ed by some previous cascading
+        call.
+
+        `self.failure_cascade` is a (potentially empty) list of callables
+        implemented by concrete subclasses.
         """
         for source in self.failure_cascade:
             for obj in source():
@@ -140,7 +144,7 @@ class SharedMixin(object):
             self.time_of_death = timenow()
             wrapped_reason = self._wrap_failed_reason(reason)
 
-            for obj in self.failure_cascade_iter:
+            for obj in self._failure_cascade_iter:
                 # For backwards compatibility with custom subclasses
                 # that do not expect to receive a "reason" argument:
                 try:
