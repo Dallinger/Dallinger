@@ -60,9 +60,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
             ${{ runner.os }}-
-      - name: Install dependencies
+      - name: Python Installers
         run: |
           pip install --upgrade pip wheel
+      - name: Python dependencies
+        run: |
           pip install -r build-requirements.txt
       - name: Before Tox
         run: |
