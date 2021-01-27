@@ -35,7 +35,6 @@ jobs:
           curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm install 2.6.2
           nvm install 10
           yarn --frozen-lockfile --ignore-engines
       - name: Set up Ruby
