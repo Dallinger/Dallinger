@@ -132,6 +132,9 @@ class SharedMixin(object):
         Set :attr:`~dallinger.models.SharedMixin.failed` to ``True`` and
         :attr:`~dallinger.models.SharedMixin.time_of_death` to now.
 
+        If a `reason` argument is passed, this will be stored in
+        :attr:`~dallinger.models.SharedMixin.failed_reason`.
+
         Failure will then be propagated to related objects returned
         by the methods returned by the concrete subclass's `failure_cascade`
         property.
