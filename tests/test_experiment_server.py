@@ -710,18 +710,18 @@ class TestParticipantByAssignmentRoute(object):
             "dallinger.experiment.Experiment.load_participant"
         ) as load_participant:
             load_participant.side_effect = lambda *args: p
-            webapp.post("/participant", data={"assignment_id": p.assignment_id})
+            webapp.post("/load-participant", data={"assignment_id": p.assignment_id})
             load_participant.assert_called_once_with(p.assignment_id)
 
     def test_load_participant(self, a, webapp):
         p = a.participant()
-        resp = webapp.post("/participant", data={"assignment_id": p.assignment_id})
+        resp = webapp.post("/load-participant", data={"assignment_id": p.assignment_id})
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
         assert data.get("participant").get("status") == u"working"
 
     def test_missing_assignment(self, webapp):
-        resp = webapp.post("/participant")
+        resp = webapp.post("/load-participant")
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "error"
         assert "no participant found" in data.get("html")
@@ -729,7 +729,7 @@ class TestParticipantByAssignmentRoute(object):
     def test_assignment_invalid(self, webapp):
         nonexistent_assignment_id = "asfkhaskjfhhjlkasf"
         resp = webapp.post(
-            "/participant", data={"assignment_id": nonexistent_assignment_id}
+            "/load-participant", data={"assignment_id": nonexistent_assignment_id}
         )
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "error"

@@ -299,27 +299,6 @@ var dallinger = (function () {
   };
 
   /**
-   * Convenience method for making an AJAX ``PUT`` request to a specified
-   * route.  Any callbacks provided to the `done()` method of the returned
-   * `Deferred` object will be passed the JSON object returned by the the
-   * API route (referred to as `data` below). Any callbacks provided to the
-   * `fail()` method of the returned `Deferred` object will be passed an
-   * instance of `AjaxRejection`, see :ref:`deferreds-label`.
-   *
-   * @example
-   * var response = dallinger.put('/participant', {hit_id: "AAA", assignment_id: "BBB", worker_id: "CCC", details: {a: 1}});
-   * // Wait for response and handle data or failure
-   * response.done(function (data) {...}).fail(function (rejection) {...});
-   *
-   * @param {string} route - Experiment route, e.g. ``/info/$nodeId``
-   * @param {object} [data] - Optional data to include in request
-   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
-   */
-  dlgr.put = function (route, data) {
-    return ajax('put', route, data);
-  };
-
-  /**
    * Handles experiment errors by requesting feedback from the participant and
    * attempts to complete the experiment (and compensate participants).
    *
@@ -456,7 +435,7 @@ var dallinger = (function () {
    */
   dlgr.loadParticipant = function(assignment_id) {
     var deferred = $.Deferred(),
-        url = '/participant';
+        url = '/load-participant';
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();

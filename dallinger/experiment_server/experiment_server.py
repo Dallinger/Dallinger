@@ -771,9 +771,9 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     return success_response(**result)
 
 
-@app.route("/participant", methods=["PUT"])
-def put_participant():
-    entry_information = request.form
+@app.route("/participant", methods=["POST"])
+def post_participant():
+    entry_information = dict(request.form)
     mode = entry_information.pop("mode")
     exp = Experiment(session)
     participant_info = exp.check_entry_information(entry_information)
@@ -794,24 +794,24 @@ def get_participant(participant_id):
     return success_response(participant=ppt.__json__())
 
 
-@app.route("/participant", methods=["POST"])
+@app.route("/load-participant", methods=["POST"])
 def load_participant():
     """Get the participant with an assignment id provided in the request.
     Delegates to :func:`~dallinger.experiments.Experiment.load_participant`.
     """
-    entry_information = request.form
+    entry_information = dict(request.form)
     exp = Experiment(session)
     participant_info = exp.check_entry_information(entry_information)
 
     assignment_id = participant_info.get("assignment_id")
     if assignment_id is None:
         return error_response(
-            error_type="/participant POST: no participant found", status=403
+            error_type="/load-participant POST: no participant found", status=403
         )
     ppt = exp.load_participant(assignment_id)
     if ppt is None:
         return error_response(
-            error_type="/participant POST: no participant found", status=403
+            error_type="/load-participant POST: no participant found", status=403
         )
 
     # return the data
