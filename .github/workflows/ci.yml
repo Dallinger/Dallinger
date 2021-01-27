@@ -75,9 +75,6 @@ jobs:
       - name: Python Installers
         run: |
           pip install --upgrade pip wheel
-      - name: Python dependencies
-        run: |
-          pip install -r build-requirements.txt
       - name: Before Tox
         run: |
           bundle exec danger
