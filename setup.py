@@ -37,9 +37,9 @@ setup_args = dict(
     },
     extras_require={
         'data': [
-            "networkx<2.0",  # 2.0 is incompatible with odo
-            "odo",
+            "networkx",  # 2.0 is incompatible with odo
             "openpyxl<2.5",  # 2.5 is incompatible with tablib
+            "-e https://github.com/blaze/odo.git#egg=odo",
             "pandas",
             "tablib<0.12",    # 0.12 is incompatible
         ],
@@ -55,7 +55,7 @@ setup_args = dict(
             "codecov",
             "flake8",
             "mock",
-            "pycodestyle<2.4",  # 2.4 is incompatible with flake8
+            "pycodestyle",  # 2.4 is incompatible with flake8
             "pypandoc",
             "pytest",
             "recommonmark",
