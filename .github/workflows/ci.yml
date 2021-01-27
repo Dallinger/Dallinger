@@ -74,7 +74,7 @@ jobs:
             ${{ runner.os }}-
       - name: Python Installers
         run: |
-          pip install --upgrade pip wheel
+          pip install --upgrade pip wheel tox
       - name: Before Tox
         run: |
           bundle exec danger
