@@ -69,6 +69,18 @@ class SharedMixin(object):
     #: on sub-classes.
     visualization_html = ""
 
+    @property
+    def failure_cascade(self):
+        """List of callables to determine which related objects to fail
+        when ``fail()`` is called on this object.
+
+        By default, no related objects are failed, but subclasses can provide
+        a list of functions (typically bound instance methods) which will be
+        called in order to retrieve additional objects on which to call
+        ``fail()``.
+        """
+        return []
+
     def json_data(self):
         """Returns a JSON serializable ``dict`` (``datetime`` values allowed)
         to describe this object. This method can be overridden by sub-classes
@@ -324,7 +336,9 @@ class Participant(Base, SharedMixin):
 
     @property
     def failure_cascade(self):
-        """When we fail, we fail our related Nodes and Questions"""
+        """When we fail, propagate the failure to our related
+        Nodes and Questions.
+        """
         return [self.nodes, self.questions]
 
     @property
@@ -376,11 +390,6 @@ class Question(Base, SharedMixin):
         self.number = number
         self.question = question
         self.response = response
-
-    @property
-    def failure_cascade(self):
-        """When we fail, we have no related objects to fail in turn."""
-        return []
 
     def json_data(self):
         """Return json description of a question."""
@@ -596,7 +605,8 @@ class Network(Base, SharedMixin):
 
     @property
     def failure_cascade(self):
-        """When we fail, we fail all our non-failed Nodes also."""
+        """When we fail, propagate the failure to our related Nodes.
+        """
         return [self.nodes]
 
     def calculate_full(self):
@@ -1097,8 +1107,7 @@ class Node(Base, SharedMixin):
         You cannot fail a node that has already failed, but you
         can fail a dead node.
 
-        Set node.failed to True and :attr:`~dallinger.models.Node.time_of_death`
-        to now. Instruct all not-failed vectors connected to this node, infos
+        Instruct all not-failed vectors connected to this node, infos
         made by this node, transmissions to or from this node and
         transformations made by this node to fail.
         """
@@ -1452,7 +1461,8 @@ class Vector(Base, SharedMixin):
 
     @property
     def failure_cascade(self):
-        """When we fail, fail related Transmissions also."""
+        """When we fail, propagate the failure to our related Transmissions.
+        """
         return [self.transmissions]
 
 
@@ -1522,8 +1532,9 @@ class Info(Base, SharedMixin):
 
     @property
     def failure_cascade(self):
-        """Instruct all transmissions and transformations involving this
-        info to fail."""
+        """When we fail, propagate the failure to our related
+        Transmissions and Transformations.
+        """
         return [self.transmissions, self.transformations]
 
     def transmissions(self, status="all"):
@@ -1698,11 +1709,6 @@ class Transmission(Base, SharedMixin):
             "object_type": "Transmission",
         }
 
-    @property
-    def failure_cascade(self):
-        """When we fail, no related objects are failed."""
-        return []
-
 
 class Transformation(Base, SharedMixin):
     """An instance of one info being transformed into another."""
@@ -1785,11 +1791,6 @@ class Transformation(Base, SharedMixin):
             "network_id": self.network_id,
             "object_type": "Transformation",
         }
-
-    @property
-    def failure_cascade(self):
-        """When we fail, no related objects are failed."""
-        return []
 
 
 class Notification(Base, SharedMixin):
