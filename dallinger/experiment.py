@@ -309,6 +309,14 @@ class Experiment(object):
         """
         network.add_node(node)
 
+    def check_entry_information(self, entry_information):
+        """Accepts data from recruited user, validates it, and returns data
+        needed to create or load a Dallinger Participant. Should raise an
+        error or return an empty dictionary if the `entry_information` is
+        not recognized. Delegates to the recruiter by default.
+        """
+        return self.recruiter.check_entry_information(entry_information)
+
     def create_participant(
         self,
         worker_id,
@@ -317,6 +325,7 @@ class Experiment(object):
         mode,
         recruiter_name=None,
         fingerprint_hash=None,
+        entry_information=None,
     ):
         """Creates and returns a new participant object. Uses
         :attr:`~dallinger.experiment.Experiment.participant_constructor` as the
@@ -346,6 +355,7 @@ class Experiment(object):
             hit_id=hit_id,
             mode=mode,
             fingerprint_hash=fingerprint_hash,
+            entry_information=entry_information,
         )
         self.session.add(participant)
         return participant

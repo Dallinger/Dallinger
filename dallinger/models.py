@@ -220,6 +220,11 @@ class Participant(Base, SharedMixin):
     #: the amount the participant was paid as a bonus.
     bonus = Column(Float)
 
+    #: column containing structured data from the recruiter
+    entry_information = Column(
+        JSONB, nullable=False, server_default="{}", default=lambda: {}
+    )
+
     #: String representing the current status of the participant, can be:
     #:
     #:    - ``working`` - participant is working
@@ -265,6 +270,7 @@ class Participant(Base, SharedMixin):
         hit_id,
         mode,
         fingerprint_hash=None,
+        entry_information=None,
     ):
         """Create a participant."""
         self.recruiter_id = recruiter_id
@@ -274,6 +280,8 @@ class Participant(Base, SharedMixin):
         self.unique_id = worker_id + ":" + assignment_id
         self.mode = mode
         self.fingerprint_hash = fingerprint_hash
+        if entry_information:
+            self.entry_information = entry_information
 
     def json_data(self):
         """Return json description of a participant."""
@@ -288,6 +296,7 @@ class Participant(Base, SharedMixin):
             "bonus": self.bonus,
             "status": self.status,
             "object_type": "Participant",
+            "entry_information": self.entry_information,
         }
 
     def nodes(self, type=None, failed=False):

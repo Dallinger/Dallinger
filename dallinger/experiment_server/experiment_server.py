@@ -771,6 +771,15 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     return success_response(**result)
 
 
+@app.route("/participant", methods=["PUT"])
+def put_participant():
+    entry_information = request.form
+    mode = entry_information.pop("mode")
+    exp = Experiment(session)
+    participant_info = exp.check_entry_information(entry_information)
+    return create_participant(mode=mode, **participant_info)
+
+
 @app.route("/participant/<participant_id>", methods=["GET"])
 def get_participant(participant_id):
     """Get the participant with the given id."""
@@ -790,12 +799,15 @@ def load_participant():
     """Get the participant with an assignment id provided in the request.
     Delegates to :func:`~dallinger.experiments.Experiment.load_participant`.
     """
-    assignment_id = request_parameter("assignment_id", optional=True)
+    entry_information = request.form
+    exp = Experiment(session)
+    participant_info = exp.check_entry_information(entry_information)
+
+    assignment_id = participant_info.get("assignment_id")
     if assignment_id is None:
         return error_response(
             error_type="/participant POST: no participant found", status=403
         )
-    exp = Experiment(session)
     ppt = exp.load_participant(assignment_id)
     if ppt is None:
         return error_response(

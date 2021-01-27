@@ -78,6 +78,18 @@ class Recruiter(object):
         """
         raise NotImplementedError
 
+    def check_entry_information(self, entry_information):
+        """Accepts data from recruited user and returns data needed
+        to create or load a Dallinger Participant.
+        May modify the entry information as a side effect. Should raise an error
+        or return an empty dict if the `entry_information` is not valid.
+        """
+        return {
+            "hit_id": entry_information.pop("hit_id", None),
+            "assignment_id": entry_information.pop("assignment_id", None),
+            "worker_id": entry_information.pop("worker_id", None),
+        }
+
     def recruit(self, n=1):
         raise NotImplementedError
 
