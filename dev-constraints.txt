@@ -1,10 +1,10 @@
 alabaster==0.7.11
-black==19.10b0
+black==20.8b1
 bumpversion==0.5.3
 coverage==4.5.1
 coverage-pth==0.0.2
 codecov==2.0.15
-flake8==3.6.0
+flake8==3.8.4
 mock==2.0.0
 pycodestyle==2.4.0  # pyup: ignore
 pypandoc==1.4
