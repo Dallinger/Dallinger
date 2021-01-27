@@ -25,14 +25,13 @@ def zip_path():
     return os.path.join("tests", "datasets", "test_export.zip")
 
 
-@pytest.mark.slow
-class TestDataS3Integration(object):
-    """Tests that interact with the network and S3, and are slow as a result.
+@pytest.mark.s3buckets
+@pytest.mark.skipif(
+    not pytest.config.getvalue("s3buckets"), reason="--s3buckets was not specified"
+)
+class TestDataS3BucketCreation(object):
+    """Tests that actually create Buckets on S3.
     """
-
-    def test_connection_to_s3(self):
-        s3 = dallinger.data._s3_resource()
-        assert s3
 
     def test_user_s3_bucket_first_time(self):
         bucket = dallinger.data.user_s3_bucket(canonical_user_id=generate_random_id())
@@ -49,6 +48,17 @@ class TestDataS3Integration(object):
     def test_user_s3_bucket_no_id_provided(self):
         bucket = dallinger.data.user_s3_bucket()
         assert bucket
+
+
+@pytest.mark.slow
+class TestDataS3Integration(object):
+    """Tests that interact with the network and S3, but do not create
+    S3 buckets.
+    """
+
+    def test_connection_to_s3(self):
+        s3 = dallinger.data._s3_resource()
+        assert s3
 
     @pytest.mark.skip
     def test_data_loading(self):

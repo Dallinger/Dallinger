@@ -123,6 +123,12 @@ def pytest_addoption(parser):
         action="store_true",
         help="Run griduinverse tests and fail if not all pass",
     )
+    parser.addoption(
+        "--s3buckets",
+        action="store_true",
+        default=False,
+        help="Run tests which create S3 buckets",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
