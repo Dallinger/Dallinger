@@ -45,7 +45,7 @@ jobs:
           gem install danger-commit_lint
           gem install chandler -v 0.7.0
       - name: Yarn
-          run: yarn --frozen-lockfile --ignore-engines
+        run: yarn --frozen-lockfile --ignore-engines
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
