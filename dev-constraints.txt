@@ -6,7 +6,7 @@ coverage-pth==0.0.2
 codecov==2.0.15
 flake8==3.8.4
 mock==2.0.0
-pycodestyle==2.4.0  # pyup: ignore
+pycodestyle==2.6.0  # pyup: ignore
 pypandoc==1.4
 pytest==3.8.0
 recommonmark==0.4.0
