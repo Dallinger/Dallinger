@@ -31,10 +31,10 @@ jobs:
         with:
           node-version: '11.0.0'
       - name: NVM
-          run: |
-            nvm install 2.6.2
-            nvm install 10
-            yarn --frozen-lockfile --ignore-engines
+        run: |
+          nvm install 2.6.2
+          nvm install 10
+          yarn --frozen-lockfile --ignore-engines
       - name: Set up Ruby
         uses: actions/setup-ruby@v1
         with:
