@@ -44,6 +44,58 @@ class TestNetworks(object):
         assert len(net.nodes(failed="all")) == 6
         assert len(net.nodes(failed=True)) == 1
 
+    def test_network_failure_captures_cascade_in_failure_reason(self, a):
+        net = a.network()
+        node1 = a.node(network=net)
+        node2 = a.node(network=net)
+        node1.connect(whom=node2)
+        info = a.info(origin=node1)
+        node1.transmit(what=node1.infos()[0], to_whom=node2)
+        transmission = node1.transmissions()[0]
+        vector = node1.vectors()[0]
+
+        net.fail()
+
+        assert net.failed_reason is None
+        assert node1.failed_reason == "->Network1"
+        assert node2.failed_reason == "->Network1"
+        # Can't know which node is failed first, so check for either route:
+        assert info.failed_reason in {"->Network1->Node1", "->Network1->Node2"}
+        assert vector.failed_reason in {"->Network1->Node1", "->Network1->Node2"}
+        assert transmission.failed_reason in {
+            "->Network1->Node1->Vector1",
+            "->Network1->Node2->Vector1",
+        }
+
+    def test_network_failure_propagates_explicit_failure_reason(self, a):
+        net = a.network()
+        node1 = a.node(network=net)
+        node2 = a.node(network=net)
+        node1.connect(whom=node2)
+        info = a.info(origin=node1)
+        node1.transmit(what=node1.infos()[0], to_whom=node2)
+        transmission = node1.transmissions()[0]
+        vector = node1.vectors()[0]
+
+        net.fail(reason="Boom!")
+
+        assert net.failed_reason == "Boom!"
+        assert node1.failed_reason == "Boom!->Network1"
+        assert node2.failed_reason == "Boom!->Network1"
+        # Can't know which node is failed first, so check for either route:
+        assert info.failed_reason in {
+            "Boom!->Network1->Node1",
+            "Boom!->Network1->Node2",
+        }
+        assert vector.failed_reason in {
+            "Boom!->Network1->Node1",
+            "Boom!->Network1->Node2",
+        }
+        assert transmission.failed_reason in {
+            "Boom!->Network1->Node1->Vector1",
+            "Boom!->Network1->Node2->Vector1",
+        }
+
     def test_network_agents(self, db_session):
         net = networks.Network()
         db_session.add(net)
@@ -519,7 +571,7 @@ class GenerationalAgent(nodes.Agent):
 
 
 @pytest.mark.slow
-class TestDiscreteGenerational(TestNetworks):
+class TestDiscreteGenerational(object):
 
     n_gens = 4
     gen_size = 4
