@@ -37,10 +37,10 @@ setup_args = dict(
     },
     extras_require={
         'data': [
-            "networkx",  # 2.0 is incompatible with odo
+            "networkx<2.0",  # 2.0 is incompatible with odo
             "openpyxl<2.5",  # 2.5 is incompatible with tablib
-            "odo",
-            "pandas",
+            "odo==0.5.0",
+            "pandas==0.23.4",
             "tablib<0.12",    # 0.12 is incompatible
         ],
         'jupyter': [
