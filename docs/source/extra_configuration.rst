@@ -1,20 +1,8 @@
-.. _extra-configuration:
-
 Extra Configuration
 ===================
 
-To create a new experiment-specific configuration variable, you can override
-the :attr:`~dallinger.experiment.Experiment.extra_parameters` method on your
-custom Experiment class:
-
-::
-
-    def extra_parameters(self):
-        config = get_config()
-        config.register('n', int, [], False)
-
-Additionally you can define an ``extra_parameters`` function in your ``experiment.py``
-file, and both will be respected:
+To create a new experiment-specific configuration variable, define
+``extra_parameters`` in your ``experiment.py`` file:
 
 ::
 

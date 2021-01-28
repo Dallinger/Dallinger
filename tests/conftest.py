@@ -59,6 +59,12 @@ def check_manual(request):
         pytest.skip("--manual was not specified")
 
 
+@pytest.fixture(scope="module")
+def check_s3buckets(request):
+    if not request.config.getvalue("s3buckets"):
+        pytest.skip("--s3buckets was not specified")
+
+
 @pytest.fixture(scope="class", autouse=True)
 def reset_config():
     yield
@@ -176,6 +182,12 @@ def pytest_addoption(parser):
         "--griduniverse",
         action="store_true",
         help="Run griduinverse tests and fail if not all pass",
+    )
+    parser.addoption(
+        "--s3buckets",
+        action="store_true",
+        default=False,
+        help="Run tests which create S3 buckets",
     )
 
 

@@ -53,6 +53,11 @@ class SharedMixin(object):
     #: usually failed to indicate something has gone wrong.
     failed = Column(Boolean, nullable=False, default=False, index=True)
 
+    #: an optional reason the object was failed. If the object is failed as
+    #: part of a cascading failure triggered from another object, the chain
+    #: of objects will be captured in this field.
+    failed_reason = Column(Text, nullable=True, default=None)
+
     #: the time at which failing occurred
     time_of_death = Column(DateTime, default=None)
 
@@ -63,6 +68,28 @@ class SharedMixin(object):
     #: Montioring Dashboard). You can override this with a dynamic ``@property``
     #: on sub-classes.
     visualization_html = ""
+
+    @property
+    def failure_cascade(self):
+        """List of callables to determine which related objects to fail
+        when ``fail()`` is called on this object.
+
+        By default, no related objects are failed, but subclasses can provide
+        a list of functions (typically bound instance methods) which will be
+        called in order to retrieve additional objects on which to call
+        ``fail()``.
+
+        Example:
+        The following implentation would cause ``fail()`` to be called on each
+        value returned by ``self.nodes()``, and then on each value returned by
+        ``self.questions()``:
+
+        >>> @property
+        >>> def failure_cascade(self):
+        >>>     return [self.nodes, self.questions]
+
+        """
+        return []
 
     def json_data(self):
         """Returns a JSON serializable ``dict`` (``datetime`` values allowed)
@@ -80,6 +107,7 @@ class SharedMixin(object):
             "id": self.id,
             "creation_time": self.creation_time,
             "failed": self.failed,
+            "failed_reason": self.failed_reason,
             "time_of_death": self.time_of_death,
             "property1": self.property1,
             "property2": self.property2,
@@ -91,6 +119,62 @@ class SharedMixin(object):
         # Add any model specific data to the base data
         model_data.update(self.json_data())
         return model_data
+
+    def _wrap_failed_reason(self, reason):
+        """Represent cascading failures as a string for storage in the
+        ``failed_reason`` field.
+        If ``fail()`` was passed a reason argument, this will appear
+        first, followed by a sequence of class+ID identifiers:
+
+            'Too many bananas in the network!->Network1->Node1->Vector1'
+        """
+        existing_reason = reason if reason is not None else ""
+        wrapped_reason = "{}->{}{}".format(
+            existing_reason, self.__class__.__name__, self.id
+        )
+        return wrapped_reason
+
+    @property
+    def _failure_cascade_iter(self):
+        """Lazily query and return each type of related object which needs to be
+        failed before moving on to the next type. This ensures that retrived
+        objects have not already been fail()-ed by some previous cascading
+        call.
+
+        `self.failure_cascade` is a (potentially empty) list of callables
+        implemented by concrete subclasses.
+        """
+        for source in self.failure_cascade:
+            for obj in source():
+                yield obj
+
+    def fail(self, reason=None):
+        """Fail this object, and potentially its related objects.
+
+        Set :attr:`~dallinger.models.SharedMixin.failed` to ``True`` and
+        :attr:`~dallinger.models.SharedMixin.time_of_death` to now.
+
+        If a `reason` argument is passed, this will be stored in
+        :attr:`~dallinger.models.SharedMixin.failed_reason`.
+
+        Failure will then be propagated to related objects as defined by
+        the `failure_cascade` property.
+        """
+        if self.failed is True:
+            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+        else:
+            self.failed = True
+            self.failed_reason = reason
+            self.time_of_death = timenow()
+            wrapped_reason = self._wrap_failed_reason(reason)
+
+            for obj in self._failure_cascade_iter:
+                # For backwards compatibility with custom subclasses
+                # that do not expect to receive a "reason" argument:
+                try:
+                    obj.fail(reason=wrapped_reason)
+                except TypeError:
+                    obj.fail()
 
 
 class Participant(Base, SharedMixin):
@@ -259,25 +343,12 @@ class Participant(Base, SharedMixin):
             infos.extend(n.infos(type=type, failed=failed))
         return infos
 
-    def fail(self):
-        """Fail a participant.
-
-        Set :attr:`~dallinger.models.SharedMixin.failed` to ``True`` and
-        :attr:`~dallinger.models.SharedMixin.time_of_death` to now. Instruct all
-        not-failed nodes associated with the participant to fail.
-
+    @property
+    def failure_cascade(self):
+        """When we fail, propagate the failure to our related
+        Nodes and Questions.
         """
-        if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
-        else:
-            self.failed = True
-            self.time_of_death = timenow()
-
-            for n in self.nodes():
-                n.fail()
-
-            for q in self.questions():
-                q.fail()
+        return [self.nodes, self.questions]
 
     @property
     def recruiter(self):
@@ -328,19 +399,6 @@ class Question(Base, SharedMixin):
         self.number = number
         self.question = question
         self.response = response
-
-    def fail(self):
-        """Fail a question.
-
-        Set :attr:`~dallinger.models.SharedMixin.failed` to True and
-        :attr:`~dallinger.models.SharedMixin.time_of_death` to now.
-
-        """
-        if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
-        else:
-            self.failed = True
-            self.time_of_death = timenow()
 
     def json_data(self):
         """Return json description of a question."""
@@ -554,16 +612,11 @@ class Network(Base, SharedMixin):
         """Add the node to the network."""
         raise NotImplementedError
 
-    def fail(self):
-        """Fail an entire network."""
-        if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
-        else:
-            self.failed = True
-            self.time_of_death = timenow()
-
-            for n in self.nodes():
-                n.fail()
+    @property
+    def failure_cascade(self):
+        """When we fail, propagate the failure to our related Nodes.
+        """
+        return [self.nodes]
 
     def calculate_full(self):
         """Set whether the network is full."""
@@ -1057,35 +1110,21 @@ class Node(Base, SharedMixin):
     Methods that make nodes do things
     ################################### """
 
-    def fail(self):
-        """
-        Fail a node, setting its status to "failed".
-
-        Also fails all vectors that connect to or from the node.
+    @property
+    def failure_cascade(self):
+        """When we fail, also fails all vectors that connect to or from the node.
         You cannot fail a node that has already failed, but you
         can fail a dead node.
 
-        Set node.failed to True and :attr:`~dallinger.models.Node.time_of_death`
-        to now. Instruct all not-failed vectors connected to this node, infos
+        Instruct all not-failed vectors connected to this node, infos
         made by this node, transmissions to or from this node and
         transformations made by this node to fail.
-
         """
-        if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
-        else:
-            self.failed = True
-            self.time_of_death = timenow()
-            self.network.calculate_full()
 
-            for v in self.vectors():
-                v.fail()
-            for i in self.infos():
-                i.fail()
-            for t in self.transmissions(direction="all"):
-                t.fail()
-            for t in self.transformations():
-                t.fail()
+        def all_transmissions():
+            return self.transmissions(direction="all")
+
+        return [self.vectors, self.infos, all_transmissions, self.transformations]
 
     def connect(self, whom, direction="to"):
         """Create a vector from self to/from whom.
@@ -1429,16 +1468,11 @@ class Vector(Base, SharedMixin):
     # Methods that make Vectors do things #
     ####################################"""
 
-    def fail(self):
-        """Fail a vector."""
-        if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
-        else:
-            self.failed = True
-            self.time_of_death = timenow()
-
-            for t in self.transmissions():
-                t.fail()
+    @property
+    def failure_cascade(self):
+        """When we fail, propagate the failure to our related Transmissions.
+        """
+        return [self.transmissions]
 
 
 class Info(Base, SharedMixin):
@@ -1505,23 +1539,12 @@ class Info(Base, SharedMixin):
             "object_type": "Info",
         }
 
-    def fail(self):
-        """Fail an info.
-
-        Set info.failed to True and :attr:`~dallinger.models.Info.time_of_death`
-        to now. Instruct all transmissions and transformations involving this
-        info to fail.
+    @property
+    def failure_cascade(self):
+        """When we fail, propagate the failure to our related
+        Transmissions and Transformations.
         """
-        if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
-        else:
-            self.failed = True
-            self.time_of_death = timenow()
-
-            for t in self.transmissions():
-                t.fail()
-            for t in self.transformations():
-                t.fail()
+        return [self.transmissions, self.transformations]
 
     def transmissions(self, status="all"):
         """Get all the transmissions of this info.
@@ -1695,14 +1718,6 @@ class Transmission(Base, SharedMixin):
             "object_type": "Transmission",
         }
 
-    def fail(self):
-        """Fail a transmission."""
-        if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
-        else:
-            self.failed = True
-            self.time_of_death = timenow()
-
 
 class Transformation(Base, SharedMixin):
     """An instance of one info being transformed into another."""
@@ -1785,14 +1800,6 @@ class Transformation(Base, SharedMixin):
             "network_id": self.network_id,
             "object_type": "Transformation",
         }
-
-    def fail(self):
-        """Fail a transformation."""
-        if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
-        else:
-            self.failed = True
-            self.time_of_death = timenow()
 
 
 class Notification(Base, SharedMixin):

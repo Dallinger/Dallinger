@@ -3,6 +3,8 @@ import os.path
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 
+config = get_config()
+
 
 class TestExperiment(Experiment):
     _completed = None
@@ -21,10 +23,6 @@ class TestExperiment(Experiment):
         if session:
             self.setup()
 
-    def extra_parameters(self):
-        config = get_config()
-        config.register("custom_parameter2", bool, [])
-
     @property
     def public_properties(self):
         return {"exists": True}
@@ -36,7 +34,6 @@ class TestExperiment(Experiment):
         return Star(max_size=2)
 
     def is_complete(self):
-        config = get_config()
         return config.get("_is_completed", None)
 
 
@@ -53,7 +50,6 @@ class ZSubclassThatSortsLower(TestExperiment):
 
 
 def extra_parameters():
-    config = get_config()
     config.register("custom_parameter", int, [])
     config.register("_is_completed", bool, [])
 

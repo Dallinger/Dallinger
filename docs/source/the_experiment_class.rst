@@ -78,8 +78,6 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: events_for_replay
 
-  .. automethod:: extra_parameters
-
   .. automethod:: fail_participant
 
   .. automethod:: get_network_for_participant
