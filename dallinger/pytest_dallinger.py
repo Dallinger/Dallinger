@@ -424,9 +424,9 @@ def debug_experiment(request, env, clear_workers):
 
 
 @pytest.fixture
-def recruitment_loop(debug_experiment):
+def recruitment_loop(request, debug_experiment):
     def recruitment_looper():
-        timeout = pytest.config.getvalue("recruiter_timeout", 30)
+        timeout = request.config.getvalue("recruiter_timeout", 30)
         urls = set()
         while True:
             index = debug_experiment.expect(
