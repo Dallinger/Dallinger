@@ -5,6 +5,60 @@ import pytest
 pytest_plugins = ["pytest_dallinger"]
 
 
+@pytest.fixture(scope="module")
+def check_firefox(request):
+    if not request.config.getvalue("firefox"):
+        pytest.skip("--firefox was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_chrome(request):
+    if not request.config.getvalue("chrome"):
+        pytest.skip("--chrome was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_webdriver(request):
+    if not request.config.getvalue("webdriver"):
+        pytest.skip("--webdriver was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_phantomjs(request):
+    if not request.config.getvalue("phantomjs"):
+        pytest.skip("--phantomjs was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_heroku(request):
+    if not request.config.getvalue("heroku"):
+        pytest.skip("--heroku was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_runbot(request):
+    if not request.config.getvalue("runbot"):
+        pytest.skip("--runbot was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_griduniverse(request):
+    if not request.config.getvalue("griduniverse"):
+        pytest.skip("--griduniverse was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_mturkfull(request):
+    if not request.config.getvalue("mturkfull"):
+        pytest.skip("--mturkfull was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_manual(request):
+    if not request.config.getvalue("manual"):
+        pytest.skip("--manual was not specified")
+
+
 @pytest.fixture(scope="class", autouse=True)
 def reset_config():
     yield

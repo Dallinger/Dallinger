@@ -606,9 +606,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         action.assert_called_once_with(heroku_mock, active_config)
 
 
-@pytest.mark.skipif(
-    not pytest.config.getvalue("heroku"), reason="--heroku was not specified"
-)
+@pytest.mark.usefixtures("check_heroku")
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "launch", "herokuapp")
 class TestDeploySandboxSharedSetupFullSystem(object):
     @pytest.fixture
@@ -794,9 +792,7 @@ class TestDebugServer(object):
 
         browser.assert_not_called()
 
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("runbot"), reason="--runbot was specified"
-    )
+    @pytest.mark.usefixtures("check_runbot")
     def test_debug_bots(self, env):
         # Make sure debug server runs to completion with bots
         p = pexpect.spawn(

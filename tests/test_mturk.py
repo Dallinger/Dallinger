@@ -360,9 +360,7 @@ def sns_iso(sns):
 
 
 @pytest.mark.mturk
-@pytest.mark.skipif(
-    not pytest.config.getvalue("mturkfull"), reason="--mturkfull was not specified"
-)
+@pytest.mark.usefixtures("check_mturkfull")
 class TestSNSService(object):
     def test_creates_and_cancel_subscription(self, sns):
         topic_arn = sns.create_subscription("some-exp", "https://some-url")
@@ -455,9 +453,7 @@ class TestMTurkServiceIntegrationSmokeTest(object):
 
 
 @pytest.mark.mturk
-@pytest.mark.skipif(
-    not pytest.config.getvalue("mturkfull"), reason="--mturkfull was not specified"
-)
+@pytest.mark.usefixtures("check_mturkfull")
 class TestMTurkService(object):
     def loop_until_2_quals(self, mturk_helper, query):
         args = {
@@ -635,9 +631,7 @@ class TestMTurkService(object):
 
 @pytest.mark.mturk
 @pytest.mark.mturkworker
-@pytest.mark.skipif(
-    not pytest.config.getvalue("mturkfull"), reason="--mturkfull was not specified"
-)
+@pytest.mark.usefixtures("check_mturkfull")
 @pytest.mark.slow
 class TestMTurkServiceWithRequesterAndWorker(object):
     def test_can_assign_new_qualification(self, with_cleanup, worker_id, qtype):
@@ -741,9 +735,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 
 @pytest.mark.mturk
 @pytest.mark.mturkworker
-@pytest.mark.skipif(
-    not pytest.config.getvalue("manual"), reason="--manual was not specified"
-)
+@pytest.mark.usefixtures("check_manual")
 @pytest.mark.slow
 class TestInteractive(object):
     def test_worker_can_see_hit_when_blocklist_not_in_qualifications(
