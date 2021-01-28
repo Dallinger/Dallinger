@@ -14,7 +14,6 @@ gevent
 greenlet
 gunicorn
 localconfig
--e git://github.com/blaze/odo.git#egg=odo
 pexpect
 psycopg2-binary
 psutil

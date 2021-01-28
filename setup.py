@@ -39,8 +39,8 @@ setup_args = dict(
         'data': [
             "networkx<2.0",  # 2.0 is incompatible with odo
             "openpyxl<2.5",  # 2.5 is incompatible with tablib
-            "odo",
-            "pandas",
+            "odo @ git://github.com/blaze/odo.git#egg=odo",
+            "pandas==1.2.1",
             "tablib<0.12",    # 0.12 is incompatible
         ],
         'jupyter': [
