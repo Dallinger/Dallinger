@@ -28,8 +28,8 @@ def zip_path():
 @pytest.mark.s3buckets
 @pytest.mark.usefixtures("check_s3buckets")
 class TestDataS3BucketCreation(object):
-    """Tests that actually create Buckets on S3.
-    """
+    """Tests that actually create Buckets on S3."""
+
     def test_user_s3_bucket_first_time(self):
         bucket = dallinger.data.user_s3_bucket(canonical_user_id=generate_random_id())
         assert bucket

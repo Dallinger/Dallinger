@@ -614,8 +614,7 @@ class Network(Base, SharedMixin):
 
     @property
     def failure_cascade(self):
-        """When we fail, propagate the failure to our related Nodes.
-        """
+        """When we fail, propagate the failure to our related Nodes."""
         return [self.nodes]
 
     def calculate_full(self):
@@ -1470,8 +1469,7 @@ class Vector(Base, SharedMixin):
 
     @property
     def failure_cascade(self):
-        """When we fail, propagate the failure to our related Transmissions.
-        """
+        """When we fail, propagate the failure to our related Transmissions."""
         return [self.transmissions]
 
 
