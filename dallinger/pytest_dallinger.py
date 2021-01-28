@@ -402,7 +402,7 @@ def test_request(webapp):
 
 @pytest.fixture
 def debug_experiment(request, env, clear_workers):
-    timeout = pytest.config.getvalue("recruiter_timeout", 30)
+    timeout = request.config.getvalue("recruiter_timeout", 30)
     # Make sure debug server runs to completion with bots
     p = pexpect.spawn(
         "dallinger", ["debug", "--no-browsers"], env=env, encoding="utf-8"
