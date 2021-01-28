@@ -80,7 +80,7 @@ jobs:
           bundle exec danger
       - name: Run Tox
         env:
-                DATABASE_URL: postgresql://dallinger@localhost/dallinger
+          DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger
           PORT: 5000
           base_port: 5000
           threads: 1
