@@ -66,8 +66,8 @@ class GeventWorker(Worker):
 
         def request_stop():
             if not self._stop_requested:
-                gevent.signal(signal.SIGINT, request_force_stop)
-                gevent.signal(signal.SIGTERM, request_force_stop)
+                gevent.signal_handler(signal.SIGINT, request_force_stop)
+                gevent.signal_handler(signal.SIGTERM, request_force_stop)
 
                 self.log.warning("Warm shut down requested.")
                 self.log.warning(
@@ -80,8 +80,8 @@ class GeventWorker(Worker):
                 if self.gevent_worker is not None:
                     self.gevent_worker.kill(StopRequested)
 
-        gevent.signal(signal.SIGINT, request_stop)
-        gevent.signal(signal.SIGTERM, request_stop)
+        gevent.signal_handler(signal.SIGINT, request_stop)
+        gevent.signal_handler(signal.SIGTERM, request_stop)
 
     def set_current_job_id(self, job_id, pipeline=None):
         pass
