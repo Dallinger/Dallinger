@@ -940,6 +940,7 @@ class TestDestroy(object):
 
         return destroy
 
+    @pytest.mark.skip
     @pytest.mark.slow
     def test_calls_destroy(self, destroy, heroku):
         CliRunner().invoke(destroy, ["--app", "some-app-uid", "--yes"])

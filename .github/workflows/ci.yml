@@ -5,6 +5,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    environment: CI
     strategy:
       matrix:
         python-version: [3.6, 3.7, 3.8, 3.9]
@@ -84,5 +85,6 @@ jobs:
           PORT: 5000
           base_port: 5000
           threads: 1
+          mturk_worker_id: ${{ secrets.MTURK_WORKER_ID }}
         run: |
           tox
