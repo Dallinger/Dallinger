@@ -310,12 +310,18 @@ class Experiment(object):
         network.add_node(node)
 
     def check_entry_information(self, entry_information):
-        """Accepts data from recruited user, validates it, and returns data
-        needed to create or load a Dallinger Participant. Should raise an
-        error or return an empty dictionary if the `entry_information` is
-        not recognized. Delegates to the recruiter by default.
+        """Accepts a dictionary with information about a recruited user, and
+        validates and optionally modifies that data.
+
+        Returns a dictionary containng data the needed to create or load a
+        Dallinger Participant. The returned data should include valid
+        `assignment_id`, `worker_id`, and `hit_id` values. By default, the
+        extraction of these values is delegated to the recruiter's
+        `check_entry_information` method.
         """
-        return self.recruiter.check_entry_information(entry_information)
+        entry_data = self.recruiter.check_entry_information(entry_information)
+        # We need an assignment_id in order to create a participant
+        return entry_data
 
     def create_participant(
         self,

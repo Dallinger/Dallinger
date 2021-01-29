@@ -403,8 +403,6 @@ def advertisement():
         These arguments will have appropriate values and we should enter the
         person in the database and provide a link to the experiment popup.
     """
-    if not ("hitId" in request.args and "assignmentId" in request.args):
-        raise ExperimentError("hit_assign_worker_id_not_set_in_mturk")
     config = _config()
 
     # Browser rule validation, if configured:
@@ -412,13 +410,22 @@ def advertisement():
     if not browser.is_supported(request.user_agent.string):
         raise ExperimentError("browser_type_not_allowed")
 
-    hit_id = request.args["hitId"]
-    assignment_id = request.args["assignmentId"]
+    entry_information = request.args.to_dict()
+
     app_id = config.get("id", "unknown")
     mode = config.get("mode")
     debug_mode = mode == "debug"
-    worker_id = request.args.get("workerId")
     participant = None
+
+    exp = Experiment(session)
+    entry_data = exp.check_entry_information(entry_information)
+
+    hit_id = entry_data.get("hit_id")
+    assignment_id = entry_data.get("assignment_id")
+    worker_id = entry_data.get("worker_id")
+
+    if not (hit_id and assignment_id):
+        raise ExperimentError("hit_assign_worker_id_not_set_in_mturk")
 
     if worker_id is not None:
         # First check if this workerId has completed the task before
@@ -464,6 +471,7 @@ def advertisement():
             external_submit_url=recruiter.external_submission_url,
             mode=config.get("mode"),
             app_id=app_id,
+            query_string=request.query_string,
         )
     if participant and participant.status == "working":
         # Once participants have finished the instructions, we do not allow
@@ -480,6 +488,7 @@ def advertisement():
         workerid=worker_id,
         mode=config.get("mode"),
         app_id=app_id,
+        query_string=request.query_string.decode(),
     )
 
 
@@ -572,12 +581,21 @@ def get_page_from_directory(directory, page):
 def consent():
     """Return the consent form. Here for backwards-compatibility with 2.x."""
     config = _config()
+
+    entry_information = request.args.to_dict()
+    exp = Experiment(session)
+    entry_data = exp.check_entry_information(entry_information)
+
+    hit_id = entry_data.get("hit_id")
+    assignment_id = entry_data.get("assignment_id")
+    worker_id = entry_data.get("worker_id")
     return render_template(
         "consent.html",
-        hit_id=request.args["hit_id"],
-        assignment_id=request.args["assignment_id"],
-        worker_id=request.args["worker_id"],
+        hit_id=hit_id,
+        assignment_id=assignment_id,
+        worker_id=worker_id,
         mode=config.get("mode"),
+        query_string=request.query_string.decode(),
     )
 
 
@@ -674,7 +692,7 @@ def assign_properties(thing):
 
 @app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>", methods=["POST"])
 @db.serialized
-def create_participant(worker_id, hit_id, assignment_id, mode):
+def create_participant(worker_id, hit_id, assignment_id, mode, entry_information=None):
     """Create a participant.
 
     This route is hit early on. Any nodes the participant creates will be
@@ -747,7 +765,13 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
     # Create the new participant.
     exp = Experiment(session)
     participant = exp.create_participant(
-        worker_id, hit_id, assignment_id, mode, recruiter_name, fingerprint_hash
+        worker_id,
+        hit_id,
+        assignment_id,
+        mode,
+        recruiter_name,
+        fingerprint_hash,
+        entry_information,
     )
 
     session.flush()
@@ -773,8 +797,10 @@ def create_participant(worker_id, hit_id, assignment_id, mode):
 
 @app.route("/participant", methods=["POST"])
 def post_participant():
-    entry_information = dict(request.form)
-    mode = entry_information.pop("mode")
+    config = _config()
+    entry_information = request.form.to_dict()
+    # Remove the mode from entry_information if provided
+    mode = entry_information.pop("mode", config.get("mode"))
     exp = Experiment(session)
     participant_info = exp.check_entry_information(entry_information)
     return create_participant(mode=mode, **participant_info)
@@ -799,7 +825,7 @@ def load_participant():
     """Get the participant with an assignment id provided in the request.
     Delegates to :func:`~dallinger.experiments.Experiment.load_participant`.
     """
-    entry_information = dict(request.form)
+    entry_information = request.form.to_dict()
     exp = Experiment(session)
     participant_info = exp.check_entry_information(entry_information)
 
