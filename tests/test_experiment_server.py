@@ -760,7 +760,7 @@ class TestParticipantCreateRoute(object):
             create_participant.side_effect = lambda *args: p
             webapp.post("/participant/1/1/1/debug")
             create_participant.assert_called_once_with(
-                "1", "1", "1", "debug", None, None
+                "1", "1", "1", "debug", None, None, None
             )
 
     def test_creates_participant_if_worker_id_unique(self, webapp):

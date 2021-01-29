@@ -112,7 +112,12 @@ var dallinger = (function () {
       this.mode = dlgr.getUrlParameter('mode');
       // Store all url parameters as entry information.
       // This won't work in IE, but should work in Edge.
-      this.entryInformation = Object.fromEntries(new URLSearchParams(location.search));
+      var entry_info = {};
+      var query_params = new URLSearchParams(location.search);
+      for (const [k, v] of query_params) {
+        entry_info[k] = v;
+      }
+      this.entryInformation = entry_info;
       if (this.entryInformation.mode) {
         delete this.entryInformation.mode;
       }
