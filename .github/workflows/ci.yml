@@ -20,7 +20,7 @@ jobs:
         ports:
           - 6379:6379
       postgres:
-        image: postgres:10
+        image: postgres:12
         options: >-
           --health-cmd pg_isready
           --health-interval 10s

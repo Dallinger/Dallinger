@@ -15,7 +15,7 @@ gunicorn==20.0.4
 localconfig==1.1.3
 pexpect==4.8.0
 psutil==5.8.0
-psycopg2-binary==2.8.6
+psycopg2==2.8.6
 redis==3.5.3
 requests==2.25.1
 rq==1.7.0

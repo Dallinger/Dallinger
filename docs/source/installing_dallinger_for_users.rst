@@ -23,7 +23,7 @@ Install Python
 ~~~~~~~~~~~~~~
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 2.7 installed, or alternatively Python 3.6 or higher. Python 3 is the preferred option.
+to have Python 2.7 installed, or alternatively Python 3.7 or higher.
 You can check what version of Python you have by running:
 ::
 
@@ -43,18 +43,10 @@ Using Homebrew will install the latest version of Python and pip by default.
 
 This will install the latest Python3 and pip3.
 
-You can also use the preinstalled Python in Mac OS X, currently Python 2.7 as of writing.
-
-If you installed Python 3 with Homebrew, you should now be able to run the ``python3`` command from the terminal.
+You should now be able to run the ``python3`` command from the terminal.
 If the command cannot be found, check the Homebrew installation log to see
 if there were any errors. Sometimes there are problems symlinking Python 3 to
 the python3 command. If this is the case for you, look `here <https://stackoverflow.com/questions/27784545/brew-error-could-not-symlink-path-is-not-writable>`__ for clues to assist you.
-
-With the preinstalled Python in Mac OS X, you will need to install pip yourself. You can use:
-::
-
-    sudo easy_install pip
-
 
 Should that not work for whatever reason, you can search `here <https://docs.python-guide.org/>`__ for more clues.
 
@@ -65,14 +57,15 @@ Install Postgresql
 On Mac OS X, we recommend installing using Homebrew:
 ::
 
-    brew install postgresql
+    brew install postgresql@12
+    brew link postgresql@12
 
 
 Postgresql can then be started and stopped using:
 ::
 
-    brew services start postgresql
-    brew services stop postgresql
+    brew services start postgresql@12
+    brew services stop postgresql@12
 
 
 Create the databases

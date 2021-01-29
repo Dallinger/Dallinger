@@ -15,7 +15,7 @@ greenlet
 gunicorn
 localconfig
 pexpect
-psycopg2-binary
+psycopg2
 psutil
 redis
 requests
