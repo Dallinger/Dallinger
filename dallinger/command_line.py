@@ -139,9 +139,9 @@ def report_idle_after(seconds):
 def verify_id(ctx, param, app):
     """Verify the experiment id."""
     if app is None:
-        raise TypeError("Select an experiment using the --app parameter.")
+        raise click.BadParameter("Select an experiment using the --app parameter.")
     elif app[0:5] == "dlgr-":
-        raise ValueError(
+        raise click.BadParameter(
             "The --app parameter requires the full "
             "UUID beginning with {}-...".format(app[5:13])
         )
