@@ -11,7 +11,6 @@ import shutil
 import six
 import subprocess
 import tempfile
-import warnings
 from zipfile import ZipFile, ZIP_DEFLATED
 
 import botocore
@@ -19,6 +18,7 @@ import boto3
 import hashlib
 import postgres_copy
 import psycopg2
+import tablib
 
 from dallinger.compat import open_for_csv
 from dallinger.heroku.tools import HerokuApp
@@ -26,16 +26,6 @@ from dallinger import db
 from dallinger import models
 
 logger = logging.getLogger(__name__)
-
-with warnings.catch_warnings():
-    warnings.simplefilter(action="ignore", category=FutureWarning)
-    try:
-        import odo
-        import pandas as pd
-        import tablib
-    except ImportError:
-        logger.debug("Failed to import odo, pandas, or tablib.")
-
 
 table_names = [
     "info",
@@ -438,7 +428,6 @@ class Table(object):
 
     def __init__(self, path):
 
-        self.odo_resource = odo.resource(path)
         self.tablib_dataset = tablib.Dataset().load(open(path).read(), "csv")
 
     @property
@@ -452,11 +441,6 @@ class Table(object):
         return self.tablib_dataset.dict[0]
 
     @property
-    def df(self):
-        """A pandas DataFrame."""
-        return odo.odo(self.odo_resource, pd.DataFrame)
-
-    @property
     def html(self):
         """An HTML table."""
         return self.tablib_dataset.html
@@ -465,11 +449,6 @@ class Table(object):
     def latex(self):
         """A LaTeX table."""
         return self.tablib_dataset.latex
-
-    @property
-    def list(self):
-        """A Python list."""
-        return odo.odo(self.odo_resource, list)
 
     @property
     def ods(self):

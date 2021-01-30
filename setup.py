@@ -36,13 +36,6 @@ setup_args = dict(
         'pytest11': ['pytest_dallinger = dallinger.pytest_dallinger'],
     },
     extras_require={
-        'data': [
-            "networkx",  # 2.0 is incompatible with odo
-            "openpyxl<2.5",  # 2.5 is incompatible with tablib
-            "sangreal-odo",
-            "pandas",
-            "tablib<0.12",    # 0.12 is incompatible
-        ],
         'jupyter': [
             "jupyter",
             "ipywidgets",

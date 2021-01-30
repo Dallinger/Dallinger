@@ -126,19 +126,13 @@ class TestDataLocally(object):
         data = dallinger.data.Data(self.data_path)
         assert data.networks.csv
         assert data.networks.dict
-        assert data.networks.df.shape
         assert data.networks.html
         assert data.networks.latex
-        assert data.networks.list
         assert data.networks.ods
         assert data.networks.tsv
         assert data.networks.xls
         assert data.networks.xlsx
         assert data.networks.yaml
-
-    def test_dataframe_conversion(self):
-        data = dallinger.data.Data(self.data_path)
-        assert data.networks.df.shape == (1, 13)
 
     def test_csv_conversion(self):
         data = dallinger.data.Data(self.data_path)
@@ -148,17 +142,9 @@ class TestDataLocally(object):
         data = dallinger.data.Data(self.data_path)
         assert data.networks.tsv[0:3] == "id\t"
 
-    def test_list_conversion(self):
-        data = dallinger.data.Data(self.data_path)
-        assert type(data.networks.list) is list
-
     def test_dict_conversion(self):
         data = dallinger.data.Data(self.data_path)
         assert type(data.networks.dict) is OrderedDict
-
-    def test_df_conversion(self):
-        data = dallinger.data.Data(self.data_path)
-        assert type(data.networks.df) is pd.DataFrame
 
     def test_local_data_loading(self):
         local_data_id = "77777-77777-77777-77777"
@@ -174,12 +160,12 @@ class TestDataLocally(object):
 
     def test_export_of_dallinger_database(self):
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_db_to_csv("dallinger", export_dir)
+        dallinger.data.copy_db_to_csv("postgresql://dallinger:dallinger@localhost/dallinger", export_dir)
         assert os.path.isfile(os.path.join(export_dir, "network.csv"))
 
     def test_exported_database_includes_headers(self):
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_db_to_csv("dallinger", export_dir)
+        dallinger.data.copy_db_to_csv("postgresql://dallinger:dallinger@localhost/dallinger", export_dir)
         network_table_path = os.path.join(export_dir, "network.csv")
         assert os.path.isfile(network_table_path)
         with open_for_csv(network_table_path, "r") as f:
@@ -217,7 +203,7 @@ class TestDataLocally(object):
     def test_copy_db_to_csv_includes_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_db_to_csv("dallinger", export_dir, scrub_pii=False)
+        dallinger.data.copy_db_to_csv("postgresql://dallinger:dallinger@localhost/dallinger", export_dir, scrub_pii=False)
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
         with open_for_csv(participant_table_path, "r") as f:
@@ -229,7 +215,7 @@ class TestDataLocally(object):
     def test_copy_db_to_csv_includes_scrubbed_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_db_to_csv("dallinger", export_dir, scrub_pii=True)
+        dallinger.data.copy_db_to_csv("postgresql://dallinger:dallinger@localhost/dallinger", export_dir, scrub_pii=True)
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
         with open_for_csv(participant_table_path, "r") as f:
