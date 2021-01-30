@@ -11,6 +11,7 @@ import uuid
 import shutil
 from zipfile import ZipFile
 
+import pandas as pd
 import psycopg2
 import pytest
 
@@ -132,6 +133,7 @@ class TestDataLocally(object):
         assert data.networks.xls
         assert data.networks.xlsx
         assert data.networks.yaml
+        assert type(data.networks.tablib_dataset.df) is pd.DataFrame
 
     def test_csv_conversion(self):
         data = dallinger.data.Data(self.data_path)
@@ -144,6 +146,10 @@ class TestDataLocally(object):
     def test_dict_conversion(self):
         data = dallinger.data.Data(self.data_path)
         assert type(data.networks.dict) is OrderedDict
+
+    def test_df_conversion(self):
+        data = dallinger.data.Data(self.data_path)
+        assert data.networks.tablib_dataset.df.shape == (1, 13)
 
     def test_local_data_loading(self):
         local_data_id = "77777-77777-77777-77777"

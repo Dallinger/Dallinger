@@ -24,7 +24,6 @@ selenium
 six
 SQLAlchemy
 sqlalchemy-postgres-copy
-tablib
 tabulate
 timeago
 tzlocal

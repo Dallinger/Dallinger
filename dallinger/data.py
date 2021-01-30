@@ -11,6 +11,7 @@ import shutil
 import six
 import subprocess
 import tempfile
+import warnings
 from zipfile import ZipFile, ZIP_DEFLATED
 
 import botocore
@@ -26,6 +27,15 @@ from dallinger import db
 from dallinger import models
 
 logger = logging.getLogger(__name__)
+
+with warnings.catch_warnings():	
+    warnings.simplefilter(action="ignore", category=FutureWarning)	
+    try:	
+        import pandas as pd	
+        import tablib	
+    except ImportError:	
+        logger.debug("Failed to import pandas, or tablib.")
+
 
 table_names = [
     "info",
@@ -439,6 +449,11 @@ class Table(object):
     def dict(self):
         """A Python dictionary."""
         return self.tablib_dataset.dict[0]
+
+    @property
+    def df(self):
+        """A pandas DataFrame."""
+        return self.tablib_dataset.df
 
     @property
     def html(self):

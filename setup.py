@@ -40,6 +40,10 @@ setup_args = dict(
             "jupyter",
             "ipywidgets",
         ],
+        'data': [
+            "pandas",
+            "tablib[all]",
+        ],
         'dev': [
             "alabaster",
             "bumpversion",
@@ -48,7 +52,7 @@ setup_args = dict(
             "codecov",
             "flake8",
             "mock",
-            "pycodestyle",  # 2.4 is incompatible with flake8
+            "pycodestyle",
             "pypandoc",
             "pytest",
             "recommonmark",
