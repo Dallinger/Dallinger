@@ -8,7 +8,10 @@ jobs:
     environment: CI
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        - postgres: 10
+          python-version: [3.9]
+        - postgres: 12
+          python-version: [3.7, 3.8, 3.9]
     services:
       redis:
         image: redis
@@ -20,7 +23,6 @@ jobs:
         ports:
           - 6379:6379
       postgres:
-        image: postgres:10
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -32,6 +34,8 @@ jobs:
           POSTGRES_USER: dallinger
           POSTGRES_PASSWORD: dallinger
           POSTGRES_DB: dallinger
+        with:
+          image: postgres:${{ matrix.postgres }}
     steps:
       - name: Check out Dallinger repository
         uses: actions/checkout@v2
