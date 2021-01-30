@@ -57,7 +57,6 @@ class TestDataS3Integration(object):
         s3 = dallinger.data._s3_resource()
         assert s3
 
-    @pytest.mark.skip
     def test_data_loading(self):
         data = dallinger.data.load("3b9c2aeb-0eb7-4432-803e-bc437e17b3bb")
         assert data
@@ -123,7 +122,6 @@ class TestDataLocally(object):
         """Load a dataset."""
         dallinger.data.Data(self.data_path)
 
-    @pytest.mark.skip
     def test_conversions(self):
         data = dallinger.data.Data(self.data_path)
         assert data.networks.csv
@@ -138,7 +136,6 @@ class TestDataLocally(object):
         assert data.networks.xlsx
         assert data.networks.yaml
 
-    @pytest.mark.skip
     def test_dataframe_conversion(self):
         data = dallinger.data.Data(self.data_path)
         assert data.networks.df.shape == (1, 13)
@@ -151,7 +148,6 @@ class TestDataLocally(object):
         data = dallinger.data.Data(self.data_path)
         assert data.networks.tsv[0:3] == "id\t"
 
-    @pytest.mark.skip
     def test_list_conversion(self):
         data = dallinger.data.Data(self.data_path)
         assert type(data.networks.list) is list
@@ -160,7 +156,6 @@ class TestDataLocally(object):
         data = dallinger.data.Data(self.data_path)
         assert type(data.networks.dict) is OrderedDict
 
-    @pytest.mark.skip
     def test_df_conversion(self):
         data = dallinger.data.Data(self.data_path)
         assert type(data.networks.df) is pd.DataFrame
@@ -177,13 +172,11 @@ class TestDataLocally(object):
         with pytest.raises(psycopg2.OperationalError):
             dallinger.data.copy_db_to_csv(nonexistent_local_db, "")
 
-    @pytest.mark.skip
     def test_export_of_dallinger_database(self):
         export_dir = tempfile.mkdtemp()
         dallinger.data.copy_db_to_csv("dallinger", export_dir)
         assert os.path.isfile(os.path.join(export_dir, "network.csv"))
 
-    @pytest.mark.skip
     def test_exported_database_includes_headers(self):
         export_dir = tempfile.mkdtemp()
         dallinger.data.copy_db_to_csv("dallinger", export_dir)
@@ -221,7 +214,6 @@ class TestDataLocally(object):
         p_file = io.TextIOWrapper(p_file, encoding="utf8", newline="")
         assert len(p_file.readlines()) == 5  # 4 Participants + header row
 
-    @pytest.mark.skip
     def test_copy_db_to_csv_includes_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
         export_dir = tempfile.mkdtemp()
@@ -234,7 +226,6 @@ class TestDataLocally(object):
             row1 = next(reader)
             assert row1[header.index("worker_id")] == "SM6DMD"
 
-    @pytest.mark.skip
     def test_copy_db_to_csv_includes_scrubbed_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
         export_dir = tempfile.mkdtemp()
