@@ -130,7 +130,9 @@ class TestCommandLine(object):
 
     def test_sandbox_empty(self):
         id = "dlgr-3b9c2aeb"
-        assert click.BadParameter, subprocess.call(["dallinger", "sandbox", "--app", id])
+        assert click.BadParameter, subprocess.call(
+            ["dallinger", "sandbox", "--app", id]
+        )
 
     def test_verify_id_short_fails(self):
         id = "dlgr-3b9c2aeb"
@@ -942,7 +944,9 @@ class TestDestroy(object):
 
     @pytest.mark.slow
     def test_calls_destroy(self, destroy, heroku):
-        CliRunner().invoke(destroy, ["--app", "some-app-uid", "--yes", "--no-expire-hit"])
+        CliRunner().invoke(
+            destroy, ["--app", "some-app-uid", "--yes", "--no-expire-hit"]
+        )
         heroku.destroy.assert_called_once()
 
     def test_destroy_expires_hits(self, destroy, heroku, mturk):
@@ -1056,9 +1060,7 @@ class TestMonitor(object):
         heroku.db_uri = "fake-db-uri"
         result = CliRunner().invoke(monitor, ["--app", None])
         assert result.exit_code == 2
-        assert (
-            "Select an experiment using the --app parameter." in result.output
-        )
+        assert "Select an experiment using the --app parameter." in result.output
 
 
 class TestHits(object):
