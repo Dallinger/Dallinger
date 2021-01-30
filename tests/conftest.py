@@ -173,6 +173,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--mturkfull",
         action="store_true",
+        default=False,
         help="Run comprehensive MTurk integration tests during test run",
     )
     parser.addoption(
