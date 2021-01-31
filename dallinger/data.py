@@ -19,7 +19,6 @@ import boto3
 import hashlib
 import postgres_copy
 import psycopg2
-import tablib
 
 from dallinger.compat import open_for_csv
 from dallinger.heroku.tools import HerokuApp
