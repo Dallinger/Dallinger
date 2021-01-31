@@ -28,12 +28,12 @@ from dallinger import models
 
 logger = logging.getLogger(__name__)
 
-with warnings.catch_warnings():	
-    warnings.simplefilter(action="ignore", category=FutureWarning)	
-    try:	
-        import pandas as pd	
-        import tablib	
-    except ImportError:	
+with warnings.catch_warnings():
+    warnings.simplefilter(action="ignore", category=FutureWarning)
+    try:
+        import pandas as pd
+        import tablib
+    except ImportError:
         logger.debug("Failed to import pandas, or tablib.")
 
 

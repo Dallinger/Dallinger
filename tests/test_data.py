@@ -165,12 +165,16 @@ class TestDataLocally(object):
 
     def test_export_of_dallinger_database(self):
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_db_to_csv("postgresql://dallinger:dallinger@localhost/dallinger", export_dir)
+        dallinger.data.copy_db_to_csv(
+            "postgresql://dallinger:dallinger@localhost/dallinger", export_dir
+        )
         assert os.path.isfile(os.path.join(export_dir, "network.csv"))
 
     def test_exported_database_includes_headers(self):
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_db_to_csv("postgresql://dallinger:dallinger@localhost/dallinger", export_dir)
+        dallinger.data.copy_db_to_csv(
+            "postgresql://dallinger:dallinger@localhost/dallinger", export_dir
+        )
         network_table_path = os.path.join(export_dir, "network.csv")
         assert os.path.isfile(network_table_path)
         with open_for_csv(network_table_path, "r") as f:
@@ -208,7 +212,11 @@ class TestDataLocally(object):
     def test_copy_db_to_csv_includes_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_db_to_csv("postgresql://dallinger:dallinger@localhost/dallinger", export_dir, scrub_pii=False)
+        dallinger.data.copy_db_to_csv(
+            "postgresql://dallinger:dallinger@localhost/dallinger",
+            export_dir,
+            scrub_pii=False,
+        )
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
         with open_for_csv(participant_table_path, "r") as f:
@@ -220,7 +228,11 @@ class TestDataLocally(object):
     def test_copy_db_to_csv_includes_scrubbed_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
         export_dir = tempfile.mkdtemp()
-        dallinger.data.copy_db_to_csv("postgresql://dallinger:dallinger@localhost/dallinger", export_dir, scrub_pii=True)
+        dallinger.data.copy_db_to_csv(
+            "postgresql://dallinger:dallinger@localhost/dallinger",
+            export_dir,
+            scrub_pii=True,
+        )
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
         with open_for_csv(participant_table_path, "r") as f:
