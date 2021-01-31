@@ -30,10 +30,9 @@ logger = logging.getLogger(__name__)
 with warnings.catch_warnings():
     warnings.simplefilter(action="ignore", category=FutureWarning)
     try:
-        import pandas as pd
         import tablib
     except ImportError:
-        logger.debug("Failed to import pandas, or tablib.")
+        logger.debug("Failed to import tablib.")
 
 
 table_names = [
