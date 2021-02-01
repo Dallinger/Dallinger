@@ -275,12 +275,24 @@ Now we need to install the dependencies using pip:
 
     pip install -r dev-requirements.txt
 
+You may see a large volume of warnings and errors, with this somewhere near the
+bottom:
+
+    ld: library not found for -lssl
+    clang: error: linker command failed with exit code 1 (use -v to see invocation)
+    error: command '/usr/bin/clang' failed with exit code 1
+
+Try adding the paths of the SSL binaries, then installing again:
+
+    export LDFLAGS="-L$(brew --prefix openssl)/lib"; export CPPFLAGS="-I$(brew --prefix openssl)/include"
+    pip install -r dev-requirements.txt
+
 
 Next, install the Dallinger development directory as an editable package, and include the ``data`` "extra":
 
 ::
 
-    pip install --editable .[data]
+    pip install --editable ".[data]"
 
 
 Test that your installation works by running:
@@ -364,6 +376,7 @@ contains the header files you need to build Python extensions appropriate to the
 .. note::
 
     You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed. It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.) If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
+
 ::
 
     sudo apt-get install python3-dev

@@ -85,10 +85,10 @@ Naviagate to a terminal and type:
 
 
 The first command will create a user named ``dallinger`` and prompt you for a
-password. The second and third command will create the ``dallinger`` and 
+password. The second and third command will create the ``dallinger`` and
 ``dallinger-import`` databases, setting the newly created user as the owner.
 
-You can optionally inspect your databases by entering ``psql dallinger``. 
+You can optionally inspect your databases by entering ``psql dallinger``.
 Inside psql you can use commands to see the roles and database tables:
 ::
 
@@ -300,6 +300,7 @@ contains the header files you need to build Python extensions appropriate to the
 .. note::
 
     You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed.     It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.) If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
+
 ::
 
     sudo apt-get install python3-dev

@@ -121,6 +121,7 @@ the DataTables data returned by the
 ``Experiment`` class.
 
 .. module:: dallinger.experiment
+   :noindex:
 
 .. autoclass:: Experiment
    :noindex:

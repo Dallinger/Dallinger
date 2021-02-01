@@ -12,35 +12,37 @@ what to do with the database when the server receives requests from outside.
 
 .. autoclass:: Experiment
 
-  .. autoinstanceattribute:: verbose
+  .. autoattribute:: verbose
     :annotation:
 
-  .. autoinstanceattribute:: task
+  .. autoattribute:: task
     :annotation:
 
-  .. autoinstanceattribute:: session
+  .. autoattribute:: session
     :annotation:
 
-  .. autoinstanceattribute:: practice_repeats
+  .. autoattribute:: practice_repeats
     :annotation:
 
-  .. autoinstanceattribute:: experiment_repeats
+  .. autoattribute:: experiment_repeats
     :annotation:
 
-  .. autoinstanceattribute:: recruiter
+  .. autoattribute:: recruiter
     :annotation:
 
-  .. autoinstanceattribute:: initial_recruitment_size
+  .. autoattribute:: initial_recruitment_size
     :annotation:
 
-  .. autoinstanceattribute:: known_classes
+  .. autoattribute:: known_classes
     :annotation:
 
-  .. autoinstanceattribute:: participant_constructor
+  .. autoattribute:: participant_constructor
     :annotation:
 
-  .. autoinstanceattribute:: public_properties
-    :annotation:
+  .. attribute:: public_properties
+
+     dictionary, the properties of this experiment that are exposed
+     to the public over an AJAX call
 
   .. automethod:: __init__
 
