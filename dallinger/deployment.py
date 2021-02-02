@@ -473,7 +473,7 @@ def deploy_sandbox_shared_setup(
     heroku_app.set_multiple(**heroku_config)
 
     # Wait for Redis database to be ready.
-    log("Waiting for Redis...", nl=False)
+    log("Waiting for Redis (this can take a couple minutes)...", nl=False)
     ready = False
     while not ready:
         try:

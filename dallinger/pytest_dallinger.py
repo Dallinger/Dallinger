@@ -144,7 +144,7 @@ def stub_config():
         u"dyno_type": u"free",
         u"heroku_app_id_root": u"fake-customid",
         u"heroku_auth_token": u"heroku secret",
-        u"heroku_python_version": u"3.6.10",
+        u"heroku_python_version": u"3.9.1",
         u"heroku_team": u"",
         u"host": u"0.0.0.0",
         u"id": u"TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
