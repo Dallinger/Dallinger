@@ -93,15 +93,17 @@ class TestDashboardTabs(object):
 class TestDashboard(object):
     @pytest.fixture
     def admin_user(self):
+        from dallinger.experiment_server import experiment_server
         from dallinger.experiment_server.dashboard import User
 
-        with mock.patch("dallinger.experiment_server.dashboard.current_app") as app:
-            admin_user = User("admin", "DUMBPASSWORD")
-            app.config = {
-                "ADMIN_USER": admin_user,
-                "SECRET_KEY": "FLASK_SECRET",
-            }
-            yield admin_user
+        with experiment_server.app.app_context():
+            with mock.patch("dallinger.experiment_server.dashboard.current_app") as app:
+                admin_user = User("admin", "DUMBPASSWORD")
+                app.config = {
+                    "ADMIN_USER": admin_user,
+                    "SECRET_KEY": "FLASK_SECRET",
+                }
+                yield admin_user
 
     def test_load_user(self, admin_user):
         from dallinger.experiment_server.dashboard import load_user
@@ -198,20 +200,22 @@ class TestDashboard(object):
             unauthorized()
 
     def test_unauthorized_redirects(self, active_config, env):
+        from dallinger.experiment_server import experiment_server
         from dallinger.experiment_server.dashboard import unauthorized
 
         active_config.set("mode", "sandbox")
-        with mock.patch("dallinger.experiment_server.dashboard.request"):
-            with mock.patch(
-                "dallinger.experiment_server.dashboard.make_login_url"
-            ) as make_login_url:
-                make_login_url.return_value = "http://www.example.net/login"
-                response = unauthorized()
-                assert response.status_code == 302
-                assert response.location == "http://www.example.net/login"
-                make_login_url.assert_called_once_with(
-                    "dashboard.login", next_url=mock.ANY
-                )
+        with experiment_server.app.test_request_context():
+            with mock.patch("dallinger.experiment_server.dashboard.request"):
+                with mock.patch(
+                    "dallinger.experiment_server.dashboard.make_login_url"
+                ) as make_login_url:
+                    make_login_url.return_value = "http://www.example.net/login"
+                    response = unauthorized()
+                    assert response.status_code == 302
+                    assert response.location == "http://www.example.net/login"
+                    make_login_url.assert_called_once_with(
+                        "dashboard.login", next_url=mock.ANY
+                    )
 
     def test_safe_url(self):
         from dallinger.experiment_server.dashboard import is_safe_url

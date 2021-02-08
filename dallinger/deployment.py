@@ -80,8 +80,7 @@ class ExperimentFileSource(object):
 
     @property
     def size(self):
-        """Combined size of all files, accounting for exclusions.
-        """
+        """Combined size of all files, accounting for exclusions."""
         return sum([os.path.getsize(path) for path in self._walk()])
 
     def selective_copy_to(self, destination):
@@ -128,8 +127,7 @@ class ExperimentFileSource(object):
 
 
 class ExplicitFileSource(object):
-    """Add files that are explicitly requested by the experimenter with a hook function.
-    """
+    """Add files that are explicitly requested by the experimenter with a hook function."""
 
     def __init__(self, root_dir="."):
         self.root = root_dir
@@ -176,8 +174,7 @@ class ExplicitFileSource(object):
 
     @property
     def size(self):
-        """Combined size of all files, accounting for exclusions.
-        """
+        """Combined size of all files, accounting for exclusions."""
         return sum([os.path.getsize(path) for path in self.files])
 
     def selective_copy_to(self, destination):
@@ -476,7 +473,7 @@ def deploy_sandbox_shared_setup(
     heroku_app.set_multiple(**heroku_config)
 
     # Wait for Redis database to be ready.
-    log("Waiting for Redis...", nl=False)
+    log("Waiting for Redis (this can take a couple minutes)...", nl=False)
     ready = False
     while not ready:
         try:
@@ -699,7 +696,8 @@ class DebugDeployment(HerokuLocalDeployment):
         self.out.log("Experiment dashboard: {}".format(url))
         self.out.log(
             "Dashboard user: {} password: {}".format(
-                config.get("dashboard_user"), config.get("dashboard_password"),
+                config.get("dashboard_user"),
+                config.get("dashboard_password"),
             )
         )
 
@@ -708,7 +706,9 @@ class DebugDeployment(HerokuLocalDeployment):
         self.out.log("Opening dashboard")
         parsed = list(urlparse(url))
         parsed[1] = "{}:{}@{}".format(
-            config.get("dashboard_user"), config.get("dashboard_password"), parsed[1],
+            config.get("dashboard_user"),
+            config.get("dashboard_password"),
+            parsed[1],
         )
         open_browser(urlunparse(parsed))
 

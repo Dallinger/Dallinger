@@ -23,8 +23,8 @@ Install Python
 ~~~~~~~~~~~~~~
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 2.7 installed, or alternatively Python 3.6 or higher. Python 3 is the preferred option.
-You can check what version of Python you have by running:
+to have Python 3.7 or higher. You can check what version of Python you have
+by running:
 ::
 
     python --version
@@ -43,18 +43,10 @@ Using Homebrew will install the latest version of Python and pip by default.
 
 This will install the latest Python3 and pip3.
 
-You can also use the preinstalled Python in Mac OS X, currently Python 2.7 as of writing.
-
-If you installed Python 3 with Homebrew, you should now be able to run the ``python3`` command from the terminal.
+You should now be able to run the ``python3`` command from the terminal.
 If the command cannot be found, check the Homebrew installation log to see
 if there were any errors. Sometimes there are problems symlinking Python 3 to
 the python3 command. If this is the case for you, look `here <https://stackoverflow.com/questions/27784545/brew-error-could-not-symlink-path-is-not-writable>`__ for clues to assist you.
-
-With the preinstalled Python in Mac OS X, you will need to install pip yourself. You can use:
-::
-
-    sudo easy_install pip
-
 
 Should that not work for whatever reason, you can search `here <https://docs.python-guide.org/>`__ for more clues.
 
@@ -65,14 +57,15 @@ Install Postgresql
 On Mac OS X, we recommend installing using Homebrew:
 ::
 
-    brew install postgresql
+    brew install postgresql@12
+    brew link postgresql@12
 
 
 Postgresql can then be started and stopped using:
 ::
 
-    brew services start postgresql
-    brew services stop postgresql
+    brew services start postgresql@12
+    brew services stop postgresql@12
 
 
 Create the databases
@@ -92,10 +85,10 @@ Naviagate to a terminal and type:
 
 
 The first command will create a user named ``dallinger`` and prompt you for a
-password. The second and third command will create the ``dallinger`` and 
+password. The second and third command will create the ``dallinger`` and
 ``dallinger-import`` databases, setting the newly created user as the owner.
 
-You can optionally inspect your databases by entering ``psql dallinger``. 
+You can optionally inspect your databases by entering ``psql dallinger``.
 Inside psql you can use commands to see the roles and database tables:
 ::
 
@@ -187,27 +180,13 @@ that have different (and often conflicting) requirements, to coexist on the same
 If you want to understand this in detail, you can read more about it `here <https://www.dabapps.com/blog/introduction-to-pip-and-virtualenv-python/>`__.
 
 Now let's set up a virtual environment by running the following commands:
-
-If using Python 2.7 and pip:
 ::
-
-
-    pip install virtualenv
-    pip install virtualenvwrapper
-    export WORKON_HOME=$HOME/.virtualenvs
-    mkdir -p $WORKON_HOME
-    export VIRTUALENVWRAPPER_PYTHON=$(which python)
-    source $(which virtualenvwrapper.sh)
-
-If using Python 3.x and pip3 (Python 3.7 in this example):
-::
-
 
     pip3 install virtualenv
     pip3 install virtualenvwrapper
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.7)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)
     source $(which virtualenvwrapper.sh)
 
 
@@ -220,17 +199,11 @@ Now create the virtual environment using:
 
 Examples:
 
-Using homebrew installed Python 3.7:
+Using homebrew installed Python 3.9:
 ::
 
 
-    mkvirtualenv dlgr_env --python /usr/local/bin/python3.7
-
-Using Python 2.7:
-::
-
-
-    mkvirtualenv dlgr_env --python /usr/bin/python
+    mkvirtualenv dlgr_env --python /usr/local/bin/python3.9
 
 
 Virtualenvwrapper provides an easy way to switch between virtual environments
@@ -258,17 +231,9 @@ command inside the virtual environment.
 The how-to:
 
 In the future, you can work on your virtual environment by running:
-Python 2.7
 ::
 
-    export VIRTUALENVWRAPPER_PYTHON=$(which python)
-    source $(which virtualenvwrapper.sh)
-    workon dlgr_env
-
-Python 3.x
-::
-
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.7)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)
     source $(which virtualenvwrapper.sh)
     workon dlgr_env
 
@@ -280,17 +245,9 @@ arguments.
 If you plan to do a lot of work with Dallinger, you can make your shell
 execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that type:
-
-Python 2.7
 ::
 
-    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python)" >> ~/.bash_profile
-    echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
-
-Python 3.x
-::
-
-    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.7)" >> ~/.bash_profile
+    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)" >> ~/.bash_profile
     echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
 
 
@@ -321,8 +278,8 @@ Install Python
 ~~~~~~~~~~~~~~
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 2.7 installed, or alternatively Python 3.6 or higher. Python 3 is the preferred option.
-You can check what version of Python you have by running:
+to have Python 3.7 or higher. You can check what version of Python you have
+by running:
 ::
 
     python --version
@@ -330,9 +287,9 @@ You can check what version of Python you have by running:
 
 Ubuntu 18.04 LTS ships with Python 3.6.
 
-Ubuntu 16.04 LTS ships with Python 3.5, while Ubuntu 14.04 LTS ships with Python 3.4. In case you are using one of these distributions of Ubuntu, you can use Dallinger with Python 2.7 or upgrade to the latest Python 3.x on your own.
-
-(All three of these Ubuntu versions also provide a version of Python 2.7)
+Ubuntu 16.04 LTS ships with Python 3.5, while Ubuntu 14.04 LTS ships with Python 3.4.
+In case you are using one of these distributions of Ubuntu, you will need to upgrade
+to the latest Python 3.x on your own.
 
 If you do not have Python 3 installed, you can install it from the
 `Python website <https://www.python.org/downloads/>`__.
@@ -344,14 +301,6 @@ contains the header files you need to build Python extensions appropriate to the
 
     You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed.     It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.) If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
 
-
-If using Python 2.7.x:
-::
-
-    sudo apt-get install python-dev
-    sudo apt install -y python-pip
-
-If using Python 3.x:
 ::
 
     sudo apt-get install python3-dev
@@ -498,23 +447,6 @@ that have different (and often conflicting) requirements, to coexist on the same
 If you want to understand this in detail, you can read more about it `here <https://www.dabapps.com/blog/introduction-to-pip-and-virtualenv-python/>`__.
 
 Now let's set up a virtual environment by running the following commands:
-
-If using Python 2.7 and pip:
-::
-
-    sudo pip install virtualenv
-    sudo pip install virtualenvwrapper
-    export WORKON_HOME=$HOME/.virtualenvs
-    mkdir -p $WORKON_HOME
-    source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
-
-
-.. note::
-
-    If the last line failed with "No such file or directory". Try using ``source /usr/local/bin/virtualenvwrapper.sh`` instead. Pip installs `virtualenvwrapper.sh` to different locations depending on the Ubuntu version.
-
-
-If using Python 3.x and pip3:
 ::
 
     sudo pip3 install virtualenv
@@ -524,6 +456,10 @@ If using Python 3.x and pip3:
     export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
     source /usr/local/bin/virtualenvwrapper.sh
 
+.. note::
+
+    If the last line failed with "No such file or directory". Try using ``source /usr/local/bin/virtualenvwrapper.sh`` instead. Pip installs `virtualenvwrapper.sh` to different locations depending on the Ubuntu version.
+
 
 Now create the virtualenv using the ``mkvirtualenv`` command as follows:
 
@@ -531,11 +467,6 @@ If you are using Python 3 that is part of your Ubuntu installation (Ubuntu 18.04
 ::
 
     mkvirtualenv dlgr_env --python /usr/bin/python3
-
-If you are using Python 2 that is part of your Ubuntu installation:
-::
-
-    mkvirtualenv dlgr_env --python /usr/bin/python
 
 If you are using another Python version
 (eg. custom installed Python 3.x on Ubuntu 16.04 or Ubuntu 14.04):
@@ -569,14 +500,6 @@ command inside the virtual environment.
 The how-to:
 
 In the future, you can work on your virtual environment by running:
-If using Python 2.7 and pip:
-::
-
-    source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
-    workon dlgr_env
-
-
-If using Python 3.x and pip3:
 ::
 
     source /usr/local/bin/virtualenvwrapper.sh
@@ -590,13 +513,6 @@ arguments.
 If you plan to do a lot of work with Dallinger, you can make your shell
 execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that:
-
-If using Python 2.7 and pip:
-::
-
-    echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
-
-If using Python 3.x and pip3:
 ::
 
     echo "source /usr/local/bin/virtualenvwrapper.sh" >> ~/.bashrc

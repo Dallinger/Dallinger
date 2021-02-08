@@ -363,14 +363,15 @@ class TestDelayedChain(object):
             net.add_node(a.node(network=net))
 
         non_source_nodes = [node for node in net.nodes() if node is not source]
-        added_after_11_existed = non_source_nodes[: len(non_source_nodes) - 11]
+        non_source_nodes.sort(key=lambda n: n.creation_time)
+        added_after_11_existed = non_source_nodes[10:]
 
         for index, node in enumerate(added_after_11_existed):
             try:
-                previous_node = added_after_11_existed[index + 1]
+                next_node = added_after_11_existed[index + 1]
             except IndexError:
                 break
-            assert node.is_connected(direction="from", whom=previous_node)
+            assert next_node.is_connected(direction="from", whom=node)
 
 
 class TestFullyConnected(object):

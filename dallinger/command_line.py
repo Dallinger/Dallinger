@@ -139,9 +139,9 @@ def report_idle_after(seconds):
 def verify_id(ctx, param, app):
     """Verify the experiment id."""
     if app is None:
-        raise TypeError("Select an experiment using the --app parameter.")
+        raise click.BadParameter("Select an experiment using the --app parameter.")
     elif app[0:5] == "dlgr-":
-        raise ValueError(
+        raise click.BadParameter(
             "The --app parameter requires the full "
             "UUID beginning with {}-...".format(app[5:13])
         )
@@ -184,8 +184,7 @@ def verify_directory(verbose=True, max_size_mb=50):
 
 
 def verify_experiment_module(verbose):
-    """Perform basic sanity checks on experiment.py.
-    """
+    """Perform basic sanity checks on experiment.py."""
     ok = True
     if not os.path.exists("experiment.py"):
         return False
@@ -217,7 +216,9 @@ def verify_experiment_module(verbose):
         ok = False
     elif len(exps) == 1:
         log(
-            "✓ experiment.py defines 1 experiment", chevrons=False, verbose=verbose,
+            "✓ experiment.py defines 1 experiment",
+            chevrons=False,
+            verbose=verbose,
         )
     else:
         log(
@@ -231,8 +232,7 @@ def verify_experiment_module(verbose):
 
 
 def verify_config(verbose=True):
-    """Check for common or costly errors in experiment configuration.
-    """
+    """Check for common or costly errors in experiment configuration."""
     ok = True
     config = get_config()
     if not config.ready:
@@ -809,7 +809,9 @@ def extend_mturk_hit(hit_id, assignments, duration_hours, sandbox):
                 hit_id=hit_id, number=assignments, duration_hours=duration_hours
             )
         except MTurkServiceException as ex:
-            out.error("HIT extension failed with the following error:\n{}".format(ex),)
+            out.error(
+                "HIT extension failed with the following error:\n{}".format(ex),
+            )
             return
 
     out.log("Updated HIT Details")
@@ -971,7 +973,8 @@ def verify():
     """Verify that app is compatible with Dallinger."""
     verbose = True
     log(
-        "Verifying current directory as a Dallinger experiment...", verbose=verbose,
+        "Verifying current directory as a Dallinger experiment...",
+        verbose=verbose,
     )
     ok = verify_package(verbose=verbose)
     if ok:

@@ -30,11 +30,9 @@ logger = logging.getLogger(__name__)
 with warnings.catch_warnings():
     warnings.simplefilter(action="ignore", category=FutureWarning)
     try:
-        import odo
-        import pandas as pd
         import tablib
     except ImportError:
-        logger.debug("Failed to import odo, pandas, or tablib.")
+        logger.debug("Failed to import tablib.")
 
 
 table_names = [
@@ -438,7 +436,6 @@ class Table(object):
 
     def __init__(self, path):
 
-        self.odo_resource = odo.resource(path)
         self.tablib_dataset = tablib.Dataset().load(open(path).read(), "csv")
 
     @property
@@ -454,7 +451,7 @@ class Table(object):
     @property
     def df(self):
         """A pandas DataFrame."""
-        return odo.odo(self.odo_resource, pd.DataFrame)
+        return self.tablib_dataset.df
 
     @property
     def html(self):
@@ -465,11 +462,6 @@ class Table(object):
     def latex(self):
         """A LaTeX table."""
         return self.tablib_dataset.latex
-
-    @property
-    def list(self):
-        """A Python list."""
-        return odo.odo(self.odo_resource, list)
 
     @property
     def ods(self):

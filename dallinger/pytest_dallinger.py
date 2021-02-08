@@ -144,7 +144,7 @@ def stub_config():
         u"dyno_type": u"free",
         u"heroku_app_id_root": u"fake-customid",
         u"heroku_auth_token": u"heroku secret",
-        u"heroku_python_version": u"3.6.10",
+        u"heroku_python_version": u"3.9.1",
         u"heroku_team": u"",
         u"host": u"0.0.0.0",
         u"id": u"TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
@@ -218,14 +218,14 @@ def db_session():
 
 @pytest.fixture
 def a(db_session):
-    """ Provides a standard way of building model objects in tests.
+    """Provides a standard way of building model objects in tests.
 
-        def test_using_all_defaults(self, a):
-            assert a.info()
+    def test_using_all_defaults(self, a):
+        assert a.info()
 
-        def test_with_participant_node(self, a):
-            participant = a.participant(worker_id=42)
-            info = a.info(origin=a.node(participant=participant))
+    def test_with_participant_node(self, a):
+        participant = a.participant(worker_id=42)
+        info = a.info(origin=a.node(participant=participant))
     """
 
     class ModelFactory(object):
@@ -402,7 +402,7 @@ def test_request(webapp):
 
 @pytest.fixture
 def debug_experiment(request, env, clear_workers):
-    timeout = pytest.config.getvalue("recruiter_timeout", 30)
+    timeout = request.config.getvalue("recruiter_timeout", 30)
     # Make sure debug server runs to completion with bots
     p = pexpect.spawn(
         "dallinger", ["debug", "--no-browsers"], env=env, encoding="utf-8"
@@ -424,9 +424,9 @@ def debug_experiment(request, env, clear_workers):
 
 
 @pytest.fixture
-def recruitment_loop(debug_experiment):
+def recruitment_loop(request, debug_experiment):
     def recruitment_looper():
-        timeout = pytest.config.getvalue("recruiter_timeout", 30)
+        timeout = request.config.getvalue("recruiter_timeout", 30)
         urls = set()
         while True:
             index = debug_experiment.expect(

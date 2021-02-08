@@ -1174,8 +1174,7 @@ def node_received_infos(node_id):
 @app.route("/tracking_event/<int:node_id>", methods=["POST"])
 @crossdomain(origin="*")
 def tracking_event_post(node_id):
-    """Enqueue a TrackingEvent worker for the specified Node.
-    """
+    """Enqueue a TrackingEvent worker for the specified Node."""
     details = request_parameter(parameter="details", optional=True)
     if details:
         details = loads(details)

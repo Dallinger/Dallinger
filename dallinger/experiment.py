@@ -773,7 +773,10 @@ class Experiment(object):
         network_stats = {}
         for role, count in network_counts:
             network_stats[role] = OrderedDict(
-                (("count", count), ("failed", failed_counts.get(role, 0)),)
+                (
+                    ("count", count),
+                    ("failed", failed_counts.get(role, 0)),
+                )
             )
         stats["Networks"] = network_stats
 
@@ -939,17 +942,17 @@ class Experiment(object):
 
     def dashboard_database_actions(self):
         """Returns a sequence of custom actions for the database dashboard. Each action
-           must have a ``title`` and a ``name`` corresponding to a method on the
-           experiment class.
+        must have a ``title`` and a ``name`` corresponding to a method on the
+        experiment class.
 
-           The named methods should take a single ``data`` argument
-           which will be a list of dicts representing the datatables rendering of
-           a Dallinger model object. The named methods should return a ``dict``
-           containing a ``"message"`` which will be displayed in the dashboard.
+        The named methods should take a single ``data`` argument
+        which will be a list of dicts representing the datatables rendering of
+        a Dallinger model object. The named methods should return a ``dict``
+        containing a ``"message"`` which will be displayed in the dashboard.
 
-           Returns a single action referencing the
-           :func:`~dallinger.experiment.Experiment.dashboard_fail`
-           method by default.
+        Returns a single action referencing the
+        :func:`~dallinger.experiment.Experiment.dashboard_fail`
+        method by default.
         """
         return [{"name": "dashboard_fail", "title": "Fail Selected"}]
 

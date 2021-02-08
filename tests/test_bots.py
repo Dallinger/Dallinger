@@ -34,9 +34,7 @@ class TestBots(object):
         assert isinstance(bot.driver, webdriver.PhantomJS)
         bot.driver.quit()
 
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("firefox"), reason="--firefox was not specified"
-    )
+    @pytest.mark.usefixtures("check_firefox")
     def test_bot_using_firefox(self, active_config):
         """Create a bot."""
         active_config.extend({"webdriver_type": u"firefox"})
@@ -45,9 +43,7 @@ class TestBots(object):
         bot = BotBase("http://dallinger.io")
         assert isinstance(bot.driver, webdriver.Firefox)
 
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("chrome"), reason="--chrome was not specified"
-    )
+    @pytest.mark.usefixtures("check_chrome")
     def test_bot_using_chrome(self, active_config):
         """Create a bot."""
         active_config.extend({"webdriver_type": u"chrome"})
@@ -56,18 +52,14 @@ class TestBots(object):
         bot = BotBase("http://dallinger.io")
         assert isinstance(bot.driver, webdriver.Chrome)
 
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("webdriver"), reason="--webdriver was not specified"
-    )
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("phantomjs"), reason="--phantomjs was not specified"
-    )
+    @pytest.mark.usefixtures("check_webdriver")
+    @pytest.mark.usefixtures("check_phantomjs")
     def test_bot_using_webdriver_phantomjs(self, active_config):
         """Create a bot."""
         active_config.extend(
             {
                 "webdriver_type": u"phantomjs",
-                "webdriver_url": pytest.config.getvalue("webdriver").decode("ascii"),
+                "webdriver_url": self._config.getvalue("webdriver").decode("ascii"),
             }
         )
         from dallinger.bots import BotBase
@@ -76,18 +68,14 @@ class TestBots(object):
         assert isinstance(bot.driver, webdriver.Remote)
         assert bot.driver.capabilities["browserName"] == "phantomjs"
 
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("webdriver"), reason="--webdriver was not specified"
-    )
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("firefox"), reason="--firefox was not specified"
-    )
+    @pytest.mark.usefixtures("check_webdriver")
+    @pytest.mark.usefixtures("check_firefox")
     def test_bot_using_webdriver_firefox(self, active_config):
         """Create a bot."""
         active_config.extend(
             {
                 "webdriver_type": u"firefox",
-                "webdriver_url": pytest.config.getvalue("webdriver").decode("ascii"),
+                "webdriver_url": self._config.getvalue("webdriver").decode("ascii"),
             }
         )
         from dallinger.bots import BotBase
@@ -96,18 +84,14 @@ class TestBots(object):
         assert isinstance(bot.driver, webdriver.Remote)
         assert bot.driver.capabilities["browserName"] == "firefox"
 
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("webdriver"), reason="--webdriver was not specified"
-    )
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("chrome"), reason="--chrome was not specified"
-    )
+    @pytest.mark.usefixtures("check_webdriver")
+    @pytest.mark.usefixtures("check_chrome")
     def test_bot_using_webdriver_chrome(self, active_config):
         """Create a bot."""
         active_config.extend(
             {
                 "webdriver_type": u"chrome",
-                "webdriver_url": pytest.config.getvalue("webdriver").decode("ascii"),
+                "webdriver_url": self._config.getvalue("webdriver").decode("ascii"),
             }
         )
         from dallinger.bots import BotBase

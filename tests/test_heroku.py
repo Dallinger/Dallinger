@@ -463,9 +463,7 @@ class TestHerokuApp(object):
         app.set("aws_secret_access_key", "some value")
         assert len(check_call.call_args_list) == 0
 
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("heroku"), reason="--heroku was not specified"
-    )
+    @pytest.mark.usefixtures("check_heroku")
     def test_full_monty(self, full_app, temp_repo):
         app = full_app
         assert app.name == u"dlgr-fake-uid"

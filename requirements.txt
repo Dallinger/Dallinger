@@ -1,5 +1,5 @@
--c constraints-deps.txt
 -c constraints.txt
+-c constraints-deps.txt
 APScheduler
 cached-property
 boto3
@@ -16,7 +16,7 @@ greenlet
 gunicorn
 localconfig
 pexpect
-psycopg2-binary
+psycopg2
 psutil
 redis
 requests

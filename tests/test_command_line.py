@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+import click
 import mock
 import os
 import re
@@ -118,25 +119,27 @@ class TestCommandLine(object):
 
     def test_log_empty(self):
         id = "dlgr-3b9c2aeb"
-        assert ValueError, subprocess.call(["dallinger", "logs", "--app", id])
+        assert click.BadParameter, subprocess.call(["dallinger", "logs", "--app", id])
 
     def test_log_no_flag(self):
-        assert TypeError, subprocess.call(["dallinger", "logs"])
+        assert click.BadParameter, subprocess.call(["dallinger", "logs"])
 
     def test_deploy_empty(self):
         id = "dlgr-3b9c2aeb"
-        assert ValueError, subprocess.call(["dallinger", "deploy", "--app", id])
+        assert click.BadParameter, subprocess.call(["dallinger", "deploy", "--app", id])
 
     def test_sandbox_empty(self):
         id = "dlgr-3b9c2aeb"
-        assert ValueError, subprocess.call(["dallinger", "sandbox", "--app", id])
+        assert click.BadParameter, subprocess.call(
+            ["dallinger", "sandbox", "--app", id]
+        )
 
     def test_verify_id_short_fails(self):
         id = "dlgr-3b9c2aeb"
-        assert ValueError, dallinger.commandline.verify_id(id)
+        assert click.BadParameter, dallinger.commandline.verify_id(id)
 
     def test_empty_id_fails_verification(self):
-        assert ValueError, dallinger.commandline.verify_id(None)
+        assert click.BadParameter, dallinger.commandline.verify_id(None)
 
     def test_new_uuid(self):
         output = subprocess.check_output(["dallinger", "uuid"])
@@ -283,8 +286,8 @@ class TestSandboxAndDeploy(object):
     def test_rejects_invalid_app_id(self, sandbox, dsss):
         result = CliRunner().invoke(sandbox, ["--verbose", "--app", "dlgr-some app id"])
         dsss.assert_not_called()
-        assert result.exit_code == -1
-        assert "The --app parameter requires the full UUID" in str(result.exception)
+        assert result.exit_code == 2
+        assert "The --app parameter requires the full UUID" in result.output
 
     def test_accepts_valid_archive_path(self, sandbox, tempdir, dsss):
         CliRunner().invoke(sandbox, ["--verbose", "--archive", tempdir])
@@ -536,13 +539,17 @@ class TestEmailTest(object):
             yield mock_mailer
 
     def test_check_with_good_config(self, email_test, mailer, active_config):
-        result = CliRunner().invoke(email_test,)
+        result = CliRunner().invoke(
+            email_test,
+        )
         mailer.send.assert_called_once()
         assert result.exit_code == 0
 
     def test_check_with_missing_value(self, email_test, mailer, active_config):
         active_config.extend({"smtp_username": u"???"})
-        result = CliRunner().invoke(email_test,)
+        result = CliRunner().invoke(
+            email_test,
+        )
         mailer.send.assert_not_called()
         assert result.exit_code == 0
 
@@ -937,7 +944,9 @@ class TestDestroy(object):
 
     @pytest.mark.slow
     def test_calls_destroy(self, destroy, heroku):
-        CliRunner().invoke(destroy, ["--app", "some-app-uid", "--yes"])
+        CliRunner().invoke(
+            destroy, ["--app", "some-app-uid", "--yes", "--no-expire-hit"]
+        )
         heroku.destroy.assert_called_once()
 
     def test_destroy_expires_hits(self, destroy, heroku, mturk):
@@ -1050,9 +1059,8 @@ class TestMonitor(object):
     ):
         heroku.db_uri = "fake-db-uri"
         result = CliRunner().invoke(monitor, ["--app", None])
-        assert (
-            str(result.exception) == "Select an experiment using the --app parameter."
-        )
+        assert result.exit_code == 2
+        assert "Select an experiment using the --app parameter." in result.output
 
 
 class TestHits(object):

@@ -8,10 +8,7 @@ import sys
 
 
 class TestGridUniverse(object):
-    @pytest.mark.skipif(
-        not pytest.config.getvalue("griduniverse"),
-        reason="--griduniverse was specified",
-    )
+    @pytest.mark.usefixtures("check_griduniverse")
     def test_tests(self):
         from dallinger.utils import GitClient
         from dallinger.utils import run_command

@@ -36,16 +36,13 @@ setup_args = dict(
         'pytest11': ['pytest_dallinger = dallinger.pytest_dallinger'],
     },
     extras_require={
-        'data': [
-            "networkx<2.0",  # 2.0 is incompatible with odo
-            "odo",
-            "openpyxl<2.5",  # 2.5 is incompatible with tablib
-            "pandas==0.23.4",
-            "tablib<0.12",    # 0.12 is incompatible
-        ],
         'jupyter': [
             "jupyter",
             "ipywidgets",
+        ],
+        'data': [
+            "pandas",
+            "tablib[all]",
         ],
         'dev': [
             "alabaster",
@@ -55,7 +52,7 @@ setup_args = dict(
             "codecov",
             "flake8",
             "mock",
-            "pycodestyle<2.4",  # 2.4 is incompatible with flake8
+            "pycodestyle",
             "pypandoc",
             "pytest",
             "recommonmark",

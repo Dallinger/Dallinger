@@ -10,8 +10,7 @@ CONFIG_PLACEHOLDER = u"???"
 
 
 class InvalidEmailConfig(ValueError):
-    """The configuration contained missing or invalid email-related values.
-    """
+    """The configuration contained missing or invalid email-related values."""
 
 
 class SMTPMailer(object):
@@ -97,8 +96,7 @@ class MessengerError(Exception):
 
 
 class EmailConfig(object):
-    """Extracts and validates email-related values from a Configuration
-    """
+    """Extracts and validates email-related values from a Configuration"""
 
     mail_config_keys = {
         "smtp_host",

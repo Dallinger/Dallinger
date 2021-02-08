@@ -221,7 +221,9 @@ class Participant(Base, SharedMixin):
     bonus = Column(Float)
 
     #: String representing the current status of the participant, can be:
+    #:
     #:    - ``working`` - participant is working
+    #:    - ``overrecruited`` - number of recruited participants exceed number required for the experiment, so this participant will not be used
     #:    - ``submitted`` - participant has submitted their work
     #:    - ``approved`` - their work has been approved and they have been paid
     #:    - ``rejected`` - their work has been rejected
@@ -614,8 +616,7 @@ class Network(Base, SharedMixin):
 
     @property
     def failure_cascade(self):
-        """When we fail, propagate the failure to our related Nodes.
-        """
+        """When we fail, propagate the failure to our related Nodes."""
         return [self.nodes]
 
     def calculate_full(self):
@@ -1470,8 +1471,7 @@ class Vector(Base, SharedMixin):
 
     @property
     def failure_cascade(self):
-        """When we fail, propagate the failure to our related Transmissions.
-        """
+        """When we fail, propagate the failure to our related Transmissions."""
         return [self.transmissions]
 
 
