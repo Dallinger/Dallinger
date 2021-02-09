@@ -42,14 +42,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '11.0.0'
-      - name: NVM
-        run: |
-          curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm install 10
-          yarn --frozen-lockfile --ignore-engines
+          node-version: '10'
+      - name: Install node packages
+        run: npm add -g yarn && yarn --frozen-lockfile --ignore-engines
       - name: Set up Ruby
         uses: actions/setup-ruby@v1
         with:
