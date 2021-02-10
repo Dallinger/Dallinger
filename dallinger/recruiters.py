@@ -532,7 +532,7 @@ class MTurkRecruiter(Recruiter):
     def external_submission_url(self):
         """On experiment completion, participants are returned to
         the Mechanical Turk site to submit their HIT, which in turn triggers
-        notifications to the /notifications route.
+        notifications to the /mturk-sns-listener route.
         """
         if self.is_sandbox:
             return "https://workersandbox.mturk.com/mturk/externalSubmit"
