@@ -14,19 +14,19 @@ services:
     volumes:
       - dallinger_redis_data:/data
   worker:
-    build: .
-    command: dallinger_heroku_worker
+    build: 
+      context: .
+      dockerfile: ./Dockerfile.worker
     environment: &commonenv
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
-    working_dir: /experiment
   web:
-    build: .
-    command: dallinger_heroku_web
+    build: 
+      context: .
+      dockerfile: ./Dockerfile.web
     environment:
       <<: *commonenv
       PORT: 5000
-    working_dir: /experiment
     ports:
       - "5000:5000"
 

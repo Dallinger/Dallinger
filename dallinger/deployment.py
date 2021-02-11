@@ -793,12 +793,21 @@ class DockerDeployment(DebugDeployment):
         dashboard_url = "{}/dashboard/".format(get_base_url())
         if not self.no_browsers:
             self.open_dashboard(dashboard_url)
+        # To build the docker images and upload them to heroku run the following
+        # command in self.tmp_dir:
+        # heroku container:push --recursive -a ${HEROKU_APP_NAME}
+        # To make sure the app has the necessary addons:
+        # heroku addons:create -a ${HEROKU_APP_NAME} heroku-postgresql:hobby-dev
+        # heroku addons:create -a ${HEROKU_APP_NAME} heroku-redis:hobby-dev
+        # To release containers:
+        # heroku container:release web worker -a ${HEROKU_APP_NAME}
+        # To initialize the database:
+        # heroku run dallinger-housekeeper initdb -a $HEROKU_APP_NAME
 
     def copy_docker_compse_files(self):
-        docker_compose_path = abspath_from_egg("dallinger", "docker/docker-compose.yml")
-        dockerfile_path = abspath_from_egg("dallinger", "docker/Dockerfile-experiment")
-        shutil.copy2(docker_compose_path, self.tmp_dir)
-        shutil.copy2(dockerfile_path, os.path.join(self.tmp_dir, "Dockerfile"))
+        for filename in ["docker-compose.yml", "Dockerfile.web", "Dockerfile.worker"]:
+            path = abspath_from_egg("dallinger", f"docker/{filename}")
+            shutil.copy2(path, self.tmp_dir)
 
     def setup(self):
         """Override setup to be able to build the experiment directory
