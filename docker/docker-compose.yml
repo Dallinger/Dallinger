@@ -20,6 +20,7 @@ services:
     environment: &commonenv
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
+      FLASK_SECRET_KEY: DO_NOT_USE_IN_PRODUCTION
   web:
     build: 
       context: .
