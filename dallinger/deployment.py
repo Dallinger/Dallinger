@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+import atexit
 import codecs
 import json
 import os
@@ -16,6 +17,7 @@ import time
 from six.moves import shlex_quote as quote
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.parse import urlunparse
+from subprocess import check_output
 from unicodedata import normalize
 
 from dallinger import data
@@ -26,6 +28,7 @@ from dallinger import registration
 from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
+from dallinger.utils import abspath_from_egg
 from dallinger.utils import connect_to_redis
 from dallinger.utils import dallinger_package_path
 from dallinger.utils import ensure_directory
@@ -281,7 +284,9 @@ def assemble_experiment_temp_dir(config):
     return dst
 
 
-def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
+def setup_experiment(
+    log, debug=True, verbose=False, app=None, exp_config=None, check_postgres=True
+):
     """Checks the experiment's python dependencies, then prepares a temp directory
     with files merged from the custom experiment and Dallinger.
 
@@ -290,11 +295,12 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     """
 
     # Verify that the Postgres server is running.
-    try:
-        db.check_connection()
-    except Exception:
-        log("There was a problem connecting to the Postgres database!")
-        raise
+    if check_postgres:
+        try:
+            db.check_connection()
+        except Exception:
+            log("There was a problem connecting to the Postgres database!")
+            raise
 
     # Check that the demo-specific requirements are satisfied.
     try:
@@ -755,6 +761,55 @@ class DebugDeployment(HerokuLocalDeployment):
         if self.complete:
             return HerokuLocalWrapper.MONITOR_STOP
         return super(DebugDeployment, self).notify(message)
+
+
+class DockerDeployment(DebugDeployment):
+    """Experimental/stub
+    Feed Docker the directory created for Heroku
+    (after a bit of massaging).
+    """
+
+    def run(self):
+        """Generate the directory for Heroku"""
+        self.configure()
+        self.setup()
+        self.update_dir()
+        self.copy_docker_compse_files()
+        os.chdir(self.tmp_dir)
+        os.system("docker-compose up --build -d")
+
+        def shutdown():
+            os.chdir(self.tmp_dir)
+            os.system("docker-compose down")
+
+        atexit.register(shutdown)
+        # Wait for postgres to complete initialization
+        while b"ready to accept connections" not in check_output(
+            ["docker-compose", "logs", "postgresql"]
+        ):
+            time.sleep(2)
+
+        os.system("docker-compose exec worker dallinger-housekeeper initdb")
+        dashboard_url = "{}/dashboard/".format(get_base_url())
+        if not self.no_browsers:
+            self.open_dashboard(dashboard_url)
+
+    def copy_docker_compse_files(self):
+        docker_compose_path = abspath_from_egg("dallinger", "docker/docker-compose.yml")
+        dockerfile_path = abspath_from_egg("dallinger", "docker/Dockerfile-experiment")
+        shutil.copy2(docker_compose_path, self.tmp_dir)
+        shutil.copy2(dockerfile_path, os.path.join(self.tmp_dir, "Dockerfile"))
+
+    def setup(self):
+        """Override setup to be able to build the experiment directory
+        without a working postgresql (it will work inside the docker compose env).
+        Maybe the postgres check can be removed altogether?
+        """
+        self.exp_id, self.tmp_dir = setup_experiment(
+            self.out.log,
+            exp_config=self.exp_config,
+            check_postgres=False,
+        )
 
 
 class LoaderDeployment(HerokuLocalDeployment):

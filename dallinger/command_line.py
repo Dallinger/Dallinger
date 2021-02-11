@@ -28,6 +28,7 @@ from dallinger import data
 from dallinger import db
 from dallinger.deployment import deploy_sandbox_shared_setup
 from dallinger.deployment import DebugDeployment
+from dallinger.deployment import DockerDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.deployment import ExperimentFileSource
@@ -432,6 +433,34 @@ def get_summary(app):
 def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
     """Run the experiment locally."""
     debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
+    log(header, chevrons=False)
+    debugger.run()
+
+
+@dallinger.command()
+@click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
+@click.option(
+    "--bot",
+    is_flag=True,
+    flag_value=True,
+    help="Use bot to complete experiment",
+)
+@click.option(
+    "--proxy",
+    default=None,
+    help="Alternate port when opening browser windows",
+)
+@click.option(
+    "--no-browsers",
+    is_flag=True,
+    flag_value=True,
+    default=False,
+    help="Skip opening browsers",
+)
+@require_exp_directory
+def docker_local(verbose, bot, proxy, no_browsers=False, exp_config=None):
+    """Run the experiment locally using docker compose."""
+    debugger = DockerDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
     log(header, chevrons=False)
     debugger.run()
 
@@ -1026,3 +1055,24 @@ def apps():
         out.log(tabulate.tabulate(listing, headers, tablefmt="psql"), chevrons=False)
     else:
         out.log("No heroku apps found for user {}".format(my_user))
+
+
+@click.group(context_settings=CONTEXT_SETTINGS)
+@click.version_option(__version__, "--version", "-v", message="%(version)s")
+def dallinger_housekeeper():
+    """Dallinger utilities to do housekeeping in a dallinger environment."""
+    from logging.config import fileConfig
+
+    fileConfig(
+        os.path.join(os.path.dirname(__file__), "logging.ini"),
+        disable_existing_loggers=False,
+    )
+
+
+@dallinger_housekeeper.command()
+@click.option("--no-drop")
+def initdb(no_drop):
+    from dallinger.db import init_db
+
+    drop_all = not no_drop
+    init_db(drop_all=drop_all)
