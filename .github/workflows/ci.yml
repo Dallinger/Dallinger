@@ -102,3 +102,17 @@ jobs:
         run: |
           tox -e fast
         if: matrix.python-version != 3.9
+      - name: Set up deployment
+        env:
+          CHANDLER_GITHUB_API_TOKEN: ${{ secrets.CHANDLER_GITHUB_API_TOKEN }}
+        run: |
+          pandoc --from=markdown --to=rst --output=README.rst README.md
+          pip install build
+          python -m build --sdist --wheel .
+          chandler push --tag-prefix=v
+        if: matrix.python-version == 3.9 && contains(github.ref, '/tags/v')
+      - name: Deploy
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+        if: matrix.python-version == 3.9 && contains(github.ref, '/tags/v')
