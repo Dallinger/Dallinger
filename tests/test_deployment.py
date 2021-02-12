@@ -736,7 +736,9 @@ class TestDebugServer(object):
             __enter__=mock.Mock(side_effect=OSError),
             __exit__=mock.Mock(return_value=False),
         )
-        with mock.patch("dallinger.deployment.HerokuLocalWrapper") as Wrapper:
+        with mock.patch(
+            "dallinger.deployment.HerokuLocalDeployment.WRAPPER_CLASS"
+        ) as Wrapper:
             Wrapper.return_value = mock_wrapper
             with pytest.raises(OSError):
                 debugger.run()
@@ -814,7 +816,7 @@ class TestDebugServer(object):
     def test_failure(self, debugger):
         from requests.exceptions import HTTPError
 
-        with mock.patch("dallinger.deployment.HerokuLocalWrapper"):
+        with mock.patch("dallinger.deployment.HerokuLocalDeployment.WRAPPER_CLASS"):
             with mock.patch("dallinger.deployment.requests.post") as mock_post:
                 mock_post.return_value = mock.Mock(
                     ok=False,
