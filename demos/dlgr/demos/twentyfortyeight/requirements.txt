@@ -1,1 +1,1 @@
-dallinger==6.6.0
+dallinger==7.0.0
