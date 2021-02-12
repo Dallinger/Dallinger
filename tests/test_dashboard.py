@@ -228,8 +228,9 @@ class TestDashboard(object):
 
 
 @pytest.fixture
-def csrf_token(webapp, dashboard_config):
-    # active_config.set("mode", "sandbox")
+def csrf_token(dashboard_config, webapp):
+    # Initialize app to get user info in config
+    webapp.get("/")
     # Make a writeable session and copy the csrf token into it
     from flask_wtf.csrf import generate_csrf
 
@@ -241,7 +242,7 @@ def csrf_token(webapp, dashboard_config):
 
 
 @pytest.fixture
-def logged_in(webapp, csrf_token):
+def logged_in(csrf_token, webapp):
     admin_user = webapp.application.config["ADMIN_USER"]
     webapp.post(
         "/dashboard/login",
@@ -277,7 +278,7 @@ class TestDashboardCoreRoutes(object):
         assert resp.status_code == 302
         assert resp.location.endswith("/login?next=%2Fdashboard%2F")
 
-    def test_login_bad_password(self, webapp, csrf_token):
+    def test_login_bad_password(self, csrf_token, webapp):
 
         resp = webapp.post(
             "/dashboard/login",
@@ -295,7 +296,7 @@ class TestDashboardCoreRoutes(object):
         login_resp = webapp.get("/dashboard/login")
         assert "Invalid username or password" in login_resp.data.decode("utf8")
 
-    def test_login_redirects_to_next(self, webapp, csrf_token):
+    def test_login_redirects_to_next(self, csrf_token, webapp):
         admin_user = webapp.application.config["ADMIN_USER"]
         login_resp = webapp.get("/dashboard/login?next=%2Fdashboard%2F")
         assert login_resp.status_code == 200
@@ -313,7 +314,7 @@ class TestDashboardCoreRoutes(object):
         assert resp.status_code == 302
         assert resp.location.endswith("/dashboard/something")
 
-    def test_login_rejects_malicious_urls(self, webapp, csrf_token):
+    def test_login_rejects_malicious_urls(self, csrf_token, webapp):
         admin_user = webapp.application.config["ADMIN_USER"]
 
         resp = webapp.post(

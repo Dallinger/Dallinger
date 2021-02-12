@@ -224,11 +224,6 @@ class TestQuestion(object):
         )
         assert models.Question.query.all()
 
-    def test_custom_route(self, a, webapp, active_config):
-        resp = webapp.get("/custom_route")
-        assert resp.status_code == 200
-        assert b"A custom route for TestExperiment." in resp.data
-
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
@@ -597,6 +592,11 @@ class TestSimpleGETRoutes(object):
     def test_nonexisting_experiment_property(self, webapp):
         resp = webapp.get("/experiment/missing")
         assert resp.status_code == 404
+
+    def test_custom_route(self, a, webapp):
+        resp = webapp.get("/custom_route")
+        assert resp.status_code == 200
+        assert b"A custom route for TestExperiment." in resp.data
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")

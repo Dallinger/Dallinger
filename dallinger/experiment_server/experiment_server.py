@@ -91,11 +91,10 @@ try:
     exp_klass = experiment.load()
     bp = exp_klass.experiment_routes
     routes = experiment.EXPERIMENT_ROUTE_REGISTRATIONS
-    for rule in routes:
-        route = routes[rule]
+    for route in routes:
         route_func = getattr(exp_klass, route["func_name"], None)
         if route_func is not None:
-            bp.route(rule, *route["args"], **route["kwargs"])(route_func)
+            bp.route(route["rule"], *route["args"], **dict(route["kwargs"]))(route_func)
     if routes:
         app.register_blueprint(bp)
 except ImportError:
