@@ -28,10 +28,10 @@ from dallinger import data
 from dallinger import db
 from dallinger.deployment import deploy_sandbox_shared_setup
 from dallinger.deployment import DebugDeployment
-from dallinger.deployment import DockerDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.deployment import ExperimentFileSource
+from dallinger.command_line.docker import docker
 from dallinger.notifications import admin_notifier
 from dallinger.notifications import SMTPMailer
 from dallinger.notifications import EmailConfig
@@ -41,6 +41,10 @@ from dallinger.heroku.tools import HerokuInfo
 from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
 from dallinger.recruiters import by_name
+from dallinger.command_line.utils import Output
+from dallinger.command_line.utils import error
+from dallinger.command_line.utils import log
+from dallinger.command_line.utils import require_exp_directory
 from dallinger.utils import check_call
 from dallinger.utils import generate_random_id
 from dallinger.version import __version__
@@ -61,33 +65,6 @@ header = r"""
 """.format(
     "v" + __version__
 )
-
-
-def log(msg, chevrons=True, verbose=True, **kw):
-    """Log a message to stdout."""
-    if verbose:
-        if chevrons:
-            click.echo("\n❯❯ " + msg, **kw)
-        else:
-            click.echo(msg, **kw)
-
-
-def error(msg, chevrons=True, verbose=True):
-    """Log a message to stdout."""
-    if verbose:
-        if chevrons:
-            click.secho("\n❯❯ " + msg, err=True, fg="red")
-        else:
-            click.secho(msg, err=True, fg="red")
-
-
-class Output(object):
-    def __init__(self, log=log, error=error, blather=None):
-        self.log = log
-        self.error = error
-        if blather is None:
-            blather = sys.stdout.write
-        self.blather = blather
 
 
 idle_template = """Dear experimenter,
@@ -330,25 +307,6 @@ def verify_package(verbose=True):
     return ok
 
 
-def require_exp_directory(f):
-    """Decorator to verify that a command is run inside a valid Dallinger
-    experiment directory.
-    """
-    error_one = "The current directory is not a valid Dallinger experiment."
-    error_two = "There are problems with the current experiment. Please check with dallinger verify."
-
-    @wraps(f)
-    def wrapper(**kwargs):
-        try:
-            if not verify_package(kwargs.get("verbose")):
-                raise click.UsageError(error_one)
-        except ValueError:
-            raise click.UsageError(error_two)
-        return f(**kwargs)
-
-    return wrapper
-
-
 click.disable_unicode_literals_warning = True
 
 
@@ -359,9 +317,12 @@ def dallinger():
     from logging.config import fileConfig
 
     fileConfig(
-        os.path.join(os.path.dirname(__file__), "logging.ini"),
+        os.path.join(os.path.dirname(__file__), "..", "logging.ini"),
         disable_existing_loggers=False,
     )
+
+
+dallinger.add_command(docker)
 
 
 @dallinger.command()
@@ -377,7 +338,10 @@ def setup():
     else:
         log("Creating Dallinger config file at ~/.dallingerconfig...", chevrons=False)
         src = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)), "default_configs", config_name
+            os.path.dirname(os.path.realpath(__file__)),
+            "..",
+            "default_configs",
+            config_name,
         )
         shutil.copyfile(src, config_path)
 
@@ -433,34 +397,6 @@ def get_summary(app):
 def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
     """Run the experiment locally."""
     debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
-    log(header, chevrons=False)
-    debugger.run()
-
-
-@dallinger.command()
-@click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
-@click.option(
-    "--bot",
-    is_flag=True,
-    flag_value=True,
-    help="Use bot to complete experiment",
-)
-@click.option(
-    "--proxy",
-    default=None,
-    help="Alternate port when opening browser windows",
-)
-@click.option(
-    "--no-browsers",
-    is_flag=True,
-    flag_value=True,
-    default=False,
-    help="Skip opening browsers",
-)
-@require_exp_directory
-def docker_local(verbose, bot, proxy, no_browsers=False, exp_config=None):
-    """Run the experiment locally using docker compose."""
-    debugger = DockerDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
     log(header, chevrons=False)
     debugger.run()
 
