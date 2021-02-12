@@ -492,6 +492,44 @@ def advertisement():
     )
 
 
+@app.route("/mturk-exit", methods=["GET"])
+@nocache
+def mturk_exit():
+    """"""
+    participant_id = request.args.get("participant_id")
+    if participant_id is None:
+        raise ExperimentError("improper_inputs")
+    config = _config()
+
+    # hit_id = request.args["hitId"]
+    # assignment_id = request.args["assignmentId"]
+    # app_id = config.get("id", "unknown")
+    # mode = config.get("mode")
+    # debug_mode = mode == "debug"
+    # worker_id = request.args.get("workerId")
+    participant = models.Participant.query.get(participant_id)
+
+    recruiter_name = request.args.get("recruiter")
+    if recruiter_name:
+        recruiter = recruiters.by_name(recruiter_name)
+    else:
+        recruiter = recruiters.from_config(config)
+        recruiter_name = recruiter.nickname
+
+    if should_show_thanks_page_to(participant):
+        # They've either done, or they're from a recruiter that requires
+        # submission of an external form to complete their participation.
+        return render_template(
+            "thanks.html",
+            hitid=participant.hit_id,
+            assignmentid=participant.assignment_id,
+            workerid=participant.worker_id,
+            external_submit_url=recruiter.external_submission_url,
+            mode=config.get("mode"),
+            app_id=config.get("id", "unknown"),
+        )
+
+
 @app.route("/summary", methods=["GET"])
 def summary():
     """Summarize the participants' status codes."""
