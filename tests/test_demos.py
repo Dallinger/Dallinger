@@ -3,7 +3,7 @@ import pytest
 import sys
 
 from dallinger import experiments
-from dallinger.command_line import verify_package
+from dallinger.command_line.utils import verify_package
 from dallinger.config import get_config
 
 

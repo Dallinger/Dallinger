@@ -3,7 +3,9 @@ import click
 from dallinger.deployment import DockerDeployment
 from dallinger.command_line.utils import Output
 from dallinger.command_line.utils import error
+from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
+from dallinger.command_line.utils import require_exp_directory
 
 
 @click.group()
@@ -31,6 +33,7 @@ def docker():
     default=False,
     help="Skip opening browsers",
 )
+@require_exp_directory
 def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
     """Run the experiment locally using docker compose."""
     debugger = DockerDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
