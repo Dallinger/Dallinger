@@ -2,7 +2,6 @@ import click
 
 from dallinger.deployment import DockerDebugDeployment
 from dallinger.command_line.utils import Output
-from dallinger.command_line.utils import error
 from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
 from dallinger.command_line.utils import require_exp_directory

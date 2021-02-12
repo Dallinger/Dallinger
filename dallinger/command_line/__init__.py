@@ -38,7 +38,6 @@ from dallinger.mturk import MTurkService
 from dallinger.mturk import MTurkServiceException
 from dallinger.recruiters import by_name
 from dallinger.command_line.utils import Output
-from dallinger.command_line.utils import error
 from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
 from dallinger.command_line.utils import require_exp_directory
