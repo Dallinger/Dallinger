@@ -62,7 +62,8 @@ setup_args = dict(
             "tox",
             "sphinx-js",
             "sphinx_rtd_theme",
-        ]
+        ],
+        ':python_version <= "3.7"': ['importlib_metadata'],
     }
 )
 

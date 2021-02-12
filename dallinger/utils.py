@@ -12,7 +12,11 @@ import sys
 import tempfile
 import webbrowser
 from pkg_resources import get_distribution
-from importlib.metadata import files as files_metadata
+
+try:
+    from importlib.metadata import files as files_metadata
+except ImportError:
+    from importlib_metadata import files as files_metadata
 from six.moves.urllib.parse import urlparse
 
 from dallinger.config import get_config
