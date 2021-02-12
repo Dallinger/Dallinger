@@ -24,12 +24,12 @@ class DockerComposeWrapper(object):
 
     shell_command = "docker-compose"
 
-    def __init__(self, config, output, tmp_dir, verbose=True, env=None):
+    def __init__(self, config, output, verbose=True, env=None):
         self.config = config
         self.out = output
         self.verbose = verbose
         self.env = env if env is not None else os.environ.copy()
-        self.tmp_dir = tmp_dir
+        self.tmp_dir = os.getcwd()
 
     def copy_docker_compse_files(self):
         for filename in ["docker-compose.yml", "Dockerfile.web", "Dockerfile.worker"]:
@@ -50,7 +50,11 @@ class DockerComposeWrapper(object):
         return self
 
     def __exit__(self, exctype, excinst, exctb):
-        os.system("docker-compose down")
+        os.system(f"docker-compose -f '{self.tmp_dir}/docker-compose.yml' down")
+
+    def monitor(self, listener):
+        print("Monitoring not yet implemented for docker")
+        time.sleep(86400)
 
     # To build the docker images and upload them to heroku run the following
     # command in self.tmp_dir:
