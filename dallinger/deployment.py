@@ -806,7 +806,9 @@ class DockerDeployment(DebugDeployment):
 
     def copy_docker_compse_files(self):
         for filename in ["docker-compose.yml", "Dockerfile.web", "Dockerfile.worker"]:
-            path = abspath_from_egg("dallinger", f"docker/{filename}")
+            path = abspath_from_egg(
+                "dallinger", f"dallinger/command_line/docker/{filename}"
+            )
             shutil.copy2(path, self.tmp_dir)
 
     def setup(self):

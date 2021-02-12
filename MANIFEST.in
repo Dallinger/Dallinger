@@ -1,7 +1,6 @@
 recursive-include dallinger *
 recursive-include dallinger_scripts *
 recursive-include docs *
-recursive-include docker *
 
 include requirements.txt
 include dev-constraints.txt
