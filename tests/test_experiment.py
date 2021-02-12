@@ -56,13 +56,16 @@ class TestExperimentBaseClass(object):
 
         assert len(Participant.query.filter(Participant.hit_id == "1").all()) == 0
 
-        p = exp_with_session.create_participant("1", "1", "1", "debug")
+        p = exp_with_session.create_participant(
+            "1", "1", "1", "debug", entry_information={"some_key": "some_value"}
+        )
 
         assert isinstance(p, Participant)
         assert p.hit_id == "1"
         assert p.worker_id == "1"
         assert p.assignment_id == "1"
         assert p.recruiter_id == "hotair"
+        assert p.entry_information == {"some_key": "some_value"}
         assert len(Participant.query.filter(Participant.hit_id == "1").all()) == 1
 
     def test_create_participant_with_custom_class(self, exp_with_session):
@@ -102,3 +105,16 @@ class TestExperimentBaseClass(object):
         assert p2.failed is True
         assert n.failed is True
         assert n2.failed is True
+
+    def test_normalize_entry_information_calls_recruiter(self, exp):
+        with mock.patch(
+            "dallinger.recruiters.Recruiter.normalize_entry_information"
+        ) as normalizer:
+            normalizer.side_effect = lambda *args: {
+                "assignment_id": "A",
+                "worker_id": "W",
+                "hit_id": "H",
+                "entry_information": args[-1],
+            }
+            exp.normalize_entry_information({"foo": "bar"})
+            normalizer.assert_called_once_with({"foo": "bar"})

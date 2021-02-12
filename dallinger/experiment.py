@@ -309,17 +309,22 @@ class Experiment(object):
         """
         network.add_node(node)
 
-    def check_entry_information(self, entry_information):
-        """Accepts a dictionary with information about a recruited user, and
-        validates and optionally modifies that data.
+    def normalize_entry_information(self, entry_information):
+        """Accepts a dictionary with information about a recruited user. Returns
+        a dictionary containing data the needed to create or load a Dallinger
+        Participant. The returned data should include valid ``assignment_id``,
+        ``worker_id``, and ``hit_id`` values. It may also include an
+        ``entry_information`` key which should contain a transformed
+        ``entry_information`` dict which will be stored for newly created
+        participants.
 
-        Returns a dictionary containng data the needed to create or load a
-        Dallinger Participant. The returned data should include valid
-        `assignment_id`, `worker_id`, and `hit_id` values. By default, the
-        extraction of these values is delegated to the recruiter's
-        `check_entry_information` method.
+        By default, the extraction of these values is delegated to the
+        recruiter's `normalize_entry_information` method.
+
+        Returning a dictionary without valid ``hit_id``, ``assignment_id``, or
+        ``worker_id`` will generally result in an exception.
         """
-        entry_data = self.recruiter.check_entry_information(entry_information)
+        entry_data = self.recruiter.normalize_entry_information(entry_information)
         # We need an assignment_id in order to create a participant
         return entry_data
 
@@ -347,6 +352,10 @@ class Experiment(object):
         :type mode: str
         :param recruiter_name: the recruiter name
         :type recruiter_name: str
+        :param fingerprint_hash: the user's fingerprint
+        :type fingerprint_hash: str
+        :param entry_information: a JSON serializable data structure containing
+                                  additional participant entry information
         :returns: A :attr:`~dallinger.models.Participant` instance
         """
         if not recruiter_name:

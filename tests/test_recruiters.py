@@ -112,6 +112,25 @@ class TestRecruiter(object):
     def test_backward_compat(self, recruiter):
         assert recruiter() is recruiter
 
+    def test_normalize_entry_information(self, recruiter):
+        normalized = recruiter.normalize_entry_information(
+            {"assignmentId": "A", "workerId": "W", "hitId": "H", "extra_info": "E"}
+        )
+        assert normalized == {
+            "assignment_id": "A",
+            "worker_id": "W",
+            "hit_id": "H",
+            "entry_information": {"extra_info": "E"},
+        }
+        normalized = recruiter.normalize_entry_information(
+            {"assignment_id": "A", "worker_id": "W", "hit_id": "H"}
+        )
+        assert normalized == {
+            "assignment_id": "A",
+            "worker_id": "W",
+            "hit_id": "H",
+        }
+
 
 @pytest.mark.usefixtures("active_config")
 class TestCLIRecruiter(object):

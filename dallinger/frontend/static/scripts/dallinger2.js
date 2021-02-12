@@ -392,8 +392,8 @@ var dallinger = (function () {
   };
 
   /**
-   * Create a new experiment `Participant` by making a ``POST`` request to
-   * the experiment `/participant/` route. If the experiment requires a
+   * Create a new experiment ``Participant`` by making a ``POST`` request to
+   * the experiment ``/participant/`` route. If the experiment requires a
    * quorum, the response will not resolve until the quorum is met. If the
    * participant is requested after the quorum has already been reached, the
    * ``dallinger.skip_experiment`` flag will be set and the experiment will
@@ -401,9 +401,13 @@ var dallinger = (function () {
    *
    * This method is called automatically by the default waiting room page.
    *
+   * @example
+   * // Create a new participant using entry information from dallinger.identity
+   * result = dallinger.createParticipant();
+   * result.done(function () {... handle ``data.status`` ...});
+   *
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
-  var url;
   dlgr.createParticipant = function() {
     var url = "/participant";
     var data = {};

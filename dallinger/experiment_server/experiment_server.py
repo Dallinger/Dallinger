@@ -418,7 +418,7 @@ def advertisement():
     participant = None
 
     exp = Experiment(session)
-    entry_data = exp.check_entry_information(entry_information)
+    entry_data = exp.normalize_entry_information(entry_information)
 
     hit_id = entry_data.get("hit_id")
     assignment_id = entry_data.get("assignment_id")
@@ -584,7 +584,7 @@ def consent():
 
     entry_information = request.args.to_dict()
     exp = Experiment(session)
-    entry_data = exp.check_entry_information(entry_information)
+    entry_data = exp.normalize_entry_information(entry_information)
 
     hit_id = entry_data.get("hit_id")
     assignment_id = entry_data.get("assignment_id")
@@ -802,7 +802,7 @@ def post_participant():
     # Remove the mode from entry_information if provided
     mode = entry_information.pop("mode", config.get("mode"))
     exp = Experiment(session)
-    participant_info = exp.check_entry_information(entry_information)
+    participant_info = exp.normalize_entry_information(entry_information)
     return create_participant(mode=mode, **participant_info)
 
 
@@ -827,7 +827,7 @@ def load_participant():
     """
     entry_information = request.form.to_dict()
     exp = Experiment(session)
-    participant_info = exp.check_entry_information(entry_information)
+    participant_info = exp.normalize_entry_information(entry_information)
 
     assignment_id = participant_info.get("assignment_id")
     if assignment_id is None:

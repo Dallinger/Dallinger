@@ -78,10 +78,18 @@ class Recruiter(object):
         """
         raise NotImplementedError
 
-    def check_entry_information(self, entry_information):
-        """Accepts data from recruited user and returns data needed
-        to create or load a Dallinger Participant.
-        May modify the entry information as a side effect.
+    def normalize_entry_information(self, entry_information):
+        """Accepts data from recruited user and returns data needed to validate,
+        create or load a Dallinger Participant.
+
+        See :func:`~dallinger.experiment.Experiment.create_participant` for
+        details.
+
+        The default implementation extracts ``hit_id``, ``assignment_id``, and
+        ``worker_id`` values directly from the ``entry_information``.
+
+        Returning a dictionary without valid ``hit_id``, ``assignment_id``, or
+        ``worker_id`` will generally result in an exception.
         """
         participant_data = {
             "hit_id": entry_information.pop(
