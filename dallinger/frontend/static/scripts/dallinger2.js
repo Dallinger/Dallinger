@@ -464,7 +464,7 @@ var dallinger = (function () {
         deferred = $.Deferred(),
         url = '/load-participant';
 
-    if (typeof assignment_info == "object") {
+    if (typeof assignment_info === "object") {
       data = assignment_info;
       dlgr.identity.entryInformation = assignment_info;
     } else {
